@@ -95,7 +95,8 @@ import type { StoredAddress } from '../components/AddressFields';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import type { CustomerSession } from '../lib/customerAuth';
 import {
-  readCart, setQuantity, removeItem, toLineItems,
+  readCart, setQuantity, removeItem, toLineItems, availableVariantsForItem,
+  needsVariantSelection, setVariant,
 } from '../lib/cart';
 import type { CartItem } from '../lib/cart';
 
@@ -669,6 +670,13 @@ export default function Cart (): React.ReactElement {
     setItems( removeItem( ref ) );
   }, [] );
 
+  const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
+    if ( !variantId ) return;
+    setItems( setVariant( ref, variantId ) );
+    setPaymentBlocked( false );
+    setNotice( { kind: 'quiet', message: 'Product option updated. Continue to secure payment.' } );
+  }, [] );
+
   /**
    * THE PREPARE POST AND ITS WHOLE RESPONSE HANDLING, LIFTED OUT OF `proceed` UNCHANGED.
    *
@@ -1092,7 +1100,19 @@ export default function Cart (): React.ReactElement {
     // blip the power to block a payable customer.
 
     setPaymentBlocked( false );
-    const lineItems = toLineItems();
+    const currentItems = readCart();
+    const unresolved = currentItems.find( needsVariantSelection );
+    if ( unresolved )
+    {
+      setItems( currentItems );
+      setPaymentBlocked( true );
+      setNotice( {
+        kind: 'quiet',
+        message: 'Choose a current product option below before secure payment.',
+      } );
+      return;
+    }
+    const lineItems = toLineItems( currentItems );
     if ( lineItems.length === 0 )
     {
       setItems( readCart() );
@@ -1170,6 +1190,22 @@ export default function Cart (): React.ReactElement {
                       </p>
                       {/* DISPLAY ONLY. This Wix passthrough price never reaches the server. */}
                       <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
+                      { needsVariantSelection( item ) && (
+                        <label className="cart-option-label">
+                          <span>Choose option</span>
+                          <select
+                            className="cart-option"
+                            aria-label={ `Choose option for ${item.name}` }
+                            value=""
+                            onChange={ e => chooseVariant( item.ref, e.target.value ) }
+                          >
+                            <option value="" disabled>Select fit / size</option>
+                            { availableVariantsForItem( item ).map( variant => (
+                              <option key={ variant.id } value={ variant.id }>{ variant.label }</option>
+                            ) ) }
+                          </select>
+                        </label>
+                      ) }
                     </div>
                     <div className="cart-row-controls">
                       <label className="cart-qty-label" htmlFor={ `qty-${item.ref}` }>Qty</label>
@@ -1353,6 +1389,12 @@ export default function Cart (): React.ReactElement {
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
+          .cart-option-label{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:14px;font-weight:700;color:#1a3a2a}
+          .cart-option{
+            min-height:44px;max-width:260px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;
+            background:#fff;color:#111827;font:inherit;
+          }
+          .cart-option:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
           .cart-row-controls{display:flex;align-items:center;gap:12px}
           .cart-qty-label{font-size:14px;font-weight:700;color:#1a3a2a}
           /* 44px is the tap-target floor. The site's CTA is 52px; a secondary field is not
