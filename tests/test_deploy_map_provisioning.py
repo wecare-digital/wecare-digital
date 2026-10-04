@@ -118,4 +118,4 @@ def test_qrcode_is_no_longer_imported_at_runtime():
     # The S3 asset and the text fallback both stay - the image degrades, the
     # information does not.
     assert "stream/media/m/qr-customerservice.png" in handler
-    assert "wecare.digital/selfservice" in handler
+    assert "wecare.digital/customerservice" in handler
