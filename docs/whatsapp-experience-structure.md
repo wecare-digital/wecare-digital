@@ -32,7 +32,7 @@ What moved:
 - `DEFAULT_ONE_MENU` (10 rows, 5 sections) is served by `_get_welcome_config()`,
   still overridable from `welcome_message_config`, still with no phone argument —
   so both WABAs render the identical menu.
-- `[retired public path b180810d]`, `[retired public path 6b3a02b3]`, the `Selfservice` ice breaker and the
+- `[retired public path b180810d]`, `[retired public path 6b3a02b3]`, the `Customer service` ice breaker and the
   `menu_customerservice` row all open **that** menu. The keywords stayed; only the
   second list went. `customerservice` also joined `BUTTON_MENU_TRIGGERS`, because an
   ice-breaker tap can arrive as `button`, which skips the text block entirely —
@@ -169,7 +169,7 @@ flows on WABA2, or accept that the menu degrades to links there. Do not paper ov
 
 | Entry | Mechanism | Arrives as | Lands on |
 |---|---|---|---|
-| Ice breaker tap | Conversational components: `Get Started`, `Subscribe`, `Selfservice` | `text` (or `button`) | keyword routing |
+| Ice breaker tap | Conversational components: `Get Started`, `Subscribe`, `Customer service` | `text` (or `button`) | keyword routing |
 | Slash command | Commands: `/menu` `/subscribe` `[retired public path b180810d]` `[retired public path 47a81ed9]` | `text` starting `/` | normalised, then keyword routing |
 | Typed keyword | free text | `text` | keyword routing (§4) |
 | QR / `wa.me/message/*` | prefilled message | `text` | keyword routing. **Dismisses ice breakers** |
@@ -198,7 +198,7 @@ Body: *Choose what you'd like to do — get started, explore our services, or fi
 
 | Section | Row id | Title | Description | Action |
 |---|---|---|---|---|
-| Start Here | `menu_customerservice` | 🚀 Selfservice | Requests, **appointments**, documents, and support | opens menu 3.2 |
+| Start Here | `menu_customerservice` | 🚀 Customer service | Requests, **appointments**, documents, and support | opens menu 3.2 |
 | | `menu_subscribe` | 🔔 Subscribe for Updates | Get updates, offers, and service news | `subscribe` flow |
 | | `menu_find_id` | 🆔 Find Profile ID | Locate your subscription or profile ID | `find id` lookup |
 | | `menu_pay` | 💳 Make a Payment | Pay an invoice or complete a pending payment | pay path |
@@ -208,9 +208,9 @@ Body: *Choose what you'd like to do — get started, explore our services, or fi
 | Help & Answers | `menu_faq` | ❓ FAQs | Find answers to common questions | CTA `[retired public path 1965ee0f]` |
 | | `menu_about` | 💛 About WECARE.DIGITAL | Learn more about WECARE.DIGITAL | text block |
 
-### 3.2 Self-service menu — `DEFAULT_CUSTOMERSERVICE_MENU` (`:6797`), override `customerservice_menu_config`
+### 3.2 Customer service menu — `DEFAULT_CUSTOMERSERVICE_MENU` (`:6797`), override `customerservice_menu_config`
 
-Header `Selfservice` · Button `Browse Services` · nine sections of one row each.
+Header `Customer service` · Button `Browse Services` · nine sections of one row each.
 
 | Section | Row id | Title | Description | Action |
 |---|---|---|---|---|
