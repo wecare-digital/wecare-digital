@@ -3,7 +3,7 @@
         "taken": "2026-09-25",
         "distributionId": "ERCXSFDL0VM8X",
         "ETag_at_snapshot": "E1PA6795UKMFR9",
-        "why": "Pre-change state before removing the selfservice.wecare.digital and selfcare.wecare.digital aliases. Both were claimed on this distribution but had NO DNS record, so neither was reachable; only app.wecare.digital resolves.",
+        "why": "Pre-change state before removing the customerservice.wecare.digital and selfcare.wecare.digital aliases. Both were claimed on this distribution but had NO DNS record, so neither was reachable; only app.wecare.digital resolves.",
         "rollback": "aws cloudfront update-distribution --id ERCXSFDL0VM8X --if-match <current ETag> --distribution-config file://<the DistributionConfig object below>",
         "note": "Aliases.Items below is the 3-entry pre-change list. The ACM certificate f75d0db0-d476-443a-b787-96c4931862d2 is NOT modified by the alias removal, so restoring an alias needs no certificate work."
     },
@@ -13,7 +13,7 @@
             "Quantity": 3,
             "Items": [
                 "app.wecare.digital",
-                "selfservice.wecare.digital",
+                "customerservice.wecare.digital",
                 "selfcare.wecare.digital"
             ]
         },
