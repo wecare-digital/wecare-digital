@@ -33,7 +33,7 @@ Which secret
 `wecare/razorpay/api`, which holds `key_id` and `key_secret`. **Not** `wecare/razorpay-webhook`,
 which has only ever held `webhook_secret`. Conflating them has already cost this codebase once:
 `partner-onboarding` read the API pair out of the webhook secret, got empty strings, and every
-self-service top-up returned 501 until it was found.
+customer-service top-up returned 501 until it was found.
 
 Read lazily, at request time. A module-scope read is cached for the life of the execution
 environment, so a rotation would not take effect until every warm sandbox recycled.
