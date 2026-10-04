@@ -1,6 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
-import { selfserviceBySlug } from '../content/selfservice';
+import { customerserviceBySlug } from '../content/customerservice';
 
 /**
  * /vault — asking for a copy of a document held against one of your requests.
