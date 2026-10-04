@@ -1336,3 +1336,130 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
     expect( fetchSpy ).not.toHaveBeenCalled();
   } );
 } );
+
+// ---------------------------------------------------------------------------------------
+// Review issue #1: the left-card reading must NOT hinge solely on the grid's CENTER cell.
+// When the center cell fails to parse (no finite AQI) while a peripheral cell parses, the
+// left card must still show a real reading (fallback to the first successfully-parsed grid
+// point) and must NOT show the "temporarily unavailable" retry. When NO cell parses, the
+// retry surfaces and no reading renders. These are behavioural - they drive a real pill
+// click, read back the real .vl-live-layer-result value, and would FAIL if the center-only
+// behaviour were restored.
+// ---------------------------------------------------------------------------------------
+describe( 'VayuLokLive - left-card reading falls back off the center cell (review #1)', () => {
+  let rec: MapsRecorder;
+
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    rec = installGoogleMaps();
+  } );
+
+  // The grid's CENTER cell sits exactly on the selected place (zero offset), so its request
+  // body carries the place's own lat/lng. The default place is Dawki.
+  const DAWKI_LAT = 25.18333;
+  const DAWKI_LNG = 92.01667;
+
+  // Parse the POST body's location out of a currentConditions:lookup request.
+  function reqLatLng( init?: RequestInit ): { lat: number; lng: number } | null {
+    try {
+      const body = JSON.parse( String( init?.body ) ) as { location?: { latitude?: number; longitude?: number } };
+      const lat = body?.location?.latitude;
+      const lng = body?.location?.longitude;
+      if ( typeof lat === 'number' && typeof lng === 'number' ) return { lat, lng };
+    } catch { /* not JSON */ }
+    return null;
+  }
+
+  it( 'renders a real reading from a peripheral cell when the CENTER cell has no finite AQI, and shows no error', async () => {
+    // The center cell (exactly on Dawki) returns a payload with NO finite AQI, so
+    // airStateFromApiData/airPointFromApi both reject it. Every OTHER cell parses with a
+    // real AQI of 143, so dots render AND a left-card reading must be derived from the
+    // first successfully-parsed peripheral cell.
+    const PERIPHERAL_AQI = 143;
+    const fetchSpy = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
+      const url = String( input );
+      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+        const loc = reqLatLng( init );
+        const isCenter = !!loc && loc.lat === DAWKI_LAT && loc.lng === DAWKI_LNG;
+        if ( isCenter ) {
+          // Unparseable: an index with a non-finite AQI => dropped, never fabricated.
+          return Promise.resolve( {
+            ok: true,
+            json: async () => ( {
+              dateTime: new Date().toISOString(),
+              indexes: [ { code: 'ind_cpcb', aqi: null, category: 'Unknown' } ],
+              pollutants: [],
+            } ),
+          } as Response );
+        }
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: PERIPHERAL_AQI, category: 'Moderate', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 71, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+            healthRecommendations: { generalPopulation: 'Limit prolonged outdoor exertion.' },
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    // Dots still render from the peripheral cells.
+    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
+    expect( deckRec.scatterProps.at( -1 )!.data.length ).toBeGreaterThan( 0 );
+
+    // The left-card RESULT block appears and carries the REAL peripheral AQI value, even
+    // though the center cell itself was unparseable. This is the fallback.
+    await waitFor( () => expect( container.querySelector( '.vl-live-left .vl-live-layer-result' ) ).not.toBeNull() );
+    const result = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
+    expect( result.querySelector( '.vl-live-metric-xl' )?.textContent ).toBe( String( PERIPHERAL_AQI ) );
+    expect( result.textContent ).toContain( 'Moderate' );
+
+    // And NO "temporarily unavailable" retry is shown, because a usable reading was derived.
+    expect( container.querySelector( '.vl-live-data-error' ) ).toBeNull();
+    expect( screen.queryByText( /temporarily unavailable/i ) ).toBeNull();
+  } );
+
+  it( 'surfaces the "temporarily unavailable" retry and no reading when NO cell parses', async () => {
+    // EVERY cell returns a payload with no finite AQI => no dot, no center, no fallback.
+    const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
+      const url = String( input );
+      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: null, category: 'Unknown' } ],
+            pollutants: [],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    // The retry affordance appears (coreError true) because no usable reading was derived.
+    await waitFor( () => expect( container.querySelector( '.vl-live-data-error' ) ).not.toBeNull() );
+    expect( screen.getByText( /temporarily unavailable/i ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'button', { name: 'Retry' } ) ).toBeInTheDocument();
+
+    // No left-card reading renders when nothing parsed.
+    expect( container.querySelector( '.vl-live-left .vl-live-layer-result' ) ).toBeNull();
+  } );
+} );

@@ -994,6 +994,10 @@ const VayuLokLive: React.FC = () => {
     const runThrottled = async (): Promise<{ dots: AirDot[]; center: AirState | null }> => {
       const dots: AirDot[] = [];
       let center: AirState | null = null;
+      // Raw response of the FIRST grid cell that parsed into a dot, kept so the left-card
+      // reading can fall back to it when the center cell itself fails to parse (review
+      // issue #1). We reuse a cell we already fetched - never an extra request.
+      let fallbackData: Record<string, any> | null = null;
       let cursor = 0;
       const CONCURRENCY = 4;
       const worker = async () => {
@@ -1009,6 +1013,8 @@ const VayuLokLive: React.FC = () => {
             const dot: AirDot = { lat: cell.lat, lng: cell.lng, aqi: point.aqi };
             if ( Number.isFinite( point.pm25 ) ) dot.pm25 = point.pm25;
             dots.push( dot );
+            // Remember the first dot-producing cell's raw payload for the fallback below.
+            if ( !fallbackData ) fallbackData = data;
           }
           if ( i === centerIdx ) {
             const parsed = airStateFromApiData( data );
@@ -1020,6 +1026,17 @@ const VayuLokLive: React.FC = () => {
         }
       };
       await Promise.all( Array.from( { length: Math.min( CONCURRENCY, cappedCells.length ) }, () => worker() ) );
+      // Center-cell preferred, but if it did not parse, derive the left-card reading from
+      // the first successfully-parsed grid cell's raw response (reusing airStateFromApiData
+      // on data we already fetched). This keeps a real reading showing whenever ANY cell
+      // parsed - real values only, nothing fabricated.
+      if ( center === null && fallbackData ) {
+        const fallbackCenter = airStateFromApiData( fallbackData );
+        if ( fallbackCenter ) {
+          center = fallbackCenter;
+          requestAnimationFrame( () => { if ( !ac.signal.aborted ) setAir( fallbackCenter ); } );
+        }
+      }
       return { dots, center };
     };
 
@@ -1102,7 +1119,10 @@ const VayuLokLive: React.FC = () => {
       await render( dots );
       requestAnimationFrame( () => {
         if ( ac.signal.aborted ) return;
-        setCoreError( dots!.length === 0 && center === null );
+        // coreError is about the LEFT-card reading, not the dots: surface the retry only
+        // when NO usable reading could be derived (no center AND no first-cell fallback),
+        // regardless of how many dots rendered (review issue #1).
+        setCoreError( center === null );
         setDataLoading( false );
       } );
     } )();
