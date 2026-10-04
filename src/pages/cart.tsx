@@ -264,6 +264,7 @@ type Outcome =
   | { kind: 'LINE_ITEMS_REQUIRED' }
   | { kind: 'SEND_FAILED' }
   | { kind: 'PRICING_UNAVAILABLE' }
+  | { kind: 'ITEM_UNAVAILABLE' }
   | { kind: 'UNRECOGNISED' };
 
 /**
@@ -847,6 +848,13 @@ export default function Cart (): React.ReactElement {
       // The message did not go out. The attempt exists and nothing was charged.
       if ( status === 'SEND_FAILED' ) return { kind: 'SEND_FAILED' };
 
+      // A cart item is no longer available in the store (retired/out-of-stock product or variant).
+      // Permanent and caller-fixable: tell the customer to remove it, do not imply a system failure.
+      if ( status === 'CART_ITEM_UNAVAILABLE' )
+      {
+        return { kind: 'ITEM_UNAVAILABLE' };
+      }
+
       // Priced/currency/catalogue problems. The request was refused, so nothing was charged.
       if (
         status === 'UNSUPPORTED_CURRENCY' || status === 'AMOUNT_NOT_SETTLED'
@@ -986,6 +994,16 @@ export default function Cart (): React.ReactElement {
     {
       setPaymentBlocked( true );
       setNotice( { kind: 'error', message: NOT_PREPARED } );
+      return;
+    }
+
+    if ( outcome.kind === 'ITEM_UNAVAILABLE' )
+    {
+      setPaymentBlocked( true );
+      setNotice( {
+        kind: 'error',
+        message: 'An item in your cart is no longer available. Remove it and try again.',
+      } );
       return;
     }
 

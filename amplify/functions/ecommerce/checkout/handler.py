@@ -650,8 +650,15 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
     except (checkout_pricing.PricingError, wix_ecom.AmountNotWhole):
         return cors_response(409, {"error": "AMOUNT_NOT_SETTLED"}, origin)
-    except wix_ecom.WixEcomError:
-        return cors_response(502, {"error": "CATALOGUE_UNAVAILABLE"}, origin)
+    except wix_ecom.WixEcomError as exc:
+        # A cart line's product/variant is retired, invisible, or out of stock in Wix, so the
+        # catalogue lookup raises. This is a PERMANENT, caller-fixable condition (remove the item),
+        # not a transient outage, so answer 409 CART_ITEM_UNAVAILABLE rather than a 502 the customer
+        # reads as "we failed". Log the detail (type only, no secret/PII) so it is diagnosable -
+        # this arm used to be the one silent branch, which is why the Lambda log looked clean.
+        logger.error(json.dumps({"event": "website_checkout_catalogue_unavailable",
+                                 "error": type(exc).__name__}))
+        return cors_response(409, {"error": "CART_ITEM_UNAVAILABLE"}, origin)
     except Exception as error:  # noqa: BLE001
         logger.error(json.dumps({"event": "website_checkout_prepare_failed",
                                  "error": type(error).__name__}))
