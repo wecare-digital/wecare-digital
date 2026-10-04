@@ -203,12 +203,12 @@ function is invoked.
 ### Still outstanding
 
 - **24 objects under `o/stream/media/m/` are behind delete markers created 2026-09-28
-  06:48–06:49**, including `selfservice.mp4`, `WECARE+SC.png` and `qr-selfservice.png`.
+  06:48–06:49**, including `customerservice.mp4`, `WECARE+SC.png` and `qr-customerservice.png`.
   `docs/execution/snapshots/get-delete-markers-removed-20260928.json` records markers being
   removed at 06:43–06:46, and new ones appeared 3–6 minutes later, so something is
   re-deleting them. **7 RCS template files registered with Sinch reference
-  `selfservice.mp4` and `WECARE+SC.png` as `mediaUrl`/`thumbnailUrl`.** The 459-byte
-  `qr-selfservice.png` version is intact behind its marker and recoverable. Not touched
+  `customerservice.mp4` and `WECARE+SC.png` as `mediaUrl`/`thumbnailUrl`.** The 459-byte
+  `qr-customerservice.png` version is intact behind its marker and recoverable. Not touched
   here, because this is another session's active media-parity work and a blind restore
   would thrash against whatever is re-deleting.
 - **`app.wecare.digital` maps both 403 and 404 to HTTP 200 serving `/error.html`.**
@@ -323,12 +323,12 @@ query strings — so `?cb=<n>` is not a valid absence test on this distribution.
 | Key | S3 object | Apex `/get` |
 |---|---|---|
 | `wd-brand-16x9.png` | **gone** | 200 (cache) |
-| `selfservice.mp4` | **gone** | 200 (cache) |
+| `customerservice.mp4` | **gone** | 200 (cache) |
 | `wecare-digital-rcs-h.png` | **gone** | 200 (cache) |
-| `wdb.png`, `wdf.png`, `qr-selfservice.png` | **gone** | 302 (cache already expired) |
+| `wdb.png`, `wdf.png`, `qr-customerservice.png` | **gone** | 302 (cache already expired) |
 | `wecare-digital.png`, `wecare-digital.svg`, `wecaredigital.png`, `meta-icon.svg` | present | 200 |
 
 `wd-brand-16x9.png` is the `og:image` in `src/pages/_app.tsx` and `src/components/SEO.tsx`;
-`selfservice.mp4` and `wecare-digital-rcs-h.png` are `mediaUrl`/`thumbnailUrl` in 7 RCS
+`customerservice.mp4` and `wecare-digital-rcs-h.png` are `mediaUrl`/`thumbnailUrl` in 7 RCS
 templates under `rcs/templates/`. Not restored here: it is another session's media-parity
 work, and the recovery is a delete-marker removal on production media.
