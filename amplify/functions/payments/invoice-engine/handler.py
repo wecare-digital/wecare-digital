@@ -1401,13 +1401,13 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     if reference_id:
         _left(f"Ref: {reference_id}", F)
         y += LINE_H
-    # Brand: all customerservice/flow invoices → "Selfservice"
+    # Brand: all customerservice/flow invoices → "Customer service"
     # Pay flow / WhatsApp payment → "Pay"
     # Manual / admin → no brand line
     entry_point = invoice.get('entryPoint', '')
     brand_label = ''
     if entry_point in ('submit_request_flow', 'flow_payment'):
-        brand_label = 'Selfservice'
+        brand_label = 'Customer service'
     elif entry_point in ('pay_flow', 'whatsapp_payment'):
         brand_label = 'Pay'
     elif entry_point == 'manual':
@@ -1628,7 +1628,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     if not qr_rendered:
         _center("Scan QR or visit:", FSM, CLR_GRY)
         y += LINE_H
-        _center("wecare.digital/selfservice", F)
+        _center("wecare.digital/customerservice", F)
         y += LINE_H
 
     # ═══ FOOTER ═══
@@ -1637,7 +1637,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     y += LINE_H + 2
     _center("Visit Again!", F, CLR_GRY)
     y += LINE_H
-    _center("wecare.digital/selfservice", FSM, CLR_GRY)
+    _center("wecare.digital/customerservice", FSM, CLR_GRY)
     y += LINE_H
     _dsep()
 
