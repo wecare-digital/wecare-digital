@@ -385,13 +385,13 @@ def _tool_get_site_summary(_params: Dict[str, Any]) -> Dict[str, Any]:
         "aiSurface": catalog.get("ai_surface"),
         "usageTerms": catalog.get("usage_terms"),
         "howToReachUs": {
-            "note": "Requests are handled through the self-service pages rather than by email.",
+            "note": "Requests are handled through the customer-service pages rather than by email.",
             "pages": [{
                 "path": p.get("path"),
                 "url": _page_url(str(p.get("path") or "/")),
                 "name": p.get("name"),
                 "description": p.get("description"),
-            } for p in _pages() if p.get("group") in ("selfservice", "start")],
+            } for p in _pages() if p.get("group") in ("customerservice", "start")],
         },
         "notCoveredHere": [
             "Any authenticated surface under /workspace/ - staff operations.",
@@ -426,7 +426,7 @@ TOOLS: Dict[str, Dict[str, Any]] = {
             "type": "object",
             "properties": {
                 "group": {"type": "string",
-                          "description": "One of: start, platform, services, selfservice, legal."},
+                          "description": "One of: start, platform, services, customerservice, legal."},
             },
             "additionalProperties": False,
         },
@@ -631,13 +631,13 @@ def _handle_initialize(request_id: Any, params: Dict[str, Any]) -> Dict[str, Any
         },
         "instructions": (
             "Read-only access to the public content of wecare.digital: the marketing and "
-            "self-service pages, and the published blog corpus.\n\n"
+            "customer-service pages, and the published blog corpus.\n\n"
             "Start with get_site_summary for identity and citation terms. Use search_pages to "
             "find the page covering a topic and search_blog for articles. Always cite the "
             "canonical url a tool returns; it already carries the trailing slash.\n\n"
             "This endpoint cannot act. It cannot send a message, create or amend a request, take "
             "a payment, or read any customer record. Direct a person who wants to do one of those "
-            f"to the relevant self-service page at {SITE_URL}/contact/ .\n\n"
+            f"to the relevant customer-service page at {SITE_URL}/contact/ .\n\n"
             "Do not state prices, turnaround times, or medical, legal or financial advice that a "
             "page does not state. Bharat Rx does not retail medicines."
         ),
