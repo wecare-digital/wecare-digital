@@ -78,26 +78,10 @@ CONTRIBUTION_MODE = "BLOG_CONTRIBUTION_RAZORPAY_STANDARD"
 #: The only currency contributions are taken in.
 CONTRIBUTION_CURRENCY = "INR"
 
-#: SERVER-AUTHORITATIVE preset amounts, in integer paise, mirroring src/config/contribution.ts
-#: (CONTRIBUTION_PRESETS_PAISE = [20000, 40000, 60000] = ₹200 / ₹400 / ₹600). Defined HERE so the
-#: browser cannot widen them: the browser value is only a request, and the server validates against
-#: THIS set + the bounds below. A tuple, so it cannot be mutated at runtime.
-#:
-#: CHANGED FROM (4900, 9900, 19900) = ₹49/₹99/₹199 on owner instruction (2026-10-02). THE TWO LISTS
-#: MUST MOVE TOGETHER: this tuple and src/config/contribution.ts are deliberately separate
-#: declarations so the browser cannot widen the trusted set, which means changing one alone leaves
-#: the server and the UI disagreeing about what a "preset" is.
-#: tests/test_blog_contribution.py::test_server_presets_mirror_the_frontend_contract is the guard
-#: that fails if they drift.
-CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (20000, 40000, 60000)
-
-#: SERVER-AUTHORITATIVE custom-amount bounds, in integer paise, mirroring the client hint bounds
-#: (CONTRIBUTION_MIN_PAISE = 1000 = ₹10, CONTRIBUTION_MAX_PAISE = 10_000_000 = ₹1,00,000). These are
-#: the TRUSTED range: a custom amount outside [MIN, MAX] is rejected regardless of what the browser
-#: claimed. The presets are always accepted even though every preset also happens to fall within
-#: the bounds - a preset is an exact allowed value, not merely a value in range.
-CONTRIBUTION_MIN_PAISE = 1000
-CONTRIBUTION_MAX_PAISE = 10_000_000
+#: SERVER-AUTHORITATIVE common contribution amounts, in integer paise, mirroring
+#: src/config/contribution.ts. Defined separately so the browser cannot widen the trusted set.
+#: Only these exact three values are accepted.
+CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 
 # ── outcome states: the SAME documented website-checkout contract the shipped UI binds to ──
 PAYMENT_INITIATION_DISABLED = "PAYMENT_INITIATION_DISABLED"
@@ -165,14 +149,12 @@ def validate_contribution_amount(requested_paise: Any, *, currency: str = CONTRI
     The browser value is ONLY a request. This is the trusted gate:
 
       * currency must be exactly INR (compared, never inferred from the amount);
-      * the amount must be a genuine ``int`` of minor units - a ``bool``, a float (``4900.5`` is
+      * the amount must be a genuine ``int`` of minor units - a ``bool``, a float (``10000.5`` is
         fractional paise), a string, or anything ``positive_paise`` refuses is rejected;
-      * a preset amount (``CONTRIBUTION_PRESETS_PAISE``) is always accepted;
-      * any other amount is a custom contribution and must fall within
-        ``[CONTRIBUTION_MIN_PAISE, CONTRIBUTION_MAX_PAISE]``.
+      * the amount must be one of the exact values in ``CONTRIBUTION_PRESETS_PAISE``.
 
-    A browser cannot widen this: a value above the max, below the min, fractional, or non-INR is
-    refused here before any gateway order is ever created.
+    A browser cannot widen this: any non-preset, fractional, or non-INR value is refused here
+    before any gateway order is ever created.
     """
     if currency != CONTRIBUTION_CURRENCY:
         raise ContributionRejected("UNSUPPORTED_CURRENCY")
@@ -181,10 +163,8 @@ def validate_contribution_amount(requested_paise: Any, *, currency: str = CONTRI
         amount = positive_paise(requested_paise)
     except (ValueError, TypeError):
         raise ContributionRejected("INVALID_AMOUNT")
-    if amount in CONTRIBUTION_PRESETS_PAISE:
-        return amount
-    if amount < CONTRIBUTION_MIN_PAISE or amount > CONTRIBUTION_MAX_PAISE:
-        raise ContributionRejected("AMOUNT_OUT_OF_RANGE")
+    if amount not in CONTRIBUTION_PRESETS_PAISE:
+        raise ContributionRejected("AMOUNT_NOT_ALLOWED")
     return amount
 
 
@@ -585,8 +565,6 @@ __all__ = [
     "CONTRIBUTION_MODE",
     "CONTRIBUTION_CURRENCY",
     "CONTRIBUTION_PRESETS_PAISE",
-    "CONTRIBUTION_MIN_PAISE",
-    "CONTRIBUTION_MAX_PAISE",
     "PAYMENT_INITIATION_DISABLED",
     "CHECKOUT_OPTIONS_READY",
     "CHECKOUT_REJECTED",

@@ -1321,31 +1321,20 @@ html,body{margin:0;background:#fff}
           <fieldset class="vl-bc-fieldset">
             <legend class="vl-bc-legend">Choose an amount</legend>
             <div class="vl-bc-choices" role="radiogroup" aria-label="Contribution amount">
-              <!-- AMOUNTS ARE OWNER-SET FOR THIS MOCK (2026-10-02): Rs50 / Rs200 / Rs400.
-                   They DIVERGE DELIBERATELY from the shipped presets, which are still
-                   CONTRIBUTION_PRESETS_PAISE = [20000, 40000, 60000] = Rs200/Rs400/Rs600 in
-                   BOTH src/config/contribution.ts and
-                   amplify/functions/shared/lambda_utils/ecommerce/blog_contribution.py:92.
-                   Those two are declared separately on purpose so the browser cannot widen
-                   the server's trusted amount, and three test files assert they do not drift
-                   (src/test/BlogContribution.test.tsx, src/test/BlogDesign.test.tsx,
-                   tests/test_blog_contribution.py). For the SITE to follow this mock, all of
-                   those must change together - that change is not authorised yet. -->
+              <!-- Shared contribution presets: Rs100 / Rs250 / Rs500. The live BlogContribution
+                   component and backend enforce the same exact three choices; there is no custom
+                   "Other" path. -->
               <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="50" checked>
-                <span class="vl-bc-choice-face">&#8377;50</span>
+                <input type="radio" name="vl-amount" class="vl-bc-radio" value="100" checked>
+                <span class="vl-bc-choice-face">&#8377;100</span>
               </label>
               <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="200">
-                <span class="vl-bc-choice-face">&#8377;200</span>
+                <input type="radio" name="vl-amount" class="vl-bc-radio" value="250">
+                <span class="vl-bc-choice-face">&#8377;250</span>
               </label>
               <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="400">
-                <span class="vl-bc-choice-face">&#8377;400</span>
-              </label>
-              <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="other">
-                <span class="vl-bc-choice-face">Other</span>
+                <input type="radio" name="vl-amount" class="vl-bc-radio" value="500">
+                <span class="vl-bc-choice-face">&#8377;500</span>
               </label>
             </div>
           </fieldset>
@@ -1358,9 +1347,8 @@ html,body{margin:0;background:#fff}
         <!-- THE PAYMENT-NOTICE PLACEHOLDER THAT STOOD HERE WAS DELETED, NOT FILLED IN.
              It claimed "the real component's amount limits, payment-provider notice and
              receipt wording sit here" - but src/components/BlogContribution.tsx carries
-             no such prose. Its only user-facing strings are "Choose an amount", the
-             aria-label "Contribution amount" and "Amount in rupees". There is no amount
-             limit notice, no payment-provider notice and no receipt wording to mirror, so
+             no such prose. Its amount UI is the three shared preset choices. There is no custom
+             amount notice, no payment-provider notice and no receipt wording to mirror, so
              the placeholder was standing in for copy that does not exist. -->
       </section>
       </div><!-- /.vl-app-left -->

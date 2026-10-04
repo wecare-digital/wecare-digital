@@ -3,12 +3,8 @@ import PillButton from './PillButton';
 import {
   CONTRIBUTION_CURRENCY,
   CONTRIBUTION_PRESETS_PAISE,
-  CONTRIBUTION_MIN_PAISE,
-  CONTRIBUTION_MAX_PAISE,
   CONTRIBUTION_PURPOSE,
   paiseToRupees,
-  rupeesToPaise,
-  isAllowedContributionPaise,
 } from '../config/contribution';
 
 /**
@@ -18,9 +14,8 @@ import {
  *
  * WHAT THIS COMPONENT IS, AND WHAT IT IS NOT
  * ------------------------------------------
- * It is the UI + the client seam. It renders the preset amounts and a validated custom-amount
- * input, and on a user action it ASKS a backend contribution-initiation endpoint to start a
- * payment. It is NOT the payment. The authoritative half - the BLOG_CONTRIBUTION purpose, the
+ * It is the UI + the client seam. It renders the three common preset amounts and, on a user
+ * action, ASKS a backend contribution-initiation endpoint to start a payment. It is NOT the payment. The authoritative half - the BLOG_CONTRIBUTION purpose, the
  * server-decided amount, the Razorpay gateway order, verification, the webhook, idempotency and the
  * stored records - is FEAT-004 and lives in the Python backend. That endpoint is gated OFF by
  * default (CHECKOUT_INITIATION_ENABLED, see amplify/functions/ecommerce/checkout/handler.py), so
@@ -56,7 +51,7 @@ export interface BlogContributionProps {
 }
 
 /** The browser-visible outcome states. "idle" is the default, server-rendered state. */
-type Phase = 'idle' | 'submitting' | 'unavailable' | 'ready' | 'invalid';
+type Phase = 'idle' | 'submitting' | 'unavailable' | 'ready';
 
 /** The documented backend states this client understands. Anything else degrades to unavailable. */
 type BackendState =
@@ -72,40 +67,18 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api
  */
 const CONTRIBUTION_INITIATE_URL = `${API_BASE}/ecommerce/contribution`;
 
-const OTHER = 'other' as const;
-/** The selectable choices: each preset keyed by its paise value, plus the "Other" custom option. */
-type Choice = number | typeof OTHER;
 
 const HONEST_UNAVAILABLE = 'Contributions are not available right now.';
 
 const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embedded = false } ) => {
-  const [ choice, setChoice ] = useState<Choice>( CONTRIBUTION_PRESETS_PAISE[ 0 ] );
-  const [ customRupees, setCustomRupees ] = useState( '' );
+  const [ choice, setChoice ] = useState<number>( CONTRIBUTION_PRESETS_PAISE[ 0 ] );
   const [ phase, setPhase ] = useState<Phase>( 'idle' );
   const [ message, setMessage ] = useState( '' );
 
-  /** The paise amount the current selection represents, or null if the custom input is not valid. */
-  const selectedPaise = (): number | null => {
-    if ( choice === OTHER ) {
-      const paise = rupeesToPaise( customRupees );
-      if ( paise === null || !isAllowedContributionPaise( paise ) ) return null;
-      return paise;
-    }
-    return choice;
-  };
 
   const onSubmit = async ( event: React.FormEvent ) => {
     event.preventDefault();
-    const paise = selectedPaise();
-    if ( paise === null ) {
-      // Client-side validation is a UX convenience; the server re-validates authoritatively.
-      setPhase( 'invalid' );
-      setMessage(
-        `Enter an amount between \u20B9${ paiseToRupees( CONTRIBUTION_MIN_PAISE ) } and `
-        + `\u20B9${ paiseToRupees( CONTRIBUTION_MAX_PAISE ) }.`
-      );
-      return;
-    }
+    const paise = choice;
 
     setPhase( 'submitting' );
     setMessage( '' );
@@ -155,7 +128,6 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
     }
   };
 
-  const customId = `bc-custom-${ slug }`;
 
   return (
     <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
@@ -182,46 +154,9 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
                 <span className="bc-choice-face">&#8377;{ paiseToRupees( paise ) }</span>
               </label>
             ) ) }
-            <label className="bc-choice">
-              <input
-                type="radio"
-                name="bc-amount"
-                className="bc-radio"
-                value={ OTHER }
-                checked={ choice === OTHER }
-                onChange={ () => { setChoice( OTHER ); setPhase( 'idle' ); setMessage( '' ); } }
-              />
-              <span className="bc-choice-face">Other</span>
-            </label>
           </div>
         </fieldset>
 
-        { choice === OTHER && (
-          <div className="bc-custom">
-            <label className="bc-custom-label" htmlFor={ customId }>Amount in rupees</label>
-            <div className="bc-custom-row">
-              <span className="bc-rupee" aria-hidden="true">&#8377;</span>
-              <input
-                id={ customId }
-                className="bc-custom-input"
-                type="text"
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder={ String( paiseToRupees( CONTRIBUTION_PRESETS_PAISE[ 1 ] ) ) }
-                value={ customRupees }
-                aria-describedby="bc-custom-help"
-                onChange={ ( e ) => {
-                  setCustomRupees( e.target.value );
-                  if ( phase !== 'idle' ) { setPhase( 'idle' ); setMessage( '' ); }
-                } }
-              />
-            </div>
-            <p className="bc-custom-help" id="bc-custom-help">
-              Between &#8377;{ paiseToRupees( CONTRIBUTION_MIN_PAISE ) } and
-              &#8377;{ paiseToRupees( CONTRIBUTION_MAX_PAISE ) }.
-            </p>
-          </div>
-        ) }
 
         <div className="bc-submit-wrap">
           <PillButton
@@ -287,21 +222,11 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
         .bc-radio:checked + .bc-choice-face{border-color:#1a3a2a;background:#d1f470}
         /* Opaque focus ring at offset, the page's standard - never a translucent alpha. */
         .bc-radio:focus-visible + .bc-choice-face{outline:3px solid #1a3a2a;outline-offset:2px}
-        .bc-custom{margin-top:16px}
-        .bc-custom-label{display:block;font-size:12px;font-weight:600;letter-spacing:.01em;color:rgba(0,0,0,.54);margin:0 0 6px}
-        .bc-custom-row{display:inline-flex;align-items:center;gap:6px;border:2px solid #e5e7eb;border-radius:12px;padding:4px 12px;background:#fff}
-        .bc-custom-row:focus-within{border-color:#1a3a2a}
-        .bc-rupee{font-size:16px;font-weight:700;color:#1a3a2a}
-        .bc-custom-input{
-          border:0;outline:0;background:transparent;font-size:16px;font-weight:600;letter-spacing:-.125px;
-          color:#1a1a1a;width:120px;padding:6px 0;font-family:inherit;
-        }
-        .bc-custom-help{font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:8px 0 0}
         /* The action itself is the shared public PillButton. This wrapper owns only placement,
            so Contribute cannot drift from Sign in / Checkout / Subscribe in shape or palette. */
         .bc-submit-wrap{margin-top:20px;display:flex;align-items:center}
-        /* The status line is deliberately plain, not a success banner: an honest "not available"
-           or a validation hint. The one ready variant is informational, never a receipt. */
+        /* The status line is deliberately plain, not a success banner. The ready variant is
+           informational only and never a receipt. */
         .bc-status{font-size:15px;line-height:1.5;color:rgba(0,0,0,.7);margin:16px 0 0}
         .bc-status.is-ready{color:#1a3a2a}
         @media(prefers-reduced-motion:reduce){

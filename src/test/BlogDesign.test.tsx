@@ -856,8 +856,9 @@ describe( 'Blog post page', () => {
     for ( const paise of CONTRIBUTION_PRESETS_PAISE ) {
       expect( faces.some( f => f.includes( String( paiseToRupees( paise ) ) ) ) ).toBe( true );
     }
-    // And the "Other" custom option is offered alongside the presets.
-    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( true );
+    // The common contribution UI is preset-only; there is no separate custom option.
+    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( false );
+    expect( faces ).toEqual( [ '₹100', '₹250', '₹500' ] );
   } );
 } );
 

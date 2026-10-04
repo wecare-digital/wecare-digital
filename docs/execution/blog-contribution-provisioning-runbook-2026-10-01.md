@@ -77,9 +77,9 @@ The ONE addition is the HTTP route the shipped UI
 - **`POST /ecommerce/contribution`** — the initiation endpoint. The browser POSTs
   `{ purpose: "BLOG_CONTRIBUTION", postId, slug, amountPaise, currency }`. The
   handler dispatches to `blog_contribution.prepare_contribution`, which validates
-  the amount SERVER-SIDE (against `CONTRIBUTION_PRESETS_PAISE` + the
-  `[CONTRIBUTION_MIN_PAISE, CONTRIBUTION_MAX_PAISE]` bounds, so the browser cannot
-  widen it), reserves the authoritative contribution record, and — only when the
+  the amount SERVER-SIDE against the exact `CONTRIBUTION_PRESETS_PAISE` allow-list
+  (₹100 / ₹250 / ₹500), so the browser cannot widen it or submit a custom amount,
+  reserves the authoritative contribution record, and — only when the
   gate is on — creates and binds a Razorpay gateway order. Gate off (the default)
   returns `PAYMENT_INITIATION_DISABLED` with no gateway order.
 

@@ -4,21 +4,16 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import BlogContribution from '../components/BlogContribution';
 import {
   CONTRIBUTION_PRESETS_PAISE,
-  CONTRIBUTION_MIN_PAISE,
-  CONTRIBUTION_MAX_PAISE,
   CONTRIBUTION_PURPOSE,
   paiseToRupees,
-  rupeesToPaise,
-  isAllowedContributionPaise,
 } from '../config/contribution';
 
 /**
  * THE "SUPPORT THIS WORK" CONTRIBUTION COMPONENT, IN ISOLATION.
  *
- * These cases pin the three things Section 5 is explicit about and that would regress silently:
- *   1. The preset amounts come from src/config/contribution.ts, not from literals in the markup.
- *   2. A custom amount is validated client-side against the configured bounds - out-of-range and
- *      non-numeric input is rejected and NOTHING is sent.
+ * These cases pin the common contribution contract:
+ *   1. The three amounts come from src/config/contribution.ts, not literals in the markup.
+ *   2. No custom "Other" option is rendered.
  *   3. With the backend gate off / unavailable / absent, the UI shows an honest non-error state
  *      and renders NO success affordance. A browser signal is never treated as proof of payment.
  */
@@ -32,7 +27,7 @@ const renderBlock = () =>
   render( <BlogContribution postId="post-1" slug="a-clear-question" /> );
 
 describe( 'BlogContribution presets', () => {
-  it( 'renders every preset from the central config plus an Other option', () => {
+  it( 'renders exactly the three common presets from central config', () => {
     const { container } = renderBlock();
     const faces = Array.from( container.querySelectorAll( '.bc-choice-face' ) )
       .map( n => n.textContent || '' );
@@ -41,22 +36,11 @@ describe( 'BlogContribution presets', () => {
     for ( const paise of CONTRIBUTION_PRESETS_PAISE ) {
       expect( faces.some( f => f.includes( String( paiseToRupees( paise ) ) ) ) ).toBe( true );
     }
-    // The owner's amounts, proving nothing re-typed a different number into the markup.
-    // Changed from ₹49/₹99/₹199 to ₹200/₹400/₹600 on owner instruction (2026-10-02). These are
-    // asserted as the FULL face text, not as substrings: the old test looked for '49', '99' and
-    // '199', and '199' is a substring of nothing here while '99' would have matched a '₹990' face
-    // just as happily - a loose check that could pass on the wrong number.
-    expect( faces.join( ' ' ) ).toContain( '₹200' );
-    expect( faces.join( ' ' ) ).toContain( '₹400' );
-    expect( faces.join( ' ' ) ).toContain( '₹600' );
-    // And the retired amounts must not still be on screen.
-    expect( faces.join( ' ' ) ).not.toContain( '₹49' );
-    expect( faces.join( ' ' ) ).not.toContain( '₹199' );
-    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( true );
+    expect( faces ).toEqual( [ '₹100', '₹250', '₹500' ] );
+    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( false );
 
-    // Presets + Other = one radio per choice.
     expect( container.querySelectorAll( 'input[type="radio"]' ) )
-      .toHaveLength( CONTRIBUTION_PRESETS_PAISE.length + 1 );
+      .toHaveLength( CONTRIBUTION_PRESETS_PAISE.length );
   } );
 
   it( 'uses an h2 heading and the mandated primary copy, never an h1', () => {
@@ -66,62 +50,6 @@ describe( 'BlogContribution presets', () => {
     expect( container.textContent ).toContain(
       'If you found this useful, you\u2019re welcome to make a small voluntary contribution.'
     );
-  } );
-} );
-
-describe( 'BlogContribution custom-amount validation', () => {
-  /**
-   * The validation helpers are the single source of truth the component uses, so pinning them
-   * here guarantees the UI and the config agree on what is in range.
-   */
-  it( 'rejects out-of-range and non-numeric custom amounts at the config boundary', () => {
-    expect( isAllowedContributionPaise( CONTRIBUTION_MIN_PAISE ) ).toBe( true );
-    expect( isAllowedContributionPaise( CONTRIBUTION_MAX_PAISE ) ).toBe( true );
-    expect( isAllowedContributionPaise( CONTRIBUTION_MIN_PAISE - 1 ) ).toBe( false );
-    expect( isAllowedContributionPaise( CONTRIBUTION_MAX_PAISE + 1 ) ).toBe( false );
-    // Fractional paise is refused: the money core will not round it.
-    expect( isAllowedContributionPaise( 4900.5 ) ).toBe( false );
-
-    // rupeesToPaise refuses non-numeric, signed, and sub-paise entries.
-    expect( rupeesToPaise( 'abc' ) ).toBeNull();
-    expect( rupeesToPaise( '' ) ).toBeNull();
-    expect( rupeesToPaise( '-5' ) ).toBeNull();
-    expect( rupeesToPaise( '10.123' ) ).toBeNull();
-    expect( rupeesToPaise( '49' ) ).toBe( 4900 );
-    expect( rupeesToPaise( '49.50' ) ).toBe( 4950 );
-  } );
-
-  it( 'does not submit and shows a hint when the custom amount is out of range', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal( 'fetch', fetchMock );
-    renderBlock();
-
-    // Switch to the custom option, enter a below-minimum amount, submit.
-    fireEvent.click( screen.getByDisplayValue( 'other' ) );
-    const input = screen.getByLabelText( 'Amount in rupees' );
-    fireEvent.change( input, { target: { value: '2' } } ); // ₹2 < ₹10 floor
-    fireEvent.click( screen.getByRole( 'button', { name: 'Contribute' } ) );
-
-    await waitFor( () => {
-      expect( screen.getByRole( 'status' ).getAttribute( 'data-phase' ) ).toBe( 'invalid' );
-    } );
-    // The network was never touched, so an invalid amount cannot start a payment.
-    expect( fetchMock ).not.toHaveBeenCalled();
-  } );
-
-  it( 'does not submit a non-numeric custom amount', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal( 'fetch', fetchMock );
-    renderBlock();
-
-    fireEvent.click( screen.getByDisplayValue( 'other' ) );
-    fireEvent.change( screen.getByLabelText( 'Amount in rupees' ), { target: { value: 'free!!' } } );
-    fireEvent.click( screen.getByRole( 'button', { name: 'Contribute' } ) );
-
-    await waitFor( () => {
-      expect( screen.getByRole( 'status' ).getAttribute( 'data-phase' ) ).toBe( 'invalid' );
-    } );
-    expect( fetchMock ).not.toHaveBeenCalled();
   } );
 } );
 
