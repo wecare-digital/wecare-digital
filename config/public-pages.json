@@ -11,7 +11,7 @@
     "  node scripts/generate-public-pages.js          rewrites it from the tree",
     "  node scripts/generate-public-pages.js --check   fails if it is stale (runs in CI)",
     "It is derived from PUBLIC_EXACT in scripts/generate-sitemap.js, PUBLIC_PAGE_META and the",
-    "render chains in src/pages/_app.tsx, src/content/products.ts, src/content/selfservice.ts and",
+    "render chains in src/pages/_app.tsx, src/content/products.ts, src/content/customerservice.ts and",
     "src/content/legal/, plus the presence of a real file under src/pages/. Add a page, delete a",
     "page or reword its description and this array follows on the next build. The one field no",
     "scan can infer is `group` - that is a positioning decision - so a new public route with no",
@@ -41,7 +41,7 @@
     "name": "WECARE.DIGITAL",
     "url": "https://wecare.digital",
     "tagline": "Customer operations for Bharat, run over the channels people already use.",
-    "summary": "WECARE.DIGITAL runs customer engagement and service operations for businesses in India across WhatsApp, RCS, SMS, email and voice, alongside a set of focused consumer services. Public pages describe what each service does; requests, amendments, documents and reviews are handled through the self-service pages rather than by email.",
+    "summary": "WECARE.DIGITAL runs customer engagement and service operations for businesses in India across WhatsApp, RCS, SMS, email and voice, alongside a set of focused consumer services. Public pages describe what each service does; requests, amendments, documents and reviews are handled through the customer-service pages rather than by email.",
     "language": "en-IN",
     "country": "IN",
     "sitemap": "https://wecare.digital/sitemap.xml"
@@ -63,7 +63,7 @@
       "note": "Consumer-facing services, each with its own page."
     },
     {
-      "id": "selfservice",
+      "id": "customerservice",
       "title": "Self service",
       "note": "The five pages that replace an email inbox. A request starts on one of these."
     },
@@ -183,37 +183,37 @@
     },
     {
       "path": "/submit-request",
-      "group": "selfservice",
+      "group": "customerservice",
       "name": "Submit Request",
       "description": "Start a new request, in your own words."
     },
     {
       "path": "/request-amendment",
-      "group": "selfservice",
+      "group": "customerservice",
       "name": "Request Amendment",
       "description": "Change a date, detail or scope on a request already under way."
     },
     {
       "path": "/drop-docs",
-      "group": "selfservice",
+      "group": "customerservice",
       "name": "Drop Docs",
       "description": "Send the documents a request needs, once."
     },
     {
       "path": "/vault",
-      "group": "selfservice",
+      "group": "customerservice",
       "name": "Vault",
       "description": "Ask for a copy of a document held against one of your requests."
     },
     {
       "path": "/leave-review",
-      "group": "selfservice",
+      "group": "customerservice",
       "name": "Leave Review",
       "description": "Tell us how something went, well or badly."
     },
     {
       "path": "/refer-and-earn",
-      "group": "selfservice",
+      "group": "customerservice",
       "name": "Refer & Earn",
       "description": "Introduce someone who would find this useful."
     },
