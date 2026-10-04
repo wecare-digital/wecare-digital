@@ -3,7 +3,7 @@
  *
  * Manages all automated WhatsApp responses from one place:
  * - Flow Triggers: keyword → WhatsApp Flow form mapping
- * - Selfservice Menu: the interactive list sent on "selfservice" keyword
+ * - Selfservice Menu: the interactive list sent on "customerservice" keyword
  * - Main Menu: the interactive list sent on "hi" / "menu"
  * - Welcome Message: first-time greeting for new contacts
  *
@@ -42,7 +42,7 @@ const S = {
 
 const AutoResponsePageBody: React.FC<Props> = () => {
   const toast = useToastContext();
-  const [tab, setTab] = useState<'triggers' | 'selfservice' | 'mainmenu' | 'welcome'>('triggers');
+  const [tab, setTab] = useState<'triggers' | 'customerservice' | 'mainmenu' | 'welcome'>('triggers');
   const [saving, setSaving] = useState(false);
 
   // ── Flow Triggers ──
@@ -71,7 +71,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
   }, []);
   const loadSsMenu = useCallback(async () => {
     setSsLoading(true);
-    try { const r = await api.getSystemConfig('selfservice_menu_config'); if (r) setSsMenu(r as any); } catch {}
+    try { const r = await api.getSystemConfig('customerservice_menu_config'); if (r) setSsMenu(r as any); } catch {}
     setSsLoading(false);
   }, []);
   const loadMainMenu = useCallback(async () => {
@@ -90,14 +90,14 @@ const AutoResponsePageBody: React.FC<Props> = () => {
 
   useEffect(() => {
     if (tab === 'triggers') loadTriggers();
-    if (tab === 'selfservice') loadSsMenu();
+    if (tab === 'customerservice') loadSsMenu();
     if (tab === 'mainmenu') loadMainMenu();
     if (tab === 'welcome') loadWelcome();
   }, [tab, loadTriggers, loadSsMenu, loadMainMenu, loadWelcome]);
 
   // Savers
   const saveTriggers = async () => { setSaving(true); try { await api.updateSystemConfig('flow_triggers_config', triggers); toast.success('Flow triggers saved'); } catch { toast.error('Save failed'); } setSaving(false); };
-  const saveSsMenu = async () => { setSaving(true); try { await api.updateSystemConfig('selfservice_menu_config', ssMenu); toast.success('Selfservice menu saved'); } catch { toast.error('Save failed'); } setSaving(false); };
+  const saveSsMenu = async () => { setSaving(true); try { await api.updateSystemConfig('customerservice_menu_config', ssMenu); toast.success('Selfservice menu saved'); } catch { toast.error('Save failed'); } setSaving(false); };
   const saveMainMenu = async () => { setSaving(true); try { await api.updateSystemConfig('welcome_message_config', mainMenu); toast.success('Main menu saved'); } catch { toast.error('Save failed'); } setSaving(false); };
   const saveWelcome = async () => { setSaving(true); try { await api.updateSystemConfig('wa_auto_response', { welcomeMessage: welcomeText, welcomeEnabled }); toast.success('Welcome saved'); } catch { toast.error('Save failed'); } setSaving(false); };
 
@@ -120,7 +120,7 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     <div style={{ padding: '12px 0' }}>
       <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: 14, display: 'flex', gap: 2 }}>
         <button style={S.tab(tab === 'triggers')} onClick={() => setTab('triggers')}>Flow Triggers</button>
-        <button style={S.tab(tab === 'selfservice')} onClick={() => setTab('selfservice')}>Selfservice Menu</button>
+        <button style={S.tab(tab === 'customerservice')} onClick={() => setTab('customerservice')}>Selfservice Menu</button>
         <button style={S.tab(tab === 'mainmenu')} onClick={() => setTab('mainmenu')}>Main Menu</button>
         <button style={S.tab(tab === 'welcome')} onClick={() => setTab('welcome')}>Welcome</button>
       </div>
@@ -167,11 +167,11 @@ const AutoResponsePageBody: React.FC<Props> = () => {
         </div>
       )}
 
-      {/* ── SELFSERVICE MENU ── */}
-      {tab === 'selfservice' && (
+      {/* ── CUSTOMERSERVICE MENU ── */}
+      {tab === 'customerservice' && (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-            <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>The list message sent when user types &quot;selfservice&quot;. Empty = Lambda defaults.</p>
+            <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>The list message sent when user types &quot;customerservice&quot;. Empty = Lambda defaults.</p>
             <button style={S.btnP} onClick={saveSsMenu} disabled={saving}>{saving ? '...' : 'Save'}</button>
           </div>
           {ssLoading && <p style={{ color: '#9ca3af', fontSize: 12 }}>Loading...</p>}
