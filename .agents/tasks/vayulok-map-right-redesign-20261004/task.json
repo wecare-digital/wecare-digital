@@ -1,0 +1,14 @@
+{
+  "task_id": "vayulok-map-right-redesign-20261004",
+  "task_description": "Redesign the VayuLok /vayulok/ live map area in src/components/VayuLokLive.tsx per four requirements: (01) make the numeric pill number-only with the provided referee-style SVG on a lime pill background, with the associated photo on the same lime background; (02) remove the overlaid place card (the .vl-live-map-preview card); (03) redesign the right side of the map - rounded borders, a centered search bar with a clear border and Google Maps India SKU autocomplete, show only the selected area's geocoding, and make the map expandable via drag/keyboard respecting India bounds and Google attribution; (04) align all styling to the homepage design system. Work stays on branch vayulok-retired-host-cleanup. Verification is typecheck/lint/vitest only (the referrer-restricted Maps key means no live map in sandbox - honest degradation path is the verification surface).",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null,
+  "verification": {
+    "build": "pass",
+    "tests": "pass",
+    "test_quality": "pass",
+    "docker_build": "skipped",
+    "summary": "npm run typecheck PASS (tsc --noEmit, no output). npm run lint PASS (0 errors, 203 pre-existing unrelated warnings). npm run test PASS (902 passed, 3 pre-existing skips, 74 files); the VayuLokLive suite is 13 tests all green. docker_build skipped: no Dockerfile is the authoritative build path and the Next static-export build is the heavier path; typecheck/lint/vitest are the project's verification surface and the live Google map cannot render in sandbox (referrer-restricted browser key), which is the expected honest-degradation state. test_quality: the new/changed VayuLokLive tests exercise real code paths - the expand-control test clicks the inline button and asserts the real mapExpanded->.is-expanded class and aria-expanded flip (would fail if the toggle were reverted), the removed-card test asserts .vl-live-map-preview and the 'photos' word/'View details' button are gone (would fail if the removal were reverted), and the India-scoping/map-option assertions read the actual options the component passes to google.maps.Map (keyboardShortcuts:false, gestureHandling:'greedy', strictBounds, India autocomplete). Honest-degradation (no key -> no map, zero fetches, no .vl-live-map-canvas) remains asserted and green. No Maps key is hardcoded; it is read only from process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY. All work is on branch vayulok-retired-host-cleanup across 3 commits; working tree clean; nothing pushed."
+  }
+}

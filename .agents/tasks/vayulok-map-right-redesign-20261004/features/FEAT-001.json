@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Establish a green baseline before any code change. Install dependencies and confirm typecheck, lint, and the existing vitest suite (which includes src/test/VayuLokLive.test.tsx) all pass as-is. This records the starting state so later behavior changes can be attributed to the actual edits and not a pre-existing break. Independent of other features and must run first.",
+  "status": "completed",
+  "steps": [
+    "From /projects/sandbox/wecare-digital, run `npm install` (node_modules may be absent). Node pinned in .nvmrc is 24; sandbox node is v22.23.3 - if install or a tool hard-fails solely on a node-version gate, record it in findings as a blocker rather than editing engines.",
+    "Run `npm run typecheck` (tsc --noEmit) and capture the result.",
+    "Run `npm run lint` (eslint .) and capture the result.",
+    "Run `npm run test` (vitest run) and capture the result; confirm src/test/VayuLokLive.test.tsx passes.",
+    "Record exact pass/fail (and any pre-existing failures unrelated to this task) in this feature's findings field so later features start from a known baseline. Do NOT modify application code in this feature."
+  ],
+  "acceptance_criteria": [
+    "`npm install` completes (or any blocker is clearly recorded in findings).",
+    "`npm run typecheck` result is recorded; passing is expected.",
+    "`npm run lint` result is recorded; passing is expected.",
+    "`npm run test` runs and the VayuLokLive suite result is recorded; passing is expected.",
+    "No application source files were modified by this feature."
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run test"
+  ],
+  "blocked_reason": null,
+  "findings": "Green baseline established on branch vayulok-retired-host-cleanup (no application source modified).\n\nENVIRONMENT: sandbox node v22.23.3, npm 11.4.2. .nvmrc pins node 24 (engines node>=24.0.0). `npm install` emitted an EBADENGINE *warning* for the node mismatch but did NOT hard-fail - this is a non-blocking warning only. No node-version gate blocked any step.\n\nnpm install: SUCCESS (exit 0). Added 789 packages, audited 791. Non-blocking noise only: EBADENGINE warning (node 22 vs required >=24), a peer-dep warning for @xstate/react (react 18 peer under @aws-amplify/ui-react), deprecation notices (uuid@7, eslint@9.39.5), and npm audit reporting 8 vulnerabilities (3 moderate, 5 high). None affect verification.\n\nnpm run typecheck (tsc --noEmit): PASS (exit 0, no output).\n\nnpm run lint (eslint .): PASS (exit 0). Reports 203 warnings, 0 ERRORS. Warnings are pre-existing and unrelated to this task (e.g. react-hooks/set-state-in-effect in src/pages/workspace/settings/internal-agent.tsx and src/pages/workspace/task/index.tsx; one unused eslint-disable directive in src/test/CartCheckout.test.tsx). eslint exits 0 because only warnings are present.\n\nnpm run test (vitest run): PASS (exit 0). 74 test files (73 passed, 1 skipped); 903 tests total (900 passed, 3 skipped). Duration ~20.7s.\n\nTARGET SUITE src/test/VayuLokLive.test.tsx: PASS - 11 tests passed (verified both in the full run and via an isolated `npx vitest run src/test/VayuLokLive.test.tsx` -> 1 file / 11 tests passed). This confirms the honest-degradation path (no key -> no Maps script, zero fetches) and the India-scoped map-wiring + forecast/history paths are green at baseline.\n\nKNOWN NON-FAILURE NOISE for later features: vitest stderr prints `Received true for a non-boolean attribute jsx` from several styled-jsx components (VayuLokLive, BlogSubscribe, PhoneFieldSearch, etc.) - this is a benign React warning under jsdom, not a test failure. All suites still pass.\n\nNo application source files were modified in FEAT-001; only the task-state JSON under .agents/tasks/ was updated."
+}

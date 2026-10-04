@@ -302,10 +302,6 @@ function hourLabel( ms: number ): string {
   return new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric' } ).format( new Date( ms ) );
 }
 
-function istTimeLabel(): string {
-  return 'IST · ' + new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' } ).format( new Date() );
-}
-
 function relativeAgeLabel( value?: string | number ): { label: string; stale: boolean } {
   if ( value === undefined || value === null ) return { label: 'Current', stale: false };
   const ms = typeof value === 'number' ? value : new Date( value ).getTime();
@@ -377,7 +373,6 @@ const VayuLokLive: React.FC = () => {
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
-  const [ istClock, setIstClock ] = useState( istTimeLabel() );
   const [ photoIndex, setPhotoIndex ] = useState( 0 );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
   const [ solarRequested, setSolarRequested ] = useState( false );
@@ -400,8 +395,6 @@ const VayuLokLive: React.FC = () => {
   const [ refreshNonce, setRefreshNonce ] = useState( 0 );
   const [ coreFetchedAt, setCoreFetchedAt ] = useState<number | null>( null );
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
-  const [ mapCandidateWeather, setMapCandidateWeather ] = useState<WeatherState | null>( null );
-  const [ mapCandidateAir, setMapCandidateAir ] = useState<AirState | null>( null );
   const [ nearbyPhotos, setNearbyPhotos ] = useState<PlacePhoto[]>( [] );
 
   // Search combobox state.
@@ -412,6 +405,11 @@ const VayuLokLive: React.FC = () => {
 
   // Which heatmap layer is active (user action only). null = none on load.
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
+  // 03C - expandable map. An explicit, keyboard-operable control (Enter/Space, with
+  // aria-expanded) grows the map stage; drag-pan works independently via
+  // gestureHandling:'greedy'. We keep keyboardShortcuts:false so Google's built-in
+  // arrow-pan does not fight the India strictBounds restriction.
+  const [ mapExpanded, setMapExpanded ] = useState( false );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const photoRailRef = useRef<HTMLDivElement | null>( null );
@@ -434,20 +432,11 @@ const VayuLokLive: React.FC = () => {
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
 
   useEffect( () => {
-    const tick = () => setIstClock( istTimeLabel() );
-    tick();
-    const id = window.setInterval( tick, 60_000 );
-    return () => window.clearInterval( id );
-  }, [] );
-
-  useEffect( () => {
     setSolar( null );
     setSolarRequested( false );
     setSolarLoading( false );
     setPhotoIndex( 0 );
     setMapCandidate( null );
-    setMapCandidateWeather( null );
-    setMapCandidateAir( null );
     setNearbyPhotos( [] );
   }, [ place.lat, place.lng ] );
 
@@ -594,7 +583,13 @@ const VayuLokLive: React.FC = () => {
             lng,
             photos: [],
           };
+          // 03C - selecting an area (here via a map click) recenters the map on that
+          // area's geocoded lat/lng and loads its live data, exactly like choosing a
+          // search result. The recenter effect (center + zoom 14 + marker move) fires on
+          // the place change, so only the selected area's geocoding is shown. mapCandidate
+          // continues to drive the photo overlay / nearby-media enrichment below.
           setMapCandidate( next );
+          setPlace( next );
 
           // If reverse geocoding produced a Place ID, enrich the preview with Google
           // Places photos. Any author attribution supplied by Google is preserved and
@@ -630,52 +625,6 @@ const VayuLokLive: React.FC = () => {
               } catch { /* photo enrichment is optional */ }
             }
           }
-          setMapCandidateWeather( null );
-          setMapCandidateAir( null );
-
-          const weatherPromise = fetch(
-            `https://weather.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&unitsSystem=METRIC`,
-          ).then( async res => {
-            if ( !res.ok ) return null;
-            const d = await res.json();
-            const out: WeatherState = {};
-            const temp = n( d?.temperature?.degrees );
-            if ( Number.isFinite( temp ) ) out.temp = Math.round( temp );
-            if ( typeof d?.weatherCondition?.description?.text === 'string' ) out.condition = d.weatherCondition.description.text;
-            if ( typeof d?.currentTime === 'string' ) out.currentTime = d.currentTime;
-            return Object.keys( out ).length ? out : null;
-          } ).catch( () => null );
-
-          const airPromise = fetch(
-            `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify( {
-                location: { latitude: lat, longitude: lng },
-                extraComputations: [ 'POLLUTANT_CONCENTRATION', 'LOCAL_AQI' ],
-                languageCode: 'en',
-                universalAqi: true,
-              } ),
-            },
-          ).then( async res => {
-            if ( !res.ok ) return null;
-            const d = await res.json();
-            const indexes = Array.isArray( d?.indexes ) ? d.indexes : [];
-            const idx = indexes.find( ( i: any ) => i?.code === 'ind_cpcb' ) || indexes.find( ( i: any ) => i?.code === 'uaqi' ) || indexes[ 0 ];
-            if ( !Number.isFinite( idx?.aqi ) ) return null;
-            const cat = aqiCategory( idx.aqi );
-            const pollutants: AirState['pollutants'] = [];
-            ( Array.isArray( d?.pollutants ) ? d.pollutants : [] ).forEach( ( p: any ) => {
-              if ( p?.code !== 'pm25' || !Number.isFinite( p?.concentration?.value ) ) return;
-              pollutants.push( { code: 'pm25', label: 'PM2.5', value: p.concentration.value, unit: concUnitLabel( p.concentration?.units ) } );
-            } );
-            return { aqi: idx.aqi, word: cat.word, sev: cat.sev, pollutants, updatedAt: d?.dateTime } as AirState;
-          } ).catch( () => null );
-
-          const [ previewWeather, previewAir ] = await Promise.all( [ weatherPromise, airPromise ] );
-          setMapCandidateWeather( previewWeather );
-          setMapCandidateAir( previewAir );
         } );
       } );
 
@@ -1433,6 +1382,10 @@ const VayuLokLive: React.FC = () => {
     if ( !next ) return;
     rememberPlace( next );
     setPlace( next );
+    // 03C - a fresh search selection owns the view: clear any lingering map-click
+    // candidate so previewPlace (mapCandidate || place) and the photo overlay follow the
+    // newly chosen area, never a stale clicked location.
+    setMapCandidate( null );
     setQuery( next.name );
     setOpen( false );
     setResults( [] );
@@ -1457,8 +1410,6 @@ const VayuLokLive: React.FC = () => {
   const weatherFreshness = relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined );
   const airFreshness = relativeAgeLabel( air?.updatedAt || coreFetchedAt || undefined );
   const previewPlace = mapCandidate || place;
-  const previewWeather = mapCandidate ? mapCandidateWeather : weather;
-  const previewAir = mapCandidate ? mapCandidateAir : air;
   const exactPhotos = previewPlace.photos || [];
   const displayPhotos = Array.from(
     new Map( [ ...exactPhotos, ...nearbyPhotos ].map( photo => [ photo.url, photo ] ) ).values(),
@@ -2014,7 +1965,7 @@ const VayuLokLive: React.FC = () => {
             browser key can never leave visitors staring at a blank grey panel. */}
         <div className="vl-live-right">
           <div className="vl-live-map-sticky">
-            <div className="vl-live-map-stage">
+            <div className={ `vl-live-map-stage ${mapExpanded ? 'is-expanded' : ''}`.trim() }>
               { !mapReady && (
                 <div
                   className="vl-live-map-fallback"
@@ -2122,155 +2073,94 @@ const VayuLokLive: React.FC = () => {
                     aria-pressed={ layer === 'PM25' }
                     onClick={ () => setLayer( 'PM25' ) }
                   >PM2.5</button>
+                  {/* 03C - accessible expand/collapse control. A real <button> so it is
+                      operable with Enter/Space and exposes aria-expanded; it toggles the
+                      expanded map stage height. Drag-pan still works via gestureHandling:
+                      'greedy'. Kept INLINE in the return so styled-jsx keeps its scope. */}
+                  <button
+                    className="vl-live-layer vl-live-map-expand"
+                    type="button"
+                    aria-expanded={ mapExpanded }
+                    aria-label={ mapExpanded ? 'Collapse map' : 'Expand map' }
+                    onClick={ () => setMapExpanded( v => !v ) }
+                  >{ mapExpanded ? 'Collapse' : 'Expand' }</button>
                 </div>
               ) }
 
-                {/* Single place card in the map's top-right. Google map attribution
-                    remains clear at the bottom of the map. */}
-                { ( previewAir || previewWeather || mapCandidate ) && (
-                  <div className="vl-live-map-preview">
-                    { displayPhotos.length ? (
-                      <>
-                        <div className="vl-live-photo-shell">
-                          <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
-                            <span>{ displayPhotos.length } photos</span>
+                {/* Standalone photo overlay. The former place card (name/metrics/
+                    insight/view-details) was removed; only the photo rail with its
+                    numeric pill survives as its own overlay. It stays inset from the
+                    map's bottom corners so Google's logo/legal stays visible. All
+                    markup stays INLINE in the return so styled-jsx keeps its scope. */}
+                { displayPhotos.length > 0 && (
+                  <div className="vl-live-map-photos">
+                    <div className="vl-live-photo-shell">
+                      <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
+                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" aria-hidden="true"><path d="M240-280v-120H120v-80h120v-120h80v120h120v80H320v120h-80Zm390 80v-438l-92 66-46-70 164-118h64v560h-90Z"/></svg>
+                        <span>{ displayPhotos.length }</span>
+                      </div>
+                      <div
+                        ref={ photoRailRef }
+                        className="vl-live-place-photos"
+                        aria-label={ `Photos near ${previewPlace.name}` }
+                        onScroll={ e => {
+                          const el = e.currentTarget;
+                          if ( el.clientWidth ) setPhotoIndex( Math.max( 0, Math.min( photoPages.length - 1, Math.round( el.scrollLeft / el.clientWidth ) ) ) );
+                        } }
+                      >
+                        { photoPages.map( ( page, pageIndex ) => (
+                          <div className="vl-live-photo-page" key={ page.map( p => p.url ).join( '|' ) }>
+                            { page.map( ( photo, i ) => (
+                              <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'}`.trim() } key={ photo.url }>
+                                <img
+                                  src={ photo.url }
+                                  alt={ `${previewPlace.name} area ${pageIndex * 3 + i + 1}` }
+                                  loading={ pageIndex === 0 && i === 0 ? 'eager' : 'lazy' }
+                                />
+                                { photo.attributions.length > 0 && (
+                                  <figcaption className="vl-live-photo-credit">
+                                    { photo.attributions.slice( 0, 2 ).map( ( credit, creditIndex ) => (
+                                      <React.Fragment key={ `${credit.name}-${creditIndex}` }>
+                                        { creditIndex > 0 ? ' · ' : '' }
+                                        { credit.uri
+                                          ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a>
+                                          : credit.name }
+                                      </React.Fragment>
+                                    ) ) }
+                                  </figcaption>
+                                ) }
+                              </figure>
+                            ) ) }
                           </div>
-                          <div
-                            ref={ photoRailRef }
-                            className="vl-live-place-photos"
-                            aria-label={ `Photos near ${previewPlace.name}` }
-                            onScroll={ e => {
-                              const el = e.currentTarget;
-                              if ( el.clientWidth ) setPhotoIndex( Math.max( 0, Math.min( photoPages.length - 1, Math.round( el.scrollLeft / el.clientWidth ) ) ) );
+                        ) ) }
+                      </div>
+                    </div>
+                    { photoPages.length > 1 && (
+                      <div className="vl-live-photo-tabs" role="tablist" aria-label={ `Photo set ${photoIndex + 1} of ${photoPages.length}` }>
+                        { photoPages.map( ( _, i ) => (
+                          <span
+                            key={ i }
+                            className="vl-live-photo-tab"
+                            role="tab"
+                            tabIndex={ 0 }
+                            aria-selected={ i === photoIndex }
+                            aria-label={ `Show photo set ${i + 1}` }
+                            onClick={ () => {
+                              const el = photoRailRef.current;
+                              if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
+                              setPhotoIndex( i );
                             } }
-                          >
-                            { photoPages.map( ( page, pageIndex ) => (
-                              <div className="vl-live-photo-page" key={ page.map( p => p.url ).join( '|' ) }>
-                                { page.map( ( photo, i ) => (
-                                  <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'}`.trim() } key={ photo.url }>
-                                    <img
-                                      src={ photo.url }
-                                      alt={ `${previewPlace.name} area ${pageIndex * 3 + i + 1}` }
-                                      loading={ pageIndex === 0 && i === 0 ? 'eager' : 'lazy' }
-                                    />
-                                    { photo.attributions.length > 0 && (
-                                      <figcaption className="vl-live-photo-credit">
-                                        { photo.attributions.slice( 0, 2 ).map( ( credit, creditIndex ) => (
-                                          <React.Fragment key={ `${credit.name}-${creditIndex}` }>
-                                            { creditIndex > 0 ? ' · ' : '' }
-                                            { credit.uri
-                                              ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a>
-                                              : credit.name }
-                                          </React.Fragment>
-                                        ) ) }
-                                      </figcaption>
-                                    ) }
-                                  </figure>
-                                ) ) }
-                              </div>
-                            ) ) }
-                          </div>
-                        </div>
-                        { photoPages.length > 1 && (
-                          <div className="vl-live-photo-tabs" role="tablist" aria-label={ `Photo set ${photoIndex + 1} of ${photoPages.length}` }>
-                            { photoPages.map( ( _, i ) => (
-                              <span
-                                key={ i }
-                                className="vl-live-photo-tab"
-                                role="tab"
-                                tabIndex={ 0 }
-                                aria-selected={ i === photoIndex }
-                                aria-label={ `Show photo set ${i + 1}` }
-                                onClick={ () => {
-                                  const el = photoRailRef.current;
-                                  if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
-                                  setPhotoIndex( i );
-                                } }
-                                onKeyDown={ e => {
-                                  if ( e.key !== 'Enter' && e.key !== ' ' ) return;
-                                  e.preventDefault();
-                                  const el = photoRailRef.current;
-                                  if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
-                                  setPhotoIndex( i );
-                                } }
-                              />
-                            ) ) }
-                          </div>
-                        ) }
-                      </>
-                    ) : (
-                      <div className="vl-live-place-photo-fallback" role="img" aria-label={ `VayuLok place preview for ${previewPlace.name}` }>
-                        <span aria-hidden="true" />
+                            onKeyDown={ e => {
+                              if ( e.key !== 'Enter' && e.key !== ' ' ) return;
+                              e.preventDefault();
+                              const el = photoRailRef.current;
+                              if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
+                              setPhotoIndex( i );
+                            } }
+                          />
+                        ) ) }
                       </div>
                     ) }
-
-                    <div className="vl-live-map-preview-head">
-                      <p className="vl-live-card-h">{ previewPlace.name }</p>
-                      <p className="vl-live-map-address">{ previewPlace.addr }</p>
-                    </div>
-                    <div className="vl-live-map-preview-meta">
-                      <time className="vl-live-ist" dateTime={ new Date().toISOString() }>{ istClock }</time>
-                      { previewWeather?.condition && <span>{ previewWeather.condition }</span> }
-                    </div>
-                    <div className="vl-live-preview-metrics">
-                      { Number.isFinite( previewWeather?.temp ) && (
-                        <div><p className="vl-live-label">Temp</p><span className="vl-live-metric-md">{ previewWeather!.temp }°</span></div>
-                      ) }
-                      { previewAir && (
-                        <div><p className="vl-live-label">AQI</p><span className="vl-live-metric-md">{ previewAir.aqi }</span><p className="vl-live-preview-cat">{ previewAir.word }</p></div>
-                      ) }
-                      { previewAir && previewAir.pollutants.filter( p => p.code === 'pm25' ).map( p => (
-                        <div key="prev-pm25"><p className="vl-live-label">PM2.5</p><span className="vl-live-metric-md">{ Math.round( p.value ) }</span><p className="vl-live-preview-cat">{ p.unit }</p></div>
-                      ) ) }
-                    </div>
-
-                    { ( bestOutside || previewAir || previewWeather ) && (
-                      <div className="vl-live-preview-insight">
-                        <p>
-                          { bestOutside
-                            ? <>Best outside <strong>{ bestOutside.label }</strong>.</>
-                            : previewWeather?.condition
-                              ? <>Current conditions: <strong>{ previewWeather.condition }</strong>.</>
-                              : <>Live conditions for <strong>{ previewPlace.name }</strong>.</> }
-                        </p>
-                        <span>
-                          { bestOutside
-                            ? bestOutside.note
-                            : previewAir
-                              ? `Air quality is ${previewAir.word.toLowerCase()} right now.`
-                              : 'Open the details for the full weather outlook.' }
-                        </span>
-                      </div>
-                    ) }
-
-                    { layer && (
-                      <div className="vl-live-preview-scale" aria-label={ layer === 'AQI' ? 'AQI heatmap scale' : 'PM2.5 heatmap scale' }>
-                        <p className="vl-live-label">{ layer === 'AQI' ? 'AQI heatmap' : 'PM2.5 heatmap' }</p>
-                        <div className="vl-live-scale" aria-hidden="true" />
-                        <div className="vl-live-scale-ends">
-                          <span>{ layer === 'AQI' ? 'Good' : 'Lower' }</span>
-                          <span>{ layer === 'AQI' ? 'Severe' : 'Higher' }</span>
-                        </div>
-                      </div>
-                    ) }
-                    <button
-                      className="vl-live-view-details"
-                      type="button"
-                      onClick={ () => {
-                        if ( mapCandidate ) {
-                          rememberPlace( mapCandidate );
-                          setPlace( mapCandidate );
-                          setQuery( mapCandidate.name );
-                          setMapCandidate( null );
-                          setMapCandidateWeather( null );
-                          setMapCandidateAir( null );
-                        }
-                        document.getElementById( 'vl-live-now-place' )?.scrollIntoView( { behavior: 'smooth', block: 'start' } );
-                      } }
-                    >
-                      { mapCandidate ? 'View details' : 'Jump to details' }
-                      <span aria-hidden="true"> →</span>
-                    </button>
                   </div>
                 ) }
             </div>
@@ -2337,7 +2227,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-left > .vl-live-section{margin-top:64px;padding-top:0;border-top:0}
 
         .vl-live-map-sticky{display:flex;flex-direction:column;gap:10px}
-        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:14px;background:var(--ground);box-shadow:none}
+        /* 03A - the whole map surface reads as ONE rounded panel. The stage owns the
+           20px home panel radius; the canvas and fallback inherit it so no square
+           corner shows through at any zoom. 20px (not 14px) gives the pronounced
+           rounded feel the owner asked for, and stays inside the home token set. */
+        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:20px;background:var(--ground);box-shadow:none;transition:height .32s var(--e-glide)}
+        /* 03C - expanded mode grows the stage height; drag-pan (gestureHandling:'greedy')
+           and the keyboard-operable expand control both still respect India strictBounds. */
+        .vl-live-map-stage.is-expanded{height:560px}
         .vl-live-map-fallback{
           position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;gap:14px;
           width:100%;height:100%;padding:24px;border:0;border-radius:inherit;overflow:hidden;
@@ -2374,9 +2271,13 @@ const VayuLokLive: React.FC = () => {
           .vl-live-band-aside{padding-top:0;border-top:0;padding-left:44px;border-left:1px solid var(--hair)}
         }
 
-        /* Search. */
-        .vl-live-map-search{position:absolute;top:16px;left:16px;z-index:7;width:min(360px,calc(100% - 32px))}
-        .vl-live-search{position:relative;width:100%;max-width:360px}
+        /* Search. 03B - horizontally centred over the map with clear space above it,
+           max-width so it never spans edge-to-edge, and the highest overlay z-index so
+           the field (and its results dropdown anchored directly beneath) sits above the
+           canvas and the layer/photo overlays. The field keeps its 2px #1a3a2a outer
+           border + lime focus ring (defined on .vl-live-search-field below). */
+        .vl-live-map-search{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:7;width:min(380px,calc(100% - 32px))}
+        .vl-live-search{position:relative;width:100%;max-width:380px}
         .vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         /* One control, matching the shipped BlogSearch field: a single bordered box
            (2px rgba(26,58,42,.22), 12px radius, 52px) that darkens its border and
@@ -2441,19 +2342,25 @@ const VayuLokLive: React.FC = () => {
         .vl-live-layer:hover{border-color:var(--lime);background:var(--lime-tint);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-layer:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live-layer[aria-pressed="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
+        /* 03C expand control - reuses the layer pill language; its pressed/open state
+           mirrors the lime active fill used by the layer buttons. */
+        .vl-live-map-expand[aria-expanded="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
 
         .vl-live-scale{height:8px;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--aqi-good) 0%,var(--aqi-sat) 22%,var(--aqi-mod) 48%,var(--aqi-poor) 74%,var(--aqi-worst) 100%)}
         .vl-live-scale-ends{display:flex;justify-content:space-between;margin-top:6px;gap:8px}
         .vl-live-scale-ends span{font-size:11px;font-weight:700;color:var(--green)}
 
-        /* Single map place card: merged photo-led reference + Home design language. */
-        .vl-live-map-preview{position:absolute;top:80px;right:16px;left:auto;bottom:auto;z-index:4;width:min(400px,calc(100% - 150px));padding:0 20px 20px;border:1px solid rgba(209,244,112,.9);border-radius:20px;background:rgba(255,255,255,.99);box-shadow:0 14px 34px rgba(26,58,42,.14);overflow:visible}
-        .vl-live-map-preview::after{content:'';position:absolute;left:50%;bottom:-10px;width:20px;height:20px;background:#fff;border-right:1px solid rgba(209,244,112,.9);border-bottom:1px solid rgba(209,244,112,.9);transform:translateX(-50%) rotate(45deg);border-radius:0 0 4px 0}
-        .vl-live-photo-shell{position:relative;margin:0 -20px}
+        /* Standalone photo overlay (the former place card was removed). It is a
+           self-contained lime-framed photo rail pinned to the map's top-right, inset
+           so Google's bottom-corner logo/legal stays visible. */
+        .vl-live-map-photos{position:absolute;top:80px;right:16px;left:auto;bottom:auto;z-index:4;width:min(400px,calc(100% - 150px));padding:0;border:1px solid rgba(209,244,112,.9);border-radius:20px;background:var(--lime-solid);box-shadow:0 14px 34px rgba(26,58,42,.14);overflow:hidden}
+        .vl-live-photo-shell{position:relative;margin:0}
         .vl-live-place-photos{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;border-radius:20px 20px 0 0;scroll-snap-type:x mandatory;scrollbar-width:none}
         .vl-live-place-photos::-webkit-scrollbar{display:none}
-        .vl-live-photo-page{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);grid-template-rows:1fr 1fr;gap:6px;flex:0 0 100%;height:236px;padding:0;scroll-snap-align:start;background:#fff}
-        .vl-live-place-photo{position:relative;width:100%;height:100%;margin:0;overflow:hidden;background:#eef3ef}
+        /* The photo cells sit on the same lime pill colour so a loading/absent image
+           reads as the lime behind the numeric pill. */
+        .vl-live-photo-page{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);grid-template-rows:1fr 1fr;gap:6px;flex:0 0 100%;height:236px;padding:0;scroll-snap-align:start;background:var(--lime-solid)}
+        .vl-live-place-photo{position:relative;width:100%;height:100%;margin:0;overflow:hidden;background:var(--lime-solid)}
         .vl-live-place-photo.is-primary{grid-row:1 / span 2;border-radius:20px 0 0 0}
         .vl-live-place-photo.is-secondary{border-radius:0}
         .vl-live-place-photo.is-secondary:nth-child(2){border-radius:0 20px 0 0}
@@ -2461,35 +2368,15 @@ const VayuLokLive: React.FC = () => {
         .vl-live-photo-credit{position:absolute;right:6px;bottom:5px;left:6px;z-index:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;border-radius:7px;background:rgba(255,255,255,.76);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:8px;line-height:1.2;color:rgba(26,58,42,.78)}
         .vl-live-photo-credit a{color:inherit;text-decoration:none}
         .vl-live-photo-credit a:hover{text-decoration:underline}
-        .vl-live-photo-count{position:absolute;top:12px;left:12px;z-index:4;display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(209,244,112,.96);color:var(--green);font-size:11px;font-weight:800;line-height:1;box-shadow:0 2px 8px rgba(26,58,42,.12)}
-        .vl-live-place-photo-fallback{height:196px;margin:0;border-radius:20px 20px 0 0;display:grid;place-items:center;background:linear-gradient(135deg,rgba(209,244,112,.5),rgba(26,58,42,.08)),#eef3ef}
-        .vl-live-place-photo-fallback span{width:26px;height:26px;border:7px solid var(--green);border-radius:50% 50% 50% 0;background:var(--lime);transform:rotate(-45deg)}
-        .vl-live-photo-tabs{display:flex;gap:5px;margin:7px 0 13px;padding:0 1px;height:14px;align-items:center}
+        /* Number-only pill (req 01): the numeric count + a decorative referee SVG on
+           the lime pill background. No word text, no red. */
+        .vl-live-photo-count{position:absolute;top:12px;left:12px;z-index:4;display:inline-flex;align-items:center;gap:4px;padding:5px 10px 5px 6px;border-radius:999px;background:var(--lime);color:var(--green);font-size:13px;font-weight:800;line-height:1;box-shadow:0 2px 8px rgba(26,58,42,.12)}
+        .vl-live-photo-count svg{display:block;width:20px;height:20px;flex:0 0 auto}
+        .vl-live-photo-tabs{display:flex;gap:5px;margin:0;padding:7px 11px 11px;height:auto;align-items:center}
         .vl-live-photo-tab{position:relative;display:block;flex:1 1 0;height:14px;min-width:10px;cursor:pointer;outline:none}
         .vl-live-photo-tab::after{content:'';position:absolute;left:0;right:0;top:50%;height:2px;border-radius:999px;background:#e7ebe8;transform:translateY(-50%);transition:background-color .18s ease,transform .18s ease}
-        .vl-live-photo-tab[aria-selected="true"]::after{background:var(--lime);transform:translateY(-50%) scaleY(1.5)}
+        .vl-live-photo-tab[aria-selected="true"]::after{background:var(--green);transform:translateY(-50%) scaleY(1.5)}
         .vl-live-photo-tab:focus-visible::before{content:'';position:absolute;inset:1px;border:1px solid var(--green);border-radius:999px}
-        .vl-live-map-preview-head{display:block;margin-top:2px}
-        .vl-live-map-preview .vl-live-card-h{margin:0;font-size:22px;line-height:1.18;font-weight:700;letter-spacing:-.025em;color:#1a1a1a}
-        .vl-live-map-address{margin:6px 0 0;font-size:12px;line-height:1.45;color:var(--ink-muted)}
-        .vl-live-map-preview-meta{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin-top:10px}
-        .vl-live-map-preview-meta span,.vl-live-ist{font-size:11px;line-height:1.25;font-weight:700;color:var(--green)}
-        .vl-live-map-preview-meta span::before{content:'•';margin-right:10px;color:rgba(26,58,42,.35)}
-        .vl-live-preview-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin-top:16px;padding-top:14px;border-top:1px solid var(--hair)}
-        .vl-live-preview-metrics>div{min-width:0;padding:0 12px 0 0}
-        .vl-live-preview-metrics>div+div{padding-left:12px;border-left:1px solid var(--hair)}
-        .vl-live-preview-metrics .vl-live-label{margin-bottom:5px}
-        .vl-live-preview-metrics .vl-live-metric-md{font-size:20px;line-height:1.05}
-        .vl-live-preview-cat{margin:5px 0 0;font-size:10px;font-weight:700;letter-spacing:.01em;color:var(--ink-muted)}
-        .vl-live-preview-insight{margin-top:15px;padding-top:14px;border-top:1px solid var(--hair)}
-        .vl-live-preview-insight p{margin:0;font-size:14px;line-height:1.45;color:rgba(0,0,0,.72)}
-        .vl-live-preview-insight p strong{font-weight:700;color:var(--green);box-shadow:inset 0 -.32em 0 rgba(209,244,112,.5)}
-        .vl-live-preview-insight span{display:block;margin-top:4px;font-size:12px;line-height:1.45;color:var(--ink-muted)}
-        .vl-live-preview-scale{margin-top:15px;padding-top:13px;border-top:1px solid var(--hair)}
-        .vl-live-preview-scale .vl-live-label{margin-bottom:7px}
-        .vl-live-view-details{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:52px;margin-top:16px;padding:0 24px;border:2px solid #1a3a2a;border-radius:999px;background:#d1f470;color:#1a3a2a;font:inherit;font-size:17px;font-weight:600;line-height:1.2;text-decoration:none;cursor:pointer;transition:background-color .2s ease,border-color .2s ease,transform .2s ease,box-shadow .2s ease}
-        .vl-live-view-details:hover{border-color:#1a3a2a;background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .vl-live-view-details:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
         /* Continuous weather workspace: typography + hairlines instead of repeated cards. */
         .vl-live-signal-stack{padding-top:0;padding-bottom:0}
@@ -2660,9 +2547,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
         @media(max-width:1023px){
-          .vl-live-map-search{top:12px;left:12px;width:min(330px,calc(100% - 24px))}
-          .vl-live-map-controls{top:76px;left:12px}
-          .vl-live-map-preview{top:76px;right:12px;left:auto;bottom:auto;width:min(360px,calc(100% - 24px));padding:0 16px 16px}
+          /* Keep the search centred; drop the layer controls and photo overlay below the
+             centred field so none of them overlap at tablet width. */
+          .vl-live-map-search{top:14px;left:50%;transform:translateX(-50%);width:min(340px,calc(100% - 24px))}
+          .vl-live-map-controls{top:78px;left:12px}
+          .vl-live-map-photos{top:78px;right:12px;left:auto;bottom:auto;width:min(360px,calc(100% - 24px))}
         }
         @media(max-width:767px){
           .vl-live{padding-bottom:48px}
@@ -2675,11 +2564,10 @@ const VayuLokLive: React.FC = () => {
           .vl-live-section{padding-top:0}
           .vl-live-block{padding-block:32px}
           .vl-live-left > .vl-live-section{margin-top:64px}
-          .vl-live-map-search{top:12px;left:12px;right:12px;width:auto}
+          .vl-live-map-search{top:12px;left:50%;right:auto;transform:translateX(-50%);width:calc(100% - 24px)}
           .vl-live-search{max-width:none}
           .vl-live-map-controls{top:76px;left:12px}
-          .vl-live-map-preview{top:132px;width:calc(100% - 24px);max-width:360px}
-          .vl-live-map-preview .vl-live-card-h{font-size:17px}
+          .vl-live-map-photos{top:132px;right:12px;left:auto;transform:none;width:calc(100% - 24px);max-width:360px}
           .vl-live-plan-head{display:block}
           .vl-live-plan-range{margin-top:8px;text-align:left}
           .vl-live-plan-days{gap:6px}
@@ -2689,8 +2577,9 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live-data-skeleton i{animation:none}
-          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-view-details,.vl-live-solar-load{transition:none}
-          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible,.vl-live-view-details:hover,.vl-live-solar-load:hover{transform:none;box-shadow:none}
+          .vl-live-map-stage{transition:none}
+          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-solar-load{transition:none}
+          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible,.vl-live-solar-load:hover{transform:none;box-shadow:none}
         }
       `}</style>
     </section>
