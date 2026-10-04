@@ -72,7 +72,8 @@ def _api_key() -> str:
     value = ""
     try:
         data = json.loads(raw)
-        value = (data.get("apiKey") or data.get("value") or data.get("key") or "").strip()
+        value = (data.get("apiKey") or data.get("api_key")
+                 or data.get("value") or data.get("key") or "").strip()
     except (ValueError, TypeError):
         value = raw.strip()
     if not value:
