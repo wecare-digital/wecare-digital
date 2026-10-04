@@ -42,10 +42,22 @@ interface MapsRecorder {
 // stubbed search prediction resolves to a Place carrying one photo with these
 // attributions, so the component's mandated-attribution rendering can be exercised.
 interface PhotoAttribution { displayName?: string; uri?: string }
-interface InstallOpts { paintMap?: boolean; photoAttributions?: PhotoAttribution[] }
+// Honest Place metadata the Places JS API may return. When provided, the stubbed Place
+// carries these so the left-card metadata/attributes/description can be asserted; when
+// omitted, the Place carries none and those lines must NOT render (honest conditional).
+interface PlaceMetaStub {
+  types?: string[];
+  primaryTypeDisplayName?: string;
+  rating?: number;
+  userRatingCount?: number;
+  websiteURI?: string;
+  regularOpeningHours?: { openNow?: boolean };
+  editorialSummary?: string;
+}
+interface InstallOpts { paintMap?: boolean; photoAttributions?: PhotoAttribution[]; placeMeta?: PlaceMetaStub }
 
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
-  const { paintMap = true, photoAttributions }: InstallOpts =
+  const { paintMap = true, photoAttributions, placeMeta }: InstallOpts =
     typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
@@ -101,6 +113,9 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
       formattedAddress: 'Mumbai, Maharashtra, India',
       location: { lat: () => 19.076, lng: () => 72.8777 },
       photos: predictionPhotos,
+      // Honest metadata only when the test opts in; otherwise undefined so the
+      // metadata/attributes/description lines must not render.
+      ...( placeMeta || {} ),
       fetchFields: async ( req: { fields: string[] } ) => { rec.placeFetchFields.push( req.fields ); },
     } ),
   };
@@ -403,12 +418,16 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( aqiResult.textContent ).toContain( 'Moderate' );
     expect( aqiResult.textContent ).toContain( 'Air quality now' );
 
-    // Switching to PM2.5 swaps the left-card result to the PM2.5-focused block.
+    // Switching to PM2.5 swaps the left-card result to the PM2.5-focused block, which
+    // carries the explicit "Current status" label + a status word derived from the SAME
+    // severity band (168 -> Moderate -> "Elevated"), per the FINAL TARGET PM2.5 mockup.
     fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
     await waitFor( () => {
       const pm25Result = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
       expect( pm25Result.textContent ).toContain( 'PM2.5 heatmap result' );
       expect( pm25Result.textContent ).toContain( '82' );
+      expect( pm25Result.textContent ).toContain( 'Current status' );
+      expect( pm25Result.querySelector( '.vl-live-status-word' )?.textContent ).toBe( 'Elevated' );
     } );
   } );
 
@@ -517,6 +536,85 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     const visible = ( pill.textContent || '' ).trim();
     expect( visible ).toMatch( /^\d+$/ );
     expect( visible ).not.toMatch( /photo/i );
+  } );
+
+  it( 'surfaces real Place metadata/attributes/description in the left card ONLY when Google returned it', async () => {
+    const rec2 = installGoogleMaps( {
+      placeMeta: {
+        primaryTypeDisplayName: 'Historical landmark',
+        types: [ 'tourist_attraction', 'point_of_interest' ],
+        rating: 4.6,
+        userRatingCount: 1234,
+        websiteURI: 'https://example.gov.in/monument',
+        regularOpeningHours: { openNow: true },
+        editorialSummary: 'A heritage monument popular with visitors.',
+      },
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    // Before a selection the default place carries no Google metadata, so none of the
+    // metadata-fact/attribute/description lines render (honest conditional, no placeholder).
+    expect( container.querySelector( '.vl-live-place-facts' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-attrs' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-desc' ) ).toBeNull();
+
+    // Drive search -> select so the Place metadata resolves into the left card.
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    const meta = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-left .vl-live-place-meta' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // The extra metadata fields were actually requested on the keyed select path.
+    expect( rec2.placeFetchFields[ 0 ] ).toEqual(
+      expect.arrayContaining( [ 'types', 'rating', 'userRatingCount', 'websiteURI', 'regularOpeningHours', 'editorialSummary' ] ),
+    );
+
+    // Real metadata facts render (category + rating with review count).
+    expect( meta.textContent ).toContain( 'Historical Landmark' );
+    expect( meta.textContent ).toContain( '4.6' );
+    expect( meta.textContent ).toContain( '1,234' );
+
+    // The attribute checklist reflects honest flags (open now, website) and the
+    // human-readable secondary types - never an invented attribute.
+    const attrs = Array.from( meta.querySelectorAll( '.vl-live-place-attrs li' ) ).map( n => n.textContent?.trim() );
+    expect( attrs ).toContain( 'Open now' );
+    expect( attrs ).toContain( 'Official website listed' );
+    expect( attrs.some( a => /Tourist Attraction/i.test( a || '' ) ) ).toBe( true );
+
+    // The editorial summary becomes the useful place description.
+    expect( meta.querySelector( '.vl-live-place-desc' )?.textContent ).toContain( 'heritage monument' );
+  } );
+
+  it( 'renders NO metadata/attribute/description lines when Google returns none (honest degradation of the card body)', async () => {
+    // Default stub resolves a Place with name/address/location only (no metadata).
+    const rec2 = installGoogleMaps();
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    // The place name updates, confirming the selection resolved...
+    await waitFor( () => expect(
+      container.querySelector( '.vl-live-left .vl-live-place' )?.textContent,
+    ).toContain( 'Mumbai' ) );
+
+    // ...but with no metadata returned, the metadata facts/attribute/description blocks do
+    // not render (the supporting-info coordinate line may still appear, which is honest).
+    expect( container.querySelector( '.vl-live-place-facts' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-attrs' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-desc' ) ).toBeNull();
   } );
 } );
 

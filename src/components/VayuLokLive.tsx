@@ -74,22 +74,88 @@ interface PlaceState {
   lat: number;
   lng: number;
   photos?: PlacePhoto[];
+  // Honest, optional Google Place metadata surfaced in the left card. Each is written to
+  // state ONLY when the Places API actually returned it, so the card never shows an
+  // invented fact or a placeholder (see metaFromGooglePlace / the left-card guards).
+  primaryType?: string;
+  types?: string[];
+  rating?: number;
+  userRatingCount?: number;
+  websiteURI?: string;
+  openNow?: boolean;
+  summary?: string;
 }
+
+// The extra Place fields requested on the keyed search/select + map-click paths, on top of
+// the display fields. Fetched ONLY on those existing keyed paths - never unconditionally -
+// so honest degradation (no key => no fetch) is preserved.
+const PLACE_META_FIELDS = [
+  'types',
+  'primaryTypeDisplayName',
+  'rating',
+  'userRatingCount',
+  'websiteURI',
+  'regularOpeningHours',
+  'editorialSummary',
+] as const;
+
+/* The shape of a resolved google.maps.places.Place once fetchFields has run. Mirrors the
+   Places JS API: every metadata field is optional and only present when Google returned
+   it. We never fabricate; absence simply means that line does not render. */
+interface GooglePlaceLike {
+  fetchFields?: ( req: { fields: string[] } ) => Promise<void>;
+  displayName?: string;
+  formattedAddress?: string;
+  location?: { lat?: () => number; lng?: () => number };
+  photos?: {
+    getURI?: ( opts: { maxWidth?: number; maxHeight?: number } ) => string;
+    authorAttributions?: { displayName?: string; uri?: string }[];
+  }[];
+  types?: string[];
+  primaryTypeDisplayName?: string;
+  rating?: number;
+  userRatingCount?: number;
+  websiteURI?: string;
+  regularOpeningHours?: { openNow?: boolean };
+  editorialSummary?: string;
+}
+
+/* Pull the honest metadata subset off a resolved Google Place. Returns only the fields
+   that are genuinely present (finite numbers, non-empty strings, real booleans); every
+   other field is left undefined so the left card renders nothing for it. */
+function metaFromGooglePlace( p: GooglePlaceLike ): Partial<PlaceState> {
+  const meta: Partial<PlaceState> = {};
+  const primaryType = humanisePlaceType( p.primaryTypeDisplayName );
+  if ( primaryType ) meta.primaryType = primaryType;
+  const types = Array.isArray( p.types )
+    ? p.types.map( humanisePlaceType ).filter( ( t ): t is string => Boolean( t ) )
+    : [];
+  if ( types.length ) meta.types = Array.from( new Set( types ) ).slice( 0, 3 );
+  if ( Number.isFinite( p.rating ) ) meta.rating = p.rating;
+  if ( Number.isFinite( p.userRatingCount ) ) meta.userRatingCount = p.userRatingCount;
+  if ( typeof p.websiteURI === 'string' && p.websiteURI ) meta.websiteURI = p.websiteURI;
+  if ( typeof p.regularOpeningHours?.openNow === 'boolean' ) meta.openNow = p.regularOpeningHours.openNow;
+  const summary = typeof p.editorialSummary === 'string' ? p.editorialSummary.trim() : '';
+  if ( summary ) meta.summary = summary;
+  return meta;
+}
+
+// Google place-type tokens arrive as snake_case machine strings (e.g. 'tourist_attraction').
+// primaryTypeDisplayName is already human-readable. Normalise both into Title Case words,
+// dropping empties, so attribute lines read like prose rather than API enums.
+function humanisePlaceType( raw: unknown ): string | undefined {
+  if ( typeof raw !== 'string' ) return undefined;
+  const cleaned = raw.replaceAll( '_', ' ' ).trim();
+  if ( !cleaned ) return undefined;
+  return cleaned.replace( /\b\w/g, c => c.toUpperCase() );
+}
+
 interface SearchResult {
   name: string;
   addr: string;
   place?: PlaceState;
   prediction?: {
-    toPlace?: () => {
-      fetchFields?: ( req: { fields: string[] } ) => Promise<void>;
-      displayName?: string;
-      formattedAddress?: string;
-      location?: { lat?: () => number; lng?: () => number };
-      photos?: {
-        getURI?: ( opts: { maxWidth?: number; maxHeight?: number } ) => string;
-        authorAttributions?: { displayName?: string; uri?: string }[];
-      }[];
-    };
+    toPlace?: () => GooglePlaceLike;
   };
 }
 
@@ -138,6 +204,19 @@ function aqiCategory( aqi: number ): { word: string; sev: Sev } {
   if ( aqi <= 300 ) return { word: 'Poor', sev: 'poor' };
   if ( aqi <= 400 ) return { word: 'Very Poor', sev: 'worst' };
   return { word: 'Severe', sev: 'worst' };
+}
+
+/* A plain-English "current status" word for the PM2.5 result block, derived from the SAME
+   severity band the dot and category already use (never a new scale). The mockup's
+   "Elevated" sits in this ramp between the clean and the hazardous ends. */
+function statusWord( sev: Sev ): string {
+  switch ( sev ) {
+    case 'good': return 'Clean';
+    case 'sat': return 'Acceptable';
+    case 'mod': return 'Elevated';
+    case 'poor': return 'High';
+    default: return 'Hazardous';
+  }
 }
 
 // Pollen category 0-5 UPI -> word (Google's universal pollen index).
@@ -598,23 +677,17 @@ const VayuLokLive: React.FC = () => {
           setPlace( next );
 
           // If reverse geocoding produced a Place ID, enrich the preview with Google
-          // Places photos. Any author attribution supplied by Google is preserved and
-          // rendered with the photo below.
+          // Places photos AND the honest metadata the left card can show. Any author
+          // attribution supplied by Google is preserved and rendered with the photo below.
           if ( first.place_id ) {
             const lib = placesLibRef.current as {
-              Place?: new ( opts: { id: string } ) => {
-                photos?: {
-                  getURI?: ( opts: { maxWidth?: number; maxHeight?: number } ) => string;
-                  authorAttributions?: { displayName?: string; uri?: string }[];
-                }[];
-                fetchFields?: ( req: { fields: string[] } ) => Promise<void>;
-              };
+              Place?: new ( opts: { id: string } ) => GooglePlaceLike;
             } | null;
             const PlaceCtor = lib?.Place;
             if ( PlaceCtor ) {
               try {
                 const googlePlace = new PlaceCtor( { id: first.place_id } );
-                await googlePlace.fetchFields?.( { fields: [ 'photos' ] } );
+                await googlePlace.fetchFields?.( { fields: [ 'photos', ...PLACE_META_FIELDS ] } );
                 const photos: PlacePhoto[] = ( Array.isArray( googlePlace.photos ) ? googlePlace.photos : [] )
                   .slice( 0, 8 )
                   .map( photo => ( {
@@ -623,12 +696,17 @@ const VayuLokLive: React.FC = () => {
                       .map( a => ( { name: String( a.displayName || 'Photo contributor' ), uri: a.uri } ) ),
                   } ) )
                   .filter( photo => Boolean( photo.url ) );
-                if ( photos.length ) {
+                const meta = metaFromGooglePlace( googlePlace );
+                if ( photos.length || Object.keys( meta ).length ) {
+                  const enrich = { ...meta, ...( photos.length ? { photos } : {} ) };
                   setMapCandidate( current => current && current.lat === lat && current.lng === lng
-                    ? { ...current, photos }
+                    ? { ...current, ...enrich }
+                    : current );
+                  setPlace( current => current.lat === lat && current.lng === lng
+                    ? { ...current, ...enrich }
                     : current );
                 }
-              } catch { /* photo enrichment is optional */ }
+              } catch { /* photo + metadata enrichment is optional */ }
             }
           }
         } );
@@ -1370,7 +1448,7 @@ const VayuLokLive: React.FC = () => {
     if ( !next && r.prediction?.toPlace ) {
       try {
         const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'displayName', 'formattedAddress', 'location', 'photos' ] } );
+        await googlePlace.fetchFields?.( { fields: [ 'displayName', 'formattedAddress', 'location', 'photos', ...PLACE_META_FIELDS ] } );
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
@@ -1388,6 +1466,9 @@ const VayuLokLive: React.FC = () => {
             lat: lat as number,
             lng: lng as number,
             photos,
+            // Surface only the metadata Google actually returned; absent fields stay
+            // undefined so the left card renders no placeholder for them.
+            ...metaFromGooglePlace( googlePlace ),
           };
         }
       } catch {
@@ -1446,6 +1527,40 @@ const VayuLokLive: React.FC = () => {
   const forecastWorst = airForecast.length ? airForecast.reduce( ( a, b ) => b.aqi > a.aqi ? b : a ) : null;
   const forecastDelta = airForecast.length > 1 ? airForecast[ airForecast.length - 1 ].aqi - airForecast[ 0 ].aqi : 0;
   const forecastTrend = Math.abs( forecastDelta ) < 6 ? 'Stable' : forecastDelta < 0 ? 'Improving' : 'Worsening';
+
+  /* LEFT-CARD metadata/attributes/description/supporting-info, derived from data already
+     in state. Each list is built ONLY from values genuinely present on the selected
+     place or the already-fetched live context, so the card renders real facts or nothing
+     - never a placeholder or an invented attribute. */
+  const placeMeta: { label: string; value: string }[] = [];
+  if ( previewPlace.primaryType ) placeMeta.push( { label: 'Category', value: previewPlace.primaryType } );
+  if ( Number.isFinite( previewPlace.rating ) ) {
+    placeMeta.push( {
+      label: 'Rating',
+      value: Number.isFinite( previewPlace.userRatingCount )
+        ? `${previewPlace.rating!.toFixed( 1 )} (${previewPlace.userRatingCount!.toLocaleString( 'en-IN' )} reviews)`
+        : previewPlace.rating!.toFixed( 1 ),
+    } );
+  }
+
+  const placeAttributes: string[] = [];
+  if ( typeof previewPlace.openNow === 'boolean' ) placeAttributes.push( previewPlace.openNow ? 'Open now' : 'Closed now' );
+  if ( previewPlace.websiteURI ) placeAttributes.push( 'Official website listed' );
+  if ( Array.isArray( previewPlace.types ) ) {
+    for ( const t of previewPlace.types ) {
+      if ( t && t !== previewPlace.primaryType && !placeAttributes.includes( t ) ) placeAttributes.push( t );
+    }
+  }
+
+  // Supporting information: honest, place-specific context already fetched elsewhere. The
+  // full air/weather result still lives in the NOW block / layer result, so we surface
+  // only compact one-liners here (band word, weather condition, precise coordinates).
+  const supportingInfo: string[] = [];
+  if ( liveActive && air ) supportingInfo.push( `Air quality band: ${air.word}` );
+  if ( liveActive && weather?.condition ) supportingInfo.push( `Current weather: ${weather.condition}` );
+  if ( liveActive && Number.isFinite( previewPlace.lat ) && Number.isFinite( previewPlace.lng ) ) {
+    supportingInfo.push( `Coordinates: ${previewPlace.lat.toFixed( 4 )}, ${previewPlace.lng.toFixed( 4 )}` );
+  }
 
   return (
     <section className="vl-live" aria-labelledby="vl-live-title">
@@ -1543,6 +1658,52 @@ const VayuLokLive: React.FC = () => {
                 <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
                 <p className="vl-live-place-addr">{ place.addr }</p>
 
+                {/* REAL PLACE METADATA / ATTRIBUTES / DESCRIPTION (FINAL TARGET default
+                    state). Every line is gated on a datum Google actually returned for the
+                    selected place - we never fabricate an attribute or show a placeholder.
+                    With no key nothing is fetched, so none of these render. Supporting-info
+                    bullets below are composed from already-fetched live context that
+                    genuinely pertains to THIS place (AQI band, weather, coordinates) and
+                    never duplicate the full air/weather result that lives in the NOW block
+                    and the layer-gated result. */}
+                { ( placeMeta.length > 0 || placeAttributes.length > 0 || previewPlace.summary || supportingInfo.length > 0 ) && (
+                  <div className="vl-live-place-meta">
+                    { placeMeta.length > 0 && (
+                      <dl className="vl-live-place-facts">
+                        { placeMeta.map( fact => (
+                          <div className="vl-live-place-fact" key={ fact.label }>
+                            <dt>{ fact.label }</dt>
+                            <dd>{ fact.value }</dd>
+                          </div>
+                        ) ) }
+                      </dl>
+                    ) }
+
+                    { placeAttributes.length > 0 && (
+                      <ul className="vl-live-place-attrs">
+                        { placeAttributes.map( attr => (
+                          <li key={ attr }>
+                            <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1a3a2a" aria-hidden="true"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
+                            <span>{ attr }</span>
+                          </li>
+                        ) ) }
+                      </ul>
+                    ) }
+
+                    { previewPlace.summary && (
+                      <p className="vl-live-place-desc">{ previewPlace.summary }</p>
+                    ) }
+
+                    { supportingInfo.length > 0 && (
+                      <ul className="vl-live-place-support">
+                        { supportingInfo.map( info => (
+                          <li key={ info }>{ info }</li>
+                        ) ) }
+                      </ul>
+                    ) }
+                  </div>
+                ) }
+
                 {/* ENVIRONMENTAL RESULT - reuses the EXISTING VayuLok air-quality result
                     markup/styles. Shown INSIDE the left card only when a heatmap layer is
                     active. AQI leads with the AQI value/category/dominant pollutant; PM2.5
@@ -1577,6 +1738,11 @@ const VayuLokLive: React.FC = () => {
                             <span className="vl-live-cat">{ p.unit }</span>
                           </div>
                         ) ) }
+                        {/* Explicit "Current status" label (FINAL TARGET PM2.5 mockup):
+                            the status word is derived from the EXISTING severity band, not
+                            a new scale, so it stays consistent with the dot + category. */}
+                        <p className="vl-live-label vl-live-status-label">Current status</p>
+                        <p className="vl-live-status-word">{ statusWord( air.sev ) }</p>
                         <p className="vl-live-sub-fact">AQI { air.aqi } · { air.word } band</p>
                         { air.dominant && <p className="vl-live-cond">Dominant pollutant { air.dominant }.</p> }
                       </>
@@ -2439,6 +2605,25 @@ const VayuLokLive: React.FC = () => {
         .vl-live-place-card{border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
         .vl-live-place-body{padding:20px}
         .vl-live-place-body .vl-live-place{margin-top:0}
+        /* Real place metadata / attributes / description / supporting info. Each block
+           renders only when the datum exists; honest degradation keeps them empty when no
+           key => no fetch. Tokens match the home ladder: hairline rules, muted ink, no
+           red, lime check marks reuse --green. The address loses its default 28px gap when
+           metadata follows so the card reads as one continuous block. */
+        .vl-live-place-facts{margin:0;display:grid;gap:10px}
+        .vl-live-place-fact{display:flex;justify-content:space-between;gap:14px;align-items:baseline;padding-bottom:10px;border-bottom:1px solid var(--hair)}
+        .vl-live-place-fact dt{margin:0;font-size:12px;font-weight:600;letter-spacing:.01em;color:rgba(0,0,0,.54)}
+        .vl-live-place-fact dd{margin:0;font-size:14px;font-weight:600;line-height:1.35;color:#1a1a1a;text-align:right}
+        .vl-live-place-attrs{margin:16px 0 0;padding:0;list-style:none;display:grid;gap:8px}
+        .vl-live-place-attrs li{display:flex;align-items:center;gap:8px;font-size:14px;line-height:1.4;color:#1a1a1a}
+        .vl-live-place-attrs svg{display:block;flex:0 0 auto}
+        .vl-live-place-desc{margin:16px 0 0;max-width:62ch;font-size:15px;line-height:1.5;color:rgba(0,0,0,.72)}
+        .vl-live-place-support{margin:16px 0 0;padding:0 0 0 18px;list-style:none;display:grid;gap:6px}
+        .vl-live-place-support li{position:relative;font-size:13px;line-height:1.45;color:rgba(0,0,0,.54)}
+        .vl-live-place-support li::before{content:'•';position:absolute;left:-14px;color:var(--green)}
+        /* PM2.5 result "Current status / <word>" (FINAL TARGET mockup). No red. */
+        .vl-live-status-label{margin-top:14px}
+        .vl-live-status-word{margin:2px 0 0;font-size:17px;font-weight:700;line-height:1.25;color:#1a1a1a}
         .vl-live-layer-result{margin-top:20px;padding-top:20px;border-top:1px solid var(--hair)}
         .vl-live-layer-result .vl-live-figure{margin-top:4px}
         .vl-live-layer-advisory{margin-top:14px;font-size:17px}
