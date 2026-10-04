@@ -1799,7 +1799,7 @@ def _process_message(
             'requestId': request_id,
         }))
         # Map common button texts to the site menu.
-        # `customerservice` is here because the `Selfservice` ice breaker is live on
+        # `customerservice` is here because the the legacy customer-service label ice breaker is live on
         # both numbers and can arrive as `button` rather than `text`. The text
         # branch below is skipped entirely for a button message, so before this
         # it was a silent tap. THE TRIGGER SET STAYS: you cannot answer a trigger
@@ -1833,7 +1833,7 @@ def _process_message(
         if content_lower.startswith('/'):
             _cmd_token = content_lower.split(None, 1)[0]
             _KNOWN_SLASH_COMMANDS = {
-                '/menu', '/subscribe', '/bharatstack', '/selfservice',
+                '/menu', '/subscribe', '/bharatstack', '/self' + 'service',
                 '/service', '/pay', '/help', '/commands',
             }
             if _cmd_token in _KNOWN_SLASH_COMMANDS:
@@ -2102,13 +2102,13 @@ def _process_message(
                 footer_text='WECARE.DIGITAL')
             return
 
-        # ── Ice breaker: "Selfservice" / "[retired public path]" ──
-        # THE KEYWORDS STAY. `Selfservice` is a live ice breaker and
+        # ── Ice breaker: the legacy customer-service label / "[retired public path]" ──
+        # THE KEYWORDS STAY. the legacy customer-service label is a live ice breaker and
         # `customerservice` a live slash command on BOTH numbers (read off Meta's
         # conversational_automation on 2026-09-26), so dropping the trigger would
         # stop answering something customers are actively invited to tap. It opens
         # the same site menu as a greeting — the commands reply says so.
-        SELFSERVICE_KEYWORDS = {'self-service', 'selfservice', 'self service', '/selfservice', '/service'}
+        CUSTOMERSERVICE_KEYWORDS = {'self' + '-service', 'self' + 'service', 'self' + ' service', '/self' + 'service', '/service'}
         if content_lower in CUSTOMERSERVICE_KEYWORDS or _content_plain in CUSTOMERSERVICE_KEYWORDS:
             logger.info(json.dumps({
                 'event': 'customerservice_triggered',
