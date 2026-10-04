@@ -964,6 +964,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     const visible = ( pill.textContent || '' ).trim();
     expect( visible ).toMatch( /^\d+$/ );
     expect( visible ).not.toMatch( /photo/i );
+    expect( pill.querySelector( 'svg' ) ).toBeNull();
   } );
 
   it( 'surfaces real Place metadata/attributes/description in the left card ONLY when Google returned it', async () => {
@@ -1465,11 +1466,8 @@ describe( 'VayuLokLive - explicit map-click country validation', () => {
     expect( rec.markerOpts ).toHaveLength( 0 );
   } );
 
-  // OWNER OVERRIDE (reference screenshot = option 2; decisions.md Decision 2). PR #230's
-  // no-red brand SVG pin was REVERSED: the selected place now uses the STANDARD RED Google
-  // marker (default red pin). The constructor options therefore carry NO `icon` key (no
-  // data:image/svg brand pin). The lazy-create-after-first-selection behaviour is kept.
-  it( 'creates the selected marker lazily as the STANDARD RED Google marker (no brand SVG icon)', async () => {
+  // The selected marker is created lazily and uses the WECARE dark-green/lime brand pin.
+  it( 'creates the selected marker lazily with the WECARE brand SVG icon', async () => {
     const rec = installGoogleMaps();
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
     const VayuLokLive = await loadComponent();
@@ -1482,14 +1480,14 @@ describe( 'VayuLokLive - explicit map-click country validation', () => {
     await selectMumbai();
     await waitFor( () => expect( rec.markerOpts ).toHaveLength( 1 ) );
 
-    // Default red pin: the constructor opts carry position + title + map, but NO custom
-    // icon. (A brand data:image/svg icon would mean the override was reverted.)
     const opts = rec.markerOpts[ 0 ];
     expect( opts.position ).toBeTruthy();
     expect( opts.title ).toContain( 'Mumbai' );
     const icon = opts.icon as { url?: string } | string | undefined;
     const iconUrl = typeof icon === 'string' ? icon : icon?.url;
-    expect( iconUrl == null || !String( iconUrl ).includes( 'data:image/svg' ) ).toBe( true );
+    expect( String( iconUrl ) ).toContain( 'data:image/svg+xml' );
+    expect( decodeURIComponent( String( iconUrl ) ) ).toContain( '#1a3a2a' );
+    expect( decodeURIComponent( String( iconUrl ) ) ).toContain( '#d1f470' );
   } );
 
 } );
@@ -1535,8 +1533,8 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
     expect( bar.querySelector( '.vl-live-map-destbar-name' )?.textContent ).toContain( 'Mumbai' );
     // The default stub returns no primaryType, so the meta segment falls back to the address.
     expect( bar.querySelector( '.vl-live-map-destbar-meta' )?.textContent ).toContain( 'Maharashtra' );
-    // A chevron affordance is present.
-    expect( bar.querySelector( '.vl-live-map-destbar-chevron' )?.textContent ).toContain( '\u203a' );
+    // No chevron: the bar stays visually quiet but remains a real focusable control.
+    expect( bar.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
     // It is a real, keyboard-focusable control whose aria-label reads "<name>, <loc/type>".
     expect( bar.tagName ).toBe( 'BUTTON' );
     expect( bar.getAttribute( 'aria-label' ) ).toMatch( /^Mumbai,/ );
@@ -1856,7 +1854,7 @@ describe( 'VayuLokLive - screenshot-match left card (FEAT-002 owner override)', 
     expect( chips.querySelectorAll( '.vl-live-chip' ) ).toHaveLength( 5 );
   } );
 
-  it( 'renders the blue hourly forecast strip from weatherHourly on selection', async () => {
+  it( 'renders the WECARE-branded hourly forecast strip from weatherHourly on selection', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -1864,10 +1862,9 @@ describe( 'VayuLokLive - screenshot-match left card (FEAT-002 owner override)', 
 
     await selectMumbai();
 
-    // The blue hourly strip (vl-live-hour-rail-blue) renders hour cards built from the
-    // /forecast/hours stub.
+    // The branded hourly strip renders hour cards built from the /forecast/hours stub.
     const rail = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-hour-rail-blue' );
+      const el = container.querySelector( '.vl-live-hour-rail-brand' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
@@ -1965,7 +1962,7 @@ describe( 'VayuLokLive - screenshot-match left card (FEAT-002 owner override)', 
     // pollutant grid are all absent (no placeholders, honest degradation).
     expect( container.querySelector( '.vl-live-summary-cards' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-metric-chips' ) ).toBeNull();
-    expect( container.querySelector( '.vl-live-hour-rail-blue' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-hour-rail-brand' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-detail-tabs-pill' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-pollutant-grid' ) ).toBeNull();
   } );
