@@ -1648,6 +1648,11 @@ TOUCHED_PYTHON = (
     "amplify/functions/shared/lambda_utils/wix_ecom.py",
     "amplify/functions/shared/lambda_utils/ecommerce/blog_contribution.py",
     "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py",
+    # The delivery auto-selection adds `available_delivery_options`,
+    # `cheapest_delivery_option` and `CartV2.delivery_options`, and corrects the Set Delivery
+    # Method body. `available_delivery_options` converts a Wix amount to paise, so the no-float
+    # and no-PII gates below have to cover it.
+    "amplify/functions/shared/lambda_utils/ecommerce/cart_v2.py",
 )
 
 

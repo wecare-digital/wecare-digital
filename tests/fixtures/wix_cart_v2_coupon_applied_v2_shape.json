@@ -198,6 +198,21 @@
    }
   ],
   "additionalFees": [],
+  "deliverySummary": {
+   "method": {
+    "code": "11111111-2222-3333-4444-555555555555",
+    "appId": "45c44b27-ca7b-4891-8c0d-1747d588b835",
+    "title": {
+     "original": "Standard delivery",
+     "translated": "Standard delivery"
+    },
+    "pickup": false
+   },
+   "price": {
+    "amount": "500.00",
+    "convertedAmount": "500.00"
+   }
+  },
   "taxSummary": {
    "taxes": [
     {

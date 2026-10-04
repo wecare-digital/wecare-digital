@@ -73,8 +73,11 @@ is integer equality. A one-paise discrepancy fails closed rather than being abso
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any, Callable, Dict, Optional, Tuple
 
+from .cart_v2 import cheapest_delivery_option
 from .checkout_pricing import (
     CALCULATION_POLICY_VERSION,
     PricingError,
@@ -83,6 +86,8 @@ from .checkout_pricing import (
     compute_quote,
 )
 from .wix_address import UnmappableAddress, gst_state_code, to_wix_address
+
+logger = logging.getLogger(__name__)
 
 #: How long a frozen quote may be paid against. Matches `customer_cart.QUOTE_LIFETIME`: the two
 #: describe the same fact -- how long a price the customer reviewed stays honourable -- and a
@@ -118,21 +123,73 @@ def apply_coupon(adapter, cart_id: str, code: str) -> Dict[str, Any]:
 
 def prepare_delivery(adapter, cart_id: str, owned: Dict[str, Any],
                      *, delivery_option_id: Optional[str] = None) -> Dict[str, Any]:
-    """Put the customer's OWNED address (and optionally a chosen method) onto a Cart V2 cart.
+    """Put the customer's OWNED address onto a Cart V2 cart AND select a delivery method.
 
     `owned` is this application's structured address, as produced by
     `lambda_utils.identity.address`, loaded server-side against the authenticated customer. It
     is never taken from a request body: an address a browser can set is an address an attacker
     can set, and here that would move the place of supply.
 
-    Returns the updated cart. When `delivery_option_id` is omitted the address is set and no
-    method is chosen, which is the legitimate intermediate state -- Wix needs the address before
-    it can offer options for it.
+    SETTING THE ADDRESS WAS NEVER ENOUGH, AND THAT IS WHAT THIS FUNCTION NOW FIXES. Cart V2 needs
+    `deliveryInfo.address` *and* `deliveryInfo.method`; an addressed cart with no method answers
+    Calculate Cart with an `ERROR`-severity `MISSING_DELIVERY_METHOD` and cannot be priced. This
+    function used to set only the address whenever `delivery_option_id` was omitted -- which is
+    what every caller does -- so no physical website checkout could ever be priced. The live logs
+    for 2026-10-04 15:00-15:01 UTC are one `website_checkout_delivery_blocked` per attempt,
+    `violations: ["MISSING_DELIVERY_METHOD"]`, and this is the line they point at.
+
+    THE AUTO-SELECTION IS A DELIBERATE REVERSAL OF A PREVIOUS DECISION, so the old reasoning is
+    worth answering rather than deleting. `build_intent`'s docstring says a function that both
+    chooses and quotes "could silently pick the cheapest or the first option on the customer's
+    behalf". Three things make that safe here, and the first is the load-bearing one:
+
+    1. **Wix picks, not us.** `adapter.delivery_options` reads `summary.deliverySummary`, which is
+       Wix's own resolution of which option applies to this cart and address. On the live site it
+       reports exactly one. We select what Wix already resolved; we do not search a menu.
+    2. **The price still comes from Wix.** The option is an identifier. The delivery charge is
+       whatever `calculate` then reports in `summary.priceSummary.delivery`, and
+       `build_intent_with_calculation` quotes that figure, so selecting a method cannot alter a
+       price in our favour or the customer's.
+    3. **An explicit `delivery_option_id` still wins.** When a caller passes one -- a customer who
+       chose from several options in a UI -- nothing is read and nothing is inferred.
+
+    With several options the rule is the CHEAPEST, ties resolved to Wix's own first
+    (`cart_v2.cheapest_delivery_option`). Deterministic, and the only direction defensible without
+    asking: it is the smallest amount we could add to someone's bill. It does not arise on the
+    live site today, where Wix resolves one option.
+
+    With ZERO options the address is left set, NO method is chosen, and
+    `DeliveryDetailsRequired` is raised -- the same honest refusal as before, reached one step
+    earlier. The `website_checkout_delivery_zero_options` log line is what makes a genuine region
+    gap ("Wix offered nothing for this address") distinguishable from the defect above ("we never
+    asked"), which the `MISSING_DELIVERY_METHOD` violation alone cannot do: both produce it.
+
+    Returns the updated cart.
     """
     cart = adapter.set_delivery_address(cart_id, to_wix_address(owned))
-    if delivery_option_id is not None:
-        cart = adapter.set_delivery_method(cart_id, delivery_option_id)
-    return cart
+    if delivery_option_id is None:
+        options = adapter.delivery_options(cart_id)
+        chosen = cheapest_delivery_option(options)
+        if chosen is None:
+            # Wix was ASKED and named nothing. A region/rate gap in the Wix dashboard, not a bug
+            # here, and not something the customer can fix by re-entering their address. The cart
+            # id is a resource id and the option count is a count: no address, no PII.
+            logger.warning(json.dumps({"event": "website_checkout_delivery_zero_options",
+                                       "wixCartId": str(cart_id),
+                                       "cartRevision": str(cart.get("revision") or ""),
+                                       "optionCount": 0}))
+            raise DeliveryDetailsRequired(
+                "wix offered no delivery option for this address, so the cart cannot be priced")
+        delivery_option_id = chosen["id"]
+        logger.info(json.dumps({"event": "website_checkout_delivery_selected",
+                                "wixCartId": str(cart_id),
+                                "optionCount": len(options),
+                                # The charge itself still arrives from `calculate`; this is the
+                                # figure the selection was made ON, logged so a surprising
+                                # delivery charge can be traced to the option that carried it.
+                                "optionPricePaise": chosen.get("pricePaise"),
+                                "autoSelected": True}))
+    return adapter.set_delivery_method(cart_id, delivery_option_id)
 
 
 def build_intent(adapter, *, customer_id: str, cart_id: str,

@@ -106,7 +106,8 @@ class ContributionWix:
                  coupons: Optional[list] = None, gift_cards: Optional[list] = None,
                  in_stock: bool = True, confirmed_delta: int = 0,
                  line_status: str = "IN_STOCK", variant_count: int = 0,
-                 require_delivery_on_calculate: bool = False):
+                 require_delivery_on_calculate: bool = False,
+                 offered_delivery_options: Optional[List[Dict[str, Any]]] = None):
         self.lines = [dict(line) for line in (lines or [])]
         self.delivery_address = copy.deepcopy(delivery_address) if delivery_address else None
         self.delivery_method: Optional[Dict[str, Any]] = (
@@ -128,6 +129,18 @@ class ContributionWix:
         #: correct count per product and the contribution genuinely has three.
         self.variant_count = variant_count
         self.require_delivery_on_calculate = require_delivery_on_calculate
+        #: What `summary.deliverySummary` offers, as `[{"code", "appId", "title", "priceRupees"}]`.
+        #: One option by default, matching the live site measured 2026-10-04: Wix resolves ONE
+        #: applicable method for a cart plus address and reports it here even before any method is
+        #: selected. `[]` is the delivery-region gap. Wix reports a single resolved method rather
+        #: than a menu, so anything past the first entry is a shape this fake supports and the
+        #: provider does not currently produce.
+        self.offered_delivery_options = (
+            [dict(option) for option in offered_delivery_options]
+            if offered_delivery_options is not None
+            else [{"code": "11111111-2222-3333-4444-555555555555",
+                   "appId": "45c44b27-ca7b-4891-8c0d-1747d588b835",
+                   "title": "Standard delivery", "priceRupees": delivery_rupees}])
         self.revision = 4
         self.cart_id = CART_ID
         #: True when this fake stands for a cart that ALREADY existed before the request -- the
@@ -235,9 +248,24 @@ class ContributionWix:
         if self.require_delivery_on_calculate and not self.delivery_method:
             violations = [{"scope": "OTHER", "code": "MISSING_DELIVERY_METHOD",
                            "severity": "ERROR"}]
+        # `summary.deliverySummary` -- the field a live probe on 2026-10-04 confirmed as the one
+        # that names the delivery option Wix offers for the address on the cart. Present whether
+        # or not a method has been SELECTED, which is exactly the state `prepare_delivery` reads
+        # it in. Absent entirely when nothing is offered, as the live pre-address cart shows.
+        delivery_summary = None
+        if self.offered_delivery_options:
+            offered = self.offered_delivery_options[0]
+            delivery_summary = {
+                "method": {"code": offered["code"], "appId": offered.get("appId", ""),
+                           "title": {"original": offered.get("title", ""),
+                                     "translated": offered.get("title", "")},
+                           "pickup": False},
+                "price": _money(offered.get("priceRupees", 0)),
+            }
         return {
             "cartId": cart["id"], "cartRevision": cart["revision"],
             "calculationId": "calc-1", "lineItems": lines,
+            **({"deliverySummary": delivery_summary} if delivery_summary else {}),
             "priceSummary": {
                 "subtotal": _money(subtotal), "discount": _money(self.discount_rupees),
                 "delivery": _money(self.delivery_rupees),
@@ -347,9 +375,16 @@ class ContributionWix:
             return {"cart": self._cart_body()}
 
         if endpoint.endswith("/set-delivery-method"):
-            self.delivery_method = {"id": (body or {}).get("deliveryOptionId")
-                                    or "11111111-2222-3333-4444-555555555555",
-                                    "title": "Standard delivery"}
+            # `{"deliveryMethod": {"code": ...}}`, the body Wix actually accepts -- measured
+            # 2026-10-04. The previous spelling read `deliveryOptionId`, a field name the provider
+            # answers with HTTP 400, and the `or` default hid that: the fake selected a method no
+            # matter what it was sent, so a request shape the live API rejects passed here.
+            code = (((body or {}).get("deliveryMethod") or {}).get("code") or "")
+            if not code:
+                raise AssertionError(
+                    "set-delivery-method needs {'deliveryMethod': {'code': ...}}; "
+                    f"got {sorted((body or {}))}")
+            self.delivery_method = {"id": code, "title": "Standard delivery"}
             self.revision += 1
             return {"cart": self._cart_body()}
 
