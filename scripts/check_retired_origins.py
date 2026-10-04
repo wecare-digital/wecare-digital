@@ -21,7 +21,7 @@ surface that kept the dead origin was also the one with the widest reach.
 
 Since then the retired list has grown, and the media surface named above is itself
 retired. On **2026-09-28** the owner deleted the `app.wecare.digital` bucket, the
-`ERCXSFDL0VM8X` distribution that fronted it (aliases `app.`, `selfservice.` and
+`ERCXSFDL0VM8X` distribution that fronted it (aliases `app.`, `customerservice.` and
 `selfcare.`), and the `r.wecare.digital` record for the URL shortener. All four
 hostnames are NXDOMAIN, measured. Media now serves from the apex path
 `wecare.digital/get` over bucket `wecare-digital-get`, and short links from
@@ -99,7 +99,7 @@ RETIRED_HOSTS = {
         "wecare.digital/get instead, and the bucket for S3 API calls is "
         "wecare-digital-get - see lambda_utils/media_paths.py"
     ),
-    "selfservice.wecare.digital": (
+    "customerservice.wecare.digital": (
         "retired 2026-09-28 alongside app.wecare.digital; both were aliases on "
         "CloudFront ERCXSFDL0VM8X. NXDOMAIN"
     ),
