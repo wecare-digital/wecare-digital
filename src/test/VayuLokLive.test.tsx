@@ -343,7 +343,7 @@ function requestIs( input: RequestInfo | URL, hostname: string, pathnamePrefix?:
 }
 
 function airConditionsFetch( aqi = 120, pm25 = 58 ) {
-  return vi.fn( ( input: RequestInfo | URL ) => {
+  return vi.fn( ( input: RequestInfo | URL, _init?: RequestInit ) => {
     const url = String( input );
     if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
@@ -363,7 +363,7 @@ function airConditionsFetch( aqi = 120, pm25 = 58 ) {
 function environmentFetch() {
   const now = new Date();
   const hour = ( offset: number ) => new Date( now.getTime() + offset * 60 * 60 * 1000 ).toISOString();
-  return vi.fn( ( input: RequestInfo | URL ) => {
+  return vi.fn( ( input: RequestInfo | URL, _init?: RequestInit ) => {
     const url = String( input );
     if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
