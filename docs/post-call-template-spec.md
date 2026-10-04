@@ -21,13 +21,13 @@ approved `rcsmenu` / `wecaremenu` / `wdorder` RCS cards, and behind the
 Cause, dated rather than guessed: PR **#47** (`6bc44a35`, 2026-09-24 18:08)
 removed the in-repo `[retired public path b180810d]` and `/product-page` redirect stubs. No Amplify
 rule replaced them — the live app has **zero** custom rules mentioning
-`selfservice`, out of 104. So the route has been dead for three days.
+`customerservice`, out of 104. So the route has been dead for three days.
 
 It is **not** a side effect of the `/workspace/` nesting (`c143301d`,
 2026-09-27 05:44), which landed three days later and is what added the working
 `[retired public path 169e0fd8]/<*>` redirect.
 
-The page itself is alive at `https://wecare.digital/workspace/forms/selfservice/`
+The page itself is alive at `https://wecare.digital/workspace/forms/customerservice/`
 (200). The fix is one Amplify rule. **The SMS body cannot be changed to route
 around it** — it is frozen by DLT approval — so the rule is the only option that
 repairs SMS.
@@ -38,9 +38,9 @@ repairs SMS.
 
 | Candidate | First | Hops | Terminal | Verdict |
 |---|---|---:|---|---|
-| `wecare.digital/selfservice` | 301 | 1 | **404** | **broken** |
+| `wecare.digital/customerservice` | 301 | 1 | **404** | **broken** |
 | `wecare.digital/r/getstarted` | 302 | → above | **404** | broken + a redirect |
-| `wecare.digital/workspace/forms/selfservice/` | **200** | **0** | itself | terminal ✓ |
+| `wecare.digital/workspace/forms/customerservice/` | **200** | **0** | itself | terminal ✓ |
 | `wecare.digital/r/wa` | 302 | 2 | api.whatsapp.com | 2 redirects |
 | `wa.me/message/APDM5HUWH26SG1` | 302 | 1 | api.whatsapp.com | 1 redirect |
 | `api.whatsapp.com/message/APDM5HUWH26SG1` | **200** | **0** | itself | terminal ✓ |
@@ -49,24 +49,24 @@ repairs SMS.
 So the only zero-redirect pair is:
 
 ```
-Get Started   https://wecare.digital/workspace/forms/selfservice/
+Get Started   https://wecare.digital/workspace/forms/customerservice/
 WhatsApp      https://api.whatsapp.com/message/APDM5HUWH26SG1
 Call          dialer action — no URL at all
 ```
 
-**One thing to decide.** The terminal self-service URL sits inside
+**One thing to decide.** The terminal customer-service URL sits inside
 `/workspace/`, which is the *authenticated* namespace. It serves 200 to an
 anonymous visitor today, but sending customers into an internal-looking path is a
 naming decision, not a technical one. Two options:
 
-* **A —** point the buttons at `/workspace/forms/selfservice/`. Zero redirects
+* **A —** point the buttons at `/workspace/forms/customerservice/`. Zero redirects
   today, but a customer-facing URL that reads as internal.
 * **B —** restore a real page at `[retired public path b180810d]` (not a redirect stub), then point
   the buttons there. Zero redirects **and** a clean public URL. Needs one page
   added, and it repairs the DLT-frozen SMS at the same time.
 
 **B is the recommendation.** It is the only option that also fixes SMS, because
-the SMS body already says `wecare.digital/selfservice` and cannot be edited.
+the SMS body already says `wecare.digital/customerservice` and cannot be edited.
 
 ---
 
@@ -138,7 +138,7 @@ Buttons and actions:
 
 | # | Label | Type | Action | Redirects |
 |---|---|---|---|---|
-| 1 | `Get Started` | `URL` | opens the self-service page | **0** once §1 is settled |
+| 1 | `Get Started` | `URL` | opens the customer-service page | **0** once §1 is settled |
 | 2 | `Call us` | `PHONE_NUMBER` | dials `+919330994400` | n/a |
 
 **No "WhatsApp us" button** — the reader is already in WhatsApp, so it would waste
@@ -168,7 +168,7 @@ Buttons and actions — 3 of the 4 a rich card allows:
 
 | # | Label | Type | Action | Redirects |
 |---|---|---|---|---|
-| 1 | `Get Started` | `openUrlAction` | self-service page | **0** once §1 is settled |
+| 1 | `Get Started` | `openUrlAction` | customer-service page | **0** once §1 is settled |
 | 2 | `WhatsApp us` | `openUrlAction` | `api.whatsapp.com/message/APDM5HUWH26SG1` | **0** |
 | 3 | `Call us` | `dialAction` | `+919330994400` | n/a |
 
@@ -181,7 +181,7 @@ slot is left free.
 
 | Channel | Old / redirect links remaining |
 |---|---|
-| SMS | **2** — `wecare.digital/selfservice`, `wecare.digital/r/wa`. Frozen by DLT. |
+| SMS | **2** — `wecare.digital/customerservice`, `wecare.digital/r/wa`. Frozen by DLT. |
 | WhatsApp | **0** |
 | RCS | **0** |
 
@@ -207,7 +207,7 @@ facing is broken by them, and both can be deleted or recreated.
 
 ## 8. What I need decided
 
-1. **§1 option A or B** for the self-service URL. B is recommended and is the only
+1. **§1 option A or B** for the customer-service URL. B is recommended and is the only
    one that also repairs SMS.
 2. Whether to **fix `[retired public path b180810d]`** now — it is a live 404 on the primary CTA,
    independent of this template work.
@@ -235,15 +235,15 @@ the structured fields, body URLs from the decoded body text. 45 URLs, 10 dead:
 
 | Template | Where | Code | URL | Sent by code? |
 |---|---|---:|---|---|
-| `rcsmenu` | **body text** | **404** | `wecare.digital/selfservice` | **YES — the only template any code sends** |
-| `wd_card_clean` | **button** | **404** | `wecare.digital/selfservice` | no |
-| `get_started` | body text | 404 | `wecare.digital/selfservice` | no |
-| `wecaremenu` | body text | 404 | `wecare.digital/selfservice` | no |
-| `wdorder` | body text | 404 | `wecare.digital/selfservice` | no |
-| `rcsorder` | body text | 404 | `wecare.digital/selfservice` | no |
-| `rcsmenu_apex` | body text | 404 | `wecare.digital/selfservice` | no |
-| `wd_card_front` | body text | 404 | `wecare.digital/selfservice` | no |
-| `wd_card_front_wide` | body text | 404 | `wecare.digital/selfservice` | no |
+| `rcsmenu` | **body text** | **404** | `wecare.digital/customerservice` | **YES — the only template any code sends** |
+| `wd_card_clean` | **button** | **404** | `wecare.digital/customerservice` | no |
+| `get_started` | body text | 404 | `wecare.digital/customerservice` | no |
+| `wecaremenu` | body text | 404 | `wecare.digital/customerservice` | no |
+| `wdorder` | body text | 404 | `wecare.digital/customerservice` | no |
+| `rcsorder` | body text | 404 | `wecare.digital/customerservice` | no |
+| `rcsmenu_apex` | body text | 404 | `wecare.digital/customerservice` | no |
+| `wd_card_front` | body text | 404 | `wecare.digital/customerservice` | no |
+| `wd_card_front_wide` | body text | 404 | `wecare.digital/customerservice` | no |
 | `wecare_order_update` | body text | 404 | `wecare.digital/track` | no |
 
 **Every button and every media asset in `rcsmenu` returns 200.** Its 404 is the
@@ -258,9 +258,9 @@ Re-measured, and it contradicts the table in §1:
 | URL | §1 said (2026-09-27) | Measured 2026-09-28 |
 |---|---|---|
 | `wecare.digital/r/getstarted` | 302 → **404** | **200**, 1 hop → `/contact/` |
-| `wecare.digital/selfservice` | 404 | **404** (unchanged) |
+| `wecare.digital/customerservice` | 404 | **404** (unchanged) |
 | `wecare.digital/contact/` | not listed | **200**, terminal |
-| `wecare.digital/workspace/forms/selfservice/` | 200 | 200 |
+| `wecare.digital/workspace/forms/customerservice/` | 200 | 200 |
 | `wecare.digital/get/o/stream/media/m/wd-brand-16x9.png` | 200 | 200 |
 
 `faa956e8` made `/contact/` canonical and fixed the short link. So the URL question
@@ -270,8 +270,8 @@ pending restoration.
 
 ### 9.3 Re-filing ten templates is the wrong fix
 
-All ten dead links are **one** root cause: `wecare.digital/selfservice` returns 404.
-Zero of the app's **104** live Amplify custom rules mention `selfservice` or `track`.
+All ten dead links are **one** root cause: `wecare.digital/customerservice` returns 404.
+Zero of the app's **104** live Amplify custom rules mention `customerservice` or `track`.
 
 One redirect rule, `[retired public path b180810d]` → `/contact/`, repairs **nine of the ten** with no
 provider review, no new approvals, and no frozen-body problem. Re-filing cannot
@@ -280,7 +280,7 @@ compete with that:
 * An approved body cannot be edited in place, so "fixing" nine templates means
   creating nine successors and reprovisioning whatever points at them.
 * It would not repair SMS at all. The DLT-approved `ivr-default` body names
-  `wecare.digital/selfservice` and is frozen character-for-character, so a redirect
+  `wecare.digital/customerservice` and is frozen character-for-character, so a redirect
   is the *only* thing that can fix the SMS path — exactly as §0 said.
 * `wecare_order_update`'s `[retired public path 282d0fd5]` is a separate second rule, or a deliberate
   retirement — it is a text template nothing sends.
