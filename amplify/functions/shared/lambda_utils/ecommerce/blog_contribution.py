@@ -149,7 +149,7 @@ def validate_contribution_amount(requested_paise: Any, *, currency: str = CONTRI
     The browser value is ONLY a request. This is the trusted gate:
 
       * currency must be exactly INR (compared, never inferred from the amount);
-      * the amount must be a genuine ``int`` of minor units - a ``bool``, a float (``4900.5`` is
+      * the amount must be a genuine ``int`` of minor units - a ``bool``, a float (``10000.5`` is
         fractional paise), a string, or anything ``positive_paise`` refuses is rejected;
       * the amount must be one of the exact values in ``CONTRIBUTION_PRESETS_PAISE``.
 
