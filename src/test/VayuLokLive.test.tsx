@@ -36,9 +36,48 @@ interface MapsRecorder {
   geocodeCalls: Record<string, unknown>[];
   autocompleteCalls: Record<string, unknown>[];
   placeFetchFields: string[][];
+  // Every library name the component passed to google.maps.importLibrary. Production-like
+  // Geocoder now arrives via importLibrary('geocoding'), so this proves the import happened.
+  importedLibraries: string[];
 }
 
-function installGoogleMaps( paintMap = true ): MapsRecorder {
+// Optional author attribution Google supplies with a Place photo. When provided, the
+// stubbed search prediction resolves to a Place carrying one photo with these
+// attributions, so the component's mandated-attribution rendering can be exercised.
+interface PhotoAttribution { displayName?: string; uri?: string }
+// Honest Place metadata the Places JS API may return. When provided, the stubbed Place
+// carries these so the left-card metadata/attributes/description can be asserted; when
+// omitted, the Place carries none and those lines must NOT render (honest conditional).
+interface PlaceMetaStub {
+  types?: string[];
+  primaryTypeDisplayName?: string;
+  rating?: number;
+  userRatingCount?: number;
+  websiteURI?: string;
+  regularOpeningHours?: { openNow?: boolean };
+  editorialSummary?: string;
+}
+interface InstallOpts {
+  paintMap?: boolean;
+  photoAttributions?: PhotoAttribution[];
+  placeMeta?: PlaceMetaStub;
+  // When false, DO NOT seed google.maps.Geocoder on the raw namespace. This reproduces the
+  // real modern loader where Geocoder lives only in the 'geocoding' library, proving the
+  // component obtains its Geocoder via importLibrary('geocoding') and not a pre-seeded ns.
+  seedNamespaceGeocoder?: boolean;
+  // Status the FakeGeocoder reports back to the component's geocode callback. Defaults to
+  // 'OK'; set e.g. 'REQUEST_DENIED' to exercise the error-surfacing fallback.
+  geocodeStatus?: string;
+}
+
+function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
+  const {
+    paintMap = true,
+    photoAttributions,
+    placeMeta,
+    seedNamespaceGeocoder = true,
+    geocodeStatus = 'OK',
+  }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
     overlayPushes: [],
@@ -47,6 +86,7 @@ function installGoogleMaps( paintMap = true ): MapsRecorder {
     geocodeCalls: [],
     autocompleteCalls: [],
     placeFetchFields: [],
+    importedLibraries: [],
   };
 
   const overlayMapTypes = {
@@ -69,12 +109,39 @@ function installGoogleMaps( paintMap = true ): MapsRecorder {
     setTitle() { /* no-op */ }
   }
   class FakeGeocoder {
-    geocode( req: Record<string, unknown> ) { rec.geocodeCalls.push( req ); }
+    geocode(
+      req: Record<string, unknown>,
+      cb?: ( rows: unknown[] | null, status: string ) => void,
+    ) {
+      rec.geocodeCalls.push( req );
+      // Reverse-geocode-on-click (location) and the address fallback both pass a callback.
+      // Report the configured status; on OK return a single plausible India result so the
+      // fallback's mapping path (results + 'idle') is exercised, not just the error branch.
+      if ( typeof cb === 'function' ) {
+        const rows = geocodeStatus === 'OK'
+          ? [ {
+              formatted_address: 'Mumbai, Maharashtra, India',
+              place_id: 'fake-place-id',
+              geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
+            } ]
+          : null;
+        cb( rows, geocodeStatus );
+      }
+    }
   }
   class FakeImageMapType {
     constructor( opts: Record<string, unknown> ) { rec.imageMapTypeOpts.push( opts ); }
   }
   class FakeAutocompleteSessionToken {}
+  // When photoAttributions are supplied, the resolved Place carries one photo bearing those
+  // Google-mandated author attributions (getURI returns a stable URL). Otherwise photos stay
+  // empty, preserving the default stub behaviour the other suites rely on.
+  const predictionPhotos = photoAttributions
+    ? [ {
+        getURI: ( _o: { maxWidth?: number; maxHeight?: number } ) => 'https://maps.example/photo-with-credit.jpg',
+        authorAttributions: photoAttributions,
+      } ]
+    : [];
   const fakePrediction = {
     mainText: { text: 'Mumbai' },
     secondaryText: { text: 'Maharashtra, India' },
@@ -83,7 +150,10 @@ function installGoogleMaps( paintMap = true ): MapsRecorder {
       displayName: 'Mumbai',
       formattedAddress: 'Mumbai, Maharashtra, India',
       location: { lat: () => 19.076, lng: () => 72.8777 },
-      photos: [],
+      photos: predictionPhotos,
+      // Honest metadata only when the test opts in; otherwise undefined so the
+      // metadata/attributes/description lines must not render.
+      ...( placeMeta || {} ),
       fetchFields: async ( req: { fields: string[] } ) => { rec.placeFetchFields.push( req.fields ); },
     } ),
   };
@@ -97,23 +167,29 @@ function installGoogleMaps( paintMap = true ): MapsRecorder {
     },
   };
 
-  ( window as unknown as { google: unknown } ).google = {
-    maps: {
-      Map: FakeMap,
-      Marker: FakeMarker,
-      Geocoder: FakeGeocoder,
-      ImageMapType: FakeImageMapType,
-      LatLng: class { constructor( _a: number, _b: number ) { /* no-op */ } },
-      places,
-      importLibrary: async ( name: string ) => name === 'places'
-        ? places
-        : name === 'maps'
-          ? { Map: FakeMap }
-          : name === 'marker'
-            ? { Marker: FakeMarker }
-            : {},
+  const maps: Record<string, unknown> = {
+    Map: FakeMap,
+    Marker: FakeMarker,
+    ImageMapType: FakeImageMapType,
+    LatLng: class { constructor( _a: number, _b: number ) { /* no-op */ } },
+    places,
+    // Production-like modern loader: Geocoder is delivered by importLibrary('geocoding'),
+    // mirroring how Google documents the geocoding library as separately imported. The
+    // raw-namespace Geocoder is seeded ONLY when seedNamespaceGeocoder is true (legacy
+    // loader), so a test can prove the component imports 'geocoding' rather than relying
+    // on a pre-seeded namespace. Every requested library name is recorded.
+    importLibrary: async ( name: string ) => {
+      rec.importedLibraries.push( name );
+      if ( name === 'places' ) return places;
+      if ( name === 'maps' ) return { Map: FakeMap };
+      if ( name === 'marker' ) return { Marker: FakeMarker };
+      if ( name === 'geocoding' ) return { Geocoder: FakeGeocoder };
+      return {};
     },
   };
+  if ( seedNamespaceGeocoder ) maps.Geocoder = FakeGeocoder;
+
+  ( window as unknown as { google: unknown } ).google = { maps };
 
   return rec;
 }
@@ -276,6 +352,15 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     await waitFor( () => expect( rec.overlayPushes ).toHaveLength( 1 ) );
     expect( rec.imageMapTypeOpts ).toHaveLength( 1 );
 
+    // Req 05: the overlay carries the fully-translucent lime wiring. The ImageMapType is
+    // constructed with a low `opacity` so the geo/road map stays visible underneath; the
+    // lime recolour itself is a scoped CSS filter the live tiles receive (not asserted by
+    // brittle numeric filter values). Assert the opacity option is present and translucent.
+    const opacity = rec.imageMapTypeOpts[ 0 ].opacity as number;
+    expect( typeof opacity ).toBe( 'number' );
+    expect( opacity ).toBeGreaterThan( 0 );
+    expect( opacity ).toBeLessThan( 1 );
+
     // The overlay's tile URL points at the air-quality heatmapTiles SKU (built lazily per tile),
     // and uses a VALID Air Quality API mapType. The AQI layer must use the universal UAQI scale
     // (not US_AQI) so the heatmap matches the India-CPCB legend/panels on the page. The mapType
@@ -296,6 +381,98 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     const pm25Type = getPm25TileUrl( { x: 1, y: 2 }, 3 ).match( /\/mapTypes\/([^/]+)\/heatmapTiles\// )?.[ 1 ];
     expect( pm25Type ).toBe( 'PM25_INDIGO_PERSIAN' );
     expect( pm25Type ).not.toBe( 'PM25_HEATMAP' );
+  } );
+
+  it( 'shows the heatmap legend only while a layer is active, with both ends labelled in words', async () => {
+    // The legend now lives inside the left card's environmental RESULT block, which renders
+    // once a layer is active AND the air reading has arrived. Supply a minimal AQI response.
+    vi.stubGlobal( 'fetch', vi.fn( ( input: RequestInfo | URL ) => {
+      const url = String( input );
+      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: 120, category: 'Moderate', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 58, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    // No layer selected on load -> no legend in the DOM.
+    expect( container.querySelector( '.vl-live-scale-legend' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-scale' ) ).toBeNull();
+
+    // Activating a layer reveals the legend, which reuses the no-red --aqi-* ramp and
+    // labels both ends in WORDS so colour is never the sole carrier of meaning.
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( container.querySelector( '.vl-live-scale-legend' ) ).not.toBeNull() );
+    expect( container.querySelector( '.vl-live-scale-legend .vl-live-scale' ) ).not.toBeNull();
+    const ends = Array.from( container.querySelectorAll( '.vl-live-scale-ends span' ) ).map( n => n.textContent );
+    expect( ends ).toEqual( [ 'Good', 'Hazardous' ] );
+  } );
+
+  it( 'renders the selected place name + address in the left card and swaps the result block per layer', async () => {
+    const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
+      const url = String( input );
+      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: 168, category: 'Moderate', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 82, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+            healthRecommendations: { generalPopulation: 'Limit prolonged outdoor exertion.' },
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // The left card always leads with the selected place's name + full address.
+    const leftCard = container.querySelector( '.vl-live-left .vl-live-place-card' );
+    expect( leftCard ).not.toBeNull();
+    expect( leftCard!.querySelector( '.vl-live-place' )?.textContent ).toBeTruthy();
+    expect( leftCard!.querySelector( '.vl-live-place-addr' )?.textContent ).toBeTruthy();
+
+    // No layer selected -> no environmental result block in the card yet.
+    expect( container.querySelector( '.vl-live-layer-result' ) ).toBeNull();
+
+    // Wait for the AQI figure to arrive from the stubbed air endpoint.
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    // Selecting AQI renders the existing VayuLok AQI result INSIDE the left card: the AQI
+    // value, its category word, and the health guidance all appear in the left column.
+    await waitFor( () => expect( container.querySelector( '.vl-live-left .vl-live-layer-result' ) ).not.toBeNull() );
+    const aqiResult = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
+    expect( aqiResult.textContent ).toContain( '168' );
+    expect( aqiResult.textContent ).toContain( 'Moderate' );
+    expect( aqiResult.textContent ).toContain( 'Air quality now' );
+
+    // Switching to PM2.5 swaps the left-card result to the PM2.5-focused block, which
+    // carries the explicit "Current status" label + a status word derived from the SAME
+    // severity band (168 -> Moderate -> "Elevated"), per the FINAL TARGET PM2.5 mockup.
+    fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
+    await waitFor( () => {
+      const pm25Result = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
+      expect( pm25Result.textContent ).toContain( 'PM2.5 heatmap result' );
+      expect( pm25Result.textContent ).toContain( '82' );
+      expect( pm25Result.textContent ).toContain( 'Current status' );
+      expect( pm25Result.querySelector( '.vl-live-status-word' )?.textContent ).toBe( 'Elevated' );
+    } );
   } );
 
   it( 'builds the map restricted to India and searches India-scoped (not duplicated literals)', async () => {
@@ -350,34 +527,138 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( rec.placeFetchFields[ 0 ] ).toEqual( expect.arrayContaining( [ 'displayName', 'formattedAddress', 'location', 'photos' ] ) );
   } );
 
-  it( 'exposes an accessible, keyboard-operable expand control that toggles the expanded map stage', async () => {
+  it( 'no longer renders the on-map Expand/Collapse control, and keeps greedy drag-pan', async () => {
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
     const VayuLokLive = await loadComponent();
 
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    // Wait for the ready-only controls so the right-map chrome has rendered.
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
-    // 03C approach (b): keyboardShortcuts stays false so Google's built-in arrow-pan
-    // never fights the India strictBounds restriction. Keyboard interaction is provided
-    // instead by an explicit accessible expand/collapse <button>.
-    expect( rec.mapOpts!.keyboardShortcuts ).toBe( false );
-    expect( rec.mapOpts!.gestureHandling ).toBe( 'greedy' );
-
-    // The control is a real button, operable by keyboard, and reports its state.
-    const expand = await screen.findByRole( 'button', { name: 'Expand map' } );
-    expect( expand ).toHaveAttribute( 'aria-expanded', 'false' );
+    // FINAL TARGET: the Expand map / Collapse map control is REMOVED from the map. No
+    // button carries either accessible name, and the expand-only CSS hook is gone.
+    expect( screen.queryByRole( 'button', { name: 'Expand map' } ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Collapse map' } ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-expand' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).toBeNull();
 
-    // Activating it (Testing Library click models keyboard/pointer activation of a
-    // native button) expands the stage and flips aria-expanded + the accessible name.
-    fireEvent.click( expand );
-    await waitFor( () => expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).not.toBeNull() );
-    const collapse = screen.getByRole( 'button', { name: 'Collapse map' } );
-    expect( collapse ).toHaveAttribute( 'aria-expanded', 'true' );
+    // Basic usable map pan is kept via gestureHandling:'greedy'; keyboardShortcuts stays
+    // false so Google's built-in arrow-pan never fights the India strictBounds restriction.
+    expect( rec.mapOpts!.gestureHandling ).toBe( 'greedy' );
+    expect( rec.mapOpts!.keyboardShortcuts ).toBe( false );
+  } );
 
-    // Toggling again collapses it.
-    fireEvent.click( collapse );
-    await waitFor( () => expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).toBeNull() );
+  it( 'does not float a photo gallery overlay on the map (photo + pill live in the left card)', async () => {
+    const rec2 = installGoogleMaps( {
+      photoAttributions: [ { displayName: 'Jane Contributor', uri: 'https://maps.google.com/maps/contrib/123' } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    // Drive search -> select so photos resolve into previewPlace.photos.
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    fireEvent.mouseDown( option );
+
+    // The number pill renders (number-only), and it lives INSIDE the left column, not in
+    // a floating on-map overlay. The removed overlay container is gone from the DOM.
+    const pill = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-photo-count' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( container.querySelector( '.vl-live-map-photos' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-left .vl-live-photo-count' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-right .vl-live-photo-count' ) ).toBeNull();
+
+    // The pill is number-only: its visible text is a bare integer, never '{n} photos'.
+    const visible = ( pill.textContent || '' ).trim();
+    expect( visible ).toMatch( /^\d+$/ );
+    expect( visible ).not.toMatch( /photo/i );
+  } );
+
+  it( 'surfaces real Place metadata/attributes/description in the left card ONLY when Google returned it', async () => {
+    const rec2 = installGoogleMaps( {
+      placeMeta: {
+        primaryTypeDisplayName: 'Historical landmark',
+        types: [ 'tourist_attraction', 'point_of_interest' ],
+        rating: 4.6,
+        userRatingCount: 1234,
+        websiteURI: 'https://example.gov.in/monument',
+        regularOpeningHours: { openNow: true },
+        editorialSummary: 'A heritage monument popular with visitors.',
+      },
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    // Before a selection the default place carries no Google metadata, so none of the
+    // metadata-fact/attribute/description lines render (honest conditional, no placeholder).
+    expect( container.querySelector( '.vl-live-place-facts' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-attrs' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-desc' ) ).toBeNull();
+
+    // Drive search -> select so the Place metadata resolves into the left card.
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    const meta = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-left .vl-live-place-meta' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // The extra metadata fields were actually requested on the keyed select path.
+    expect( rec2.placeFetchFields[ 0 ] ).toEqual(
+      expect.arrayContaining( [ 'types', 'rating', 'userRatingCount', 'websiteURI', 'regularOpeningHours', 'editorialSummary' ] ),
+    );
+
+    // Real metadata facts render (category + rating with review count).
+    expect( meta.textContent ).toContain( 'Historical Landmark' );
+    expect( meta.textContent ).toContain( '4.6' );
+    expect( meta.textContent ).toContain( '1,234' );
+
+    // The attribute checklist reflects honest flags (open now, website) and the
+    // human-readable secondary types - never an invented attribute.
+    const attrs = Array.from( meta.querySelectorAll( '.vl-live-place-attrs li' ) ).map( n => n.textContent?.trim() );
+    expect( attrs ).toContain( 'Open now' );
+    expect( attrs ).toContain( 'Official website listed' );
+    expect( attrs.some( a => /Tourist Attraction/i.test( a || '' ) ) ).toBe( true );
+
+    // The editorial summary becomes the useful place description.
+    expect( meta.querySelector( '.vl-live-place-desc' )?.textContent ).toContain( 'heritage monument' );
+  } );
+
+  it( 'renders NO metadata/attribute/description lines when Google returns none (honest degradation of the card body)', async () => {
+    // Default stub resolves a Place with name/address/location only (no metadata).
+    const rec2 = installGoogleMaps();
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    // The place name updates, confirming the selection resolved...
+    await waitFor( () => expect(
+      container.querySelector( '.vl-live-left .vl-live-place' )?.textContent,
+    ).toContain( 'Mumbai' ) );
+
+    // ...but with no metadata returned, the metadata facts/attribute/description blocks do
+    // not render (the supporting-info coordinate line may still appear, which is honest).
+    expect( container.querySelector( '.vl-live-place-facts' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-attrs' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-desc' ) ).toBeNull();
   } );
 } );
 
@@ -598,5 +879,124 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     expect( screen.queryByRole( 'button', { name: /View details|Jump to details/i } ) ).toBeNull();
     // The old '{n} photos' pill label text is gone - the pill is now number-only.
     expect( screen.queryByText( /\bphotos\b/i ) ).toBeNull();
+  } );
+} );
+
+describe( 'VayuLokLive - geocoding library is imported and the geocoding search fallback works', () => {
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+  } );
+
+  // The defect: the component imported maps/marker/places but took Geocoder from the raw
+  // namespace and never imported the 'geocoding' library. Under loading=async the raw
+  // namespace Geocoder is undefined until importLibrary('geocoding') runs. This test
+  // reproduces the real loader by NOT seeding google.maps.Geocoder, then proves the
+  // component still obtains a Geocoder - which can only happen if it imports 'geocoding'.
+  it( 'imports the "geocoding" library on map init even when google.maps.Geocoder is NOT pre-seeded', async () => {
+    const rec = installGoogleMaps( { seedNamespaceGeocoder: false } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    // Hard proof there is no raw-namespace Geocoder masking the import.
+    expect( ( window as unknown as { google?: { maps?: { Geocoder?: unknown } } } ).google?.maps?.Geocoder )
+      .toBeUndefined();
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // 'geocoding' is among the dynamically imported libraries, alongside the map library.
+    await waitFor( () => expect( rec.importedLibraries ).toContain( 'geocoding' ) );
+    expect( rec.importedLibraries ).toContain( 'maps' );
+  } );
+
+  // The autocomplete->geocoding FALLBACK: when the modern Autocomplete Data API is absent,
+  // the search must still resolve via a Geocoder obtained through importLibrary('geocoding')
+  // (NOT a pre-seeded namespace), proving the fallback no longer depends on legacy.Geocoder.
+  it( 'resolves a search via the imported Geocoder when AutocompleteSuggestion is unavailable', async () => {
+    const rec = installGoogleMaps( { seedNamespaceGeocoder: false } );
+    // Remove the modern Autocomplete Data API so runSearch takes the geocoding fallback.
+    delete ( ( window as unknown as { google: { maps: { places: Record<string, unknown> } } } )
+      .google.maps.places ).AutocompleteSuggestion;
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+
+    // The fallback actually calls Geocoder.geocode with the India address restriction, and
+    // the imported Geocoder (not a namespace one) returns a result the user can pick.
+    await waitFor( () => expect( rec.geocodeCalls.length ).toBeGreaterThan( 0 ) );
+    const addressCall = rec.geocodeCalls.find( c => typeof c.address === 'string' );
+    expect( addressCall ).toBeTruthy();
+    expect( ( addressCall!.componentRestrictions as { country?: string } ).country ).toBe( 'in' );
+    expect( rec.importedLibraries ).toContain( 'geocoding' );
+    await waitFor( () => expect( screen.getByRole( 'option', { name: /Mumbai/i } ) ).toBeInTheDocument() );
+  } );
+
+  // Error surfacing: a REQUEST_DENIED geocode status must raise the existing 'unavailable'
+  // search status (amber retry affordance), not be silently swallowed.
+  it( 'surfaces a REQUEST_DENIED geocode status as the "unavailable" search status with a retry', async () => {
+    const rec = installGoogleMaps( { seedNamespaceGeocoder: false, geocodeStatus: 'REQUEST_DENIED' } );
+    delete ( ( window as unknown as { google: { maps: { places: Record<string, unknown> } } } )
+      .google.maps.places ).AutocompleteSuggestion;
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+
+    await waitFor( () => expect( rec.geocodeCalls.length ).toBeGreaterThan( 0 ) );
+    // The failure is user-visible via the existing error status + Retry button, not swallowed.
+    const status = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-search-status.vl-live-search-status-error' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( status.querySelector( 'button' )?.textContent ).toMatch( /Retry/i );
+  } );
+} );
+
+describe( 'VayuLokLive - mandated Google Place Photo attribution is preserved (req 06)', () => {
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+  } );
+
+  // Req 06 is bounded: the Place Photo AUTHOR attribution is mandatory under Google's Places
+  // API / Maps Platform ToS and MUST stay visible and legible. This test guards against a
+  // future accidental removal: a chosen place whose photo carries authorAttributions MUST
+  // render the .vl-live-photo-credit <figcaption> and a link out to the contributor's uri.
+  it( 'renders the Place Photo credit figcaption and its contributor link when a photo has attributions', async () => {
+    const rec = installGoogleMaps( {
+      photoAttributions: [ { displayName: 'Jane Contributor', uri: 'https://maps.google.com/maps/contrib/123' } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // Drive the real search -> select flow so the component resolves the Place and maps its
+    // photos (with Google's authorAttributions) into previewPlace.photos.
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    fireEvent.mouseDown( option );
+
+    // The mandated attribution figcaption renders, carrying the contributor's name, and links
+    // out to the contributor's Google uri (target _blank). This is what Google's ToS requires.
+    const credit = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-photo-credit' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    const link = credit.querySelector( 'a' ) as HTMLAnchorElement;
+    expect( link ).not.toBeNull();
+    expect( link.getAttribute( 'href' ) ).toBe( 'https://maps.google.com/maps/contrib/123' );
+    expect( link.textContent ).toContain( 'Jane Contributor' );
   } );
 } );
