@@ -181,10 +181,12 @@ interface SearchResult {
 }
 
 const DEFAULT_PLACE: PlaceState = {
-  name: 'Dawki',
-  addr: 'Dawki, West Jaintia Hills, Meghalaya 793109',
-  lat: 25.18333,
-  lng: 92.01667,
+  // Camera-only neutral India starting point. This is never rendered as a selected
+  // destination; hasSelection stays false until search or an explicit valid map click.
+  name: 'India',
+  addr: '',
+  lat: 22.9734,
+  lng: 78.6569,
   photos: [],
 };
 
@@ -535,8 +537,11 @@ function rememberPlace( place: PlaceState ) {
 }
 
 const VayuLokLive: React.FC = () => {
-  // The selected place drives every fetch. Default is Connaught Place; search updates it.
+  // `place` always contains map coordinates, but it is not a visitor-selected
+  // destination until hasSelection becomes true. This keeps the initial India camera neutral.
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
+  const [ hasSelection, setHasSelection ] = useState( false );
+  const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ photoIndex, setPhotoIndex ] = useState( 0 );
@@ -576,6 +581,7 @@ const VayuLokLive: React.FC = () => {
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const photoRailRef = useRef<HTMLDivElement | null>( null );
+  const placeCardRef = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   const markerRef = useRef<unknown>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
@@ -717,7 +723,7 @@ const VayuLokLive: React.FC = () => {
 
       const map = new maps.Map( host, {
         center: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-        zoom: 14,
+        zoom: 5,
         mapTypeId: 'roadmap',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
@@ -738,8 +744,11 @@ const VayuLokLive: React.FC = () => {
       if ( maps.Marker ) {
         markerRef.current = new maps.Marker( {
           position: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-          map,
-          title: DEFAULT_PLACE.name,
+          map: null,
+          title: '',
+          icon: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11.1 16 24 16 24s16-12.9 16-24C33 8.2 25.8 1 17 1Z" fill="%23d1f470" stroke="%231a3a2a" stroke-width="2"/><circle cx="17" cy="17" r="5.5" fill="%231a3a2a"/></svg>',
+          ),
         } );
       }
 
@@ -758,7 +767,18 @@ const VayuLokLive: React.FC = () => {
         } | null;
         gc?.geocode?.( { location: { lat, lng }, region: 'in' }, async ( rows, status ) => {
           if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const first = rows[ 0 ] as { formatted_address?: string; place_id?: string };
+          const typedRows = rows as Array<{
+            formatted_address?: string;
+            place_id?: string;
+            address_components?: Array<{ short_name?: string; types?: string[] }>;
+          }>;
+          const first = typedRows.find( row => row.address_components?.some(
+            component => component.types?.includes( 'country' ) && component.short_name === 'IN',
+          ) );
+          if ( !first ) {
+            setSearchStatus( 'no-results' );
+            return;
+          }
           const next: PlaceState = {
             name: first.formatted_address?.split( ',' )[ 0 ] || 'Selected location',
             addr: first.formatted_address || '',
@@ -766,6 +786,7 @@ const VayuLokLive: React.FC = () => {
             lng,
             photos: [],
           };
+          setHasSelection( true );
           // 03C - selecting an area (here via a map click) recenters the map on that
           // area's geocoded lat/lng and loads its live data, exactly like choosing a
           // search result. The recenter effect (center + zoom 14 + marker move) fires on
@@ -935,7 +956,7 @@ const VayuLokLive: React.FC = () => {
      ScatterplotLayer and attaches a dynamically-imported GoogleMapsOverlay to the map; and
      (6) on deactivate/unmount clears the overlay and aborts any in-flight grid fetch. */
   useEffect( () => {
-    if ( !MAPS_KEY || typeof window === 'undefined' ) return;
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     // No layer active -> ensure overlay is detached and the single-point air result clears.
     if ( !layer ) {
       const existing = deckOverlayRef.current as { setMap?: ( m: unknown ) => void; setProps?: ( p: { layers: unknown[] } ) => void } | null;
@@ -1133,7 +1154,425 @@ const VayuLokLive: React.FC = () => {
       overlay?.setProps?.( { layers: [] } );
       overlay?.setMap?.( null );
     };
-  }, [ layer, place, refreshNonce, mapReady ] );
+  }, [ layer, place, refreshNonce, mapReady, hasSelection ] );
+
+  /* ---------------------------------------------------------------------------------
+     LIVE DATA for the selected place. Air + Weather + Pollen fire together whenever
+     the place changes AND a key is present. Solar is deliberately user-triggered because
+     Building Insights is the comparatively expensive SKU. Each call is independently guarded,
+     uses AbortController + Number.isFinite + silent degradation, and caches per place. */
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    const { lat, lng } = place;
+    const cacheKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
+
+    const cached = cache.current[ cacheKey ];
+    const CORE_TTL_MS = 5 * 60 * 1000;
+    if ( cached && Date.now() - cached.ts < CORE_TTL_MS ) {
+      requestAnimationFrame( () => {
+        setAir( cached.air );
+        setWeather( cached.weather );
+        setPollen( cached.pollen );
+        setCoreFetchedAt( cached.ts );
+        setCoreError( false );
+        setDataLoading( false );
+      } );
+      return;
+    }
+
+    setDataLoading( true );
+    setCoreError( false );
+    setAir( null );
+    setWeather( null );
+    setPollen( null );
+    const ac = new AbortController();
+    const store: { air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null } = {
+      air: null, weather: null, pollen: null,
+    };
+
+    // AIR QUALITY - India SKU currentConditions:lookup, India local AQI preferred.
+    const fetchAir = async () => {
+      try {
+        const res = await fetch(
+          `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}`,
+          {
+            method: 'POST',
+            signal: ac.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( {
+              location: { latitude: lat, longitude: lng },
+              extraComputations: [
+                'POLLUTANT_CONCENTRATION',
+                'LOCAL_AQI',
+                'HEALTH_RECOMMENDATIONS',
+                'DOMINANT_POLLUTANT_CONCENTRATION',
+              ],
+              languageCode: 'en',
+              universalAqi: true,
+            } ),
+          },
+        );
+        if ( !res.ok ) return;
+        const data = await res.json();
+        const indexes: { code?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
+        // Prefer the India CPCB local AQI when present, else the universal AQI.
+        const idx = indexes.find( i => i.code === 'ind_cpcb' ) || indexes.find( i => i.code === 'uaqi' ) || indexes[ 0 ];
+        if ( !idx || !Number.isFinite( idx.aqi ) ) return;
+        const aqi = idx.aqi as number;
+        const cat = aqiCategory( aqi );
+        const pollutants: AirState['pollutants'] = [];
+        const WANT: Record<string, string> = {
+          pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
+        };
+        ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
+          const label = p.code ? WANT[ p.code ] : undefined;
+          const v = p.concentration?.value;
+          if ( label && Number.isFinite( v ) ) {
+            pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
+          }
+        } );
+        const advisory = data?.healthRecommendations?.generalPopulation;
+        store.air = {
+          aqi,
+          word: cat.word,
+          sev: cat.sev,
+          dominant: idx.dominantPollutant || undefined,
+          pollutants,
+          advisory: typeof advisory === 'string' ? advisory : undefined,
+          updatedAt: typeof data?.dateTime === 'string' ? data.dateTime : undefined,
+        };
+      } catch { /* silent degradation */ }
+    };
+
+    // WEATHER - India SKU currentConditions:lookup (cheapest current snapshot).
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch(
+          `https://weather.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&unitsSystem=METRIC`,
+          { signal: ac.signal },
+        );
+        if ( !res.ok ) return;
+        const d = await res.json();
+        const temp = d?.temperature?.degrees;
+        const feels = d?.feelsLikeTemperature?.degrees;
+        const humidity = d?.relativeHumidity;
+        const windSpeed = d?.wind?.speed?.value;
+        const windUnit = d?.wind?.speed?.unit;
+        const windDeg = d?.wind?.direction?.degrees;
+        const condition = d?.weatherCondition?.description?.text;
+        const out: WeatherState = {};
+        if ( Number.isFinite( temp ) ) out.temp = Math.round( temp );
+        if ( Number.isFinite( feels ) ) out.feelsLike = Math.round( feels );
+        if ( Number.isFinite( humidity ) ) out.humidity = Math.round( humidity );
+        if ( Number.isFinite( windSpeed ) ) {
+          out.windSpeed = Math.round( windSpeed );
+          out.windUnit = windUnitLabel( typeof windUnit === 'string' ? windUnit : undefined );
+        }
+        if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
+        const gust = n( d?.wind?.gust?.value );
+        const rainMm = n( d?.precipitation?.qpf?.quantity );
+        const rainProb = n( d?.precipitation?.probability?.percent );
+        const stormProb = n( d?.thunderstormProbability );
+        const uv = n( d?.uvIndex );
+        const visibility = n( d?.visibility?.distance );
+        const pressure = n( d?.airPressure?.meanSeaLevelMillibars );
+        const dew = n( d?.dewPoint?.degrees );
+        const heat = n( d?.heatIndex?.degrees );
+        const wet = n( d?.wetBulbTemperature?.degrees );
+        const cloud = n( d?.cloudCover );
+        if ( Number.isFinite( gust ) ) out.windGust = Math.round( gust );
+        if ( Number.isFinite( rainMm ) ) out.rainMm = rainMm;
+        if ( Number.isFinite( rainProb ) ) out.rainProb = Math.round( rainProb );
+        if ( Number.isFinite( stormProb ) ) out.stormProb = Math.round( stormProb );
+        if ( Number.isFinite( uv ) ) out.uv = Math.round( uv );
+        if ( Number.isFinite( visibility ) ) out.visibilityKm = visibility;
+        if ( Number.isFinite( pressure ) ) out.pressureHpa = Math.round( pressure );
+        if ( Number.isFinite( dew ) ) out.dewPoint = Math.round( dew );
+        if ( Number.isFinite( heat ) ) out.heatIndex = Math.round( heat );
+        if ( Number.isFinite( wet ) ) out.wetBulb = Math.round( wet );
+        if ( Number.isFinite( cloud ) ) out.cloudCover = Math.round( cloud );
+        if ( typeof d?.currentTime === 'string' ) out.currentTime = d.currentTime;
+        if ( typeof condition === 'string' ) out.condition = condition;
+        // Only keep weather if at least one field arrived.
+        if ( Object.keys( out ).length ) store.weather = out;
+      } catch { /* silent degradation */ }
+    };
+
+    // POLLEN - forecast:lookup, one day. Degrade silently if absent.
+    const fetchPollen = async () => {
+      try {
+        const res = await fetch(
+          `https://pollen.googleapis.com/v1/forecast:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&days=5`,
+          { signal: ac.signal },
+        );
+        if ( !res.ok ) return;
+        const d = await res.json();
+        const daily = Array.isArray( d?.dailyInfo ) ? d.dailyInfo : [];
+        const rows: PollenRow[] = [];
+        daily.forEach( ( day: any, dayIndex: number ) => {
+          const date = day?.date;
+          const dateObj = date?.year && date?.month && date?.day
+            ? new Date( Date.UTC( date.year, date.month - 1, date.day ) )
+            : null;
+          const dayLabel = dayIndex === 0
+            ? 'Today'
+            : dateObj
+              ? new Intl.DateTimeFormat( 'en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' } ).format( dateObj )
+              : 'Day ' + String( dayIndex + 1 );
+          const types: { code?: string; displayName?: string; indexInfo?: { value?: number } }[] = day?.pollenTypeInfo || [];
+          types.forEach( t => {
+            const v = t.indexInfo?.value;
+            if ( t.displayName && Number.isFinite( v ) ) {
+              rows.push( { label: t.displayName, index: v as number, word: pollenCategory( v as number ), day: dayLabel } );
+            }
+          } );
+        } );
+        if ( rows.length ) store.pollen = rows;
+      } catch { /* silent degradation */ }
+    };
+
+    ( async () => {
+      await Promise.all( [ fetchAir(), fetchWeather(), fetchPollen() ] );
+      if ( ac.signal.aborted ) return;
+      const fetchedAt = Date.now();
+      cache.current[ cacheKey ] = { ts: fetchedAt, ...store };
+      // First setState via rAF to avoid react-hooks/set-state-in-effect.
+      requestAnimationFrame( () => {
+        if ( ac.signal.aborted ) return;
+        setAir( store.air );
+        setWeather( store.weather );
+        setPollen( store.pollen );
+        setCoreFetchedAt( fetchedAt );
+        setCoreError( !store.air && !store.weather );
+        setDataLoading( false );
+      } );
+    } )();
+
+    return () => ac.abort();
+  }, [ place, refreshNonce, hasSelection ] );
+
+  /* Extended forecast/history calls are separate from current conditions so a slow
+     long-range endpoint never blocks the "Now" experience. */
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    const ac = new AbortController();
+    const { lat, lng } = place;
+    const forecastKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
+    const cachedForecast = forecastCache.current[ forecastKey ];
+    const FORECAST_TTL_MS = 15 * 60 * 1000;
+    if ( cachedForecast && Date.now() - cachedForecast.ts < FORECAST_TTL_MS ) {
+      setWeatherHourly( cachedForecast.hourly );
+      setWeatherDaily( cachedForecast.daily );
+      setWeatherAlerts( cachedForecast.alerts );
+      setAirForecast( cachedForecast.airForecast );
+      setWeatherHistory( cachedForecast.weatherHistory );
+      return () => ac.abort();
+    }
+
+    setWeatherHourly( [] );
+    setWeatherDaily( [] );
+    setWeatherAlerts( [] );
+    setAirForecast( [] );
+    setWeatherHistory( [] );
+    const forecastStore: {
+      hourly: WeatherHour[];
+      daily: WeatherDay[];
+      alerts: WeatherAlertRow[];
+      airForecast: AirPoint[];
+      weatherHistory: WeatherHistoryPoint[];
+    } = { hourly: [], daily: [], alerts: [], airForecast: [], weatherHistory: [] };
+
+    const getJson = async ( url: string ) => {
+      const res = await fetch( url, { signal: ac.signal } );
+      if ( !res.ok ) return null;
+      return res.json();
+    };
+
+    const loadHourly = async () => {
+      const rows: WeatherHour[] = [];
+      let pageToken = '';
+      for ( let page = 0; page < 2 && !ac.signal.aborted; page++ ) {
+        let url = 'https://weather.googleapis.com/v1/forecast/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
+          + '&location.latitude=' + lat + '&location.longitude=' + lng
+          + '&hours=48&pageSize=24&unitsSystem=METRIC&languageCode=en';
+        if ( pageToken ) url += '&pageToken=' + encodeURIComponent( pageToken );
+        const data = await getJson( url );
+        if ( !data || ac.signal.aborted ) break;
+        rows.push( ...( Array.isArray( data.forecastHours ) ? data.forecastHours : [] )
+          .map( ( row: Record<string, any> ) => weatherHourFromApi( row ) )
+          .filter( Boolean ) as WeatherHour[] );
+        pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
+        if ( !pageToken ) break;
+      }
+      forecastStore.hourly = rows.slice( 0, 48 );
+      setWeatherHourly( rows.slice( 0, 48 ) );
+    };
+
+    const loadWeatherHistory = async () => {
+      const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
+        + '&location.latitude=' + lat + '&location.longitude=' + lng
+        + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
+      const data = await getJson( url );
+      if ( !data || ac.signal.aborted ) return;
+      const rows: WeatherHistoryPoint[] = ( Array.isArray( data.historyHours ) ? data.historyHours : [] ).map( ( row: any ) => {
+        const time = new Date( row?.interval?.startTime || 0 ).getTime();
+        const temp = n( row?.temperature?.degrees );
+        const rain = n( row?.precipitation?.probability?.percent );
+        return {
+          time,
+          ...( Number.isFinite( temp ) ? { temp: Math.round( temp ) } : {} ),
+          ...( Number.isFinite( rain ) ? { rainProb: Math.round( rain ) } : {} ),
+          ...( typeof row?.weatherCondition?.description?.text === 'string' ? { condition: row.weatherCondition.description.text } : {} ),
+        };
+      } ).filter( ( row: WeatherHistoryPoint ) => Number.isFinite( row.time ) );
+      forecastStore.weatherHistory = rows;
+      setWeatherHistory( rows );
+    };
+
+    const loadDaily = async () => {
+      const url = 'https://weather.googleapis.com/v1/forecast/days:lookup?key=' + encodeURIComponent( MAPS_KEY )
+        + '&location.latitude=' + lat + '&location.longitude=' + lng
+        + '&days=10&unitsSystem=METRIC&languageCode=en';
+      const data = await getJson( url );
+      if ( !data || ac.signal.aborted ) return;
+      const rows: WeatherDay[] = ( Array.isArray( data.forecastDays ) ? data.forecastDays : [] ).map( ( row: any, i: number ) => {
+        const d = row?.displayDate || {};
+        const date = d?.year && d?.month && d?.day ? new Date( Date.UTC( d.year, d.month - 1, d.day ) ) : new Date();
+        const p = row?.daytimeForecast || row?.nighttimeForecast || {};
+        const min = n( row?.minTemperature?.degrees );
+        const max = n( row?.maxTemperature?.degrees );
+        const rain = n( p?.precipitation?.probability?.percent );
+        return {
+          time: date.getTime(),
+          label: i === 0 ? 'Today' : new Intl.DateTimeFormat( 'en-IN', { weekday: 'short', timeZone: 'UTC' } ).format( date ),
+          dateLabel: new Intl.DateTimeFormat( 'en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' } ).format( date ),
+          ...( Number.isFinite( min ) ? { min: Math.round( min ) } : {} ),
+          ...( Number.isFinite( max ) ? { max: Math.round( max ) } : {} ),
+          ...( Number.isFinite( rain ) ? { rainProb: Math.round( rain ) } : {} ),
+          ...( typeof p?.weatherCondition?.description?.text === 'string' ? { condition: p.weatherCondition.description.text } : {} ),
+          ...( typeof p?.weatherCondition?.iconBaseUri === 'string' ? { icon: p.weatherCondition.iconBaseUri } : {} ),
+          ...( typeof row?.sunEvents?.sunriseTime === 'string' ? { sunrise: row.sunEvents.sunriseTime } : {} ),
+          ...( typeof row?.sunEvents?.sunsetTime === 'string' ? { sunset: row.sunEvents.sunsetTime } : {} ),
+        };
+      } );
+      forecastStore.daily = rows;
+      setWeatherDaily( rows );
+    };
+
+    const loadAlerts = async () => {
+      const url = 'https://weather.googleapis.com/v1/publicAlerts:lookup?key=' + encodeURIComponent( MAPS_KEY )
+        + '&location.latitude=' + lat + '&location.longitude=' + lng + '&languageCode=en';
+      const data = await getJson( url );
+      if ( !data || ac.signal.aborted ) return;
+      const rows: WeatherAlertRow[] = ( Array.isArray( data.weatherAlerts ) ? data.weatherAlerts : [] ).slice( 0, 3 ).map( ( a: any, i: number ) => ( {
+        id: String( a?.alertId || a?.eventType || 'weather-alert-' + i ),
+        title: String( a?.alertTitle?.text || a?.description || a?.eventType || 'Weather alert' ),
+        description: typeof a?.description === 'string' ? a.description : undefined,
+        area: typeof a?.areaName === 'string' ? a.areaName : undefined,
+        severity: typeof a?.severity === 'string' ? a.severity.replaceAll( '_', ' ' ) : undefined,
+        urgency: typeof a?.urgency === 'string' ? a.urgency.replaceAll( '_', ' ' ) : undefined,
+        expires: typeof a?.expirationTime === 'string' ? a.expirationTime : undefined,
+      } ) );
+      forecastStore.alerts = rows;
+      setWeatherAlerts( rows );
+    };
+
+    const loadAirForecast = async () => {
+      const start = new Date();
+      start.setUTCMinutes( 0, 0, 0 );
+      start.setUTCHours( start.getUTCHours() + 1 );
+      const end = new Date( start.getTime() + 24 * 60 * 60 * 1000 );
+      const res = await fetch(
+        'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
+        {
+          method: 'POST',
+          signal: ac.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify( {
+            location: { latitude: lat, longitude: lng },
+            period: { startTime: start.toISOString(), endTime: end.toISOString() },
+            pageSize: 24,
+            universalAqi: true,
+            customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
+            extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION' ],
+            languageCode: 'en',
+          } ),
+        },
+      );
+      if ( !res.ok || ac.signal.aborted ) return;
+      const data = await res.json();
+      const rows = ( Array.isArray( data.hourlyForecasts ) ? data.hourlyForecasts : [] )
+        .map( ( row: Record<string, any> ) => airPointFromApi( row ) )
+        .filter( Boolean ) as AirPoint[];
+      forecastStore.airForecast = rows;
+      setAirForecast( rows );
+    };
+
+    void Promise.allSettled( [ loadHourly(), loadDaily(), loadAlerts(), loadAirForecast(), loadWeatherHistory() ] ).then( () => {
+      if ( ac.signal.aborted ) return;
+      forecastCache.current[ forecastKey ] = { ts: Date.now(), ...forecastStore };
+    } );
+    return () => ac.abort();
+  }, [ place, hasSelection ] );
+
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    const ac = new AbortController();
+    const { lat, lng } = place;
+    const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}:${historyRange}`;
+    const cachedHistory = historyCache.current[ historyKey ];
+    const HISTORY_TTL_MS = historyRange === 24 ? 15 * 60 * 1000 : 60 * 60 * 1000;
+    if ( cachedHistory && Date.now() - cachedHistory.ts < HISTORY_TTL_MS ) {
+      setAirHistory( cachedHistory.points );
+      setHistoryLoading( false );
+      return () => ac.abort();
+    }
+    setHistoryLoading( true );
+    setAirHistory( [] );
+
+    const run = async () => {
+      const points: AirPoint[] = [];
+      let pageToken = '';
+      let page = 0;
+      do {
+        const body: Record<string, unknown> = {
+          location: { latitude: lat, longitude: lng },
+          hours: historyRange,
+          pageSize: Math.min( 100, historyRange ),
+          universalAqi: true,
+          customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
+          extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION' ],
+          languageCode: 'en',
+        };
+        if ( pageToken ) body.pageToken = pageToken;
+        const res = await fetch(
+          'https://airquality.googleapis.com/v1/history:lookup?key=' + encodeURIComponent( MAPS_KEY ),
+          {
+            method: 'POST',
+            signal: ac.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( body ),
+          },
+        );
+        if ( !res.ok ) break;
+        const data = await res.json();
+        ( Array.isArray( data.hoursInfo ) ? data.hoursInfo : [] ).forEach( ( row: Record<string, any> ) => {
+          const p = airPointFromApi( row );
+          if ( p ) points.push( p );
+        } );
+        pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
+        page += 1;
+      } while ( pageToken && page < 8 && !ac.signal.aborted );
+      if ( !ac.signal.aborted ) {
+        points.sort( ( a, b ) => a.time - b.time );
+        historyCache.current[ historyKey ] = { ts: Date.now(), points };
+        setAirHistory( points );
+        setHistoryLoading( false );
+      }
+    };
+    void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
+    return () => ac.abort();
+  }, [ place, historyRange, hasSelection ] );
 
   const loadSolar = useCallback( async () => {
     if ( !MAPS_KEY || solarLoading ) return;
@@ -1166,157 +1605,36 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     const w = window as unknown as { google?: { maps?: { LatLng: new ( a: number, b: number ) => unknown } } };
     const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( zoom: number ) => void } | null;
-    const marker = markerRef.current as { setPosition?: ( p: { lat: number; lng: number } ) => void; setTitle?: ( t: string ) => void } | null;
+    const marker = markerRef.current as {
+      setPosition?: ( p: { lat: number; lng: number } ) => void;
+      setTitle?: ( t: string ) => void;
+      setMap?: ( m: unknown ) => void;
+    } | null;
     if ( !map || !marker || !w.google?.maps ) return;
+    if ( !hasSelection ) {
+      marker.setMap?.( null );
+      return;
+    }
     map.setCenter?.( { lat: place.lat, lng: place.lng } );
     map.setZoom?.( 14 );
+    marker.setMap?.( map );
     marker.setPosition?.( { lat: place.lat, lng: place.lng } );
     marker.setTitle?.( place.name );
-  }, [ place, mapReady ] );
+  }, [ place, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
-     FEAT-004 - HYBRID DESTINATION RESOLVE (Google-Destinations-style, like
-     https://mapsplatform.google.com/demos/destinations/). This is a PROGRESSIVE
-     ENHANCEMENT layered on top of the existing Places/geocoding selection flow; it
-     NEVER fetches air/weather/pollen (those stay gated on the AQI/PM2.5 pill, FEAT-002)
-     and it NEVER adds any browser-GPS / "use my location" control (dropped by the user).
-
-     Behaviour:
-     - Clear any outline/entrance geometry from the previous place first, so stale
-       building geometry never lingers over a new selection, and abort any in-flight
-       destination lookup.
-     - Localities / administrative areas (cities, towns, areas) are NOT valid
-       SearchDestinations searches per Google's docs, so they always keep just the
-       marker + bottom-bar name (no building outline). We treat a place with NO
-       primaryType, or a primaryType that reads as a locality/administrative area, as a
-       city/area and skip SearchDestinations entirely.
-     - For navigable destinations (building / POI / address, i.e. a place that carries a
-       primaryType), FEATURE-DETECT SearchDestinations by importing its library and
-       checking the capability exists. If present, resolve the destination and, when a
-       building outline (displayPolygon) / entrances are returned, draw them with the
-       no-red palette (dark-green/lime strokes, low-opacity translucent-lime fill so the
-       roads stay visible). If the capability is ABSENT (the common case: the loaded
-       build lacks it, or the browser key is referrer-restricted in sandbox), DEGRADE
-       SILENTLY - no outline, no error - leaving the marker + bottom-bar name only. */
+     DESTINATION BAR GEOMETRY CLEANUP.
+     SearchDestinations is a Geocoding API v4 web service, not a Maps JS importLibrary
+     capability. The Google-style destination bar remains; the invalid importLibrary('search')
+     experiment is intentionally removed rather than faking a browser-only integration. */
   useEffect( () => {
-    const w = window as unknown as {
-      google?: { maps?: {
-        importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
-        Polygon?: new ( opts: Record<string, unknown> ) => unknown;
-        Marker?: new ( opts: Record<string, unknown> ) => unknown;
-      } };
-    };
-
-    // Always start by clearing the previous place's geometry and aborting any pending
-    // destination lookup. This runs on every place change and is also the unmount path.
-    const clearGeometry = () => {
-      const geo = destGeometryRef.current;
-      ( geo.polygon as { setMap?: ( m: unknown ) => void } | undefined )?.setMap?.( null );
-      ( geo.entrances || [] ).forEach( e => ( e as { setMap?: ( m: unknown ) => void } ).setMap?.( null ) );
-      destGeometryRef.current = {};
-    };
-    clearGeometry();
+    const geo = destGeometryRef.current;
+    ( geo.polygon as { setMap?: ( m: unknown ) => void } | undefined )?.setMap?.( null );
+    ( geo.entrances || [] ).forEach( e => ( e as { setMap?: ( m: unknown ) => void } ).setMap?.( null ) );
+    destGeometryRef.current = {};
     destAbortRef.current?.abort();
     destAbortRef.current = null;
-
-    if ( !MAPS_KEY || !mapReady ) return;
-    const g = w.google?.maps;
-    const map = mapRef.current;
-    if ( !g || !map ) return;
-
-    // CITY / TOWN / AREA -> Places/geocoding only (no SearchDestinations, no outline).
-    // A place with no primaryType is treated as an area (choose() only sets primaryType
-    // when Google actually returned one). primaryTypes that denote administrative areas
-    // or localities are likewise excluded, mirroring Google's "localities and
-    // administrative areas are not valid destination searches" limitation.
-    const primaryType = place.primaryType ? String( place.primaryType ).toLowerCase() : '';
-    const areaLike = /locality|administrative|political|country|region|state|province|postal|neighborhood|neighbourhood/;
-    const isNavigableDestination = Boolean( primaryType ) && !areaLike.test( primaryType );
-    if ( !isNavigableDestination ) return;
-
-    let cancelled = false;
-    const ac = new AbortController();
-    destAbortRef.current = ac;
-
-    const run = async () => {
-      // FEATURE-DETECT SearchDestinations. It is an experimental/limited Maps JS
-      // capability that is very likely NOT present in the loaded build (and cannot run
-      // against a referrer-restricted key in sandbox). We try the 'search' library and
-      // look for a SearchDestinations capability; absence => silent degrade.
-      let lib: Record<string, unknown> | null = null;
-      try {
-        lib = typeof g.importLibrary === 'function' ? await g.importLibrary( 'search' ) : null;
-      } catch { lib = null; }
-      if ( cancelled || !lib ) return;
-
-      const SearchDestinations = ( lib.SearchDestinations
-        || ( lib as { Destinations?: unknown } ).Destinations ) as {
-          searchDestinations?: ( req: Record<string, unknown> ) => Promise<unknown>;
-        } | undefined;
-      const searchFn = SearchDestinations?.searchDestinations;
-      if ( typeof searchFn !== 'function' ) return; // capability absent -> degrade silently
-
-      type DestEntrance = { location?: { lat: number; lng: number } };
-      type DestResult = {
-        displayPolygon?: { paths?: { lat: number; lng: number }[] };
-        entrances?: DestEntrance[];
-      };
-      let result: DestResult | null = null;
-      try {
-        result = await searchFn.call( SearchDestinations, {
-          query: place.name,
-          location: { lat: place.lat, lng: place.lng },
-          signal: ac.signal,
-        } ) as DestResult | null;
-      } catch { return; } // network/abort -> degrade silently, keep marker + bar name only
-      if ( cancelled || !result ) return;
-
-      // Draw the building outline when a displayPolygon is returned, using the no-red
-      // palette: dark-green/lime strokes with a low-opacity translucent-lime fill so the
-      // underlying roads remain visible. No fabricated geometry is ever drawn.
-      const paths = result.displayPolygon?.paths;
-      if ( Array.isArray( paths ) && paths.length && g.Polygon ) {
-        const polygon = new g.Polygon( {
-          paths,
-          strokeColor: '#1a3a2a',
-          strokeOpacity: 0.9,
-          strokeWeight: 2,
-          fillColor: '#d1f470',
-          fillOpacity: 0.18,
-          clickable: false,
-          map,
-        } );
-        destGeometryRef.current.polygon = polygon;
-      }
-
-      // Entrances / navigation points as small lime markers (no red).
-      const entrances: DestEntrance[] = Array.isArray( result.entrances ) ? result.entrances : [];
-      if ( entrances.length && g.Marker ) {
-        destGeometryRef.current.entrances = entrances
-          .filter( e => e.location && Number.isFinite( e.location.lat ) && Number.isFinite( e.location.lng ) )
-          .map( e => new g.Marker!( {
-            position: { lat: e.location!.lat, lng: e.location!.lng },
-            map,
-            icon: {
-              path: 0, // google.maps.SymbolPath.CIRCLE
-              scale: 5,
-              fillColor: '#d1f470',
-              fillOpacity: 1,
-              strokeColor: '#1a3a2a',
-              strokeWeight: 1.5,
-            },
-          } ) );
-      }
-    };
-
-    void run();
-
-    return () => {
-      cancelled = true;
-      ac.abort();
-      clearGeometry();
-    };
-  }, [ place, mapReady ] );
+  }, [ place ] );
 
   /* ---------------------------------------------------------------------------------
      SEARCH - modern Places Autocomplete Data API with one session token per query/
@@ -1511,6 +1829,7 @@ const VayuLokLive: React.FC = () => {
     if ( !next ) return;
     rememberPlace( next );
     setPlace( next );
+    setHasSelection( true );
     // 03C - a fresh search selection owns the view: clear any lingering map-click
     // candidate so previewPlace (mapCandidate || place) and the photo overlay follow the
     // newly chosen area, never a stale clicked location.
@@ -1539,7 +1858,7 @@ const VayuLokLive: React.FC = () => {
   const weatherFreshness = relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined );
   const airFreshness = relativeAgeLabel( air?.updatedAt || coreFetchedAt || undefined );
   const previewPlace = mapCandidate || place;
-  const exactPhotos = previewPlace.photos || [];
+  const exactPhotos = hasSelection ? ( previewPlace.photos || [] ) : [];
   const displayPhotos = Array.from(
     new Map( [ ...exactPhotos, ...nearbyPhotos ].map( photo => [ photo.url, photo ] ) ).values(),
   ).slice( 0, 8 );
@@ -1547,7 +1866,8 @@ const VayuLokLive: React.FC = () => {
     displayPhotos.slice( page * 3, page * 3 + 3 ),
   );
   const dotClass = ( sev: Sev ) => `vl-live-dot vl-live-dot-${sev}`;
-  const liveActive = Boolean( MAPS_KEY );
+  const mapActive = Boolean( MAPS_KEY );
+  const liveActive = Boolean( MAPS_KEY && hasSelection );
   const bestOutside = bestOutsideWindow( weatherHourly, airForecast );
   const combinedHours = weatherHourly.slice( 0, 24 ).map( ( w, i ) => ( {
     ...w,
@@ -1610,8 +1930,9 @@ const VayuLokLive: React.FC = () => {
               sensible lead, not a misleading placeholder. Google Place Photo author
               attributions (.vl-live-photo-credit + contributor <a>) ride WITH the photo in
               this new location, as the Maps Platform ToS and the req-06 guard require. */}
+          { hasSelection ? (
           <div className="vl-live-block vl-live-block-top">
-            <div className="vl-live-place-card">
+            <div className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
               { displayPhotos.length > 0 && (
                 <div className="vl-live-photo-shell">
                   {/* Number-only pill (req 01): referee SVG + bare number (e.g. "8"),
@@ -1794,6 +2115,13 @@ const VayuLokLive: React.FC = () => {
               </div>
             </div>
           </div>
+          ) : (
+            <div className="vl-live-block vl-live-block-top vl-live-empty-selection">
+              <p className="vl-live-eyebrow">Choose a place</p>
+              <h3 className="vl-live-h2">Search India to see live weather and air.</h3>
+              <p className="vl-live-body">The map starts neutral. Weather, air quality, photos and forecasts load only after you select a place.</p>
+            </div>
+          ) }
 
           {/* FEAT-002: a lightweight loading / error affordance for the layer-activated grid
               + center air fetch. The full air RESULT now lives in the left-card
@@ -2289,11 +2617,11 @@ const VayuLokLive: React.FC = () => {
                 <div
                   className="vl-live-map-fallback"
                   role="status"
-                  aria-label={ mapFailed ? `Map unavailable for ${place.name}` : `Loading map of ${place.name}` }
+                  aria-label={ mapFailed ? 'Map unavailable' : hasSelection ? `Loading map of ${place.name}` : 'Loading map of India' }
                 >
                   <span className="vl-live-map-fallback-pin" aria-hidden="true" />
                   <div className="vl-live-map-fallback-copy">
-                    <p className="vl-live-map-fallback-place">{ place.name }</p>
+                    <p className="vl-live-map-fallback-place">{ hasSelection ? place.name : 'India' }</p>
                     <p className="vl-live-map-fallback-status">{ mapFailed ? 'Map temporarily unavailable.' : 'Loading live map…' }</p>
                     { mapFailed && (
                       <button className="vl-live-map-retry" type="button" onClick={ () => window.location.reload() }>Retry map</button>
@@ -2301,16 +2629,16 @@ const VayuLokLive: React.FC = () => {
                   </div>
                 </div>
               ) }
-              { liveActive && (
+              { mapActive && (
                 <div
                   className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}`.trim() }
                   ref={ mapHost }
                   role="img"
-                  aria-label={ `Map of ${place.name}` }
+                  aria-label={ hasSelection ? `Map of ${place.name}` : 'Map of India' }
                 />
               ) }
 
-              { liveActive && (
+              { mapActive && (
                 <div className="vl-live-map-search">
                   <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
                   <div className="vl-live-search">
@@ -2388,12 +2716,14 @@ const VayuLokLive: React.FC = () => {
                   <button
                     className="vl-live-layer"
                     type="button"
+                    disabled={ !hasSelection }
                     aria-pressed={ layer === 'AQI' }
                     onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
                   >AQI</button>
                   <button
                     className="vl-live-layer"
                     type="button"
+                    disabled={ !hasSelection }
                     aria-pressed={ layer === 'PM25' }
                     onClick={ () => setLayer( v => v === 'PM25' ? null : 'PM25' ) }
                   >PM2.5</button>
@@ -2419,11 +2749,10 @@ const VayuLokLive: React.FC = () => {
                   className="vl-live-map-destbar"
                   aria-label={ `${previewPlace.name}, ${previewPlace.primaryType || previewPlace.addr || ''}`.trim().replace( /,\s*$/, '' ) }
                   onClick={ () => {
-                    const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( z: number ) => void } | null;
-                    const marker = markerRef.current as { setPosition?: ( p: { lat: number; lng: number } ) => void } | null;
-                    map?.setCenter?.( { lat: previewPlace.lat, lng: previewPlace.lng } );
-                    map?.setZoom?.( 16 );
-                    marker?.setPosition?.( { lat: previewPlace.lat, lng: previewPlace.lng } );
+                    const card = placeCardRef.current;
+                    if ( !card ) return;
+                    card.scrollIntoView( { behavior: 'smooth', block: 'start' } );
+                    window.setTimeout( () => card.focus( { preventScroll: true } ), 250 );
                   } }
                 >
                   <span className="vl-live-map-destbar-text">
