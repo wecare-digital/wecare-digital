@@ -875,7 +875,7 @@ const VayuLokLive: React.FC = () => {
      look for nearby photographed Places. Only then use a tightly-contained Street View
      panorama inside the place card; the main map remains a normal roadmap. */
   useEffect( () => {
-    if ( !MAPS_KEY || typeof window === 'undefined' || !mapReady ) return;
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' || !mapReady ) return;
     const target = mapCandidate || place;
     const exactPhotos = target.photos || [];
     if ( exactPhotos.length ) {
@@ -928,7 +928,7 @@ const VayuLokLive: React.FC = () => {
       cancelled = true;
       window.clearTimeout( id );
     };
-  }, [ mapReady, mapCandidate, place ] );
+  }, [ mapReady, mapCandidate, place, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      LAYER-ACTIVATION DATA (FEAT-002). Selecting a place restores the compact weather/forecast experience on the LEFT.
