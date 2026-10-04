@@ -3,6 +3,66 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SITE_ORIGIN } from '../config/share';
 
+/* ---------------------------------------------------------------------------------------
+   deck.gl DYNAMIC-IMPORT MOCKS (FEAT-002)
+   ---------------------------------------------------------------------------------------
+   The component imports the deck.gl overlay + scatter layer DYNAMICALLY, inside the
+   layer-activation effect:
+       const { GoogleMapsOverlay } = await import( '@deck.gl/google-maps' );
+       const { ScatterplotLayer }  = await import( '@deck.gl/layers' );
+   so they stay out of SSR / the initial bundle and are NEVER loaded on the no-key
+   honest-degradation path. These vi.mock factories replace both packages with fakes that
+   RECORD what the component does: which map the overlay is attached to (setMap), what
+   layers it is given (setProps), and the props each ScatterplotLayer receives (so a test
+   can read back the fill colours and the real point data). vi.mock is hoisted and survives
+   vi.resetModules(), so every freshly re-imported component instance gets these fakes. The
+   shared recorder is created with vi.hoisted so the factory may reference it safely. */
+const deckRec = vi.hoisted( () => ( {
+  overlaySetMapCalls: [] as unknown[],   // every arg passed to overlay.setMap(...)
+  overlaySetPropsCalls: [] as { layers: unknown[] }[],
+  overlayInstances: 0,
+  scatterProps: [] as Record<string, any>[], // props of every ScatterplotLayer constructed
+  reset() {
+    this.overlaySetMapCalls = [];
+    this.overlaySetPropsCalls = [];
+    this.overlayInstances = 0;
+    this.scatterProps = [];
+  },
+} ) );
+
+vi.mock( '@deck.gl/google-maps', () => {
+  class FakeGoogleMapsOverlay {
+    _layers: unknown[] = [];
+    constructor( _opts?: Record<string, unknown> ) { deckRec.overlayInstances += 1; }
+    setMap( map: unknown ) { deckRec.overlaySetMapCalls.push( map ); }
+    setProps( props: { layers: unknown[] } ) {
+      this._layers = props.layers;
+      deckRec.overlaySetPropsCalls.push( props );
+    }
+  }
+  return { GoogleMapsOverlay: FakeGoogleMapsOverlay };
+} );
+
+vi.mock( '@deck.gl/layers', () => {
+  class FakeScatterplotLayer {
+    props: Record<string, any>;
+    constructor( props: Record<string, any> ) {
+      this.props = props;
+      deckRec.scatterProps.push( props );
+    }
+  }
+  return { ScatterplotLayer: FakeScatterplotLayer };
+} );
+
+// The VayuLok NO-RED severity ramp the dots must use (good -> worst). No red at any band.
+const NO_RED_FILLS: [ number, number, number, number ][] = [
+  [ 26, 58, 42, 210 ],
+  [ 61, 163, 90, 210 ],
+  [ 209, 244, 112, 210 ],
+  [ 232, 197, 71, 210 ],
+  [ 201, 138, 46, 210 ],
+];
+
 /**
  * THE LIVE VAYULOK CONTENT, IN ISOLATION - the behaviour that is verifiable WITHOUT a browser,
  * a real Google key, or a *.wecare.digital origin.
@@ -217,8 +277,37 @@ afterEach( () => {
   removeScript();
   clearGoogleMaps();
   document.body.innerHTML = '';
+  try { window.localStorage?.clear(); } catch { /* storage may be unavailable */ }
   vi.useRealTimers();
 } );
+
+// Reset the deck.gl recorder BEFORE each test. Doing it in beforeEach (rather than only in
+// afterEach) means a prior test's unmount-cleanup setMap(null) - which fires during React
+// Testing Library's own afterEach, after any reset there - cannot leak into this test.
+beforeEach( () => {
+  deckRec.reset();
+} );
+
+// A fetch stub that answers the Air Quality currentConditions:lookup (the grid + center
+// sample) with a real-shaped payload and refuses everything else. `aqi` drives the parsed
+// severity band; the stub is used by the deck.gl / gating tests below.
+function airConditionsFetch( aqi = 120, pm25 = 58 ) {
+  return vi.fn( ( input: RequestInfo | URL ) => {
+    const url = String( input );
+    if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          dateTime: new Date().toISOString(),
+          indexes: [ { code: 'ind_cpcb', aqi, category: 'Moderate', dominantPollutant: 'pm25' } ],
+          pollutants: [ { code: 'pm25', concentration: { value: pm25, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+          healthRecommendations: { generalPopulation: 'Limit prolonged outdoor exertion.' },
+        } ),
+      } as Response );
+    }
+    return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+  } );
+}
 
 describe( 'VayuLokLive - honest degradation when the key is absent', () => {
   beforeEach( () => {
@@ -240,6 +329,10 @@ describe( 'VayuLokLive - honest degradation when the key is absent', () => {
     // (b) The network was never touched - this is the assertion that fails if the component ever
     // fetches unconditionally instead of behind the key guard.
     expect( fetchSpy ).not.toHaveBeenCalled();
+    // (b2) deck.gl is NEVER dynamically imported / attached on the no-key path: no overlay
+    // instance is constructed and nothing is attached to any map.
+    expect( deckRec.overlayInstances ).toBe( 0 );
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
     // (c) Degradation is SILENT: no spinner, and no live-metric element rendered with a "--"/"—"
     // placeholder standing in for a value that never arrived. The map canvas and every live figure
     // are simply absent rather than shown empty. (textContent is not scanned for "--" because the
@@ -323,64 +416,141 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     rec = installGoogleMaps();
   } );
 
-  it( 'does NOT request a heatmap overlay on load, and only pushes one after a layer click', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } );
+  it( 'uses NO raster heatmap path at all - the deck.gl overlay attaches on layer click and the air grid fetches only then', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
 
     render( <VayuLokLive /> );
-    // Wait for the map to initialise (mapReady flips via requestAnimationFrame).
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    // On load: no overlay pushed, and no ImageMapType (hence no heatmapTiles getTileUrl) created.
-    expect( rec.overlayPushes ).toHaveLength( 0 );
+    // RASTER PATH IS GONE. No ImageMapType is ever constructed and no overlayMapType is ever
+    // pushed - at any point, on load or after a layer click.
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
-    // No fetch has hit the airquality heatmapTiles endpoint either.
-    const hitHeatmapTiles = () => fetchSpy.mock.calls.some(
-      c => String( c[ 0 ] ).includes( 'airquality.googleapis.com' ) && String( c[ 0 ] ).includes( 'heatmapTiles' )
-    );
-    expect( hitHeatmapTiles() ).toBe( false );
+    expect( rec.overlayPushes ).toHaveLength( 0 );
 
-    // The map object is constructed before the tilesloaded callback flips mapReady.
-    // Wait for the ready-only controls rather than racing that paint lifecycle.
+    // On load (no layer active): NO air fetch, and the deck.gl overlay is NOT attached.
+    const airFetches = () => fetchSpy.mock.calls.filter(
+      c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ),
+    );
+    const heatmapTilesHit = () => fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'heatmapTiles' ) );
+    expect( airFetches() ).toHaveLength( 0 );
+    expect( heatmapTilesHit() ).toBe( false );
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
-    // Press the AQI layer control.
+    // Activate the AQI layer.
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
 
-    // NOW an overlay is pushed and an ImageMapType is created, deferred to the click.
-    await waitFor( () => expect( rec.overlayPushes ).toHaveLength( 1 ) );
-    expect( rec.imageMapTypeOpts ).toHaveLength( 1 );
+    // NOW the grid air fetch fires (currentConditions:lookup, one per grid cell) AND the
+    // deck.gl overlay is attached to the Google map (setMap called with the FakeMap).
+    await waitFor( () => expect( airFetches().length ).toBeGreaterThan( 0 ) );
+    await waitFor( () => expect( deckRec.overlaySetMapCalls.length ).toBeGreaterThan( 0 ) );
+    const map = deckRec.overlaySetMapCalls.at( -1 );
+    expect( map ).not.toBeNull();
+    // The overlay was attached to the SAME object the component constructed as the map
+    // (FakeMap carries the India restriction options the component passed).
+    expect( ( map as { overlayMapTypes?: unknown } ).overlayMapTypes ).toBeDefined();
 
-    // Req 05: the overlay carries the fully-translucent lime wiring. The ImageMapType is
-    // constructed with a low `opacity` so the geo/road map stays visible underneath; the
-    // lime recolour itself is a scoped CSS filter the live tiles receive (not asserted by
-    // brittle numeric filter values). Assert the opacity option is present and translucent.
-    const opacity = rec.imageMapTypeOpts[ 0 ].opacity as number;
-    expect( typeof opacity ).toBe( 'number' );
-    expect( opacity ).toBeGreaterThan( 0 );
-    expect( opacity ).toBeLessThan( 1 );
+    // Still no raster heatmap tiles were ever requested.
+    expect( heatmapTilesHit() ).toBe( false );
+    expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
 
-    // The overlay's tile URL points at the air-quality heatmapTiles SKU (built lazily per tile),
-    // and uses a VALID Air Quality API mapType. The AQI layer must use the universal UAQI scale
-    // (not US_AQI) so the heatmap matches the India-CPCB legend/panels on the page. The mapType
-    // sits in the path segment immediately before /heatmapTiles/.
-    const getTileUrl = rec.imageMapTypeOpts[ 0 ].getTileUrl as ( c: { x: number; y: number }, z: number ) => string;
-    const url = getTileUrl( { x: 1, y: 2 }, 3 );
-    expect( url ).toContain( 'airquality.googleapis.com' );
-    expect( url ).toContain( 'heatmapTiles' );
-    const aqiType = url.match( /\/mapTypes\/([^/]+)\/heatmapTiles\// )?.[ 1 ];
-    expect( aqiType ).toBe( 'UAQI_RED_GREEN' );
-    expect( aqiType ).not.toBe( 'US_AQI' );
+    // The overlay received at least one ScatterplotLayer carrying REAL point data.
+    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
+    const scatter = deckRec.scatterProps.at( -1 )!;
+    expect( Array.isArray( scatter.data ) ).toBe( true );
+    expect( scatter.data.length ).toBeGreaterThan( 0 );
+    expect( scatter.pickable ).toBe( false );
+    // Each dot's position is [lng, lat].
+    const samplePos = scatter.getPosition( scatter.data[ 0 ] );
+    expect( Array.isArray( samplePos ) ).toBe( true );
+    expect( samplePos ).toHaveLength( 2 );
 
-    // Switching to the PM2.5 layer must use a VALID PM2.5 mapType. PM25_HEATMAP is not in the
-    // API enum and would 400/render nothing; PM25_INDIGO_PERSIAN is the correct token.
+    // DOT FILL COLOURS ARE NO-RED. getFillColor for every real dot resolves to a colour in
+    // the VayuLok no-red ramp, and never a red-dominant RGBA like [255,0,0].
+    for ( const d of scatter.data ) {
+      const fill = scatter.getFillColor( d ) as [ number, number, number, number ];
+      const isNoRed = NO_RED_FILLS.some( ramp => ramp[ 0 ] === fill[ 0 ] && ramp[ 1 ] === fill[ 1 ] && ramp[ 2 ] === fill[ 2 ] );
+      expect( isNoRed ).toBe( true );
+      // Hard guard: never a red-dominant fill (R high while G and B low).
+      expect( fill[ 0 ] > 200 && fill[ 1 ] < 80 && fill[ 2 ] < 80 ).toBe( false );
+    }
+
+    // Deactivating the layer (second click -> layer null) CLEARS the overlay: it is detached
+    // from the map (setMap(null)) and/or given an empty layers array.
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => {
+      const detached = deckRec.overlaySetMapCalls.at( -1 ) === null;
+      const emptied = deckRec.overlaySetPropsCalls.at( -1 )?.layers.length === 0;
+      expect( detached || emptied ).toBe( true );
+    } );
+  } );
+
+  it( 'switching AQI -> PM2.5 keeps using the deck.gl overlay (never a raster ImageMapType)', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
+    const aqiLayers = deckRec.scatterProps.length;
+
     fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
-    await waitFor( () => expect( rec.imageMapTypeOpts ).toHaveLength( 2 ) );
-    const getPm25TileUrl = rec.imageMapTypeOpts[ 1 ].getTileUrl as ( c: { x: number; y: number }, z: number ) => string;
-    const pm25Type = getPm25TileUrl( { x: 1, y: 2 }, 3 ).match( /\/mapTypes\/([^/]+)\/heatmapTiles\// )?.[ 1 ];
-    expect( pm25Type ).toBe( 'PM25_INDIGO_PERSIAN' );
-    expect( pm25Type ).not.toBe( 'PM25_HEATMAP' );
+    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( aqiLayers ) );
+
+    // No raster path was taken for either layer.
+    expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
+    expect( fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'heatmapTiles' ) ) ).toBe( false );
+
+    // The PM2.5 scatter layer still paints no-red fills.
+    const pm25Scatter = deckRec.scatterProps.at( -1 )!;
+    for ( const d of pm25Scatter.data ) {
+      const fill = pm25Scatter.getFillColor( d ) as [ number, number, number, number ];
+      expect( fill[ 0 ] > 200 && fill[ 1 ] < 80 && fill[ 2 ] < 80 ).toBe( false );
+    }
+  } );
+
+  it( 'typing or selecting a place fires ZERO air/weather/pollen fetches (only a layer click does)', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const envFetches = () => fetchSpy.mock.calls.filter( c => {
+      const u = String( c[ 0 ] );
+      return u.includes( 'airquality.googleapis.com' )
+        || u.includes( 'weather.googleapis.com' )
+        || u.includes( 'pollen.googleapis.com' );
+    } );
+
+    // Type a query and select the resolved place.
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    await waitFor( () => expect(
+      ( screen.getByText( /Mumbai/i ) ),
+    ).toBeTruthy() );
+
+    // Let any stray effects settle: still ZERO air/weather/pollen network calls, because
+    // selecting a place no longer triggers environmental fetches.
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    expect( envFetches() ).toHaveLength( 0 );
+    // And the deck.gl overlay has not been attached (no layer active).
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+
+    // Only after a layer click do air fetches begin.
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( envFetches().length ).toBeGreaterThan( 0 ) );
+    // Everything fetched is the Air Quality currentConditions grid - no weather/pollen.
+    expect( envFetches().every( c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ) ) ).toBe( true );
   } );
 
   it( 'shows the heatmap legend only while a layer is active, with both ends labelled in words', async () => {
@@ -662,140 +832,79 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
   } );
 } );
 
-describe( 'VayuLokLive - forecast, history and partial failure rendering', () => {
+describe( 'VayuLokLive - selecting a place no longer auto-fetches weather/pollen/forecast (FEAT-002)', () => {
+  let rec: MapsRecorder;
   beforeEach( () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
-    installGoogleMaps();
+    rec = installGoogleMaps();
   } );
 
-  const response = ( body: unknown, ok = true ) => Promise.resolve( {
-    ok,
-    json: async () => body,
-  } as Response );
-
-  it( 'renders 24h combined intelligence, 10-day outlook and history when Google endpoints return data', async () => {
-    const base = Date.now() + 60 * 60 * 1000;
-    const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
-      const url = String( input );
-      if ( url.includes( 'weather.googleapis.com/v1/currentConditions' ) ) {
-        return response( {
-          currentTime: new Date().toISOString(),
-          temperature: { degrees: 30 },
-          feelsLikeTemperature: { degrees: 33 },
-          relativeHumidity: 64,
-          wind: { speed: { value: 12, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 }, gust: { value: 20 } },
-          weatherCondition: { description: { text: 'Clear' } },
-          precipitation: { probability: { percent: 20 }, qpf: { quantity: 0.4 } },
-          uvIndex: 6,
-          visibility: { distance: 8 },
-          airPressure: { meanSeaLevelMillibars: 1007 },
-          dewPoint: { degrees: 23 },
-          heatIndex: { degrees: 35 },
-          wetBulbTemperature: { degrees: 25 },
-          cloudCover: 25,
-        } );
-      }
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
-        return response( {
-          dateTime: new Date().toISOString(),
-          indexes: [ { code: 'ind_cpcb', aqi: 120, category: 'Moderate', dominantPollutant: 'pm25' } ],
-          pollutants: [ { code: 'pm25', concentration: { value: 58, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
-          healthRecommendations: { generalPopulation: 'Reduce prolonged exertion if you feel symptoms.' },
-        } );
-      }
-      if ( url.includes( 'weather.googleapis.com/v1/forecast/hours' ) ) {
-        const secondPage = url.includes( 'pageToken=page-2' );
-        const start = secondPage ? 24 : 0;
-        return response( {
-          forecastHours: Array.from( { length: 24 }, ( _, i ) => {
-            const offset = start + i;
-            return {
-              interval: { startTime: new Date( base + offset * 3600000 ).toISOString() },
-              temperature: { degrees: 30 - Math.floor( offset / 8 ) },
-              precipitation: { probability: { percent: 20 + ( offset % 6 ) * 5 } },
-              uvIndex: 5,
-              weatherCondition: { description: { text: 'Clear' } },
-            };
-          } ),
-          ...( secondPage ? {} : { nextPageToken: 'page-2' } ),
-        } );
-      }
-      if ( url.includes( 'weather.googleapis.com/v1/forecast/days' ) ) {
-        return response( {
-          forecastDays: [ {
-            displayDate: { year: 2026, month: 10, day: 4 },
-            minTemperature: { degrees: 23 },
-            maxTemperature: { degrees: 32 },
-            daytimeForecast: { precipitation: { probability: { percent: 30 } }, weatherCondition: { description: { text: 'Partly cloudy' } } },
-            sunEvents: { sunriseTime: '2026-10-04T00:05:00Z', sunsetTime: '2026-10-04T11:45:00Z' },
-          } ],
-        } );
-      }
-      if ( url.includes( 'weather.googleapis.com/v1/history/hours' ) ) {
-        return response( {
-          historyHours: [ {
-            interval: { startTime: new Date( Date.now() - 3600000 ).toISOString() },
-            temperature: { degrees: 28 },
-            precipitation: { probability: { percent: 10 } },
-            weatherCondition: { description: { text: 'Clear' } },
-          } ],
-        } );
-      }
-      if ( url.includes( 'weather.googleapis.com/v1/publicAlerts' ) ) return response( { weatherAlerts: [] } );
-      if ( url.includes( 'airquality.googleapis.com/v1/forecast' ) ) {
-        return response( {
-          hourlyForecasts: [ 0, 1 ].map( offset => ( {
-            dateTime: new Date( base + offset * 3600000 ).toISOString(),
-            indexes: [ { code: 'ind_cpcb', aqi: 110 + offset * 4, category: 'Moderate' } ],
-            pollutants: [ { code: 'pm25', concentration: { value: 50 + offset } } ],
-          } ) ),
-        } );
-      }
-      if ( url.includes( 'airquality.googleapis.com/v1/history' ) ) {
-        return response( {
-          hoursInfo: [ {
-            dateTime: new Date( Date.now() - 3600000 ).toISOString(),
-            indexes: [ { code: 'ind_cpcb', aqi: 125, category: 'Moderate' } ],
-            pollutants: [ { code: 'pm25', concentration: { value: 60 } } ],
-          } ],
-        } );
-      }
-      if ( url.includes( 'pollen.googleapis.com' ) ) return response( { dailyInfo: [] } );
-      return response( {}, false );
-    } );
+  it( 'fires NO weather/pollen/forecast/history/solar fetch on load OR on place select', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    expect( await screen.findByRole( 'heading', { name: 'Next 24 hours' } ) ).toBeInTheDocument();
-    expect( await screen.findByText( '48-hour weather' ) ).toBeInTheDocument();
-    expect( await screen.findByText( '10-day outlook' ) ).toBeInTheDocument();
-    expect( await screen.findByText( 'Past 24 hours' ) ).toBeInTheDocument();
-    expect( await screen.findByRole( 'heading', { name: 'Air intelligence' } ) ).toBeInTheDocument();
-    expect( await screen.findByText( '96-hour AQ forecast' ) ).toBeInTheDocument();
-    expect( screen.getByText( 'Best outside' ) ).toBeInTheDocument();
+    const touched = ( host: string ) => fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( host ) );
+
+    // On load: none of the environmental SKUs were touched.
+    expect( touched( 'weather.googleapis.com' ) ).toBe( false );
+    expect( touched( 'pollen.googleapis.com' ) ).toBe( false );
+    expect( touched( 'solar.googleapis.com' ) ).toBe( false );
+    expect( touched( 'airquality.googleapis.com/v1/forecast' ) ).toBe( false );
+    expect( touched( 'airquality.googleapis.com/v1/history' ) ).toBe( false );
+    expect( touched( 'airquality.googleapis.com/v1/currentConditions' ) ).toBe( false );
+
+    // Select a place.
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+
+    // Still none - selecting a place is not a trigger for ANY environmental fetch.
+    expect( touched( 'weather.googleapis.com' ) ).toBe( false );
+    expect( touched( 'pollen.googleapis.com' ) ).toBe( false );
+    expect( touched( 'solar.googleapis.com' ) ).toBe( false );
+    expect( touched( 'airquality.googleapis.com/v1/forecast' ) ).toBe( false );
+    expect( touched( 'airquality.googleapis.com/v1/history' ) ).toBe( false );
+    expect( touched( 'airquality.googleapis.com/v1/currentConditions' ) ).toBe( false );
   } );
 
-  it( 'keeps Weather visible when the Air current endpoint fails', async () => {
-    const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
-      const url = String( input );
-      if ( url.includes( 'weather.googleapis.com/v1/currentConditions' ) ) {
-        return response( {
-          currentTime: new Date().toISOString(),
-          temperature: { degrees: 31 },
-          feelsLikeTemperature: { degrees: 34 },
-          weatherCondition: { description: { text: 'Sunny' } },
-        } );
-      }
-      return response( {}, false );
-    } );
+  it( 'does NOT render the retired forecast/weather sections (they are no longer fetched)', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    expect( ( await screen.findAllByText( '31°' ) ).length ).toBeGreaterThan( 0 );
-    expect( screen.getAllByText( 'Sunny' ).length ).toBeGreaterThan( 0 );
-    expect( screen.queryByText( 'Current conditions are temporarily unavailable.' ) ).toBeNull();
+    // The former auto-populated sections never appear, because their data is never fetched.
+    expect( screen.queryByRole( 'heading', { name: 'Next 24 hours' } ) ).toBeNull();
+    expect( screen.queryByText( '10-day outlook' ) ).toBeNull();
+    expect( screen.queryByText( 'Past 24 hours' ) ).toBeNull();
+    expect( screen.queryByRole( 'heading', { name: 'Air intelligence' } ) ).toBeNull();
+    expect( screen.queryByText( 'Best outside' ) ).toBeNull();
+  } );
+
+  it( 'the ONLY air fetch after a layer click is the currentConditions grid - no weather/pollen', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect(
+      fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ) ),
+    ).toBe( true ) );
+
+    // Everything fetched is the grid; weather/pollen/forecast/history/solar stay untouched.
+    for ( const call of fetchSpy.mock.calls ) {
+      const u = String( call[ 0 ] );
+      if ( u.includes( 'googleapis.com' ) ) {
+        expect( u ).toContain( 'airquality.googleapis.com/v1/currentConditions' );
+      }
+    }
   } );
 } );
 

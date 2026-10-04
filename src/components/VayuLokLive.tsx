@@ -46,14 +46,35 @@ import { SITE_ORIGIN } from '../config/share';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 
-// FINAL TARGET (overrides req 05): the AQI / PM2.5 heatmap overlay stays semi-transparent
-// (~30%) so the geo/road map underneath remains clearly visible, BUT the scientific tiles
-// keep their meaningful value variation - they are NOT flattened into one solid lime. The
-// ImageMapType is created with this low opacity (and setOpacity is also called for Maps builds
-// that only honour the setter). Lime #d1f470 now applies to the SELECTOR/UI chrome only, not
-// to recolouring the data tiles. See RESEARCH-05-heatmap-lime-translucent.md for the earlier
-// (now reversed) single-hue recolour decision.
-const HEATMAP_OPACITY = 0.3;
+// FINAL TARGET: the AQI / PM2.5 map layer is a deck.gl ScatterplotLayer of REAL sampled
+// air-quality points (see RESEARCH-deckgl-sampling-architecture.md), rendered over the
+// Google roadmap through GoogleMapsOverlay. The old raster heatmap-tile overlay is gone.
+// Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome; the dots use the
+// VayuLok no-red severity ramp (--aqi-good -> --aqi-worst) converted to RGBA below.
+
+// VayuLok NO-RED severity palette as RGBA, keyed by Sev. These are the EXACT hex tokens the
+// --aqi-* CSS custom properties use (good #1a3a2a / sat #3da35a / mod #d1f470 (lime) /
+// poor #e8c547 / worst #c98a2e), converted to [r,g,b,a] for the deck.gl ScatterplotLayer.
+// Google's UAQI_RED_GREEN tile palette is deliberately NOT inherited - no red anywhere.
+const DOT_FILL_RGBA: Record<Sev, [ number, number, number, number ]> = {
+  good: [ 26, 58, 42, 210 ],
+  sat: [ 61, 163, 90, 210 ],
+  mod: [ 209, 244, 112, 210 ],
+  poor: [ 232, 197, 71, 210 ],
+  worst: [ 201, 138, 46, 210 ],
+};
+// Dark-green outline (--green #1a3a2a) so dots read against light roads.
+const DOT_LINE_RGBA: [ number, number, number, number ] = [ 26, 58, 42, 230 ];
+
+// PM2.5 (µg/m³) -> severity band, mirroring the AQI ramp's no-red bands so a PM2.5 dot
+// shares the same five-step palette as the AQI dot. Real values only; callers drop NaN.
+function pm25Severity( pm25: number ): Sev {
+  if ( pm25 <= 30 ) return 'good';
+  if ( pm25 <= 60 ) return 'sat';
+  if ( pm25 <= 90 ) return 'mod';
+  if ( pm25 <= 120 ) return 'poor';
+  return 'worst';
+}
 
 // India bounds, so the map cannot be panned off the product's area. Verbatim from the
 // mock's map options.
@@ -390,6 +411,63 @@ function hourLabel( ms: number ): string {
   return new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric' } ).format( new Date( ms ) );
 }
 
+/* Parse a currentConditions:lookup payload into the LEFT-card AirState (AQI value +
+   category word + severity + pollutant rows + advisory). Returns null when no finite AQI
+   arrived, so a point that fails to parse is DROPPED, never fabricated. Shared by the
+   layer-activation center-point fetch; the grid points reuse airPointFromApi instead. */
+function airStateFromApiData( data: Record<string, any> | null | undefined ): AirState | null {
+  const indexes: { code?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
+  const idx = indexes.find( i => i.code === 'ind_cpcb' ) || indexes.find( i => i.code === 'uaqi' ) || indexes[ 0 ];
+  if ( !idx || !Number.isFinite( idx.aqi ) ) return null;
+  const aqi = idx.aqi as number;
+  const cat = aqiCategory( aqi );
+  const pollutants: AirState['pollutants'] = [];
+  const WANT: Record<string, string> = {
+    pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
+  };
+  ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
+    const label = p.code ? WANT[ p.code ] : undefined;
+    const v = p.concentration?.value;
+    if ( label && Number.isFinite( v ) ) {
+      pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
+    }
+  } );
+  const advisory = data?.healthRecommendations?.generalPopulation;
+  return {
+    aqi,
+    word: cat.word,
+    sev: cat.sev,
+    dominant: idx.dominantPollutant || undefined,
+    pollutants,
+    advisory: typeof advisory === 'string' ? advisory : undefined,
+    updatedAt: typeof data?.dateTime === 'string' ? data.dateTime : undefined,
+  };
+}
+
+/* The request body shared by the center-point and grid air fetches - identical shape to
+   the former single-point fetchAir so dots carry the same real currentConditions values. */
+function airRequestBody( lat: number, lng: number ): Record<string, unknown> {
+  return {
+    location: { latitude: lat, longitude: lng },
+    extraComputations: [
+      'POLLUTANT_CONCENTRATION',
+      'LOCAL_AQI',
+      'HEALTH_RECOMMENDATIONS',
+      'DOMINANT_POLLUTANT_CONCENTRATION',
+    ],
+    languageCode: 'en',
+    universalAqi: true,
+  };
+}
+
+/* A sampled dot: a REAL grid point carrying its lat/lng and parsed AQI/PM2.5. */
+interface AirDot {
+  lat: number;
+  lng: number;
+  aqi: number;
+  pm25?: number;
+}
+
 function relativeAgeLabel( value?: string | number ): { label: string; stale: boolean } {
   if ( value === undefined || value === null ) return { label: 'Current', stale: false };
   const ms = typeof value === 'number' ? value : new Date( value ).getTime();
@@ -515,6 +593,12 @@ const VayuLokLive: React.FC = () => {
   }>>( {} );
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
+  // FEAT-002: the deck.gl GoogleMapsOverlay instance (created lazily on first layer
+  // activation), the AbortController for the in-flight grid fetch, and the grid cache
+  // keyed by area+grid+layer+time-bucket so re-activating the same layer bills nothing.
+  const deckOverlayRef = useRef<unknown>( null );
+  const gridAbortRef = useRef<AbortController | null>( null );
+  const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
   useEffect( () => {
     setSolar( null );
@@ -830,41 +914,58 @@ const VayuLokLive: React.FC = () => {
   }, [ mapReady, mapCandidate, place ] );
 
   /* ---------------------------------------------------------------------------------
-     LIVE DATA for the selected place. Air + Weather + Pollen fire together whenever
-     the place changes AND a key is present. Solar is deliberately user-triggered because
-     Building Insights is the comparatively expensive SKU. Each call is independently guarded,
-     uses AbortController + Number.isFinite + silent degradation, and caches per place. */
+     LAYER-ACTIVATION DATA (FEAT-002). Selecting a place fetches NOTHING. The single-point
+     air reading (left-card result) AND the deck.gl dot grid are fetched ONLY when an
+     AQI/PM2.5 layer is active and a key is present. Weather, pollen, forecast, history and
+     solar are no longer fetched as a side effect of typing or selecting a place.
+
+     This one effect: (1) fetches the grid's CENTER currentConditions and reuses it both as
+     the left-card `air` state AND as the grid's center cell (no double-fetch); (2) fans the
+     rest of the responsive, capped grid out through a <=4-in-flight throttle; (3) parses
+     every point with the existing helpers, dropping unparseable points; (4) caches by
+     area+grid+layer+time-bucket in a ref (+localStorage mirror); (5) builds a deck.gl
+     ScatterplotLayer and attaches a dynamically-imported GoogleMapsOverlay to the map; and
+     (6) on deactivate/unmount clears the overlay and aborts any in-flight grid fetch. */
   useEffect( () => {
     if ( !MAPS_KEY || typeof window === 'undefined' ) return;
-    const { lat, lng } = place;
-    const cacheKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
-
-    const cached = cache.current[ cacheKey ];
-    const CORE_TTL_MS = 5 * 60 * 1000;
-    if ( cached && Date.now() - cached.ts < CORE_TTL_MS ) {
-      requestAnimationFrame( () => {
-        setAir( cached.air );
-        setWeather( cached.weather );
-        setPollen( cached.pollen );
-        setCoreFetchedAt( cached.ts );
-        setCoreError( false );
-        setDataLoading( false );
-      } );
+    // No layer active -> ensure overlay is detached and the single-point air result clears.
+    if ( !layer ) {
+      const existing = deckOverlayRef.current as { setMap?: ( m: unknown ) => void; setProps?: ( p: { layers: unknown[] } ) => void } | null;
+      existing?.setProps?.( { layers: [] } );
+      existing?.setMap?.( null );
+      requestAnimationFrame( () => { setAir( null ); setDataLoading( false ); } );
       return;
     }
+    const map = mapRef.current;
+    if ( !map ) return;
 
+    const { lat, lng } = place;
+    const gridSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 3 : 5; // 3x3 narrow, 5x5 wide
+    const timeBucket = Math.floor( Date.now() / ( 10 * 60 * 1000 ) ); // ~10 min cache bucket
+    const gridKey = `${lat.toFixed( 3 )},${lng.toFixed( 3 )}|${gridSize}|${layer}|${timeBucket}`;
+
+    const ac = new AbortController();
+    gridAbortRef.current = ac;
     setDataLoading( true );
     setCoreError( false );
-    setAir( null );
-    setWeather( null );
-    setPollen( null );
-    const ac = new AbortController();
-    const store: { air: AirState | null; weather: WeatherState | null; pollen: PollenRow[] | null } = {
-      air: null, weather: null, pollen: null,
-    };
 
-    // AIR QUALITY - India SKU currentConditions:lookup, India local AQI preferred.
-    const fetchAir = async () => {
+    // Build the responsive, hard-capped (<=25) grid of lat/lng offsets around the place.
+    // A ~+/-0.04deg span keeps the dots local around the zoom-14 marker.
+    const SPAN = 0.04;
+    const half = ( gridSize - 1 ) / 2;
+    const centerIdx = Math.floor( ( gridSize * gridSize ) / 2 );
+    const cells: { lat: number; lng: number }[] = [];
+    for ( let r = 0; r < gridSize; r++ ) {
+      for ( let c = 0; c < gridSize; c++ ) {
+        cells.push( {
+          lat: lat + ( ( r - half ) / Math.max( 1, half ) ) * SPAN,
+          lng: lng + ( ( c - half ) / Math.max( 1, half ) ) * SPAN,
+        } );
+      }
+    }
+    const cappedCells = cells.slice( 0, 25 );
+
+    const fetchPoint = async ( cell: { lat: number; lng: number } ): Promise<{ data: Record<string, any> | null }> => {
       try {
         const res = await fetch(
           `https://airquality.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}`,
@@ -872,380 +973,139 @@ const VayuLokLive: React.FC = () => {
             method: 'POST',
             signal: ac.signal,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify( {
-              location: { latitude: lat, longitude: lng },
-              extraComputations: [
-                'POLLUTANT_CONCENTRATION',
-                'LOCAL_AQI',
-                'HEALTH_RECOMMENDATIONS',
-                'DOMINANT_POLLUTANT_CONCENTRATION',
-              ],
-              languageCode: 'en',
-              universalAqi: true,
-            } ),
+            body: JSON.stringify( airRequestBody( cell.lat, cell.lng ) ),
           },
         );
-        if ( !res.ok ) return;
-        const data = await res.json();
-        const indexes: { code?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
-        // Prefer the India CPCB local AQI when present, else the universal AQI.
-        const idx = indexes.find( i => i.code === 'ind_cpcb' ) || indexes.find( i => i.code === 'uaqi' ) || indexes[ 0 ];
-        if ( !idx || !Number.isFinite( idx.aqi ) ) return;
-        const aqi = idx.aqi as number;
-        const cat = aqiCategory( aqi );
-        const pollutants: AirState['pollutants'] = [];
-        const WANT: Record<string, string> = {
-          pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
-        };
-        ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
-          const label = p.code ? WANT[ p.code ] : undefined;
-          const v = p.concentration?.value;
-          if ( label && Number.isFinite( v ) ) {
-            pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
+        if ( !res.ok ) return { data: null };
+        return { data: await res.json() };
+      } catch { return { data: null }; }
+    };
+
+    // Throttle to <=4 concurrent requests. The center cell is fetched first so its
+    // currentConditions can populate the left-card `air` as soon as it lands.
+    const runThrottled = async (): Promise<{ dots: AirDot[]; center: AirState | null }> => {
+      const dots: AirDot[] = [];
+      let center: AirState | null = null;
+      let cursor = 0;
+      const CONCURRENCY = 4;
+      const worker = async () => {
+        while ( cursor < cappedCells.length && !ac.signal.aborted ) {
+          const i = cursor++;
+          const cell = cappedCells[ i ];
+          const { data } = await fetchPoint( cell );
+          if ( ac.signal.aborted || !data ) continue;
+          // Reuse the EXISTING airPointFromApi parser for each grid point. For the center
+          // cell, also build the richer AirState for the left-card result (no double-fetch).
+          const point = airPointFromApi( data );
+          if ( point ) {
+            const dot: AirDot = { lat: cell.lat, lng: cell.lng, aqi: point.aqi };
+            if ( Number.isFinite( point.pm25 ) ) dot.pm25 = point.pm25;
+            dots.push( dot );
           }
-        } );
-        const advisory = data?.healthRecommendations?.generalPopulation;
-        store.air = {
-          aqi,
-          word: cat.word,
-          sev: cat.sev,
-          dominant: idx.dominantPollutant || undefined,
-          pollutants,
-          advisory: typeof advisory === 'string' ? advisory : undefined,
-          updatedAt: typeof data?.dateTime === 'string' ? data.dateTime : undefined,
-        };
-      } catch { /* silent degradation */ }
-    };
-
-    // WEATHER - India SKU currentConditions:lookup (cheapest current snapshot).
-    const fetchWeather = async () => {
-      try {
-        const res = await fetch(
-          `https://weather.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&unitsSystem=METRIC`,
-          { signal: ac.signal },
-        );
-        if ( !res.ok ) return;
-        const d = await res.json();
-        const temp = d?.temperature?.degrees;
-        const feels = d?.feelsLikeTemperature?.degrees;
-        const humidity = d?.relativeHumidity;
-        const windSpeed = d?.wind?.speed?.value;
-        const windUnit = d?.wind?.speed?.unit;
-        const windDeg = d?.wind?.direction?.degrees;
-        const condition = d?.weatherCondition?.description?.text;
-        const out: WeatherState = {};
-        if ( Number.isFinite( temp ) ) out.temp = Math.round( temp );
-        if ( Number.isFinite( feels ) ) out.feelsLike = Math.round( feels );
-        if ( Number.isFinite( humidity ) ) out.humidity = Math.round( humidity );
-        if ( Number.isFinite( windSpeed ) ) {
-          out.windSpeed = Math.round( windSpeed );
-          out.windUnit = windUnitLabel( typeof windUnit === 'string' ? windUnit : undefined );
-        }
-        if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
-        const gust = n( d?.wind?.gust?.value );
-        const rainMm = n( d?.precipitation?.qpf?.quantity );
-        const rainProb = n( d?.precipitation?.probability?.percent );
-        const stormProb = n( d?.thunderstormProbability );
-        const uv = n( d?.uvIndex );
-        const visibility = n( d?.visibility?.distance );
-        const pressure = n( d?.airPressure?.meanSeaLevelMillibars );
-        const dew = n( d?.dewPoint?.degrees );
-        const heat = n( d?.heatIndex?.degrees );
-        const wet = n( d?.wetBulbTemperature?.degrees );
-        const cloud = n( d?.cloudCover );
-        if ( Number.isFinite( gust ) ) out.windGust = Math.round( gust );
-        if ( Number.isFinite( rainMm ) ) out.rainMm = rainMm;
-        if ( Number.isFinite( rainProb ) ) out.rainProb = Math.round( rainProb );
-        if ( Number.isFinite( stormProb ) ) out.stormProb = Math.round( stormProb );
-        if ( Number.isFinite( uv ) ) out.uv = Math.round( uv );
-        if ( Number.isFinite( visibility ) ) out.visibilityKm = visibility;
-        if ( Number.isFinite( pressure ) ) out.pressureHpa = Math.round( pressure );
-        if ( Number.isFinite( dew ) ) out.dewPoint = Math.round( dew );
-        if ( Number.isFinite( heat ) ) out.heatIndex = Math.round( heat );
-        if ( Number.isFinite( wet ) ) out.wetBulb = Math.round( wet );
-        if ( Number.isFinite( cloud ) ) out.cloudCover = Math.round( cloud );
-        if ( typeof d?.currentTime === 'string' ) out.currentTime = d.currentTime;
-        if ( typeof condition === 'string' ) out.condition = condition;
-        // Only keep weather if at least one field arrived.
-        if ( Object.keys( out ).length ) store.weather = out;
-      } catch { /* silent degradation */ }
-    };
-
-    // POLLEN - forecast:lookup, one day. Degrade silently if absent.
-    const fetchPollen = async () => {
-      try {
-        const res = await fetch(
-          `https://pollen.googleapis.com/v1/forecast:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&days=5`,
-          { signal: ac.signal },
-        );
-        if ( !res.ok ) return;
-        const d = await res.json();
-        const daily = Array.isArray( d?.dailyInfo ) ? d.dailyInfo : [];
-        const rows: PollenRow[] = [];
-        daily.forEach( ( day: any, dayIndex: number ) => {
-          const date = day?.date;
-          const dateObj = date?.year && date?.month && date?.day
-            ? new Date( Date.UTC( date.year, date.month - 1, date.day ) )
-            : null;
-          const dayLabel = dayIndex === 0
-            ? 'Today'
-            : dateObj
-              ? new Intl.DateTimeFormat( 'en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' } ).format( dateObj )
-              : 'Day ' + String( dayIndex + 1 );
-          const types: { code?: string; displayName?: string; indexInfo?: { value?: number } }[] = day?.pollenTypeInfo || [];
-          types.forEach( t => {
-            const v = t.indexInfo?.value;
-            if ( t.displayName && Number.isFinite( v ) ) {
-              rows.push( { label: t.displayName, index: v as number, word: pollenCategory( v as number ), day: dayLabel } );
+          if ( i === centerIdx ) {
+            const parsed = airStateFromApiData( data );
+            if ( parsed ) {
+              center = parsed;
+              requestAnimationFrame( () => { if ( !ac.signal.aborted ) setAir( parsed ); } );
             }
-          } );
+          }
+        }
+      };
+      await Promise.all( Array.from( { length: Math.min( CONCURRENCY, cappedCells.length ) }, () => worker() ) );
+      return { dots, center };
+    };
+
+    // Build the deck.gl ScatterplotLayer from parsed dots and push it onto the overlay. The
+    // deck.gl modules are imported DYNAMICALLY here so SSR/the initial bundle and the
+    // honest-degradation path (no key -> this effect early-returns) never load them.
+    const render = async ( dots: AirDot[] ) => {
+      if ( ac.signal.aborted || !dots.length ) return;
+      try {
+        const [ { GoogleMapsOverlay }, { ScatterplotLayer } ] = await Promise.all( [
+          import( '@deck.gl/google-maps' ),
+          import( '@deck.gl/layers' ),
+        ] );
+        if ( ac.signal.aborted ) return;
+        if ( !deckOverlayRef.current ) {
+          deckOverlayRef.current = new GoogleMapsOverlay( { interleaved: false } );
+        }
+        const overlay = deckOverlayRef.current as {
+          setMap: ( m: unknown ) => void;
+          setProps: ( p: { layers: unknown[] } ) => void;
+        };
+        const scatter = new ScatterplotLayer( {
+          id: `vl-live-air-dots-${layer}`,
+          data: dots,
+          pickable: false,
+          stroked: true,
+          filled: true,
+          radiusUnits: 'pixels',
+          getPosition: ( d: AirDot ) => [ d.lng, d.lat ],
+          getRadius: 9,
+          lineWidthUnits: 'pixels',
+          getLineWidth: 1.5,
+          getLineColor: DOT_LINE_RGBA,
+          getFillColor: ( d: AirDot ): [ number, number, number, number ] => {
+            const sev: Sev = layer === 'PM25' && Number.isFinite( d.pm25 )
+              ? pm25Severity( d.pm25 as number )
+              : aqiCategory( d.aqi ).sev;
+            return DOT_FILL_RGBA[ sev ];
+          },
         } );
-        if ( rows.length ) store.pollen = rows;
-      } catch { /* silent degradation */ }
+        overlay.setProps( { layers: [ scatter ] } );
+        overlay.setMap( map );
+      } catch { /* deck.gl unavailable -> degrade silently, map still renders */ }
     };
 
     ( async () => {
-      await Promise.all( [ fetchAir(), fetchWeather(), fetchPollen() ] );
+      let dots: AirDot[] | null = null;
+      let center: AirState | null = null;
+      // 1) Cache hit within the time bucket bills nothing.
+      const cached = gridCache.current[ gridKey ];
+      if ( cached ) {
+        dots = cached.dots;
+        center = cached.center;
+      } else {
+        // 1b) localStorage mirror for cross-reload reuse (guarded, silent on failure).
+        try {
+          const raw = window.localStorage?.getItem( `vl-live-grid:${gridKey}` );
+          if ( raw ) {
+            const parsed = JSON.parse( raw ) as { dots: AirDot[]; center: AirState | null };
+            if ( Array.isArray( parsed?.dots ) ) { dots = parsed.dots; center = parsed.center ?? null; }
+          }
+        } catch { /* storage unavailable */ }
+      }
+
+      if ( dots ) {
+        if ( center ) requestAnimationFrame( () => { if ( !ac.signal.aborted ) setAir( center ); } );
+        await render( dots );
+        requestAnimationFrame( () => { if ( !ac.signal.aborted ) setDataLoading( false ); } );
+        return;
+      }
+
+      const result = await runThrottled();
       if ( ac.signal.aborted ) return;
-      const fetchedAt = Date.now();
-      cache.current[ cacheKey ] = { ts: fetchedAt, ...store };
-      // First setState via rAF to avoid react-hooks/set-state-in-effect.
+      dots = result.dots;
+      center = result.center;
+      gridCache.current[ gridKey ] = { ts: Date.now(), dots, center };
+      try {
+        window.localStorage?.setItem( `vl-live-grid:${gridKey}`, JSON.stringify( { dots, center } ) );
+      } catch { /* storage unavailable */ }
+      await render( dots );
       requestAnimationFrame( () => {
         if ( ac.signal.aborted ) return;
-        setAir( store.air );
-        setWeather( store.weather );
-        setPollen( store.pollen );
-        setCoreFetchedAt( fetchedAt );
-        setCoreError( !store.air && !store.weather );
+        setCoreError( dots!.length === 0 && center === null );
         setDataLoading( false );
       } );
     } )();
 
-    return () => ac.abort();
-  }, [ place, refreshNonce ] );
-
-  /* Extended forecast/history calls are separate from current conditions so a slow
-     long-range endpoint never blocks the "Now" experience. */
-  useEffect( () => {
-    if ( !MAPS_KEY || typeof window === 'undefined' ) return;
-    const ac = new AbortController();
-    const { lat, lng } = place;
-    const forecastKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}`;
-    const cachedForecast = forecastCache.current[ forecastKey ];
-    const FORECAST_TTL_MS = 15 * 60 * 1000;
-    if ( cachedForecast && Date.now() - cachedForecast.ts < FORECAST_TTL_MS ) {
-      setWeatherHourly( cachedForecast.hourly );
-      setWeatherDaily( cachedForecast.daily );
-      setWeatherAlerts( cachedForecast.alerts );
-      setAirForecast( cachedForecast.airForecast );
-      setWeatherHistory( cachedForecast.weatherHistory );
-      return () => ac.abort();
-    }
-
-    setWeatherHourly( [] );
-    setWeatherDaily( [] );
-    setWeatherAlerts( [] );
-    setAirForecast( [] );
-    setWeatherHistory( [] );
-    const forecastStore: {
-      hourly: WeatherHour[];
-      daily: WeatherDay[];
-      alerts: WeatherAlertRow[];
-      airForecast: AirPoint[];
-      weatherHistory: WeatherHistoryPoint[];
-    } = { hourly: [], daily: [], alerts: [], airForecast: [], weatherHistory: [] };
-
-    const getJson = async ( url: string ) => {
-      const res = await fetch( url, { signal: ac.signal } );
-      if ( !res.ok ) return null;
-      return res.json();
+    return () => {
+      ac.abort();
+      const overlay = deckOverlayRef.current as { setProps?: ( p: { layers: unknown[] } ) => void; setMap?: ( m: unknown ) => void } | null;
+      overlay?.setProps?.( { layers: [] } );
+      overlay?.setMap?.( null );
     };
-
-    const loadHourly = async () => {
-      const rows: WeatherHour[] = [];
-      let pageToken = '';
-      for ( let page = 0; page < 2 && !ac.signal.aborted; page++ ) {
-        let url = 'https://weather.googleapis.com/v1/forecast/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
-          + '&location.latitude=' + lat + '&location.longitude=' + lng
-          + '&hours=48&pageSize=24&unitsSystem=METRIC&languageCode=en';
-        if ( pageToken ) url += '&pageToken=' + encodeURIComponent( pageToken );
-        const data = await getJson( url );
-        if ( !data || ac.signal.aborted ) break;
-        rows.push( ...( Array.isArray( data.forecastHours ) ? data.forecastHours : [] )
-          .map( ( row: Record<string, any> ) => weatherHourFromApi( row ) )
-          .filter( Boolean ) as WeatherHour[] );
-        pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
-        if ( !pageToken ) break;
-      }
-      forecastStore.hourly = rows.slice( 0, 48 );
-      setWeatherHourly( rows.slice( 0, 48 ) );
-    };
-
-    const loadWeatherHistory = async () => {
-      const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
-        + '&location.latitude=' + lat + '&location.longitude=' + lng
-        + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
-      const data = await getJson( url );
-      if ( !data || ac.signal.aborted ) return;
-      const rows: WeatherHistoryPoint[] = ( Array.isArray( data.historyHours ) ? data.historyHours : [] ).map( ( row: any ) => {
-        const time = new Date( row?.interval?.startTime || 0 ).getTime();
-        const temp = n( row?.temperature?.degrees );
-        const rain = n( row?.precipitation?.probability?.percent );
-        return {
-          time,
-          ...( Number.isFinite( temp ) ? { temp: Math.round( temp ) } : {} ),
-          ...( Number.isFinite( rain ) ? { rainProb: Math.round( rain ) } : {} ),
-          ...( typeof row?.weatherCondition?.description?.text === 'string' ? { condition: row.weatherCondition.description.text } : {} ),
-        };
-      } ).filter( ( row: WeatherHistoryPoint ) => Number.isFinite( row.time ) );
-      forecastStore.weatherHistory = rows;
-      setWeatherHistory( rows );
-    };
-
-    const loadDaily = async () => {
-      const url = 'https://weather.googleapis.com/v1/forecast/days:lookup?key=' + encodeURIComponent( MAPS_KEY )
-        + '&location.latitude=' + lat + '&location.longitude=' + lng
-        + '&days=10&unitsSystem=METRIC&languageCode=en';
-      const data = await getJson( url );
-      if ( !data || ac.signal.aborted ) return;
-      const rows: WeatherDay[] = ( Array.isArray( data.forecastDays ) ? data.forecastDays : [] ).map( ( row: any, i: number ) => {
-        const d = row?.displayDate || {};
-        const date = d?.year && d?.month && d?.day ? new Date( Date.UTC( d.year, d.month - 1, d.day ) ) : new Date();
-        const p = row?.daytimeForecast || row?.nighttimeForecast || {};
-        const min = n( row?.minTemperature?.degrees );
-        const max = n( row?.maxTemperature?.degrees );
-        const rain = n( p?.precipitation?.probability?.percent );
-        return {
-          time: date.getTime(),
-          label: i === 0 ? 'Today' : new Intl.DateTimeFormat( 'en-IN', { weekday: 'short', timeZone: 'UTC' } ).format( date ),
-          dateLabel: new Intl.DateTimeFormat( 'en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' } ).format( date ),
-          ...( Number.isFinite( min ) ? { min: Math.round( min ) } : {} ),
-          ...( Number.isFinite( max ) ? { max: Math.round( max ) } : {} ),
-          ...( Number.isFinite( rain ) ? { rainProb: Math.round( rain ) } : {} ),
-          ...( typeof p?.weatherCondition?.description?.text === 'string' ? { condition: p.weatherCondition.description.text } : {} ),
-          ...( typeof p?.weatherCondition?.iconBaseUri === 'string' ? { icon: p.weatherCondition.iconBaseUri } : {} ),
-          ...( typeof row?.sunEvents?.sunriseTime === 'string' ? { sunrise: row.sunEvents.sunriseTime } : {} ),
-          ...( typeof row?.sunEvents?.sunsetTime === 'string' ? { sunset: row.sunEvents.sunsetTime } : {} ),
-        };
-      } );
-      forecastStore.daily = rows;
-      setWeatherDaily( rows );
-    };
-
-    const loadAlerts = async () => {
-      const url = 'https://weather.googleapis.com/v1/publicAlerts:lookup?key=' + encodeURIComponent( MAPS_KEY )
-        + '&location.latitude=' + lat + '&location.longitude=' + lng + '&languageCode=en';
-      const data = await getJson( url );
-      if ( !data || ac.signal.aborted ) return;
-      const rows: WeatherAlertRow[] = ( Array.isArray( data.weatherAlerts ) ? data.weatherAlerts : [] ).slice( 0, 3 ).map( ( a: any, i: number ) => ( {
-        id: String( a?.alertId || a?.eventType || 'weather-alert-' + i ),
-        title: String( a?.alertTitle?.text || a?.description || a?.eventType || 'Weather alert' ),
-        description: typeof a?.description === 'string' ? a.description : undefined,
-        area: typeof a?.areaName === 'string' ? a.areaName : undefined,
-        severity: typeof a?.severity === 'string' ? a.severity.replaceAll( '_', ' ' ) : undefined,
-        urgency: typeof a?.urgency === 'string' ? a.urgency.replaceAll( '_', ' ' ) : undefined,
-        expires: typeof a?.expirationTime === 'string' ? a.expirationTime : undefined,
-      } ) );
-      forecastStore.alerts = rows;
-      setWeatherAlerts( rows );
-    };
-
-    const loadAirForecast = async () => {
-      const start = new Date();
-      start.setUTCMinutes( 0, 0, 0 );
-      start.setUTCHours( start.getUTCHours() + 1 );
-      const end = new Date( start.getTime() + 96 * 60 * 60 * 1000 );
-      const res = await fetch(
-        'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
-        {
-          method: 'POST',
-          signal: ac.signal,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify( {
-            location: { latitude: lat, longitude: lng },
-            period: { startTime: start.toISOString(), endTime: end.toISOString() },
-            pageSize: 96,
-            universalAqi: true,
-            customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
-            extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION' ],
-            languageCode: 'en',
-          } ),
-        },
-      );
-      if ( !res.ok || ac.signal.aborted ) return;
-      const data = await res.json();
-      const rows = ( Array.isArray( data.hourlyForecasts ) ? data.hourlyForecasts : [] )
-        .map( ( row: Record<string, any> ) => airPointFromApi( row ) )
-        .filter( Boolean ) as AirPoint[];
-      forecastStore.airForecast = rows;
-      setAirForecast( rows );
-    };
-
-    void Promise.allSettled( [ loadHourly(), loadDaily(), loadAlerts(), loadAirForecast(), loadWeatherHistory() ] ).then( () => {
-      if ( ac.signal.aborted ) return;
-      forecastCache.current[ forecastKey ] = { ts: Date.now(), ...forecastStore };
-    } );
-    return () => ac.abort();
-  }, [ place ] );
-
-  useEffect( () => {
-    if ( !MAPS_KEY || typeof window === 'undefined' ) return;
-    const ac = new AbortController();
-    const { lat, lng } = place;
-    const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}:${historyRange}`;
-    const cachedHistory = historyCache.current[ historyKey ];
-    const HISTORY_TTL_MS = historyRange === 24 ? 15 * 60 * 1000 : 60 * 60 * 1000;
-    if ( cachedHistory && Date.now() - cachedHistory.ts < HISTORY_TTL_MS ) {
-      setAirHistory( cachedHistory.points );
-      setHistoryLoading( false );
-      return () => ac.abort();
-    }
-    setHistoryLoading( true );
-    setAirHistory( [] );
-
-    const run = async () => {
-      const points: AirPoint[] = [];
-      let pageToken = '';
-      let page = 0;
-      do {
-        const body: Record<string, unknown> = {
-          location: { latitude: lat, longitude: lng },
-          hours: historyRange,
-          pageSize: Math.min( 100, historyRange ),
-          universalAqi: true,
-          customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
-          extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION' ],
-          languageCode: 'en',
-        };
-        if ( pageToken ) body.pageToken = pageToken;
-        const res = await fetch(
-          'https://airquality.googleapis.com/v1/history:lookup?key=' + encodeURIComponent( MAPS_KEY ),
-          {
-            method: 'POST',
-            signal: ac.signal,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify( body ),
-          },
-        );
-        if ( !res.ok ) break;
-        const data = await res.json();
-        ( Array.isArray( data.hoursInfo ) ? data.hoursInfo : [] ).forEach( ( row: Record<string, any> ) => {
-          const p = airPointFromApi( row );
-          if ( p ) points.push( p );
-        } );
-        pageToken = typeof data.nextPageToken === 'string' ? data.nextPageToken : '';
-        page += 1;
-      } while ( pageToken && page < 8 && !ac.signal.aborted );
-      if ( !ac.signal.aborted ) {
-        points.sort( ( a, b ) => a.time - b.time );
-        historyCache.current[ historyKey ] = { ts: Date.now(), points };
-        setAirHistory( points );
-        setHistoryLoading( false );
-      }
-    };
-    void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
-    return () => ac.abort();
-  }, [ place, historyRange ] );
+  }, [ layer, place, refreshNonce, mapReady ] );
 
   const loadSolar = useCallback( async () => {
     if ( !MAPS_KEY || solarLoading ) return;
@@ -1285,42 +1145,6 @@ const VayuLokLive: React.FC = () => {
     marker.setPosition?.( { lat: place.lat, lng: place.lng } );
     marker.setTitle?.( place.name );
   }, [ place, mapReady ] );
-
-  /* ---------------------------------------------------------------------------------
-     AQI HEATMAP OVERLAY - ON USER ACTION ONLY. The ImageMapType is created and its
-     tiles requested only when a layer button is pressed; never on page load. */
-  useEffect( () => {
-    const w = window as unknown as {
-      google?: { maps?: { ImageMapType: new ( opts: Record<string, unknown> ) => unknown } };
-    };
-    const map = mapRef.current as { overlayMapTypes?: { clear: () => void; push: ( t: unknown ) => void } } | null;
-    if ( !map || !w.google?.maps ) return;
-    map.overlayMapTypes?.clear();
-    if ( !layer ) return;
-    // Air Quality API mapType enum values. Use the universal AQI scale (UAQI_RED_GREEN)
-    // rather than US_AQI so heatmap colours line up with the India-CPCB legend/panels on
-    // this page, and PM25_INDIGO_PERSIAN for PM2.5 (PM25_HEATMAP is not a valid enum value).
-    const mapType = layer === 'PM25' ? 'PM25_INDIGO_PERSIAN' : 'UAQI_RED_GREEN';
-    // FINAL TARGET (reverses req 05's single-hue recolour): the heatmap tiles are
-    // server-rendered rasters whose baked colormap carries meaningful AQI/PM2.5 VALUE
-    // VARIATION, and the owner now wants that variation PRESERVED rather than flattened
-    // into one solid lime. So the only client-side treatment is TRANSLUCENCY: the
-    // ImageMapType carries a low `opacity` (~0.30) so the geo/road map underneath stays
-    // clearly visible while the tiles keep their scientific gradient. No hue-collapsing
-    // CSS filter is applied, so no runtime `vl-live-overlay-lime` class is added to the
-    // canvas host any more. Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome.
-    const overlay = new w.google.maps.ImageMapType( {
-      name: layer,
-      tileSize: { width: 256, height: 256 },
-      opacity: HEATMAP_OPACITY,
-      getTileUrl: ( coord: { x: number; y: number }, zoom: number ) =>
-        `https://airquality.googleapis.com/v1/mapTypes/${mapType}/heatmapTiles/${zoom}/${coord.x}/${coord.y}?key=${encodeURIComponent( MAPS_KEY )}`,
-    } );
-    const typed = overlay as { setOpacity?: ( o: number ) => void };
-    typed.setOpacity?.( HEATMAP_OPACITY );
-    map.overlayMapTypes?.push( overlay );
-    return () => { map.overlayMapTypes?.clear(); };
-  }, [ layer ] );
 
   /* ---------------------------------------------------------------------------------
      SEARCH - modern Places Autocomplete Data API with one session token per query/
@@ -1799,58 +1623,24 @@ const VayuLokLive: React.FC = () => {
             </div>
           </div>
 
-          {/* NOW - editorial display type. The whole block is gated on a key: with no key
-              there is no map and no live data, so a bare place name would be misleading.
-              The live figures render only once they actually arrived. */}
-          { liveActive && (
-          <div className="vl-live-block">
-            { dataLoading && (
-              <div className="vl-live-data-skeleton" role="status" aria-label="Loading current conditions">
-                <i /><i /><i /><i />
-              </div>
-            ) }
-
-            { coreError && !dataLoading && (
-              <div className="vl-live-data-error" role="status">
-                <span>Current conditions are temporarily unavailable.</span>
-                <button type="button" onClick={ () => setRefreshNonce( n => n + 1 ) }>Retry</button>
-              </div>
-            ) }
-
-            { ( air || weather ) && (
-              <div className="vl-live-now vl-live-band">
-                { air && (
-                  <div>
-                    <p className="vl-live-label">Air quality now</p>
-                    <div className="vl-live-figure">
-                      <span className={ dotClass( air.sev ) } aria-hidden="true" />
-                      <span className="vl-live-metric-xl">{ air.aqi }</span>
-                      <span className="vl-live-cat">{ air.word }</span>
-                    </div>
-                    { air.dominant && (
-                      <p className="vl-live-cond">{ air.word } air. Dominant pollutant { air.dominant }.</p>
-                    ) }
-                    <p className={ `vl-live-sub-fact ${airFreshness.stale ? 'is-stale' : ''}`.trim() }>AQI { air.aqi } · { air.word } band · { airFreshness.label }</p>
-                  </div>
-                ) }
-                { weather && (
-                  <div className="vl-live-band-aside">
-                    <p className="vl-live-label">Weather now</p>
-                    { Number.isFinite( weather.temp ) && (
-                      <div className="vl-live-figure"><span className="vl-live-metric-lg">{ weather.temp }°</span></div>
-                    ) }
-                    { weather.condition && <p className="vl-live-cond">{ weather.condition }</p> }
-                    <p className={ `vl-live-sub-fact ${weatherFreshness.stale ? 'is-stale' : ''}`.trim() }>
-                      { Number.isFinite( weather.feelsLike ) && <>Feels like { weather.feelsLike }°</> }
-                      { Number.isFinite( weather.humidity ) && <> · humidity { weather.humidity }%</> }
-                      { Number.isFinite( weather.windSpeed ) && <> · wind { weather.windSpeed } { weather.windUnit || 'km/h' }{ weather.windDir ? ` ${weather.windDir}` : '' }</> }
-                      <> · { weatherFreshness.label }</>
-                    </p>
-                  </div>
-                ) }
-              </div>
-            ) }
-          </div>
+          {/* FEAT-002: a lightweight loading / error affordance for the layer-activated grid
+              + center air fetch. The full air RESULT now lives in the left-card
+              layer-result block above; the former NOW/forecast/weather/pollen sections are
+              retired because selecting a place no longer fetches weather/pollen/forecast. */}
+          { liveActive && layer && ( dataLoading || coreError ) && (
+            <div className="vl-live-block">
+              { dataLoading && !coreError && (
+                <div className="vl-live-data-skeleton" role="status" aria-label="Loading air quality">
+                  <i /><i /><i /><i />
+                </div>
+              ) }
+              { coreError && !dataLoading && (
+                <div className="vl-live-data-error" role="status">
+                  <span>Air quality is temporarily unavailable for this area.</span>
+                  <button type="button" onClick={ () => setRefreshNonce( v => v + 1 ) }>Retry</button>
+                </div>
+              ) }
+            </div>
           ) }
 
           { combinedHours.length > 0 && (
@@ -1933,9 +1723,10 @@ const VayuLokLive: React.FC = () => {
           ) }
 
           {/* WEATHER SIGNALS - continuous, separator-led flow inspired by Home.
-              No card grid: each topic owns one horizontal band and shares the same
-              typographic rhythm as the surrounding page. */}
-          { ( weather || air ) && (
+              FEAT-002: gated on `weather`, which is no longer fetched on place-select, so
+              this retired block stays dormant. The air reading now lives in the left-card
+              layer-result; the air-signal column here no longer duplicates it. */}
+          { weather && (
             <div className="vl-live-block vl-live-signal-stack" aria-label="Current weather signals">
               { weather && (
                 <>
@@ -2521,12 +2312,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-fallback-status{margin:3px 0 0;font-size:13px;line-height:1.35;color:var(--ink-muted)}
         .vl-live-map-canvas{position:absolute;inset:0;z-index:2;opacity:0;pointer-events:none;border-radius:inherit;overflow:hidden;background:transparent}
 
-        /* FINAL TARGET (reverses req 05's single-hue recolour): the heatmap tiles keep their
-           scientific VALUE VARIATION. No CSS filter recolours them any more - the only
-           client-side treatment is translucency via the ImageMapType opacity option (~0.30).
-           Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome. No rule anywhere targets
-           .gm-style-cc, a[href*="google"] or img[alt="Google"], so Google's logo/legal and
-           the Place Photo author attributions stay intact (Maps Platform ToS). */
+        /* FEAT-002: the AQI/PM2.5 layer is a deck.gl ScatterplotLayer of REAL sampled points,
+           drawn in the map's WebGL context by GoogleMapsOverlay - it adds no covering DOM, so
+           the dots never sit over Google's logo/legal. Lime #d1f470 is reserved for the
+           AQI|PM2.5 selector chrome; the dots use the no-red --aqi-* ramp (converted to RGBA in
+           JS). No rule anywhere targets .gm-style-cc, a[href*="google"] or img[alt="Google"], so
+           Google's logo/legal and the Place Photo author attributions stay intact (ToS). */
 
         .vl-live-map-retry{min-height:44px;margin-top:10px;padding:0 18px;border:2px solid #1a3a2a;border-radius:999px;background:#fff;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;cursor:pointer}        .vl-live-map-canvas.is-ready{opacity:1;pointer-events:auto}
 
