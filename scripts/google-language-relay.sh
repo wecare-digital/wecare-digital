@@ -31,7 +31,7 @@
 #   * The CORS allow-list admits exactly https://www.wecare.digital and
 #     https://wecare.digital. Everything else gets 403 with no
 #     Access-Control-Allow-Origin header. That allow-list is now exactly right:
-#     the site serves from the apex, and stack.wecare.digital - which the relay
+#     the site serves from the apex, and retired-legacy-host.invalid - which the relay
 #     rejected and which this file used to flag as a gap - has been retired.
 #
 # Usage:
@@ -56,7 +56,7 @@ RELAY_URL="${RELAY_URL:-https://wecare-translation-relay-hrkl3sncxq-el.a.run.app
 # Origin the relay already trusts, so probes exercise the real allowed path.
 PROBE_ORIGIN="${PROBE_ORIGIN:-https://www.wecare.digital}"
 
-# The origin the site serves from. Was stack.wecare.digital, which the relay
+# The origin the site serves from. Was retired-legacy-host.invalid, which the relay
 # rejected; that host is retired and the apex is both canonical and already
 # allow-listed, so these checks should now pass rather than warn.
 SITE_ORIGIN="${SITE_ORIGIN:-https://wecare.digital}"
