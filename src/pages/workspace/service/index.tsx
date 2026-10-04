@@ -15,7 +15,7 @@ const SERVICE_MODULES = [
   { path: '/workspace/service/amend-request', label: 'Amend Request', icon: '✏️', desc: 'Modify or add info to an existing request', color: '#fef3c7' },
   { path: '/workspace/engage/whatsapp/flow-responses', label: 'All Submissions', icon: '📋', desc: 'View all flow submissions across all types', color: '#f3e8ff' },
   { path: '/workspace/engage/whatsapp/flow-hub', label: 'Flow Hub', icon: '🔄', desc: 'Manage WhatsApp flow configurations', color: '#e0e7ff' },
-  { path: '/workspace/forms/selfservice', label: 'Self-Service', icon: '🤖', desc: 'Customer self-service portal', color: '#fce7f3' },
+  { path: '/workspace/forms/selfservice', label: 'Customer Service', icon: '🤖', desc: 'Customer service portal', color: '#fce7f3' },
 ];
 
 const ServiceHubPage: React.FC<PageProps> = ({ signOut, user }) => {
