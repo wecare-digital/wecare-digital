@@ -1,7 +1,4 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import BlogContribution from './BlogContribution';
-import ShareLinks from './ShareLinks';
-import { SITE_ORIGIN } from '../config/share';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -347,6 +344,9 @@ interface WeatherHour {
   rainMm?: number;
   stormProb?: number;
   uv?: number;
+  windSpeed?: number;
+  windUnit?: string;
+  windDir?: string;
   condition?: string;
   icon?: string;
 }
@@ -423,12 +423,17 @@ function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
   const rainMm = n( row?.precipitation?.qpf?.quantity );
   const storm = n( row?.thunderstormProbability );
   const uv = n( row?.uvIndex );
+  const windSpeed = n( row?.wind?.speed?.value );
+  const windDeg = n( row?.wind?.direction?.degrees );
   if ( Number.isFinite( temp ) ) out.temp = Math.round( temp );
   if ( Number.isFinite( feels ) ) out.feelsLike = Math.round( feels );
   if ( Number.isFinite( rain ) ) out.rainProb = Math.round( rain );
   if ( Number.isFinite( rainMm ) ) out.rainMm = rainMm;
   if ( Number.isFinite( storm ) ) out.stormProb = Math.round( storm );
   if ( Number.isFinite( uv ) ) out.uv = Math.round( uv );
+  if ( Number.isFinite( windSpeed ) ) out.windSpeed = Math.round( windSpeed );
+  if ( Number.isFinite( windSpeed ) ) out.windUnit = windUnitLabel( row?.wind?.speed?.unit );
+  if ( Number.isFinite( windDeg ) ) out.windDir = windDirection( windDeg );
   if ( typeof row?.weatherCondition?.description?.text === 'string' ) out.condition = row.weatherCondition.description.text;
   if ( typeof row?.weatherCondition?.iconBaseUri === 'string' ) out.icon = row.weatherCondition.iconBaseUri;
   return out;
@@ -754,11 +759,7 @@ const VayuLokLive: React.FC = () => {
         mapTypeId: 'roadmap',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
-        // OWNER OVERRIDE (reference screenshot, decisions.md Decision 3): show Google's
-        // built-in +/- zoom control (bottom-right by default), inset from the corner so the
-        // Google logo + legal attribution stay visible. The custom geolocation crosshair is
-        // rendered inline in the map column below.
-        zoomControl: true,
+        zoomControl: false,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
@@ -1317,38 +1318,8 @@ const VayuLokLive: React.FC = () => {
       } catch { /* silent degradation */ }
     };
 
-    // POLLEN - forecast:lookup, one day. Degrade silently if absent.
-    const fetchPollen = async () => {
-      try {
-        const res = await fetch(
-          `https://pollen.googleapis.com/v1/forecast:lookup?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${lat}&location.longitude=${lng}&days=5`,
-          { signal: ac.signal },
-        );
-        if ( !res.ok ) return;
-        const d = await res.json();
-        const daily = Array.isArray( d?.dailyInfo ) ? d.dailyInfo : [];
-        const rows: PollenRow[] = [];
-        daily.forEach( ( day: any, dayIndex: number ) => {
-          const date = day?.date;
-          const dateObj = date?.year && date?.month && date?.day
-            ? new Date( Date.UTC( date.year, date.month - 1, date.day ) )
-            : null;
-          const dayLabel = dayIndex === 0
-            ? 'Today'
-            : dateObj
-              ? new Intl.DateTimeFormat( 'en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' } ).format( dateObj )
-              : 'Day ' + String( dayIndex + 1 );
-          const types: { code?: string; displayName?: string; indexInfo?: { value?: number } }[] = day?.pollenTypeInfo || [];
-          types.forEach( t => {
-            const v = t.indexInfo?.value;
-            if ( t.displayName && Number.isFinite( v ) ) {
-              rows.push( { label: t.displayName, index: v as number, word: pollenCategory( v as number ), day: dayLabel } );
-            }
-          } );
-        } );
-        if ( rows.length ) store.pollen = rows;
-      } catch { /* silent degradation */ }
-    };
+    // Google Pollen has no India coverage. Keep the slot empty without issuing a request.
+    const fetchPollen = async () => undefined;
 
     ( async () => {
       await Promise.all( [ fetchAir(), fetchWeather(), fetchPollen() ] );
@@ -1454,29 +1425,14 @@ const VayuLokLive: React.FC = () => {
       setWeatherDaily( rows );
     };
 
-    const loadAlerts = async () => {
-      const url = 'https://weather.googleapis.com/v1/publicAlerts:lookup?key=' + encodeURIComponent( MAPS_KEY )
-        + '&location.latitude=' + lat + '&location.longitude=' + lng + '&languageCode=en';
-      const data = await getJson( url );
-      if ( !data || ac.signal.aborted ) return;
-      const rows: WeatherAlertRow[] = ( Array.isArray( data.weatherAlerts ) ? data.weatherAlerts : [] ).slice( 0, 3 ).map( ( a: any, i: number ) => ( {
-        id: String( a?.alertId || a?.eventType || 'weather-alert-' + i ),
-        title: String( a?.alertTitle?.text || a?.description || a?.eventType || 'Weather alert' ),
-        description: typeof a?.description === 'string' ? a.description : undefined,
-        area: typeof a?.areaName === 'string' ? a.areaName : undefined,
-        severity: typeof a?.severity === 'string' ? a.severity.replaceAll( '_', ' ' ) : undefined,
-        urgency: typeof a?.urgency === 'string' ? a.urgency.replaceAll( '_', ' ' ) : undefined,
-        expires: typeof a?.expirationTime === 'string' ? a.expirationTime : undefined,
-      } ) );
-      forecastStore.alerts = rows;
-      setWeatherAlerts( rows );
-    };
+    // Google Weather public alerts are not supported for India.
+    const loadAlerts = async () => undefined;
 
     const loadAirForecast = async () => {
       const start = new Date();
       start.setUTCMinutes( 0, 0, 0 );
       start.setUTCHours( start.getUTCHours() + 1 );
-      const end = new Date( start.getTime() + 24 * 60 * 60 * 1000 );
+      const end = new Date( start.getTime() + 96 * 60 * 60 * 1000 );
       const res = await fetch(
         'https://airquality.googleapis.com/v1/forecast:lookup?key=' + encodeURIComponent( MAPS_KEY ),
         {
@@ -1486,7 +1442,7 @@ const VayuLokLive: React.FC = () => {
           body: JSON.stringify( {
             location: { latitude: lat, longitude: lng },
             period: { startTime: start.toISOString(), endTime: end.toISOString() },
-            pageSize: 24,
+            pageSize: 96,
             universalAqi: true,
             customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
             extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION' ],
@@ -1836,61 +1792,6 @@ const VayuLokLive: React.FC = () => {
 
   useEffect( () => () => { if ( searchTimer.current ) clearTimeout( searchTimer.current ); }, [] );
 
-  /* OWNER OVERRIDE (reference screenshot, decisions.md Decision 3): "use my location"
-     crosshair. Reverses the prior no-GPS rule for the shown control. Uses the browser
-     Geolocation API, then validates the resolved position is INSIDE India before SELECTING
-     it: a cheap INDIA_BOUNDS lat/lng pre-check, then a reverse-geocode + isIndiaResult check
-     mirroring the existing map-click handler. On denial / error / absence / outside-India it
-     degrades honestly - no selection, no throw, no console spam (at most the existing
-     'outside-india' search status). navigator is guarded; tests stub navigator.geolocation. */
-  const useMyLocation = useCallback( () => {
-    if ( !MAPS_KEY ) return;
-    if ( typeof navigator === 'undefined' || !navigator.geolocation ) return;
-    navigator.geolocation.getCurrentPosition(
-      position => {
-        const lat = position?.coords?.latitude;
-        const lng = position?.coords?.longitude;
-        if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return;
-        // Cheap pre-check: must fall within the product's India bounding box.
-        if (
-          lat < INDIA_BOUNDS.south || lat > INDIA_BOUNDS.north
-          || lng < INDIA_BOUNDS.west || lng > INDIA_BOUNDS.east
-        ) {
-          setSearchStatus( 'outside-india' );
-          return;
-        }
-        void ( async () => {
-          const gc = await ensureGeocoder();
-          if ( !gc?.geocode ) return;
-          gc.geocode( { location: { lat, lng }, region: 'in' }, ( rows, status ) => {
-            if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-            const first = rows.find( row => isIndiaResult( row ) ) as
-              | { formatted_address?: string; place_id?: string }
-              | undefined;
-            if ( !first ) {
-              setSearchStatus( 'outside-india' );
-              return;
-            }
-            const next: PlaceState = {
-              name: first.formatted_address?.split( ',' )[ 0 ] || 'My location',
-              addr: first.formatted_address || '',
-              lat,
-              lng,
-              placeId: first.place_id,
-              photos: [],
-            };
-            setHasSelection( true );
-            setSearchStatus( 'idle' );
-            setMapCandidate( next );
-            setPlace( next );
-          } );
-        } )();
-      },
-      () => { /* permission denied / position unavailable / timeout -> degrade silently */ },
-      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
-    );
-  }, [ ensureGeocoder ] );
-
   const weatherFreshness = relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined );
   const airFreshness = relativeAgeLabel( air?.updatedAt || coreFetchedAt || undefined );
   const previewPlace = mapCandidate || place;
@@ -1912,623 +1813,241 @@ const VayuLokLive: React.FC = () => {
     air: airForecast.find( a => Math.abs( a.time - w.time ) < 45 * 60 * 1000 ) || airForecast[ i ],
   } ) );
 
-  /* LEFT-CARD metadata/attributes/description/supporting-info, derived from data already
-     in state. Each list is built ONLY from values genuinely present on the selected
-     place or the already-fetched live context, so the card renders real facts or nothing
-     - never a placeholder or an invented attribute. */
-  const placeMeta: { label: string; value: string }[] = [];
-  if ( previewPlace.primaryType ) placeMeta.push( { label: 'Category', value: previewPlace.primaryType } );
-  if ( Number.isFinite( previewPlace.rating ) ) {
-    placeMeta.push( {
-      label: 'Rating',
-      value: Number.isFinite( previewPlace.userRatingCount )
-        ? `${previewPlace.rating!.toFixed( 1 )} (${previewPlace.userRatingCount!.toLocaleString( 'en-IN' )} reviews)`
-        : previewPlace.rating!.toFixed( 1 ),
-    } );
-  }
-
-  const placeAttributes: string[] = [];
-  if ( previewPlace.websiteURI ) placeAttributes.push( 'Official website listed' );
-  if ( Array.isArray( previewPlace.types ) ) {
-    for ( const t of previewPlace.types ) {
-      if ( t && t !== previewPlace.primaryType && !placeAttributes.includes( t ) ) placeAttributes.push( t );
-    }
-  }
-
-  // Supporting information: honest, place-specific context already fetched elsewhere. The
-  // full air/weather result still lives in the NOW block / layer result, so we surface
-  // only compact one-liners here (band word, weather condition, precise coordinates).
-  const supportingInfo: string[] = [];
-  if ( liveActive && air ) supportingInfo.push( `Air quality band: ${air.word}` );
-  if ( liveActive && weather?.condition ) supportingInfo.push( `Current weather: ${weather.condition}` );
-  if ( liveActive && Number.isFinite( previewPlace.lat ) && Number.isFinite( previewPlace.lng ) ) {
-    supportingInfo.push( `Coordinates: ${previewPlace.lat.toFixed( 4 )}, ${previewPlace.lng.toFixed( 4 )}` );
-  }
+  const next24 = weatherHourly.slice( 0, 24 );
+  const next24Temps = next24.map( h => h.temp ).filter( ( v ): v is number => Number.isFinite( v ) );
+  const next24Rain = next24.reduce( ( sum, h ) => sum + ( Number.isFinite( h.rainMm ) ? ( h.rainMm as number ) : 0 ), 0 );
+  const weatherContext = next24Temps.length
+    ? `24h range ${Math.min( ...next24Temps )}–${Math.max( ...next24Temps )}°${next24Rain > 0 ? ` · ${next24Rain.toFixed( 1 )} mm rain` : ''}`
+    : '';
+  const rainSignal = combinedHours.find( h => Number.isFinite( h.rainProb ) && ( h.rainProb as number ) >= 30 ) || null;
+  const airDayGroups = new Map<string, AirPoint[]>();
+  airForecast.slice( 0, 96 ).forEach( point => {
+    const key = new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } ).format( new Date( point.time ) );
+    const rows = airDayGroups.get( key ) || [];
+    rows.push( point );
+    airDayGroups.set( key, rows );
+  } );
+  const airDayOutlook = Array.from( airDayGroups.values() ).slice( 0, 4 ).map( ( rows, i ) => {
+    const aqi = Math.round( rows.reduce( ( sum, row ) => sum + row.aqi, 0 ) / Math.max( 1, rows.length ) );
+    return {
+      label: i === 0 ? 'Today' : new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short' } ).format( new Date( rows[ 0 ].time ) ),
+      aqi,
+      word: aqiCategory( aqi ).word,
+    };
+  } );
 
   return (
     <section className="vl-live" aria-labelledby="vl-live-title">
       <h2 className="vl-live-sr" id="vl-live-title">Live air quality and weather</h2>
 
-      <div className="vl-live-wrap vl-live-grid">
-        {/* ===== LEFT COLUMN: selected-place card first, then all content, stacked =====
-            FINAL TARGET: the LEFT column leads with the selected-place card (photo + lime
-            number pill + place name + address), and, when a air-quality layer is active, the
-            existing VayuLok air-quality RESULT system renders inside this card. All markup
-            stays INLINE in the return so styled-jsx keeps its vl-live- scope. */}
-        <div className="vl-live-left">
-
-          {/* SELECTED-PLACE CARD. The photo + number pill moved OFF the map into this card
-              (FINAL TARGET: the gallery no longer floats on the map). The place name and
-              full address always render here - they are known without a key, so this is a
-              sensible lead, not a misleading placeholder. Google Place Photo author
-              attributions (.vl-live-photo-credit + contributor <a>) ride WITH the photo in
-              this new location, as the Maps Platform ToS and the req-06 guard require. */}
-          { hasSelection ? (
-          <div className="vl-live-block vl-live-block-top">
-            <div className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
-              { displayPhotos.length > 0 && (
-                <div className="vl-live-photo-shell">
-                  {/* Number-only photo count. Keep the accessible label, but no visible icon/text. */}
-                  <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
-                    <span>{ displayPhotos.length }</span>
-                  </div>
-                  <div
-                    ref={ photoRailRef }
-                    className="vl-live-place-photos"
-                    aria-label={ `Photos near ${previewPlace.name}` }
-                    onScroll={ e => {
-                      const el = e.currentTarget;
-                      if ( el.clientWidth ) setPhotoIndex( Math.max( 0, Math.min( photoPages.length - 1, Math.round( el.scrollLeft / el.clientWidth ) ) ) );
-                    } }
-                  >
-                    { photoPages.map( ( page, pageIndex ) => (
-                      <div className="vl-live-photo-page" key={ page.map( p => p.url ).join( '|' ) }>
-                        { page.map( ( photo, i ) => (
-                          <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'} ${pageIndex === 0 && i === 0 ? 'vl-live-photo-hero' : ''}`.trim() } key={ photo.url }>
-                            <img
-                              src={ photo.url }
-                              alt={ `${previewPlace.name} area ${pageIndex * 3 + i + 1}` }
-                              loading={ pageIndex === 0 && i === 0 ? 'eager' : 'lazy' }
-                            />
-                            { photo.attributions.length > 0 && (
-                              <figcaption className="vl-live-photo-credit">
-                                { photo.attributions.slice( 0, 2 ).map( ( credit, creditIndex ) => (
-                                  <React.Fragment key={ `${credit.name}-${creditIndex}` }>
-                                    { creditIndex > 0 ? ' · ' : '' }
-                                    { credit.uri
-                                      ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a>
-                                      : credit.name }
-                                  </React.Fragment>
-                                ) ) }
-                              </figcaption>
-                            ) }
-                          </figure>
-                        ) ) }
-                      </div>
-                    ) ) }
-                  </div>
-                  { photoPages.length > 1 && (
-                    <div className="vl-live-photo-tabs" role="tablist" aria-label={ `Photo set ${photoIndex + 1} of ${photoPages.length}` }>
-                      { photoPages.map( ( _, i ) => (
-                        <span
-                          key={ i }
-                          className="vl-live-photo-tab"
-                          role="tab"
-                          tabIndex={ 0 }
-                          aria-selected={ i === photoIndex }
-                          aria-label={ `Show photo set ${i + 1}` }
-                          onClick={ () => {
-                            const el = photoRailRef.current;
-                            if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
-                            setPhotoIndex( i );
-                          } }
-                          onKeyDown={ e => {
-                            if ( e.key !== 'Enter' && e.key !== ' ' ) return;
-                            e.preventDefault();
-                            const el = photoRailRef.current;
-                            if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
-                            setPhotoIndex( i );
-                          } }
-                        />
-                      ) ) }
-                    </div>
-                  ) }
-                </div>
-              ) }
-
-              <div className="vl-live-place-body">
-                {/* Screenshot header: bold place name + secondary address line, with a small
-                    type chip (previewPlace.primaryType) on the right - rendered ONLY when
-                    Google returned a primary type, never fabricated. */}
-                <div className="vl-live-place-head">
-                  <div className="vl-live-place-head-text">
-                    <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
-                    <p className="vl-live-place-addr">{ place.addr }</p>
-                  </div>
-                  { previewPlace.primaryType && (
-                    <span className="vl-live-place-chip">{ previewPlace.primaryType }</span>
-                  ) }
-                </div>
-
-                {/* Screenshot summary row: a BLUE current-weather card + a pale-green AQI
-                    summary card, side by side. Each renders only when its live data is in
-                    state (weather / air), wired to the on-selection fetches already in place.
-                    No new fetch is added here - this is a markup re-composition. */}
-                { liveActive && ( weather || air ) && (
-                  <div className="vl-live-summary-cards">
-                    { weather && (
-                      <div className="vl-live-sum vl-live-sum-weather">
-                        <div className="vl-live-sum-top">
-                          <div>
-                            <strong className="vl-live-sum-temp">{ Number.isFinite( weather.temp ) ? weather.temp + '°C' : '—' }</strong>
-                            { weather.condition && <span className="vl-live-sum-cond">{ weather.condition }</span> }
-                          </div>
-                          <svg className="vl-live-sum-ico" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="#fff" /><path d="M12 1.5v3M12 19.5v3M3.9 3.9l2.1 2.1M18 18l2.1 2.1M1.5 12h3M19.5 12h3M3.9 20.1 6 18M18 6l2.1-2.1" stroke="#fff" strokeWidth="2" strokeLinecap="round" /></svg>
-                        </div>
-                        { Number.isFinite( weather.feelsLike ) && <span className="vl-live-sum-sub">Feels like { weather.feelsLike }°</span> }
-                        { weatherDaily.length > 0 && ( Number.isFinite( weatherDaily[ 0 ].max ) || Number.isFinite( weatherDaily[ 0 ].min ) ) && (
-                          <span className="vl-live-sum-hilo">
-                            { Number.isFinite( weatherDaily[ 0 ].max ) && <>&#8593;{ weatherDaily[ 0 ].max }° </> }
-                            { Number.isFinite( weatherDaily[ 0 ].min ) && <>&#8595;{ weatherDaily[ 0 ].min }°</> }
-                          </span>
-                        ) }
-                      </div>
-                    ) }
-                    { air && (
-                      <div className="vl-live-sum vl-live-sum-aqi">
-                        <div className="vl-live-sum-top">
-                          <div>
-                            <strong className="vl-live-sum-temp">AQI { air.aqi }</strong>
-                            <span className="vl-live-sum-cond">{ air.word }</span>
-                          </div>
-                          <svg className="vl-live-sum-ico vl-live-sum-ico-leaf" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19c0-7 5-12 14-13-1 9-6 14-13 14-1 0-1-1-1-1z" fill="#2e7d32" /><path d="M8 16c3-3 6-5 9-6" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" /></svg>
-                        </div>
-                        { currentPm25 && <span className="vl-live-sum-sub">PM2.5 { Math.round( currentPm25.value ) } { currentPm25.unit }</span> }
-                        <span className="vl-live-sum-chevron" aria-hidden="true">›</span>
-                      </div>
-                    ) }
-                  </div>
-                ) }
-
-                {/* Screenshot metric chip row: Humidity / Wind / Rain / UV / PM2.5. Each chip
-                    renders only when its real value is present. */}
-                { liveActive && ( weather || currentPm25 ) && (
-                  <div className="vl-live-metric-chips" aria-label="Current conditions summary">
-                    { weather && Number.isFinite( weather.humidity ) && <span className="vl-live-chip"><em>Humidity</em><b>{ weather.humidity }%</b></span> }
-                    { weather && Number.isFinite( weather.windSpeed ) && <span className="vl-live-chip"><em>Wind</em><b>{ weather.windSpeed } { weather.windUnit || 'km/h' }</b></span> }
-                    { weather && Number.isFinite( weather.rainProb ) && <span className="vl-live-chip"><em>Rain</em><b>{ weather.rainProb }%</b></span> }
-                    { weather && Number.isFinite( weather.uv ) && <span className="vl-live-chip"><em>UV</em><b>{ weather.uv }</b></span> }
-                    { currentPm25 && <span className="vl-live-chip"><em>PM2.5</em><b>{ Math.round( currentPm25.value ) }</b></span> }
-                  </div>
-                ) }
-
-                {/* REAL PLACE METADATA / ATTRIBUTES / DESCRIPTION (FINAL TARGET default
-                    state). Every line is gated on a datum Google actually returned for the
-                    selected place - we never fabricate an attribute or show a placeholder.
-                    With no key nothing is fetched, so none of these render. Supporting-info
-                    bullets below are composed from already-fetched live context that
-                    genuinely pertains to THIS place (AQI band, weather, coordinates) and
-                    never duplicate the full air/weather result that lives in the NOW block
-                    and the layer-gated result. */}
-                { ( placeMeta.length > 0 || placeAttributes.length > 0 || previewPlace.summary || supportingInfo.length > 0 ) && (
-                  <div className="vl-live-place-meta">
-                    { placeMeta.length > 0 && (
-                      <dl className="vl-live-place-facts">
-                        { placeMeta.map( fact => (
-                          <div className="vl-live-place-fact" key={ fact.label }>
-                            <dt>{ fact.label }</dt>
-                            <dd>{ fact.value }</dd>
-                          </div>
-                        ) ) }
-                      </dl>
-                    ) }
-
-                    { placeAttributes.length > 0 && (
-                      <ul className="vl-live-place-attrs">
-                        { placeAttributes.map( attr => (
-                          <li key={ attr }>
-                            <svg xmlns="http://www.w3.org/2000/svg" height="16px" viewBox="0 -960 960 960" width="16px" fill="#1a3a2a" aria-hidden="true"><path d="M382-240 154-468l57-57 171 171 367-367 57 57-424 424Z"/></svg>
-                            <span>{ attr }</span>
-                          </li>
-                        ) ) }
-                      </ul>
-                    ) }
-
-                    { previewPlace.summary && (
-                      <p className="vl-live-place-desc">{ previewPlace.summary }</p>
-                    ) }
-
-                    { supportingInfo.length > 0 && (
-                      <ul className="vl-live-place-support">
-                        { supportingInfo.map( info => (
-                          <li key={ info }>{ info }</li>
-                        ) ) }
-                      </ul>
-                    ) }
-                  </div>
-                ) }
-
-                {/* ENVIRONMENTAL RESULT - reuses the EXISTING VayuLok air-quality result
-                    markup/styles. Shown INSIDE the left card only when a air-quality layer is
-                    active. AQI leads with the AQI value/category/dominant pollutant; PM2.5
-                    leads with the PM2.5 reading. Both reuse the same severity dot, category
-                    pill, pollutant rows and health guidance already defined on this page. */}
-                { liveActive && layer && air && (
-                  <div className="vl-live-layer-result" aria-labelledby="vl-live-layer-result-title">
-                    <p className="vl-live-eyebrow" id="vl-live-layer-result-title">
-                      { layer === 'PM25' ? 'PM2.5 layer result' : 'Air quality now' }
-                    </p>
-
-                    { layer === 'AQI' && (
-                      <>
-                        <div className="vl-live-figure">
-                          <span className={ dotClass( air.sev ) } aria-hidden="true" />
-                          <span className="vl-live-metric-xl">{ air.aqi }</span>
-                          <span className="vl-live-cat">{ air.word }</span>
-                        </div>
-                        { air.pollutants.filter( p => p.code === 'pm25' ).map( p => (
-                          <p className="vl-live-sub-fact" key="layer-pm25">PM2.5 { Math.round( p.value ) } { p.unit }</p>
-                        ) ) }
-                        { air.dominant && <p className="vl-live-cond">Dominant pollutant { air.dominant }.</p> }
-                      </>
-                    ) }
-
-                    { layer === 'PM25' && currentPm25 && currentPm25Sev && (
-                      <>
-                        <div className="vl-live-figure">
-                          <span className={ dotClass( currentPm25Sev ) } aria-hidden="true" />
-                          <span className="vl-live-metric-xl">{ Math.round( currentPm25.value ) }</span>
-                          <span className="vl-live-cat">{ currentPm25.unit }</span>
-                        </div>
-                        <p className="vl-live-label vl-live-status-label">PM2.5 status</p>
-                        <p className="vl-live-status-word">{ statusWord( currentPm25Sev ) }</p>
-                        <p className="vl-live-sub-fact">AQI context: { air.aqi } · { air.word }</p>
-                        { air.dominant && <p className="vl-live-cond">Dominant pollutant { air.dominant }.</p> }
-                      </>
-                    ) }
-
-                    {/* Heatmap scale - reuses the existing no-red --aqi-* ramp, both ends
-                        labelled in WORDS so colour is never the sole carrier of meaning. */}
-                    <div className="vl-live-scale-legend" role="img" aria-label={ `${layer === 'PM25' ? 'PM2.5' : 'Air quality'} air-quality scale from good to hazardous` }>
-                      <div className="vl-live-scale" aria-hidden="true" />
-                      <div className="vl-live-scale-ends">
-                        <span>{ layer === 'PM25' ? 'Lower' : 'Good' }</span>
-                        <span>{ layer === 'PM25' ? 'Higher' : 'Severe' }</span>
-                      </div>
-                    </div>
-
-                    { air.advisory && <p className="vl-live-body vl-live-layer-advisory">{ air.advisory }</p> }
-                  </div>
-                ) }
-              </div>
-            </div>
-          </div>
-          ) : (
-            <div className="vl-live-block vl-live-block-top vl-live-empty-selection">
-              <p className="vl-live-eyebrow">Choose a place</p>
-              <h3 className="vl-live-h2">Search India to see live weather and air.</h3>
-              <p className="vl-live-body">The map starts neutral. Weather, air quality, photos and forecasts load only after you select a place.</p>
-            </div>
-          ) }
-
-          {/* FEAT-002: a lightweight loading / error affordance for the layer-activated grid
-              + center air fetch. The full air RESULT now lives in the left-card
-              layer-result block above; the former NOW/forecast/weather/pollen sections are
-              retired because selecting a place no longer fetches weather/pollen/forecast. */}
-          { liveActive && layer && ( dataLoading || coreError ) && (
-            <div className="vl-live-block">
-              { dataLoading && !coreError && (
-                <div className="vl-live-data-skeleton" role="status" aria-label="Loading air quality">
-                  <i /><i /><i /><i />
-                </div>
-              ) }
-              { coreError && !dataLoading && (
-                <div className="vl-live-data-error" role="status">
-                  <span>Air quality is temporarily unavailable for this area.</span>
-                  <button type="button" onClick={ () => setRefreshNonce( v => v + 1 ) }>Retry</button>
-                </div>
-              ) }
-            </div>
-          ) }
-
-          { hasSelection && ( weather || air ) && (
-            <div className="vl-live-block vl-live-now-compact">
-              <div className="vl-live-forecast-head">
-                <div>
-                  <p className="vl-live-eyebrow">Current conditions</p>
-                  <h3 className="vl-live-h2">Now</h3>
-                </div>
-                <time>{ weatherFreshness.label }</time>
-              </div>
-
-              <div className="vl-live-now-split">
-                { weather && (
-                  <div className="vl-live-now-pane">
-                    <p className="vl-live-label">Weather</p>
-                    <div className="vl-live-now-main">
-                      <strong>{ Number.isFinite( weather.temp ) ? weather.temp + '°' : '—' }</strong>
-                      <span>{ weather.condition || 'Current conditions' }</span>
-                    </div>
-                    { Number.isFinite( weather.feelsLike ) && <p className="vl-live-sub-fact">Feels like { weather.feelsLike }°</p> }
-                  </div>
-                ) }
-                { air && (
-                  <div className="vl-live-now-pane">
-                    <p className="vl-live-label">Air quality</p>
-                    <div className="vl-live-now-main">
-                      <strong>AQI { air.aqi }</strong>
-                      <span>{ air.word }</span>
-                    </div>
-                    { currentPm25 && <p className="vl-live-sub-fact">PM2.5 { Math.round( currentPm25.value ) } { currentPm25.unit }</p> }
-                  </div>
-                ) }
-              </div>
-
-              { weather && (
-                <div className="vl-live-now-facts" aria-label="Current weather facts">
-                  { Number.isFinite( weather.humidity ) && <div><span>Humidity</span><strong>{ weather.humidity }%</strong></div> }
-                  { Number.isFinite( weather.windSpeed ) && <div><span>Wind</span><strong>{ weather.windSpeed } { weather.windUnit || 'km/h' }</strong></div> }
-                  { weather.windDir && <div><span>Direction</span><strong>{ weather.windDir }</strong></div> }
-                  { Number.isFinite( weather.rainProb ) && <div><span>Rain chance</span><strong>{ weather.rainProb }%</strong></div> }
-                  { Number.isFinite( weather.rainMm ) && <div><span>Rainfall</span><strong>{ weather.rainMm } mm</strong></div> }
-                  { Number.isFinite( weather.uv ) && <div><span>UV</span><strong>{ weather.uv }</strong></div> }
-                </div>
-              ) }
-
-              { air?.advisory && (
-                <div className="vl-live-health-compact">
-                  <p className="vl-live-label">Health guidance</p>
-                  <p>{ air.advisory }</p>
-                </div>
-              ) }
-
-              { bestOutside && (
-                <div className="vl-live-best-compact">
-                  <p className="vl-live-label">Best outside</p>
-                  <strong>{ bestOutside.label }</strong>
-                  <span>{ bestOutside.note }</span>
-                </div>
-              ) }
-            </div>
-          ) }
-
-          { combinedHours.length > 0 && (
-            <div className="vl-live-block">
-              <div className="vl-live-forecast-head">
-                <div>
-                  <p className="vl-live-eyebrow">Today</p>
-                  <h3 className="vl-live-h2">Next 24 hours</h3>
-                </div>
-                <time>{ new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' } ).format( new Date() ) }</time>
-              </div>
-              <div className="vl-live-hour-rail vl-live-hour-rail-primary vl-live-hour-rail-brand" aria-label="Next 24 hours weather and air quality">
-                { combinedHours.map( ( h, i ) => (
-                  <article className="vl-live-hour-card" key={ h.time }>
-                    <time>{ hourLabel( h.time ) }</time>
-                    { h.icon && <img src={ h.icon + '.svg' } alt="" loading="lazy" /> }
-                    <strong>{ Number.isFinite( h.temp ) ? h.temp + '°' : '—' }</strong>
-                    <span>{ Number.isFinite( h.rainProb ) ? h.rainProb + '% rain' : h.condition || 'Forecast' }</span>
-                    <span>{ h.air ? 'AQI ' + h.air.aqi : 'AQI —' }</span>
-                    { i === 0 && <em>Now</em> }
-                  </article>
-                ) ) }
-              </div>
-            </div>
-          ) }
-
-          { hasSelection && ( air || weather ) && (
-            <section className="vl-live-section vl-live-detail-switcher" aria-labelledby="vl-live-detail-title">
-              <div className="vl-live-detail-head">
-                <h3 className="vl-live-h2" id="vl-live-detail-title">Details</h3>
-                {/* AIR | WEATHER toggle reuses the site lime selection state. */}
-                <div className="vl-live-detail-tabs vl-live-detail-tabs-pill" role="tablist" aria-label="Environmental details">
-                  <button type="button" role="tab" aria-selected={ detailTab === 'air' } onClick={ () => setDetailTab( 'air' ) }>AIR</button>
-                  <button type="button" role="tab" aria-selected={ detailTab === 'weather' } onClick={ () => setDetailTab( 'weather' ) }>WEATHER</button>
-                </div>
-              </div>
-
-              { detailTab === 'air' && air && (
-                <div role="tabpanel" aria-label="Air details">
-                  {/* Screenshot 6-cell pollutant grid PM2.5/PM10/NO2/O3/CO/SO2 with units
-                      (CO already mg/m³ via concUnitLabel). Driven by air.pollutants - a cell
-                      renders only for a pollutant Google actually returned. */}
-                  <div className="vl-live-detail-list vl-live-pollutant-grid">
-                    { air.pollutants.map( p => (
-                      <div key={ p.code }>
-                        <span>{ p.label }</span>
-                        <strong>{ Math.round( p.value ) } { p.unit }</strong>
-                      </div>
-                    ) ) }
-                  </div>
-
-                  { airForecast.length > 0 && (
+      <main className="vl-live-shell">
+        <div className="vl-live-workspace">
+          <section className="vl-live-left" aria-label="Selected place and environmental details">
+            { hasSelection ? (
+              <article className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
+                <div className="vl-live-place-visual">
+                  { displayPhotos[ 0 ] ? (
                     <>
-                      <h4 className="vl-live-minor-title">AQ forecast</h4>
-                      <div className="vl-live-hour-rail" aria-label="Air quality forecast">
-                        { airForecast.filter( ( _, i ) => i % 3 === 0 ).map( p => (
-                          <article className="vl-live-hour-card vl-live-hour-card-air" key={ p.time }>
-                            <time>{ hourLabel( p.time ) }</time>
-                            <strong>AQI { p.aqi }</strong>
-                            <span>{ p.word }</span>
-                            { Number.isFinite( p.pm25 ) && <span>PM2.5 { Math.round( p.pm25! ) }</span> }
-                          </article>
-                        ) ) }
-                      </div>
+                      <img className="vl-live-place-image" src={ displayPhotos[ 0 ].url } alt={ previewPlace.name } />
+                      { displayPhotos[ 0 ].attributions.length > 0 && (
+                        <div className="vl-live-photo-credit">
+                          { displayPhotos[ 0 ].attributions.slice( 0, 2 ).map( ( credit, i ) => (
+                            <React.Fragment key={ `${credit.name}-${i}` }>
+                              { i > 0 ? ' · ' : '' }
+                              { credit.uri ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a> : credit.name }
+                            </React.Fragment>
+                          ) ) }
+                        </div>
+                      ) }
                     </>
-                  ) }
-
-                  <div className="vl-live-history-head">
-                    <h4 className="vl-live-minor-title">Past air quality</h4>
-                    <div className="vl-live-history-controls" role="group" aria-label="Air quality history range">
-                      { ( [ [ 24, '24h' ], [ 168, '7d' ], [ 720, '30d' ] ] as const ).map( ( [ hours, label ] ) => (
-                        <button type="button" key={ hours } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>{ label }</button>
-                      ) ) }
-                    </div>
-                  </div>
-                  { historyLoading ? (
-                    <p className="vl-live-small" role="status" aria-live="polite">Loading history…</p>
-                  ) : airHistory.length > 0 ? (
-                    <div className="vl-live-history" role="img" aria-label={ 'Air quality history, ' + historyRangeLabel( historyRange ) }>
-                      { airHistory.filter( ( _, i ) => {
-                        const step = Math.max( 1, Math.ceil( airHistory.length / 72 ) );
-                        return i % step === 0 || i === airHistory.length - 1;
-                      } ).map( p => (
-                        <i key={ p.time } className={ aqiBarClass( p.aqi ) } style={ { height: Math.max( 8, Math.min( 100, p.aqi / 5 ) ) + '%' } } title={ hourLabel( p.time ) + ' · AQI ' + p.aqi } />
-                      ) ) }
-                    </div>
                   ) : (
-                    <p className="vl-live-small" role="status" aria-live="polite">Air history is not available for this location right now.</p>
+                    <div className="vl-live-place-art" aria-hidden="true">
+                      <div className="vl-live-art-block vl-live-art-one" />
+                      <div className="vl-live-art-block vl-live-art-two" />
+                    </div>
                   ) }
-                </div>
-              ) }
-
-              { detailTab === 'weather' && weather && (
-                <div role="tabpanel" aria-label="Weather details">
-                  <div className="vl-live-weather-grid">
-                    { [
-                      [ 'Feels like', Number.isFinite( weather.feelsLike ) ? weather.feelsLike + '°' : null ],
-                      [ 'Humidity', Number.isFinite( weather.humidity ) ? weather.humidity + '%' : null ],
-                      [ 'Wind speed', Number.isFinite( weather.windSpeed ) ? weather.windSpeed + ' ' + ( weather.windUnit || 'km/h' ) : null ],
-                      [ 'Wind direction', weather.windDir || null ],
-                      [ 'Rainfall', Number.isFinite( weather.rainMm ) ? weather.rainMm + ' mm' : null ],
-                      [ 'Rain chance', Number.isFinite( weather.rainProb ) ? weather.rainProb + '%' : null ],
-                      [ 'Visibility', Number.isFinite( weather.visibilityKm ) ? weather.visibilityKm + ' km' : null ],
-                      [ 'UV index', Number.isFinite( weather.uv ) ? String( weather.uv ) : null ],
-                      [ 'Dew point', Number.isFinite( weather.dewPoint ) ? weather.dewPoint + '°' : null ],
-                      [ 'Pressure', Number.isFinite( weather.pressureHpa ) ? weather.pressureHpa + ' hPa' : null ],
-                      [ 'Cloud cover', Number.isFinite( weather.cloudCover ) ? weather.cloudCover + '%' : null ],
-                      [ 'Gust', Number.isFinite( weather.windGust ) ? weather.windGust + ' km/h' : null ],
-                    ].filter( row => row[ 1 ] !== null ).map( row => (
-                      <div key={ String( row[ 0 ] ) }><p className="vl-live-label">{ row[ 0 ] }</p><strong>{ row[ 1 ] }</strong></div>
-                    ) ) }
-                  </div>
-
-                  { weatherDaily.length > 0 && (
-                    <>
-                      <div className="vl-live-sunline">
-                        <div><p className="vl-live-label">Sunrise</p><strong>{ weatherDaily[ 0 ].sunrise ? new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' } ).format( new Date( weatherDaily[ 0 ].sunrise! ) ) : '—' }</strong></div>
-                        <div><p className="vl-live-label">Sunset</p><strong>{ weatherDaily[ 0 ].sunset ? new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' } ).format( new Date( weatherDaily[ 0 ].sunset! ) ) : '—' }</strong></div>
-                      </div>
-                      <h4 className="vl-live-minor-title">10-day outlook</h4>
-                      <div className="vl-live-day-rail" aria-label="10-day weather outlook">
-                        { weatherDaily.map( d => (
-                          <article className="vl-live-day-card" key={ d.time }>
-                            <strong>{ d.label }</strong>
-                            <span>{ d.dateLabel }</span>
-                            { d.icon && <img src={ d.icon + '.svg' } alt="" loading="lazy" /> }
-                            <b>{ Number.isFinite( d.max ) ? d.max + '°' : '—' } / { Number.isFinite( d.min ) ? d.min + '°' : '—' }</b>
-                            <span>{ Number.isFinite( d.rainProb ) ? d.rainProb + '% rain' : d.condition || 'Forecast' }</span>
-                          </article>
-                        ) ) }
-                      </div>
-                    </>
-                  ) }
-
-                  { weatherAlerts.length > 0 && (
-                    <div className="vl-live-alerts">
-                      <h4 className="vl-live-minor-title">Weather alerts</h4>
-                      { weatherAlerts.map( alert => (
-                        <article className="vl-live-alert" key={ alert.id }>
-                          <strong>{ alert.title }</strong>
-                          { alert.description && <p>{ alert.description }</p> }
-                          <span>{ [ alert.area, alert.severity, alert.urgency, alert.expires ? 'Until ' + new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit' } ).format( new Date( alert.expires ) ) : '' ].filter( Boolean ).join( ' · ' ) }</span>
-                        </article>
-                      ) ) }
+                  { displayPhotos.length > 0 && (
+                    <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
+                      <span>{ displayPhotos.length }</span>
                     </div>
                   ) }
                 </div>
-              ) }
-            </section>
-          ) }
 
-          {/* POLLEN - section renders only when the forecast returned types. */}
-          { pollen && pollen.length > 0 && (
-            <section className="vl-live-section" aria-labelledby="vl-live-pollen-title">
-              <h3 className="vl-live-h2" id="vl-live-pollen-title">Pollen</h3>
-              <p className="vl-live-small vl-live-mb16">Up to five days of pollen conditions, when Google Pollen has coverage for the selected place.</p>
-              <div className="vl-live-pollen-grid">
-                { pollen.map( ( row, i ) => (
-                  <article className="vl-live-pollen-card" key={ row.day + '-' + row.label + '-' + i }>
-                    <p className="vl-live-label">{ row.day }</p>
-                    <strong>{ row.label }</strong>
-                    <span>Index { row.index } · { row.word }</span>
-                  </article>
-                ) ) }
+                <div className="vl-live-place-copy">
+                  <div className="vl-live-place-kicker">Selected place</div>
+                  <h3 className="vl-live-place-name">{ previewPlace.name }</h3>
+                  { previewPlace.addr && <p className="vl-live-place-address">{ previewPlace.addr }</p> }
+                  { previewPlace.primaryType && (
+                    <div className="vl-live-place-meta">
+                      <span className="vl-live-meta-chip">{ previewPlace.primaryType }</span>
+                    </div>
+                  ) }
+                </div>
+              </article>
+            ) : (
+              <div className="vl-live-empty">
+                <span>Choose a place</span>
+                <strong>Search India to see live weather and air.</strong>
               </div>
-            </section>
-          ) }
+            ) }
 
-          {/* SUBSCRIBE - the shipped WhatsApp anchor, verbatim URL from the user instruction. */}
-          <section className="vl-live-section" aria-label="Subscribe on WhatsApp">
-            <a
-              className="vl-live-wa-subscribe"
-              href="https://wa.me/message/BEA3HNW3LNM3A1"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Subscribe on WhatsApp"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" width="20" height="20">
-                <path fill="currentColor" d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.4-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.91-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.03 1.02-1.03 2.48 0 1.46 1.06 2.87 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.42-.08-.12-.28-.2-.57-.35M12.05 21.79h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 01-1.51-5.26C2.16 6.45 6.6 2.01 12.05 2.01c2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 012.89 6.99c0 5.45-4.44 9.89-9.88 9.89M20.46 3.49A11.82 11.82 0 0012.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 005.69 1.45c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.42z" />
-              </svg>
-              <span>Subscribe</span>
-            </a>
-          </section>
+            { hasSelection && ( weather || air ) && (
+              <section className="vl-live-section">
+                <div className="vl-live-section-head">
+                  <h3>Now</h3>
+                  <span className="vl-live-fresh">{ weatherFreshness.label !== 'Current' ? weatherFreshness.label : airFreshness.label }</span>
+                </div>
 
-          {/* CONTRIBUTE - reuse the shipped component and its shared central preset config:
-              ₹100 / ₹250 / ₹500, with no separate custom amount path. */}
-          <section className="vl-live-section">
-            <BlogContribution postId="vayulok" slug="vayulok" embedded />
-          </section>
+                <div className="vl-live-now-grid">
+                  { weather && (
+                    <div className="vl-live-now-cell">
+                      <div className="vl-live-now-label">Weather</div>
+                      <div className="vl-live-now-main">
+                        <strong>{ Number.isFinite( weather.temp ) ? weather.temp : '—' }°</strong>
+                        <span>C</span>
+                      </div>
+                      { weather.condition && <div className="vl-live-now-title">{ weather.condition }</div> }
+                      { Number.isFinite( weather.feelsLike ) && <div className="vl-live-now-sub">Feels like { weather.feelsLike }° · current conditions</div> }
+                    </div>
+                  ) }
+                  { air && (
+                    <div className="vl-live-now-cell">
+                      <div className="vl-live-now-label">Air quality</div>
+                      <div className="vl-live-now-main"><strong>{ Math.round( air.aqi ) }</strong><span>AQI</span></div>
+                      <div className="vl-live-now-title">{ air.word }</div>
+                      { currentPm25 && <div className="vl-live-now-sub">PM2.5 { Math.round( currentPm25.value ) } { currentPm25.unit }</div> }
+                    </div>
+                  ) }
+                </div>
 
-          {/* SHARE - reuse the shipped component with the canonical /vayulok/ url. */}
-          <section className="vl-live-section">
-            <ShareLinks url={ `${SITE_ORIGIN}/vayulok/` } title="VayuLok — Bharat air and weather intelligence" />
-          </section>
-        </div>
+                { weatherContext && <p className="vl-live-now-context">{ weatherContext }</p> }
 
-        {/* ===== RIGHT COLUMN: resilient map =====
-            The keyed Maps JS canvas is the enhanced path. A keyless Google Maps embed
-            sits underneath it until mapReady becomes true, so a rejected/delayed
-            browser key can never leave visitors staring at a blank grey panel. */}
-        <div className="vl-live-right">
-          <div className="vl-live-map-sticky">
-            <div className="vl-live-map-stage">
-              { !mapReady && (
-                <div
-                  className="vl-live-map-fallback"
-                  role="status"
-                  aria-label={ mapFailed ? 'Map unavailable' : hasSelection ? `Loading map of ${place.name}` : 'Loading map of India' }
-                >
-                  <span className="vl-live-map-fallback-pin" aria-hidden="true" />
-                  <div className="vl-live-map-fallback-copy">
-                    <p className="vl-live-map-fallback-place">{ hasSelection ? place.name : 'India' }</p>
-                    <p className="vl-live-map-fallback-status">{ mapFailed ? 'Map temporarily unavailable.' : 'Loading live map…' }</p>
-                    { mapFailed && (
-                      <button className="vl-live-map-retry" type="button" onClick={ () => window.location.reload() }>Retry map</button>
+                { weather && (
+                  <div className="vl-live-facts" aria-label="Current conditions">
+                    { Number.isFinite( weather.humidity ) && <div className="vl-live-fact"><span>Humidity</span><strong>{ weather.humidity }%</strong></div> }
+                    { Number.isFinite( weather.windSpeed ) && <div className="vl-live-fact"><span>Wind</span><strong>{ weather.windSpeed } { weather.windUnit || 'km/h' }</strong></div> }
+                    { Number.isFinite( weather.rainProb ) && <div className="vl-live-fact"><span>Rain</span><strong>{ weather.rainProb }%</strong></div> }
+                    { Number.isFinite( weather.uv ) && <div className="vl-live-fact"><span>UV</span><strong>{ weather.uv }</strong></div> }
+                  </div>
+                ) }
+
+                { ( bestOutside || rainSignal ) && (
+                  <div className="vl-live-signals">
+                    { bestOutside && (
+                      <div className="vl-live-signal">
+                        <span>Best outside</span>
+                        <strong>{ bestOutside.label }</strong>
+                        <p>{ bestOutside.note }</p>
+                      </div>
+                    ) }
+                    { rainSignal && (
+                      <div className="vl-live-signal vl-live-signal-secondary">
+                        <span>Rain likely</span>
+                        <strong>{ hourLabel( rainSignal.time ) }</strong>
+                        <p>{ rainSignal.rainProb }% chance</p>
+                      </div>
                     ) }
                   </div>
+                ) }
+
+                { currentPm25 && (
+                  <div className="vl-live-air-source-strip" aria-label="Air source comparison">
+                    <div>
+                      <span>Google model</span>
+                      <strong>{ Math.round( currentPm25.value ) } <small>{ currentPm25.unit } PM2.5</small></strong>
+                      <small>{ airFreshness.label }</small>
+                    </div>
+                    <div>
+                      <span>Observed</span>
+                      <strong>—</strong>
+                      <small>No nearby monitor reading</small>
+                    </div>
+                  </div>
+                ) }
+              </section>
+            ) }
+
+            { combinedHours.length > 0 && (
+              <section className="vl-live-section">
+                <div className="vl-live-section-head"><h3>Next 24 hours</h3><span className="vl-live-fresh">Weather + air</span></div>
+                <div className="vl-live-forecast-weather" aria-label="Next 24 hours weather and air">
+                  <div className="vl-live-forecast-track">
+                    { combinedHours.slice( 0, 5 ).map( ( h, i ) => (
+                      <article className={ `vl-live-forecast-hour ${i === 2 ? 'is-now' : i < 2 ? 'is-past' : 'is-future'}` } key={ h.time }>
+                        <time>{ i === 2 ? 'Now' : hourLabel( h.time ) }</time>
+                        <div className="vl-live-forecast-temp"><strong>{ Number.isFinite( h.temp ) ? h.temp : '—' }°</strong><span>{ Number.isFinite( h.feelsLike ) ? h.feelsLike : '—' }°</span></div>
+                        <div className="vl-live-forecast-icon" aria-hidden="true">
+                          { h.icon ? <img src={ h.icon + '.svg' } alt="" /> : <span>◐</span> }
+                        </div>
+                        <div className="vl-live-forecast-wind">
+                          <strong>{ Number.isFinite( h.windSpeed ) ? h.windSpeed : '—' }</strong>
+                          <span>{ h.windUnit || 'km/h' }</span>
+                          <b aria-hidden="true">{ h.windDir || '→' }</b>
+                        </div>
+                        { h.air && i === 2 && <div className="vl-live-forecast-air">AQI { h.air.aqi }</div> }
+                        <div className="vl-live-forecast-rain">{ Number.isFinite( h.rainProb ) ? h.rainProb : 0 }%</div>
+                        <div className="vl-live-forecast-node" aria-hidden="true" />
+                      </article>
+                    ) ) }
+                  </div>
+                  <div className="vl-live-forecast-baseline" aria-hidden="true"><span className="vl-live-past-line" /><span className="vl-live-future-line" /></div>
+                </div>
+              </section>
+            ) }
+
+            { hasSelection && ( air || weather ) && (
+              <section className="vl-live-section">
+                <div className="vl-live-tabs" role="tablist" aria-label="Details">
+                  <button type="button" role="tab" aria-selected={ detailTab === 'air' } onClick={ () => setDetailTab( 'air' ) }>Air</button>
+                  <button type="button" role="tab" aria-selected={ detailTab === 'weather' } onClick={ () => setDetailTab( 'weather' ) }>Weather</button>
+                </div>
+
+                { detailTab === 'air' && air && (
+                  <>
+                    <div className="vl-live-detail-grid" role="tabpanel" aria-label="Air details">
+                      { air.pollutants.slice( 0, 4 ).map( p => (
+                        <div className="vl-live-metric" key={ p.code }><span>{ p.label }</span><strong>{ Math.round( p.value ) } { p.unit }</strong></div>
+                      ) ) }
+                    </div>
+                    { airDayOutlook.length > 0 && (
+                      <div className="vl-live-air-4day" aria-label="Four day air outlook">
+                        { airDayOutlook.map( day => (
+                          <article className="vl-live-air-day" key={ day.label }><span>{ day.label }</span><strong>AQI { day.aqi }</strong><small>{ day.word }</small></article>
+                        ) ) }
+                      </div>
+                    ) }
+                  </>
+                ) }
+
+                { detailTab === 'weather' && weather && (
+                  <div className="vl-live-detail-grid" role="tabpanel" aria-label="Weather details">
+                    { Number.isFinite( weather.feelsLike ) && <div className="vl-live-metric"><span>Feels like</span><strong>{ weather.feelsLike }°C</strong></div> }
+                    { Number.isFinite( weather.humidity ) && <div className="vl-live-metric"><span>Humidity</span><strong>{ weather.humidity }%</strong></div> }
+                    { Number.isFinite( weather.visibilityKm ) && <div className="vl-live-metric"><span>Visibility</span><strong>{ weather.visibilityKm } km</strong></div> }
+                    { Number.isFinite( weather.pressureHpa ) && <div className="vl-live-metric"><span>Pressure</span><strong>{ weather.pressureHpa } hPa</strong></div> }
+                  </div>
+                ) }
+              </section>
+            ) }
+          </section>
+
+          <section className="vl-live-right" aria-label="Map">
+            <div className="vl-live-map-shell">
+              { !mapReady && (
+                <div className="vl-live-map-fallback" role="status">
+                  <span>{ mapFailed ? 'Map temporarily unavailable.' : 'Loading live map…' }</span>
+                  { mapFailed && <button type="button" onClick={ () => window.location.reload() }>Retry map</button> }
                 </div>
               ) }
-              { mapActive && (
-                <div
-                  className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}`.trim() }
-                  ref={ mapHost }
-                  role="img"
-                  aria-label={ hasSelection ? `Map of ${place.name}` : 'Map of India' }
-                />
-              ) }
+              { mapActive && <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Map of India' } /> }
 
               { mapActive && (
                 <div className="vl-live-map-search">
                   <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
                   <div className="vl-live-search">
                     <div className="vl-live-search-field">
-                      <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <circle cx="9" cy="9" r="6.25" stroke="#1a3a2a" strokeWidth="2" />
-                        <path d="M13.8 13.8 L18.5 18.5" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
                       <input
-                        className="vl-live-search-input"
                         id="vl-live-search"
                         type="text"
                         role="combobox"
@@ -2538,697 +2057,225 @@ const VayuLokLive: React.FC = () => {
                         autoComplete="off"
                         autoCorrect="off"
                         spellCheck={ false }
-                        placeholder="Search a city or place in India"
+                        placeholder="Search a city or place"
                         value={ query }
                         onChange={ onQueryChange }
                         onFocus={ () => {
                           if ( query.trim() ) return;
                           const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-                          setResults( recent );
-                          setActive( recent.length ? 0 : -1 );
-                          setOpen( recent.length > 0 );
-                          setSearchStatus( 'idle' );
+                          setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
                         } }
                         onKeyDown={ onKeyDown }
                       />
                     </div>
-                    <ul
-                      className="vl-live-search-results"
-                      id="vl-live-search-results"
-                      role="listbox"
-                      aria-label="Matching places"
-                      hidden={ !open || !results.length }
-                    >
+                    <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
                       { results.map( ( r, i ) => (
-                        <li
-                          key={ `${r.name}-${r.addr}-${i}` }
-                          className="vl-live-search-option"
-                          role="option"
-                          aria-selected={ i === active }
-                          onMouseDown={ e => { e.preventDefault(); void choose( r ); } }
-                        >
-                          <span className="vl-live-search-option-name">{ r.name }</span>
-                          { r.addr && <span className="vl-live-search-option-addr">{ r.addr }</span> }
+                        <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onMouseDown={ e => { e.preventDefault(); void choose( r ); } }>
+                          <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
                         </li>
                       ) ) }
                     </ul>
                     { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching India…</p> }
                     { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found in India.</p> }
                     { searchStatus === 'outside-india' && <p className="vl-live-search-status" role="status">That location is outside India.</p> }
-                    { searchStatus === 'unavailable' && (
-                      <p className="vl-live-search-status vl-live-search-status-error" role="status">
-                        Place search is temporarily unavailable. <button type="button" onClick={ () => { if ( query.trim() ) void runSearch( query ); } }>Retry</button>
-                      </p>
-                    ) }
+                    { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
                   </div>
                 </div>
               ) }
 
-              {/* AQI | PM2.5 air-quality selector. The ONLY controls remaining on the map
-                  (FINAL TARGET: no Expand/Collapse, no photo gallery, no on-map place
-                  card). Selecting a layer both toggles the map air-quality layer AND swaps the
-                  LEFT-card result content. The active tab is filled with the EXACT site
-                  lime #d1f470 (--lime) with #1a3a2a text. Controls appear only once the
-                  Maps JS canvas exists, so a fallback map never implies a toggleable layer.
-                  Kept INLINE so styled-jsx keeps its scope; inset from the bottom corners
-                  so Google's logo/legal stays visible. */}
               { mapReady && (
-                <div className="vl-live-map-controls" role="group" aria-label="Air quality layers">
-                  <button
-                    className="vl-live-layer"
-                    type="button"
-                    disabled={ !hasSelection }
-                    aria-pressed={ layer === 'AQI' }
-                    onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
-                  >AQI</button>
-                  <button
-                    className="vl-live-layer"
-                    type="button"
-                    disabled={ !hasSelection }
-                    aria-pressed={ layer === 'PM25' }
-                    onClick={ () => setLayer( v => v === 'PM25' ? null : 'PM25' ) }
-                  >PM2.5</button>
+                <div className="vl-live-layers" role="group" aria-label="Air quality layers">
+                  <button type="button" disabled={ !hasSelection } aria-pressed={ layer === 'AQI' } onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }>AQI</button>
+                  <button type="button" disabled={ !hasSelection } aria-pressed={ layer === 'PM25' } onClick={ () => setLayer( v => v === 'PM25' ? null : 'PM25' ) }>PM2.5</button>
+                  <button type="button" disabled aria-pressed="false"><span className="vl-live-source-dot" />Observed</button>
                 </div>
               ) }
 
-              {/* OWNER OVERRIDE (reference screenshot, decisions.md Decision 3): a bottom-right
-                  "use my location" crosshair. Rendered only once the Maps JS canvas exists.
-                  On click it calls navigator.geolocation and validates India before selecting;
-                  on denial/outside-India it degrades silently. Kept INLINE so styled-jsx keeps
-                  its vl-live- scope, and inset above Google's built-in zoom control so the
-                  logo + legal attribution stay visible. */}
-              { mapReady && (
-                <button
-                  type="button"
-                  className="vl-live-map-locate"
-                  aria-label="Use my location"
-                  title="Use my location"
-                  onClick={ useMyLocation }
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="4.5" stroke="#1a3a2a" strokeWidth="2" />
-                    <circle cx="12" cy="12" r="1.5" fill="#1a3a2a" />
-                    <path d="M12 1.5V5M12 19v3.5M1.5 12H5M19 12h3.5" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                </button>
-              ) }
-
-              {/* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR (like
-                  https://mapsplatform.google.com/demos/destinations/). Renders only when
-                  live (a Maps key exists) AND a place name is in state. It is a real
-                  keyboard-focusable button: clicking it RE-CENTERS the map on the
-                  destination (setCenter + marker) - it NEVER fetches air/weather/pollen
-                  (those stay gated on the AQI/PM2.5 pill). Shows the destination NAME
-                  (uppercased in CSS) + a middle-dot + the location/type (previewPlace
-                  .primaryType when Google returned it, else the formatted address) + a
-                  trailing chevron. Never fabricates a type/location: name + addr are
-                  always present, primaryType only when Google actually returned it.
-                  Kept INLINE so styled-jsx keeps its vl-live- scope. The CSS insets it
-                  from the bottom-left (Google logo) and bottom-right (.gm-style-cc legal)
-                  corners so the mandated attribution stays visible. */}
               { liveActive && previewPlace.name && (
-                <button
-                  type="button"
-                  className="vl-live-map-destbar"
-                  aria-label={ `${previewPlace.name}, ${previewPlace.primaryType || previewPlace.addr || ''}`.trim().replace( /,\s*$/, '' ) }
-                  onClick={ () => {
-                    const card = placeCardRef.current;
-                    if ( !card ) return;
-                    card.scrollIntoView?.( { behavior: 'smooth', block: 'start' } );
-                    window.setTimeout( () => card.focus( { preventScroll: true } ), 250 );
-                  } }
-                >
-                  <span className="vl-live-map-destbar-text">
-                    <span className="vl-live-map-destbar-name">{ previewPlace.name }</span>
-                    { ( previewPlace.primaryType || previewPlace.addr ) && (
-                      <>
-                        <span className="vl-live-map-destbar-sep" aria-hidden="true">·</span>
-                        <span className="vl-live-map-destbar-meta">{ previewPlace.primaryType || previewPlace.addr }</span>
-                      </>
-                    ) }
-                  </span>
-                </button>
+                <div className="vl-live-selected-label" aria-live="polite">
+                  <strong>{ previewPlace.name }</strong>
+                  { ( previewPlace.primaryType || previewPlace.addr ) && <span>{ previewPlace.primaryType || previewPlace.addr }</span> }
+                </div>
               ) }
             </div>
-          </div>
+          </section>
         </div>
-      </div>
+      </main>
 
       <style jsx>{`
-        /* vl-live- prefixed, scoped under this component root. The custom properties live
-           on .vl-live rather than :root. No reset, no html/body/* rule, no bare element
-           selector. Design tokens are ported from docs/mocks/vayulok-live-mock.html. */
         .vl-live{
-          font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-          color:#1a1a1a;-webkit-font-smoothing:antialiased;background:#fff;padding-bottom:72px;
-
-          --paper:#fff;--ground:#fafafa;
-          --lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
-          --green:#1a3a2a;--green-dot:#3da35a;--hair:#e5e7eb;
-          --ink-head:rgba(0,0,0,.95);--ink-body:rgba(0,0,0,.898);--ink-strong:#000;
-          --ink-base:#1a1a1a;--ink-muted:rgba(0,0,0,.54);--ink-status:rgba(0,0,0,.7);--ink-second:rgba(0,0,0,.66);
-
-          /* AQI severity ramp - NO red: dark green -> lime -> amber. The Satisfactory
-             rung is #3da35a (the home .home-mark-dot green, same as --green-dot), not the
-             darker #4b8058: the owner's "too much dark green" note moved it to the lighter
-             traceable value so the ramp and the 24h history read as mid-tones, not a block
-             of near-black green. See .agents/tasks/vayulok-home-aligned-mock/design-tokens.md. */
-          --aqi-good:#1a3a2a;--aqi-sat:#3da35a;--aqi-mod:#d1f470;--aqi-poor:#e8c547;--aqi-worst:#c98a2e;
-          --tint-warn:#fdf4e3;
-          --aqi-card-tint:rgba(209,244,112,.18);
-
-          --r-panel:14px;--r-field:10px;--r-pill:999px;--r-btn:13px;
-          --e-glide:cubic-bezier(.16,1,.3,1);--e-draw:cubic-bezier(.22,.61,.36,1);
+          --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
+          --green:#1a3a2a;--hair:#e5e7eb;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);
+          --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);--panel-r:14px;--pill-r:999px;
+          font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--body);background:var(--page);padding-bottom:72px;-webkit-font-smoothing:antialiased;
         }
         .vl-live,.vl-live *{box-sizing:border-box}
-        .vl-live [hidden]{display:none !important}
+        .vl-live button,.vl-live input{font:inherit}
+        .vl-live button{cursor:pointer}
+        .vl-live button:focus-visible,.vl-live input:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+        .vl-live-shell{max-width:1320px;margin:0 auto;padding:22px 24px 72px}
+        .vl-live-workspace{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:32px;align-items:start}
+        .vl-live-left,.vl-live-right{min-width:0}
 
-        .vl-live-wrap{width:100%;max-width:1300px;margin:0 auto;padding:0 24px}
-        .vl-live-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;font-size:40px;font-weight:700;line-height:1.08;letter-spacing:-1.2px}
-        /* In VayuLok, Contribute is a full section, so its h2 uses the Home section rung rather
-           than BlogContribution's quiet eyebrow treatment. Scoped here so blog-post embeds keep
-           their intentionally quieter hierarchy. */
-        .vl-live :global(.bc-title){font-size:40px;font-weight:700;line-height:1.08;letter-spacing:-1.2px;text-transform:none;color:rgba(0,0,0,.95);margin:0 0 14px}
+        .vl-live-place-card{border:1px solid var(--hair);border-radius:14px;background:#fff;overflow:hidden}
+        .vl-live-place-visual{position:relative;height:238px;background:var(--alt);overflow:hidden}
+        .vl-live-place-image{display:block;width:100%;height:100%;object-fit:cover}
+        .vl-live-place-art{position:absolute;inset:28px;display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
+        .vl-live-art-block{border:1px solid rgba(26,58,42,.11);border-radius:14px;background:rgba(255,255,255,.78)}
+        .vl-live-art-one{transform:translateY(12px)}
+        .vl-live-art-two{transform:translateY(-7px);background:rgba(209,244,112,.26)}
+        .vl-live-photo-count{position:absolute;right:14px;top:14px;z-index:4;display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:32px;padding:0 10px;border:1px solid rgba(26,58,42,.20);border-radius:999px;background:var(--lime);color:var(--green);font-size:12px;font-weight:800}
+        .vl-live-photo-credit{position:absolute;left:8px;bottom:8px;z-index:3;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.78);font-size:8px;color:rgba(26,58,42,.78)}
+        .vl-live-photo-credit a{color:inherit}
+        .vl-live-place-copy{padding:22px 22px 21px}
+        .vl-live-place-kicker{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(26,58,42,.70)}
+        .vl-live-place-name{margin:7px 0 0;color:var(--heading);font-size:32px;line-height:1.05;letter-spacing:-1.1px;font-weight:700}
+        .vl-live-place-address{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--muted)}
+        .vl-live-place-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+        .vl-live-meta-chip{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:11px;font-weight:700}
+        .vl-live-empty{padding:22px;border:1px solid var(--hair);border-radius:14px;background:#fff}
+        .vl-live-empty span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--green)}
+        .vl-live-empty strong{display:block;margin-top:8px;font-size:22px;color:var(--heading)}
 
-        /* Type ladder MEASURED from the live home page (wecare.digital): Inter,
-           text #1a1a1a; h2 40px/700/-1.2px; eyebrow 12px/700/0.72px-tracking
-           uppercase in dark green #1a3a2a (NOT the light --green, which read as
-           loose/washed-out against the home language); body a tighter 17px. */
-        .vl-live-h2{margin:0 0 14px;font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95)}
-        .vl-live-card-h{margin:0 0 6px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#1a1a1a}
-        .vl-live-body{margin:0;max-width:62ch;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
-        .vl-live-eyebrow{margin:0 0 12px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#1a3a2a}
-        .vl-live-label{margin:0 0 7px;font-size:12px;font-weight:600;letter-spacing:.01em;color:rgba(0,0,0,.54)}
-        .vl-live-small{margin:0;font-size:13px;line-height:1.4;color:var(--ink-muted)}
-        .vl-live-mb16{margin-bottom:16px}
+        .vl-live-section{margin-top:28px;border-top:1px solid var(--hair);padding-top:26px}
+        .vl-live-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:12px}
+        .vl-live-section-head h3{margin:0;color:var(--heading);font-size:21px;line-height:1.27;letter-spacing:-.45px}
+        .vl-live-fresh{font-size:11px;color:var(--muted)}
+        .vl-live-now-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
+        .vl-live-now-cell{padding:18px 19px 17px}
+        .vl-live-now-cell+.vl-live-now-cell{border-left:1px solid var(--hair)}
+        .vl-live-now-label{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--green)}
+        .vl-live-now-main{display:flex;align-items:flex-end;gap:10px;margin-top:12px}
+        .vl-live-now-main strong{color:var(--heading);font-size:40px;line-height:.9;letter-spacing:-1.4px}
+        .vl-live-now-main span{padding-bottom:3px;font-size:14px;font-weight:700;color:var(--muted)}
+        .vl-live-now-title{margin-top:10px;font-size:14.5px;font-weight:700;color:var(--heading)}
+        .vl-live-now-sub{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.4}
+        .vl-live-now-context{margin:10px 2px 0;color:var(--muted);font-size:11.5px;line-height:1.45}
+        .vl-live-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:12px;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+        .vl-live-fact{padding:12px 8px;text-align:center;background:#fff}
+        .vl-live-fact+.vl-live-fact{border-left:1px solid var(--hair)}
+        .vl-live-fact span{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+        .vl-live-fact strong{display:block;margin-top:6px;font-size:12.5px;color:var(--heading)}
+        .vl-live-signals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
+        .vl-live-signal{padding:12px 13px;border:1px solid rgba(209,244,112,.95);border-radius:14px;background:var(--lime-tint)}
+        .vl-live-signal-secondary{background:#fff;border-color:var(--hair)}
+        .vl-live-signal span{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--green)}
+        .vl-live-signal strong{display:block;margin-top:5px;font-size:15px;color:var(--heading)}
+        .vl-live-signal p{margin:5px 0 0;font-size:11.5px;line-height:1.45;color:var(--status)}
+        .vl-live-air-source-strip{display:grid;grid-template-columns:1fr 1fr;margin-top:12px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
+        .vl-live-air-source-strip>div{padding:12px 13px}
+        .vl-live-air-source-strip>div+div{border-left:1px solid var(--hair)}
+        .vl-live-air-source-strip span{display:block;color:var(--muted);font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.055em}
+        .vl-live-air-source-strip strong{display:block;margin-top:6px;color:var(--heading);font-size:18px;letter-spacing:-.025em}
+        .vl-live-air-source-strip strong small{font-size:10px;color:var(--muted);font-weight:650;letter-spacing:0}
+        .vl-live-air-source-strip>div>small{display:block;margin-top:4px;color:var(--muted);font-size:10px;line-height:1.35}
 
-        .vl-live-block{padding-block:48px}
-        .vl-live-block:first-child{padding-top:0}
-        .vl-live-block-top{padding-top:0}
+        .vl-live-forecast-weather{--fw-surface:#f8faef;position:relative;overflow:hidden;border-radius:20px;background:var(--fw-surface);color:var(--green);padding:10px 10px 20px;border:1px solid rgba(26,58,42,.12)}
+        .vl-live-forecast-track{display:grid;grid-template-columns:repeat(5,minmax(108px,1fr));overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}
+        .vl-live-forecast-track::-webkit-scrollbar{display:none}
+        .vl-live-forecast-hour{position:relative;min-height:310px;padding:15px 10px 44px;display:flex;flex-direction:column;align-items:center;gap:14px;border-radius:16px;color:rgba(26,58,42,.66);scroll-snap-align:start}
+        .vl-live-forecast-hour.is-now{background:rgba(209,244,112,.58);color:var(--green)}
+        .vl-live-forecast-hour time{font-size:13px;font-weight:700}
+        .vl-live-forecast-temp{display:flex;align-items:baseline;gap:5px}
+        .vl-live-forecast-temp strong{font-size:29px;line-height:1;letter-spacing:-.035em;color:var(--green)}
+        .vl-live-forecast-temp span{font-size:14px;color:rgba(26,58,42,.52)}
+        .vl-live-forecast-icon{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:var(--green);font-size:28px;color:var(--lime);overflow:hidden}
+        .vl-live-forecast-icon img{width:44px;height:44px;filter:saturate(.7)}
+        .vl-live-forecast-wind{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:4px;font-size:11px}
+        .vl-live-forecast-wind strong{font-size:14px;color:var(--green)}
+        .vl-live-forecast-wind span{color:rgba(26,58,42,.56)}
+        .vl-live-forecast-wind b{font-size:13px;color:rgba(26,58,42,.46)}
+        .vl-live-forecast-air{min-height:22px;padding:4px 7px;border:1px solid rgba(26,58,42,.12);border-radius:999px;background:rgba(255,255,255,.68);font-size:9.5px;font-weight:750;color:var(--green)}
+        .vl-live-forecast-rain{margin-top:auto;font-size:15px;font-weight:750;color:var(--green)}
+        .vl-live-forecast-node{position:absolute;left:50%;bottom:15px;width:10px;height:10px;transform:translateX(-50%);border-radius:50%;background:var(--fw-surface);border:3px solid rgba(26,58,42,.58);z-index:2}
+        .vl-live-forecast-hour.is-now .vl-live-forecast-node{background:var(--green);border-color:var(--green)}
+        .vl-live-forecast-baseline{pointer-events:none;position:absolute;left:7%;right:7%;bottom:28px;height:1px}
+        .vl-live-past-line{position:absolute;left:0;width:50%;top:0;border-top:2px dashed rgba(26,58,42,.30)}
+        .vl-live-future-line{position:absolute;left:50%;right:0;top:0;border-top:2px solid rgba(26,58,42,.42)}
 
-        /* The grid. ONE grid, TWO columns, TWO items. */
-        .vl-live-grid{display:grid;grid-template-columns:minmax(0,1fr);row-gap:64px;padding-top:48px}
-        .vl-live-left{min-width:0;container-type:inline-size;container-name:vllive}
-        .vl-live-right{min-width:0}
+        .vl-live-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;max-width:330px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
+        .vl-live-tabs button{min-height:38px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:12px;font-weight:700}
+        .vl-live-tabs button[aria-selected="true"]{background:rgba(209,244,112,.60)}
+        .vl-live-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
+        .vl-live-metric{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;background:#fff;border-bottom:1px solid var(--hair)}
+        .vl-live-metric:nth-child(odd){border-right:1px solid var(--hair)}
+        .vl-live-metric:nth-last-child(-n+2){border-bottom:0}
+        .vl-live-metric span{font-size:12px;color:var(--muted)}
+        .vl-live-metric strong{font-size:13px;color:var(--heading);text-align:right}
+        .vl-live-air-4day{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:13px}
+        .vl-live-air-day{border:1px solid var(--hair);border-radius:12px;padding:9px;background:#fff}
+        .vl-live-air-day span{display:block;color:var(--muted);font-size:10px;font-weight:700}
+        .vl-live-air-day strong{display:block;margin-top:5px;color:var(--heading);font-size:13px}
+        .vl-live-air-day small{display:block;margin-top:3px;color:var(--green);font-size:10px;font-weight:700}
 
-        .vl-live-left > .vl-live-section{margin-top:64px;padding-top:0;border-top:0}
+        .vl-live-map-shell{position:relative;height:748px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
+        .vl-live-map-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0}
+        .vl-live-map-canvas.is-ready{opacity:1}
+        .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
+        .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
+        .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
+        .vl-live-search{position:relative}
+        .vl-live-search-field{height:50px;display:flex;align-items:center;gap:10px;padding:0 17px;border:1px solid rgba(26,58,42,.28);border-radius:var(--pill-r);background:#fff;box-shadow:0 5px 18px rgba(26,58,42,.08)}
+        .vl-live-search-field svg{width:19px;height:19px;stroke:var(--green);fill:none;stroke-width:2;flex:0 0 auto}
+        .vl-live-search-field input{width:100%;border:0;outline:0;background:transparent;color:var(--heading);font-size:14px}
+        .vl-live-search-results{position:absolute;top:56px;left:0;right:0;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
+        .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
+        .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
+        .vl-live-search-results strong,.vl-live-search-results span{display:block}
+        .vl-live-search-results strong{font-size:13px;color:var(--heading)}
+        .vl-live-search-results span{margin-top:2px;font-size:11px;color:var(--muted)}
+        .vl-live-search-status{margin:6px 8px 0;font-size:11px;color:var(--muted)}
+        .vl-live-layers{position:absolute;z-index:10;right:16px;top:78px;display:flex;gap:6px;padding:3px;border:1px solid rgba(26,58,42,.13);border-radius:999px;background:rgba(255,255,255,.92)}
+        .vl-live-layers button{height:36px;min-height:36px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--green);font-size:11.5px;font-weight:700}
+        .vl-live-layers button:hover{background:rgba(209,244,112,.18)}
+        .vl-live-layers button[aria-pressed="true"]{background:rgba(209,244,112,.60);box-shadow:inset 0 0 0 1px rgba(26,58,42,.22)}
+        .vl-live-layers button:disabled{opacity:1;color:rgba(26,58,42,.62);cursor:default}
+        .vl-live-source-dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 1px var(--green)}
+        .vl-live-selected-label{position:absolute;z-index:11;left:50%;bottom:28px;transform:translateX(-50%);width:auto;max-width:min(500px,calc(100% - 92px));min-height:46px;display:flex;align-items:center;justify-content:center;gap:9px;padding:8px 15px;border:1px solid rgba(26,58,42,.14);border-radius:999px;background:#fff;text-align:center;box-shadow:0 5px 18px rgba(26,58,42,.07)}
+        .vl-live-selected-label strong{font-size:12px;color:var(--heading);letter-spacing:.035em;text-transform:uppercase}
+        .vl-live-selected-label span{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .vl-live-selected-label span::before{content:'·';margin-right:8px;color:rgba(26,58,42,.45)}
 
-        .vl-live-map-sticky{display:flex;flex-direction:column;gap:10px}
-        /* 03A - the whole map surface reads as ONE rounded panel. The stage owns the
-           14px home panel radius (per design-tokens.md); the canvas and fallback inherit
-           it so no square corner shows through at any zoom. */
-        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid var(--hair);border-radius:14px;background:var(--ground);box-shadow:none}
-        .vl-live-map-fallback{
-          position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;gap:14px;
-          width:100%;height:100%;padding:24px;border:0;border-radius:inherit;overflow:hidden;
-          background-color:#eef3ef;
-          background-image:
-            linear-gradient(rgba(26,58,42,.055) 1px,transparent 1px),
-            linear-gradient(90deg,rgba(26,58,42,.055) 1px,transparent 1px),
-            radial-gradient(circle at 22% 24%,rgba(209,244,112,.55),transparent 24%),
-            radial-gradient(circle at 78% 72%,rgba(26,58,42,.08),transparent 28%);
-          background-size:36px 36px,36px 36px,100% 100%,100% 100%;
+        @media(max-width:1050px){
+          .vl-live-workspace{grid-template-columns:1fr}
+          .vl-live-right{order:-1}
+          .vl-live-map-shell{height:620px}
         }
-        .vl-live-map-fallback-pin{width:18px;height:18px;flex:0 0 18px;border:5px solid var(--green);border-radius:50% 50% 50% 0;background:var(--lime);transform:rotate(-45deg);box-shadow:0 4px 12px rgba(26,58,42,.18)}
-        .vl-live-map-fallback-copy{position:relative;z-index:1}
-        .vl-live-map-fallback-place{margin:0;font-size:16px;font-weight:700;line-height:1.25;color:var(--green)}
-        .vl-live-map-fallback-status{margin:3px 0 0;font-size:13px;line-height:1.35;color:var(--ink-muted)}
-        .vl-live-map-canvas{position:absolute;inset:0;z-index:2;opacity:0;pointer-events:none;border-radius:inherit;overflow:hidden;background:transparent}
-
-        /* FEAT-002: the AQI/PM2.5 layer is a deck.gl ScatterplotLayer of REAL sampled points,
-           drawn in the map's WebGL context by GoogleMapsOverlay - it adds no covering DOM, so
-           the dots never sit over Google's logo/legal. Lime #d1f470 is reserved for the
-           AQI|PM2.5 selector chrome; the dots use the no-red --aqi-* ramp (converted to RGBA in
-           JS). No rule anywhere targets .gm-style-cc, a[href*="google"] or img[alt="Google"], so
-           Google's logo/legal and the Place Photo author attributions stay intact (ToS). */
-
-        .vl-live-map-retry{min-height:44px;margin-top:10px;padding:0 18px;border:2px solid #1a3a2a;border-radius:999px;background:#fff;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;cursor:pointer}        .vl-live-map-canvas.is-ready{opacity:1;pointer-events:auto}
-
-        @media(min-width:1024px){
-          /* Two equal columns with a fixed gap so they cannot overlap. The earlier
-             track definition summed past the container width once the gap was added,
-             so the right map column slid over the left content. */
-          .vl-live-grid{grid-template-columns:minmax(0,.72fr) minmax(0,1.08fr);column-gap:36px;row-gap:0}
-          .vl-live-map-sticky{position:sticky;top:96px;height:calc(100vh - 120px)}
-          .vl-live-map-stage{flex:1 1 auto;min-height:0;height:auto}
+        @media(max-width:700px){
+          .vl-live-shell{padding:10px 10px 44px}
+          .vl-live-map-shell{height:46dvh;min-height:430px;max-height:560px}
+          .vl-live-map-search{top:10px;width:calc(100% - 20px)}
+          .vl-live-layers{top:70px;right:10px}
+          .vl-live-selected-label{bottom:22px;width:calc(100% - 20px);max-width:none}
+          .vl-live-place-visual{height:188px}
+          .vl-live-place-copy{padding:18px}
+          .vl-live-place-name{font-size:27px}
+          .vl-live-now-grid{grid-template-columns:1fr}
+          .vl-live-now-cell+.vl-live-now-cell{border-left:0;border-top:1px solid var(--hair)}
+          .vl-live-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+          .vl-live-fact:nth-child(3){border-left:0;border-top:1px solid var(--hair)}
+          .vl-live-fact:nth-child(4){border-top:1px solid var(--hair)}
+          .vl-live-signals{grid-template-columns:1fr}
+          .vl-live-air-source-strip{grid-template-columns:1fr}
+          .vl-live-air-source-strip>div+div{border-left:0;border-top:1px solid var(--hair)}
+          .vl-live-forecast-weather{border-radius:17px;padding-inline:8px}
+          .vl-live-forecast-track{grid-template-columns:repeat(5,126px)}
+          .vl-live-forecast-hour{min-height:288px}
+          .vl-live-detail-grid{grid-template-columns:1fr}
+          .vl-live-metric:nth-child(odd){border-right:0}
+          .vl-live-metric:nth-last-child(-n+2){border-bottom:1px solid var(--hair)}
+          .vl-live-metric:last-child{border-bottom:0}
+          .vl-live-air-4day{grid-template-columns:repeat(2,minmax(0,1fr))}
         }
-
-        /* The asymmetric band - stacks in a narrow column, two-up above 620px. */
-        .vl-live-band{display:grid;grid-template-columns:minmax(0,1fr);gap:28px;align-items:start}
-        .vl-live-band-aside{min-width:0;padding-top:28px;border-top:1px solid var(--hair)}
-        @container vllive (min-width:620px){
-          .vl-live-band{grid-template-columns:minmax(0,1fr) 380px;gap:44px}
-          .vl-live-band-aside{padding-top:0;border-top:0;padding-left:44px;border-left:1px solid var(--hair)}
-        }
-
-        /* Search. 03B - horizontally centred over the map with clear space above it,
-           max-width so it never spans edge-to-edge, and the highest overlay z-index so
-           the field (and its results dropdown anchored directly beneath) sits above the
-           canvas and the layer/photo overlays. The field keeps its 2px #1a3a2a outer
-           border + lime focus ring (defined on .vl-live-search-field below). */
-        .vl-live-map-search{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:7;width:min(380px,calc(100% - 32px))}
-        .vl-live-search{position:relative;width:100%;max-width:380px}
-        .vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-        /* One control, matching the shipped BlogSearch field: a single bordered box
-           (2px rgba(26,58,42,.22), 12px radius, 52px) that darkens its border and
-           shows a lime ring on focus. The field owns the ONLY border and the ONLY
-           focus ring; the input inside is fully neutralised below. */
-        .vl-live-search-field{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 18px;border:2px solid #1a3a2a;border-radius:999px;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:none}
-        .vl-live-search-field:focus-within{border-color:#1a3a2a;outline:3px solid #1a3a2a;outline-offset:2px;box-shadow:0 4px 12px rgba(26,58,42,.10)}
-        /* The input is neutralised against the site's GLOBAL input:focus rules
-           (inner-pages.css / Dashboard.css), which were drawing a second rounded
-           box (lime box-shadow + 8px radius + padding) INSIDE this field - the
-           "inner border" the owner reported. Zero every box-defining property with
-           !important so no global rule can reintroduce an inner box. */
-        .vl-live-search-input{flex:1 1 auto;min-width:0;height:auto;font:inherit;font-size:17px;color:rgba(0,0,0,.898);background:transparent !important;border:0 !important;outline:0 !important;box-shadow:none !important;border-radius:0 !important;padding:0 !important}
-        .vl-live-search-input:focus,.vl-live-search-input:focus-visible{box-shadow:none !important;border:0 !important;outline:0 !important}
-        .vl-live-search-input::placeholder{color:rgba(0,0,0,.44)}
-        .vl-live-search-results{position:absolute;top:calc(100% + 6px);inset-inline:0;z-index:5;margin:0;padding:0;list-style:none;overflow:hidden;border:1px solid var(--hair);border-radius:var(--r-field);background:var(--paper)}
-        .vl-live-search-option{display:block;min-height:52px;padding:10px 14px;cursor:pointer}
-        .vl-live-search-option + .vl-live-search-option{border-top:1px solid var(--hair)}
-        .vl-live-search-option[aria-selected="true"]{background:var(--lime)}
-        .vl-live-search-option-name{display:block;font-size:16px;font-weight:600;line-height:1.3;color:var(--ink-strong)}
-        .vl-live-search-option-addr{display:block;margin-top:2px;font-size:13px;line-height:1.4;color:var(--ink-muted)}
-        .vl-live-search-status{margin:8px 2px 0;font-size:12px;line-height:1.4;color:var(--ink-muted)}
-        .vl-live-search-status-error{color:#6e4a18}
-        .vl-live-search-status button{padding:0;border:0;background:transparent;color:var(--green);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
-
-        /* NOW figures - tightened to the home scale. The place name is a clean
-           20px/700, the address a muted 15px (was an oversized 20px that made the
-           header feel loose), figures stay large (the home h1 rung) and body/cond
-           text drops to the home 17px with the home muted tone. */
-        .vl-live-place{margin:0 0 4px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000}
-        .vl-live-place-addr{margin:0 0 28px;max-width:62ch;font-size:15px;font-weight:400;line-height:1.5;letter-spacing:0;color:rgba(0,0,0,.54)}
-
-        .vl-live-data-error{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 24px;padding:14px 16px;border:1px solid #e8c547;border-radius:14px;background:var(--tint-warn);font-size:13px;color:#6e4a18}
-        .vl-live-data-error button{min-height:34px;padding:0 12px;border:1px solid #6e4a18;border-radius:999px;background:#fff;color:#6e4a18;font:inherit;font-weight:700;cursor:pointer}
-        .vl-live-data-skeleton{display:grid;gap:9px;margin:0 0 24px;padding:18px;border:1px solid var(--hair);border-radius:14px}
-        .vl-live-data-skeleton i{height:12px;border-radius:999px;background:linear-gradient(90deg,#eef1ee,#f7f8f7,#eef1ee);background-size:200% 100%;animation:vl-live-shimmer 1.2s linear infinite}
-        .vl-live-data-skeleton i:nth-child(2){width:72%}.vl-live-data-skeleton i:nth-child(3){width:86%}.vl-live-data-skeleton i:nth-child(4){width:58%}
-        .vl-live-sub-fact.is-stale{color:#8a5a1f}
-        @keyframes vl-live-shimmer{to{background-position:-200% 0}}
-        .vl-live-now{padding-top:0;border-top:0}
-        .vl-live-empty-selection{padding-top:8px}
-        .vl-live-now-compact{padding-top:0}
-        .vl-live-now-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-        .vl-live-now-pane{padding:18px 16px 18px 0;min-width:0}
-        .vl-live-now-pane+.vl-live-now-pane{padding-left:16px;border-left:1px solid var(--hair)}
-        .vl-live-now-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-        .vl-live-now-main strong{font-size:clamp(28px,3vw,38px);line-height:1;font-weight:650;letter-spacing:-.04em;color:#1a1a1a}
-        .vl-live-now-main span{font-size:14px;font-weight:600;color:var(--green)}
-        .vl-live-now-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-bottom:1px solid var(--hair)}
-        .vl-live-now-facts>div{padding:14px 12px 14px 0;min-width:0}
-        .vl-live-now-facts>div+div{padding-left:12px;border-left:1px solid var(--hair)}
-        .vl-live-now-facts span{display:block;font-size:10px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
-        .vl-live-now-facts strong{display:block;margin-top:5px;font-size:13px;color:#1a1a1a}
-        .vl-live-health-compact,.vl-live-best-compact{margin-top:16px;padding:14px 16px;border-radius:12px;background:rgba(209,244,112,.16)}
-        .vl-live-health-compact p:last-child{margin:0;font-size:13px;line-height:1.5;color:rgba(0,0,0,.72)}
-        .vl-live-best-compact strong{display:block;font-size:20px;color:#1a1a1a}
-        .vl-live-best-compact span{display:block;margin-top:5px;font-size:12px;color:var(--ink-muted)}
-        .vl-live-detail-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:18px}
-        .vl-live-detail-head .vl-live-h2{margin:0}
-        .vl-live-detail-tabs{display:inline-flex;padding:3px;border-radius:999px;background:var(--ground);border:1px solid var(--hair)}
-        .vl-live-detail-tabs button{min-height:34px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
-        .vl-live-detail-tabs button[aria-selected="true"]{background:var(--lime);color:var(--green)}
-        .vl-live-detail-tabs button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-detail-tabs-pill button[aria-selected="true"]{background:var(--lime);color:var(--green)}
-        .vl-live-detail-tabs-pill button{letter-spacing:.06em}
-        /* 6-cell pollutant grid (PM2.5/PM10/NO2/O3/CO/SO2) matching the screenshot. */
-        .vl-live-pollutant-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
-        .vl-live-detail-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--hair)}
-        .vl-live-detail-list>div{display:flex;justify-content:space-between;gap:12px;padding:14px 12px 14px 0;border-bottom:1px solid var(--hair)}
-        .vl-live-detail-list>div:nth-child(even){padding-left:12px;border-left:1px solid var(--hair)}
-        .vl-live-detail-list span{font-size:12px;color:var(--ink-muted)}
-        .vl-live-detail-list strong{font-size:13px;color:#1a1a1a;text-align:right}
-        @media(max-width:640px){
-          .vl-live-now-split{grid-template-columns:1fr}
-          .vl-live-now-pane+.vl-live-now-pane{padding-left:0;border-left:0;border-top:1px solid var(--hair)}
-          .vl-live-now-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
-          .vl-live-now-facts>div+div{border-left:0}
-          .vl-live-now-facts>div:nth-child(even){padding-left:12px;border-left:1px solid var(--hair)}
-          .vl-live-detail-head{align-items:flex-start;flex-direction:column}
-          .vl-live-detail-list{grid-template-columns:1fr}
-          .vl-live-detail-list>div:nth-child(even){padding-left:0;border-left:0}
-          .vl-live-pollutant-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-          .vl-live-summary-cards{grid-template-columns:1fr}
-        }
-        .vl-live-figure{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:8px 0 0}
-        .vl-live-metric-xl{font-size:clamp(40px,4.3vw,56px);font-weight:600;line-height:1.04;letter-spacing:-0.04em;color:#1a1a1a}
-        .vl-live-metric-lg{font-size:clamp(32px,3.2vw,40px);font-weight:600;line-height:1.08;letter-spacing:-1.6px;color:#1a1a1a}
-        .vl-live-metric-md{display:block;font-size:20px;font-weight:700;line-height:1.25;letter-spacing:-.4px;color:#1a1a1a}
-        .vl-live-cond{margin:14px 0 0;max-width:46ch;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
-        .vl-live-sub-fact{margin:8px 0 0;font-size:14px;line-height:1.5;color:rgba(0,0,0,.54)}
-
-        /* AQI mark - severity encoded by FORM as well as tone. */
-        .vl-live-dot{display:inline-block;width:16px;height:16px;border-radius:50%;flex:0 0 auto}
-        .vl-live-dot-good{background:var(--aqi-good);border:2px solid var(--green)}
-        .vl-live-dot-sat{background:var(--aqi-sat);border:2px solid var(--green)}
-        .vl-live-dot-mod{background:var(--aqi-mod);border:2px solid var(--green)}
-        .vl-live-dot-poor{background:var(--paper);border:5px solid var(--aqi-poor);box-shadow:0 0 0 1px var(--green)}
-        .vl-live-dot-worst{background:var(--aqi-worst);border:3px solid var(--paper);box-shadow:0 0 0 2px var(--aqi-worst),0 0 0 3px var(--green)}
-
-        .vl-live-cat{display:inline-flex;align-items:center;padding:5px 14px;border:1.5px solid #1a3a2a;border-radius:var(--r-pill);background:var(--paper);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#1a3a2a;white-space:nowrap}
-
-        /* Map overlays - inset from the bottom corners (Maps Platform ToS). No rule
-           anywhere targets .gm-style-cc, a[href*="google"] or img[alt="Google"]. */
-        .vl-live-map-controls{position:absolute;top:84px;right:18px;left:auto;z-index:6;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-        /* FINAL AGREED DESIGN - the resting AQI/PM2.5 selector pills are transparent with a
-           subtle dark-green outline and dark-green text (no frosted white fill, no backdrop
-           blur, no resting shadow). Hover gives a light lime tint only (no heavy shadow). */
-        .vl-live-layer{min-height:44px;padding:0 18px;border:1.5px solid #1a3a2a;border-radius:var(--r-pill);background:transparent;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;letter-spacing:-.125px;cursor:pointer;transition:background-color .2s,border-color .2s,transform .2s}
-        .vl-live-layer:hover{border-color:#1a3a2a;background:var(--lime-tint);transform:translateY(-2px)}
-        .vl-live-layer:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        /* FINAL AGREED DESIGN - the active AQI/PM2.5 selector tab presents a TRANSLUCENT lime
-           (#d1f470-based) fill with #1a3a2a text/boundary, distinct from the fully-opaque lime.
-           The lime lives on the SELECTOR chrome, not on the data tiles. */
-        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.6);color:#1a3a2a;font-weight:700}
-
-        /* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR. A floating,
-           centered, pill-ish card over the roadmap showing the selected destination
-           name + location/type + a chevron. INSET from the bottom corners (bottom:36px,
-           max-width + horizontal margin) so Google's bottom-left logo and bottom-right
-           .gm-style-cc legal attribution stay fully visible per the Maps Platform ToS -
-           no rule anywhere targets .gm-style-cc / a[href*="google"] / img[alt="Google"].
-           White surface, dark-green #1a3a2a text, 14px home panel radius, only a light
-           elevation (it floats over the map), lime #d1f470 reserved for the chevron
-           accent. z-index sits below the search dropdown (z-7) but above the canvas. */
-        .vl-live-map-destbar{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:12px;max-width:min(420px,calc(100% - 96px));min-height:48px;padding:10px 16px;border:1px solid var(--hair);border-radius:14px;background:var(--paper);color:#1a3a2a;font:inherit;text-align:left;cursor:pointer;box-shadow:none;transition:box-shadow .2s,transform .2s}
-        .vl-live-map-destbar:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 4px 14px rgba(26,58,42,.16)}
-        .vl-live-map-destbar:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        .vl-live-map-destbar-text{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden;white-space:nowrap}
-        .vl-live-map-destbar-name{font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a3a2a;flex:0 0 auto;max-width:60%;overflow:hidden;text-overflow:ellipsis}
-        .vl-live-map-destbar-sep{color:rgba(26,58,42,.5);flex:0 0 auto}
-        .vl-live-map-destbar-meta{font-size:13px;font-weight:500;color:rgba(26,58,42,.66);overflow:hidden;text-overflow:ellipsis;min-width:0}
-
-        /* OWNER OVERRIDE (reference screenshot): bottom-right "use my location" crosshair.
-           Inset above Google's built-in zoom control so the logo + legal attribution stay
-           visible; it never overlaps the bottom-corner Google chrome. */
-        .vl-live-map-locate{position:absolute;right:18px;bottom:132px;z-index:6;display:flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--hair);border-radius:10px;background:var(--paper);color:#1a3a2a;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18);transition:box-shadow .2s,transform .2s}
-        .vl-live-map-locate:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,58,42,.2)}
-        .vl-live-map-locate:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        .vl-live-map-locate svg{display:block}
-
-        /* Heatmap scale legend - now rendered INSIDE the left card's layer-result block
-           (no longer an absolute on-map overlay). It reuses the no-red --aqi-* ramp
-           (dark green -> lime -> amber) and labels both ends in WORDS so colour is never
-           the sole carrier of meaning. */
-        .vl-live-scale-legend{margin-top:16px;padding:10px 12px;border:1px solid rgba(209,244,112,.9);border-radius:12px;background:#fff}
-        .vl-live-scale{height:8px;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--aqi-good) 0%,var(--aqi-sat) 22%,var(--aqi-mod) 48%,var(--aqi-poor) 74%,var(--aqi-worst) 100%)}
-        .vl-live-scale-ends{display:flex;justify-content:space-between;margin-top:6px;gap:8px}
-        .vl-live-scale-ends span{font-size:11px;font-weight:700;color:var(--green)}
-
-        /* SELECTED-PLACE CARD (left column). FINAL TARGET: the photo + lime number pill
-           relocated OFF the map into this card, which leads the left column. The card uses
-           the home panel radius (14px) and hairline, no resting shadow. */
-        .vl-live-place-card{position:relative;border:1px solid var(--hair);border-radius:14px;background:#fff;outline:none}
-        .vl-live-place-card::after{content:'';position:absolute;left:50%;bottom:-7px;width:14px;height:14px;border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);background:#fff;transform:translateX(-50%) rotate(45deg);z-index:0}
-        .vl-live-place-card:focus-visible{outline:3px solid var(--green);outline-offset:4px}
-        .vl-live-photo-shell{overflow:hidden;border-radius:13px 13px 0 0}
-        .vl-live-place-body{position:relative;z-index:1;background:#fff;border-radius:0 0 13px 13px}
-        .vl-live-place-body{padding:20px}
-        .vl-live-place-body .vl-live-place{margin-top:0}
-
-        /* Left-card composition. All values remain conditional on live data. Weather uses
-           a quiet neutral surface; lime is reserved for state/accent, matching the home page. */
-        .vl-live-place-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
-        .vl-live-place-head-text{min-width:0}
-        .vl-live-place-head .vl-live-place-addr{margin-bottom:16px}
-        .vl-live-place-chip{flex:0 0 auto;align-self:flex-start;padding:4px 10px;border-radius:var(--r-pill);background:var(--ground);border:1px solid var(--hair);font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--green);white-space:nowrap}
-
-        .vl-live-summary-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 16px}
-        .vl-live-sum{position:relative;display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:14px;min-width:0}
-        .vl-live-sum-weather{background:var(--ground);border:1px solid var(--hair);color:var(--green)}
-        .vl-live-sum-aqi{background:var(--aqi-card-tint);border:1px solid rgba(46,125,50,.25);color:#1a3a2a}
-        .vl-live-sum-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
-        .vl-live-sum-temp{display:block;font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.5px}
-        .vl-live-sum-cond{display:block;margin-top:2px;font-size:12px;font-weight:600;opacity:.92}
-        .vl-live-sum-sub{font-size:12px;font-weight:500;opacity:.9}
-        .vl-live-sum-hilo{font-size:12px;font-weight:600;opacity:.95}
-        .vl-live-sum-ico{flex:0 0 auto}
-        .vl-live-sum-chevron{position:absolute;right:12px;bottom:10px;font-size:18px;line-height:1;font-weight:700;color:rgba(26,58,42,.5)}
-
-        .vl-live-metric-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
-        .vl-live-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:var(--r-pill);background:var(--ground);border:1px solid var(--hair)}
-        .vl-live-chip em{font-style:normal;font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted)}
-        .vl-live-chip b{font-size:13px;font-weight:700;color:#1a1a1a}
-
-        /* Real place metadata / attributes / description / supporting info. Each block
-           renders only when the datum exists; honest degradation keeps them empty when no
-           key => no fetch. Tokens match the home ladder: hairline rules, muted ink, no
-           red, lime check marks reuse --green. The address loses its default 28px gap when
-           metadata follows so the card reads as one continuous block. */
-        .vl-live-place-facts{margin:0;display:grid;gap:10px}
-        .vl-live-place-fact{display:flex;justify-content:space-between;gap:14px;align-items:baseline;padding-bottom:10px;border-bottom:1px solid var(--hair)}
-        .vl-live-place-fact dt{margin:0;font-size:12px;font-weight:600;letter-spacing:.01em;color:rgba(0,0,0,.54)}
-        .vl-live-place-fact dd{margin:0;font-size:14px;font-weight:600;line-height:1.35;color:#1a1a1a;text-align:right}
-        .vl-live-place-attrs{margin:16px 0 0;padding:0;list-style:none;display:grid;gap:8px}
-        .vl-live-place-attrs li{display:flex;align-items:center;gap:8px;font-size:14px;line-height:1.4;color:#1a1a1a}
-        .vl-live-place-attrs svg{display:block;flex:0 0 auto}
-        .vl-live-place-desc{margin:16px 0 0;max-width:62ch;font-size:15px;line-height:1.5;color:rgba(0,0,0,.72)}
-        .vl-live-place-support{margin:16px 0 0;padding:0 0 0 18px;list-style:none;display:grid;gap:6px}
-        .vl-live-place-support li{position:relative;font-size:13px;line-height:1.45;color:rgba(0,0,0,.54)}
-        .vl-live-place-support li::before{content:'•';position:absolute;left:-14px;color:var(--green)}
-        /* PM2.5 result "Current status / <word>" (FINAL TARGET mockup). No red. */
-        .vl-live-status-label{margin-top:14px}
-        .vl-live-status-word{margin:2px 0 0;font-size:17px;font-weight:700;line-height:1.25;color:#1a1a1a}
-        .vl-live-layer-result{margin-top:20px;padding-top:20px;border-top:1px solid var(--hair)}
-        .vl-live-layer-result .vl-live-figure{margin-top:4px}
-        .vl-live-layer-advisory{margin-top:14px;font-size:17px}
-        .vl-live-photo-shell{position:relative;margin:0}
-        .vl-live-place-photos{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none}
-        .vl-live-place-photos::-webkit-scrollbar{display:none}
-        /* The photo cells sit on the SAME exact lime (--lime #d1f470) as the number pill
-           (req 01: photo + pill share the same lime), so a loading/absent image reads as
-           the pill's lime rather than the lighter --lime-solid used before. */
-        .vl-live-photo-page{display:block;flex:0 0 100%;height:260px;padding:0;scroll-snap-align:start;background:var(--lime)}
-        .vl-live-place-photo{position:relative;width:100%;height:100%;margin:0;overflow:hidden;background:var(--lime)}
-        .vl-live-place-photo.is-primary{width:100%;height:100%}
-        .vl-live-place-photo.is-secondary{border-radius:0}
-        .vl-live-place-photo img{display:block;width:100%;height:100%;object-fit:cover}
-        .vl-live-photo-credit{position:absolute;right:6px;bottom:5px;left:6px;z-index:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;border-radius:7px;background:rgba(255,255,255,.76);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:8px;line-height:1.2;color:rgba(26,58,42,.78)}
-        .vl-live-photo-credit a{color:inherit;text-decoration:none}
-        .vl-live-photo-credit a:hover{text-decoration:underline}
-        /* Number-only pill (req 01): the numeric count + a decorative referee SVG on
-           the lime pill background. No word text, no red. */
-        .vl-live-photo-count{position:absolute;top:12px;right:12px;z-index:4;display:inline-flex;align-items:center;justify-content:center;min-width:34px;min-height:32px;padding:0 10px;border-radius:999px;background:var(--lime);color:var(--green);font-size:13px;font-weight:800;line-height:1;box-shadow:none}
-        .vl-live-photo-tabs{display:flex;gap:5px;margin:0;padding:7px 11px 11px;height:auto;align-items:center}
-        .vl-live-photo-tab{position:relative;display:block;flex:1 1 0;height:14px;min-width:10px;cursor:pointer;outline:none}
-        .vl-live-photo-tab::after{content:'';position:absolute;left:0;right:0;top:50%;height:2px;border-radius:999px;background:#e7ebe8;transform:translateY(-50%);transition:background-color .18s ease,transform .18s ease}
-        .vl-live-photo-tab[aria-selected="true"]::after{background:var(--green);transform:translateY(-50%) scaleY(1.5)}
-        .vl-live-photo-tab:focus-visible::before{content:'';position:absolute;inset:1px;border:1px solid var(--green);border-radius:999px}
-
-        /* Continuous weather workspace: typography + hairlines instead of repeated cards. */
-        .vl-live-signal-stack{padding-top:0;padding-bottom:0}
-        .vl-live-signal{padding:34px 0;border-top:1px solid var(--hair)}
-        .vl-live-signal:last-child{border-bottom:1px solid var(--hair)}
-        .vl-live-signal-head{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:end}
-        .vl-live-signal-head .vl-live-eyebrow{margin-bottom:10px}
-        .vl-live-signal-head .vl-live-h2{margin-bottom:0}
-        .vl-live-signal-summary{margin:0;max-width:34ch;font-size:14px;line-height:1.45;color:var(--ink-muted)}
-        .vl-live-signal-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:24px;border-top:1px solid var(--hair)}
-        .vl-live-signal-facts>div{padding:16px 14px 0 0}
-        .vl-live-signal-facts>div:nth-child(even){padding-left:14px;border-left:1px solid var(--hair)}
-        .vl-live-signal-facts strong{font-size:17px;line-height:1.25;color:#1a1a1a}
-        @container vllive (min-width:620px){
-          .vl-live-signal-head{grid-template-columns:minmax(0,1fr) minmax(180px,.45fr);gap:24px}
-          .vl-live-signal-summary{text-align:right;justify-self:end}
-          .vl-live-signal-facts{grid-template-columns:repeat(4,minmax(0,1fr))}
-          .vl-live-signal-facts>div{padding:16px 16px 0}
-          .vl-live-signal-facts>div:first-child{padding-left:0}
-          .vl-live-signal-facts>div+div{border-left:1px solid var(--hair)}
-        }
-
-        /* Screenshot-led hourly workspace: one horizontal table, shared columns, no card pile. */
-        .vl-live-forecast-board{overflow:hidden;border:1px solid rgba(209,244,112,.72);border-radius:18px;background:#fff}
-        .vl-live-forecast-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:20px;background:linear-gradient(135deg,rgba(209,244,112,.24),rgba(255,255,255,.98))}
-        .vl-live-forecast-head .vl-live-h2{margin:3px 0 0}
-        .vl-live-forecast-head>time{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
-        .vl-live-hour-rail-primary{border-radius:0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-        /* Next-24-hours rail follows the site palette: white, lime tint and dark green. */
-        .vl-live-hour-rail-brand{border-radius:14px;border:1px solid var(--hair);background:rgba(209,244,112,.10)}
-        .vl-live-hour-rail-brand .vl-live-hour-card{background:transparent}
-        .vl-live-hour-rail-brand .vl-live-hour-card:first-child{background:rgba(209,244,112,.34)}
-        .vl-live-hour-rail-brand .vl-live-hour-card time{color:rgba(26,58,42,.66)}
-        .vl-live-hour-rail-brand .vl-live-hour-card strong{color:var(--green)}
-        .vl-live-hour-rail-brand .vl-live-hour-card em{color:var(--green)}
-        .vl-live-forecast-row{padding-top:16px}
-        .vl-live-forecast-row+.vl-live-forecast-row{border-top:1px solid var(--hair)}
-        .vl-live-forecast-label{display:flex;justify-content:space-between;gap:12px;margin:0;padding:0 20px 10px;font-size:12px;font-weight:700;color:var(--ink-muted)}
-        .vl-live-forecast-label span{font-weight:600}
-        .vl-live-metric-rail{display:flex;overflow-x:auto;scroll-snap-type:x proximity;scrollbar-color:var(--lime) transparent;scrollbar-width:thin}
-        .vl-live-metric-cell{position:relative;flex:0 0 112px;min-height:86px;padding:12px 12px 18px;border-right:1px solid var(--hair);scroll-snap-align:start;background:#fff}
-        .vl-live-metric-cell:first-child{background:rgba(209,244,112,.16)}
-        .vl-live-metric-cell strong{display:block;font-size:17px;line-height:1.1;color:#1a1a1a}
-        .vl-live-metric-cell span{display:block;margin-top:5px;font-size:10px;color:var(--ink-muted)}
-        .vl-live-temp-line,.vl-live-rain-line,.vl-live-uv-line,.vl-live-aq-line{position:absolute;left:12px;right:12px;bottom:9px;height:2px;border-radius:999px;background:var(--lime)}
-        .vl-live-temp-line::after,.vl-live-aq-line::after{content:'';position:absolute;right:0;top:50%;width:6px;height:6px;border-radius:50%;background:var(--green);transform:translateY(-50%)}
-        .vl-live-rain-line{background:linear-gradient(90deg,var(--green),var(--lime))}
-        .vl-live-uv-line{background:linear-gradient(90deg,#7ab75a,var(--lime),#d4b33d)}
-        .vl-live-aq-line{background:linear-gradient(90deg,var(--green),var(--aqi-sat),var(--lime))}
-
-        /* Compact near-term planning panel from the supplied trip reference, restyled to Home. */
-        .vl-live-plan-card{margin-top:28px;padding:22px;border:1px solid var(--hair);border-radius:18px;background:#fff}
-        .vl-live-plan-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
-        .vl-live-plan-title{margin:0;font-size:22px;line-height:1.2;font-weight:700;letter-spacing:-.4px;color:#1a1a1a}
-        .vl-live-plan-place{margin:6px 0 0;font-size:13px;line-height:1.45;color:var(--ink-muted)}
-        .vl-live-plan-range{margin:0;font-size:12px;line-height:1.4;color:var(--ink-muted);text-align:right}
-        .vl-live-plan-days{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:20px}
-        .vl-live-plan-day{min-width:0;padding:16px 12px;border-radius:14px;background:#fafafa;text-align:center}
-        .vl-live-plan-day strong,.vl-live-plan-day b,.vl-live-plan-day p{display:block}
-        .vl-live-plan-day strong{font-size:13px;color:var(--ink-muted)}
-        .vl-live-plan-day img{display:block;width:38px;height:38px;margin:10px auto}
-        .vl-live-plan-day b{font-size:18px;color:#1a1a1a}
-        .vl-live-plan-day b span{font-size:13px;font-weight:600;color:var(--ink-muted)}
-        .vl-live-plan-day p{margin:8px 0 0;font-size:11px;line-height:1.35;color:var(--ink-muted)}
-        .vl-live-plan-context{display:grid;gap:18px;margin-top:22px;padding-top:20px;border-top:1px solid var(--hair)}
-        .vl-live-plan-context>div+div{padding-top:18px;border-top:1px solid var(--hair)}
-        .vl-live-plan-context strong{font-size:14px;color:#1a1a1a}
-        .vl-live-plan-pollen{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));overflow:hidden;border:1px solid var(--hair);border-radius:999px}
-        .vl-live-plan-pollen span{padding:10px 12px;text-align:center;font-size:13px;font-weight:600;color:var(--ink-second)}
-        .vl-live-plan-pollen span+span{border-left:1px solid var(--hair)}
-
-        .vl-live-best-outside{display:grid;gap:10px;padding:24px;border:2px solid var(--lime);border-radius:14px;background:var(--lime-tint);color:var(--ink-base)}
-        .vl-live-best-outside .vl-live-metric-lg,.vl-live-best-outside .vl-live-body{color:var(--ink-head)}
-        .vl-live-best-outside .vl-live-small{color:var(--ink-muted)}
-        .vl-live-hour-rail,.vl-live-day-rail{display:flex;gap:0;overflow-x:auto;scroll-snap-type:x proximity;padding:0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);scrollbar-width:thin}
-
-        .vl-live-hour-rail,.vl-live-day-rail,.vl-live-metric-rail{
-          scrollbar-color:#d1f470 #fafafa;
-          scrollbar-width:thin;
-        }
-        .vl-live-hour-rail::-webkit-scrollbar,
-        .vl-live-day-rail::-webkit-scrollbar,
-        .vl-live-metric-rail::-webkit-scrollbar{height:8px}
-        .vl-live-hour-rail::-webkit-scrollbar-track,
-        .vl-live-day-rail::-webkit-scrollbar-track,
-        .vl-live-metric-rail::-webkit-scrollbar-track{background:#fafafa;border-radius:999px}
-        .vl-live-hour-rail::-webkit-scrollbar-thumb,
-        .vl-live-day-rail::-webkit-scrollbar-thumb,
-        .vl-live-metric-rail::-webkit-scrollbar-thumb{background:#d1f470;border:2px solid #fafafa;border-radius:999px}
-        .vl-live-hour-rail::-webkit-scrollbar-thumb:hover,
-        .vl-live-day-rail::-webkit-scrollbar-thumb:hover,
-        .vl-live-metric-rail::-webkit-scrollbar-thumb:hover{background:#1a3a2a}
-        .vl-live-hour-card{position:relative;flex:0 0 112px;min-height:144px;padding:14px 14px 14px 0;border:0;border-radius:0;background:transparent;scroll-snap-align:start}
-        .vl-live-hour-card+.vl-live-hour-card{padding-left:14px;border-left:1px solid var(--hair)}
-        .vl-live-hour-card time,.vl-live-hour-card span{display:block;font-size:12px;line-height:1.35;color:var(--ink-muted)}
-        .vl-live-hour-card strong{display:block;margin:9px 0;font-size:19px;color:var(--green)}
-        .vl-live-hour-card img{display:block;width:30px;height:30px;margin-top:8px}
-        .vl-live-hour-card em{position:absolute;top:8px;right:8px;font-size:9px;font-style:normal;font-weight:700;color:var(--green)}
-        .vl-live-hour-card-air{flex-basis:128px}
-        .vl-live-insight-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-        .vl-live-insight-grid>div{padding:18px 16px}
-        .vl-live-insight-grid>div+div{border-left:1px solid var(--hair)}
-        .vl-live-insight-grid strong{font-size:15px;color:var(--green)}
-        .vl-live-minor-title{margin:28px 0 12px;font-size:16px;font-weight:700;color:#1a1a1a}
-        .vl-live-history-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-top:24px}
-        .vl-live-history-head .vl-live-minor-title{margin:0}
-        .vl-live-history-controls{display:flex;gap:6px}
-        .vl-live-history-controls button{min-height:34px;padding:0 11px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background-color .2s,border-color .2s}
-        .vl-live-history-controls button:hover{border-color:var(--green);background:var(--lime-tint)}
-        .vl-live-history-controls button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        .vl-live-history-controls button[aria-pressed="true"]{border-color:var(--green);background:var(--lime)}
-        .vl-live-history{height:132px;display:flex;align-items:flex-end;gap:2px;margin-top:14px;padding:10px 0 2px;border-bottom:1px solid var(--hair)}
-        /* History bars share the live AQI ramp: good -> sat -> mod -> poor -> worst, keyed by the
-           SAME band as the dots (--aqi-* tokens), so the chart reads like the live dot colours.
-           Geometry (flex sizing, radii, min/max width) is unchanged. */
-        .vl-live-history i{flex:1 1 0;min-width:2px;max-width:10px;border-radius:4px 4px 0 0;background:var(--aqi-sat)}
-        .vl-live-history i.vl-live-history-bar-good{background:var(--aqi-good)}
-        .vl-live-history i.vl-live-history-bar-sat{background:var(--aqi-sat)}
-        .vl-live-history i.vl-live-history-bar-mod{background:var(--aqi-mod)}
-        .vl-live-history i.vl-live-history-bar-poor{background:var(--aqi-poor)}
-        .vl-live-history i.vl-live-history-bar-worst{background:var(--aqi-worst)}
-        .vl-live-weather-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--hair)}
-        .vl-live-weather-grid>div{padding:16px 14px 16px 0;border-bottom:1px solid var(--hair)}
-        .vl-live-weather-grid>div:nth-child(even){padding-left:14px;border-left:1px solid var(--hair)}
-        .vl-live-weather-grid strong{font-size:15px;color:#1a1a1a}
-        .vl-live-sunline{display:grid;grid-template-columns:1fr 1fr;margin-top:18px;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair);border-radius:0;overflow:hidden}
-        .vl-live-sunline>div{padding:16px}
-        .vl-live-sunline>div+div{border-left:1px solid var(--hair)}
-        .vl-live-day-card{flex:0 0 112px;min-height:150px;padding:14px 14px 14px 0;border:0;border-radius:0;background:transparent;scroll-snap-align:start;text-align:left}
-        .vl-live-day-card+.vl-live-day-card{padding-left:14px;border-left:1px solid var(--hair)}
-        .vl-live-day-card>span,.vl-live-day-card>b{display:block;margin-top:5px;font-size:12px;color:var(--ink-muted)}
-        .vl-live-day-card>b{font-size:14px;color:#1a1a1a}
-        .vl-live-day-card img{width:34px;height:34px;margin:8px auto 2px}
-        .vl-live-alerts{margin-top:24px}
-        .vl-live-alert{padding:16px;border-radius:14px;background:var(--tint-warn)}
-        .vl-live-alert+.vl-live-alert{margin-top:8px}
-        .vl-live-alert strong{display:block;color:#6e4a18}
-        .vl-live-alert p{margin:6px 0 0;font-size:13px;line-height:1.45;color:#5f4a2b}
-        .vl-live-alert span{display:block;margin-top:6px;font-size:11px;color:#7f6845}
-        .vl-live-pollen-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-        .vl-live-pollen-card{padding:16px 14px 16px 0;border:0;border-radius:0;background:transparent}
-        .vl-live-pollen-card:nth-child(even){padding-left:14px;border-left:1px solid var(--hair)}
-        .vl-live-pollen-card:nth-child(n+3){border-top:1px solid var(--hair)}
-        .vl-live-pollen-card strong{display:block;font-size:15px;color:#1a1a1a}
-        .vl-live-pollen-card span{display:block;margin-top:5px;font-size:12px;color:var(--ink-muted)}
-
-        /* The old two-/four-up "Conditions" fact rail (.vl-live-rail/.vl-live-fact) was
-           replaced by the continuous .vl-live-signal-stack bands; its rules are deleted
-           here per this file's "unused rules are deleted" convention. */
-
-        /* Health advisory accent rule. */
-        .vl-live-advisory-rule{display:block;height:3px;width:120px;margin:30px 0 0;background:var(--lime)}
-
-        /* Pollutant rows. */
-        .vl-live-prow{display:grid;grid-template-columns:92px minmax(0,1fr);gap:8px 16px;align-items:center;padding:16px 0;border-bottom:1px solid var(--hair)}
-        .vl-live-prow:first-of-type{border-top:1px solid var(--hair)}
-        .vl-live-prow .vl-live-label{margin:0}
-        .vl-live-prow .vl-live-track{grid-column:2}
-        .vl-live-prow .vl-live-metric-md,.vl-live-prow .vl-live-prow-cat{grid-column:2;text-align:left}
-        .vl-live-prow .vl-live-metric-md{font-size:17px}
-        @container vllive (min-width:560px){
-          .vl-live-prow{grid-template-columns:100px minmax(0,1fr) 104px 112px;gap:16px}
-          .vl-live-prow .vl-live-metric-md{grid-column:3;text-align:right}
-          .vl-live-prow .vl-live-prow-cat{grid-column:4;text-align:right}
-        }
-        .vl-live-track{display:block;height:8px;background:var(--ground);border-radius:2px;overflow:hidden}
-        .vl-live-bar{display:block;height:100%}
-        .vl-live-bar-good{background:var(--aqi-good)}
-        .vl-live-bar-sat{background:var(--aqi-sat)}
-        .vl-live-bar-mod{background:var(--aqi-mod)}
-        .vl-live-bar-poor{background:var(--aqi-poor)}
-        .vl-live-bar-worst{background:var(--aqi-worst)}
-        .vl-live-prow-cat{font-size:12px;font-weight:700;letter-spacing:.01em;color:var(--ink-muted)}
-
-        .vl-live-section{padding-top:0}
-
-        /* SUBSCRIBE - same home-page CTA geometry and interaction as the blog-post anchor. */
-        .vl-live-wa-subscribe{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 28px;border:2px solid var(--green);border-radius:50px;background:var(--lime);color:var(--green);font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
-        .vl-live-wa-subscribe svg{flex:0 0 auto}
-        .vl-live-wa-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .vl-live-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-
-        @media(max-width:1023px){
-          /* Keep the search centred; the only other on-map control is the AQI|PM2.5
-             selector, pinned top-right below the centred field. */
-          .vl-live-map-search{top:14px;left:50%;transform:translateX(-50%);width:min(340px,calc(100% - 24px))}
-          .vl-live-map-controls{top:78px;right:12px;left:auto}
-        }
-        @media(max-width:767px){
-          .vl-live{padding-bottom:48px}
-          .vl-live-wrap{padding-inline:16px}
-          .vl-live-insight-grid{grid-template-columns:1fr}
-          .vl-live-insight-grid>div+div{border-left:0;border-top:1px solid var(--hair)}
-          .vl-live-weather-grid{grid-template-columns:1fr}
-          .vl-live-weather-grid>div:nth-child(even){padding-left:0;border-left:0}
-          .vl-live-pollen-grid{grid-template-columns:1fr}
-          .vl-live-section{padding-top:0}
-          .vl-live-block{padding-block:32px}
-          .vl-live-left > .vl-live-section{margin-top:64px}
-          .vl-live-map-search{top:12px;left:50%;right:auto;transform:translateX(-50%);width:calc(100% - 24px)}
-          .vl-live-search{max-width:none}
-          .vl-live-map-controls{top:76px;right:12px;left:auto}
-          .vl-live-plan-head{display:block}
-          .vl-live-plan-range{margin-top:8px;text-align:left}
-          .vl-live-plan-days{gap:6px}
-          .vl-live-plan-day{padding:14px 8px}
-          .vl-live-plan-pollen{grid-template-columns:1fr}
-          .vl-live-plan-pollen span+span{border-left:0;border-top:1px solid var(--hair)}
+        @media(max-height:500px) and (orientation:landscape){
+          .vl-live-shell{padding-top:8px}
+          .vl-live-map-shell{height:calc(100dvh - 24px);min-height:250px}
+          .vl-live-search-field{height:44px}
+          .vl-live-layers{top:64px}
         }
         @media(prefers-reduced-motion:reduce){
-          .vl-live-data-skeleton i{animation:none}
-          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-history-controls button{transition:none}
-          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible{transform:none;box-shadow:none}
+          .vl-live *{scroll-behavior:auto!important;transition:none!important}
         }
       `}</style>
     </section>
