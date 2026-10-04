@@ -1,14 +1,20 @@
+import fs from 'fs';
+import path from 'path';
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { readCart, toLineItems } from '../lib/cart';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
 import ShopIndex from '../pages/shop/index';
 import ShopProductPage from '../pages/shop/[slug]';
 import { shopProductSchema } from '../components/ShopProductHead';
 import {
   SHOP_PRODUCTS, shopProductBySlug, shopMetaDescription, shopPageTitle, shopProductPath,
   toParagraphs, catalogReadOn, CATALOG_FETCHED_AT,
+  CONTRIBUTION_CONFIGURED, CONTRIBUTION_PRODUCT, CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_RAW,
+  CONTRIBUTION_SLUG, projectForTest,
 } from '../content/shop';
+import { getStaticPaths } from '../pages/shop/[slug]';
 import type { ShopProduct } from '../content/shop';
 
 /**
@@ -447,5 +453,120 @@ describe( 'the product page', () => {
     render( <ShopProductPage product={ kiosk } /> );
     expect( screen.getByRole( 'link', { name: 'All items in the shop' } ).getAttribute( 'href' ) )
       .toBe( asRendered( '/shop/' ) );
+  } );
+} );
+
+describe( 'the contribution product is a payment vehicle, not a shop listing', () => {
+  /**
+   * T11, SPLIT BY SOURCE, and the split is the point rather than a formality.
+   *
+   * The contribution product MUST be visible in Wix, because the checkout refuses
+   * `product.visible === false` - so `scripts/fetch-wix-catalog.js` picks it up and it would
+   * otherwise appear at /shop/ with its own page and sitemap entry. The place to choose a
+   * contribution is the "Contribute" block at the foot of a blog post, not a product page with an
+   * "Amount" dropdown.
+   *
+   * `productType` and the three counts are read off the RAW snapshot entry, never off
+   * `CONTRIBUTION_PRODUCT`: `interface ShopProduct` declares none of them, and `shop.ts`'s own
+   * header records why the omission is deliberate - `productType` reads PHYSICAL on every product
+   * in the snapshot, so surfacing it would put a false statement on five pages. The
+   * `ShopProduct`-shaped assertions stay against the projection.
+   *
+   * WHAT THIS BLOCK STOPPED ASSERTING ON 2026-10-04, because it was pinning a retired assumption:
+   * `raw.productType === 'DIGITAL'`, with a comment calling DIGITAL "what makes the checkout skip
+   * the delivery address". The live `Contribute` product is PHYSICAL - a Wix digital product with
+   * no downloadable file attached is not purchasable - and the delivery skip now keys on
+   * contribution product IDENTITY in `checkout/handler.py:_v2_catalog_items`. Asserting the
+   * product's Wix type would therefore fail against the real product AND push the next reader back
+   * towards the rule that was removed. The identity-keyed property is asserted instead.
+   */
+  it( 'appears in neither SHOP_PRODUCTS nor the generated paths', async () => {
+    expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
+    expect( shopProductBySlug( CONTRIBUTION_SLUG ) ).toBeNull();
+    const result = await getStaticPaths( {} as never );
+    const paths = ( result as unknown as { paths: { params: { slug: string } }[] } ).paths;
+    expect( paths.some( entry => entry.params.slug === CONTRIBUTION_SLUG ) ).toBe( false );
+    // `generate-sitemap.js` crawls the BUILT output tree, so removing the page removes the entry.
+    // No sitemap change is needed and this is the concrete fact behind that.
+    expect( paths.length ).toBe( SHOP_PRODUCTS.length );
+  } );
+
+  it( 'is excluded by PRODUCT ID, not only by slug', () => {
+    // The id is the identity the server, the cart and `shop.ts` all key on, and it cannot be
+    // edited in the Wix dashboard. The slug can, so a slug-only exclusion would put a
+    // /shop/<renamed>/ page live the next time somebody tidied the product's URL.
+    const shopSource = fs.readFileSync(
+      path.resolve( __dirname, '../content/shop.ts' ), 'utf8' );
+    expect( shopSource ).toMatch( /CONTRIBUTION_PRODUCT_ID/ );
+    expect( SHOP_PRODUCTS.some( product => product.id === CONTRIBUTION_PRODUCT_ID ) ).toBe( false );
+  } );
+
+  it( 'projects through the SAME function the shop listings use', () => {
+    // So the excluded entry is a real `ShopProduct` and not a raw snapshot row mislabelled as one.
+    // Driven from an injected fixture row, because the committed snapshot may not carry the entry.
+    const projected = projectForTest( {
+      id: CONTRIBUTION_PRODUCT_ID,
+      name: 'Contribute',
+      slug: CONTRIBUTION_SLUG,
+      formattedPrice: '\u20B9100.00',
+      price: '100.00',
+      currency: 'INR',
+      inStock: true,
+      visible: true,
+      descriptionHtml: '<p>Support this work.</p><p>Thank you.</p>',
+      variants: CONTRIBUTION_CHOICES.map( choice => ( {
+        id: choice.variantId, label: `\u20B9${ choice.rupees }`, inStock: true } ) ),
+    } );
+    expect( projected.tagline ).toBe( 'Support this work.' );
+    expect( projected.body ).toEqual( [ 'Thank you.' ] );
+    expect( projected.variants ).toHaveLength( 3 );
+    expect( projected.variants?.every( variant => variant.inStock ) ).toBe( true );
+  } );
+
+  it.skipIf( CONTRIBUTION_RAW !== null )(
+    'is absent from the committed snapshot, which costs the feature nothing', () => {
+      // SKIPPED-WITH-REASON once the snapshot carries the entry: this case and the next are two
+      // halves of one question and exactly one of them is meaningful at a time.
+      //
+      // Absence is NOT a configuration problem any more, which is the change from the previous
+      // revision: the product id and the three variant ids are committed constants in
+      // src/config/contribution.ts, because `slim()` in scripts/fetch-wix-catalog.js emits no
+      // `variants` array and so a refresh could never supply them. All the snapshot entry buys is
+      // the /shop/ exclusion, which only matters once the entry exists.
+      expect( CONTRIBUTION_RAW ).toBeNull();
+      expect( CONTRIBUTION_PRODUCT ).toBeNull();
+      expect( CONTRIBUTION_CONFIGURED ).toBe( true );
+    } );
+
+  it.skipIf( CONTRIBUTION_RAW === null )(
+    'carries the invariant fields the checkout depends on', () => {
+      const raw = CONTRIBUTION_RAW as Record<string, unknown>;
+      expect( raw.visible ).toBe( true );
+      // THE DELIVERY SKIP DOES NOT COME FROM `productType`, and this is where that is pinned.
+      // The live product is PHYSICAL; what makes the checkout skip the address is the line's
+      // product id being in the recognised contribution set. So the identity is asserted and the
+      // Wix type deliberately is not - the server is free to see either one.
+      expect( String( raw.id ).toLowerCase() ).toBe( CONTRIBUTION_PRODUCT_ID );
+      // Three variants, one option, no modifiers: an invariant of THIS product, not of the
+      // catalogue. The option is the "Amount" chooser and its three choices are the three prices,
+      // which is why a contribution line MUST carry an explicit variantId - with three variants
+      // there is no single-variant fallback and Wix answers "choose an available product option".
+      expect( [ raw.variantCount, raw.optionCount, raw.modifierCount ] ).toEqual( [ 3, 1, 0 ] );
+      // The cheapest and dearest choices, so a changed price in Wix is caught here rather than by
+      // a customer. `price` is the minimum of the range and `priceMax` the maximum.
+      expect( raw.price ).toBe( `${ CONTRIBUTION_CHOICES[ 0 ].rupees }.00` );
+      expect( raw.priceMax ).toBe(
+        `${ CONTRIBUTION_CHOICES[ CONTRIBUTION_CHOICES.length - 1 ].rupees }.00` );
+    } );
+
+  it( 'needs a product id AND three variant ids to count as configured', () => {
+    // A product id with no variant id would mint a cart line that reaches
+    // `normalized_catalog_items`' single-variant fallback -- the guess the explicit variant exists
+    // to avoid -- and answers a 502 on this three-variant product.
+    expect( CONTRIBUTION_CONFIGURED ).toBe(
+      !!CONTRIBUTION_PRODUCT_ID
+      && CONTRIBUTION_CHOICES.length > 0
+      && CONTRIBUTION_CHOICES.every( choice => !!choice.variantId ) );
+    expect( CONTRIBUTION_CONFIGURED ).toBe( true );
   } );
 } );

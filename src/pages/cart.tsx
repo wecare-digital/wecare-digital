@@ -97,14 +97,64 @@ import type { CustomerSession } from '../lib/customerAuth';
 import {
   readCart, setQuantity, removeItem, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
+  basketFingerprint, cartMixesContribution, cartRequiresDelivery,
+  isContributionItem, setContribution,
 } from '../lib/cart';
-import type { CartItem } from '../lib/cart';
+import type { CartItem, CheckoutLineItem } from '../lib/cart';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
 const VERIFY_CHECKOUT_URL = `${API_BASE}/ecommerce/verify-callback`;
 const RAZORPAY_SDK = 'https://checkout.razorpay.com/v1/checkout.js';
 const CHECKOUT_REQUEST_KEY = 'wc_checkout_request_key';
+/**
+ * The basket fingerprint the request key above was minted for.
+ *
+ * TWO SLOTS, FIXED, so there is no growth to bound: one key plus the basket it belongs to. Keying
+ * the slot NAME on the fingerprint was the alternative and is worse - it leaves basket A's key
+ * sitting there when the customer edits back to A, and resuming it is a GUARANTEED refusal rather
+ * than a resumption, because getting back to A re-ran the server-side reconcile and moved both
+ * `cart.revision` and `snapshot_hash`.
+ */
+const CHECKOUT_REQUEST_BASKET = 'wc_checkout_request_basket';
+/**
+ * What to say when the server refuses the contribution amount.
+ *
+ * It names the three amounts rather than a range, because there is no range: a contribution is one
+ * of three fixed-price variants. DERIVED from `CONTRIBUTION_CHOICES`, so the sentence cannot offer
+ * an amount the server does not accept - which a re-typed list eventually would.
+ *
+ * Reachable only from a crafted request or a cart written by an older build, since the only
+ * controls that write a contribution line emit one of the three. Kept because the server can
+ * answer it and a dead end is worse than a sentence.
+ */
+const CONTRIBUTION_HELP = `Choose one of the offered contribution amounts: ${
+  CONTRIBUTION_CHOICES.map( choice => `\u20B9${ choice.rupees }` ).join( ', ' ) }.`;
+/**
+ * A contribution is paid on its own.
+ *
+ * ONE constant, used by both the browser-side notice and the server's `CONTRIBUTION_NOT_ALONE`
+ * outcome arm, so the two refusals read identically whichever side produced them. A customer who
+ * meets the local one and then the remote one must not be told two different things.
+ */
+const CONTRIBUTION_ALONE_MESSAGE =
+  'A contribution is paid on its own. Remove the contribution, or remove the other items, '
+  + 'then check out.';
+/** The same words the blog block uses when the product is not configured. */
+const CONTRIBUTION_UNAVAILABLE_MESSAGE = 'Contributions are not available right now.';
+/**
+ * What to say when the server could price nothing for a contribution basket.
+ *
+ * SEPARATE from `CART_NOT_PAYABLE`'s "Please review your cart and try again", because that names
+ * the one action a contribution basket cannot take: it holds a single donation, so there is
+ * nothing in it to review and no edit the customer can make that changes the answer. The second
+ * sentence is there because this refusal arrives AFTER the Checkout press, which reads like a
+ * failed payment unless it says otherwise - nothing is reserved, attempted or charged on this
+ * path. Word for word the server's `CONTRIBUTION_NOT_PAYABLE` message.
+ */
+const CONTRIBUTION_NOT_PAYABLE_MESSAGE =
+  'Contributions cannot be taken right now. Nothing has been charged.';
 /**
  * SECTION 2 REDEMPTION ENDPOINT. The coupon/gift-card apply/remove requests go here; the SERVER
  * decides every amount (an authoritative Wix/backend discount, an authoritative gift-card balance),
@@ -259,7 +309,17 @@ type Outcome =
   | { kind: 'PROFILE_REQUIRED' }
   | { kind: 'DELIVERY_DETAILS_REQUIRED' }
   | { kind: 'DELIVERY_METHOD_UNAVAILABLE' }
-  | { kind: 'CHECKOUT_REJECTED' }
+  | { kind: 'CHECKOUT_REJECTED'; reason: string }
+  | { kind: 'CONTRIBUTION_AMOUNT_INVALID' }
+  | { kind: 'CONTRIBUTION_NOT_ALONE' }
+  | { kind: 'CONTRIBUTION_UNAVAILABLE' }
+  | { kind: 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' }
+  | { kind: 'CONTRIBUTION_NOT_PAYABLE' }
+  | { kind: 'CART_RESET_REQUIRED' }
+  | { kind: 'CART_NOT_PAYABLE' }
+  | { kind: 'CART_RECONCILIATION_REQUIRED' }
+  | { kind: 'ITEMS_UNAVAILABLE' }
+  | { kind: 'QUANTITY_REDUCED' }
   | { kind: 'PAYMENT_INITIATION_DISABLED' }
   | { kind: 'PAYMENT_UNAVAILABLE' }
   | { kind: 'LINE_ITEMS_REQUIRED' }
@@ -308,14 +368,39 @@ declare global {
   }
 }
 
-function getCheckoutRequestKey (): string {
+/**
+ * ONE REQUEST KEY, PLUS THE BASKET FINGERPRINT IT WAS MINTED FOR.
+ *
+ * The reservation's purpose is to make two clicks on the SAME basket resume one gateway order
+ * instead of minting two. It was never meant to outlive the basket: a changed basket is a different
+ * intent, `website_checkout.intent_fingerprint` refuses a resumed key whose intent moved, and
+ * `applyOutcome` rendered that refusal as a PERMANENT `CHECKOUT_REJECTED` with `paymentBlocked`
+ * latched for the life of the tab and no retry arm. The key was minted once per tab and the three
+ * references to its slot never removed it. Recording the fingerprint keeps the property that was
+ * wanted and drops the one that was not.
+ *
+ * RETURNING TO AN EARLIER BASKET MINTS A FRESH KEY, DELIBERATELY. One slot cannot be stale in the
+ * way a per-basket slot can: edits to A, then B, then back to A re-ran the server-side reconcile,
+ * whose add/remove commands mint new `lineItemId`s and move `cart.revision`, so A's original
+ * reservation CANNOT match any more and resuming it would be a guaranteed refusal.
+ *
+ * IT TAKES THE PAYLOAD IT IS KEYING, for the same reason `postPrepare` takes everything as
+ * arguments. The key must describe the basket in THIS request body. The no-argument,
+ * read-from-storage rule applies to the render-path helpers, where the alternative is component
+ * state captured by `useCallback`; here the value is a parameter already in hand at the call site,
+ * and re-reading storage would let the post-save retry key a basket it is not sending.
+ */
+function getCheckoutRequestKey ( lineItems: CheckoutLineItem[] ): string {
   if ( typeof window === 'undefined' ) return '';
+  const fingerprint = basketFingerprint( lineItems );
+  const minted = window.sessionStorage.getItem( CHECKOUT_REQUEST_BASKET );
   const existing = window.sessionStorage.getItem( CHECKOUT_REQUEST_KEY );
-  if ( existing ) return existing;
+  if ( existing && minted === fingerprint ) return existing;
   const generated = typeof window.crypto?.randomUUID === 'function'
     ? window.crypto.randomUUID()
     : `checkout-${ Date.now() }-${ Math.random().toString( 36 ).slice( 2 ) }`;
   window.sessionStorage.setItem( CHECKOUT_REQUEST_KEY, generated );
+  window.sessionStorage.setItem( CHECKOUT_REQUEST_BASKET, fingerprint );
   return generated;
 }
 
@@ -391,6 +476,48 @@ type RedeemKind = 'coupon' | 'giftCard';
  *      so the static export is not broken.
  *   4. No third-party provider name appears anywhere.
  */
+/**
+ * THE CONTRIBUTION ROW CHOOSES AN AMOUNT, IT DOES NOT COUNT COPIES.
+ *
+ * A stepper labelled "Qty" is the wrong control for a contribution: two copies of a Rs.250
+ * contribution is not a Rs.500 contribution, it is a basket the server refuses as two
+ * contributions. So the row offers the three amounts instead of a count.
+ *
+ * A NATIVE `<select>` ON PURPOSE, AND IT REPLACED A FREE-TEXT FIELD (owner model change,
+ * 2026-10-04). The previous revision held a draft string, committed on blur or Enter, validated
+ * against Rs.10-Rs.1,00,000 bounds, and rendered a help line on refusal - all of it to keep an
+ * arbitrary keystroke from becoming money, because `min`/`max`/`step` on a number input are not
+ * enforced while typing or on paste. A control that can only emit one of three committed values
+ * deletes that whole apparatus: there is no draft, no commit moment, no rejection and no help
+ * text, because there is no invalid value to produce.
+ *
+ * `setContribution` still SETS rather than increments, so changing the amount replaces the line
+ * rather than adding a second one.
+ */
+function ContributionAmount (
+  { item, onCommitted }: { item: CartItem; onCommitted: () => void },
+): React.ReactElement {
+  const inputId = `amount-${ item.ref }`;
+
+  return (
+    <>
+      <label className="cart-qty-label" htmlFor={ inputId }>Contribution amount</label>
+      <select
+        id={ inputId }
+        className="cart-amount-select"
+        value={ item.variantId }
+        onChange={ e => { setContribution( e.target.value ); onCommitted(); } }
+      >
+        { CONTRIBUTION_CHOICES.map( choice => (
+          <option key={ choice.variantId } value={ choice.variantId }>
+            &#8377;{ choice.rupees }
+          </option>
+        ) ) }
+      </select>
+    </>
+  );
+}
+
 function RedemptionPanel (): React.ReactElement {
   const [ couponCode, setCouponCode ] = useState<string>( '' );
   const [ giftCardCode, setGiftCardCode ] = useState<string>( '' );
@@ -629,18 +756,62 @@ export default function Cart (): React.ReactElement {
   // A ref, not state: the decision is made inside one `proceed` invocation.
   const justSavedRef = useRef<boolean>( false );
   const [ paymentBlocked, setPaymentBlocked ] = useState<boolean>( false );
+  /**
+   * Whether the "Start a new cart" control is on screen.
+   *
+   * Set only by the `CART_RESET_REQUIRED` outcome, and cleared on the next `proceed`, so the
+   * control never lingers after the condition it answers is gone. It is NOT `paymentBlocked`: a
+   * saved cart too large to reconcile is a recoverable state with exactly one action.
+   */
+  const [ cartResetOffered, setCartResetOffered ] = useState<boolean>( false );
+  /**
+   * One-shot: the next prepare carries `resetCart: true`, then this is cleared.
+   *
+   * A ref and not state, for the same reason `justSavedRef` is: the decision is made inside one
+   * `proceed` invocation and must not be a render behind.
+   *
+   * READ AND CLEARED AT THE TOP OF `proceed`, above every early return, so the flag cannot leak
+   * into a later click -- abandoning a customer's saved cart twice for one refusal would be a
+   * surprise rather than a recovery. Reading it next to the first `postPrepare` instead leaves it
+   * armed through a mixed-basket refusal, a sign-in failure or the address editor, and the reset
+   * then fires on an unrelated click. Keep the read where it is.
+   */
+  const resetCartRef = useRef<boolean>( false );
   // The payment rail was entered and returned a RESULT. A ref for the decision, so `proceed` is
   // never a render behind; a state for the render. DEFENCE IN DEPTH, NOT THE GUARANTEE: the latch
   // dies with the page, so a reload or a second tab walks straight past it. The server-side
   // one-live-payment-per-basket guard is the guarantee.
   const railTerminalRef = useRef<boolean>( false );
-  // In-flight latch, distinct from railTerminalRef (which guards the terminal rail). This stops a
-  // second concurrent proceed() from firing a second prepare-checkout before the first completes:
-  // the duplicate hit Wix on the already-reserved cart and the server returned 502
-  // CATALOGUE_UNAVAILABLE, shown as "We could not prepare this order." Synchronous ref so the
-  // check-and-set is atomic within a turn.
-  const prepareInFlightRef = useRef<boolean>( false );
   const [ railTerminal, setRailTerminal ] = useState<boolean>( false );
+  /**
+   * A checkout run is in flight, so a second one must not start. SYNCHRONOUS, which is the whole
+   * point, and it is ADDITIONAL to every guard already here rather than a replacement for one.
+   *
+   * THE MEASURED BUG IT FIXES (checkout v11, from API Gateway and Lambda logs): `prepare-checkout`
+   * was posted TWICE in rapid succession. The first answered 200 and reserved the cart; the second,
+   * one to three seconds later, reached Wix on that already-reserved cart, `wix_ecom` raised, and
+   * `handler.py`'s `except wix_ecom.WixEcomError` answered 502 `CATALOGUE_UNAVAILABLE` -- which
+   * this page renders as "We could not prepare this order." Every payment attempt failed that way,
+   * and the customer's own first attempt was what broke their second.
+   *
+   * WHY THE EXISTING GUARDS DO NOT COVER IT, each for its own reason:
+   *   * `disabled={ busy || ... }` is REACT STATE. `setBusy(true)` does not disable the button
+   *     until a render commits, so two clicks (or a double-tap, or a click arriving beside
+   *     `CheckoutProfile`'s `onSaved`) both enter `proceed` while the attribute is still false.
+   *     State cannot guard re-entry into the function that sets it.
+   *   * `railTerminalRef` is synchronous but answers a different question: "the rail already
+   *     returned a RESULT". It is set when a payment finishes, not while one is being prepared,
+   *     so it is false for the whole window this latch covers.
+   *   * The server's one-live-payment guard IS the guarantee, and it still is -- but it sits
+   *     BELOW the Wix work in `_v2_snapshot`, so the second request reaches Wix and fails as a
+   *     catalogue error before the guard can answer its designed 409. Stopping the second post is
+   *     what keeps that 502 unreachable from this page.
+   *
+   * A ref and not state for the reason `justSavedRef` and `resetCartRef` are: the decision is
+   * made inside one invocation and must not be a render behind. Cleared in a `finally`, so a
+   * throw anywhere in the run cannot leave the page permanently unable to check out.
+   */
+  const proceedInFlightRef = useRef<boolean>( false );
 
   useEffect( () => {
     setItems( readCart() );
@@ -694,6 +865,9 @@ export default function Cart (): React.ReactElement {
   const postPrepare = useCallback( async (
     session: CustomerSession,
     lineItems: ReturnType<typeof toLineItems>,
+    // AN ARGUMENT, not a ref read inside the body, for the same reason `lineItems` is one: this
+    // callback closes over no state, so what it sends has to be handed to it.
+    resetCart = false,
   ): Promise<Outcome> => {
     try
     {
@@ -706,7 +880,11 @@ export default function Cart (): React.ReactElement {
         body: JSON.stringify( {
           action: 'prepare',
           lineItems,
-          requestKey: getCheckoutRequestKey(),
+          requestKey: getCheckoutRequestKey( lineItems ),
+          // Omitted entirely unless asked for, so an ordinary prepare's body is byte-identical to
+          // what it was. The server reads `body.get("resetCart") is True` -- an identity
+          // comparison, no coercion -- so an absent key and a false one are the same thing.
+          ...( resetCart ? { resetCart: true } : {} ),
         } ),
       } );
 
@@ -721,6 +899,11 @@ export default function Cart (): React.ReactElement {
         error?: string;
         paymentAttemptId?: string;
         message?: string;
+        /**
+         * The refusal reason on a `CHECKOUT_REJECTED`. Read because exactly one value --
+         * `INTENT_CHANGED` -- is recoverable by rotating the request key, and the rest are not.
+         */
+        reason?: string;
         options?: {
           keyId?: string;
           orderId?: string;
@@ -831,8 +1014,33 @@ export default function Cart (): React.ReactElement {
 
       if ( status === 'CHECKOUT_REJECTED' )
       {
-        return { kind: 'CHECKOUT_REJECTED' };
+        // The reason travels with the refusal now, because exactly ONE of them is recoverable by
+        // a retry: `INTENT_CHANGED` means the reservation was taken against a fingerprint that
+        // has since moved for a reason the browser cannot observe. `proceed` rotates the key once
+        // for that one; every other reason still latches on the first refusal.
+        return { kind: 'CHECKOUT_REJECTED', reason: String( data.reason || '' ) };
       }
+
+      // The contribution arms. These codes could not arrive on this route before Phase 2 -- the
+      // conditions existed, but `_website_prepare` had no arm for them and they fell through to a
+      // generic 503 the browser reads as transient.
+      if ( status === 'CONTRIBUTION_AMOUNT_INVALID' ) return { kind: 'CONTRIBUTION_AMOUNT_INVALID' };
+      if ( status === 'CONTRIBUTION_NOT_ALONE' ) return { kind: 'CONTRIBUTION_NOT_ALONE' };
+      if ( status === 'CONTRIBUTION_UNAVAILABLE' ) return { kind: 'CONTRIBUTION_UNAVAILABLE' };
+      if ( status === 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' )
+      {
+        return { kind: 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' };
+      }
+      if ( status === 'CONTRIBUTION_NOT_PAYABLE' ) return { kind: 'CONTRIBUTION_NOT_PAYABLE' };
+      // The Cart V2 arms, in the vocabulary `_create` already speaks.
+      if ( status === 'CART_RESET_REQUIRED' ) return { kind: 'CART_RESET_REQUIRED' };
+      if ( status === 'CART_NOT_PAYABLE' ) return { kind: 'CART_NOT_PAYABLE' };
+      if ( status === 'CART_RECONCILIATION_REQUIRED' )
+      {
+        return { kind: 'CART_RECONCILIATION_REQUIRED' };
+      }
+      if ( status === 'ITEMS_UNAVAILABLE' ) return { kind: 'ITEMS_UNAVAILABLE' };
+      if ( status === 'QUANTITY_REDUCED' ) return { kind: 'QUANTITY_REDUCED' };
 
       // PAYMENT_REQUEST_SENT hands off to the hosted status screen, which owns the honest copy for
       // an attempt that is genuinely in flight. NO claim about a charge is made here in either
@@ -948,6 +1156,87 @@ export default function Cart (): React.ReactElement {
       return;
     }
 
+    // ── the contribution refusals ──────────────────────────────────────────────
+    // None of these latches `paymentBlocked`: every one is either an amount the customer can
+    // change, a basket they can fix, or a configuration state that has nothing to do with them.
+    if ( outcome.kind === 'CONTRIBUTION_AMOUNT_INVALID' )
+    {
+      setNotice( { kind: 'quiet', message: CONTRIBUTION_HELP } );
+      return;
+    }
+    if ( outcome.kind === 'CONTRIBUTION_NOT_ALONE' )
+    {
+      // Word for word the browser-side notice, so the two refusals read identically.
+      setNotice( { kind: 'quiet', message: CONTRIBUTION_ALONE_MESSAGE } );
+      return;
+    }
+    if ( outcome.kind === 'CONTRIBUTION_UNAVAILABLE' )
+    {
+      setNotice( { kind: 'quiet', message: CONTRIBUTION_UNAVAILABLE_MESSAGE } );
+      return;
+    }
+    if ( outcome.kind === 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' )
+    {
+      // Copy that NAMES the action, because this one is recoverable -- unlike the
+      // misconfiguration refusal, which looks the same to the server and is not.
+      setNotice( {
+        kind: 'quiet',
+        message: 'A contribution takes no coupon or gift card. Remove it to continue.',
+      } );
+      return;
+    }
+    if ( outcome.kind === 'CONTRIBUTION_NOT_PAYABLE' )
+    {
+      // `error` rather than `quiet`: unlike the four above, this one is not something the
+      // customer did and not something they can undo, so it is the page's own failure to report
+      // rather than a gentle correction. It still does not latch `paymentBlocked` -- no payment
+      // was attempted, and a dashboard setting can be fixed between two presses.
+      setNotice( { kind: 'error', message: CONTRIBUTION_NOT_PAYABLE_MESSAGE } );
+      return;
+    }
+
+    // ── the Cart V2 refusals ───────────────────────────────────────────────────
+    if ( outcome.kind === 'CART_RESET_REQUIRED' )
+    {
+      // The ONE outcome arm that carries an action rather than only words. The excess lines are on
+      // the SERVER cart, which nothing on this page can touch, so "review your cart" would name
+      // an action the customer cannot perform. `resetCart` abandons the server pointer only; the
+      // browser cart is untouched and the next prepare rebuilds the Wix cart from it.
+      setCartResetOffered( true );
+      setNotice( {
+        kind: 'quiet',
+        message: 'Your saved cart has too many items to update. Start a new cart.',
+      } );
+      return;
+    }
+    if ( outcome.kind === 'CART_NOT_PAYABLE' )
+    {
+      setNotice( { kind: 'error', message: 'Please review your cart and try again.' } );
+      return;
+    }
+    if ( outcome.kind === 'CART_RECONCILIATION_REQUIRED' )
+    {
+      setNotice( { kind: 'quiet', message: 'Your cart is being updated. Please try again shortly.' } );
+      return;
+    }
+    if ( outcome.kind === 'ITEMS_UNAVAILABLE' )
+    {
+      setNotice( {
+        kind: 'error',
+        message: 'Some items are no longer available. Please review your cart.',
+      } );
+      return;
+    }
+    if ( outcome.kind === 'QUANTITY_REDUCED' )
+    {
+      setNotice( {
+        kind: 'error',
+        message: 'Some items are available in smaller quantities than you asked for. '
+          + 'Please confirm the new amounts.',
+      } );
+      return;
+    }
+
     // PAYMENT_INITIATION_DISABLED IS ANSWERED HERE, NOT ON THE STATUS SCREEN, and both halves of
     // that are deliberate.
     //
@@ -1026,16 +1315,63 @@ export default function Cart (): React.ReactElement {
     setNotice( { kind: 'error', message: 'We could not confirm checkout. Check your orders before trying again.' } );
   }, [] );
 
-  const proceed = useCallback( async (): Promise<void> => {
+  const runCheckout = useCallback( async (): Promise<void> => {
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
-    // Re-entry latch: ignore a duplicate proceed() while a prepare-checkout is already in flight,
-    // so the server never receives a second prepare on the already-reserved cart (which 502s).
-    if ( prepareInFlightRef.current ) return;
-    prepareInFlightRef.current = true;
-    try {
+    // THE IN-FLIGHT LATCH IS NOT HERE. It is `proceedInFlightRef`, in `proceed`, which is the only
+    // caller of this function -- see that docstring for the measured double-fire it fixes and for
+    // why it is a wrapper rather than a check bolted in at this line. An inline latch was tried
+    // and removed: it sat ABOVE the one-shot consume below and did not disarm it, so a call it
+    // turned away left `resetCart` armed for the next click, which is the exact leak the consume's
+    // placement exists to prevent. The wrapper disarms the one-shot on the path it refuses.
     setNotice( { kind: 'none' } );
+    setCartResetOffered( false );
+
+    // THE ONE-SHOT IS CONSUMED ON ENTRY, beside the control it answers, and the placement is the
+    // whole guarantee rather than a tidy-up.
+    //
+    // It used to be read immediately before the first `postPrepare`, with SIX `return`s above that
+    // point -- the mixed-basket refusal, a `restoreSession()` throw, an empty basket, and the
+    // `status === 'required'` arm that opens the address editor and returns WITHOUT navigating
+    // away. Arm the flag with "Start a new cart", hit any of them, and the flag survived: the next
+    // Checkout click posted `resetCart: true` and the server abandoned a saved cart nobody asked
+    // to discard. `setCartResetOffered(false)` is on the line above, so the control vanished while
+    // the flag it armed stayed armed -- the docstring on `resetCartRef` promised exactly the
+    // property the old position did not hold.
+    //
+    // Consuming it here makes the one-shot independent of WHICH branch returns. The cost of
+    // consuming it on a branch that never posts is that the customer clicks "Start a new cart"
+    // again after fixing the basket, which is the recoverable direction: the control is re-offered
+    // by the next `CART_RESET_REQUIRED`, and the alternative is a silent destructive write.
+    //
+    // The `railTerminalRef` return above is deliberately NOT covered, and cannot leak: nothing
+    // clears that ref, so once it is set every later `proceed` returns on that same line and no
+    // `postPrepare` can ever carry the flag again.
+    const resetCart = resetCartRef.current;
+    resetCartRef.current = false;
+
+    // A MIXED BASKET IS REFUSED HERE, BEFORE THE AUTH GATE, and that ordering is the point.
+    //
+    // It is a purely LOCAL fact -- the browser can see both kinds of line without asking anyone --
+    // so it must not cost a sign-in redirect first. Sending an unauthenticated customer to
+    // /account/sign-in/ and back only to then tell them their basket is wrong is two steps too
+    // many for something knowable in one.
+    //
+    // NO ARGUMENT, deliberately: `cartMixesContribution()` reads STORAGE. `proceed` is
+    // `useCallback(..., [profile, profileStatus])` and `items` is component state that is NOT a
+    // dependency, so passing `items` here would read a value captured at the last render -- stale
+    // after a row is removed with no intervening profile change. `proceed` re-reads storage via
+    // `toLineItems()` below for exactly this reason.
+    //
+    // Both exits are the per-row Remove buttons that already exist, so this adds a notice and a
+    // disabled CTA and no new affordance. The server refuses the same basket with
+    // `CONTRIBUTION_NOT_ALONE` in the same words, so a crafted request gets the same answer.
+    if ( cartMixesContribution() )
+    {
+      setNotice( { kind: 'quiet', message: CONTRIBUTION_ALONE_MESSAGE } );
+      return;
+    }
 
     // AUTH GATE. No session -> sign-in first, cart preserved in localStorage. No create call.
     let session;
@@ -1081,7 +1417,25 @@ export default function Cart (): React.ReactElement {
       setProfileStatus( status );
     }
 
-    if ( status === 'required' )
+    // THE DELIVERY GATE IS NOW CONDITIONAL ON THE BASKET, and on `mode` rather than on `profile`.
+    //
+    // `deriveStatus('PROFILE_READY', addressComplete=false)` returns 'required', which opens the
+    // address editor -- so a contribution-only cart would never reach the server's delivery skip.
+    // A missing ADDRESS blocks only a basket that needs delivery; a missing IDENTITY blocks every
+    // basket, and `mode === 'create'` is exactly "there is no identity yet".
+    //
+    // `mode`, NOT `profile?.email`: `profile` is a `useState` value captured in this closure and
+    // `setProfile(...)` does not change it for the remainder of this invocation, and `profileFrom`
+    // returns null for anything that is not PROFILE_READY. On a FIRST click `status` starts
+    // 'unknown' and `profile` is still undefined, so `!profile?.email` would be true and a
+    // contribution-only cart belonging to a fully provisioned customer would open the address
+    // editor anyway -- failing on the first click and working on the second. `mode` carries no
+    // stale read: it is reassigned from the reply inside the branch above.
+    //
+    // The server remains the authority. If this guesses wrong and lets a physical basket through,
+    // `prepare` answers 409 DELIVERY_DETAILS_REQUIRED and the arm below opens the editor.
+    const needsDelivery = cartRequiresDelivery();
+    if ( status === 'required' && ( needsDelivery || mode === 'create' ) )
     {
       setProfileMode( mode );
       setShowProfile( true );
@@ -1122,7 +1476,14 @@ export default function Cart (): React.ReactElement {
     setBusy( true );
     try
     {
-      let outcome = await postPrepare( session, lineItems );
+      // MUST STAY A `let`: the rotation below reassigns it, so "tidying" this into a `const`
+      // breaks that block rather than the line it is on.
+      //
+      // ONLY THE FIRST POST OF THIS INVOCATION CARRIES `resetCart` -- it was read and cleared at
+      // the top of `proceed`, and the retry and the rotation below deliberately omit it: both are
+      // re-posts of a request whose cart was already abandoned, and abandoning it a second time
+      // would mint a third cart.
+      let outcome = await postPrepare( session, lineItems, resetCart );
 
       // ONE BOUNDED RETRY AFTER A SAVE. `phone-index` is a GLOBAL secondary index and cannot be
       // read strongly consistent, so a `prepare` issued seconds after a save can legitimately see
@@ -1139,19 +1500,129 @@ export default function Cart (): React.ReactElement {
         outcome = await postPrepare( session, lineItems );
       }
 
+      // ONE ROTATION ON `INTENT_CHANGED`, and this is the ONE `CHECKOUT_REJECTED` reason a
+      // rotation can clear.
+      //
+      // The reservation was taken against a fingerprint that has since moved for a reason the
+      // browser cannot observe: `intent_fingerprint` keeps `cart_revision` AND `snapshot_hash`,
+      // and `checkout_pricing.basket_hash`'s own docstring records as MEASURED that the website
+      // prepare path writes to the Wix cart on every call -- so a second prepare of an UNEDITED
+      // basket can present a different `snapshot_hash`. Every reason the browser CAN predict is
+      // already handled by the basket-scoped key, so this is off the common path.
+      //
+      // It lives HERE and not in `applyOutcome`, and that placement is forced rather than
+      // preferred: a re-post must be awaited, `applyOutcome` is `useCallback(..., [])` returning
+      // void, and calling it from inside its own initialiser is a use-before-define. `proceed` is
+      // async, already holds `lineItems`, and already has exactly this shape in the retry above.
+      //
+      // THE BOUND IS THE ABSENCE OF A LOOP, and nothing else. This block is straight-line code
+      // reached once per `proceed`, so one rotation per click is structural. It previously also
+      // carried a `rotated` local guarding its own condition; that flag was dead -- `!rotated` was
+      // unconditionally true at its single evaluation and the assignment was never read -- so it
+      // was removed rather than left reading as a guarantee it did not provide. Do NOT wrap this in
+      // a loop: the bound would go with it.
+      //
+      // One rotation is also provably SUFFICIENT: the second post cannot answer `INTENT_CHANGED` at
+      // all, because both slots were just removed, so `getCheckoutRequestKey` mints a key no
+      // reservation holds and the server's reservation WINS rather than losing.
+      //
+      // It cannot mint a second gateway order: the one-live-payment guard is keyed on the CART,
+      // not on the request key, and it runs before the reservation is attempted. The re-post
+      // either prepares cleanly or is refused as `CHECKOUT_AMBIGUOUS`, which this page already
+      // handles by navigating to /checkout/status/.
+      //
+      // A non-`INTENT_CHANGED` `CHECKOUT_REJECTED` still latches on the FIRST refusal, unchanged.
+      if ( outcome.kind === 'CHECKOUT_REJECTED' && outcome.reason === 'INTENT_CHANGED' )
+      {
+        if ( typeof window !== 'undefined' )
+        {
+          window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
+          window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
+        }
+        outcome = await postPrepare( session, lineItems );
+      }
+
       applyOutcome( outcome, session );
     }
     finally
     {
       setBusy( false );
     }
-    } finally {
-      prepareInFlightRef.current = false;
-    }
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
     // the two pieces of state read above.
   }, [ profile, profileStatus ] );
+
+  /**
+   * THE ONLY WAY INTO A CHECKOUT RUN, and it is a latch and nothing else.
+   *
+   * A thin wrapper rather than a check bolted inside `runCheckout`, for two reasons that are both
+   * about the guarantee rather than about style:
+   *
+   *   1. `runCheckout` has fourteen `return` statements. A `finally` has to wrap the WHOLE body
+   *      to clear the latch on every one of them, and wrapping a 200-line body in a `try` makes
+   *      the diff the body rather than the fix -- so the next reader cannot see what changed.
+   *   2. A latch that lives outside the function it guards cannot be defeated by an early return
+   *      added later. There is no path into the run that skips it, because there is no other
+   *      caller: `onClick` and `startNewCart` both call THIS.
+   *
+   * CHECK-AND-SET, SYNCHRONOUSLY, BEFORE THE FIRST `await`. JavaScript is single-threaded, so
+   * nothing can interleave between the read and the write; that is what makes a ref sufficient
+   * here where React state is not.
+   *
+   * THE RESET ONE-SHOT IS DISARMED ON A REFUSED ENTRY, which is not optional. `startNewCart` arms
+   * `resetCartRef` and then calls this; if the latch turns that call away, a flag the customer
+   * armed would survive into their NEXT click and abandon a saved cart on an ordinary Checkout
+   * press. `resetCartRef`'s own docstring calls that out as the failure to avoid. The cost is one
+   * more click on "Start a new cart" after the in-flight run finishes -- and the control is
+   * re-offered by the next `CART_RESET_REQUIRED`, so the recoverable direction is the one taken.
+   *
+   * No notice is set on a refused entry, deliberately. The run in flight is already showing
+   * "Preparing…" on the CTA, and "please wait" on top of that explains nothing the customer cannot
+   * already see.
+   */
+  const proceed = useCallback( async (): Promise<void> => {
+    if ( proceedInFlightRef.current )
+    {
+      resetCartRef.current = false;
+      return;
+    }
+    proceedInFlightRef.current = true;
+    try
+    {
+      await runCheckout();
+    }
+    finally
+    {
+      proceedInFlightRef.current = false;
+    }
+  }, [ runCheckout ] );
+
+  /**
+   * A mixed basket, derived from `items` at RENDER time.
+   *
+   * Reading state is correct here -- unlike inside `proceed`, where `items` is captured by the
+   * `useCallback` and the storage read is the one that cannot be stale. Both answers come from the
+   * same helper, so the disabled CTA and the refusal inside `proceed` cannot disagree.
+   */
+  const mixedBasket = cartMixesContribution( items );
+
+  /**
+   * Re-post the SAME prepare with `resetCart: true`, the answer to `CART_RESET_REQUIRED`.
+   *
+   * It goes through `proceed` rather than calling `postPrepare` directly, so the auth gate, the
+   * readiness question, the retry and every outcome arm still apply -- a reset is an ordinary
+   * checkout with one extra boolean, not a second path. `proceed` consumes the flag ON ENTRY, so
+   * if this click is refused before it ever posts -- a mixed basket, a sign-in failure, the
+   * address editor -- the flag dies with that invocation rather than silently abandoning a cart on
+   * a later click. The customer clicks this again once the refusal is cleared, and the control is
+   * re-offered by the next `CART_RESET_REQUIRED`.
+   */
+  const startNewCart = useCallback( (): void => {
+    resetCartRef.current = true;
+    setCartResetOffered( false );
+    void proceed();
+  }, [ proceed ] );
 
   const isEmpty = ready && items.length === 0;
 
@@ -1208,15 +1679,21 @@ export default function Cart (): React.ReactElement {
                       ) }
                     </div>
                     <div className="cart-row-controls">
-                      <label className="cart-qty-label" htmlFor={ `qty-${item.ref}` }>Qty</label>
-                      <input
-                        id={ `qty-${item.ref}` }
-                        className="cart-qty"
-                        type="number"
-                        min={ 1 }
-                        value={ item.quantity }
-                        onChange={ e => changeQuantity( item.ref, Number( e.target.value ) ) }
-                      />
+                      { isContributionItem( item )
+                        ? <ContributionAmount item={ item } onCommitted={ () => setItems( readCart() ) } />
+                        : (
+                          <>
+                            <label className="cart-qty-label" htmlFor={ `qty-${item.ref}` }>Qty</label>
+                            <input
+                              id={ `qty-${item.ref}` }
+                              className="cart-qty"
+                              type="number"
+                              min={ 1 }
+                              value={ item.quantity }
+                              onChange={ e => changeQuantity( item.ref, Number( e.target.value ) ) }
+                            />
+                          </>
+                        ) }
                       <button
                         className="cart-remove"
                         type="button"
@@ -1231,8 +1708,15 @@ export default function Cart (): React.ReactElement {
               </ul>
 
               {/* Coupon + gift card. Every amount shown is server-authoritative; with the backend
-                  gate off this shows an honest unavailable state and cannot transact. */}
-              <RedemptionPanel />
+                  gate off this shows an honest unavailable state and cannot transact.
+
+                  NOT RENDERED ON A CART CONTAINING A CONTRIBUTION. A contribution takes neither:
+                  a coupon would make the recorded amount differ from the amount contributed, and a
+                  gift card is store credit -- spending store credit is not a contribution. Removing
+                  the entry point is the cheap half; the server refusal is the authoritative half,
+                  since this panel is not the only way a coupon could ever land on a Wix cart. A
+                  render-time read of `items` is correct here. */}
+              { !items.some( isContributionItem ) && <RedemptionPanel /> }
 
               {/* THE RETURNING CUSTOMER SEES WHAT WE ALREADY KNOW, not a form. Rendered only on
                   'ready', which means profile complete AND an address on file, so the Deliver row
@@ -1308,6 +1792,20 @@ export default function Cart (): React.ReactElement {
                 <p className="cart-status cart-status-firm" role="alert">{ notice.message }</p>
               )}
 
+              {/* THE ONE REFUSAL THAT CARRIES AN ACTION. The excess lines are on the SERVER cart,
+                  which nothing on this page can touch, so words alone would name an action the
+                  customer cannot perform. This re-posts the SAME prepare with `resetCart: true`
+                  and the SAME lineItems; the browser cart is not touched, and the next prepare
+                  rebuilds the Wix cart from it. */}
+              { cartResetOffered && !railTerminal && (
+                <p className="cart-back">
+                  <button className="cart-remove" type="button" disabled={ busy }
+                          onClick={ startNewCart }>
+                    Start a new cart
+                  </button>
+                </p>
+              ) }
+
               {/* THE SAME TWO-SEGMENT PILL as the sign-in CTA (PillButton), because this button is
                   the customer login gate: an anonymous shopper who clicks it is sent to
                   /account/sign-in. Never a "pay now" claim. The visible pill reads
@@ -1340,7 +1838,10 @@ export default function Cart (): React.ReactElement {
                          disabled term is what keeps it dead. `busy` is left alone: the spinner
                          means "a request is in flight", and a latched page is not busy, it is
                          finished. */
-                      disabled={ busy || railTerminal }
+                      /* ...plus the mixed basket, derived from `items` at RENDER time, which is
+                         where reading state is correct. The server refuses the same basket; this
+                         stops the request being made at all. */
+                      disabled={ busy || railTerminal || mixedBasket }
                       busy={ busy }
                     /> }
               </div>
@@ -1404,6 +1905,20 @@ export default function Cart (): React.ReactElement {
             font-family:inherit;font-size:16px;text-align:center;color:#1a1a1a;
           }
           .cart-qty:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          /* The contribution row's amount chooser. Deliberately the SAME box as .cart-qty - the
+             1px #e5e7eb hairline, the 8px radius, the 44px tap floor and the 16px type - because
+             it occupies the same slot in the row and a second control idiom there would read as a
+             different kind of thing. Wider, because "₹250" plus the native disclosure arrow does
+             not fit 72px. The leading rupee mark that used to sit beside the old free-text field
+             went with it: each option already carries its own ₹.
+
+             #1a3a2a is --accent / colors.primary and #e5e7eb is the shared hairline; no new hue is
+             introduced by this phase. */
+          .cart-amount-select{
+            min-width:96px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
+            font-family:inherit;font-size:16px;color:#1a1a1a;background:#fff;
+          }
+          .cart-amount-select:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
           /* A 44px target, not a 27px one. This was padding:6px around a 15px line, which
              computed to about 27px tall - under the floor devicecheck enforces elsewhere on the
              site and the smallest control on the page. */

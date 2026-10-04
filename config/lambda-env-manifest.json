@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 68,
-  "_variables": 401,
+  "_variables": 402,
   "_fingerprinted": 14,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -97,6 +97,7 @@
     "wecare-catalog-management": {},
     "wecare-checkout": {
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
+      "CONTRIBUTION_PRODUCT_ID": "",
       "EXPECTED_CONFIGURATION_NAME": "",
       "EXPECTED_PROVIDER_MID": "",
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",

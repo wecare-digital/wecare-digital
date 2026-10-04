@@ -1056,9 +1056,13 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     expect( wa.getAttribute( 'target' ) ).toBe( '_blank' );
     expect( wa.getAttribute( 'rel' ) ).toContain( 'noopener' );
 
-    // CONTRIBUTE: BlogContribution renders its "Contribute" heading and submit button.
+    // CONTRIBUTE: BlogContribution renders its "Contribute" heading and submit button. The CTA
+    // now names the amount it is about to put in the cart - it NAVIGATES rather than pays, so
+    // "Contribute" alone would not say what pressing it does. A preset is selected by default, so
+    // the amount is always present.
     expect( screen.getByRole( 'heading', { name: 'Contribute' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'button', { name: 'Contribute' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'button', { name: /^Contribute \u20B9\d+$/ } ) )
+      .toBeInTheDocument();
 
     // SHARE: ShareLinks renders the canonical /vayulok/ WhatsApp share control. Its accessible
     // name ('Share this page on WhatsApp') is distinct from the Subscribe anchor above.

@@ -1641,6 +1641,13 @@ TOUCHED_PYTHON = (
     "amplify/functions/shared/lambda_utils/ecommerce/website_checkout.py",
     "amplify/functions/shared/lambda_utils/ecommerce/finalization.py",
     "amplify/functions/ecommerce/checkout/handler.py",
+    # Phase 2 (contribution as a product) widens the change set by three files, per this tuple's
+    # own instruction. `wix_ecom` gains `resolved_catalog_lines`, `blog_contribution` gains the
+    # committed recognition set and a re-based exception, `customer_cart` gains `abandon`.
+    # `customer_receipt.py` is deliberately NOT here: the phase leaves it untouched.
+    "amplify/functions/shared/lambda_utils/wix_ecom.py",
+    "amplify/functions/shared/lambda_utils/ecommerce/blog_contribution.py",
+    "amplify/functions/shared/lambda_utils/ecommerce/customer_cart.py",
 )
 
 

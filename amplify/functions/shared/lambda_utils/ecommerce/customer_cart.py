@@ -94,6 +94,68 @@ class CustomerCart:
             raise CartMissing("cart was created but no cart id was persisted")
         return cart_id, True
 
+    def abandon(self, identity):
+        """Stop using this identity's saved Wix cart. Returns True when a pointer was released.
+
+        Why this exists: a no-delivery basket must not inherit `deliveryInfo.address` from an
+        earlier physical attempt on the same 30-day cart, and there is no Cart V2 call that clears
+        that field. The only way to get a clean cart is to stop using this one.
+
+        A PUT OF AN EXPIRED POINTER, NOT A DELETE, and that is measured rather than stylistic: the
+        checkout function's IAM grants GetItem/PutItem/UpdateItem on this table and NOT DeleteItem
+        (amplify/infra/checkout.json, Sid PaymentAttemptAndCommerceKeys). A conditional delete
+        would answer AccessDeniedException in production and pass against a FakeDynamo in every
+        test. `resolve()` already returns None for `expiresAt <= now`, and `execute`'s `active`
+        check is the same comparison, so an expired row reads as "no cart" to both.
+
+        `abandonedCartId` IS NOT A DURABLE TRAIL. It is written for a reader who gets to the row
+        before the next `ensure`, and it does not survive one: `execute`'s claim is a full
+        `put_item` that rebuilds the item from scratch -- `pending = {**key, customerId,
+        version+1, busy, expiresAt}` plus `wixCartId` only when `active`, and `finished` derives
+        from `pending` -- so neither carries `abandonedCartId`. On an abandoned row `active` is
+        False, so `ensure` -> `resolve` -> None -> `execute("create")` always takes that branch,
+        and BOTH call sites re-`ensure` in the same invocation. Lifetime: milliseconds. The field
+        is kept because it costs nothing and is occasionally readable; the DURABLE record of an
+        abandon is the LOG LINE, which is why `checkout_cart_delivery_reset` carries the abandoned
+        Wix cart id. The reason this method is a put rather than a delete is the IAM fact above,
+        which stands on its own and never needed the traceability argument.
+
+        REFUSES WHILE THE CART IS BUSY, deliberately. A lock means a Wix outcome is unknown, and
+        abandoning the pointer behind one would hide that rather than resolve it. This is NOT the
+        remedy for a stuck lock -- that stays an owner action.
+
+        WHICH PATH ACTUALLY REACHES THAT REFUSAL, because only one does. On the stale-delivery
+        path this method is called AFTER `ensure`, and `ensure` calls `resolve`, which raises
+        `CartBusy` on a busy row before it returns a cart id -- so a busy cart is refused by
+        `resolve` and this check is never evaluated. The check is reachable only from the
+        `resetCart` path, where `abandon` runs BEFORE `ensure`. It is kept regardless, because an
+        unconditional read-modify-write of a locked row would be wrong whoever called it, and
+        because the conditional put below could not be relied on alone: it refuses on a version
+        mismatch, which a lock does not necessarily produce.
+
+        The conditional is `execute`'s own claim condition, so a concurrent operation wins rather
+        than being clobbered.
+        """
+        key = {"orderId": _key(identity)}
+        row = self.table.get_item(Key=key, ConsistentRead=True).get("Item")
+        if not row:
+            return False
+        authorize_resource(identity, row)
+        if row.get("busy"):
+            raise CartBusy("cart operation requires reconciliation")
+        version = int(row.get("version", 0))
+        try:
+            self.table.put_item(
+                Item={**key, "customerId": identity.customer_id, "version": version + 1,
+                      "abandonedCartId": row.get("wixCartId"), "expiresAt": 0},
+                ConditionExpression="version = :version AND attribute_not_exists(busy)",
+                ExpressionAttributeValues={":version": version})
+        except Exception as error:
+            if _conditional(error):
+                raise CartBusy("another cart operation won") from error
+            raise
+        return True
+
     def execute(self, identity, command):
         """Identity comes from customer_auth or a verified WhatsApp webhook adapter.
 

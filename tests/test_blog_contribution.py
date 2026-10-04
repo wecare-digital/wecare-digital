@@ -70,11 +70,68 @@ def test_each_preset_amount_is_accepted(preset):
 
 
 def test_server_presets_mirror_the_frontend_contract():
-    # The shipped UI declares the same three common choices: ₹100 / ₹250 / ₹500.
-    # The server copy is intentionally separate so the browser cannot widen the trusted amount.
+    # The three common amounts: Rs.100 / Rs.250 / Rs.500, as integer paise. The server copy is
+    # intentionally separate so the browser cannot widen the trusted amount.
+    #
+    # THIS IS THE RETIRED OWN-MONEY PATH's copy of those amounts. `validate_contribution_amount`
+    # and `prepare_contribution` still use it, and the figures still agree with the three live
+    # choices, but src/config/contribution.ts no longer declares a matching
+    # `CONTRIBUTION_PRESETS_PAISE` -- the 2026-10-04 owner model change replaced the
+    # preset-plus-custom-amount model with three fixed-price Wix variants, so there is no
+    # browser-proposed amount left to widen. The guard on the LIVE contract is
+    # `test_server_choices_mirror_the_frontend_contract` below.
     assert bc.CONTRIBUTION_PRESETS_PAISE == (10000, 25000, 50000)
 
 
+def test_server_choices_mirror_the_frontend_contract():
+    """The THREE FIXED CHOICES, declared in Python and in TypeScript, held equal here.
+
+    Declared twice on purpose: the browser must not be able to widen the trusted set, so the
+    server cannot import the browser's copy. That makes drift the hazard, and this is the guard.
+    Parsed out of the TS source rather than transpiled, which is the same move
+    `test_server_presets_mirror_the_frontend_contract` made for the retired presets.
+
+    The GUIDs are MEASURED values, read off the live `Contribute` product's
+    `GET /stores/v3/products/{id}` on 2026-10-04 -- one product, PHYSICAL, three visible in-stock
+    variants priced Rs.100 / Rs.250 / Rs.500.
+    """
+    import re
+    root = pathlib.Path(__file__).resolve().parents[1]
+    config = (root / "src/config/contribution.ts").read_text(encoding="utf-8")
+
+    # Matched on the DECLARATION, not on the `|| 'default'` fallback it used to carry. The
+    # `NEXT_PUBLIC_CONTRIBUTION_PRODUCT_ID` override was removed in review pass 3 (CR3-4): set
+    # alone it made the browser name a product the server does not recognise, which prices the
+    # line as an ordinary purchase with the convenience fee, the GST and an address demand, with
+    # no guard firing. A regex anchored on `||` would have gone quietly green against a file that
+    # no longer declares an id at all, so it is anchored on the name instead.
+    product = re.search(r"CONTRIBUTION_PRODUCT_ID[^=]*=\s*'([0-9a-f-]{36})'", config)
+    assert product, "src/config/contribution.ts must declare the contribution product id"
+    assert bc.CONTRIBUTION_PRODUCT_IDS == frozenset({product.group(1)})
+    # And the override stays gone. Asserted on `process.env` rather than on the key's name, which
+    # is deliberate: the file's own docstring has to be able to explain which override was removed
+    # and why, and a text ban on the name would make that explanation fail the test. What must not
+    # come back is a READ.
+    assert "process.env" not in config, \
+        "no build-time env override belongs in the contribution config (CR3-4)"
+
+    declared = re.findall(
+        r"variantId:\s*'([0-9a-f-]{36})',\s*rupees:\s*(\d+),\s*paise:\s*(\d+)", config)
+    assert len(declared) == 3, f"expected three choices in the TS config, found {len(declared)}"
+    assert {variant: int(paise) for variant, _rupees, paise in declared} \
+        == dict(bc.CONTRIBUTION_CHOICES_PAISE)
+    # Each TS choice's rupee label and paise value agree, so neither side can carry a typo that
+    # the other happens to repeat.
+    for _variant, rupees, paise in declared:
+        assert int(rupees) * 100 == int(paise)
+    assert bc.CONTRIBUTION_VARIANT_IDS == frozenset(bc.CONTRIBUTION_CHOICES_PAISE)
+
+
+# `validate_contribution_amount` is PRESET-ONLY, and the bounds constants it used to carry
+# (`CONTRIBUTION_MIN_PAISE` / `CONTRIBUTION_MAX_PAISE`) are gone, so the old
+# in-bounds-custom-amount case has no subject any more. The former presets 20000 / 40000 / 60000
+# are among the rejected values below, which is what pins that the retired path narrowed rather
+# than merely moved.
 @pytest.mark.parametrize('bad', [999, 0, -10000, 20000, 40000, 60000, 12345, 10_000_000])
 def test_non_preset_amount_is_rejected(bad):
     with pytest.raises(bc.ContributionRejected) as exc:

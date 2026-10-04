@@ -6,7 +6,7 @@ import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
-import { CONTRIBUTION_PRESETS_PAISE, paiseToRupees } from '../config/contribution';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
 
 vi.mock( 'next/head', () => ( { default: ( { children }: { children: React.ReactNode } ) => <>{ children }</> } ) );
 
@@ -844,21 +844,24 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * THE PRESET AMOUNTS COME FROM THE CENTRAL CONFIG, not from literals re-typed into the page.
+   * THE AMOUNTS COME FROM THE CENTRAL CONFIG, not from literals re-typed into the page.
    * Reading them from src/config/contribution.ts here is the same move ShareMeta.test.tsx makes
    * for the share card: the test holds the rendered values equal to the one source.
    */
-  it( 'renders the preset amounts from the central contribution config', () => {
+  it( 'renders the three contribution amounts from the central config, and no Other', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
     const faces = Array.from( container.querySelectorAll( 'section.bc .bc-choice-face' ) )
-      .map( n => n.textContent || '' );
+      .map( n => ( n.textContent || '' ).trim() );
 
-    for ( const paise of CONTRIBUTION_PRESETS_PAISE ) {
-      expect( faces.some( f => f.includes( String( paiseToRupees( paise ) ) ) ) ).toBe( true );
-    }
-    // The common contribution UI is preset-only; there is no separate custom option.
-    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( false );
+    expect( faces ).toEqual(
+      CONTRIBUTION_CHOICES.map( choice => `\u20B9${ choice.rupees }` ) );
+    // Pinned against the literal as well as the config, deliberately. The line above proves the
+    // markup cannot drift from the config; this one proves the config itself still offers the
+    // three amounts the brief asks for, which a config-derived assertion alone would not catch.
     expect( faces ).toEqual( [ '₹100', '₹250', '₹500' ] );
+    // The "Other" custom option went with the free-text amount on 2026-10-04: there are three
+    // fixed-price choices and nothing else.
+    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( false );
   } );
 } );
 

@@ -18,17 +18,42 @@
  * window/storage access is SSR-guarded (typeof window === 'undefined'), matching customerAuth.ts,
  * because these pages are statically exported and this module is imported into prerendered code.
  *
- * THE lineItems SHAPE MATCHES THE BACKEND CONTRACT. wix_ecom.create_checkout documents its input
- * as `{catalogReference, quantity}` entries - "a reference into the Wix catalogue, never a price".
- * The products are dummy placeholders today, so the exact nested Wix catalogReference object
- * (catalogItemId/appId) is not knowable from this repo; toLineItems() therefore sends the
- * product's Wix catalogue id as the catalogReference and the quantity, which is refs+quantities
- * ONLY and is trivially remapped to the final nested shape once real products are chosen. See the
- * findings note on the assumption.
+ * THE lineItems SHAPE MATCHES THE BACKEND CONTRACT, AND IT IS MEASURED RATHER THAN GUESSED.
+ *
+ * THE PARAGRAPH THAT USED TO BE HERE WAS FALSE, AND ITS FALSENESS COST A WRONG DIAGNOSIS OF A
+ * LIVE PAYMENT OUTAGE (2026-10-04). It said: "The products are dummy placeholders today, so the
+ * exact nested Wix catalogReference object (catalogItemId/appId) is not knowable from this repo;
+ * toLineItems() therefore sends the product's Wix catalogue id as the catalogReference ... and is
+ * trivially remapped to the final nested shape once real products are chosen." That described an
+ * EARLIER implementation. The code moved to the real nested shape and the comment did not, so a
+ * reader looking for the cause of a 502 found a self-declared guess sitting on top of correct
+ * code and reasonably suspected it.
+ *
+ * What `toLineItems()` actually emits, and why each part is right, verified against the LIVE Wix
+ * Catalog V3 API on 2026-10-04:
+ *
+ *   { catalogReference: { appId, catalogItemId, options?: { variantId } }, quantity }
+ *
+ *   * `appId` is the Wix Stores app id `215238eb-22a5-4c36-9e7b-e7c08025e04e`, and it must equal
+ *     `cart_v2.STORES_APP_ID` exactly -- `resolved_catalog_lines` refuses any other value as
+ *     "invalid catalogue reference". It does. Pinned by a test, because the two are separate
+ *     declarations in two languages.
+ *   * `catalogItemId` is the V3 PRODUCT id, never the slug and never a variant id. A variant id
+ *     here would 404 at `GET /stores/v3/products/{id}`.
+ *   * `options.variantId` is present only when the line carries one, which is the correct V3
+ *     shape: a no-option product's reference carries no `options`.
+ *
+ * AND THE VARIANT IDS IN THE COMMITTED SNAPSHOT ARE LIVE, NOT STALE V1 LEFTOVERS. Measured for
+ * all seven shop products: 19 of 19 committed variant ids exist in the live V3 response, every
+ * one `visible: true` and `inStock: true`. A V3 product with `options: []` still has exactly one
+ * real variant with a real id, and the snapshot holds that id. So `resolved_catalog_lines`
+ * accepts every line this function builds, and it is NOT the source of the live 502.
  */
 
 import { SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
+import type { ContributionChoice } from '../config/contribution';
+import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -343,9 +368,144 @@ export function clearCart (): void {
   announce();
 }
 
-/** Total number of units across all lines - for a header badge or an empty check. */
+/**
+ * How many lines-worth of things are in the cart, for the header badge and the empty check.
+ *
+ * NO CONTRIBUTION SPECIAL CASE, and the absence is deliberate rather than an omission. Under the
+ * retired amount-as-quantity model a Rs.400 contribution was `quantity: 400`, so a plain sum
+ * rendered "Shopping Bag, 400 items" and a `99+` badge for one contribution. A contribution is now
+ * a fixed-price variant at `quantity: 1`, so the sum is already the honest answer and an exception
+ * here would be dead code with a misleading comment attached.
+ */
 export function cartCount (): number {
   return readCart().reduce( ( sum, item ) => sum + item.quantity, 0 );
+}
+
+/**
+ * Is this line the contribution vehicle? On `productId`, so a `ref` format change cannot break it.
+ *
+ * ALL THREE AMOUNTS ARE ONE PRODUCT, which is what makes a product-id test sufficient: the live
+ * `Contribute` product carries an "Amount" option with three variants, so the choice is the
+ * `variantId` and the identity is the `productId`.
+ *
+ * Returns false for every line when nothing is configured, which makes every helper below inert
+ * rather than guessing. The browser's answer is a COURTESY: the server re-derives recognition from
+ * its own committed set and refuses what it does not like.
+ */
+export const isContributionItem = ( item: CartItem ): boolean =>
+  !!CONTRIBUTION_PRODUCT_ID && item.productId === CONTRIBUTION_PRODUCT_ID;
+
+/** The amount a contribution line represents, or null when the line is not one of the three. */
+export const contributionOf = ( item: CartItem ): ContributionChoice | null =>
+  isContributionItem( item ) ? contributionChoice( item.variantId ) : null;
+
+/**
+ * Exactly one contribution line per cart, and choosing an amount SETS it.
+ *
+ * THE ARGUMENT IS A CHOICE, NOT AN AMOUNT (owner model change, 2026-10-04). It used to take a
+ * rupee integer and validate it against ₹10–₹1,00,000 bounds, because the figure became the line's
+ * quantity and a free-text field could produce anything. There are now three fixed-price variants
+ * and no free text, so the only thing to check is membership: an unrecognised `variantId` returns
+ * the cart unchanged and writes nothing. Nothing is clamped and nothing is coerced, because there
+ * is no longer a number to coerce.
+ *
+ * `addItem` is NOT reused: it INCREMENTS, so choosing ₹100 and then ₹500 would leave two
+ * contribution lines, which is a basket the server refuses as two contributions. Choosing an
+ * amount replaces the line.
+ *
+ * Returns the updated cart, or the current one unchanged on reject.
+ */
+export function setContribution ( variantId: string ): CartItem[] {
+  if ( !CONTRIBUTION_PRODUCT_ID ) return readCart();
+  const choice = contributionChoice( variantId );
+  if ( !choice ) return readCart();
+  const ref = `${CONTRIBUTION_PRODUCT_ID}:${choice.variantId}`;
+  const items = readCart().filter( item => !isContributionItem( item ) );
+  items.push( {
+    productId: CONTRIBUTION_PRODUCT_ID,
+    variantId: choice.variantId,
+    // The shape `addItem` builds, so `removeItem` and the `key` prop work unchanged.
+    ref,
+    // Empty, so cart.tsx's existing `item.slug ? <Link> : item.name` does NOT link to a
+    // /shop/contribute/ page that `SHOP_PRODUCTS` deliberately excludes.
+    slug: '',
+    // The amount is IN THE NAME, because a contribution has no other distinguishing feature and
+    // "Contribute" alone beside a price would read as a product.
+    name: `Contribution \u20B9${ choice.rupees }`,
+    // A REAL PRICE NOW, and it is honest: the variant is priced at exactly this figure in Wix and
+    // the quantity is 1, so the row total is the row price. Under the retired model this had to be
+    // blank, because a per-unit "Rs.1.00" beside a Rs.400 contribution was a lie.
+    formattedPrice: `\u20B9${ choice.rupees }.00`,
+    quantity: 1,
+  } );
+  writeCart( items );
+  return items;
+}
+
+/**
+ * Does this basket need a delivery address? Mirrors the server's rule and is NOT the authority.
+ *
+ * BOTH SIDES NOW KEY ON IDENTITY, which they did not always: the server used to read Wix's
+ * `productType`, and the live `Contribute` product is PHYSICAL, so the two disagreed about the
+ * same basket. `checkout/handler.py:_v2_catalog_items` overrides the `productType` rule for a
+ * recognised contribution line, which is the rule mirrored here.
+ *
+ * FAIL-CLOSED HERE TOO, by construction: true unless the basket is PROVABLY contribution-only.
+ * `[]` therefore returns true, which never reaches the gate because `proceed`'s
+ * `lineItems.length === 0` guard runs first.
+ *
+ * CALL IT WITH NO ARGUMENT from inside `proceed`. The default reads STORAGE; passing the `items`
+ * state would read a value captured at the last render, and `proceed` is
+ * `useCallback(..., [profile, profileStatus])` with `items` deliberately not a dependency.
+ */
+export const cartRequiresDelivery = ( items: CartItem[] = readCart() ): boolean =>
+  !( items.length > 0 && items.every( isContributionItem ) );
+
+/**
+ * A basket the server will refuse: a contribution is paid on its own. Drives the cart page's
+ * notice and its disabled Checkout. Same no-argument rule as above.
+ */
+export const cartMixesContribution = ( items: CartItem[] = readCart() ): boolean =>
+  items.some( isContributionItem ) && items.some( item => !isContributionItem( item ) );
+
+/**
+ * A stable identifier for WHAT IS IN the basket, for scoping the checkout request key.
+ *
+ * Not a hash in the cryptographic sense and not security-bearing: it only has to change when the
+ * basket changes and not change when it does not.
+ *
+ * Derived from `toLineItems()` rather than from `CartItem[]`, so it is computed from exactly the
+ * payload the server will fingerprint - catalogue reference, variant and quantity, nothing else.
+ * Order-independent (`sort`), because two carts holding the same lines in a different order are the
+ * same intent and `cart_v2.calculate` prices them identically.
+ *
+ * NO CRYPTO AND NO ASYNC, deliberately: `crypto.subtle.digest` is a Promise, and `proceed` reads
+ * the request key synchronously on a user gesture. A short djb2-style digest of the sorted
+ * reference list is sufficient for a sessionStorage key name.
+ *
+ * THE LENGTH AND LINE-COUNT SUFFIX IS NOT DECORATION. The djb2 accumulator is `>>> 0`, so the
+ * digest alone carries 32 bits - and two DIFFERENT baskets sharing a slot is precisely the failure
+ * the request-key scoping removes: a resumed key whose `intent_fingerprint` has moved, answered
+ * 409 CHECKOUT_REJECTED, latching `paymentBlocked` for the life of the tab. Appending the canonical
+ * length and the line count costs one template literal and means colliding baskets would also have
+ * to agree on both.
+ *
+ * The explicit-argument form is what the request-key call site uses, because the key must describe
+ * the basket in THIS request body - a re-read of storage during the post-save retry could key a
+ * basket it is not sending.
+ */
+export function basketFingerprint ( items: CheckoutLineItem[] = toLineItems() ): string {
+  const canonical = items
+    .map( line => `${ line.catalogReference.catalogItemId }:${
+      line.catalogReference.options?.variantId || '' }:${ line.quantity }` )
+    .sort()
+    .join( '|' );
+  let hash = 5381;
+  for ( let i = 0; i < canonical.length; i += 1 )
+  {
+    hash = ( ( hash * 33 ) ^ canonical.charCodeAt( i ) ) >>> 0;
+  }
+  return `${ hash.toString( 36 ) }.${ canonical.length.toString( 36 ) }.${ items.length }`;
 }
 
 /**
