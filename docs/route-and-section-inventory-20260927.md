@@ -223,7 +223,7 @@ Measured against the build, the structure you sketched is already true with thre
 - `get/*` — **see R2**; the page and the rewrite are on the same prefix.
 - `store/` — **see R1**; still at the root, still authenticated, needs to move under
   `workspace/commerce/`.
-- `selfservice/`, `product-page/*` — already removed from the export and absent from the
+- `customerservice/`, `product-page/*` — already removed from the export and absent from the
   sitemap, as intended.
 
 ---

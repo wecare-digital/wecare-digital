@@ -44,7 +44,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
     let ssMenuConfig: any = null;
     try { welcomeConfig = await api.getSystemConfig('wa_auto_response'); } catch {}
     try { mainMenuConfig = await api.getSystemConfig('welcome_message_config'); } catch {}
-    try { ssMenuConfig = await api.getSystemConfig('selfservice_menu_config'); } catch {}
+    try { ssMenuConfig = await api.getSystemConfig('customerservice_menu_config'); } catch {}
 
     // Welcome messages — use live config or defaults
     const welcomeText = welcomeConfig?.welcomeMessage || '(Using Lambda default — no custom welcome set)';
@@ -68,7 +68,7 @@ const ScriptsPageBody: React.FC<Props> = () => {
     const ssButton = ssMenuConfig?.buttonText || 'Browse Services';
     const ssSections = ssMenuConfig?.sections?.length || 10;
     items.push(
-      { id: 'ss_menu', category: 'Menu', trigger: '"selfservice" / tapping Selfservice from main menu', messageType: 'Interactive List', content: `Header: ${ssHeader}\nBody: ${ssBody}\nButton: ${ssButton}\nSections: ${ssSections}`, phone: 'Both', editable: true, configKey: 'selfservice_menu_config' },
+      { id: 'ss_menu', category: 'Menu', trigger: '"customerservice" / tapping Selfservice from main menu', messageType: 'Interactive List', content: `Header: ${ssHeader}\nBody: ${ssBody}\nButton: ${ssButton}\nSections: ${ssSections}`, phone: 'Both', editable: true, configKey: 'customerservice_menu_config' },
     );
 
     // CTA messages (hardcoded in Lambda — shown for content review)

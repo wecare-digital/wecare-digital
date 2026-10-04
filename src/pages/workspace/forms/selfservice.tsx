@@ -1,5 +1,5 @@
 /**
- * Self-Service Hub — All WhatsApp Flow forms accessible from the admin dashboard.
+ * Customer-Service Hub — All WhatsApp Flow forms accessible from the admin dashboard.
  * Shows all flow submissions, allows resending flows, and manages flow configurations.
  */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -47,7 +47,7 @@ const fmtDate = (ts: number) => {
   return new Date(ms).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' });
 };
 
-const SelfServicePage: React.FC<PageProps> = ({ signOut, user }) => {
+const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
   const toast = useToastContext();
   const [activeTab, setActiveTab] = useState<'flows' | 'submissions' | 'links'>('flows');
   const [submissions, setSubmissions] = useState<FlowSubmission[]>([]);
@@ -77,10 +77,10 @@ const SelfServicePage: React.FC<PageProps> = ({ signOut, user }) => {
 
   return (
     <Layout user={user} onSignOut={signOut}>
-      <SEO title="Self-Service" description="WhatsApp Flow forms and submissions" />
+      <SEO title="Customer-Service" description="WhatsApp Flow forms and submissions" />
       <div className="inner-page" style={{ padding: '20px 24px', maxWidth: 1100 }}>
         <div style={{ marginBottom: 16 }}>
-          <h2 style={{ margin: 0, fontSize: 20, color: '#1a3a2a' }}>Self-Service Hub</h2>
+          <h2 style={{ margin: 0, fontSize: 20, color: '#1a3a2a' }}>Customer-Service Hub</h2>
           <p style={{ margin: '4px 0 0', fontSize: 12, color: '#6b7280' }}>
             All WhatsApp Flow forms, submissions, and message links in one place.
           </p>
@@ -218,4 +218,4 @@ function getKeywords(flowKey: string): string[] {
   return map[flowKey] || [];
 }
 
-export default SelfServicePage;
+export default CustomerServicePage;

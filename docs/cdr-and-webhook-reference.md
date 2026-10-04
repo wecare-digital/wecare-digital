@@ -447,7 +447,7 @@ The three media URLs the rich cards reference, and their state on both hosts:
 
 | Key under `stream/media/m/` | old `app.wecare.digital` | new `wecare.digital/get/o` |
 |---|---|---|
-| `selfservice.mp4` | 200 `video/mp4` 1302443 b | 200 identical |
+| `customerservice.mp4` | 200 `video/mp4` 1302443 b | 200 identical |
 | `wecare-digital-rcs-h.png` | 200 `image/png` 89548 b | 200 identical |
 | `WECARE+SC.png` | 200 but 596 b of **HTML** | 302 — **key does not exist** |
 

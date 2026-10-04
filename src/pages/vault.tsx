@@ -1,12 +1,12 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
-import { selfserviceBySlug } from '../content/selfservice';
+import { customerserviceBySlug } from '../content/customerservice';
 
 /**
  * /vault — asking for a copy of a document held against one of your requests.
  *
  * DELIBERATELY THIN, like Drop Docs and the rest of the Requests group. Copy lives in
- * src/content/selfservice.ts and the layout in ProductPage.tsx.
+ * src/content/customerservice.ts and the layout in ProductPage.tsx.
  *
  * IT SITS UNDER DROP DOCS IN THE MENU because it is the same door in the other direction:
  * Drop Docs sends paperwork in, Vault gets a copy back out. Unlike the Products column, the
@@ -34,6 +34,6 @@ import { selfserviceBySlug } from '../content/selfservice';
  * HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  * trailingSlash means the URL is /vault/.
  */
-const VaultPage: React.FC = () => <ProductPage product={ selfserviceBySlug( 'vault' ) } />;
+const VaultPage: React.FC = () => <ProductPage product={ customerserviceBySlug( 'vault' ) } />;
 
 export default VaultPage;

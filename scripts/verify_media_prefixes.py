@@ -62,7 +62,7 @@ SECURE_ROOT = "secure/"
 #
 # The distribution id is `ERCXSFDL0VM8X`, settled from
 # docs/execution/snapshots/cloudfront-ERCXSFDL0VM8X-before-alias-removal.json, whose
-# captured `Aliases` are exactly ["app.wecare.digital", "selfservice.wecare.digital",
+# captured `Aliases` are exactly ["app.wecare.digital", "customerservice.wecare.digital",
 # "selfcare.wecare.digital"]. Two places in the repo said `E1DP37QIS4G0T4` instead - that
 # id resolves to nothing and never appears in any snapshot, so it was a transcription
 # error. It happened to be harmless here only because BOTH ids return NoSuchDistribution,

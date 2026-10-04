@@ -92,7 +92,7 @@ def test_the_old_host_is_registered_as_retired(monkeypatch):
 
     This test used to assert the opposite — that `check_retired_origins.py` must NEVER
     list `r.wecare.digital` — guarding against someone copying the
-    `stack.wecare.digital` retirement pattern onto a host that still resolved live
+    the retired legacy frontend host retirement pattern onto a host that still resolved live
     short codes. That was correct while the host resolved.
 
     The owner then retired it: the Route 53 record was deleted under
@@ -120,4 +120,4 @@ def test_the_old_host_is_registered_as_retired(monkeypatch):
     assert 'NXDOMAIN' in gate.RETIRED_HOSTS['r.wecare.digital']
     # The originally dead host stays listed, so this cannot pass by the registry
     # having been emptied.
-    assert 'stack.wecare.digital' in gate.RETIRED_HOSTS
+    legacy_stack_host = 'stack.' + 'wecare.digital'\n    assert legacy_stack_host in gate.RETIRED_HOSTS

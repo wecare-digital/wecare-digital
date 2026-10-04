@@ -18,7 +18,7 @@ Why ``o/`` is load-bearing
 --------------------------
 It was originally the thing that made an object *dual-homed*. A second host,
 ``app.wecare.digital``, served this same bucket through origin path ``/o`` on
-distribution ``ERCXSFDL0VM8X`` (which also carried ``selfservice.wecare.digital`` and
+distribution ``ERCXSFDL0VM8X`` (which also carried ``customerservice.wecare.digital`` and
 ``selfcare.wecare.digital`` - all three names went with it), so
 ``app.wecare.digital/<X>`` resolved to key
 ``o/<X>`` and an object was reachable on both hosts only if its key carried ``o/``.

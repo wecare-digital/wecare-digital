@@ -71,8 +71,8 @@ Dead `[retired public path b180810d]` CTAs (apex [retired public path b180810d] 
 - amplify/functions/ai/ai-generate-response/handler.py:367  Start Now  [retired public path b180810d] -> /orders/            (menu_track_request)
 - amplify/functions/ai/ai-generate-response/handler.py:371  Book Slot  [retired public path b180810d] -> /submit-request/    (menu_rx_slot; see ambiguous note)
 - amplify/functions/ai/ai-generate-response/handler.py:375  Upload Now [retired public path b180810d] -> /drop-docs/          (menu_drop_docs)
-- amplify/functions/ai/ai-generate-response/handler.py:379  Get Support/selfservice -> /submit-request/    (menu_enterprise; see note)
-- amplify/functions/ai/ai-generate-response/handler.py:383  Self Service/selfservice -> /submit-request/   (menu_hours; see note)
+- amplify/functions/ai/ai-generate-response/handler.py:379  Get Support/customerservice -> /submit-request/    (menu_enterprise; see note)
+- amplify/functions/ai/ai-generate-response/handler.py:383  Customer Service/customerservice -> /submit-request/   (menu_hours; see note)
 - src/pages/workspace/engage/whatsapp/calling.tsx:642   "Submit your request here" [retired public path b180810d] -> /submit-request/
 - src/pages/workspace/engage/whatsapp/calling.tsx:1266  "Submit your request here" [retired public path b180810d] -> /submit-request/
 
@@ -82,8 +82,8 @@ Dead `[retired public path b180810d]` CTAs (apex [retired public path b180810d] 
   (zip.tsx lists "Book a visit" as an explicit non-transacting coming-soon). The
   briefing's default for ambiguous intent is /submit-request/, so a working
   request-intake page is used rather than a dead or coming-soon target.
-- **menu_enterprise "Get Support"** and **menu_hours "Self Service"** ->
-  /submit-request/. Both are generic self-service entry points; the request hub
+- **menu_enterprise "Get Support"** and **menu_hours "Customer Service"** ->
+  /submit-request/. Both are generic customer-service entry points; the request hub
   (/submit-request/) is the closest live customer destination in the briefing's
   allowed set (/submit-request/, /orders/, /zip/).
 
@@ -103,7 +103,7 @@ Dead `[retired public path b180810d]` CTAs (apex [retired public path b180810d] 
 - **src/config/analytics.ts BING.siteUrl = `https://www.wecare.digital/`** — intact.
 - Historical explanatory `[retired public path b180810d]` comments (orders.tsx, bharat-rx.tsx,
   products.ts) left as documentation.
-- No internal/technical `selfservice` identifiers, workspace routes, provider
+- No internal/technical `customerservice` identifiers, workspace routes, provider
   template ids or integration ids touched.
 
 ### No dead route registrations found to remove

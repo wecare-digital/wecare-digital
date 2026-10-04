@@ -34,7 +34,7 @@ evidence — it must be re-read from the provider before any mutation.
 | CloudFront WAF WebACLs | **0** | |
 | GuardDuty detectors | **0** | Optional per owner overrides; not a closure blocker. |
 | Security Hub | Not queried (**EXCLUDED** by owner overrides) | Do not enable. |
-| Amplify app | `d22dm4b0jn71jw`, default domain `d22dm4b0jn71jw.amplifyapp.com`, app name `wecare.digital` | Frontend deploys only; never proves Lambda state. The app name read `stack.wecare.digital` here until 2026-09-26; `GetApp` reports `wecare.digital`, and the `stack.` host is NXDOMAIN since the CNAME was removed on 2026-09-25. |
+| Amplify app | `d22dm4b0jn71jw`, default domain `d22dm4b0jn71jw.amplifyapp.com`, app name `wecare.digital` | Frontend deploys only; never proves Lambda state. The app name read `retired legacy frontend host` here until 2026-09-26; `GetApp` reports `wecare.digital`, and the `stack.` host is NXDOMAIN since the CNAME was removed on 2026-09-25. |
 
 ### Secrets scheduled for deletion — measured 2026-09-21
 

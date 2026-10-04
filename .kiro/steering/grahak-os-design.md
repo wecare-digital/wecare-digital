@@ -99,7 +99,7 @@ it at **6.92:1**, **10.32:1** and **8.60:1** and documents each. So the rule is 
 backdrop, not the hex.
 
 Where it is legitimately used, amber is a **shared token** — `AMBER = { tint: '#fef3c7', dot:
-'#f0a818' }` in both `src/content/products.ts` and `src/content/selfservice.ts`, plus
+'#f0a818' }` in both `src/content/products.ts` and `src/content/customerservice.ts`, plus
 `BlogIndexView.tsx`'s rotating words and the terminal's status lights.
 
 The one questionable use is the rotating hero pill on `/grahak-os/`, where the amber dot sits on

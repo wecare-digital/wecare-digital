@@ -55,7 +55,7 @@ misled every reader so far. Re-verify with the harness, not with this table.
 | **The sitewide SEO no longer advertises one product.** `<title>`, `og:title`, `twitter:title`, `og:description` and `twitter:description` were WhatsApp-product copy inherited by all 15 public routes; `twitter:url` was hardcoded to the site root on every page. The messaging `Service` schema is now scoped to `/grahak-os/` instead of being emitted everywhere | `src/pages/_app.tsx` |
 | **`/grahak-os/` no longer ships two of every `og:` tag.** `next/head` de-duplicates meta by `name`, **not** by `property`, so the page's own og set and `_app`'s coexisted — measured 2× each of type, url, title, description, image, site_name, locale. Fixed with matching `key` props on both sides | `src/pages/_app.tsx`, `src/pages/grahak-os/index.tsx` |
 | **The home page stopped overriding its own metadata.** It declared `<title>WECARE.DIGITAL</title>` and `description="WECARE.DIGITAL."`, which beat the sitewide copy — so the most important URL on the site had a title with no content and a one-word description | `src/pages/index.tsx` |
-| **`[retired public path b180810d]` and `/product-page/*` answer again.** They 404'd since a8d6a6c2 (#20) while 99 and 27 references stayed live, including the "Start Now" / "Book Slot" / "Upload Now" button URLs on outbound WhatsApp messages | `src/components/RetiredUrl.tsx`, `src/pages/selfservice.tsx`, `src/pages/product-page/*` |
+| **`[retired public path b180810d]` and `/product-page/*` answer again.** They 404'd since a8d6a6c2 (#20) while 99 and 27 references stayed live, including the "Start Now" / "Book Slot" / "Upload Now" button URLs on outbound WhatsApp messages | `src/components/RetiredUrl.tsx`, `src/pages/customerservice.tsx`, `src/pages/product-page/*` |
 
 ## Needs the owner, not an agent
 
@@ -444,7 +444,7 @@ these pages personally and rejected several agent drafts on substance:
     rather than a timer. `.home-layout`'s `gap:96px` is the section rhythm.
 - ~~`[retired public path 1965ee0f]` and `/partners` are now in the nav but are visually off-system.~~
   **Both pages are deleted**, and the nav entries that pointed at
-  `www.wecare.digital/selfservice` and `.../product-page/referral-partner` — both of which
+  `www.wecare.digital/customerservice` and `.../product-page/referral-partner` — both of which
   **404'd** — now point at `/contact/`. Those two external URLs also answer again: see
   `src/components/RetiredUrl.tsx`. Note a 200 on a `[retired public path 6b3a02b3]/*` path is **not** evidence a
   route is public — those render `<Layout user onSignOut>` and are auth-gated, which is why

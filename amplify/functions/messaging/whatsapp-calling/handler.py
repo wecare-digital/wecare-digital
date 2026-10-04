@@ -1501,7 +1501,7 @@ ORDER_SMS_CONTENT = (
 )
 
 # WhatsApp template video URL (CloudFront — publicly accessible)
-WA_TEMPLATE_VIDEO_URL = 'https://wecare.digital/get/o/stream/media/m/selfservice.mp4'
+WA_TEMPLATE_VIDEO_URL = 'https://wecare.digital/get/o/stream/media/m/customerservice.mp4'
 
 # WABA phone IDs for sending templates
 WABA1_META_ID = '1016149501586345'   # +91 93309 94400

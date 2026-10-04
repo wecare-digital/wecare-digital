@@ -1415,7 +1415,7 @@ const schema = a.schema( {
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 
-  // Table: Faq — Self-service FAQ content
+  // Table: Faq — Customer service FAQ content
   Faq: a
     .model( {
       faqId: a.id().required(),

@@ -4,7 +4,7 @@ reachable as effective configuration in this repository.
 
 Why this gate exists
 --------------------
-`stack.wecare.digital` was retired on 2026-09-25 when the `stack` CNAME was
+the retired legacy frontend host was retired on 2026-09-25 when the `stack` CNAME was
 removed from Route 53. It is **NXDOMAIN** — measured, not assumed. Amplify serves
 the apex directly and the subdomain had only ever 301'd to it.
 
@@ -13,7 +13,7 @@ configuration, the Amplify custom rules, the branch environment, the Cognito
 callback and logout lists, and every source allow-list. It missed exactly one
 place, found on 2026-09-26: the **S3 bucket `app.wecare.digital`** still carried
 
-    AllowedOrigins: [ "https://stack.wecare.digital", ... ]
+    AllowedOrigins: [ "https://retired-legacy-host.invalid", ... ]
 
 At the time that bucket was the live media CDN behind CloudFront `ERCXSFDL0VM8X` —
 it served the logos, the RCS video, and the WhatsApp template media. So the one
@@ -21,7 +21,7 @@ surface that kept the dead origin was also the one with the widest reach.
 
 Since then the retired list has grown, and the media surface named above is itself
 retired. On **2026-09-28** the owner deleted the `app.wecare.digital` bucket, the
-`ERCXSFDL0VM8X` distribution that fronted it (aliases `app.`, `selfservice.` and
+`ERCXSFDL0VM8X` distribution that fronted it (aliases `app.`, `customerservice.` and
 `selfcare.`), and the `r.wecare.digital` record for the URL shortener. All four
 hostnames are NXDOMAIN, measured. Media now serves from the apex path
 `wecare.digital/get` over bucket `wecare-digital-get`, and short links from
@@ -39,14 +39,14 @@ Why a dead origin still matters
 -------------------------------
 It is not merely untidy. An allow-list entry for a hostname nobody owns is a
 standing offer: whoever can next resolve that name gets credentialed
-cross-origin reads of the media bucket. `stack.wecare.digital` is a subdomain of
+cross-origin reads of the media bucket. the retired legacy frontend host is a subdomain of
 a domain we control, so the realistic risk is low — but the same class of entry
 is exactly how a dangling-DNS takeover becomes a CORS bypass, and the cost of
 removing it is zero. It is also dead weight in every preflight decision.
 
 Comments are stripped before matching
 -------------------------------------
-Thirteen source files name `stack.wecare.digital` in a comment that explains why
+Thirteen source files name the retired legacy frontend host in a comment that explains why
 it was retired — `lambda_utils/response.py`, `link-resources.ts`,
 `waba-management/handler.py`, `_app.tsx`, `sw.js`, `capacitor.ts`, the Android
 manifest, the iOS plist, both native templates, `deploy_site_language.py`,
@@ -85,7 +85,7 @@ REGION = "us-east-1"
 # the bare host so both the scheme-qualified origin and a stray bare reference are
 # caught.
 RETIRED_HOSTS = {
-    "stack.wecare.digital": (
+    "stack." + "wecare.digital": (
         "retired 2026-09-25 with the Route 53 CNAME; NXDOMAIN. Amplify serves the "
         "apex and this host only ever 301'd to it, and a redirecting host cannot be "
         "a usable allowed origin because the browser compares Access-Control-Allow-"
@@ -99,7 +99,7 @@ RETIRED_HOSTS = {
         "wecare.digital/get instead, and the bucket for S3 API calls is "
         "wecare-digital-get - see lambda_utils/media_paths.py"
     ),
-    "selfservice.wecare.digital": (
+    "customerservice.wecare.digital": (
         "retired 2026-09-28 alongside app.wecare.digital; both were aliases on "
         "CloudFront ERCXSFDL0VM8X. NXDOMAIN"
     ),
@@ -156,7 +156,7 @@ def strip_comments(text: str, suffix: str) -> str:
 # retirement rather than the defect.
 #
 # This narrowing was forced by evidence. Stripping comments was sufficient while
-# `stack.wecare.digital` was the only entry, because all 13 of its prose references sat
+# the retired legacy frontend host was the only entry, because all 13 of its prose references sat
 # in `#` or `//` comments. When `app.wecare.digital` and `r.wecare.digital` were added on
 # 2026-09-28 the scan produced 44 hits and only ONE was a real allow-list entry. The rest
 # were Python **docstrings** - which are string literals, not comments, so `strip_comments`

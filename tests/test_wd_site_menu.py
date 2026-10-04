@@ -97,12 +97,12 @@ MAIN_BUTTON = 'Open Menu'
 DELETED_NAMES = [
     'DEFAULT_ONE_MENU',
     'DEFAULT_MAIN_MENU',
-    'DEFAULT_SELFSERVICE_MENU',
+    'DEFAULT_CUSTOMERSERVICE_MENU',
     'DEFAULT_BHARAT_STACK_MENU',
     'DEFAULT_LANGUAGE_PICKER',
     'REGION_LANGUAGE_LISTS',
     '_get_welcome_config',
-    '_get_selfservice_menu',
+    '_get_customerservice_menu',
     '_get_bharat_stack_menu',
     '_get_language_picker_config',
     '_get_region_language_list',
@@ -113,7 +113,7 @@ DELETED_NAMES = [
     '_send_followup_buttons',
 ]
 
-TRIGGER_SETS = ['HI_KEYWORDS', 'BUTTON_MENU_TRIGGERS', 'SELFSERVICE_KEYWORDS']
+TRIGGER_SETS = ['HI_KEYWORDS', 'BUTTON_MENU_TRIGGERS', 'CUSTOMERSERVICE_KEYWORDS']
 
 
 @pytest.fixture(scope='module')
@@ -452,7 +452,7 @@ class TestTheRouterBehaviour:
         rows = sent['graph'][0]['payload']['interactive']['action']['sections'][0]['rows']
         assert [r['id'] for r in rows] == MAIN_ROW_IDS
 
-    @pytest.mark.parametrize('stale', ['menu_main', 'menu_selfservice_1', 'ivr_1',
+    @pytest.mark.parametrize('stale', ['menu_main', 'menu_customerservice_1', 'ivr_1',
                                        'lang_hi', '', 'wd_nope', 'WD_HOME'])
     def test_an_unknown_or_stale_id_falls_back_to_the_main_menu(self, wa, sent, stale):
         """Rows from the deleted menus are still sitting in customers' chat history."""

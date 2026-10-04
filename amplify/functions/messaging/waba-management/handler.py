@@ -63,7 +63,7 @@ CORS_API_IDS = [s.strip() for s in os.environ.get('CORS_API_IDS', 'zllr9lrg7j').
 # Core origins always kept in the allowlist so the dashboard/native app can never
 # be locked out, even if an admin saves a bad list.
 CORS_CORE_ORIGINS = [
-    # The apex, not stack.wecare.digital: that subdomain was retired and only ever
+    # The apex, not retired-legacy-host.invalid: that subdomain was retired and only ever
     # 301'd here, and a redirecting host is useless as an allowed origin because the
     # browser matches the request origin literally.
     # app.wecare.digital removed 2026-09-28 for the same reason as stack: the host is

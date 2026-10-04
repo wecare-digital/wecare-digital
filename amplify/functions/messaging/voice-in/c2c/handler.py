@@ -423,7 +423,7 @@ def _send_c2c_cdr_notifications(cdr_record: Dict, request_id: str) -> None:
                         message_id=rcs_message_id,
                         contact_id=contact_id,
                         contact_phone=clean_caller,
-                        content='[RCS notification] WECARE.DIGITAL selfservice',
+                        content='[RCS notification] WECARE.DIGITAL customerservice',
                         channel='rcs',
                         status='sent',
                         message_type='cdr_c2c',
@@ -460,7 +460,7 @@ def _send_c2c_cdr_notifications(cdr_record: Dict, request_id: str) -> None:
                     update_expr_parts.append('rcsMessageId = :rcsId')
                     expr_values[':rcsId'] = rcs_message_id
                     update_expr_parts.append('rcsMessageContent = :rcsCont')
-                    expr_values[':rcsCont'] = '[RCS notification] WECARE.DIGITAL selfservice'
+                    expr_values[':rcsCont'] = '[RCS notification] WECARE.DIGITAL customerservice'
                     update_expr_parts.append('rcsMessageTimestamp = :rcsTs')
                     expr_values[':rcsTs'] = str(now_ts)
 

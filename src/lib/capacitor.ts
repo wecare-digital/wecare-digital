@@ -98,7 +98,7 @@ export function initDeepLinks(navigate: (path: string) => void) {
 
   App.addListener('appUrlOpen', (event: URLOpenListenerEvent) => {
     // Handle wecare:// scheme and universal links. Rewritten onto the apex, which is
-    // the host Amplify serves; stack.wecare.digital was retired and only 301'd here.
+    // the host Amplify serves; retired legacy frontend host was retired and only 301'd here.
     let url: URL;
     try {
       url = new URL(event.url

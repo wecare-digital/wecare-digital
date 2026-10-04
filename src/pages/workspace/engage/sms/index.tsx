@@ -515,7 +515,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             { showTemplateModal && ( <div className="modal-overlay" onClick={ () => setShowTemplateModal( false ) }><div className="modal-content" onClick={ e => e.stopPropagation() }>
               <h3>Add DLT Template</h3>
               <div className="form-group"><label>Template ID (DLT) *</label><input type="text" value={ tplId } onChange={ e => setTplId( e.target.value ) } placeholder="DLT Template ID from portal" /></div>
-              <div className="form-group"><label>Name</label><input type="text" value={ tplName } onChange={ e => setTplName( e.target.value ) } placeholder="e.g. Self-Service IVR" /></div>
+              <div className="form-group"><label>Name</label><input type="text" value={ tplName } onChange={ e => setTplName( e.target.value ) } placeholder="e.g. Customer-Service IVR" /></div>
               <div className="form-group"><label>Content *</label><textarea value={ tplContent } onChange={ e => setTplContent( e.target.value ) } placeholder="Template text with {#var#} placeholders" rows={ 4 } /></div>
               <div className="form-group"><label>Message Type</label><select value={ tplMessageType } onChange={ e => setTplMessageType( e.target.value ) }><option value="SERVICE_EXPLICIT">SERVICE_EXPLICIT</option><option value="SERVICE_IMPLICIT">SERVICE_IMPLICIT</option><option value="TRANSACTIONAL">TRANSACTIONAL</option><option value="PROMOTIONAL">PROMOTIONAL</option></select></div>
               <div className="modal-actions"><Button variant="secondary" onClick={ () => setShowTemplateModal( false ) }>Cancel</Button><Button variant="primary" onClick={ handleCreateTemplate } loading={ tplSaving } disabled={ !tplId || !tplContent }>Save</Button></div>

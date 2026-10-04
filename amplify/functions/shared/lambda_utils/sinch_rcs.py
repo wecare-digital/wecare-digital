@@ -494,7 +494,7 @@ def send_rcs_ivr_notification(phone: str, request_id: str = '') -> dict:
             'or send us a message / voice note on WhatsApp: https://wecare.digital/r/wa.\n\n'
             "We'll review it and follow up if needed.\nWECARE.DIGITAL"
         ),
-        media_url='https://wecare.digital/get/o/stream/media/m/selfservice.mp4',
+        media_url='https://wecare.digital/get/o/stream/media/m/customerservice.mp4',
         choices=[
             {'title': 'Get Started', 'url': 'https://wecare.digital/r/getstarted'},
         ],

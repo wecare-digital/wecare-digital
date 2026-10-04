@@ -283,7 +283,7 @@ DEFAULT_BOT_FLOW = {
 
     # ── DELETED 2026-09-26: 'mainMenu' and 'subMenus' ────────────────────────
     # This file used to define a SECOND, rival main menu here (10 rows: Store /
-    # Self Service / Pay / Subscribe / Download App / About / Audio Response /
+    # Customer Service / Pay / Subscribe / Download App / About / Audio Response /
     # Change Language / Notifications / Talk to Human) plus two sub-menus. It
     # was not the menu customers see, and it could never become one:
     #
@@ -302,7 +302,7 @@ DEFAULT_BOT_FLOW = {
     # ── UPDATED 2026-10-02: there is no menu left anywhere ───────────────────
     # Every WhatsApp menu was deleted on the owner's instruction. The inbound
     # handler no longer defines DEFAULT_ONE_MENU, DEFAULT_MAIN_MENU, the
-    # self-service / Bharat Stack submenus, the language picker, the
+    # customer-service / Bharat Stack submenus, the language picker, the
     # MENU_TO_KEYWORD dispatch table or _send_interactive_list, and
     # `_process_ai_automation` — the only thing that ever rendered a
     # 'showMainMenu' / 'showSubMenu' / 'showLanguagePicker' flowAction — now
@@ -5543,7 +5543,7 @@ def _tool_send_whatsapp_flow(params: Dict, request_id: str) -> Dict:
                 'contactId': contact_id,
                 'interactive': {
                     'type': 'flow',
-                    'body': {'text': flow_msg.get('body', 'Please use the self-service option below.')},
+                    'body': {'text': flow_msg.get('body', 'Please use the customer-service option below.')},
                     'footer': {'text': flow_msg.get('footer', 'WECARE.DIGITAL')},
                     'action': {
                         'name': 'flow',

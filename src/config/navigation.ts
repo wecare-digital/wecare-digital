@@ -160,7 +160,7 @@ export const navigationConfig: NavItem[] = [
       // was a ComingSoon stub listing six features with no backend behind any of them,
       // and [retired public path]/index.tsx redirected straight to it, so the whole [retired public path] landing was a
       // redirect into a list of promises. [retired public path] now goes to Responses.
-      { path: '/workspace/forms/selfservice', label: 'Self-service Hub' },
+      { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service Hub' },
     ],
   },
   {

@@ -58,7 +58,7 @@ const PUBLIC_EXACT = new Set( [
   '/hunar',
   '/niji-setu',
   '/ritual-guru',
-  // The Selfservice pages. Same rule as the product group above: these must stay in
+  // The Customer service pages. Same rule as the product group above: these must stay in
   // step with PUBLIC_PAGE_META in _app.tsx, because a route advertised here but missing
   // there serves an empty body at HTTP 200 - i.e. it would put blank pages in front of a
   // crawler. They replaced six menu labels that all resolved to /contact/.

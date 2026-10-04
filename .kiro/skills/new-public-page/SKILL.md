@@ -186,7 +186,7 @@ across 124 routes:
   sets it deliberately so the **brand name** survives translation, and says so in a comment. An
   earlier version of this skill called it a misapplied dashboard flag; that was wrong. The real
   and much smaller problem is that the descriptor shares the label — "Legal Stuff —
-  WECARE.DIGITAL", "Selfservice by WECARE.DIGITAL" — so the words around the brand name are
+  WECARE.DIGITAL", "Customer service by WECARE.DIGITAL" — so the words around the brand name are
   collateral. If you need the descriptor translated, split it into its own element rather than
   removing the flag.
 - **A translated word is wider.** "consumers" 278px → "उपभोक्ताओं" 317px, and Devanagari is

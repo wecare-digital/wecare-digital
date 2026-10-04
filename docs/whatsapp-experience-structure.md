@@ -32,9 +32,9 @@ What moved:
 - `DEFAULT_ONE_MENU` (10 rows, 5 sections) is served by `_get_welcome_config()`,
   still overridable from `welcome_message_config`, still with no phone argument —
   so both WABAs render the identical menu.
-- `[retired public path b180810d]`, `[retired public path 6b3a02b3]`, the `Selfservice` ice breaker and the
-  `menu_selfservice` row all open **that** menu. The keywords stayed; only the
-  second list went. `selfservice` also joined `BUTTON_MENU_TRIGGERS`, because an
+- `[retired public path b180810d]`, `[retired public path 6b3a02b3]`, the `Customer service` ice breaker and the
+  `menu_customerservice` row all open **that** menu. The keywords stayed; only the
+  second list went. `customerservice` also joined `BUTTON_MENU_TRIGGERS`, because an
   ice-breaker tap can arrive as `button`, which skips the text block entirely —
   that was a silent tap before.
 - `_send_help_about()` is the `menu_help` row and the `help & about` keyword. It is
@@ -57,7 +57,7 @@ limit, no id mapping to `None`, no id opening a second list, every retired and
 AI-era id still resolving, every row title typeable, and the Help reply naming each
 dropped row. Full suite 3525 passed.
 
-`DEFAULT_MAIN_MENU`, `DEFAULT_SELFSERVICE_MENU` and their getters are still in the
+`DEFAULT_MAIN_MENU`, `DEFAULT_CUSTOMERSERVICE_MENU` and their getters are still in the
 tree, unreferenced by any row id, so reverting to two menus is a one-line change in
 `MENU_TO_KEYWORD`. Step 6 deletes them.
 
@@ -86,7 +86,7 @@ live-verified in two stages.
 keyword set in the handler is exact-match, so any decoration around a keyword misses,
 and `Hi 👋🏽`, `menu 🙏` or the next prefill anyone sets on Meta would have failed
 identically. `strip_decorative_edges()` now trims emoji, variation selectors, ZWJ and
-whitespace off both ends, and the greeting / self-service / commands checks consult the
+whitespace off both ends, and the greeting / customer-service / commands checks consult the
 stripped form as a **fallback** after the raw form misses.
 
 Scope is deliberately narrow, and the narrowness is the design:
@@ -123,7 +123,7 @@ Meta's [interactive list reference](https://developers.facebook.com/docs/whatsap
 | Footer | 60 chars |
 | Button label | 20 chars |
 
-Today's main menu has 9 rows and the self-service menu has 9 more. **18 rows cannot
+Today's main menu has 9 rows and the customer-service menu has 9 more. **18 rows cannot
 become one menu.** One menu means choosing 10 and demoting the rest to keyword and
 slash-command access. Section 11 is that choice.
 
@@ -169,7 +169,7 @@ flows on WABA2, or accept that the menu degrades to links there. Do not paper ov
 
 | Entry | Mechanism | Arrives as | Lands on |
 |---|---|---|---|
-| Ice breaker tap | Conversational components: `Get Started`, `Subscribe`, `Selfservice` | `text` (or `button`) | keyword routing |
+| Ice breaker tap | Conversational components: `Get Started`, `Subscribe`, `Customer service` | `text` (or `button`) | keyword routing |
 | Slash command | Commands: `/menu` `/subscribe` `[retired public path b180810d]` `[retired public path 47a81ed9]` | `text` starting `/` | normalised, then keyword routing |
 | Typed keyword | free text | `text` | keyword routing (§4) |
 | QR / `wa.me/message/*` | prefilled message | `text` | keyword routing. **Dismisses ice breakers** |
@@ -198,7 +198,7 @@ Body: *Choose what you'd like to do — get started, explore our services, or fi
 
 | Section | Row id | Title | Description | Action |
 |---|---|---|---|---|
-| Start Here | `menu_selfservice` | 🚀 Selfservice | Requests, **appointments**, documents, and support | opens menu 3.2 |
+| Start Here | `menu_customerservice` | 🚀 Customer service | Requests, **appointments**, documents, and support | opens menu 3.2 |
 | | `menu_subscribe` | 🔔 Subscribe for Updates | Get updates, offers, and service news | `subscribe` flow |
 | | `menu_find_id` | 🆔 Find Profile ID | Locate your subscription or profile ID | `find id` lookup |
 | | `menu_pay` | 💳 Make a Payment | Pay an invoice or complete a pending payment | pay path |
@@ -208,9 +208,9 @@ Body: *Choose what you'd like to do — get started, explore our services, or fi
 | Help & Answers | `menu_faq` | ❓ FAQs | Find answers to common questions | CTA `[retired public path 1965ee0f]` |
 | | `menu_about` | 💛 About WECARE.DIGITAL | Learn more about WECARE.DIGITAL | text block |
 
-### 3.2 Self-service menu — `DEFAULT_SELFSERVICE_MENU` (`:6797`), override `selfservice_menu_config`
+### 3.2 Customer service menu — `DEFAULT_CUSTOMERSERVICE_MENU` (`:6797`), override `customerservice_menu_config`
 
-Header `Selfservice` · Button `Browse Services` · nine sections of one row each.
+Header `Customer service` · Button `Browse Services` · nine sections of one row each.
 
 | Section | Row id | Title | Description | Action |
 |---|---|---|---|---|
@@ -255,7 +255,7 @@ against `content.strip().lower()`. **Every step returns** — first match wins.
 | 3 | `PAY_KEYWORDS` + `PAY_FUZZY` `:1695` | `pay, payment, invoice, [retired public path 47a81ed9], baaki, भुगतान, …` + substrings | pay path |
 | 4 | `HI_KEYWORDS` `:1802` | `hi, hello, hey, menu, main menu, show menu, start, browse menu, /menu, need help!, get started` | **main menu** |
 | 5 | `BHARAT_KEYWORDS` `:1834` | `bharat stack, /bharatstack, bharat, aadhaar, upi, digilocker` | CTA `wecare.digital` |
-| 6 | `SELFSERVICE_KEYWORDS` `:1849` | `selfservice, self-service, self service, [retired public path b180810d], [retired public path 6b3a02b3]` | **self-service menu** |
+| 6 | `CUSTOMERSERVICE_KEYWORDS` `:1849` | `customerservice, customer-service, customer service, [retired public path b180810d], [retired public path 6b3a02b3]` | **customer-service menu** |
 | 7 | `COMMANDS_KEYWORDS` `:1866` | `commands, /commands, /help, help` | text list of commands |
 | 8 | `STORE_KEYWORDS` | `store, shop, brands, marketplace` | CTA |
 | 9 | `GIFT_KEYWORDS` | `gift card, gift, buy gift card` | CTA |
@@ -398,7 +398,7 @@ confirmation) and `whatsapp_auto_next_due` (post-payment next-invoice nag).
 | Trigger | Response | Type |
 |---|---|---|
 | `hi` / `menu` / `get started` / `/menu` | main menu | interactive list |
-| `selfservice` / `[retired public path b180810d]` | self-service menu | interactive list |
+| `customerservice` / `[retired public path b180810d]` | customer-service menu | interactive list |
 | `commands` / `/commands` / `/help` / `help` | 6-line text list of commands | text |
 | `my id` / `profile id` | subscriber details, or "No subscription found" | text |
 | `store` / `shop` | CTA "Visit Store" → wecare.digital | cta_url |
@@ -436,7 +436,7 @@ defaults are authoritative today.
 | Key | Controls |
 |---|---|
 | `welcome_message_config` | main menu |
-| `selfservice_menu_config` | self-service menu |
+| `customerservice_menu_config` | customer-service menu |
 | `bharat_stack_menu_config` | Bharat Stack menu (dead) |
 | `bot_language_picker_config` | language picker + region lists |
 | `flow_triggers_config` | all 10 flows: keywords, flowId, flowId2, message, enabled |
@@ -460,20 +460,20 @@ Ordered by customer impact. None of these are introduced by the redesign; they a
 | # | Severity | Defect |
 |---|---|---|
 | 1 | ~~HIGH~~ **FIXED 2026-09-26** | Both numbers' QR prefills matched no keyword set: WABA1 sends `Get Help`, WABA2 sends `Hi 👋`. First-time contacts got the menu from the brand-new-contact path, so it looked fine; **returning** visitors tapping the same widget got silence. The root cause is that every keyword set is exact-match, so the two literals were added *and* `strip_decorative_edges()` was introduced so future variants cannot fail the same way (see §0 preamble). Fixed on the inbound side rather than by editing the QRs, because the QRs are printed and the links shared — only the inbound side reaches messages already in the wild. `wecare-inbound-whatsapp` v51→v52→v53, `wecare-whatsapp-business-api` v42→v43. Live-verified on the QA handset: `Get Help`, `Hi 👋`, and the never-listed variants `Hi 👋🏽` and `menu 🙏` all log `hi_keyword_triggered` → `interactive_list_sent` (Meta 202) → `delivered` |
-| 2 | **HIGH** | 11 of the 12 `wa.me/message/*` codes in `src/pages/forms/selfservice.tsx` do not exist on either number. Meta's `message_qrdls` returns exactly one code per number (`APDM5HUWH26SG1`, `DPESCFW7U4FXO1`), no paging. Not verified by opening each link, but they are not registered Cloud API QRs |
+| 2 | **HIGH** | 11 of the 12 `wa.me/message/*` codes in `src/pages/forms/customerservice.tsx` do not exist on either number. Meta's `message_qrdls` returns exactly one code per number (`APDM5HUWH26SG1`, `DPESCFW7U4FXO1`), no paging. Not verified by opening each link, but they are not registered Cloud API QRs |
 | 3 | ~~MEDIUM~~ **FIXED 2026-09-26** | Bharat Stack submenu is unreachable, and all six of its rows mapped to `None` → silent no-reply if ever sent. All six now answer with the WECARE.DIGITAL CTA. The menu itself is still unreachable, which is now correct rather than accidental |
 | 4 | MEDIUM | `order_notes` flow has no row in any menu — keyword-only. Unchanged by the redesign: it lost the 10-row cut, and the Help reply names `order notes` so it is at least discoverable |
-| 5 | ~~MEDIUM~~ **MOOT 2026-09-26** | `ss_main_menu` had no row rendering it, so there was no "back" out of the self-service menu. There is no submenu to come back from now. `ss_main_menu`, `menu_back` and the two `menu_selfservice` spellings all reopen the one menu |
+| 5 | ~~MEDIUM~~ **MOOT 2026-09-26** | `ss_main_menu` had no row rendering it, so there was no "back" out of the customer-service menu. There is no submenu to come back from now. `ss_main_menu`, `menu_back` and the two `menu_customerservice` spellings all reopen the one menu |
 | 6 | MEDIUM | `FAQ_KEYWORDS` contains `help`, but `COMMANDS_KEYWORDS` (evaluated first) also contains `help`. The FAQ entry is dead |
 | 7 | MEDIUM | `enable_welcome_message: false` on both numbers, so `request_welcome` never arrives and the handler branch at `:1534` is dead. A new visitor arriving from a prefilled link sees no ice breakers *and* no greeting until they type |
 | 8 | MEDIUM | `wa_auto_response.fallbackMessage` is loadable but the unmatched-text path sends nothing, so the configured fallback can never appear |
 | 9 | LOW | `_handle_list_reply`'s pay branch (`:6551`) omits the `sent == 0` failure message the text path has — a failed send is silent |
-| 10 | LOW | `selfservice.tsx:110` hardcodes `flow.key === 'submit_request' ? 'Published' : 'Draft'`, ignoring the `status` field two lines above |
+| 10 | LOW | `customerservice.tsx:110` hardcodes `flow.key === 'submit_request' ? 'Published' : 'Draft'`, ignoring the `status` field two lines above |
 | 11 | LOW | `code-repo.tsx` and `system-architecture.tsx` still name `submit-request-flow.json` v1 and `subscribe-flow.json`; runtime uses v3 and `profile-flow.json` |
 | 12 | LOW | Two functions named `_is_deterministic_trigger` are defined in the same module (`:170` and `:206`); the second shadows the first, so the `ai_hybrid_routing` config the first one reads is ignored |
 | 13 | **CONFIRMED 2026-09-26** | `region_*` / `lang_*` list ids appear in no dispatch table — measured, 4 region ids and 25 language ids all absent from `MENU_TO_KEYWORD`. Language switching via the picker was dead: the picker opened and every row was silent. `menu_language` now reopens the one menu instead of that trap. The picker code and `bot_language_picker_config` are untouched, so restoring it is one line **plus** registering the 29 ids |
 | 14 | MEDIUM | `menu_find_id` → `'find id'`, but `_handle_list_reply` has no subscriber-lookup branch, so a tap falls through to the generic `"You selected: Find Id. Processing..."` and nothing follows. Pre-existing; the row is off the one menu but stays tappable on handsets. Fixing it means extracting the my-id lookup out of the text path into a function both paths call |
-| 15 | LOW | Only `menu`, `subscribe`, `selfservice` and `pay` are registered as tappable commands on Meta (both numbers). `/bharatstack` and `/help` are normalised by `_KNOWN_SLASH_COMMANDS` and advertised in the commands reply, but cannot be tapped. The reply now lists them last and says so |
+| 15 | LOW | Only `menu`, `subscribe`, `customerservice` and `pay` are registered as tappable commands on Meta (both numbers). `/bharatstack` and `/help` are normalised by `_KNOWN_SLASH_COMMANDS` and advertised in the commands reply, but cannot be tapped. The reply now lists them last and says so |
 
 ---
 
@@ -501,7 +501,7 @@ Replacement term: **Visit**.
 | `:6104` | `flowCta: 'Appointment'` | `'Book a Visit'` (≤20 chars) |
 | `appointment-flow-v1.json:11` | screen title `Book Appointment` | `Book a Visit` |
 | `appointment-flow-v1.json` | field label `Appointment Type` | `Visit Type` |
-| `src/pages/forms/selfservice.tsx:21` | label `Appointment` | `Book a Visit` |
+| `src/pages/forms/customerservice.tsx:21` | label `Appointment` | `Book a Visit` |
 
 ### Keep — inbound triggers (no change)
 
@@ -567,12 +567,12 @@ Nothing is deleted; these move to keyword, slash command and web access. State t
 
 ### Everything else that must move with it
 
-1. **Delete** `DEFAULT_SELFSERVICE_MENU`, `DEFAULT_BHARAT_STACK_MENU`, `_get_selfservice_menu`,
-   `_get_bharat_stack_menu`, and the `selfservice_menu_config` / `bharat_stack_menu_config` keys.
-2. **Keep** `SELFSERVICE_KEYWORDS` and `[retired public path b180810d]` as triggers — they are live ice breakers
+1. **Delete** `DEFAULT_CUSTOMERSERVICE_MENU`, `DEFAULT_BHARAT_STACK_MENU`, `_get_customerservice_menu`,
+   `_get_bharat_stack_menu`, and the `customerservice_menu_config` / `bharat_stack_menu_config` keys.
+2. **Keep** `CUSTOMERSERVICE_KEYWORDS` and `[retired public path b180810d]` as triggers — they are live ice breakers
    and a live slash command — but point them at **the one menu**.
 3. **Retarget legacy ids** in `MENU_TO_KEYWORD` so handsets holding the old menus still work:
-   `menu_selfservice`, `menu_self_service` → the one menu (not a submenu);
+   `menu_customerservice`, `menu_customer_service` → the one menu (not a submenu);
    all nine `ss_*` ids → their same actions; `ss_faq` → `menu_help`; `ss_main_menu` → the one menu;
    `menu_store`, `menu_gift_card`, `menu_bharat_stack`, `menu_faq`, `menu_about`,
    `menu_find_id` → their same actions. **Never delete a row id from the dispatch table** —
@@ -592,8 +592,8 @@ Nothing is deleted; these move to keyword, slash command and web access. State t
 |---|---|---|---|
 | 1 | Add the 10 new row ids to `MENU_TO_KEYWORD`, keep all legacy ids | none — additive | ✅ done — 59 entries, 0 map to `None` |
 | 2 | Add `DEFAULT_ONE_MENU`, keep old menus in place | none | ✅ done — served by `_get_welcome_config()` |
-| 3 | Point `HI_KEYWORDS` + `SELFSERVICE_KEYWORDS` + `followup_explore` + welcome paths at the one menu | medium | ✅ done — all six live send sites resolve to one config |
-| 4 | Copy changes for "appointment"; add `book a visit` aliases | low | 🟡 aliases + menu copy done; `selfservice.tsx` label and the FAQ body still say "appointment" |
+| 3 | Point `HI_KEYWORDS` + `CUSTOMERSERVICE_KEYWORDS` + `followup_explore` + welcome paths at the one menu | medium | ✅ done — all six live send sites resolve to one config |
+| 4 | Copy changes for "appointment"; add `book a visit` aliases | low | 🟡 aliases + menu copy done; `customerservice.tsx` label and the FAQ body still say "appointment" |
 | 5 | Upload + publish the revised `appointment-flow-v1` asset to Meta | medium — Meta publish | ⏳ not started — the flow screen still reads "Book Appointment" on Meta while the menu row says "Book a Visit" |
 | 6 | Delete the dead menus and their config keys | low | ⏳ deliberately deferred — they are the one-line revert for step 3 |
 | 7 | Set `enable_welcome_message: true` (widget prefill already fixed) | low | ⏳ not started — still `false` on both numbers (re-verified 2026-09-26) |

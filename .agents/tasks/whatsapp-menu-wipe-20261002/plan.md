@@ -61,9 +61,9 @@ the owned-path list alone.
   - 1632 `request_welcome` → `_get_welcome_config()`
   - 1673 `BUTTON_MENU_TRIGGERS` → `_get_welcome_config()`
   - 1941 `HI_KEYWORDS` → `_get_welcome_config()`
-  - 1992 `SELFSERVICE_KEYWORDS` → `_get_welcome_config()`
+  - 1992 `CUSTOMERSERVICE_KEYWORDS` → `_get_welcome_config()`
   - 2072 brand-new-contact welcome → `_get_welcome_config()`
-  - 6759 / 6768 / 6777 / 6786 inside `_handle_list_reply` (self-service, Bharat
+  - 6759 / 6768 / 6777 / 6786 inside `_handle_list_reply` (customer-service, Bharat
     Stack, main menu, language picker)
   - 7525 / 7542 / 7550 / 7558 / 7613 / 7622 inside `_process_ai_automation`, all
     **unreachable** (see next point)
@@ -100,7 +100,7 @@ The task's deletion list item 7 says to remove `BUTTON_MENU_TRIGGERS`, while its
 REPLACE section requires that "a menu trigger word" and "typing menu / hi / get
 started" route to the catch-all text. You cannot route a trigger word without a
 trigger-word set. Resolution, applied throughout: **keep the detection
-(`HI_KEYWORDS`, `BUTTON_MENU_TRIGGERS`, `SELFSERVICE_KEYWORDS`) and replace the body
+(`HI_KEYWORDS`, `BUTTON_MENU_TRIGGERS`, `CUSTOMERSERVICE_KEYWORDS`) and replace the body
 that fired `_send_interactive_list` with the catch-all send.** What is deleted is
 the menu-sending logic, which is what both halves of the instruction actually
 require. This also keeps `tests/test_own_prefill_triggers_menu.py` meaningful rather
@@ -158,7 +158,7 @@ when the fresh menu is designed.
       call with `_send_menu_placeholder(contact_id, aws_phone_number_id, request_id)`,
       keeping every surrounding `logger.info`, `return`, `welcomeSent` DynamoDB update
       and `try/except` exactly as-is (only the send line changes). Keep the
-      `HI_KEYWORDS` (1928), `BUTTON_MENU_TRIGGERS` (1667) and `SELFSERVICE_KEYWORDS`
+      `HI_KEYWORDS` (1928), `BUTTON_MENU_TRIGGERS` (1667) and `CUSTOMERSERVICE_KEYWORDS`
       (1984) sets and their `strip_decorative_edges` fallbacks verbatim — see the
       design decision above; `tests/test_own_prefill_triggers_menu.py` asserts those
       guard strings character for character. Update the now-wrong comments
@@ -169,7 +169,7 @@ when the fresh menu is designed.
       - 1623-1637 `request_welcome`
       - 1667-1685 `BUTTON_MENU_TRIGGERS` (ice-breaker / Get Started as `button`)
       - 1928-1952 `HI_KEYWORDS` (hi / menu / `/menu` / QR prefills)
-      - 1984-1998 `SELFSERVICE_KEYWORDS`
+      - 1984-1998 `CUSTOMERSERVICE_KEYWORDS`
       - 2064-2090 brand-new-contact welcome (keep the `welcomeSent` write — without it
         the placeholder would re-send on every message from a new contact)
       Files: `amplify/functions/messaging/inbound-whatsapp-handler/handler.py`
@@ -189,7 +189,7 @@ when the fresh menu is designed.
       in the signature. This deletes, in one edit:
       - the `MENU_TO_KEYWORD` dict (6665-6750) in full — all ~60 ids
       - `action = MENU_TO_KEYWORD.get(list_id)` (6752) and every `if action == ...`
-        branch: `_selfservice_menu` (6757-6765), `_bharat_stack_menu` (6766-6774),
+        branch: `_customerservice_menu` (6757-6765), `_bharat_stack_menu` (6766-6774),
         `_main_menu` (6775-6783), `_language_menu` (6784-6792), `_cta_faq`, `_cta_gift_card`,
         `_cta_store`, `_cta_bharat_stack`, `_cta_about`, `_cta_help`
       - the keyword-triggered-flow dispatch loop over `_get_flow_triggers_config()`
@@ -217,8 +217,8 @@ when the fresh menu is designed.
       - `_get_welcome_config` 7089-7117
       - `DEFAULT_BHARAT_STACK_MENU` 7121-7139 + its banner
       - `_get_bharat_stack_menu` 7142-7155
-      - `DEFAULT_SELFSERVICE_MENU` 7162-7223 + banner (9 `ss_*` rows)
-      - `_get_selfservice_menu` 7226-7239
+      - `DEFAULT_CUSTOMERSERVICE_MENU` 7162-7223 + banner (9 `ss_*` rows)
+      - `_get_customerservice_menu` 7226-7239
       - `_get_language_picker_config` 7242-7265
       - `_get_region_language_list` 7268-7284
       - `_send_interactive_list` 5004-5050 (no non-menu caller; see the verified
@@ -228,7 +228,7 @@ when the fresh menu is designed.
       Keep `DEFAULT_FLOW_TRIGGERS` (6280-6446) and `_get_flow_triggers_config` — they
       drive typed keyword flows, not menus.
       Files: `amplify/functions/messaging/inbound-whatsapp-handler/handler.py`
-      Verify: `grep -nE "DEFAULT_ONE_MENU|DEFAULT_MAIN_MENU|DEFAULT_SELFSERVICE_MENU|DEFAULT_BHARAT_STACK_MENU|DEFAULT_LANGUAGE_PICKER|REGION_LANGUAGE_LISTS|_get_welcome_config\(|_get_selfservice_menu|_get_bharat_stack_menu|_get_language_picker_config|_get_region_language_list|_send_interactive_list" <file>`
+      Verify: `grep -nE "DEFAULT_ONE_MENU|DEFAULT_MAIN_MENU|DEFAULT_CUSTOMERSERVICE_MENU|DEFAULT_BHARAT_STACK_MENU|DEFAULT_LANGUAGE_PICKER|REGION_LANGUAGE_LISTS|_get_welcome_config\(|_get_customerservice_menu|_get_bharat_stack_menu|_get_language_picker_config|_get_region_language_list|_send_interactive_list" <file>`
       returns nothing, and the module loads by file path without raising.
 
 - [ ] 6. Delete the unreachable tail of `_process_ai_automation`.
@@ -248,7 +248,7 @@ when the fresh menu is designed.
 
 - [ ] 7. Replace the inbound-handler test that pins the deleted menus.
       Delete `tests/test_one_menu.py` — it exists solely to assert the existence and
-      shape of `DEFAULT_ONE_MENU`, `DEFAULT_MAIN_MENU`, `DEFAULT_SELFSERVICE_MENU`,
+      shape of `DEFAULT_ONE_MENU`, `DEFAULT_MAIN_MENU`, `DEFAULT_CUSTOMERSERVICE_MENU`,
       `DEFAULT_BHARAT_STACK_MENU`, `MENU_TO_KEYWORD`, `_get_welcome_config` and the
       retired submenu branches, every one of which is gone after steps 4-6. Its one
       still-valuable assertion (`TestTheRivalMenuIsGone`, which reads
@@ -260,7 +260,7 @@ when the fresh menu is designed.
       Lambda entry point in this repo is named `handler.py` and `conftest.py` clears
       `sys.modules['handler']`). Assertions:
       - no module attribute matching `DEFAULT_*_MENU`, `REGION_LANGUAGE_LISTS`,
-        `_get_welcome_config`, `_get_selfservice_menu`, `_get_bharat_stack_menu`,
+        `_get_welcome_config`, `_get_customerservice_menu`, `_get_bharat_stack_menu`,
         `_get_language_picker_config`, `_get_region_language_list`,
         `_send_interactive_list` exists on the inbound handler
       - an AST walk of the source finds no `MENU_TO_KEYWORD` or `BUTTON_MENU_TRIGGERS`-
@@ -271,7 +271,7 @@ when the fresh menu is designed.
       - `MENU_PLACEHOLDER_TEXT` is exactly the agreed string and contains no `*menu*`
         interactive markup beyond the bold marker
       - the three trigger paths still route to the placeholder: the source between
-        `HI_KEYWORDS = {` / `BUTTON_MENU_TRIGGERS = {` / `SELFSERVICE_KEYWORDS = {`
+        `HI_KEYWORDS = {` / `BUTTON_MENU_TRIGGERS = {` / `CUSTOMERSERVICE_KEYWORDS = {`
         and the following `return` contains `_send_menu_placeholder` and does **not**
         contain `_send_interactive_list`
       - `ai-generate-response`'s `DEFAULT_BOT_FLOW` still defines no `mainMenu` /

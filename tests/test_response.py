@@ -19,13 +19,13 @@ class TestCorsHeaders:
 
     def test_the_fallback_origin_is_the_apex_not_a_redirecting_host(self):
         """ALLOWED_ORIGINS[0] is what every disallowed origin gets reflected back.
-        It used to be stack.wecare.digital, which 301s to the apex - and a redirect
+        It used to be the retired legacy frontend host, which 301s to the apex - and a redirect
         is useless in Access-Control-Allow-Origin, because the browser compares that
         header to the literal request origin and never follows it."""
         assert ALLOWED_ORIGINS[0] == 'https://wecare.digital'
 
     def test_the_retired_stack_host_is_no_longer_allowed(self):
-        """stack.wecare.digital was retired once Amplify served the apex directly.
+        """the retired legacy frontend host was retired once Amplify served the apex directly.
         Re-adding it would reopen CORS to a hostname that no longer resolves."""
         retired = 'https://' + 'stack.' + 'wecare.digital'
         assert retired not in ALLOWED_ORIGINS

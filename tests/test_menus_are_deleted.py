@@ -11,7 +11,7 @@ So this file pins both halves of the real deletion:
 * the menu configs, their getters, the row-id dispatch table and the
   interactive-list sender are **gone**, not emptied; and
 * the three trigger paths that used to open a menu - greeting keywords, the
-  button/ice-breaker texts and the self-service keywords - now reach a plain-text
+  button/ice-breaker texts and the customer-service keywords - now reach a plain-text
   placeholder. The trigger SETS deliberately survive: they are live on Meta's side
   as QR prefills, ice breakers and slash commands, and you cannot answer a trigger
   word without a trigger-word set.
@@ -48,12 +48,12 @@ PLACEHOLDER = "We're refreshing our menu - please type *menu* and we'll help you
 DELETED_NAMES = [
     'DEFAULT_ONE_MENU',
     'DEFAULT_MAIN_MENU',
-    'DEFAULT_SELFSERVICE_MENU',
+    'DEFAULT_CUSTOMERSERVICE_MENU',
     'DEFAULT_BHARAT_STACK_MENU',
     'DEFAULT_LANGUAGE_PICKER',
     'REGION_LANGUAGE_LISTS',
     '_get_welcome_config',
-    '_get_selfservice_menu',
+    '_get_customerservice_menu',
     '_get_bharat_stack_menu',
     '_get_language_picker_config',
     '_get_region_language_list',
@@ -69,7 +69,7 @@ DELETED_NAMES = [
 
 # The three trigger paths that used to open a menu. Each is a function-local set, so
 # it is checked against the source rather than imported.
-TRIGGER_SETS = ['HI_KEYWORDS', 'BUTTON_MENU_TRIGGERS', 'SELFSERVICE_KEYWORDS']
+TRIGGER_SETS = ['HI_KEYWORDS', 'BUTTON_MENU_TRIGGERS', 'CUSTOMERSERVICE_KEYWORDS']
 
 
 @pytest.fixture(scope='module')

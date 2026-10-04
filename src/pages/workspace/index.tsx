@@ -63,7 +63,7 @@ const families: Family[] = [
   { id: 'commerce', label: 'Commerce', desc: 'Catalogue, orders and store integration', path: '/workspace/commerce/', Icon: StoreIcon, color: '#F59E0B' },
   { id: 'pay', label: 'Payments', desc: 'Invoices, collections and reconciliation', path: '/workspace/pay/', Icon: PaymentIcon, color: '#10B981' },
   { id: 'link', label: 'Links', desc: 'Short links and click analytics', path: '/workspace/link/', Icon: LinkIcon, color: '#6366F1' },
-  { id: 'forms', label: 'Forms', desc: 'Self-service forms and submissions', path: '/workspace/forms/', Icon: FormIcon, color: '#EC4899' },
+  { id: 'forms', label: 'Forms', desc: 'Customer service forms and submissions', path: '/workspace/forms/', Icon: FormIcon, color: '#EC4899' },
   { id: 'docs', label: 'Docs', desc: 'Provider documentation and changelog', path: '/workspace/docs/', Icon: DocumentIcon, color: '#0EA5E9' },
   { id: 'task', label: 'Tasks', desc: 'Work items, assignments and follow-ups', path: '/workspace/task/', Icon: CheckListIcon, color: '#14B8A6' },
   { id: 'seo', label: 'SEO', desc: 'Sitemaps, metadata and search tooling', path: '/workspace/seo/', Icon: SearchIcon, color: '#A855F7' },

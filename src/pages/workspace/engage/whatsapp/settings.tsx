@@ -58,9 +58,9 @@ interface PageProps {
   user?: any;
 }
 
-// ─── Bot Menu & Selfservice Menu Data ───
+// ─── Bot Menu & Customer Service Menu Data ───
 const BOT_MENU = [
-  { row: 1, section: 'Start Here', icon: '🚀', title: 'Selfservice', description: 'Requests, appointments, documents, and support', action: 'Opens Self-service list' },
+  { row: 1, section: 'Start Here', icon: '🚀', title: 'Customer Service', description: 'Requests, appointments, documents, and support', action: 'Opens Customer Service list' },
   { row: 2, section: 'Start Here', icon: '🔔', title: 'Subscribe for Updates', description: 'Get updates, offers, and service news', action: 'Opens subscribe form' },
   { row: 3, section: 'Start Here', icon: '🆔', title: 'Find Profile ID', description: 'Locate your subscription or profile ID', action: 'Opens ID lookup' },
   { row: 4, section: 'Start Here', icon: '💳', title: 'Make a Payment', description: 'Pay an invoice or complete a pending payment', action: 'Opens payment lookup' },
@@ -71,7 +71,7 @@ const BOT_MENU = [
   { row: 9, section: 'Help & Answers', icon: '💛', title: 'About WECARE.DIGITAL', description: 'Learn more about WECARE.DIGITAL', action: 'CTA link → wecare.digital' },
 ];
 
-const SELFSERVICE_MENU = [
+const CUSTOMERSERVICE_MENU = [
   { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: '931522532810297', keywords: 'submit request, sr, raise request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: '1533536534833353', keywords: 'amend request, amend, change' },
@@ -118,9 +118,9 @@ const BotMenuTab: React.FC = () => (
       </table>
     </div>
 
-    {/* Selfservice Sub-Menu */ }
-    <h3 style={ { fontSize: 15, fontWeight: 700, color: '#1a3a2a', margin: '0 0 6px' } }>🚀 Selfservice Menu (Interactive List)</h3>
-    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>9 options shown when user taps &quot;🚀 Selfservice&quot;. Each row triggers a WhatsApp Flow.</p>
+    {/* Customer Service Sub-Menu */ }
+    <h3 style={ { fontSize: 15, fontWeight: 700, color: '#1a3a2a', margin: '0 0 6px' } }>🚀 Customer Service Menu (Interactive List)</h3>
+    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>9 options shown when user taps &quot;🚀 Customer Service&quot;. Each row triggers a WhatsApp Flow.</p>
     <div style={ { overflowX: 'auto' } }>
       <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
         <thead>
@@ -131,7 +131,7 @@ const BotMenuTab: React.FC = () => (
           </tr>
         </thead>
         <tbody>
-          { SELFSERVICE_MENU.map( m => (
+          { CUSTOMERSERVICE_MENU.map( m => (
             <tr key={ m.row } style={ { borderBottom: '1px solid #f3f4f6' } }>
               <td style={ { padding: '8px 10px', color: '#6b7280', fontWeight: 600 } }>{ m.row }</td>
               <td style={ { padding: '8px 10px' } }><span style={ pill( '#f9fafb', '#6b7280' ) }>{ m.section }</span></td>

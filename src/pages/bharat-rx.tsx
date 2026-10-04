@@ -6,7 +6,7 @@ import RotatingHero, { type CycleWord } from '../components/RotatingHero';
  * /bharat-rx — the Bharat Rx product page.
  *
  * WHY THIS EXISTS: Bharat Rx was moved into the Products column of the mega menu but had
- * no page, so the row pointed at the generic Selfservice landing page. A product listed
+ * no page, so the row pointed at the generic Customer service landing page. A product listed
  * beside Grahak OS and VayuLok and then landing somewhere unrelated is worse than not
  * listing it.
  *
@@ -50,7 +50,7 @@ const CYCLE_WORDS: CycleWord[] = [
 // Was '[retired public path]' until 2026-09-25: `www` 301s to the apex
 // and [retired public path] was deleted in commit 6bc44a35, so every button here ran
 // 301 -> 301 -> 404. /contact/ is a real 200 page on the canonical host.
-const SELFSERVICE = 'https://wecare.digital/contact/';
+const CUSTOMERSERVICE = 'https://wecare.digital/contact/';
 
 const BharatRxPage: React.FC = () => (
   <>
@@ -105,7 +105,7 @@ const BharatRxPage: React.FC = () => (
           </li>
         </ol>
 
-        <a className="brx-cta" href={ SELFSERVICE }>Start a request</a>
+        <a className="brx-cta" href={ CUSTOMERSERVICE }>Start a request</a>
 
         {/* Health-adjacent service, so the boundary is stated on the page rather than left
             to the Terms. This is not a medical disclaimer written by me - it points at

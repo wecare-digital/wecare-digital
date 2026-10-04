@@ -48,7 +48,7 @@ SITE = "https://wecare.digital"
 
 PAGES = [
     {"path": "/", "group": "start", "name": "Home", "description": "The home page."},
-    {"path": "/vault", "group": "selfservice", "name": "Vault", "description": "Ask for a copy."},
+    {"path": "/vault", "group": "customerservice", "name": "Vault", "description": "Ask for a copy."},
 ]
 
 

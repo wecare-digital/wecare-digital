@@ -122,11 +122,11 @@ python scripts/generate_runtime_inventory.py   # re-derives the 117
 curl -sI [retired public path 0e838b48]/calls       # expect 301
 ```
 
-Use **`wecare.digital`**, not `stack.wecare.digital`. The `stack` CNAME
+Use **`wecare.digital`**, not `retired legacy frontend host`. The `stack` CNAME
 (`d2av2go6w170k.cloudfront.net`) was removed on 2026-09-25 and no longer resolves;
 the snapshot is at
 `docs/execution/snapshots/route53-stack-cname-before-removal.json`. Older documents,
-including `bw-crm.md` itself, still name `stack.wecare.digital` as the live host.
+including `bw-crm.md` itself, still name `retired legacy frontend host` as the live host.
 
 Probed on 2026-09-25 against `wecare.digital`, all four confirmed **301** with the
 filter intent intact:

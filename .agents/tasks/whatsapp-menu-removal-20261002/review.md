@@ -93,7 +93,7 @@ against a 13 failed / 6854 passed baseline — the same 13 names, all other sess
    empty, every WhatsApp delivery records `TEMPLATE_UNCONFIGURED`. Harmless today because
    `PSTN_CONNECTED_NOTIFICATIONS_ENABLED` is absent, but turning that flag on needs an
    approved `wd_call_followup_v1` first.
-5. **Three self-service actions lost their only entry point** — `toggle_audio`,
+5. **Three customer-service actions lost their only entry point** — `toggle_audio`,
    `toggle_notifications` and `human_handoff` were reachable only from the deleted menu rows
    and have no typed keyword. The coder measured this and recorded it; restoring any of them
    is new work, not a revert.

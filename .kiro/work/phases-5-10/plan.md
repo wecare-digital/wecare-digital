@@ -971,7 +971,7 @@ Owner asked for the login URL to be updated alongside the design work.
 **I have to lead with a correction: I claimed login was broken, and it is not.** The
 reasoning failed twice.
 
-1. The Amplify domain serves the apex, and `stack.wecare.digital` 301s to it. I assumed a
+1. The Amplify domain serves the apex, and `retired-legacy-host.invalid` 301s to it. I assumed a
    301 would drop the OAuth `?code=`. Probed it: `?code=TESTVALUE123` **survives** the
    redirect.
 2. `signin.wecare.digital` returned 403 for the authorize URL and I read that as a
@@ -979,7 +979,7 @@ reasoning failed twice.
    **same** 403 and the same "Sign in" page — managed login does not validate
    `redirect_uri` at render time, so the 403 carries no information about registration.
 
-`NEXT_PUBLIC_APP_URL=https://stack.wecare.digital/` was, and is, a registered callback.
+`NEXT_PUBLIC_APP_URL=https://retired-legacy-host.invalid/` was a historical callback value before the frontend moved to the apex.
 The configuration was consistent the whole time.
 
 **What was actually changed — additive only.**

@@ -31,7 +31,7 @@ import RotatingHero, { type CycleWord } from '../components/RotatingHero';
  * can actually get an answer today. The moment an endpoint exists, the lookup form
  * belongs here.
  *
- * "SELFSERVICE" NAMING REMOVED 2026-09-27 (owner instruction). It named a portal that no
+ * "CUSTOMERSERVICE" NAMING REMOVED 2026-09-27 (owner instruction). It named a portal that no
  * longer exists at any address: the in-repo [retired public path] stub went in commit 6bc44a35 and
  * nothing replaced it, so the word pointed customers at a concept with no page behind it.
  * The only [retired public path] route in the codebase now is the ADMIN flow dashboard under

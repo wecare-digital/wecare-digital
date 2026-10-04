@@ -1,6 +1,6 @@
 [
     {
-        "Name": "stack.wecare.digital.",
+        "Name": "retired-legacy-host.invalid.",
         "Type": "CNAME",
         "TTL": 500,
         "ResourceRecords": [

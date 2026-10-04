@@ -464,7 +464,7 @@ class TestTools:
         group - that failure is what makes adding a page a decision about which heading an
         agent will find it under, instead of something that happens silently. /vault was
         added on 2026-09-30 and this is the line that noticed."""
-        _, body = rpc("tools/call", {"name": "list_pages", "arguments": {"group": "selfservice"}})
+        _, body = rpc("tools/call", {"name": "list_pages", "arguments": {"group": "customerservice"}})
         payload = body["result"]["structuredContent"]
         assert payload["count"] == 6
         assert {p["path"] for p in payload["pages"]} == {
@@ -475,7 +475,7 @@ class TestTools:
     def test_an_unknown_group_names_the_valid_ones(self):
         _, body = rpc("tools/call", {"name": "list_pages", "arguments": {"group": "nonsense"}})
         assert body["result"]["isError"] is True
-        assert "selfservice" in body["result"]["content"][0]["text"]
+        assert "customerservice" in body["result"]["content"][0]["text"]
 
     def test_search_blog_ranks_relevance_first_then_recency(self):
         _, body = rpc("tools/call", {"name": "search_blog", "arguments": {"query": "visa"}})

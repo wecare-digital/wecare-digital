@@ -6,8 +6,8 @@
 >
 > Generated 2026-06-26 · Repo `wecare-digital/wecare-digital` (branch `stack`).
 >
-> The repo was recorded here as `wecaredigital/stack.wecare.digital`, which is neither
-> the current remote nor a host that resolves — and `stack.wecare.digital` is NXDOMAIN.
+> The repo was recorded here as `wecaredigital/[retired-legacy-host]`, which is neither
+> the current remote nor a host that resolves — and `retired legacy frontend host` is NXDOMAIN.
 > Corrected 2026-09-26 to `wecare-digital/bharat-stack`, then again 2026-09-28: the
 > repository was **renamed to `wecare-digital/wecare-digital` on 2026-09-27**. GitHub
 > redirects the old path, so a stale URL looks fine in `git` while breaking things that

@@ -18,7 +18,7 @@ from S3, dominant colour sampled from the pixels.
 | `wecare-digital-rcs-h.png` | 2800 × 1200 | **7:3** | 89 KB | **Correct shape already.** Used by `rcsmenu` today |
 | `wdf.png` | 1254 × 1254 | 1:1 | 1.33 MB | Card **front** — logo, tagline, phone, email, QR |
 | `wdb.png` | 1254 × 1254 | 1:1 | 1.08 MB | Card **back** — "hello" + #EverydayBharat |
-| `selfservice.png` | 3375 × 3375 | 1:1 | 578 KB | Square, very large |
+| `customerservice.png` | 3375 × 3375 | 1:1 | 578 KB | Square, very large |
 | `wecare-digital-rcs-v` | 1091 × 1441 | 0.76:1 | 1.16 MB | Portrait, **and no file extension** |
 | `wecare-digital-rcs` | 3375 × 3375 | 1:1 | 578 KB | **No file extension** |
 | `wecare-digital.png` | 1080 × 1080 | 1:1 | 86 KB | Logo tile |
@@ -190,7 +190,7 @@ Text template:
 
 ```bash
 aws lambda invoke --function-name wecare-rcs-send --cli-binary-format raw-in-base64-out \
-  --payload '{"body":"{\"action\":\"create_template\",\"name\":\"wd_menu_text\",\"type\":\"text_message\",\"text\":\"Thanks for contacting WECARE.DIGITAL!\\n\\nSubmit your request: https://wecare.digital/selfservice\\nOr message / voice note us on WhatsApp: https://wecare.digital/r/wa\\n\\nWe will review it and follow up if needed.\"}"}' \
+  --payload '{"body":"{\"action\":\"create_template\",\"name\":\"wd_menu_text\",\"type\":\"text_message\",\"text\":\"Thanks for contacting WECARE.DIGITAL!\\n\\nSubmit your request: https://wecare.digital/customerservice\\nOr message / voice note us on WhatsApp: https://wecare.digital/r/wa\\n\\nWe will review it and follow up if needed.\"}"}' \
   /dev/stdout
 ```
 
@@ -507,14 +507,14 @@ internal redirect (`wa.me` → `api.whatsapp.com`), which is Meta's own hop and 
 avoidable.
 
 **Observation, not a change:** the code `APDM5HUWH26SG1` is the one labelled
-**`subscribe`** in `selfservice.tsx`'s `MESSAGE_LINKS`, while `submit_request` is a
+**`subscribe`** in `customerservice.tsx`'s `MESSAGE_LINKS`, while `submit_request` is a
 different code, `J3ZJ4W52TPJEN1`. The widget has pointed at the `subscribe` deep
 link since before this work, deliberately preserved from the old script. Flagging it
 in case the RCS button ought to open `submit_request` instead — that is a product
 call, so nothing was changed.
 
 `GET STARTED` is left as `wecare.digital/r/getstarted` (which 302s to
-`wecare.digital/selfservice`). Say if you want that one direct too; the same
+`wecare.digital/customerservice`). Say if you want that one direct too; the same
 analytics trade applies.
 
 ### 11.3 Copy alternatives

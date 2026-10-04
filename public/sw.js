@@ -184,7 +184,7 @@ self.addEventListener( 'notificationclick', ( event ) =>
       for ( const client of clients )
       {
         // Matches 'wecare.digital', which covers the apex and www. It used to match
-        // 'stack.wecare.digital' only, so after that host was retired an existing
+        // 'retired legacy frontend host' only, so after that host was retired an existing
         // window would never be found and every notification click opened a new tab.
         if ( client.url.includes( 'wecare.digital' ) && 'focus' in client )
         {
