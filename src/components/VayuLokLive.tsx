@@ -50,21 +50,30 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 // air-quality points (see RESEARCH-deckgl-sampling-architecture.md), rendered over the
 // Google roadmap through GoogleMapsOverlay. The old raster air-quality layer-tile overlay is gone.
 // Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome; the dots use the
-// VayuLok no-red severity ramp (--aqi-good -> --aqi-worst) converted to RGBA below.
+// STANDARD AQI severity ramp (green -> yellow -> orange -> red) converted to RGBA below.
 
-// VayuLok NO-RED severity palette as RGBA, keyed by Sev. These are the EXACT hex tokens the
-// --aqi-* CSS custom properties use (good #1a3a2a / sat #3da35a / mod #d1f470 (lime) /
-// poor #e8c547 / worst #c98a2e), converted to [r,g,b,a] for the deck.gl ScatterplotLayer.
-// Google's UAQI_RED_GREEN tile palette is deliberately NOT inherited - no red anywhere.
+// OWNER OVERRIDE (reference screenshot, 2026-10-06): the owner chose to match the screenshot
+// literally, which reverses the prior VayuLok "no-red" dot rule for the air-quality dots.
+// See .agents/tasks/vayulok-screenshot-match-20261006/decisions.md (Decision 1). The dots now
+// use a STANDARD CPCB-aligned AQI color scale keyed by the existing Sev band - red IS allowed
+// for the worst band. Dots remain driven by REAL sampled Air-Quality values (airPointFromApi);
+// nothing is fabricated. Severity is also carried by the category WORD + numeric value in the
+// left result (WCAG 1.4.1), so color is not the sole severity carrier.
+// Five bands matching Sev good|sat|mod|poor|worst, alpha ~210:
+//   good  green         [46,125,50]
+//   sat   yellow-green  [124,179,66]
+//   mod   yellow        [253,216,53]
+//   poor  orange        [245,124,0]
+//   worst red           [211,47,47]
 const DOT_FILL_RGBA: Record<Sev, [ number, number, number, number ]> = {
-  good: [ 26, 58, 42, 210 ],
-  sat: [ 61, 163, 90, 210 ],
-  mod: [ 209, 244, 112, 210 ],
-  poor: [ 232, 197, 71, 210 ],
-  worst: [ 201, 138, 46, 210 ],
+  good: [ 46, 125, 50, 210 ],
+  sat: [ 124, 179, 66, 210 ],
+  mod: [ 253, 216, 53, 210 ],
+  poor: [ 245, 124, 0, 210 ],
+  worst: [ 211, 47, 47, 210 ],
 };
-// Dark-green outline (--green #1a3a2a) so dots read against light roads.
-const DOT_LINE_RGBA: [ number, number, number, number ] = [ 26, 58, 42, 230 ];
+// Dark outline so dots read against light roads.
+const DOT_LINE_RGBA: [ number, number, number, number ] = [ 33, 33, 33, 230 ];
 
 // PM2.5 (µg/m³) -> severity band, mirroring the AQI ramp's no-red bands so a PM2.5 dot
 // shares the same five-step palette as the AQI dot. Real values only; callers drop NaN.
@@ -212,25 +221,9 @@ const DEFAULT_PLACE: PlaceState = {
   photos: [],
 };
 
-const BRAND_MARKER_SVG =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">'
-  + '<path d="M18 1C9.2 1 2 8.2 2 17c0 11.5 16 30 16 30s16-18.5 16-30C34 8.2 26.8 1 18 1z" '
-  + 'fill="#1a3a2a" stroke="#ffffff" stroke-width="2"/>'
-  + '<circle cx="18" cy="17" r="7" fill="#d1f470" stroke="#ffffff" stroke-width="1.5"/>'
-  + '</svg>';
-const BRAND_MARKER_ICON_URL =
-  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent( BRAND_MARKER_SVG );
-
-function brandMarkerIcon( g: {
-  Size?: new ( w: number, h: number ) => unknown;
-  Point?: new ( x: number, y: number ) => unknown;
-} ) {
-  return {
-    url: BRAND_MARKER_ICON_URL,
-    scaledSize: g.Size ? new g.Size( 36, 48 ) : undefined,
-    anchor: g.Point ? new g.Point( 18, 47 ) : undefined,
-  };
-}
+// OWNER OVERRIDE (reference screenshot, 2026-10-06): the selected place now uses the STANDARD
+// RED Google marker (default google.maps.Marker pin). The prior no-red brand SVG pin is retired
+// per decisions.md Decision 2; the recenter/marker effect creates a default-icon Marker.
 
 // GEOMETRY ON THE REPO PALETTE, ported verbatim from the mock's map styles.
 const MAP_STYLES = [
@@ -762,7 +755,11 @@ const VayuLokLive: React.FC = () => {
         mapTypeId: 'roadmap',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
-        zoomControl: false,
+        // OWNER OVERRIDE (reference screenshot, decisions.md Decision 3): show Google's
+        // built-in +/- zoom control (bottom-right by default), inset from the corner so the
+        // Google logo + legal attribution stay visible. The custom geolocation crosshair is
+        // rendered inline in the map column below.
+        zoomControl: true,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
@@ -1603,22 +1600,20 @@ const VayuLokLive: React.FC = () => {
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
   useEffect( () => {
-    const w = window as unknown as {
-      google?: { maps?: {
-        Size?: new ( w: number, h: number ) => unknown;
-        Point?: new ( x: number, y: number ) => unknown;
-      } };
-    };
+    const w = window as unknown as { google?: { maps?: unknown } };
     const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( zoom: number ) => void } | null;
     if ( !map || !w.google?.maps || !hasSelection ) return;
 
     if ( !markerRef.current && markerCtorRef.current ) {
       const MarkerCtor = markerCtorRef.current;
+      // OWNER OVERRIDE (reference screenshot): a STANDARD RED Google marker at the selected
+      // place. Omitting `icon` yields google.maps.Marker's default red pin, matching the
+      // screenshot. This reverses PR #230's no-red brand SVG pin per the owner override
+      // (see decisions.md Decision 2). Lazy-created on first selection, then re-used.
       markerRef.current = new MarkerCtor( {
         position: { lat: place.lat, lng: place.lng },
         map,
         title: place.name,
-        icon: brandMarkerIcon( w.google.maps ),
       } );
     }
     const marker = markerRef.current as {
@@ -1769,7 +1764,7 @@ const VayuLokLive: React.FC = () => {
         const mapped: SearchResult[] = rows
           .filter( ( row: unknown ) => isIndiaResult( row ) )
           .slice( 0, 6 )
-          .map( ( row: unknown ) => {
+          .map( ( row: unknown ): SearchResult | null => {
             const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
             const loc = pr.geometry?.location;
             const lat = loc?.lat?.();
@@ -1884,6 +1879,61 @@ const VayuLokLive: React.FC = () => {
   };
 
   useEffect( () => () => { if ( searchTimer.current ) clearTimeout( searchTimer.current ); }, [] );
+
+  /* OWNER OVERRIDE (reference screenshot, decisions.md Decision 3): "use my location"
+     crosshair. Reverses the prior no-GPS rule for the shown control. Uses the browser
+     Geolocation API, then validates the resolved position is INSIDE India before SELECTING
+     it: a cheap INDIA_BOUNDS lat/lng pre-check, then a reverse-geocode + isIndiaResult check
+     mirroring the existing map-click handler. On denial / error / absence / outside-India it
+     degrades honestly - no selection, no throw, no console spam (at most the existing
+     'outside-india' search status). navigator is guarded; tests stub navigator.geolocation. */
+  const useMyLocation = useCallback( () => {
+    if ( !MAPS_KEY ) return;
+    if ( typeof navigator === 'undefined' || !navigator.geolocation ) return;
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const lat = position?.coords?.latitude;
+        const lng = position?.coords?.longitude;
+        if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return;
+        // Cheap pre-check: must fall within the product's India bounding box.
+        if (
+          lat < INDIA_BOUNDS.south || lat > INDIA_BOUNDS.north
+          || lng < INDIA_BOUNDS.west || lng > INDIA_BOUNDS.east
+        ) {
+          setSearchStatus( 'outside-india' );
+          return;
+        }
+        void ( async () => {
+          const gc = await ensureGeocoder();
+          if ( !gc?.geocode ) return;
+          gc.geocode( { location: { lat, lng }, region: 'in' }, ( rows, status ) => {
+            if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
+            const first = rows.find( row => isIndiaResult( row ) ) as
+              | { formatted_address?: string; place_id?: string }
+              | undefined;
+            if ( !first ) {
+              setSearchStatus( 'outside-india' );
+              return;
+            }
+            const next: PlaceState = {
+              name: first.formatted_address?.split( ',' )[ 0 ] || 'My location',
+              addr: first.formatted_address || '',
+              lat,
+              lng,
+              placeId: first.place_id,
+              photos: [],
+            };
+            setHasSelection( true );
+            setSearchStatus( 'idle' );
+            setMapCandidate( next );
+            setPlace( next );
+          } );
+        } )();
+      },
+      () => { /* permission denied / position unavailable / timeout -> degrade silently */ },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    );
+  }, [ ensureGeocoder ] );
 
   const weatherFreshness = relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined );
   const airFreshness = relativeAgeLabel( air?.updatedAt || coreFetchedAt || undefined );
@@ -2033,8 +2083,70 @@ const VayuLokLive: React.FC = () => {
               ) }
 
               <div className="vl-live-place-body">
-                <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
-                <p className="vl-live-place-addr">{ place.addr }</p>
+                {/* Screenshot header: bold place name + secondary address line, with a small
+                    type chip (previewPlace.primaryType) on the right - rendered ONLY when
+                    Google returned a primary type, never fabricated. */}
+                <div className="vl-live-place-head">
+                  <div className="vl-live-place-head-text">
+                    <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
+                    <p className="vl-live-place-addr">{ place.addr }</p>
+                  </div>
+                  { previewPlace.primaryType && (
+                    <span className="vl-live-place-chip">{ previewPlace.primaryType }</span>
+                  ) }
+                </div>
+
+                {/* Screenshot summary row: a BLUE current-weather card + a pale-green AQI
+                    summary card, side by side. Each renders only when its live data is in
+                    state (weather / air), wired to the on-selection fetches already in place.
+                    No new fetch is added here - this is a markup re-composition. */}
+                { liveActive && ( weather || air ) && (
+                  <div className="vl-live-summary-cards">
+                    { weather && (
+                      <div className="vl-live-sum vl-live-sum-weather">
+                        <div className="vl-live-sum-top">
+                          <div>
+                            <strong className="vl-live-sum-temp">{ Number.isFinite( weather.temp ) ? weather.temp + '°C' : '—' }</strong>
+                            { weather.condition && <span className="vl-live-sum-cond">{ weather.condition }</span> }
+                          </div>
+                          <svg className="vl-live-sum-ico" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="5" fill="#fff" /><path d="M12 1.5v3M12 19.5v3M3.9 3.9l2.1 2.1M18 18l2.1 2.1M1.5 12h3M19.5 12h3M3.9 20.1 6 18M18 6l2.1-2.1" stroke="#fff" strokeWidth="2" strokeLinecap="round" /></svg>
+                        </div>
+                        { Number.isFinite( weather.feelsLike ) && <span className="vl-live-sum-sub">Feels like { weather.feelsLike }°</span> }
+                        { weatherDaily.length > 0 && ( Number.isFinite( weatherDaily[ 0 ].max ) || Number.isFinite( weatherDaily[ 0 ].min ) ) && (
+                          <span className="vl-live-sum-hilo">
+                            { Number.isFinite( weatherDaily[ 0 ].max ) && <>&#8593;{ weatherDaily[ 0 ].max }° </> }
+                            { Number.isFinite( weatherDaily[ 0 ].min ) && <>&#8595;{ weatherDaily[ 0 ].min }°</> }
+                          </span>
+                        ) }
+                      </div>
+                    ) }
+                    { air && (
+                      <div className="vl-live-sum vl-live-sum-aqi">
+                        <div className="vl-live-sum-top">
+                          <div>
+                            <strong className="vl-live-sum-temp">AQI { air.aqi }</strong>
+                            <span className="vl-live-sum-cond">{ air.word }</span>
+                          </div>
+                          <svg className="vl-live-sum-ico vl-live-sum-ico-leaf" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 19c0-7 5-12 14-13-1 9-6 14-13 14-1 0-1-1-1-1z" fill="#2e7d32" /><path d="M8 16c3-3 6-5 9-6" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" /></svg>
+                        </div>
+                        { currentPm25 && <span className="vl-live-sum-sub">PM2.5 { Math.round( currentPm25.value ) } { currentPm25.unit }</span> }
+                        <span className="vl-live-sum-chevron" aria-hidden="true">›</span>
+                      </div>
+                    ) }
+                  </div>
+                ) }
+
+                {/* Screenshot metric chip row: Humidity / Wind / Rain / UV / PM2.5. Each chip
+                    renders only when its real value is present. */}
+                { liveActive && ( weather || currentPm25 ) && (
+                  <div className="vl-live-metric-chips" aria-label="Current conditions summary">
+                    { weather && Number.isFinite( weather.humidity ) && <span className="vl-live-chip"><em>Humidity</em><b>{ weather.humidity }%</b></span> }
+                    { weather && Number.isFinite( weather.windSpeed ) && <span className="vl-live-chip"><em>Wind</em><b>{ weather.windSpeed } { weather.windUnit || 'km/h' }</b></span> }
+                    { weather && Number.isFinite( weather.rainProb ) && <span className="vl-live-chip"><em>Rain</em><b>{ weather.rainProb }%</b></span> }
+                    { weather && Number.isFinite( weather.uv ) && <span className="vl-live-chip"><em>UV</em><b>{ weather.uv }</b></span> }
+                    { currentPm25 && <span className="vl-live-chip"><em>PM2.5</em><b>{ Math.round( currentPm25.value ) }</b></span> }
+                  </div>
+                ) }
 
                 {/* REAL PLACE METADATA / ATTRIBUTES / DESCRIPTION (FINAL TARGET default
                     state). Every line is gated on a datum Google actually returned for the
@@ -2235,7 +2347,7 @@ const VayuLokLive: React.FC = () => {
                 </div>
                 <time>{ new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' } ).format( new Date() ) }</time>
               </div>
-              <div className="vl-live-hour-rail vl-live-hour-rail-primary" aria-label="Next 24 hours weather and air quality">
+              <div className="vl-live-hour-rail vl-live-hour-rail-primary vl-live-hour-rail-blue" aria-label="Next 24 hours weather and air quality">
                 { combinedHours.map( ( h, i ) => (
                   <article className="vl-live-hour-card" key={ h.time }>
                     <time>{ hourLabel( h.time ) }</time>
@@ -2254,15 +2366,21 @@ const VayuLokLive: React.FC = () => {
             <section className="vl-live-section vl-live-detail-switcher" aria-labelledby="vl-live-detail-title">
               <div className="vl-live-detail-head">
                 <h3 className="vl-live-h2" id="vl-live-detail-title">Details</h3>
-                <div className="vl-live-detail-tabs" role="tablist" aria-label="Environmental details">
-                  <button type="button" role="tab" aria-selected={ detailTab === 'air' } onClick={ () => setDetailTab( 'air' ) }>Air</button>
-                  <button type="button" role="tab" aria-selected={ detailTab === 'weather' } onClick={ () => setDetailTab( 'weather' ) }>Weather</button>
+                {/* Screenshot AIR | WEATHER toggle pill (AIR active = blue). Reuses the
+                    existing detailTab state to switch the lower section between the pollutant
+                    grid and the weather detail view. */}
+                <div className="vl-live-detail-tabs vl-live-detail-tabs-pill" role="tablist" aria-label="Environmental details">
+                  <button type="button" role="tab" aria-selected={ detailTab === 'air' } onClick={ () => setDetailTab( 'air' ) }>AIR</button>
+                  <button type="button" role="tab" aria-selected={ detailTab === 'weather' } onClick={ () => setDetailTab( 'weather' ) }>WEATHER</button>
                 </div>
               </div>
 
               { detailTab === 'air' && air && (
                 <div role="tabpanel" aria-label="Air details">
-                  <div className="vl-live-detail-list">
+                  {/* Screenshot 6-cell pollutant grid PM2.5/PM10/NO2/O3/CO/SO2 with units
+                      (CO already mg/m³ via concUnitLabel). Driven by air.pollutants - a cell
+                      renders only for a pollutant Google actually returned. */}
+                  <div className="vl-live-detail-list vl-live-pollutant-grid">
                     { air.pollutants.map( p => (
                       <div key={ p.code }>
                         <span>{ p.label }</span>
@@ -2500,7 +2618,7 @@ const VayuLokLive: React.FC = () => {
                         autoComplete="off"
                         autoCorrect="off"
                         spellCheck={ false }
-                        placeholder="Search a city or place"
+                        placeholder="Search a city or place in India"
                         value={ query }
                         onChange={ onQueryChange }
                         onFocus={ () => {
@@ -2573,6 +2691,28 @@ const VayuLokLive: React.FC = () => {
                 </div>
               ) }
 
+              {/* OWNER OVERRIDE (reference screenshot, decisions.md Decision 3): a bottom-right
+                  "use my location" crosshair. Rendered only once the Maps JS canvas exists.
+                  On click it calls navigator.geolocation and validates India before selecting;
+                  on denial/outside-India it degrades silently. Kept INLINE so styled-jsx keeps
+                  its vl-live- scope, and inset above Google's built-in zoom control so the
+                  logo + legal attribution stay visible. */}
+              { mapReady && (
+                <button
+                  type="button"
+                  className="vl-live-map-locate"
+                  aria-label="Use my location"
+                  title="Use my location"
+                  onClick={ useMyLocation }
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="4.5" stroke="#1a3a2a" strokeWidth="2" />
+                    <circle cx="12" cy="12" r="1.5" fill="#1a3a2a" />
+                    <path d="M12 1.5V5M12 19v3.5M1.5 12H5M19 12h3.5" stroke="#1a3a2a" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                </button>
+              ) }
+
               {/* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR (like
                   https://mapsplatform.google.com/demos/destinations/). Renders only when
                   live (a Maps key exists) AND a place name is in state. It is a real
@@ -2636,6 +2776,15 @@ const VayuLokLive: React.FC = () => {
              of near-black green. See .agents/tasks/vayulok-home-aligned-mock/design-tokens.md. */
           --aqi-good:#1a3a2a;--aqi-sat:#3da35a;--aqi-mod:#d1f470;--aqi-poor:#e8c547;--aqi-worst:#c98a2e;
           --tint-warn:#fdf4e3;
+
+          /* OWNER OVERRIDE (reference screenshot, decisions.md Decision 4): a documented
+             weather-blue token used by the current-weather summary card, the hourly forecast
+             strip and the active "AIR" toggle pill. The repo had no weather-blue; this is a
+             clean Google-ish blue with a pale tint for card fills. The AQI summary card uses
+             the pale lime tint (not blue), and --lime #d1f470 stays reserved for the active
+             AQI/PM2.5 selector pills top-right. */
+          --weather-blue:#2f6fed;--weather-blue-tint:rgba(47,111,237,.10);--weather-blue-ink:#1b3a7a;
+          --aqi-card-tint:#f5fde0;
 
           --r-panel:14px;--r-field:10px;--r-pill:999px;--r-btn:13px;
           --e-glide:cubic-bezier(.16,1,.3,1);--e-draw:cubic-bezier(.22,.61,.36,1);
@@ -2791,6 +2940,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-detail-tabs button{min-height:34px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
         .vl-live-detail-tabs button[aria-selected="true"]{background:var(--lime);color:var(--green)}
         .vl-live-detail-tabs button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+        /* OWNER OVERRIDE (reference screenshot): the AIR | WEATHER toggle pill. AIR active =
+           blue (--weather-blue), per decisions.md Decision 4. */
+        .vl-live-detail-tabs-pill button[aria-selected="true"]{background:var(--weather-blue);color:#fff}
+        .vl-live-detail-tabs-pill button{letter-spacing:.06em}
+        /* 6-cell pollutant grid (PM2.5/PM10/NO2/O3/CO/SO2) matching the screenshot. */
+        .vl-live-pollutant-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
         .vl-live-detail-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--hair)}
         .vl-live-detail-list>div{display:flex;justify-content:space-between;gap:12px;padding:14px 12px 14px 0;border-bottom:1px solid var(--hair)}
         .vl-live-detail-list>div:nth-child(even){padding-left:12px;border-left:1px solid var(--hair)}
@@ -2805,6 +2960,8 @@ const VayuLokLive: React.FC = () => {
           .vl-live-detail-head{align-items:flex-start;flex-direction:column}
           .vl-live-detail-list{grid-template-columns:1fr}
           .vl-live-detail-list>div:nth-child(even){padding-left:0;border-left:0}
+          .vl-live-pollutant-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+          .vl-live-summary-cards{grid-template-columns:1fr}
         }
         .vl-live-figure{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:8px 0 0}
         .vl-live-metric-xl{font-size:clamp(40px,4.3vw,56px);font-weight:600;line-height:1.04;letter-spacing:-0.04em;color:#1a1a1a}
@@ -2855,6 +3012,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-destbar-meta{font-size:13px;font-weight:500;color:rgba(26,58,42,.66);overflow:hidden;text-overflow:ellipsis;min-width:0}
         .vl-live-map-destbar-chevron{flex:0 0 auto;font-size:20px;line-height:1;font-weight:700;color:#1a3a2a}
 
+        /* OWNER OVERRIDE (reference screenshot): bottom-right "use my location" crosshair.
+           Inset above Google's built-in zoom control so the logo + legal attribution stay
+           visible; it never overlaps the bottom-corner Google chrome. */
+        .vl-live-map-locate{position:absolute;right:18px;bottom:132px;z-index:6;display:flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--hair);border-radius:10px;background:var(--paper);color:#1a3a2a;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.18);transition:box-shadow .2s,transform .2s}
+        .vl-live-map-locate:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,58,42,.2)}
+        .vl-live-map-locate:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live-map-locate svg{display:block}
+
         /* Heatmap scale legend - now rendered INSIDE the left card's layer-result block
            (no longer an absolute on-map overlay). It reuses the no-red --aqi-* ramp
            (dark green -> lime -> amber) and labels both ends in WORDS so colour is never
@@ -2874,6 +3039,33 @@ const VayuLokLive: React.FC = () => {
         .vl-live-place-body{position:relative;z-index:1;background:#fff;border-radius:0 0 13px 13px}
         .vl-live-place-body{padding:20px}
         .vl-live-place-body .vl-live-place{margin-top:0}
+
+        /* OWNER OVERRIDE (reference screenshot) left-card composition. All of the following
+           render only when their live data is in state; honest degradation keeps them absent
+           with no key. Blue elements use --weather-blue (decisions.md Decision 4); the AQI
+           summary card uses the pale lime --aqi-card-tint, never blue. */
+        .vl-live-place-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+        .vl-live-place-head-text{min-width:0}
+        .vl-live-place-head .vl-live-place-addr{margin-bottom:16px}
+        .vl-live-place-chip{flex:0 0 auto;align-self:flex-start;padding:4px 10px;border-radius:var(--r-pill);background:var(--ground);border:1px solid var(--hair);font-size:11px;font-weight:700;letter-spacing:.02em;color:var(--green);white-space:nowrap}
+
+        .vl-live-summary-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 16px}
+        .vl-live-sum{position:relative;display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:14px;min-width:0}
+        .vl-live-sum-weather{background:var(--weather-blue);color:#fff}
+        .vl-live-sum-aqi{background:var(--aqi-card-tint);border:1px solid rgba(46,125,50,.25);color:#1a3a2a}
+        .vl-live-sum-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+        .vl-live-sum-temp{display:block;font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.5px}
+        .vl-live-sum-cond{display:block;margin-top:2px;font-size:12px;font-weight:600;opacity:.92}
+        .vl-live-sum-sub{font-size:12px;font-weight:500;opacity:.9}
+        .vl-live-sum-hilo{font-size:12px;font-weight:600;opacity:.95}
+        .vl-live-sum-ico{flex:0 0 auto}
+        .vl-live-sum-chevron{position:absolute;right:12px;bottom:10px;font-size:18px;line-height:1;font-weight:700;color:rgba(26,58,42,.5)}
+
+        .vl-live-metric-chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+        .vl-live-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 11px;border-radius:var(--r-pill);background:var(--ground);border:1px solid var(--hair)}
+        .vl-live-chip em{font-style:normal;font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-muted)}
+        .vl-live-chip b{font-size:13px;font-weight:700;color:#1a1a1a}
+
         /* Real place metadata / attributes / description / supporting info. Each block
            renders only when the datum exists; honest degradation keeps them empty when no
            key => no fetch. Tokens match the home ladder: hairline rules, muted ink, no
@@ -2947,6 +3139,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-forecast-head .vl-live-h2{margin:3px 0 0}
         .vl-live-forecast-head>time{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
         .vl-live-hour-rail-primary{border-radius:0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+        /* OWNER OVERRIDE (reference screenshot): BLUE hourly forecast strip (--weather-blue). */
+        .vl-live-hour-rail-blue{border-radius:14px;border:1px solid var(--weather-blue);background:var(--weather-blue-tint)}
+        .vl-live-hour-rail-blue .vl-live-hour-card time{color:var(--weather-blue-ink)}
+        .vl-live-hour-rail-blue .vl-live-hour-card strong{color:var(--weather-blue-ink)}
+        .vl-live-hour-rail-blue .vl-live-hour-card em{color:var(--weather-blue)}
         .vl-live-forecast-row{padding-top:16px}
         .vl-live-forecast-row+.vl-live-forecast-row{border-top:1px solid var(--hair)}
         .vl-live-forecast-label{display:flex;justify-content:space-between;gap:12px;margin:0;padding:0 20px 10px;font-size:12px;font-weight:700;color:var(--ink-muted)}

@@ -54,14 +54,34 @@ vi.mock( '@deck.gl/layers', () => {
   return { ScatterplotLayer: FakeScatterplotLayer };
 } );
 
-// The VayuLok NO-RED severity ramp the dots must use (good -> worst). No red at any band.
-const NO_RED_FILLS: [ number, number, number, number ][] = [
-  [ 26, 58, 42, 210 ],
-  [ 61, 163, 90, 210 ],
-  [ 209, 244, 112, 210 ],
-  [ 232, 197, 71, 210 ],
-  [ 201, 138, 46, 210 ],
-];
+/* OWNER OVERRIDE (reference screenshot = option 2, match the screenshot literally; see
+   .agents/tasks/vayulok-screenshot-match-20261006/decisions.md Decision 1). The prior
+   no-red dot ramp was REVERSED: the dots now use the STANDARD CPCB AQI color scale
+   green -> yellow-green -> yellow -> orange -> RED, keyed by the Sev band. Red is now
+   ALLOWED (and REQUIRED) for the worst band. These are the exact RGBA values the component
+   paints; the tests assert the ends of this ramp (green at the good band, red-dominant at
+   the worst band) from REAL AQI values driven through the air fetch stub. */
+const STANDARD_AQI_FILLS: Record<string, [ number, number, number, number ]> = {
+  good: [ 46, 125, 50, 210 ],
+  sat: [ 124, 179, 66, 210 ],
+  mod: [ 253, 216, 53, 210 ],
+  poor: [ 245, 124, 0, 210 ],
+  worst: [ 211, 47, 47, 210 ],
+};
+const ALL_STANDARD_FILLS = Object.values( STANDARD_AQI_FILLS );
+// A red-dominant fill: red channel high while green + blue stay low. The worst band
+// ([211,47,47]) satisfies this; a green band must NOT.
+function isRedDominant( fill: [ number, number, number, number ] ): boolean {
+  return fill[ 0 ] > 200 && fill[ 1 ] < 80 && fill[ 2 ] < 80;
+}
+function isGreenDominant( fill: [ number, number, number, number ] ): boolean {
+  return fill[ 1 ] > fill[ 0 ] && fill[ 1 ] > fill[ 2 ];
+}
+function matchesStandardRamp( fill: [ number, number, number, number ] ): boolean {
+  return ALL_STANDARD_FILLS.some(
+    ramp => ramp[ 0 ] === fill[ 0 ] && ramp[ 1 ] === fill[ 1 ] && ramp[ 2 ] === fill[ 2 ],
+  );
+}
 
 /**
  * THE LIVE VAYULOK CONTENT, IN ISOLATION - the behaviour that is verifiable WITHOUT a browser,
@@ -604,14 +624,16 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( Array.isArray( samplePos ) ).toBe( true );
     expect( samplePos ).toHaveLength( 2 );
 
-    // DOT FILL COLOURS ARE NO-RED. getFillColor for every real dot resolves to a colour in
-    // the VayuLok no-red ramp, and never a red-dominant RGBA like [255,0,0].
+    // OWNER OVERRIDE (match-the-screenshot): dot fills now come from the STANDARD AQI ramp
+    // (green -> red), not the old no-red ramp. Every real dot resolves to a colour in that
+    // ramp. This AQI (120) parses to the 'mod' (yellow) band for every cell.
     for ( const d of scatter.data ) {
       const fill = scatter.getFillColor( d ) as [ number, number, number, number ];
-      const isNoRed = NO_RED_FILLS.some( ramp => ramp[ 0 ] === fill[ 0 ] && ramp[ 1 ] === fill[ 1 ] && ramp[ 2 ] === fill[ 2 ] );
-      expect( isNoRed ).toBe( true );
-      // Hard guard: never a red-dominant fill (R high while G and B low).
-      expect( fill[ 0 ] > 200 && fill[ 1 ] < 80 && fill[ 2 ] < 80 ).toBe( false );
+      expect( matchesStandardRamp( fill ) ).toBe( true );
+      // AQI 120 is the yellow 'mod' band, i.e. the exact standard value.
+      expect( [ fill[ 0 ], fill[ 1 ], fill[ 2 ] ] ).toEqual(
+        [ STANDARD_AQI_FILLS.mod[ 0 ], STANDARD_AQI_FILLS.mod[ 1 ], STANDARD_AQI_FILLS.mod[ 2 ] ],
+      );
     }
 
     // Deactivating the layer (second click -> layer null) CLEARS the overlay: it is detached
@@ -646,11 +668,74 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
     expect( fetchSpy.mock.calls.some( c => requestUrl( c[ 0 ] )?.pathname.includes( 'heatmapTiles' ) === true ) ).toBe( false );
 
-    // The PM2.5 scatter layer still paints no-red fills.
+    // OWNER OVERRIDE (match-the-screenshot): the PM2.5 scatter layer paints from the SAME
+    // standard AQI ramp keyed by pm25Severity. PM2.5 of 58 µg/m³ is the 'sat' band.
     const pm25Scatter = deckRec.scatterProps.at( -1 )!;
     for ( const d of pm25Scatter.data ) {
       const fill = pm25Scatter.getFillColor( d ) as [ number, number, number, number ];
-      expect( fill[ 0 ] > 200 && fill[ 1 ] < 80 && fill[ 2 ] < 80 ).toBe( false );
+      expect( matchesStandardRamp( fill ) ).toBe( true );
+      expect( [ fill[ 0 ], fill[ 1 ], fill[ 2 ] ] ).toEqual(
+        [ STANDARD_AQI_FILLS.sat[ 0 ], STANDARD_AQI_FILLS.sat[ 1 ], STANDARD_AQI_FILLS.sat[ 2 ] ],
+      );
+    }
+  } );
+
+  // OWNER OVERRIDE (match-the-screenshot = decisions.md Decision 1): the dot ramp now
+  // INCLUDES red at the worst band. Driven by a REAL high AQI (450 -> 'worst'), at least one
+  // dot must resolve to the red-dominant worst fill. This would FAIL under the reverted
+  // no-red ramp, so it exercises the real FEAT-001 change rather than a static literal.
+  it( 'paints a RED-dominant dot for a real worst-band AQI (standard red-inclusive ramp)', async () => {
+    const fetchSpy = airConditionsFetch( 450, 180 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
+
+    const scatter = deckRec.scatterProps.at( -1 )!;
+    expect( scatter.data.length ).toBeGreaterThan( 0 );
+    const fills = scatter.data.map(
+      ( d: unknown ) => scatter.getFillColor( d ) as [ number, number, number, number ],
+    );
+    // Every fill is from the standard ramp, and at least one is the red-dominant worst band.
+    for ( const fill of fills ) expect( matchesStandardRamp( fill ) ).toBe( true );
+    expect( fills.some( isRedDominant ) ).toBe( true );
+    const red = fills.find( isRedDominant )!;
+    expect( [ red[ 0 ], red[ 1 ], red[ 2 ] ] ).toEqual(
+      [ STANDARD_AQI_FILLS.worst[ 0 ], STANDARD_AQI_FILLS.worst[ 1 ], STANDARD_AQI_FILLS.worst[ 2 ] ],
+    );
+  } );
+
+  // OWNER OVERRIDE (match-the-screenshot): the clean/low end of the same standard ramp is
+  // GREEN. A real low AQI (30 -> 'good') must resolve every dot to the green good fill and
+  // never a red-dominant one.
+  it( 'paints a GREEN dot for a real good-band AQI (low end of the standard ramp)', async () => {
+    const fetchSpy = airConditionsFetch( 30, 12 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
+
+    const scatter = deckRec.scatterProps.at( -1 )!;
+    expect( scatter.data.length ).toBeGreaterThan( 0 );
+    for ( const d of scatter.data ) {
+      const fill = scatter.getFillColor( d ) as [ number, number, number, number ];
+      expect( [ fill[ 0 ], fill[ 1 ], fill[ 2 ] ] ).toEqual(
+        [ STANDARD_AQI_FILLS.good[ 0 ], STANDARD_AQI_FILLS.good[ 1 ], STANDARD_AQI_FILLS.good[ 2 ] ],
+      );
+      expect( isGreenDominant( fill ) ).toBe( true );
+      expect( isRedDominant( fill ) ).toBe( false );
     }
   } );
 
@@ -1087,10 +1172,14 @@ describe( 'VayuLokLive - selected-place weather is restored without map-layer ov
       fetchSpy.mock.calls.some( c => requestIs( c[ 0 ], 'weather.googleapis.com', '/v1/currentConditions' ) ),
     ).toBe( true ) );
     await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Now' } ) ).toBeInTheDocument() );
-    expect( screen.getByText( 'Mostly sunny' ) ).toBeInTheDocument();
+    // OWNER OVERRIDE (match-the-screenshot): the current condition now also appears in the
+    // new blue weather summary card, so the condition text renders in more than one place.
+    expect( screen.getAllByText( 'Mostly sunny' ).length ).toBeGreaterThan( 0 );
     await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Next 24 hours' } ) ).toBeInTheDocument() );
-    expect( screen.getByRole( 'tab', { name: 'Air' } ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'tab', { name: 'Weather' } ) ).toBeInTheDocument();
+    // OWNER OVERRIDE (match-the-screenshot): the detail toggle labels are now the uppercase
+    // AIR | WEATHER pill from the screenshot (was lowercase 'Air'/'Weather').
+    expect( screen.getByRole( 'tab', { name: 'AIR' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'tab', { name: 'WEATHER' } ) ).toBeInTheDocument();
 
     // Selection alone must not attach the deck.gl spatial layer.
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
@@ -1408,24 +1497,31 @@ describe( 'VayuLokLive - explicit map-click country validation', () => {
     expect( rec.markerOpts ).toHaveLength( 0 );
   } );
 
-  it( 'creates the selected marker lazily with the dark-green/lime no-red brand icon', async () => {
+  // OWNER OVERRIDE (reference screenshot = option 2; decisions.md Decision 2). PR #230's
+  // no-red brand SVG pin was REVERSED: the selected place now uses the STANDARD RED Google
+  // marker (default red pin). The constructor options therefore carry NO `icon` key (no
+  // data:image/svg brand pin). The lazy-create-after-first-selection behaviour is kept.
+  it( 'creates the selected marker lazily as the STANDARD RED Google marker (no brand SVG icon)', async () => {
     const rec = installGoogleMaps();
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    // No marker before a selection (lazy create).
     expect( rec.markerOpts ).toHaveLength( 0 );
 
     await selectMumbai();
     await waitFor( () => expect( rec.markerOpts ).toHaveLength( 1 ) );
 
-    const icon = rec.markerOpts[ 0 ].icon as { url?: string } | undefined;
-    expect( icon?.url ).toContain( 'data:image/svg+xml' );
-    const decoded = decodeURIComponent( icon?.url || '' ).toLowerCase();
-    expect( decoded ).toContain( '#1a3a2a' );
-    expect( decoded ).toContain( '#d1f470' );
-    expect( decoded ).not.toMatch( /#ff0000|#f00\b|red/ );
+    // Default red pin: the constructor opts carry position + title + map, but NO custom
+    // icon. (A brand data:image/svg icon would mean the override was reverted.)
+    const opts = rec.markerOpts[ 0 ];
+    expect( opts.position ).toBeTruthy();
+    expect( opts.title ).toContain( 'Mumbai' );
+    const icon = opts.icon as { url?: string } | string | undefined;
+    const iconUrl = typeof icon === 'string' ? icon : icon?.url;
+    expect( iconUrl == null || !String( iconUrl ).includes( 'data:image/svg' ) ).toBe( true );
   } );
 
 } );
@@ -1511,38 +1607,194 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
   } );
 
-  // (d) There is NO 'Use my location' / geolocation control anywhere, and the component never
-  //     references navigator.geolocation. The user explicitly dropped that idea.
-  it( 'exposes NO "use my location"/geolocation control and never calls navigator.geolocation', async () => {
-    const getCurrentPosition = vi.fn();
-    const watchPosition = vi.fn();
+  /* OWNER OVERRIDE (reference screenshot = option 2; decisions.md Decision 3). The prior
+     "no geolocation / no zoom controls" rule was REVERSED for the shown controls. The map
+     column now carries a bottom-right "use my location" crosshair (◎) and Google's built-in
+     zoom control. The crosshair calls navigator.geolocation.getCurrentPosition, validates
+     the resolved position is inside India (INDIA_BOUNDS pre-check + an India reverse-geocode)
+     before selecting, and degrades SILENTLY on denial / outside-India. jsdom has no
+     navigator.geolocation, so these tests stub it and restore it afterwards. */
+
+  // Helper: install a geolocation stub whose getCurrentPosition behaviour is configurable.
+  // Returns the spy so a test can assert it was called. Restored by vi.unstubAllGlobals in
+  // the shared afterEach (navigator is stubbed via Object.defineProperty, cleared below).
+  function stubGeolocation(
+    impl: ( success: ( p: GeolocationPosition ) => void, error: ( e: GeolocationPositionError ) => void ) => void,
+  ) {
+    const getCurrentPosition = vi.fn(
+      ( success: ( p: GeolocationPosition ) => void, error: ( e: GeolocationPositionError ) => void ) => impl( success, error ),
+    );
     Object.defineProperty( window.navigator, 'geolocation', {
       configurable: true,
-      value: { getCurrentPosition, watchPosition, clearWatch: vi.fn() },
+      value: { getCurrentPosition, watchPosition: vi.fn(), clearWatch: vi.fn() },
     } );
+    return getCurrentPosition;
+  }
+  const coords = ( latitude: number, longitude: number ) =>
+    ( { coords: { latitude, longitude } } as unknown as GeolocationPosition );
+
+  afterEach( () => {
+    // Remove the geolocation stub so it never leaks into a later test (jsdom has none).
+    try { delete ( window.navigator as unknown as { geolocation?: unknown } ).geolocation; } catch { /* ignore */ }
+  } );
+
+  // Google's built-in zoom control is enabled (zoomControl:true), per the screenshot.
+  it( 'enables Google zoom controls in the map options (owner override)', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    expect( rec.mapOpts!.zoomControl ).toBe( true );
+  } );
+
+  // The crosshair renders when the map is ready, and clicking it calls getCurrentPosition.
+  it( 'renders the "use my location" crosshair when mapReady and calls getCurrentPosition on click', async () => {
+    const getCurrentPosition = stubGeolocation( () => { /* no callback -> no selection */ } );
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
     const VayuLokLive = await loadComponent();
 
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    // No control (button or text) offers to use the visitor's location.
-    expect( screen.queryByText( /use my location|my location|current location/i ) ).toBeNull();
-    expect( screen.queryByRole( 'button', { name: /use my location|my location|current location/i } ) ).toBeNull();
-    expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
-
-    // Select a place and click the bar - the geolocation API is never touched.
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
-    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
-    const bar = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-map-destbar' );
+    // The control appears once the map is ready (mapReady true after tilesloaded).
+    const locate = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-locate' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    fireEvent.click( bar );
-    await act( async () => { await Promise.resolve(); } );
-    expect( getCurrentPosition ).not.toHaveBeenCalled();
-    expect( watchPosition ).not.toHaveBeenCalled();
+    expect( screen.getByRole( 'button', { name: /use my location/i } ) ).toBe( locate );
+
+    fireEvent.click( locate );
+    expect( getCurrentPosition ).toHaveBeenCalledTimes( 1 );
+  } );
+
+  // Success INSIDE India (+ India reverse-geocode) makes a real selection: the left place
+  // card and the standard red marker appear.
+  it( 'selects a place on a successful India-valid geolocation fix', async () => {
+    // Mumbai coords (inside INDIA_BOUNDS); the default FakeGeocoder returns an India result.
+    stubGeolocation( success => success( coords( 19.076, 72.8777 ) ) );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const locate = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-locate' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    fireEvent.click( locate );
+
+    // A real selection follows: the left place card renders and a standard marker is created.
+    await waitFor( () => expect( container.querySelector( '.vl-live-left .vl-live-place-card' ) ).not.toBeNull() );
+    await waitFor( () => expect( rec.markerOpts.length ).toBeGreaterThan( 0 ) );
+    // The AQI/PM2.5 pills become enabled once a place is selected.
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
+  } );
+
+  // Permission denial: the error callback path makes NO selection and does not throw.
+  it( 'degrades silently (no selection, no throw) when geolocation permission is denied', async () => {
+    stubGeolocation( ( _success, error ) =>
+      error( { code: 1, message: 'User denied Geolocation' } as GeolocationPositionError ),
+    );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const locate = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-locate' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( () => fireEvent.click( locate ) ).not.toThrow();
+
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    // No selection: no place card, no marker, pills stay disabled.
+    expect( container.querySelector( '.vl-live-left .vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( rec.markerOpts ).toHaveLength( 0 );
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeDisabled();
+  } );
+
+  // A resolved position OUTSIDE India (fails the INDIA_BOUNDS pre-check) makes NO selection.
+  it( 'rejects an out-of-India geolocation fix without selecting (INDIA_BOUNDS pre-check)', async () => {
+    // London: well outside INDIA_BOUNDS, so the pre-check short-circuits before any geocode.
+    stubGeolocation( success => success( coords( 51.5074, -0.1278 ) ) );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const locate = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-locate' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    fireEvent.click( locate );
+
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    expect( container.querySelector( '.vl-live-left .vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( rec.markerOpts ).toHaveLength( 0 );
+    // The honest "outside India" status surfaces (no crash, no spam).
+    await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
+  } );
+
+  /* OWNER OVERRIDE (reference screenshot = option 2; decisions.md Decision 3). The SECOND
+     India gate: coords that ARE inside INDIA_BOUNDS (so they pass the cheap box pre-check)
+     but whose reverse-geocode returns a NON-India result must still be rejected by the
+     isIndiaResult check, with NO selection and the honest 'outside-india' status. The sibling
+     London case short-circuits at the box pre-check, so it never reaches this branch. This
+     test re-installs the Maps stub with a non-India reverse-geocode row (country short code
+     'BD'), so it would FAIL if the isIndiaResult reverse-geocode check were removed - a bare
+     first row carries formatted_address + place_id and would be selected. */
+  it( 'rejects an in-box geolocation fix whose reverse-geocode is non-India (isIndiaResult gate)', async () => {
+    // Re-install with a reverse-geocode row OUTSIDE India (Dhaka, country short code 'BD').
+    // It still carries formatted_address + place_id so a missing isIndiaResult check would
+    // wrongly select it - the assertions below would then fail.
+    rec = installGoogleMaps( {
+      geocodeRows: [ {
+        formatted_address: 'Dhaka, Dhaka Division, Bangladesh',
+        place_id: 'fake-non-india-place-id',
+        geometry: { location: { lat: () => 23.8103, lng: () => 90.4125 } },
+        address_components: [
+          { long_name: 'Bangladesh', short_name: 'BD', types: [ 'country' ] },
+        ],
+      } ],
+    } );
+    // Coords INSIDE INDIA_BOUNDS (Mumbai) so the box pre-check passes and the reverse-geocode
+    // branch is actually reached; the geocoder then returns the non-India row above.
+    stubGeolocation( success => success( coords( 19.076, 72.8777 ) ) );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const locate = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-locate' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( () => fireEvent.click( locate ) ).not.toThrow();
+
+    // Let the async geocoder callback settle.
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); } );
+
+    // No selection: no place card, no destination bar, no marker, and the AQI/PM2.5 pills
+    // stay disabled.
+    expect( container.querySelector( '.vl-live-left .vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( rec.markerOpts ).toHaveLength( 0 );
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeDisabled();
+    // The reverse-geocode was actually consulted with the in-box location.
+    expect( rec.geocodeCalls.some( call => 'location' in call ) ).toBe( true );
+    // The honest "outside India" status surfaces (no crash, no spam).
+    await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
   } );
 
   // (e) Honest degradation: with no key, no map and NO bottom bar render, and nothing fetches.
@@ -1558,6 +1810,196 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
     expect( container.querySelector( '.vl-live-map-canvas' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
     expect( fetchSpy ).not.toHaveBeenCalled();
+  } );
+} );
+
+/* ---------------------------------------------------------------------------------------
+   OWNER OVERRIDE (reference screenshot = option 2, match the screenshot literally; see
+   decisions.md "Left-card composition"). FEAT-001 re-composed the left card to the
+   screenshot: a blue current-weather summary card, a pale-green AQI summary card, a 5-chip
+   metric row (Humidity/Wind/Rain/UV/PM2.5), a blue hourly strip, an AIR|WEATHER toggle pill,
+   and a 6-cell pollutant grid. Every piece is driven by REAL data already in state on
+   selection (no new fetch) and is OMITTED when the datum is absent. These tests drive the
+   real search -> select flow with the environmentFetch() stub, so they would FAIL if the
+   FEAT-001 markup were reverted - they are behavioural, not static.
+   --------------------------------------------------------------------------------------- */
+describe( 'VayuLokLive - screenshot-match left card (FEAT-002 owner override)', () => {
+  let rec: MapsRecorder;
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    rec = installGoogleMaps();
+  } );
+
+  it( 'renders the blue weather summary card + pale-green AQI summary card from real data on selection', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+
+    // The side-by-side summary row renders once weather + air arrive from the on-select fetch.
+    const cards = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-summary-cards' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // Blue weather summary card: temperature + condition + feels-like (26°C / Mostly sunny / 27°).
+    const weatherCard = cards.querySelector( '.vl-live-sum-weather' ) as HTMLElement;
+    expect( weatherCard ).not.toBeNull();
+    expect( weatherCard.querySelector( '.vl-live-sum-temp' )?.textContent ).toContain( '26°C' );
+    expect( weatherCard.querySelector( '.vl-live-sum-cond' )?.textContent ).toContain( 'Mostly sunny' );
+    expect( weatherCard.querySelector( '.vl-live-sum-sub' )?.textContent ).toContain( 'Feels like 27' );
+
+    // Pale-green AQI summary card: AQI value + category word + PM2.5 line (74 / Satisfactory / 28).
+    const aqiCard = cards.querySelector( '.vl-live-sum-aqi' ) as HTMLElement;
+    expect( aqiCard ).not.toBeNull();
+    expect( aqiCard.querySelector( '.vl-live-sum-temp' )?.textContent ).toContain( '74' );
+    expect( aqiCard.querySelector( '.vl-live-sum-cond' )?.textContent ).toContain( 'Satisfactory' );
+    expect( aqiCard.querySelector( '.vl-live-sum-sub' )?.textContent ).toContain( 'PM2.5 28' );
+  } );
+
+  it( 'renders the 5 metric chips (Humidity/Wind/Rain/UV/PM2.5) with values + units from real data', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+
+    const chips = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-metric-chips' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    const text = chips.textContent || '';
+    // Humidity 68%, Wind 8 km/h, Rain 10%, UV 4, PM2.5 28 - all from the environmentFetch stub.
+    expect( text ).toContain( 'Humidity' );
+    expect( text ).toContain( '68%' );
+    expect( text ).toContain( 'Wind' );
+    expect( text ).toContain( '8 km/h' );
+    expect( text ).toContain( 'Rain' );
+    expect( text ).toContain( '10%' );
+    expect( text ).toContain( 'UV' );
+    expect( text ).toContain( 'PM2.5' );
+    expect( text ).toContain( '28' );
+    // Five chips (one per real metric present).
+    expect( chips.querySelectorAll( '.vl-live-chip' ) ).toHaveLength( 5 );
+  } );
+
+  it( 'renders the blue hourly forecast strip from weatherHourly on selection', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+
+    // The blue hourly strip (vl-live-hour-rail-blue) renders hour cards built from the
+    // /forecast/hours stub.
+    const rail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-hour-rail-blue' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( rail.querySelectorAll( '.vl-live-hour-card' ).length ).toBeGreaterThan( 0 );
+    // The first card is marked "Now".
+    expect( rail.textContent ).toContain( 'Now' );
+  } );
+
+  it( 'the AIR|WEATHER toggle pill switches the lower section between the pollutant grid and weather details', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+
+    // The uppercase AIR | WEATHER toggle pill renders (screenshot label).
+    const air = await screen.findByRole( 'tab', { name: 'AIR' } );
+    const weather = screen.getByRole( 'tab', { name: 'WEATHER' } );
+    expect( container.querySelector( '.vl-live-detail-tabs-pill' ) ).not.toBeNull();
+
+    // AIR is active by default -> the pollutant grid tabpanel is shown.
+    expect( air.getAttribute( 'aria-selected' ) ).toBe( 'true' );
+    expect( container.querySelector( '.vl-live-pollutant-grid' ) ).not.toBeNull();
+
+    // Switching to WEATHER swaps the lower section to the weather detail grid.
+    fireEvent.click( weather );
+    await waitFor( () => expect( weather.getAttribute( 'aria-selected' ) ).toBe( 'true' ) );
+    expect( container.querySelector( '.vl-live-weather-grid' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-pollutant-grid' ) ).toBeNull();
+  } );
+
+  it( 'renders the 6-cell pollutant grid with units from air.pollutants', async () => {
+    // A payload carrying all six pollutants so the full grid renders.
+    const now = new Date();
+    vi.stubGlobal( 'fetch', vi.fn( ( input: RequestInfo | URL ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: now.toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
+            pollutants: [
+              { code: 'pm25', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+              { code: 'pm10', concentration: { value: 52, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+              { code: 'no2', concentration: { value: 18, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+              { code: 'o3', concentration: { value: 64, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+              { code: 'co', concentration: { value: 0.6, units: 'MILLIGRAMS_PER_CUBIC_METER' } },
+              { code: 'so2', concentration: { value: 4, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            ],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+
+    const grid = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-pollutant-grid' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    // Six cells, one per returned pollutant.
+    expect( grid.querySelectorAll( ':scope > div' ) ).toHaveLength( 6 );
+    const text = grid.textContent || '';
+    expect( text ).toContain( 'PM2.5' );
+    expect( text ).toContain( 'PM10' );
+    expect( text ).toContain( '28' );
+    expect( text ).toContain( '52' );
+    // Units are shown (µg/m³ for most; CO already in mg/m³).
+    expect( text ).toMatch( /µg\/m|μg\/m/ );
+  } );
+
+  it( 'omits the summary cards, metric chips and pollutant grid when NO environmental data is returned (honest degradation of the card body)', async () => {
+    // The place resolves (so the card header renders) but every environmental fetch fails,
+    // so weather + air stay empty and none of the data-driven pieces render.
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    // The place name resolves, confirming the selection happened...
+    await waitFor( () => expect(
+      container.querySelector( '.vl-live-left .vl-live-place' )?.textContent,
+    ).toContain( 'Mumbai' ) );
+
+    // ...but with no weather/air, the summary cards, metric chips, hourly strip, toggle and
+    // pollutant grid are all absent (no placeholders, honest degradation).
+    expect( container.querySelector( '.vl-live-summary-cards' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-metric-chips' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-hour-rail-blue' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-detail-tabs-pill' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-pollutant-grid' ) ).toBeNull();
   } );
 } );
 
