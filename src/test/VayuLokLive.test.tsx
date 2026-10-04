@@ -144,6 +144,16 @@ interface InstallOpts {
     geometry?: { location?: { lat: () => number; lng: () => number } };
     address_components?: { types?: string[]; short_name?: string }[];
   }[];
+  // SCRIPTED SEQUENCE of reverse-geocode results, one per successive geocode call (matrix
+  // E3: a first click resolves outside India, a second click resolves to a valid IN
+  // result). Entry N is returned on the Nth OK geocode; once exhausted the last entry is
+  // reused. Takes precedence over `reverseRows` when provided.
+  reverseRowSequence?: {
+    formatted_address?: string;
+    place_id?: string;
+    geometry?: { location?: { lat: () => number; lng: () => number } };
+    address_components?: { types?: string[]; short_name?: string }[];
+  }[][];
 }
 
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
@@ -154,7 +164,11 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     seedNamespaceGeocoder = true,
     geocodeStatus = 'OK',
     reverseRows,
+    reverseRowSequence,
   }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
+  // Tracks how many OK reverse-geocodes have resolved, so reverseRowSequence can hand out
+  // a different row-set per successive click (matrix E3).
+  let reverseCallIndex = 0;
   const rec: MapsRecorder = {
     mapOpts: null,
     overlayPushes: [],
@@ -208,8 +222,16 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
         // with short_name 'IN', so the component's hard India country gate (isIndiaResult)
         // accepts it. reverseRows lets a test SCRIPT a multi-row reverse-geocode (e.g. a
         // first BD row followed by a valid IN row) for the foreign-rejection matrix (E).
-        const rows = geocodeStatus === 'OK'
-          ? ( reverseRows || [ {
+        let rows: unknown[] | null = null;
+        if ( geocodeStatus === 'OK' ) {
+          if ( reverseRowSequence && reverseRowSequence.length ) {
+            // Hand out the Nth scripted result for the Nth call; reuse the last once
+            // the sequence is exhausted (matrix E3).
+            const idx = Math.min( reverseCallIndex, reverseRowSequence.length - 1 );
+            rows = reverseRowSequence[ idx ];
+            reverseCallIndex += 1;
+          } else {
+            rows = reverseRows || [ {
               formatted_address: 'Mumbai, Maharashtra, India',
               place_id: 'fake-place-id',
               geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
@@ -217,8 +239,9 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
                 { types: [ 'locality' ], short_name: 'Mumbai' },
                 { types: [ 'country', 'political' ], short_name: 'IN' },
               ],
-            } ] )
-          : null;
+            } ];
+          }
+        }
         cb( rows, geocodeStatus );
       }
     }
@@ -1717,6 +1740,59 @@ describe( 'VayuLokLive - FEAT-002 selected-place + data-integrity matrix', () =>
     expect( container.textContent || '' ).not.toMatch( /Bangladesh|Sylhet/i );
     // The honest 'outside India' status is surfaced.
     await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
+  } );
+
+  // (E3) STALE-STATUS CLEARING. A first map click resolves OUTSIDE India (surfacing the
+  // 'outside India' status), then a second click resolves to a VALID IN result. The
+  // successful in-India selection must CLEAR the stale status: the "That location is
+  // outside India." message must be gone after the good click (mirroring the search-select
+  // path, which resets searchStatus to 'idle'). This fails if the reverse-geocode success
+  // branch does not reset the status.
+  it( 'E3: a valid IN map click clears a stale outside-India status from a prior click', async () => {
+    rec = installGoogleMaps( {
+      reverseRowSequence: [
+        // First click: a BD-only result -> surfaces the outside-India status.
+        [ {
+          formatted_address: 'Sylhet, Bangladesh',
+          place_id: 'bd-only',
+          geometry: { location: { lat: () => 24.9, lng: () => 91.87 } },
+          address_components: [ { types: [ 'country', 'political' ], short_name: 'BD' } ],
+        } ],
+        // Second click: a valid India result -> successful selection.
+        [ {
+          formatted_address: 'Mumbai, Maharashtra, India',
+          place_id: 'in-place-id',
+          geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
+          address_components: [
+            { types: [ 'locality' ], short_name: 'Mumbai' },
+            { types: [ 'country', 'political' ], short_name: 'IN' },
+          ],
+        } ],
+      ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( rec.mapClickHandler ).not.toBeNull() );
+
+    // First click resolves outside India: the honest status appears.
+    await act( async () => { clickMapAt( 24.9, 91.87 ); await Promise.resolve(); await Promise.resolve(); } );
+    await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
+
+    // Second click resolves to a valid IN result: the selection is made AND the stale
+    // outside-India status is cleared.
+    await act( async () => { clickMapAt( 19.076, 72.8777 ); await Promise.resolve(); await Promise.resolve(); } );
+
+    const bar = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-destbar' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( bar.querySelector( '.vl-live-map-destbar-name' )?.textContent ).toContain( 'Mumbai' );
+    // The stale "outside India" message is gone after the successful in-India click.
+    await waitFor( () => expect( screen.queryByText( /outside India/i ) ).toBeNull() );
   } );
 
   // (K) The selected marker uses brand styling (a no-red data-URI icon), NOT a default red

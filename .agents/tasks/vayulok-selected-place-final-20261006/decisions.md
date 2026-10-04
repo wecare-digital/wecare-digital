@@ -120,3 +120,40 @@ geocoding paths that resolve the location this branch runs on. This branch is on
 exercisable on a live *.wecare.digital origin (referrer-restricted key, experimental Maps
 capability), so it is documented, never faked, and the degraded-path test asserts no
 polygon is drawn when the capability is absent.
+
+## Post-review cleanup
+
+Addressed the two confirmed non-blocking issues from the v1 semantic review
+(2026-10-04-063534-review.md, verdict APPROVED).
+
+### Issue 1 (fixed): stale outside-India status on the map-click success path
+
+In `src/components/VayuLokLive.tsx`, the reverse-geocode SUCCESS branch set
+`setMapCandidate(next)` / `setPlace(next)` but never reset the search status, so a prior
+"That location is outside India." message lingered in the search dropdown after a later
+successful in-India map click. Added `setSearchStatus('idle')` alongside `setPlace(next)`
+in that branch, mirroring the search-select path in `choose()`, which already resets to
+'idle'. Added a behavioral regression test (matrix E3) in
+`src/test/VayuLokLive.test.tsx`: a first map click resolves outside India (surfacing the
+status), then a valid IN click, asserting the status message is gone afterward. To drive
+two different reverse-geocode outcomes across consecutive clicks, extended the test stub
+with an optional `reverseRowSequence` (one scripted row-set per successive geocode call);
+the existing single `reverseRows` behavior is unchanged.
+
+### Issue 2 (justified in place): rAF-deferred loading/error reset in the AQ-grid effect
+
+The AQ-grid effect defers `setDataLoading(true)` / `setCoreError(false)` into
+`requestAnimationFrame` to keep the effect clear of a synchronous set-state-in-effect
+warning after the null-place gate was added, while the sibling `setNearbyPhotos([])` in the
+media-fallback effect fires synchronously. Chose to document rather than restructure:
+expanded the existing comment to state the rAF is a deliberate lint-shaping choice (guarded
+by `ac.signal.aborted`), and that the media effect's synchronous setState is intentional
+because that effect already carries the warning and gating one of its two setStates would
+not change its lint profile. No behavior change, no new eslint error or warning.
+
+### Gate results
+
+- `npm run typecheck`: clean, 0 errors.
+- `npm run lint`: 0 errors, 204 warnings (baseline unchanged, no new warnings).
+- `npx vitest run src/test/VayuLokLive.test.tsx`: 45 passed (was 44; +1 for matrix E3).
+- `npm run test`: 946 passed / 3 skipped / 0 failed (baseline 945/3/0; +1 for E3).

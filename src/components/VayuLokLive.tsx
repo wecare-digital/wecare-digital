@@ -844,6 +844,11 @@ const VayuLokLive: React.FC = () => {
           // continues to drive the photo overlay / nearby-media enrichment below.
           setMapCandidate( next );
           setPlace( next );
+          // A valid in-India map click is a successful selection, so clear any lingering
+          // "outside India" status from a prior foreign click (the search-select path in
+          // choose() resets to 'idle' for the same reason). Without this, the stale
+          // outside-india message keeps showing in the dropdown after a good click.
+          setSearchStatus( 'idle' );
 
           // If reverse geocoding produced a Place ID, enrich the preview with Google
           // Places photos AND the honest metadata the left card can show. Any author
@@ -1039,9 +1044,15 @@ const VayuLokLive: React.FC = () => {
 
     const ac = new AbortController();
     gridAbortRef.current = ac;
-    // Defer the loading/error reset to a frame (matching every other setState in this
-    // effect) so it does not run synchronously in the effect body - keeps the existing
-    // set-state-in-effect lint profile unchanged after the null-place gate was added.
+    // Deliberate lint-shaping choice (not a behavioral requirement): deferring the
+    // loading/error reset to a frame keeps this effect clear of a synchronous
+    // set-state-in-effect warning after the null-place gate was added above, matching
+    // every other setState in this effect. The frame callback is guarded by
+    // `ac.signal.aborted`, so a fast deactivate/unmount never applies a stale reset.
+    // The media-fallback effect's `setNearbyPhotos([])` fires synchronously instead
+    // because that effect already carries the warning and gating one of its two
+    // setStates would not change its lint profile; the asymmetry is intentional, not an
+    // oversight.
     requestAnimationFrame( () => {
       if ( ac.signal.aborted ) return;
       setDataLoading( true );
