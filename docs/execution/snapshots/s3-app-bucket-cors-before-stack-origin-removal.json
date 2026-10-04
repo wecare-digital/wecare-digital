@@ -11,7 +11,7 @@
                 "HEAD"
             ],
             "AllowedOrigins": [
-                "https://stack.wecare.digital",
+                "https://retired-legacy-host.invalid",
                 "https://app.wecare.digital",
                 "https://wecare.digital",
                 "http://localhost:3000",
