@@ -46,6 +46,9 @@ import { SITE_ORIGIN } from '../config/share';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 
+// WECARE.DIGITAL selected-place marker: dark green body, lime centre, white ring.
+const BRAND_MARKER_ICON = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent( `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="48" viewBox="0 0 38 48"><path fill="#1a3a2a" d="M19 0C8.5 0 0 8.5 0 19c0 14.3 19 29 19 29s19-14.7 19-29C38 8.5 29.5 0 19 0Z"/><circle cx="19" cy="19" r="7.5" fill="#fff"/><circle cx="19" cy="19" r="5" fill="#d1f470"/></svg>` )}`;
+
 // FINAL TARGET: the AQI / PM2.5 map layer is a deck.gl ScatterplotLayer of REAL sampled
 // air-quality points (see RESEARCH-deckgl-sampling-architecture.md), rendered over the
 // Google roadmap through GoogleMapsOverlay. The old raster air-quality layer-tile overlay is gone.
@@ -640,14 +643,6 @@ const VayuLokLive: React.FC = () => {
   const deckOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
-  // FEAT-004: the Google-Destinations-style bottom bar. destGeometryRef holds any building
-  // outline polygon + entrance markers drawn by the SearchDestinations enhancement so they
-  // can be cleared when the place changes / on unmount; destAbortRef aborts an in-flight
-  // destination-resolution lookup. These are ONLY populated when SearchDestinations is
-  // feature-detected in the loaded Maps JS build (not in sandbox / referrer-restricted keys),
-  // so the sandbox/degraded path leaves them null and draws no geometry.
-  const destGeometryRef = useRef<{ polygon?: unknown; entrances?: unknown[] }>( {} );
-  const destAbortRef = useRef<AbortController | null>( null );
 
   useEffect( () => {
     setPhotoIndex( 0 );
@@ -1583,14 +1578,12 @@ const VayuLokLive: React.FC = () => {
 
     if ( !markerRef.current && markerCtorRef.current ) {
       const MarkerCtor = markerCtorRef.current;
-      // OWNER OVERRIDE (reference screenshot): a STANDARD RED Google marker at the selected
-      // place. Omitting `icon` yields google.maps.Marker's default red pin, matching the
-      // screenshot. This reverses PR #230's no-red brand SVG pin per the owner override
-      // (see decisions.md Decision 2). Lazy-created on first selection, then re-used.
+      // Branded selected-place marker. Created lazily after the first valid India selection.
       markerRef.current = new MarkerCtor( {
         position: { lat: place.lat, lng: place.lng },
         map,
         title: place.name,
+        icon: BRAND_MARKER_ICON,
       } );
     }
     const marker = markerRef.current as {
@@ -1604,20 +1597,6 @@ const VayuLokLive: React.FC = () => {
     marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
     marker?.setTitle?.( place.name );
   }, [ place, mapReady, hasSelection ] );
-
-  /* ---------------------------------------------------------------------------------
-     DESTINATION BAR GEOMETRY CLEANUP.
-     SearchDestinations is a Geocoding API v4 web service, not a Maps JS importLibrary
-     capability. The Google-style destination bar remains; the invalid importLibrary('search')
-     experiment is intentionally removed rather than faking a browser-only integration. */
-  useEffect( () => {
-    const geo = destGeometryRef.current;
-    ( geo.polygon as { setMap?: ( m: unknown ) => void } | undefined )?.setMap?.( null );
-    ( geo.entrances || [] ).forEach( e => ( e as { setMap?: ( m: unknown ) => void } ).setMap?.( null ) );
-    destGeometryRef.current = {};
-    destAbortRef.current?.abort();
-    destAbortRef.current = null;
-  }, [ place ] );
 
   /* ---------------------------------------------------------------------------------
      SEARCH - modern Places Autocomplete Data API with one session token per query/
@@ -1989,10 +1968,8 @@ const VayuLokLive: React.FC = () => {
             <div className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
               { displayPhotos.length > 0 && (
                 <div className="vl-live-photo-shell">
-                  {/* Number-only pill (req 01): referee SVG + bare number (e.g. "8"),
-                      never "8 photos". Pill background is exactly the site lime #d1f470. */}
+                  {/* Number-only photo count. Keep the accessible label, but no visible icon/text. */}
                   <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
-                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" aria-hidden="true"><path d="M240-280v-120H120v-80h120v-120h80v120h120v80H320v120h-80Zm390 80v-438l-92 66-46-70 164-118h64v560h-90Z"/></svg>
                     <span>{ displayPhotos.length }</span>
                   </div>
                   <div
@@ -2324,7 +2301,7 @@ const VayuLokLive: React.FC = () => {
                 </div>
                 <time>{ new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' } ).format( new Date() ) }</time>
               </div>
-              <div className="vl-live-hour-rail vl-live-hour-rail-primary vl-live-hour-rail-blue" aria-label="Next 24 hours weather and air quality">
+              <div className="vl-live-hour-rail vl-live-hour-rail-primary vl-live-hour-rail-brand" aria-label="Next 24 hours weather and air quality">
                 { combinedHours.map( ( h, i ) => (
                   <article className="vl-live-hour-card" key={ h.time }>
                     <time>{ hourLabel( h.time ) }</time>
@@ -2343,9 +2320,7 @@ const VayuLokLive: React.FC = () => {
             <section className="vl-live-section vl-live-detail-switcher" aria-labelledby="vl-live-detail-title">
               <div className="vl-live-detail-head">
                 <h3 className="vl-live-h2" id="vl-live-detail-title">Details</h3>
-                {/* Screenshot AIR | WEATHER toggle pill (AIR active = blue). Reuses the
-                    existing detailTab state to switch the lower section between the pollutant
-                    grid and the weather detail view. */}
+                {/* AIR | WEATHER toggle reuses the site lime selection state. */}
                 <div className="vl-live-detail-tabs vl-live-detail-tabs-pill" role="tablist" aria-label="Environmental details">
                   <button type="button" role="tab" aria-selected={ detailTab === 'air' } onClick={ () => setDetailTab( 'air' ) }>AIR</button>
                   <button type="button" role="tab" aria-selected={ detailTab === 'weather' } onClick={ () => setDetailTab( 'weather' ) }>WEATHER</button>
@@ -2692,7 +2667,6 @@ const VayuLokLive: React.FC = () => {
                       </>
                     ) }
                   </span>
-                  <span className="vl-live-map-destbar-chevron" aria-hidden="true">›</span>
                 </button>
               ) }
             </div>
@@ -2721,15 +2695,7 @@ const VayuLokLive: React.FC = () => {
              of near-black green. See .agents/tasks/vayulok-home-aligned-mock/design-tokens.md. */
           --aqi-good:#1a3a2a;--aqi-sat:#3da35a;--aqi-mod:#d1f470;--aqi-poor:#e8c547;--aqi-worst:#c98a2e;
           --tint-warn:#fdf4e3;
-
-          /* OWNER OVERRIDE (reference screenshot, decisions.md Decision 4): a documented
-             weather-blue token used by the current-weather summary card, the hourly forecast
-             strip and the active "AIR" toggle pill. The repo had no weather-blue; this is a
-             clean Google-ish blue with a pale tint for card fills. The AQI summary card uses
-             the pale lime tint (not blue), and --lime #d1f470 stays reserved for the active
-             AQI/PM2.5 selector pills top-right. */
-          --weather-blue:#2f6fed;--weather-blue-tint:rgba(47,111,237,.10);--weather-blue-ink:#1b3a7a;
-          --aqi-card-tint:#f5fde0;
+          --aqi-card-tint:rgba(209,244,112,.18);
 
           --r-panel:14px;--r-field:10px;--r-pill:999px;--r-btn:13px;
           --e-glide:cubic-bezier(.16,1,.3,1);--e-draw:cubic-bezier(.22,.61,.36,1);
@@ -2885,9 +2851,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-detail-tabs button{min-height:34px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
         .vl-live-detail-tabs button[aria-selected="true"]{background:var(--lime);color:var(--green)}
         .vl-live-detail-tabs button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        /* OWNER OVERRIDE (reference screenshot): the AIR | WEATHER toggle pill. AIR active =
-           blue (--weather-blue), per decisions.md Decision 4. */
-        .vl-live-detail-tabs-pill button[aria-selected="true"]{background:var(--weather-blue);color:#fff}
+        .vl-live-detail-tabs-pill button[aria-selected="true"]{background:var(--lime);color:var(--green)}
         .vl-live-detail-tabs-pill button{letter-spacing:.06em}
         /* 6-cell pollutant grid (PM2.5/PM10/NO2/O3/CO/SO2) matching the screenshot. */
         .vl-live-pollutant-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
@@ -2955,7 +2919,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-destbar-name{font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a3a2a;flex:0 0 auto;max-width:60%;overflow:hidden;text-overflow:ellipsis}
         .vl-live-map-destbar-sep{color:rgba(26,58,42,.5);flex:0 0 auto}
         .vl-live-map-destbar-meta{font-size:13px;font-weight:500;color:rgba(26,58,42,.66);overflow:hidden;text-overflow:ellipsis;min-width:0}
-        .vl-live-map-destbar-chevron{flex:0 0 auto;font-size:20px;line-height:1;font-weight:700;color:#1a3a2a}
 
         /* OWNER OVERRIDE (reference screenshot): bottom-right "use my location" crosshair.
            Inset above Google's built-in zoom control so the logo + legal attribution stay
@@ -2985,10 +2948,8 @@ const VayuLokLive: React.FC = () => {
         .vl-live-place-body{padding:20px}
         .vl-live-place-body .vl-live-place{margin-top:0}
 
-        /* OWNER OVERRIDE (reference screenshot) left-card composition. All of the following
-           render only when their live data is in state; honest degradation keeps them absent
-           with no key. Blue elements use --weather-blue (decisions.md Decision 4); the AQI
-           summary card uses the pale lime --aqi-card-tint, never blue. */
+        /* Left-card composition. All values remain conditional on live data. Weather uses
+           a quiet neutral surface; lime is reserved for state/accent, matching the home page. */
         .vl-live-place-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
         .vl-live-place-head-text{min-width:0}
         .vl-live-place-head .vl-live-place-addr{margin-bottom:16px}
@@ -2996,7 +2957,7 @@ const VayuLokLive: React.FC = () => {
 
         .vl-live-summary-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 16px}
         .vl-live-sum{position:relative;display:flex;flex-direction:column;gap:4px;padding:14px;border-radius:14px;min-width:0}
-        .vl-live-sum-weather{background:var(--weather-blue);color:#fff}
+        .vl-live-sum-weather{background:var(--ground);border:1px solid var(--hair);color:var(--green)}
         .vl-live-sum-aqi{background:var(--aqi-card-tint);border:1px solid rgba(46,125,50,.25);color:#1a3a2a}
         .vl-live-sum-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
         .vl-live-sum-temp{display:block;font-size:24px;font-weight:700;line-height:1.1;letter-spacing:-.5px}
@@ -3049,8 +3010,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-photo-credit a:hover{text-decoration:underline}
         /* Number-only pill (req 01): the numeric count + a decorative referee SVG on
            the lime pill background. No word text, no red. */
-        .vl-live-photo-count{position:absolute;top:12px;left:12px;z-index:4;display:inline-flex;align-items:center;gap:4px;padding:5px 10px 5px 6px;border-radius:999px;background:var(--lime);color:var(--green);font-size:13px;font-weight:800;line-height:1;box-shadow:none}
-        .vl-live-photo-count svg{display:block;width:20px;height:20px;flex:0 0 auto}
+        .vl-live-photo-count{position:absolute;top:12px;right:12px;z-index:4;display:inline-flex;align-items:center;justify-content:center;min-width:34px;min-height:32px;padding:0 10px;border-radius:999px;background:var(--lime);color:var(--green);font-size:13px;font-weight:800;line-height:1;box-shadow:none}
         .vl-live-photo-tabs{display:flex;gap:5px;margin:0;padding:7px 11px 11px;height:auto;align-items:center}
         .vl-live-photo-tab{position:relative;display:block;flex:1 1 0;height:14px;min-width:10px;cursor:pointer;outline:none}
         .vl-live-photo-tab::after{content:'';position:absolute;left:0;right:0;top:50%;height:2px;border-radius:999px;background:#e7ebe8;transform:translateY(-50%);transition:background-color .18s ease,transform .18s ease}
@@ -3084,11 +3044,13 @@ const VayuLokLive: React.FC = () => {
         .vl-live-forecast-head .vl-live-h2{margin:3px 0 0}
         .vl-live-forecast-head>time{font-size:12px;font-weight:700;color:var(--green);white-space:nowrap}
         .vl-live-hour-rail-primary{border-radius:0;border-top:1px solid var(--hair);border-bottom:1px solid var(--hair)}
-        /* OWNER OVERRIDE (reference screenshot): BLUE hourly forecast strip (--weather-blue). */
-        .vl-live-hour-rail-blue{border-radius:14px;border:1px solid var(--weather-blue);background:var(--weather-blue-tint)}
-        .vl-live-hour-rail-blue .vl-live-hour-card time{color:var(--weather-blue-ink)}
-        .vl-live-hour-rail-blue .vl-live-hour-card strong{color:var(--weather-blue-ink)}
-        .vl-live-hour-rail-blue .vl-live-hour-card em{color:var(--weather-blue)}
+        /* Next-24-hours rail follows the site palette: white, lime tint and dark green. */
+        .vl-live-hour-rail-brand{border-radius:14px;border:1px solid var(--hair);background:rgba(209,244,112,.10)}
+        .vl-live-hour-rail-brand .vl-live-hour-card{background:transparent}
+        .vl-live-hour-rail-brand .vl-live-hour-card:first-child{background:rgba(209,244,112,.34)}
+        .vl-live-hour-rail-brand .vl-live-hour-card time{color:rgba(26,58,42,.66)}
+        .vl-live-hour-rail-brand .vl-live-hour-card strong{color:var(--green)}
+        .vl-live-hour-rail-brand .vl-live-hour-card em{color:var(--green)}
         .vl-live-forecast-row{padding-top:16px}
         .vl-live-forecast-row+.vl-live-forecast-row{border-top:1px solid var(--hair)}
         .vl-live-forecast-label{display:flex;justify-content:space-between;gap:12px;margin:0;padding:0 20px 10px;font-size:12px;font-weight:700;color:var(--ink-muted)}
