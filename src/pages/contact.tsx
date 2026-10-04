@@ -6,7 +6,7 @@ import ContactLocation from '../components/ContactLocation';
 /**
  * /contact — the request entry point.
  *
- * "SELFSERVICE" NAMING REMOVED 2026-09-27 (owner instruction). The word named a portal
+ * "CUSTOMERSERVICE" NAMING REMOVED 2026-09-27 (owner instruction). The word named a portal
  * with no page at any address: the in-repo [retired public path] route went in PR #47 on
  * 2026-09-24 and nothing replaced it. The only [retired public path] route left in the codebase
  * is the ADMIN flow dashboard under /workspace/forms/, which is not a customer
