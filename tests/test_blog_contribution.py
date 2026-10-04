@@ -172,7 +172,7 @@ def test_anonymous_contribution_is_allowed_and_still_server_amount():
     table = _keys()
     create_order, created = _ok_create()
     result = bc.prepare_contribution(
-        post_id=POST_ID, slug=SLUG, requested_amount_paise=19900, currency='INR',
+        post_id=POST_ID, slug=SLUG, requested_amount_paise=50000, currency='INR',
         request_key='rk-anon', now=int(time.time()), keys_table=table,
         create_order=create_order, find_order_by_receipt=lambda r: None,
         account_mode_of=_mode_of, initiation_enabled=True, customer_id='')
@@ -288,7 +288,7 @@ def test_capture_currency_mismatch_does_not_settle():
     _bind(table, amount=10000)
     result = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='valid', keys_table=table,
-        verify_signature=lambda **_: True, verify_capture=lambda _: (True, 'pay_real', 4900, 'USD'))
+        verify_signature=lambda **_: True, verify_capture=lambda _: (True, 'pay_real', 10000, 'USD'))
     assert result.status == bc.CALLBACK_BINDING_MISMATCH
 
 
@@ -357,9 +357,9 @@ def test_webhook_notes_amount_is_not_authority():
 
     The event notes carry a FORGED amount (990000 paise = ₹9900) but the stored contribution is
     10000 paise (₹100). The settlement must re-derive the amount from the STORED record and verify
-    the provider's captured amount against THAT - so a provider capture of 4900 settles, and the
+    the provider's captured amount against THAT - so a provider capture of 10000 settles, and the
     forged notes amount is ignored. If someone reverts to trusting notes['amount'], the provider's
-    4900 would mismatch the forged 990000 and this settle would quarantine instead of settling.
+    10000 would mismatch the forged 990000 and this settle would quarantine instead of settling.
     """
     table = _keys()
     order_keys.reserve_contribution(
