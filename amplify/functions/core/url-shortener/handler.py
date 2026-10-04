@@ -230,7 +230,7 @@ def handler(event, context):
             if code and "." not in code and "/" not in code:
                 return redirect(code, event)
 
-        # 404 → redirect to self-service
+        # 404 → redirect to customer-service
         logger.info(f"No route matched, falling back")
         return {
             "statusCode": 302,
@@ -239,7 +239,7 @@ def handler(event, context):
         }
 
     except Exception as e:
-        # 500 → redirect to self-service
+        # 500 → redirect to customer-service
         logger.error(f"Handler exception: {e}", exc_info=True)
         return {
             "statusCode": 302,
