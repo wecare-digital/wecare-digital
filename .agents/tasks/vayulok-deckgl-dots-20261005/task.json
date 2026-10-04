@@ -1,0 +1,7 @@
+{
+  "task_id": "vayulok-deckgl-dots-20261005",
+  "task_description": "Extend branch vayulok-finish-unmerged (PR #221) to the FINAL AGREED DESIGN: replace the Google Air Quality raster heatmap (ImageMapType /heatmapTiles/) with a deck.gl ScatterplotLayer of REAL sampled air-quality points over the Google roadmap (client-side throttled+cached sampling, Option B), gate ALL air fetching strictly on AQI/PM2.5 pill click (no air/weather/pollen/forecast/solar fetch on type or place-select), and apply visual tightening (transparent-when-inactive pills, dark-green search focus ring, exact lime #d1f470, 14px map radius, no heavy resting shadows). Keep the already-landed geocoding fix and left photo-led card. No red anywhere; Google logo/legal + Place Photo attributions preserved; key read only from NEXT_PUBLIC_GOOGLE_MAPS_KEY; JSX kept inline for styled-jsx. Do NOT push or open/merge PRs.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
