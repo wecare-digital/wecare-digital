@@ -633,6 +633,9 @@ const VayuLokLive: React.FC = () => {
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const photoRailRef = useRef<HTMLDivElement | null>( null );
+  // SECTION 04: the destination-bar chevron scrolls/focuses the LEFT selected-place card
+  // into view. This ref points at that card so the bar's onClick can scrollIntoView+focus.
+  const placeCardRef = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   const markerRef = useRef<unknown>( null );
   // The Marker constructor captured at map init, so the selected marker can be created
@@ -1753,6 +1756,11 @@ const VayuLokLive: React.FC = () => {
               this new location, as the Maps Platform ToS and the req-06 guard require. */}
           { previewPlace && (
           <div className="vl-live-block vl-live-block-top">
+            {/* SECTION 17 NOTCH: an OUTER wrapper with overflow:visible so a centred
+                bottom notch can escape the inner card, which keeps border-radius:14px +
+                overflow:hidden. Both the wrapper and the inner card MUST stay inline in
+                this return tree so styled-jsx keeps the vl-live- scope on the notch. */}
+            <div className="vl-live-place-cardwrap" ref={ placeCardRef } tabIndex={ -1 }>
             <div className="vl-live-place-card">
               { displayPhotos.length > 0 && (
                 <div className="vl-live-photo-shell">
@@ -1762,6 +1770,29 @@ const VayuLokLive: React.FC = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" aria-hidden="true"><path d="M240-280v-120H120v-80h120v-120h80v120h120v80H320v120h-80Zm390 80v-438l-92 66-46-70 164-118h64v560h-90Z"/></svg>
                     <span>{ displayPhotos.length }</span>
                   </div>
+                  {/* SECTION 15: the FIRST visible state leads with ONE LARGE primary hero
+                      photo. The remaining photos stay in the horizontal pager/rail below
+                      and never float on the map. The hero reuses the first display photo
+                      and carries its own author attribution figcaption (ToS). */}
+                  <figure className="vl-live-photo-hero">
+                    <img
+                      src={ displayPhotos[ 0 ].url }
+                      alt={ `${previewPlace.name} primary photo` }
+                      loading="eager"
+                    />
+                    { displayPhotos[ 0 ].attributions.length > 0 && (
+                      <figcaption className="vl-live-photo-credit">
+                        { displayPhotos[ 0 ].attributions.slice( 0, 2 ).map( ( credit, creditIndex ) => (
+                          <React.Fragment key={ `hero-${credit.name}-${creditIndex}` }>
+                            { creditIndex > 0 ? ' · ' : '' }
+                            { credit.uri
+                              ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a>
+                              : credit.name }
+                          </React.Fragment>
+                        ) ) }
+                      </figcaption>
+                    ) }
+                  </figure>
                   <div
                     ref={ photoRailRef }
                     className="vl-live-place-photos"
@@ -1934,6 +1965,11 @@ const VayuLokLive: React.FC = () => {
                   </div>
                 ) }
               </div>
+            </div>
+            {/* SECTION 17: centred bottom notch pointer. It is drawn by the OUTER wrapper
+                (overflow:visible) via its ::after, so it can extend past the inner card's
+                clipped rounded corner without being cut off. aria-hidden decoration only. */}
+            <span className="vl-live-place-notch" aria-hidden="true" />
             </div>
           </div>
           ) }
@@ -2563,6 +2599,15 @@ const VayuLokLive: React.FC = () => {
                   className="vl-live-map-destbar"
                   aria-label={ `${previewPlace.name}, ${previewPlace.primaryType || previewPlace.addr || ''}`.trim().replace( /,\s*$/, '' ) }
                   onClick={ () => {
+                    // SECTION 04 primary behaviour: focus/scroll the LEFT selected-place
+                    // card into view so the chevron takes the visitor to the full details,
+                    // Google-Destinations style. The recenter is kept as a secondary
+                    // convenience so the pin stays framed on the map.
+                    const card = placeCardRef.current;
+                    if ( card ) {
+                      if ( typeof card.scrollIntoView === 'function' ) card.scrollIntoView( { behavior: 'smooth', block: 'start' } );
+                      card.focus( { preventScroll: true } );
+                    }
                     const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( z: number ) => void } | null;
                     const marker = markerRef.current as { setPosition?: ( p: { lat: number; lng: number } ) => void } | null;
                     map?.setCenter?.( { lat: previewPlace.lat, lng: previewPlace.lng } );
@@ -2649,7 +2694,7 @@ const VayuLokLive: React.FC = () => {
         /* 03A - the whole map surface reads as ONE rounded panel. The stage owns the
            14px home panel radius (per design-tokens.md); the canvas and fallback inherit
            it so no square corner shows through at any zoom. */
-        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:14px;background:var(--ground);box-shadow:none}
+        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid #e5e7eb;border-radius:14px;background:var(--ground);box-shadow:none}
         .vl-live-map-fallback{
           position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;gap:14px;
           width:100%;height:100%;padding:24px;border:0;border-radius:inherit;overflow:hidden;
@@ -2769,7 +2814,7 @@ const VayuLokLive: React.FC = () => {
         /* FINAL AGREED DESIGN - the active AQI/PM2.5 selector tab presents a TRANSLUCENT lime
            (#d1f470-based) fill with #1a3a2a text/boundary, distinct from the fully-opaque lime.
            The lime lives on the SELECTOR chrome, not on the data tiles. */
-        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.55);color:#1a3a2a;font-weight:700}
+        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.6);color:#1a3a2a;font-weight:700}
 
         /* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR. A floating,
            centered, pill-ish card over the roadmap showing the selected destination
@@ -2780,8 +2825,8 @@ const VayuLokLive: React.FC = () => {
            White surface, dark-green #1a3a2a text, 14px home panel radius, only a light
            elevation (it floats over the map), lime #d1f470 reserved for the chevron
            accent. z-index sits below the search dropdown (z-7) but above the canvas. */
-        .vl-live-map-destbar{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:12px;max-width:min(420px,calc(100% - 96px));min-height:48px;padding:10px 16px;border:1px solid rgba(26,58,42,.16);border-radius:14px;background:var(--paper);color:#1a3a2a;font:inherit;text-align:left;cursor:pointer;box-shadow:0 2px 10px rgba(26,58,42,.12);transition:box-shadow .2s,transform .2s}
-        .vl-live-map-destbar:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 4px 14px rgba(26,58,42,.16)}
+        .vl-live-map-destbar{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:12px;max-width:min(420px,calc(100% - 96px));min-height:48px;padding:10px 16px;border:1px solid rgba(26,58,42,.16);border-radius:14px;background:var(--paper);color:#1a3a2a;font:inherit;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(26,58,42,.08);transition:box-shadow .2s,transform .2s}
+        .vl-live-map-destbar:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-map-destbar:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live-map-destbar-text{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden;white-space:nowrap}
         .vl-live-map-destbar-name{font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a3a2a;flex:0 0 auto;max-width:60%;overflow:hidden;text-overflow:ellipsis}
@@ -2801,7 +2846,20 @@ const VayuLokLive: React.FC = () => {
         /* SELECTED-PLACE CARD (left column). FINAL TARGET: the photo + lime number pill
            relocated OFF the map into this card, which leads the left column. The card uses
            the home panel radius (14px) and hairline, no resting shadow. */
-        .vl-live-place-card{border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
+        /* SECTION 17 NOTCH. The OUTER wrapper keeps overflow:visible and holds a little
+           bottom padding so a centred notch can sit below the inner card without being
+           clipped. The INNER .vl-live-place-card still owns the 14px radius + overflow
+           :hidden so the photo/hero corners stay rounded. The notch itself is a rotated
+           square carried on .vl-live-place-notch, centred under the card. */
+        .vl-live-place-cardwrap{position:relative;overflow:visible;padding-bottom:11px;outline:none}
+        .vl-live-place-cardwrap:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:16px}
+        .vl-live-place-notch{position:absolute;left:50%;bottom:5px;width:16px;height:16px;background:#fff;border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);transform:translateX(-50%) rotate(45deg);border-bottom-right-radius:3px;pointer-events:none}
+        .vl-live-place-card{position:relative;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
+        /* SECTION 15: the large primary hero photo that leads the first visible state. It
+           sits above the horizontal pager rail; the remaining photos stay in that rail and
+           never float on the map. Keeps the lime placeholder surface shared with the pill. */
+        .vl-live-photo-hero{position:relative;margin:0;width:100%;height:232px;overflow:hidden;background:var(--lime)}
+        .vl-live-photo-hero img{display:block;width:100%;height:100%;object-fit:cover}
         .vl-live-place-body{padding:20px}
         .vl-live-place-body .vl-live-place{margin-top:0}
         /* Real place metadata / attributes / description / supporting info. Each block

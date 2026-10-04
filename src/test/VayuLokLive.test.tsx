@@ -1785,3 +1785,160 @@ describe( 'VayuLokLive - FEAT-002 selected-place + data-integrity matrix', () =>
     expect( result.querySelector( '.vl-live-metric-xl' )?.textContent ).toBe( '20' );
   } );
 } );
+
+// ---------------------------------------------------------------------------------------
+// FEAT-003 FINAL-DESIGN MATRIX (F, J, L). These are BEHAVIOURAL: they drive the real
+// search -> select flow, read the rendered DOM / styled-jsx CSS, and would FAIL if the
+// section-04 destination-bar focus/scroll, the section-11/23 pill tokens, or the section-15
+// left-card hero/pill composition were reverted.
+// ---------------------------------------------------------------------------------------
+describe( 'VayuLokLive - FEAT-003 final-design matrix (F / J / L)', () => {
+  let rec: MapsRecorder;
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    rec = installGoogleMaps();
+  } );
+
+  const collectCss = () => Array.from( document.querySelectorAll( 'style' ) )
+    .map( s => s.textContent || '' )
+    .join( '\n' )
+    .replace( /\s+/g, ' ' );
+
+  // MATRIX F - destination bar (section 04). Absent before a selection, present after with
+  // the destination NAME + secondary context, an accessible keyboard-focusable button whose
+  // chevron scrolls/focuses the LEFT selected-place card into view.
+  it( 'F: destination bar is hidden until a selection, then shows name + secondary context and focuses/scrolls the left card on click', async () => {
+    // Stub scrollIntoView (jsdom has none) so we can assert the chevron invokes it.
+    const scrollSpy = vi.fn();
+    const origScroll = ( Element.prototype as unknown as { scrollIntoView?: unknown } ).scrollIntoView;
+    ( Element.prototype as unknown as { scrollIntoView: unknown } ).scrollIntoView = scrollSpy;
+    try {
+      vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+      const VayuLokLive = await loadComponent();
+
+      const { container } = render( <VayuLokLive /> );
+      await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+      // BEFORE any selection: no destination bar at all (place state starts null).
+      expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+
+      await selectMumbai();
+
+      // AFTER selection: the bar is a real BUTTON, keyboard-focusable, with an aria-label,
+      // carrying the resolved NAME + a secondary context segment (address when no type).
+      const bar = await waitFor( () => {
+        const el = container.querySelector( '.vl-live-map-destbar' );
+        expect( el ).not.toBeNull();
+        return el as HTMLButtonElement;
+      } );
+      expect( bar.tagName ).toBe( 'BUTTON' );
+      expect( bar.getAttribute( 'aria-label' ) ).toMatch( /^Mumbai,/ );
+      expect( bar.querySelector( '.vl-live-map-destbar-name' )?.textContent ).toContain( 'Mumbai' );
+      expect( bar.querySelector( '.vl-live-map-destbar-meta' )?.textContent?.trim() ).not.toBe( '' );
+      // The button participates in the keyboard tab order (no negative tabindex).
+      expect( bar.getAttribute( 'tabindex' ) ).not.toBe( '-1' );
+
+      const card = container.querySelector( '.vl-live-place-cardwrap' ) as HTMLElement;
+      expect( card ).not.toBeNull();
+
+      // Clicking the chevron/bar scrolls the LEFT card into view and moves focus to it.
+      scrollSpy.mockClear();
+      fireEvent.click( bar );
+      expect( scrollSpy ).toHaveBeenCalled();
+      expect( document.activeElement ).toBe( card );
+    } finally {
+      if ( origScroll === undefined ) {
+        delete ( Element.prototype as unknown as { scrollIntoView?: unknown } ).scrollIntoView;
+      } else {
+        ( Element.prototype as unknown as { scrollIntoView: unknown } ).scrollIntoView = origScroll;
+      }
+    }
+  } );
+
+  // MATRIX J - pills (sections 11/23). Inactive pill fully transparent with no backdrop
+  // blur; active pill uses the translucent lime rgba(209,244,112,.6); no Expand/Collapse.
+  it( 'J: inactive pill is transparent (no backdrop blur), active pill is translucent lime .6, and there is no Expand/Collapse control', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const aqi = await screen.findByRole( 'button', { name: 'AQI' } );
+    expect( aqi.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
+
+    const css = collectCss();
+    const restingRule = css.match( /\.vl-live-layer\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( restingRule ).toContain( 'background:transparent' );
+    expect( restingRule ).not.toMatch( /backdrop-filter/ );
+
+    const activeRule = css.match( /\.vl-live-layer\[aria-pressed="true"\]\{[^}]*\}/ )?.[ 0 ] ?? '';
+    // The target translucent lime is EXACTLY rgba(209,244,112,.6), never opaque var(--lime).
+    expect( activeRule ).toContain( 'rgba(209,244,112,.6)' );
+    expect( activeRule ).not.toMatch( /background:var\(--lime\)/ );
+    expect( activeRule ).toContain( 'color:#1a3a2a' );
+    expect( activeRule ).toContain( 'border-color:#1a3a2a' );
+
+    // The focus ring is dark-green 3px, never a translucent-lime ring.
+    const focusRule = css.match( /\.vl-live-layer:focus-visible\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( focusRule ).toContain( 'outline:3px solid var(--green)' );
+    expect( css ).not.toContain( 'rgba(209,244,112,.78)' );
+
+    // The map panel border is the homepage hairline, not the old lime panel border.
+    const stageRule = css.match( /\.vl-live-map-stage\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( stageRule ).toContain( 'border:1px solid #e5e7eb' );
+    expect( stageRule ).not.toContain( 'rgba(209,244,112,.92)' );
+    expect( stageRule ).toContain( 'box-shadow:none' );
+
+    // No Expand/Collapse affordance anywhere.
+    expect( screen.queryByRole( 'button', { name: /expand|collapse/i } ) ).toBeNull();
+  } );
+
+  // MATRIX L - left card (section 15). The photo + count pill live in the LEFT card only
+  // (no on-map gallery), the pill's visible text is an integer only, the exact referee SVG
+  // path and the Place Photo author attribution figcaption are preserved, and the large
+  // primary hero photo leads the first visible state.
+  it( 'L: photo + integer pill live in the left card only, with the referee SVG, author attribution, and a leading hero photo', async () => {
+    const rec2 = installGoogleMaps( {
+      photoAttributions: [ { displayName: 'Jane Contributor', uri: 'https://maps.google.com/maps/contrib/123' } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+
+    // The photo/count UI lives in the LEFT card, never floating on the map.
+    const leftPill = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-left .vl-live-photo-count' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( container.querySelector( '.vl-live-right .vl-live-photo-count' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-photos' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-stage .vl-live-photo-count' ) ).toBeNull();
+
+    // The pill's VISIBLE text is an integer only (not "N photos"); the accessible label
+    // still reads "N place photos".
+    const pillText = ( leftPill.querySelector( 'span' )?.textContent || '' ).trim();
+    expect( pillText ).toMatch( /^\d+$/ );
+    expect( leftPill.getAttribute( 'aria-label' ) ).toMatch( /^\d+ place photos$/ );
+
+    // The exact referee-style photo-count SVG path is preserved byte-for-byte.
+    const svgPath = leftPill.querySelector( 'svg path' )?.getAttribute( 'd' );
+    expect( svgPath ).toBe( 'M240-280v-120H120v-80h120v-120h80v120h120v80H320v120h-80Zm390 80v-438l-92 66-46-70 164-118h64v560h-90Z' );
+
+    // The large primary hero photo leads the first visible state (section 15).
+    const hero = container.querySelector( '.vl-live-left .vl-live-photo-hero' ) as HTMLElement;
+    expect( hero ).not.toBeNull();
+    expect( hero.querySelector( 'img' ) ).not.toBeNull();
+
+    // The mandated Place Photo author attribution figcaption remains in the left card.
+    const credit = container.querySelector( '.vl-live-left .vl-live-photo-credit' ) as HTMLElement;
+    expect( credit ).not.toBeNull();
+    const link = credit.querySelector( 'a' ) as HTMLAnchorElement;
+    expect( link.getAttribute( 'href' ) ).toBe( 'https://maps.google.com/maps/contrib/123' );
+    expect( link.textContent ).toContain( 'Jane Contributor' );
+  } );
+} );
