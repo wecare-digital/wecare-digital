@@ -32,7 +32,7 @@ ALIAS_NAME = "live"
 # Browser origins allowed to call the service. This AWS service exists because the
 # Cloud Run language relay answers a 403 to this site's origins.
 #
-# stack.wecare.digital was dropped when that hostname was retired - Amplify serves
+# retired-legacy-host.invalid was dropped when that hostname was retired - Amplify serves
 # the apex directly and the subdomain was only a 301 to it. A redirecting host
 # cannot be a useful allowed origin anyway: the browser compares the literal
 # request origin and never follows a redirect to satisfy CORS.
