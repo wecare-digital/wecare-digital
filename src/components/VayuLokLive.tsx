@@ -12,7 +12,7 @@ import { SITE_ORIGIN } from '../config/share';
  * fetched CLIENT-SIDE from Google's India-SKU APIs plus the Maps JavaScript API.
  *
  * THE MOCK'S "never call these from a browser" STANCE IS A MOCK CONSTRAINT, NOT THIS
- * PAGE'S. The mock header says weather/air/solar/pollen are server-side web services
+ * PAGE'S. The mock header says weather/air/pollen are server-side web services
  * and uses static placeholders. For the real page the owner wants LIVE data, and these
  * Google APIs ARE called client-side from the browser with the referrer-restricted
  * browser key - exactly as the shipped src/components/ContactLocation.tsx already calls
@@ -358,12 +358,6 @@ interface WeatherAlertRow {
   urgency?: string;
   expires?: string;
 }
-interface SolarState {
-  maxPanels?: number;
-  roofAreaM2?: number;
-  yearlyKwh?: number;
-  sunshineHrs?: number;
-}
 interface PollenRow { label: string; index: number; word: string; day: string; }
 
 const COMPASS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
@@ -575,12 +569,9 @@ const VayuLokLive: React.FC = () => {
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ photoIndex, setPhotoIndex ] = useState( 0 );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
-  const [ solarRequested, setSolarRequested ] = useState( false );
-  const [ solarLoading, setSolarLoading ] = useState( false );
 
   const [ air, setAir ] = useState<AirState | null>( null );
   const [ weather, setWeather ] = useState<WeatherState | null>( null );
-  const [ solar, setSolar ] = useState<SolarState | null>( null );
   const [ pollen, setPollen ] = useState<PollenRow[] | null>( null );
   const [ weatherHourly, setWeatherHourly ] = useState<WeatherHour[]>( [] );
   const [ weatherDaily, setWeatherDaily ] = useState<WeatherDay[]>( [] );
@@ -643,9 +634,6 @@ const VayuLokLive: React.FC = () => {
   const destAbortRef = useRef<AbortController | null>( null );
 
   useEffect( () => {
-    setSolar( null );
-    setSolarRequested( false );
-    setSolarLoading( false );
     setPhotoIndex( 0 );
     setMapCandidate( null );
     setNearbyPhotos( [] );
@@ -1179,8 +1167,7 @@ const VayuLokLive: React.FC = () => {
 
   /* ---------------------------------------------------------------------------------
      LIVE DATA for the selected place. Air + Weather + Pollen fire together whenever
-     the place changes AND a key is present. Solar is deliberately user-triggered because
-     Building Insights is the comparatively expensive SKU. Each call is independently guarded,
+     the place changes AND a key is present. Each call is independently guarded,
      uses AbortController + Number.isFinite + silent degradation, and caches per place. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
@@ -1570,32 +1557,6 @@ const VayuLokLive: React.FC = () => {
     void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
     return () => ac.abort();
   }, [ place, historyRange, hasSelection ] );
-
-  const loadSolar = useCallback( async () => {
-    if ( !MAPS_KEY || !hasSelection || solarLoading ) return;
-    setSolarRequested( true );
-    setSolarLoading( true );
-    try {
-      const res = await fetch(
-        `https://solar.googleapis.com/v1/buildingInsights:findClosest?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${place.lat}&location.longitude=${place.lng}`,
-      );
-      if ( !res.ok ) { setSolar( null ); return; }
-      const d = await res.json();
-      const sp = d?.solarPotential;
-      if ( !sp ) { setSolar( null ); return; }
-      const out: SolarState = {};
-      if ( Number.isFinite( sp.maxArrayPanelsCount ) ) out.maxPanels = sp.maxArrayPanelsCount;
-      if ( Number.isFinite( sp.maxArrayAreaMeters2 ) ) out.roofAreaM2 = Math.round( sp.maxArrayAreaMeters2 );
-      if ( Number.isFinite( sp.maxSunshineHoursPerYear ) ) out.sunshineHrs = Math.round( sp.maxSunshineHoursPerYear );
-      const cfg = Array.isArray( sp.solarPanelConfigs ) ? sp.solarPanelConfigs[ sp.solarPanelConfigs.length - 1 ] : null;
-      if ( cfg && Number.isFinite( cfg.yearlyEnergyDcKwh ) ) out.yearlyKwh = Math.round( cfg.yearlyEnergyDcKwh );
-      setSolar( Object.keys( out ).length ? out : null );
-    } catch {
-      setSolar( null );
-    } finally {
-      setSolarLoading( false );
-    }
-  }, [ place.lat, place.lng, solarLoading, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
@@ -2489,38 +2450,6 @@ const VayuLokLive: React.FC = () => {
             </section>
           ) }
 
-          {/* SOLAR - expensive relative to Weather/Air, so load only after explicit user action. */}
-          { hasSelection && (
-            <section className="vl-live-section" aria-labelledby="vl-live-solar-title">
-            <h3 className="vl-live-h2" id="vl-live-solar-title">Solar &ndash; Building Insights</h3>
-            { !solarRequested && (
-              <>
-                <p className="vl-live-small vl-live-mb16">Rooftop solar potential is loaded only when you ask for it.</p>
-                <button className="vl-live-solar-load" type="button" onClick={ () => void loadSolar() }>View solar potential</button>
-              </>
-            ) }
-            { solarLoading && <p className="vl-live-small">Loading rooftop potential…</p> }
-            { solarRequested && !solarLoading && !solar && <p className="vl-live-small">Solar building insights are not available for this location.</p> }
-            { solar && ( Number.isFinite( solar.maxPanels ) || Number.isFinite( solar.roofAreaM2 ) || Number.isFinite( solar.yearlyKwh ) || Number.isFinite( solar.sunshineHrs ) ) && (
-              <>
-              <p className="vl-live-small vl-live-mb16">Rooftop solar potential for this address, from the Solar API&rsquo;s building insights.</p>
-              { Number.isFinite( solar.maxPanels ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Max panels</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-mod" style={ { width: '62%' } } /></span><span className="vl-live-metric-md">{ solar.maxPanels } panels</span><span className="vl-live-prow-cat">Rooftop</span></div>
-              ) }
-              { Number.isFinite( solar.sunshineHrs ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Sunshine</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-poor" style={ { width: '78%' } } /></span><span className="vl-live-metric-md">{ solar.sunshineHrs!.toLocaleString( 'en-IN' ) } hrs/yr</span><span className="vl-live-prow-cat">Per year</span></div>
-              ) }
-              { Number.isFinite( solar.roofAreaM2 ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Roof area</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-sat" style={ { width: '48%' } } /></span><span className="vl-live-metric-md">{ solar.roofAreaM2 } m²</span><span className="vl-live-prow-cat">Usable</span></div>
-              ) }
-              { Number.isFinite( solar.yearlyKwh ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Yearly energy</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-poor" style={ { width: '71%' } } /></span><span className="vl-live-metric-md">{ solar.yearlyKwh!.toLocaleString( 'en-IN' ) } kWh</span><span className="vl-live-prow-cat">Estimated</span></div>
-              ) }
-              </>
-            ) }
-            </section>
-          ) }
-
           {/* POLLEN - section renders only when the forecast returned types. */}
           { pollen && pollen.length > 0 && (
             <section className="vl-live-section" aria-labelledby="vl-live-pollen-title">
@@ -3275,10 +3204,6 @@ const VayuLokLive: React.FC = () => {
 
         .vl-live-section{padding-top:0}
 
-        .vl-live-solar-load{min-height:52px;padding:0 24px;border:2px solid var(--green);border-radius:50px;background:var(--lime);color:var(--green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;transition:background-color .2s,transform .2s,box-shadow .2s}
-        .vl-live-solar-load:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .vl-live-solar-load:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-
         /* SUBSCRIBE - same home-page CTA geometry and interaction as the blog-post anchor. */
         .vl-live-wa-subscribe{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 28px;border:2px solid var(--green);border-radius:50px;background:var(--lime);color:var(--green);font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
         .vl-live-wa-subscribe svg{flex:0 0 auto}
@@ -3314,8 +3239,8 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live-data-skeleton i{animation:none}
-          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-solar-load{transition:none}
-          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible,.vl-live-solar-load:hover{transform:none;box-shadow:none}
+          .vl-live-layer,.vl-live-wa-subscribe{transition:none}
+          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible{transform:none;box-shadow:none}
         }
       `}</style>
     </section>

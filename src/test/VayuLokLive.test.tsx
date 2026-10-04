@@ -1192,21 +1192,6 @@ describe( 'VayuLokLive - selected-place weather is restored without map-layer ov
     expect( container.querySelector( '.vl-live-signal-stack' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-plan-card' ) ).toBeNull();
   } );
-
-  it( 'keeps Solar explicitly user-triggered after a place is selected', async () => {
-    const fetchSpy = environmentFetch();
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-
-    await selectMumbai();
-    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ) ).toBe( false );
-    fireEvent.click( await screen.findByRole( 'button', { name: 'View solar potential' } ) );
-    await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ),
-    ).toBe( true ) );
-  } );
 } );
 
 describe( 'VayuLokLive - failure and cost controls', () => {
@@ -1227,23 +1212,6 @@ describe( 'VayuLokLive - failure and cost controls', () => {
     await act( async () => { await vi.advanceTimersByTimeAsync( 12_100 ); } );
     expect( screen.getByText( 'Map temporarily unavailable.' ) ).toBeInTheDocument();
     expect( screen.getByRole( 'button', { name: 'Retry map' } ) ).toBeInTheDocument();
-  } );
-
-  it( 'does not call Solar until the visitor asks for rooftop potential', async () => {
-    installGoogleMaps();
-    const fetchSpy = vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
-
-    await selectMumbai();
-    await waitFor( () => expect( screen.getByRole( 'button', { name: 'View solar potential' } ) ).toBeInTheDocument() );
-    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ) ).toBe( false );
-
-    fireEvent.click( screen.getByRole( 'button', { name: 'View solar potential' } ) );
-    await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) )
-    ).toBe( true ) );
   } );
 } );
 
