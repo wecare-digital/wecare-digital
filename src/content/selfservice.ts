@@ -61,11 +61,11 @@ const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
 /**
  * Every CTA lands on the public contact page, which is the real entry point - its own badge
  * reads "Selfservice by WECARE.DIGITAL" and its rotation already names these five actions.
- * Through a constant so `grep SELFSERVICE_CTA` lists them all, the way PRODUCT_CTA does.
+ * Through a constant so `grep CUSTOMERSERVICE_CTA` lists them all, the way PRODUCT_CTA does.
  */
-const SELFSERVICE_CTA = 'https://wecare.digital/contact/';
+const CUSTOMERSERVICE_CTA = 'https://wecare.digital/contact/';
 
-export const SELFSERVICE: ProductDef[] = [
+export const CUSTOMERSERVICE: ProductDef[] = [
   {
     slug: 'submit-request',
     name: 'Submit Request',
@@ -85,7 +85,7 @@ export const SELFSERVICE: ProductDef[] = [
       { heading: 'You will not have to chase it', body: 'Updates come to you where you already are, and you can ask where something stands at any point without repeating the background.' },
     ],
     ctaLabel: 'Submit a request',
-    ctaHref: SELFSERVICE_CTA,
+    ctaHref: CUSTOMERSERVICE_CTA,
   },
   {
     slug: 'request-amendment',
@@ -108,7 +108,7 @@ export const SELFSERVICE: ProductDef[] = [
     note:
       'Some amendments depend on a third party accepting them - an airline, a registry, a supplier or a government office. We will tell you what is possible and what it depends on, but we cannot commit to a change that is not ours to make.',
     ctaLabel: 'Request an amendment',
-    ctaHref: SELFSERVICE_CTA,
+    ctaHref: CUSTOMERSERVICE_CTA,
   },
   {
     slug: 'drop-docs',
@@ -131,7 +131,7 @@ export const SELFSERVICE: ProductDef[] = [
     note:
       'Please do not send original certificates, and do not send card numbers, passwords or one-time codes - we never need them. Documents are handled under the practices described in our privacy policy.',
     ctaLabel: 'Send documents',
-    ctaHref: SELFSERVICE_CTA,
+    ctaHref: CUSTOMERSERVICE_CTA,
   },
   {
     /*
@@ -198,7 +198,7 @@ export const SELFSERVICE: ProductDef[] = [
     note:
       'Documents are not kept indefinitely - our privacy policy sets how long each kind is retained, and once a period ends a copy may no longer exist to send. We also cannot release someone else\'s document to you, or a document to someone acting on your behalf without your authority.',
     ctaLabel: 'Request a copy',
-    ctaHref: SELFSERVICE_CTA,
+    ctaHref: CUSTOMERSERVICE_CTA,
   },
   {
     slug: 'leave-review',
@@ -221,7 +221,7 @@ export const SELFSERVICE: ProductDef[] = [
     note:
       'Nothing you send is published anywhere without asking you first, and asking is not a condition of anything. Reviews you choose to leave on an external platform are governed by that platform, not by us.',
     ctaLabel: 'Leave a review',
-    ctaHref: SELFSERVICE_CTA,
+    ctaHref: CUSTOMERSERVICE_CTA,
   },
   {
     slug: 'refer-and-earn',
@@ -244,13 +244,13 @@ export const SELFSERVICE: ProductDef[] = [
     note:
       'What a referral is worth depends on what the person you introduced goes on to do, so it is recognised case by case rather than at a fixed rate. Anyone who introduces people regularly should talk to us about a partner arrangement instead - that is a different conversation with terms written down.',
     ctaLabel: 'Introduce someone',
-    ctaHref: SELFSERVICE_CTA,
+    ctaHref: CUSTOMERSERVICE_CTA,
   },
 ];
 
 /** Throws rather than returning undefined, so a bad slug fails the build, not a visitor. */
-export const selfserviceBySlug = ( slug: string ): ProductDef => {
-  const found = SELFSERVICE.find( p => p.slug === slug );
-  if ( !found ) throw new Error( `Unknown selfservice slug: ${slug}` );
+export const customerserviceBySlug = ( slug: string ): ProductDef => {
+  const found = CUSTOMERSERVICE.find( p => p.slug === slug );
+  if ( !found ) throw new Error( `Unknown customerservice slug: ${slug}` );
   return found;
 };
