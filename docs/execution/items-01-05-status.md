@@ -84,7 +84,7 @@ headline.
 - **`BrandBadge` descriptor.** 16 nodes on public routes are skipped by
   `data-wc-no-translate`. **This is correct** — `BrandBadge.tsx:56` sets it so the *brand name*
   survives translation, and says so. But the descriptor shares the label — "Legal Stuff",
-  "Selfservice" — so it is collateral. Splitting the two touches a component on 14 pages.
+  "Customer service" — so it is collateral. Splitting the two touches a component on 14 pages.
   *(This corrects a claim in #59 that called the flag misapplied. It is not.)*
 - **Dashboard routes**: `.main-content` is deliberately `data-wc-no-translate` so live
   operational data is never machine-translated. Sidebar and chrome do translate. Unchanged and
