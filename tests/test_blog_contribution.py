@@ -51,7 +51,7 @@ def _ok_create(order_id='order_CONTRIB1', key_id='rzp_live_TESTKEY'):
     return create_order, created
 
 
-def _prepare(table, *, request_key, amount=4900, currency='INR', enabled=True,
+def _prepare(table, *, request_key, amount=10000, currency='INR', enabled=True,
              create_order=None, customer_id='CUS_1', find=None):
     if create_order is None:
         create_order, _ = _ok_create()
@@ -70,29 +70,19 @@ def test_each_preset_amount_is_accepted(preset):
 
 
 def test_server_presets_mirror_the_frontend_contract():
-    # The shipped UI (src/config/contribution.ts) declares [20000, 40000, 60000] = ₹200/₹400/₹600
-    # + bounds; the server MUST mirror these so the browser cannot widen the trusted amount.
-    # Amounts changed from ₹49/₹99/₹199 on owner instruction (2026-10-02); this assertion is the
-    # guard that the two separate declarations never drift apart.
-    assert bc.CONTRIBUTION_PRESETS_PAISE == (20000, 40000, 60000)
-    assert bc.CONTRIBUTION_MIN_PAISE == 1000
-    assert bc.CONTRIBUTION_MAX_PAISE == 10_000_000
+    # The shipped UI declares the same three common choices: ₹100 / ₹250 / ₹500.
+    # The server copy is intentionally separate so the browser cannot widen the trusted amount.
+    assert bc.CONTRIBUTION_PRESETS_PAISE == (10000, 25000, 50000)
 
 
-def test_custom_amount_within_bounds_is_accepted():
-    assert bc.validate_contribution_amount(1000) == 1000          # exactly MIN
-    assert bc.validate_contribution_amount(12345) == 12345        # arbitrary in-range
-    assert bc.validate_contribution_amount(10_000_000) == 10_000_000  # exactly MAX
-
-
-@pytest.mark.parametrize('bad', [999, 0, -4900, 10_000_001, 50_000_000])
-def test_out_of_range_amount_is_rejected(bad):
+@pytest.mark.parametrize('bad', [999, 0, -10000, 20000, 40000, 60000, 12345, 10_000_000])
+def test_non_preset_amount_is_rejected(bad):
     with pytest.raises(bc.ContributionRejected) as exc:
         bc.validate_contribution_amount(bad)
-    assert exc.value.reason in ('AMOUNT_OUT_OF_RANGE', 'INVALID_AMOUNT')
+    assert exc.value.reason in ('AMOUNT_NOT_ALLOWED', 'INVALID_AMOUNT')
 
 
-@pytest.mark.parametrize('bad', [4900.5, 99.0, True, '4900', None, '₹49'])
+@pytest.mark.parametrize('bad', [10000.5, 100.0, True, '10000', None, '₹100'])
 def test_fractional_or_nonint_amount_is_rejected(bad):
     with pytest.raises(bc.ContributionRejected) as exc:
         bc.validate_contribution_amount(bad)
@@ -101,15 +91,15 @@ def test_fractional_or_nonint_amount_is_rejected(bad):
 
 def test_non_inr_currency_is_rejected():
     with pytest.raises(bc.ContributionRejected) as exc:
-        bc.validate_contribution_amount(4900, currency='USD')
+        bc.validate_contribution_amount(10000, currency='USD')
     assert exc.value.reason == 'UNSUPPORTED_CURRENCY'
 
 
 def test_amount_is_exact_integer_paise_never_rupees():
-    # Integer-paise exactness: ₹99 is 9900 paise, not 99 and not 99.00.
-    assert bc.validate_contribution_amount(9900) == 9900
-    with pytest.raises(bc.ContributionRejected):
-        bc.validate_contribution_amount(99)  # rupees sent as paise is out of range (<MIN)
+    assert bc.validate_contribution_amount(10000) == 10000
+    with pytest.raises(bc.ContributionRejected) as exc:
+        bc.validate_contribution_amount(100)
+    assert exc.value.reason == 'AMOUNT_NOT_ALLOWED'
 
 
 # ── initiation gate (REVERT-CHECK) ──────────────────────────────────────────────
@@ -136,7 +126,7 @@ def test_disabled_gate_creates_no_gateway_order():
     record = order_keys.resolve_contribution(table, result.contribution_id)
     assert record is not None
     assert record['state'] == 'INITIATED'
-    assert record['amountPaise'] == 4900
+    assert record['amountPaise'] == 10000
     assert record['gatewayOrderId'] == ''
 
 
@@ -147,7 +137,7 @@ def test_disabled_gate_rejects_a_widened_amount_before_the_gate():
     with pytest.raises(bc.ContributionRejected) as exc:
         _prepare(table, request_key='rk-wide', amount=50_000_000, enabled=False,
                  create_order=lambda **_: pytest.fail('must not create'))
-    assert exc.value.reason == 'AMOUNT_OUT_OF_RANGE'
+    assert exc.value.reason == 'AMOUNT_NOT_ALLOWED'
 
 
 # ── enabled initiation (the gated-ON seam) ──────────────────────────────────────
@@ -155,19 +145,19 @@ def test_disabled_gate_rejects_a_widened_amount_before_the_gate():
 def test_enabled_creates_bound_order_with_browser_safe_options_only():
     table = _keys()
     create_order, created = _ok_create()
-    result = _prepare(table, request_key='rk-on', amount=9900, create_order=create_order)
+    result = _prepare(table, request_key='rk-on', amount=25000, create_order=create_order)
 
     assert result.status == bc.CHECKOUT_OPTIONS_READY
     # The amount charged is EXACTLY the chosen contribution - no convenience fee/GST added on top.
-    assert created['amount_paise'] == 9900
-    assert result.options['amountPaise'] == 9900
+    assert created['amount_paise'] == 25000
+    assert result.options['amountPaise'] == 25000
     # Only the browser-safe projection is exposed.
     assert set(result.options) == {
         'keyId', 'orderId', 'amountPaise', 'currency', 'prefill', 'paymentAttemptId'}
     assert result.options['keyId'] == 'rzp_live_TESTKEY'
     # The binding is persisted with account/mode/amount and the contribution purpose.
     binding = order_keys.resolve_gateway_order(table, 'order_CONTRIB1')
-    assert binding['amountPaise'] == 9900
+    assert binding['amountPaise'] == 25000
     assert binding['accountMode'] == 'live'
     assert binding['purpose'] == 'BLOG_CONTRIBUTION'
     # notes carry opaque ids + purpose only, NEVER a trusted amount authority downstream.
@@ -187,17 +177,17 @@ def test_anonymous_contribution_is_allowed_and_still_server_amount():
         create_order=create_order, find_order_by_receipt=lambda r: None,
         account_mode_of=_mode_of, initiation_enabled=True, customer_id='')
     assert result.status == bc.CHECKOUT_OPTIONS_READY
-    assert created['amount_paise'] == 19900
+    assert created['amount_paise'] == 50000
 
 
 def test_changed_intent_on_resumed_request_key_is_rejected():
     table = _keys()
     create_order, _ = _ok_create()
-    first = _prepare(table, request_key='rk-dup', amount=4900, create_order=create_order)
+    first = _prepare(table, request_key='rk-dup', amount=10000, create_order=create_order)
     assert first.status == bc.CHECKOUT_OPTIONS_READY
     # Same key, DIFFERENT amount -> different fingerprint -> rejected, no second order.
     with pytest.raises(bc.ContributionRejected) as exc:
-        _prepare(table, request_key='rk-dup', amount=9900,
+        _prepare(table, request_key='rk-dup', amount=25000,
                  create_order=lambda **_: pytest.fail('must not create a second order'))
     assert exc.value.reason == 'INTENT_CHANGED'
 
@@ -235,7 +225,7 @@ def test_missing_post_is_rejected_without_creating():
     table = _keys()
     with pytest.raises(bc.ContributionRejected) as exc:
         bc.prepare_contribution(
-            post_id='', slug=SLUG, requested_amount_paise=4900, currency='INR',
+            post_id='', slug=SLUG, requested_amount_paise=10000, currency='INR',
             request_key='rk-nopost', now=int(time.time()), keys_table=table,
             create_order=lambda **_: pytest.fail('must not create'),
             find_order_by_receipt=lambda r: None, account_mode_of=_mode_of,
@@ -245,7 +235,7 @@ def test_missing_post_is_rejected_without_creating():
 
 # ── callback verification ───────────────────────────────────────────────────────
 
-def _bind(table, *, order_id='order_CB', amount=4900, key_id='rzp_live_K', mode='live',
+def _bind(table, *, order_id='order_CB', amount=10000, key_id='rzp_live_K', mode='live',
           contribution_id='contrib_1'):
     order_keys.reserve_contribution(
         table, contribution_id=contribution_id, post_id=POST_ID, slug=SLUG,
@@ -259,7 +249,7 @@ def _bind(table, *, order_id='order_CB', amount=4900, key_id='rzp_live_K', mode=
 def test_signature_alone_is_not_proof_requires_capture_readback():
     """A valid HMAC is only a trigger; without an authoritative capture there is no paid state."""
     table = _keys()
-    _bind(table, amount=4900)
+    _bind(table, amount=10000)
     result = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='valid', keys_table=table,
         verify_signature=lambda **_: True, verify_capture=lambda _: (False, '', 0, ''))
@@ -268,7 +258,7 @@ def test_signature_alone_is_not_proof_requires_capture_readback():
 
 def test_bad_signature_against_stored_order_is_rejected_before_capture():
     table = _keys()
-    _bind(table, amount=4900)
+    _bind(table, amount=10000)
     result = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='forged', keys_table=table,
         verify_signature=lambda **_: False,
@@ -286,16 +276,16 @@ def test_unknown_stored_order_is_a_binding_mismatch():
 
 def test_capture_amount_mismatch_does_not_settle():
     table = _keys()
-    _bind(table, amount=4900)
+    _bind(table, amount=10000)
     result = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='valid', keys_table=table,
-        verify_signature=lambda **_: True, verify_capture=lambda _: (True, 'pay_real', 9900, 'INR'))
+        verify_signature=lambda **_: True, verify_capture=lambda _: (True, 'pay_real', 25000, 'INR'))
     assert result.status == bc.CALLBACK_BINDING_MISMATCH
 
 
 def test_capture_currency_mismatch_does_not_settle():
     table = _keys()
-    _bind(table, amount=4900)
+    _bind(table, amount=10000)
     result = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='valid', keys_table=table,
         verify_signature=lambda **_: True, verify_capture=lambda _: (True, 'pay_real', 4900, 'USD'))
@@ -306,7 +296,7 @@ def test_test_mode_binding_cannot_settle_live():
     # A binding whose stored mode ('test') disagrees with the mode its own stored key ('rzp_live_')
     # resolves to must not settle, even with a valid signature and a matching capture.
     table = _keys()
-    _bind(table, amount=4900, key_id='rzp_live_K', mode='test')
+    _bind(table, amount=10000, key_id='rzp_live_K', mode='test')
     result = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='valid', keys_table=table,
         verify_signature=lambda **_: True,
@@ -317,14 +307,14 @@ def test_test_mode_binding_cannot_settle_live():
 
 def test_matching_signature_and_capture_settles():
     table = _keys()
-    _bind(table, amount=4900, key_id='rzp_live_K', mode='live')
+    _bind(table, amount=10000, key_id='rzp_live_K', mode='live')
     paid = bc.verify_contribution_callback(
         presented_order_id='order_CB', payment_id='pay_1', signature='valid', keys_table=table,
         verify_signature=lambda **_: True,
-        verify_capture=lambda _: (True, 'pay_real', 4900, 'INR'), account_mode_of=_mode_of)
+        verify_capture=lambda _: (True, 'pay_real', 10000, 'INR'), account_mode_of=_mode_of)
     assert paid.status == bc.CALLBACK_VERIFIED_PAID
     assert paid.payment_id == 'pay_real'
-    assert paid.amount_paise == 4900
+    assert paid.amount_paise == 10000
     assert paid.contribution_id == 'contrib_1'
 
 
@@ -345,20 +335,20 @@ def _settle(table, *, payment, provider):
 def test_webhook_settles_once_and_replay_settles_nothing():
     table = _keys()
     order_keys.reserve_contribution(
-        table, contribution_id='c_set', post_id=POST_ID, slug=SLUG, amount_paise=4900,
+        table, contribution_id='c_set', post_id=POST_ID, slug=SLUG, amount_paise=10000,
         payment_attempt_id='att_set')
     payment = {'id': 'pay_set', 'notes': {'purpose': 'BLOG_CONTRIBUTION', 'contributionId': 'c_set'}}
 
-    first, q1 = _settle(table, payment=payment, provider=(True, 4900, 'INR'))
+    first, q1 = _settle(table, payment=payment, provider=(True, 10000, 'INR'))
     assert first.status == bc.SETTLE_SETTLED
-    assert first.amount_paise == 4900
+    assert first.amount_paise == 10000
     assert q1 == []
     record = order_keys.resolve_contribution(table, 'c_set')
     assert record['state'] == 'CAPTURED'
     assert record['providerPaymentId'] == 'pay_set'
 
     # Replay of the SAME payment id settles exactly once more: a duplicate, not a second credit.
-    second, _ = _settle(table, payment=payment, provider=(True, 4900, 'INR'))
+    second, _ = _settle(table, payment=payment, provider=(True, 10000, 'INR'))
     assert second.status == bc.SETTLE_DUPLICATE
 
 
@@ -366,34 +356,34 @@ def test_webhook_notes_amount_is_not_authority():
     """REVERT-CHECK: fails if the notes-not-authority guard is reverted.
 
     The event notes carry a FORGED amount (990000 paise = ₹9900) but the stored contribution is
-    4900 paise (₹49). The settlement must re-derive the amount from the STORED record and verify
+    10000 paise (₹100). The settlement must re-derive the amount from the STORED record and verify
     the provider's captured amount against THAT - so a provider capture of 4900 settles, and the
     forged notes amount is ignored. If someone reverts to trusting notes['amount'], the provider's
     4900 would mismatch the forged 990000 and this settle would quarantine instead of settling.
     """
     table = _keys()
     order_keys.reserve_contribution(
-        table, contribution_id='c_forge', post_id=POST_ID, slug=SLUG, amount_paise=4900,
+        table, contribution_id='c_forge', post_id=POST_ID, slug=SLUG, amount_paise=10000,
         payment_attempt_id='att_forge')
     payment = {'id': 'pay_forge', 'amount': 990000,  # forged event-body amount
                'notes': {'purpose': 'BLOG_CONTRIBUTION', 'contributionId': 'c_forge',
                          'amount': 990000, 'amountPaise': 990000}}
-    # The authoritative provider readback reports the REAL captured amount: 4900 paise.
-    result, quarantined = _settle(table, payment=payment, provider=(True, 4900, 'INR'))
+    # The authoritative provider readback reports the REAL captured amount: 10000 paise.
+    result, quarantined = _settle(table, payment=payment, provider=(True, 10000, 'INR'))
     assert result.status == bc.SETTLE_SETTLED
-    assert result.amount_paise == 4900  # from the stored record, not the forged notes
+    assert result.amount_paise == 10000  # from the stored record, not the forged notes
     assert quarantined == []
-    assert order_keys.resolve_contribution(table, 'c_forge')['settledAmountPaise'] == 4900
+    assert order_keys.resolve_contribution(table, 'c_forge')['settledAmountPaise'] == 10000
 
 
 def test_webhook_provider_amount_mismatch_quarantines():
     table = _keys()
     order_keys.reserve_contribution(
-        table, contribution_id='c_mm', post_id=POST_ID, slug=SLUG, amount_paise=4900,
+        table, contribution_id='c_mm', post_id=POST_ID, slug=SLUG, amount_paise=10000,
         payment_attempt_id='att_mm')
     payment = {'id': 'pay_mm', 'notes': {'purpose': 'BLOG_CONTRIBUTION', 'contributionId': 'c_mm'}}
     # Money moved, but for a different amount than the stored record -> quarantine, do not settle.
-    result, quarantined = _settle(table, payment=payment, provider=(True, 9900, 'INR'))
+    result, quarantined = _settle(table, payment=payment, provider=(True, 25000, 'INR'))
     assert result.status == bc.SETTLE_QUARANTINED
     assert quarantined == [('c_mm', 'pay_mm')]
     assert order_keys.resolve_contribution(table, 'c_mm')['state'] == 'INITIATED'
@@ -403,7 +393,7 @@ def test_webhook_unknown_contribution_quarantines():
     table = _keys()
     payment = {'id': 'pay_unk', 'notes': {'purpose': 'BLOG_CONTRIBUTION',
                                           'contributionId': 'c_does_not_exist'}}
-    result, quarantined = _settle(table, payment=payment, provider=(True, 4900, 'INR'))
+    result, quarantined = _settle(table, payment=payment, provider=(True, 10000, 'INR'))
     assert result.status == bc.SETTLE_QUARANTINED
     assert quarantined == [('c_does_not_exist', 'pay_unk')]
 
@@ -411,7 +401,7 @@ def test_webhook_unknown_contribution_quarantines():
 def test_webhook_not_captured_quarantines():
     table = _keys()
     order_keys.reserve_contribution(
-        table, contribution_id='c_nc', post_id=POST_ID, slug=SLUG, amount_paise=4900,
+        table, contribution_id='c_nc', post_id=POST_ID, slug=SLUG, amount_paise=10000,
         payment_attempt_id='att_nc')
     payment = {'id': 'pay_nc', 'notes': {'purpose': 'BLOG_CONTRIBUTION', 'contributionId': 'c_nc'}}
     result, quarantined = _settle(table, payment=payment, provider=(False, 0, ''))
@@ -425,11 +415,11 @@ def test_webhook_settlement_creates_no_order_identity():
     # PAYMENTATTEMPT# order claim, no ORDERNO# reservation.
     table = _keys()
     order_keys.reserve_contribution(
-        table, contribution_id='c_noorder', post_id=POST_ID, slug=SLUG, amount_paise=4900,
+        table, contribution_id='c_noorder', post_id=POST_ID, slug=SLUG, amount_paise=10000,
         payment_attempt_id='att_noorder')
     payment = {'id': 'pay_noorder',
                'notes': {'purpose': 'BLOG_CONTRIBUTION', 'contributionId': 'c_noorder'}}
-    result, _ = _settle(table, payment=payment, provider=(True, 4900, 'INR'))
+    result, _ = _settle(table, payment=payment, provider=(True, 10000, 'INR'))
     assert result.status == bc.SETTLE_SETTLED
     # No order identity of any kind was minted for this contribution.
     assert order_keys.resolve_order_for_payment(table, 'att_noorder') is None
@@ -450,7 +440,7 @@ def test_real_webhook_handler_routes_blog_contribution_and_settles():
     fake = FakeDynamo({KEYS_TABLE: 'orderId'})
     table = fake.Table(KEYS_TABLE)
     order_keys.reserve_contribution(
-        table, contribution_id='c_handler', post_id=POST_ID, slug=SLUG, amount_paise=4900,
+        table, contribution_id='c_handler', post_id=POST_ID, slug=SLUG, amount_paise=10000,
         payment_attempt_id='att_handler')
 
     # Point the handler's dynamodb + commerce-keys table at our fake, and stub the capture readback.
@@ -460,7 +450,7 @@ def test_real_webhook_handler_routes_blog_contribution_and_settles():
     ok.commerce_keys_table_name = lambda: KEYS_TABLE
     from lambda_utils.integrations import razorpay_verify
     original_pic = razorpay_verify.payment_is_captured
-    razorpay_verify.payment_is_captured = lambda pid: (True, 4900, 'INR')
+    razorpay_verify.payment_is_captured = lambda pid: (True, 10000, 'INR')
     try:
         payment = {'id': 'pay_handler', 'amount': 990000,  # forged body amount, ignored
                    'notes': {'purpose': 'BLOG_CONTRIBUTION', 'contributionId': 'c_handler'}}
@@ -471,4 +461,4 @@ def test_real_webhook_handler_routes_blog_contribution_and_settles():
 
     record = order_keys.resolve_contribution(table, 'c_handler')
     assert record['state'] == 'CAPTURED'
-    assert record['settledAmountPaise'] == 4900  # from the stored record, not the forged body
+    assert record['settledAmountPaise'] == 10000  # from the stored record, not the forged body
