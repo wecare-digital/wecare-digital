@@ -119,4 +119,50 @@ describe( 'CheckoutIdentityCard', () => {
     renderCard();
     expect( screen.getByText( '+91 81006 ·····' ) ).toBeInTheDocument();
   } );
+
+  /**
+   * THE FOUR OPTIONAL PROPS /orders/ ADDED, ASSERTED FROM THE /cart/ SIDE.
+   *
+   * `/cart/` passes none of `eyebrow`, `title`, `emailVerified` or `emptyAddressLabel`, and the
+   * claim that adding them has zero blast radius is only worth anything as a measurement. These
+   * three tests are that measurement: one per prop that carries a default. (`emailVerified` and
+   * the Deliver fallback are each also asserted in the OTHER direction by
+   * `src/test/OrdersPage.test.tsx`, which is the consumer that passes them.)
+   */
+  it( 'keeps the checkout copy when no eyebrow or title is passed', () => {
+    renderCard();
+    expect( screen.getByText( 'Checkout details' ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'heading', { name: 'Ready to pay' } ) ).toBeInTheDocument();
+  } );
+
+  it( 'keeps the email badge when no emailVerified is passed', () => {
+    // `!== false`, not a truthiness test - so an omitted prop is today's behaviour exactly.
+    renderCard();
+    expect( row( 'Email' ).querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
+  } );
+
+  it( 'keeps the Deliver value empty when no emptyAddressLabel is passed', () => {
+    renderCard( { identity: { ...IDENTITY, address: null } } );
+    expect( row( 'Deliver' ).querySelector( '.identity-value' )!.textContent ).toBe( '' );
+  } );
+
+  it( 'suppresses the email badge, and only the email badge, on an explicit false', () => {
+    renderCard( { identity: { ...IDENTITY, emailVerified: false } } );
+    expect( row( 'Email' ).querySelector( '.identity-badge' ) ).toBeNull();
+    // The phone badge is unconditional: the session proves the number whatever the email says.
+    expect( row( 'Phone' ).querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
+  } );
+
+  it( 'renders the caller\'s copy when the four props are passed', () => {
+    renderCard( {
+      identity: { ...IDENTITY, address: null },
+      eyebrow: 'Your details',
+      title: 'What we have on file',
+      emptyAddressLabel: 'No address on file',
+    } );
+    expect( screen.getByText( 'Your details' ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'heading', { name: 'What we have on file' } ) ).toBeInTheDocument();
+    expect( screen.queryByText( 'Checkout details' ) ).toBeNull();
+    expect( row( 'Deliver' ).textContent ).toContain( 'No address on file' );
+  } );
 } );

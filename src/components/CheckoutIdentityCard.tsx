@@ -44,6 +44,19 @@ export interface CheckoutIdentity {
   email: string;
   phone: string;
   address: StoredAddress | null;
+  /**
+   * Whether anyone actually proved this email address. OPTIONAL, and an omitted value keeps the
+   * badge - which is what makes /cart/ byte-identical, because /cart/ passes nothing.
+   *
+   * The badge is the one thing on this card that is a CLAIM rather than a value, so a consumer
+   * whose own predicate does not prove the email must be able to suppress it. /cart/ can leave
+   * this alone because `checkout/handler.py:355-357` refuses a contact row that lacks
+   * `emailVerifiedAt` or lacks a non-empty email before this card can mount at all. /orders/'s
+   * server-side predicate deliberately drops BOTH of those checks - it answers "is this the
+   * caller's contact row", not "is this email proven" - so without this member the card would
+   * put "✓ verified" beside an email nothing verified.
+   */
+  emailVerified?: boolean;
 }
 
 /**
@@ -67,13 +80,29 @@ interface Props {
   identity: CheckoutIdentity;
   /** True while a CheckoutProfile editor is mounted below this card. */
   editorOpen?: boolean;
+  /**
+   * The small uppercase line above the heading. Defaults to the checkout wording, so /cart/
+   * passes nothing and renders exactly as before. /orders/ passes "Your details", because
+   * "Checkout details / Ready to pay" above a customer's name on a page about orders they have
+   * already paid for is wrong on its face.
+   */
+  eyebrow?: string;
+  /** The card's own h2. Defaults to the checkout wording, for the same reason as `eyebrow`. */
+  title?: string;
+  /**
+   * What the Deliver row says when there is no address on file. Defaults to '' - which is what
+   * the row has always rendered - so /cart/ is byte-identical. Without this prop the copy "No
+   * address on file" could not appear anywhere, which is the state /orders/ has to describe.
+   */
+  emptyAddressLabel?: string;
   onEditName: () => void;
   onChangeEmail: () => void;
   onEditAddress: () => void;
 }
 
 const CheckoutIdentityCard: React.FC<Props> = ( {
-  identity, editorOpen, onEditName, onChangeEmail, onEditAddress,
+  identity, editorOpen, eyebrow, title, emptyAddressLabel,
+  onEditName, onChangeEmail, onEditAddress,
 } ) => {
   const locked = !!editorOpen;
 
@@ -86,8 +115,8 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
   return (
     <section className="identity-card" aria-labelledby="identity-card-title">
       <div className="identity-head">
-        <p className="identity-eyebrow">Checkout details</p>
-        <h2 id="identity-card-title">Ready to pay</h2>
+        <p className="identity-eyebrow">{ eyebrow || 'Checkout details' }</p>
+        <h2 id="identity-card-title">{ title || 'Ready to pay' }</h2>
       </div>
 
       <dl className="identity-rows">
@@ -103,7 +132,12 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           <dt>Email</dt>
           <dd>
             <span className="identity-value">{ identity.email }</span>
-            <span className="identity-badge">✓ verified</span>
+            { /* A CLAIM, not a value - so it is gated, unlike the phone badge below. `!== false`
+                 and not a truthiness test: an omitted prop keeps today's behaviour exactly, so
+                 /cart/ (which passes nothing) is byte-identical, and only an explicit `false`
+                 suppresses it. See `emailVerified` on CheckoutIdentity for the consumer whose
+                 predicate does not prove this. */ }
+            { identity.emailVerified !== false && <span className="identity-badge">✓ verified</span> }
           </dd>
           <button type="button" onClick={ onChangeEmail } disabled={ locked }>Change email</button>
         </div>
@@ -112,6 +146,9 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           <dt>Phone</dt>
           <dd>
             <span className="identity-value">{ maskPhone( identity.phone ) }</span>
+            { /* UNCONDITIONAL, deliberately. There is no path to this card without a session on
+                 this number, so every consumer's own authentication is the proof - there is
+                 nothing for a consumer to disagree with and therefore no prop to gate it on. */ }
             <span className="identity-badge">✓ verified</span>
           </dd>
         </div>
@@ -119,8 +156,13 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
         <div className="identity-row">
           <dt>Deliver</dt>
           <dd>
-            { /* VERBATIM. No composition from the components - see the docblock. */ }
-            <span className="identity-value">{ identity.address ? identity.address.fullAddress : '' }</span>
+            { /* VERBATIM. No composition from the components - see the docblock. The empty case
+                 still renders a STORED string or nothing at all, never a composed one: the
+                 fallback is a caller-supplied label, which is prose about the absence rather
+                 than a second rendering of an address. */ }
+            <span className="identity-value">
+              { identity.address ? identity.address.fullAddress : ( emptyAddressLabel || '' ) }
+            </span>
           </dd>
           <button type="button" onClick={ onEditAddress } disabled={ locked }>Edit address</button>
         </div>
