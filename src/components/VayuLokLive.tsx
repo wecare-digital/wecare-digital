@@ -103,7 +103,6 @@ interface PlaceState {
   rating?: number;
   userRatingCount?: number;
   websiteURI?: string;
-  openNow?: boolean;
   summary?: string;
 }
 
@@ -116,7 +115,12 @@ const PLACE_META_FIELDS = [
   'rating',
   'userRatingCount',
   'websiteURI',
-  'regularOpeningHours',
+  // SECTION 22 AUDIT (open/closed): regularOpeningHours is intentionally NOT requested.
+  // On the modern google.maps.places.Place, open-now status is time-dependent and exposed
+  // via the ASYNC Place.isOpen() method, not a reliably-populated static boolean on
+  // regularOpeningHours. Rather than render a status the real API does not deliver as a
+  // static field, we omit the open/closed line entirely (honest degradation). See
+  // decisions.md for the full rationale.
   'editorialSummary',
 ] as const;
 
@@ -137,7 +141,6 @@ interface GooglePlaceLike {
   rating?: number;
   userRatingCount?: number;
   websiteURI?: string;
-  regularOpeningHours?: { openNow?: boolean };
   editorialSummary?: string;
 }
 
@@ -155,7 +158,7 @@ function metaFromGooglePlace( p: GooglePlaceLike ): Partial<PlaceState> {
   if ( Number.isFinite( p.rating ) ) meta.rating = p.rating;
   if ( Number.isFinite( p.userRatingCount ) ) meta.userRatingCount = p.userRatingCount;
   if ( typeof p.websiteURI === 'string' && p.websiteURI ) meta.websiteURI = p.websiteURI;
-  if ( typeof p.regularOpeningHours?.openNow === 'boolean' ) meta.openNow = p.regularOpeningHours.openNow;
+  // openNow deliberately NOT derived - see SECTION 22 AUDIT above (not a reliable static field).
   const summary = typeof p.editorialSummary === 'string' ? p.editorialSummary.trim() : '';
   if ( summary ) meta.summary = summary;
   return meta;
@@ -171,6 +174,32 @@ function humanisePlaceType( raw: unknown ): string | undefined {
   return cleaned.replace( /\b\w/g, c => c.toUpperCase() );
 }
 
+/* HARD India country gate for geocoder results. The map restriction (INDIA_BOUNDS) and the
+   region:'in' / includedRegionCodes bias are necessary but NOT sufficient: near a land
+   border a reverse-geocode can still resolve to a foreign country (e.g. Bangladesh just
+   across the Dawki border). This inspects the result's address_components, finds the
+   component whose `types` include 'country', and accepts ONLY when its short code is 'IN'.
+   Supports both the classic Geocoder shape (address_components[].short_name) and the modern
+   Place shape (addressComponents[].shortText). A result with no country component is
+   rejected (we never guess a country). */
+function isIndiaResult( result: unknown ): boolean {
+  if ( !result || typeof result !== 'object' ) return false;
+  const r = result as {
+    address_components?: { types?: string[]; short_name?: string }[];
+    addressComponents?: { types?: string[]; shortText?: string }[];
+  };
+  const components = Array.isArray( r.address_components )
+    ? r.address_components
+    : ( Array.isArray( r.addressComponents ) ? r.addressComponents : [] );
+  for ( const c of components ) {
+    if ( !c || !Array.isArray( c.types ) || !c.types.includes( 'country' ) ) continue;
+    const code = ( ( c as { short_name?: string } ).short_name
+      || ( c as { shortText?: string } ).shortText || '' ).toUpperCase();
+    return code === 'IN';
+  }
+  return false;
+}
+
 interface SearchResult {
   name: string;
   addr: string;
@@ -180,13 +209,39 @@ interface SearchResult {
   };
 }
 
-const DEFAULT_PLACE: PlaceState = {
-  name: 'Dawki',
-  addr: 'Dawki, West Jaintia Hills, Meghalaya 793109',
-  lat: 25.18333,
-  lng: 92.01667,
-  photos: [],
+// NEUTRAL INITIAL CAMERA. This is NOT a selected place - it only frames the empty map on
+// a central-India view at a country-level zoom until the visitor searches or clicks. No
+// card, marker, destination bar, or environmental fetch is ever driven by this camera; it
+// exists purely so the clean map opens on India rather than the middle of the ocean.
+const INITIAL_CAMERA = {
+  lat: 22.9734, // geographic centre of India
+  lng: 78.6569,
+  zoom: 5, // country-level view, clearly not a street-level selection
 };
+
+// NO-RED brand marker for the SELECTED place (section 13). A classic Marker with an
+// SVG-symbol data-URI icon (API choice B): it keeps working under the FakeMarker test stub
+// and needs no mapId (which AdvancedMarkerElement would). The pin is a dark-green #1a3a2a
+// teardrop body with a lime #d1f470 inner dot and a white ring for contrast, deliberately
+// LARGER (36x48) than the small filled AQ sample dots so it reads as the selection, never
+// as a data point. No red anywhere. Encoded as a data URI so no asset fetch is required.
+const BRAND_MARKER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">'
+  + '<path d="M18 1C9.2 1 2 8.2 2 17c0 11.5 16 30 16 30s16-18.5 16-30C34 8.2 26.8 1 18 1z" '
+  + 'fill="#1a3a2a" stroke="#ffffff" stroke-width="2"/>'
+  + '<circle cx="18" cy="17" r="7" fill="#d1f470" stroke="#ffffff" stroke-width="1.5"/>'
+  + '</svg>';
+const BRAND_MARKER_ICON_URL =
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent( BRAND_MARKER_SVG );
+// The icon shape the Maps JS API expects for a classic Marker. anchor puts the pin TIP on
+// the coordinate. Built fresh per Marker so a stale LatLng/Point ctor is never reused.
+function brandMarkerIcon( g: { Size?: new ( w: number, h: number ) => unknown; Point?: new ( x: number, y: number ) => unknown } ) {
+  return {
+    url: BRAND_MARKER_ICON_URL,
+    scaledSize: g.Size ? new g.Size( 36, 48 ) : undefined,
+    anchor: g.Point ? new g.Point( 18, 47 ) : undefined,
+  };
+}
 
 // GEOMETRY ON THE REPO PALETTE, ported verbatim from the mock's map styles.
 const MAP_STYLES = [
@@ -535,12 +590,14 @@ function rememberPlace( place: PlaceState ) {
 }
 
 const VayuLokLive: React.FC = () => {
-  // The selected place drives every fetch. Default is Connaught Place; search updates it.
-  const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
+  // The selected place drives every fetch. It starts null: on load the map opens on a
+  // neutral India CAMERA (INITIAL_CAMERA) with NO selection, so there is no card, marker,
+  // destination bar, or environmental fetch until the visitor searches or clicks the map.
+  const [ place, setPlace ] = useState<PlaceState | null>( null );
+  const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ photoIndex, setPhotoIndex ] = useState( 0 );
-  const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
   const [ solarRequested, setSolarRequested ] = useState( false );
   const [ solarLoading, setSolarLoading ] = useState( false );
 
@@ -578,6 +635,9 @@ const VayuLokLive: React.FC = () => {
   const photoRailRef = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   const markerRef = useRef<unknown>( null );
+  // The Marker constructor captured at map init, so the selected marker can be created
+  // LAZILY on first real selection (not on load) by the recenter effect.
+  const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
   const autocompleteTokenRef = useRef<unknown>( null );
   const geocoder = useRef<unknown>( null );
@@ -615,7 +675,7 @@ const VayuLokLive: React.FC = () => {
     setPhotoIndex( 0 );
     setMapCandidate( null );
     setNearbyPhotos( [] );
-  }, [ place.lat, place.lng ] );
+  }, [ place?.lat, place?.lng ] );
 
   useEffect( () => {
     if ( !MAPS_KEY || mapReady ) return;
@@ -716,8 +776,10 @@ const VayuLokLive: React.FC = () => {
       if ( cancelled ) return;
 
       const map = new maps.Map( host, {
-        center: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-        zoom: 14,
+        // Neutral India CAMERA, NOT a selection: a central-India centre at a country-level
+        // zoom. The map opens empty (no card/marker/destbar/fetch) until a real selection.
+        center: { lat: INITIAL_CAMERA.lat, lng: INITIAL_CAMERA.lng },
+        zoom: INITIAL_CAMERA.zoom,
         mapTypeId: 'roadmap',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
@@ -735,13 +797,10 @@ const VayuLokLive: React.FC = () => {
       } );
       mapRef.current = map;
 
-      if ( maps.Marker ) {
-        markerRef.current = new maps.Marker( {
-          position: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-          map,
-          title: DEFAULT_PLACE.name,
-        } );
-      }
+      // Do NOT construct the selected marker on load. There is no selection yet, so the
+      // map opens with no pin. The recenter effect creates the brand marker lazily the
+      // first time a real place is selected (search-select or validated map click).
+      markerCtorRef.current = maps.Marker || null;
 
       if ( maps.Geocoder ) geocoder.current = new maps.Geocoder();
       placesLibRef.current = placesLib || maps.places || null;
@@ -758,7 +817,16 @@ const VayuLokLive: React.FC = () => {
         } | null;
         gc?.geocode?.( { location: { lat, lng }, region: 'in' }, async ( rows, status ) => {
           if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const first = rows[ 0 ] as { formatted_address?: string; place_id?: string };
+          // HARD India country gate (section 05): region:'in' is only a bias, so near a land
+          // border a reverse-geocode can resolve to a foreign country. Iterate the rows and
+          // pick the FIRST whose country component is 'IN'. If none pass, do NOT select a
+          // foreign location - keep the previous selection and surface an honest status.
+          const first = rows.find( r => isIndiaResult( r ) ) as
+            | { formatted_address?: string; place_id?: string } | undefined;
+          if ( !first ) {
+            setSearchStatus( 'outside-india' );
+            return;
+          }
           const next: PlaceState = {
             name: first.formatted_address?.split( ',' )[ 0 ] || 'Selected location',
             addr: first.formatted_address || '',
@@ -800,7 +868,7 @@ const VayuLokLive: React.FC = () => {
                   setMapCandidate( current => current && current.lat === lat && current.lng === lng
                     ? { ...current, ...enrich }
                     : current );
-                  setPlace( current => current.lat === lat && current.lng === lng
+                  setPlace( current => current && current.lat === lat && current.lng === lng
                     ? { ...current, ...enrich }
                     : current );
                 }
@@ -868,10 +936,19 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     if ( !MAPS_KEY || typeof window === 'undefined' || !mapReady ) return;
     const target = mapCandidate || place;
-    const exactCleanPhotos = ( target.photos || [] ).filter( photo => photo.attributions.length === 0 );
-    if ( exactCleanPhotos.length ) {
+    // No real selection yet -> nothing to enrich (the clean neutral map carries no card).
+    if ( !target ) return;
+    // SECTION 21 FIX. ANY valid exact photo (a non-empty url) is a usable photo, EVEN WHEN
+    // it carries Google author attribution. The old gate only accepted attribution-free
+    // photos (`attributions.length === 0`), which wrongly treated an attributed exact
+    // photo as unusable and kicked off a needless nearby-photo fetch. The correct rule:
+    // if the place has any usable exact photo, use the exact photos (attribution rides
+    // with them in the figcaption) and do NOT searchNearby. Only when there is genuinely
+    // NO usable exact photo do we fall back to nearby photographed places.
+    const hasExactPhoto = ( target.photos || [] ).some( photo => Boolean( photo.url ) );
+    if ( hasExactPhoto ) {
       setNearbyPhotos( [] );
-        return;
+      return;
     }
 
     let cancelled = false;
@@ -946,6 +1023,11 @@ const VayuLokLive: React.FC = () => {
     }
     const map = mapRef.current;
     if ( !map ) return;
+    // GATE on a REAL selection (section 01/20). The neutral initial camera is NOT a
+    // selection, so clicking a pill with no place selected must NOT start an AQ-grid
+    // fetch. No place -> leave the overlay clear and fetch nothing. (No setState here, so
+    // the existing set-state-in-effect lint profile at this effect is not worsened.)
+    if ( !place ) return;
 
     const { lat, lng } = place;
     const gridSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 3 : 5; // 3x3 narrow, 5x5 wide
@@ -954,8 +1036,14 @@ const VayuLokLive: React.FC = () => {
 
     const ac = new AbortController();
     gridAbortRef.current = ac;
-    setDataLoading( true );
-    setCoreError( false );
+    // Defer the loading/error reset to a frame (matching every other setState in this
+    // effect) so it does not run synchronously in the effect body - keeps the existing
+    // set-state-in-effect lint profile unchanged after the null-place gate was added.
+    requestAnimationFrame( () => {
+      if ( ac.signal.aborted ) return;
+      setDataLoading( true );
+      setCoreError( false );
+    } );
 
     // Build the responsive, hard-capped (<=25) grid of lat/lng offsets around the place.
     // A ~+/-0.04deg span keeps the dots local around the zoom-14 marker.
@@ -1136,7 +1224,7 @@ const VayuLokLive: React.FC = () => {
   }, [ layer, place, refreshNonce, mapReady ] );
 
   const loadSolar = useCallback( async () => {
-    if ( !MAPS_KEY || solarLoading ) return;
+    if ( !MAPS_KEY || solarLoading || !place ) return;
     setSolarRequested( true );
     setSolarLoading( true );
     try {
@@ -1159,19 +1247,40 @@ const VayuLokLive: React.FC = () => {
     } finally {
       setSolarLoading( false );
     }
-  }, [ place.lat, place.lng, solarLoading ] );
+  }, [ place, solarLoading ] );
 
   /* ---------------------------------------------------------------------------------
-     RECENTRE the map + move the marker when the place changes (after the map exists). */
+     RECENTRE the map + move the marker when the place changes (after the map exists).
+     The selected brand marker is created LAZILY here on first selection (section 13) so
+     the map opens with no pin. When `place` is null (no selection) this no-ops entirely. */
   useEffect( () => {
-    const w = window as unknown as { google?: { maps?: { LatLng: new ( a: number, b: number ) => unknown } } };
+    const w = window as unknown as {
+      google?: { maps?: {
+        Size?: new ( w: number, h: number ) => unknown;
+        Point?: new ( x: number, y: number ) => unknown;
+      } };
+    };
     const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( zoom: number ) => void } | null;
+    if ( !map || !w.google?.maps ) return;
+    // No selection -> no marker, no recenter. The neutral camera stays as-is.
+    if ( !place ) return;
+
+    // Create the no-red brand marker the first time a place is selected.
+    if ( !markerRef.current && markerCtorRef.current ) {
+      const MarkerCtor = markerCtorRef.current;
+      markerRef.current = new MarkerCtor( {
+        position: { lat: place.lat, lng: place.lng },
+        map,
+        title: place.name,
+        icon: brandMarkerIcon( w.google.maps ),
+      } );
+    }
+
     const marker = markerRef.current as { setPosition?: ( p: { lat: number; lng: number } ) => void; setTitle?: ( t: string ) => void } | null;
-    if ( !map || !marker || !w.google?.maps ) return;
     map.setCenter?.( { lat: place.lat, lng: place.lng } );
     map.setZoom?.( 14 );
-    marker.setPosition?.( { lat: place.lat, lng: place.lng } );
-    marker.setTitle?.( place.name );
+    marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
+    marker?.setTitle?.( place.name );
   }, [ place, mapReady ] );
 
   /* ---------------------------------------------------------------------------------
@@ -1223,6 +1332,8 @@ const VayuLokLive: React.FC = () => {
     const g = w.google?.maps;
     const map = mapRef.current;
     if ( !g || !map ) return;
+    // No real selection -> nothing to resolve; the clearGeometry above already ran.
+    if ( !place ) return;
 
     // CITY / TOWN / AREA -> Places/geocoding only (no SearchDestinations, no outline).
     // A place with no primaryType is treated as an area (choose() only sets primaryType
@@ -1437,18 +1548,28 @@ const VayuLokLive: React.FC = () => {
           setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
           return;
         }
-        const mapped: SearchResult[] = rows.slice( 0, 6 ).map( ( row: unknown ) => {
-          const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
-          const loc = pr.geometry?.location;
-          const place: PlaceState = {
-            name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
-            addr: pr.formatted_address || '',
-            lat: loc ? loc.lat() : DEFAULT_PLACE.lat,
-            lng: loc ? loc.lng() : DEFAULT_PLACE.lng,
-            photos: [],
-          };
-          return { name: place.name, addr: place.addr, place };
-        } );
+        // SECTION 05: filter the geocoding fallback to India-only results (componentRestrictions
+        // is a bias, not a guarantee) AND require a real location - never invent coordinates by
+        // falling back to a default place.
+        const mapped: SearchResult[] = rows
+          .filter( ( row: unknown ) => isIndiaResult( row ) )
+          .slice( 0, 6 )
+          .map( ( row: unknown ) => {
+            const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
+            const loc = pr.geometry?.location;
+            return { pr, loc };
+          } )
+          .filter( ( { loc } ) => Boolean( loc ) )
+          .map( ( { pr, loc } ) => {
+            const place: PlaceState = {
+              name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
+              addr: pr.formatted_address || '',
+              lat: loc!.lat(),
+              lng: loc!.lng(),
+              photos: [],
+            };
+            return { name: place.name, addr: place.addr, place };
+          } );
         setResults( mapped );
         setActive( mapped.length ? 0 : -1 );
         setOpen( true );
@@ -1478,7 +1599,21 @@ const VayuLokLive: React.FC = () => {
     if ( !next && r.prediction?.toPlace ) {
       try {
         const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'displayName', 'formattedAddress', 'location', 'photos', ...PLACE_META_FIELDS ] } );
+        await googlePlace.fetchFields?.( { fields: [ 'displayName', 'formattedAddress', 'location', 'photos', 'addressComponents', ...PLACE_META_FIELDS ] } );
+        // SECTION 05 (SearchDestinations/autocomplete path, live only on *.wecare.digital):
+        // the autocomplete suggestions are already India-biased (includedRegionCodes:['in']),
+        // but when the resolved Place carries addressComponents we apply the same hard
+        // country check and REJECT a non-IN result rather than selecting a foreign place.
+        // When no country component is present (e.g. the test stub, or a Place that did not
+        // return addressComponents) we trust the India bias and proceed.
+        const gp = googlePlace as unknown as { addressComponents?: { types?: string[]; shortText?: string }[] };
+        const hasCountryComponent = Array.isArray( gp.addressComponents )
+          && gp.addressComponents.some( c => Array.isArray( c?.types ) && c.types.includes( 'country' ) );
+        if ( hasCountryComponent && !isIndiaResult( googlePlace ) ) {
+          setSearchStatus( 'outside-india' );
+          autocompleteTokenRef.current = null;
+          return;
+        }
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
@@ -1538,8 +1673,13 @@ const VayuLokLive: React.FC = () => {
 
   const weatherFreshness = relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined );
   const airFreshness = relativeAgeLabel( air?.updatedAt || coreFetchedAt || undefined );
+  // previewPlace is the current real selection (a map-click candidate or the chosen place),
+  // or null when nothing is selected yet. The whole selected-place card, marker, destbar
+  // and environmental result are gated on this being non-null (section 01/20) so the
+  // neutral initial map carries no card, pin, bar, or fabricated data.
   const previewPlace = mapCandidate || place;
-  const exactPhotos = previewPlace.photos || [];
+  const hasSelection = Boolean( previewPlace );
+  const exactPhotos = previewPlace?.photos || [];
   const displayPhotos = Array.from(
     new Map( [ ...exactPhotos, ...nearbyPhotos ].map( photo => [ photo.url, photo ] ) ).values(),
   ).slice( 0, 8 );
@@ -1563,8 +1703,8 @@ const VayuLokLive: React.FC = () => {
      place or the already-fetched live context, so the card renders real facts or nothing
      - never a placeholder or an invented attribute. */
   const placeMeta: { label: string; value: string }[] = [];
-  if ( previewPlace.primaryType ) placeMeta.push( { label: 'Category', value: previewPlace.primaryType } );
-  if ( Number.isFinite( previewPlace.rating ) ) {
+  if ( previewPlace?.primaryType ) placeMeta.push( { label: 'Category', value: previewPlace.primaryType } );
+  if ( previewPlace && Number.isFinite( previewPlace.rating ) ) {
     placeMeta.push( {
       label: 'Rating',
       value: Number.isFinite( previewPlace.userRatingCount )
@@ -1573,10 +1713,11 @@ const VayuLokLive: React.FC = () => {
     } );
   }
 
+  // SECTION 22: no 'Open now'/'Closed now' line - open status is not a reliable static
+  // field on the modern Place (it is the async Place.isOpen() method), so it is omitted.
   const placeAttributes: string[] = [];
-  if ( typeof previewPlace.openNow === 'boolean' ) placeAttributes.push( previewPlace.openNow ? 'Open now' : 'Closed now' );
-  if ( previewPlace.websiteURI ) placeAttributes.push( 'Official website listed' );
-  if ( Array.isArray( previewPlace.types ) ) {
+  if ( previewPlace?.websiteURI ) placeAttributes.push( 'Official website listed' );
+  if ( previewPlace && Array.isArray( previewPlace.types ) ) {
     for ( const t of previewPlace.types ) {
       if ( t && t !== previewPlace.primaryType && !placeAttributes.includes( t ) ) placeAttributes.push( t );
     }
@@ -1588,7 +1729,7 @@ const VayuLokLive: React.FC = () => {
   const supportingInfo: string[] = [];
   if ( liveActive && air ) supportingInfo.push( `Air quality band: ${air.word}` );
   if ( liveActive && weather?.condition ) supportingInfo.push( `Current weather: ${weather.condition}` );
-  if ( liveActive && Number.isFinite( previewPlace.lat ) && Number.isFinite( previewPlace.lng ) ) {
+  if ( liveActive && previewPlace && Number.isFinite( previewPlace.lat ) && Number.isFinite( previewPlace.lng ) ) {
     supportingInfo.push( `Coordinates: ${previewPlace.lat.toFixed( 4 )}, ${previewPlace.lng.toFixed( 4 )}` );
   }
 
@@ -1610,6 +1751,7 @@ const VayuLokLive: React.FC = () => {
               sensible lead, not a misleading placeholder. Google Place Photo author
               attributions (.vl-live-photo-credit + contributor <a>) ride WITH the photo in
               this new location, as the Maps Platform ToS and the req-06 guard require. */}
+          { previewPlace && (
           <div className="vl-live-block vl-live-block-top">
             <div className="vl-live-place-card">
               { displayPhotos.length > 0 && (
@@ -1685,8 +1827,8 @@ const VayuLokLive: React.FC = () => {
               ) }
 
               <div className="vl-live-place-body">
-                <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
-                <p className="vl-live-place-addr">{ place.addr }</p>
+                <p className="vl-live-place" id="vl-live-now-place">{ previewPlace.name }</p>
+                <p className="vl-live-place-addr">{ previewPlace.addr }</p>
 
                 {/* REAL PLACE METADATA / ATTRIBUTES / DESCRIPTION (FINAL TARGET default
                     state). Every line is gated on a datum Google actually returned for the
@@ -1794,6 +1936,7 @@ const VayuLokLive: React.FC = () => {
               </div>
             </div>
           </div>
+          ) }
 
           {/* FEAT-002: a lightweight loading / error affordance for the layer-activated grid
               + center air fetch. The full air RESULT now lives in the left-card
@@ -2124,7 +2267,7 @@ const VayuLokLive: React.FC = () => {
                       <div>
                         <p className="vl-live-eyebrow">Plan ahead</p>
                         <h4 className="vl-live-plan-title" id="vl-live-plan-title">Next few days</h4>
-                        <p className="vl-live-plan-place">{ place.name }, { place.addr }</p>
+                        <p className="vl-live-plan-place">{ previewPlace ? `${previewPlace.name}, ${previewPlace.addr}` : '' }</p>
                       </div>
                       <p className="vl-live-plan-range">
                         { weatherDaily.slice( 0, 3 ).map( d => d.dateLabel ).filter( Boolean ).join( ' · ' ) }
@@ -2289,11 +2432,11 @@ const VayuLokLive: React.FC = () => {
                 <div
                   className="vl-live-map-fallback"
                   role="status"
-                  aria-label={ mapFailed ? `Map unavailable for ${place.name}` : `Loading map of ${place.name}` }
+                  aria-label={ mapFailed ? `Map unavailable for ${previewPlace?.name || 'India'}` : `Loading map of ${previewPlace?.name || 'India'}` }
                 >
                   <span className="vl-live-map-fallback-pin" aria-hidden="true" />
                   <div className="vl-live-map-fallback-copy">
-                    <p className="vl-live-map-fallback-place">{ place.name }</p>
+                    <p className="vl-live-map-fallback-place">{ previewPlace?.name || 'India' }</p>
                     <p className="vl-live-map-fallback-status">{ mapFailed ? 'Map temporarily unavailable.' : 'Loading live map…' }</p>
                     { mapFailed && (
                       <button className="vl-live-map-retry" type="button" onClick={ () => window.location.reload() }>Retry map</button>
@@ -2306,7 +2449,7 @@ const VayuLokLive: React.FC = () => {
                   className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}`.trim() }
                   ref={ mapHost }
                   role="img"
-                  aria-label={ `Map of ${place.name}` }
+                  aria-label={ previewPlace ? `Map of ${previewPlace.name}` : 'Map of India' }
                 />
               ) }
 
@@ -2366,6 +2509,7 @@ const VayuLokLive: React.FC = () => {
                     </ul>
                     { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching India…</p> }
                     { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found in India.</p> }
+                    { searchStatus === 'outside-india' && <p className="vl-live-search-status" role="status">That location is outside India.</p> }
                     { searchStatus === 'unavailable' && (
                       <p className="vl-live-search-status vl-live-search-status-error" role="status">
                         Place search is temporarily unavailable. <button type="button" onClick={ () => { if ( query.trim() ) void runSearch( query ); } }>Retry</button>
@@ -2413,7 +2557,7 @@ const VayuLokLive: React.FC = () => {
                   Kept INLINE so styled-jsx keeps its vl-live- scope. The CSS insets it
                   from the bottom-left (Google logo) and bottom-right (.gm-style-cc legal)
                   corners so the mandated attribution stays visible. */}
-              { liveActive && previewPlace.name && (
+              { liveActive && previewPlace && (
                 <button
                   type="button"
                   className="vl-live-map-destbar"

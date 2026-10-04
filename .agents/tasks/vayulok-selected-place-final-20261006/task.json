@@ -1,0 +1,7 @@
+{
+  "task_id": "vayulok-selected-place-final-20261006",
+  "task_description": "Finish the VayuLok map + selected-place experience to the final owner-approved design on branch vayulok-selected-place-final. Reconcile the spec against the current stack: deck.gl real-sample AQ dots, the no-raster removal, the bottom destination bar, two-column layout, left card, India autocomplete, geocoding import, and the transparent-inactive/translucent-lime-active pills are ALREADY present and correct - verify, do not rebuild. The genuine remaining work: remove Dawki as a visible default (separate initial camera from selected destination, selectedPlace starts null), hard India country validation on reverse-geocode/geocoding/SearchDestinations, a custom no-red selected marker, left-card hero photo + bottom notch, the photo-fallback fix, the open/closed metadata audit, and a final pill/token pass. Implement the full behavioral test matrix A-O. Honest degradation, no red, and Google attribution are hard constraints enforced by a semantic reviewer.",
+  "status": "in_progress",
+  "feature_order": [ "FEAT-001", "FEAT-002", "FEAT-003" ],
+  "blocked_reason": null
+}
