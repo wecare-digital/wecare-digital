@@ -5,7 +5,7 @@
         "status": "301"
     },
     {
-        "source": "https://stack.wecare.digital",
+        "source": "https://retired-legacy-host.invalid",
         "target": "https://wecare.digital",
         "status": "301"
     },
