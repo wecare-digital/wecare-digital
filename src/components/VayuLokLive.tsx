@@ -1364,8 +1364,7 @@ const VayuLokLive: React.FC = () => {
       daily: WeatherDay[];
       alerts: WeatherAlertRow[];
       airForecast: AirPoint[];
-      weatherHistory: WeatherHistoryPoint[];
-    } = { hourly: [], daily: [], alerts: [], airForecast: [], weatherHistory: [] };
+    } = { hourly: [], daily: [], alerts: [], airForecast: [] };
 
     const getJson = async ( url: string ) => {
       const res = await fetch( url, { signal: ac.signal } );
