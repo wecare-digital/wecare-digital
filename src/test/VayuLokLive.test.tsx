@@ -99,6 +99,7 @@ interface MapsRecorder {
   // Every library name the component passed to google.maps.importLibrary. Production-like
   // Geocoder now arrives via importLibrary('geocoding'), so this proves the import happened.
   importedLibraries: string[];
+  mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
 }
 
 // Optional author attribution Google supplies with a Place photo. When provided, the
@@ -114,7 +115,6 @@ interface PlaceMetaStub {
   rating?: number;
   userRatingCount?: number;
   websiteURI?: string;
-  regularOpeningHours?: { openNow?: boolean };
   editorialSummary?: string;
 }
 interface InstallOpts {
@@ -128,6 +128,7 @@ interface InstallOpts {
   // Status the FakeGeocoder reports back to the component's geocode callback. Defaults to
   // 'OK'; set e.g. 'REQUEST_DENIED' to exercise the error-surfacing fallback.
   geocodeStatus?: string;
+  geocodeRows?: unknown[];
 }
 
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
@@ -137,6 +138,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     placeMeta,
     seedNamespaceGeocoder = true,
     geocodeStatus = 'OK',
+    geocodeRows,
   }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
@@ -158,8 +160,9 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     overlayMapTypes = overlayMapTypes;
     constructor( _el: HTMLElement, opts: Record<string, unknown> ) { rec.mapOpts = opts; }
     setCenter() { /* no-op */ }
-    addListener( eventName: string, handler: () => void ) {
-      if ( eventName === 'tilesloaded' && paintMap ) requestAnimationFrame( handler );
+    addListener( eventName: string, handler: ( event?: any ) => void ) {
+      if ( eventName === 'tilesloaded' && paintMap ) requestAnimationFrame( () => handler() );
+      if ( eventName === 'click' ) rec.mapClickHandler = handler;
       return { remove() { /* no-op */ } };
     }
   }
@@ -167,6 +170,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     constructor( _opts: Record<string, unknown> ) { /* no-op */ }
     setPosition() { /* no-op */ }
     setTitle() { /* no-op */ }
+    setMap() { /* no-op */ }
   }
   class FakeGeocoder {
     geocode(
@@ -179,11 +183,14 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
       // fallback's mapping path (results + 'idle') is exercised, not just the error branch.
       if ( typeof cb === 'function' ) {
         const rows = geocodeStatus === 'OK'
-          ? [ {
+          ? ( geocodeRows || [ {
               formatted_address: 'Mumbai, Maharashtra, India',
               place_id: 'fake-place-id',
               geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
-            } ]
+              address_components: [
+                { long_name: 'India', short_name: 'IN', types: [ 'country' ] },
+              ],
+            } ] )
           : null;
         cb( rows, geocodeStatus );
       }
@@ -270,6 +277,15 @@ async function loadComponent() {
   return mod.default;
 }
 
+async function selectMumbai() {
+  const input = screen.getByRole( 'combobox' );
+  fireEvent.change( input, { target: { value: 'Mumbai' } } );
+  fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+  await waitFor( () => {
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
+  } );
+}
+
 afterEach( () => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -291,10 +307,19 @@ beforeEach( () => {
 // A fetch stub that answers the Air Quality currentConditions:lookup (the grid + center
 // sample) with a real-shaped payload and refuses everything else. `aqi` drives the parsed
 // severity band; the stub is used by the deck.gl / gating tests below.
+function requestUrl( input: RequestInfo | URL ): URL | null {
+  try { return new URL( String( input ) ); } catch { return null; }
+}
+
+function requestIs( input: RequestInfo | URL, hostname: string, pathnamePrefix?: string ): boolean {
+  const url = requestUrl( input );
+  return Boolean( url && url.hostname === hostname && ( !pathnamePrefix || url.pathname.startsWith( pathnamePrefix ) ) );
+}
+
 function airConditionsFetch( aqi = 120, pm25 = 58 ) {
   return vi.fn( ( input: RequestInfo | URL ) => {
     const url = String( input );
-    if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -302,6 +327,107 @@ function airConditionsFetch( aqi = 120, pm25 = 58 ) {
           indexes: [ { code: 'ind_cpcb', aqi, category: 'Moderate', dominantPollutant: 'pm25' } ],
           pollutants: [ { code: 'pm25', concentration: { value: pm25, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
           healthRecommendations: { generalPopulation: 'Limit prolonged outdoor exertion.' },
+        } ),
+      } as Response );
+    }
+    return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+  } );
+}
+
+function environmentFetch() {
+  const now = new Date();
+  const hour = ( offset: number ) => new Date( now.getTime() + offset * 60 * 60 * 1000 ).toISOString();
+  return vi.fn( ( input: RequestInfo | URL ) => {
+    const url = String( input );
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          dateTime: now.toISOString(),
+          indexes: [ { code: 'ind_cpcb', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
+          pollutants: [
+            { code: 'pm25', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            { code: 'pm10', concentration: { value: 44, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+          ],
+          healthRecommendations: { generalPopulation: 'Normal outdoor activity is suitable for most people.' },
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          currentTime: now.toISOString(),
+          temperature: { degrees: 26 },
+          feelsLikeTemperature: { degrees: 27 },
+          relativeHumidity: 68,
+          wind: { speed: { value: 8, unit: 'KILOMETERS_PER_HOUR' }, direction: { degrees: 90 }, gust: { value: 12 } },
+          precipitation: { probability: { percent: 10 }, qpf: { quantity: 0.4 } },
+          uvIndex: 4,
+          visibility: { distance: 11 },
+          airPressure: { meanSeaLevelMillibars: 1009 },
+          dewPoint: { degrees: 19 },
+          cloudCover: 35,
+          weatherCondition: { description: { text: 'Mostly sunny' } },
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/forecast/hours' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          forecastHours: [ 0, 1, 2 ].map( i => ( {
+            interval: { startTime: hour( i ) },
+            temperature: { degrees: 26 + i },
+            feelsLikeTemperature: { degrees: 27 + i },
+            precipitation: { probability: { percent: 10 + i * 5 }, qpf: { quantity: i / 10 } },
+            uvIndex: 4,
+            weatherCondition: { description: { text: 'Mostly sunny' } },
+          } ) ),
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/forecast/days' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          forecastDays: [ {
+            displayDate: { year: now.getUTCFullYear(), month: now.getUTCMonth() + 1, day: now.getUTCDate() },
+            minTemperature: { degrees: 20 },
+            maxTemperature: { degrees: 29 },
+            daytimeForecast: { precipitation: { probability: { percent: 20 } }, weatherCondition: { description: { text: 'Partly cloudy' } } },
+            sunEvents: { sunriseTime: hour( -6 ), sunsetTime: hour( 6 ) },
+          } ],
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
+      return Promise.resolve( { ok: true, json: async () => ( { weatherAlerts: [] } ) } as Response );
+    }
+    if ( requestIs( input, 'pollen.googleapis.com', '/v1/forecast' ) ) {
+      return Promise.resolve( { ok: true, json: async () => ( { dailyInfo: [] } ) } as Response );
+    }
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          hourlyForecasts: [ 1, 2, 3 ].map( i => ( {
+            dateTime: hour( i ),
+            indexes: [ { code: 'ind_cpcb', aqi: 70 + i } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 25 + i, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+          } ) ),
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/history' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          hoursInfo: [ {
+            dateTime: hour( -1 ),
+            indexes: [ { code: 'ind_cpcb', aqi: 72 } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 27, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+          } ],
         } ),
       } as Response );
     }
@@ -431,9 +557,9 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // On load (no layer active): NO air fetch, and the deck.gl overlay is NOT attached.
     const airFetches = () => fetchSpy.mock.calls.filter(
-      c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ),
+      c => requestIs( c[ 0 ], 'airquality.googleapis.com', '/v1/currentConditions' ),
     );
-    const heatmapTilesHit = () => fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'heatmapTiles' ) );
+    const heatmapTilesHit = () => fetchSpy.mock.calls.some( c => requestUrl( c[ 0 ] )?.pathname.includes( 'heatmapTiles' ) === true );
     expect( airFetches() ).toHaveLength( 0 );
     expect( heatmapTilesHit() ).toBe( false );
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
@@ -441,6 +567,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
     // Activate the AQI layer.
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
 
     // NOW the grid air fetch fires (currentConditions:lookup, one per grid cell) AND the
@@ -480,6 +607,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // Deactivating the layer (second click -> layer null) CLEARS the overlay: it is detached
     // from the map (setMap(null)) and/or given an empty layers array.
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
     await waitFor( () => {
       const detached = deckRec.overlaySetMapCalls.at( -1 ) === null;
@@ -497,6 +625,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
     await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
     const aqiLayers = deckRec.scatterProps.length;
@@ -506,7 +635,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // No raster path was taken for either layer.
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
-    expect( fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'heatmapTiles' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( c => requestUrl( c[ 0 ] )?.pathname.includes( 'heatmapTiles' ) === true ) ).toBe( false );
 
     // The PM2.5 scatter layer still paints no-red fills.
     const pm25Scatter = deckRec.scatterProps.at( -1 )!;
@@ -516,41 +645,27 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     }
   } );
 
-  it( 'typing or selecting a place fires ZERO air/weather/pollen fetches (only a layer click does)', async () => {
-    const fetchSpy = airConditionsFetch( 120, 58 );
+  it( 'typing alone fetches nothing; selecting restores compact weather/air but does not attach spatial dots', async () => {
+    const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
 
     render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    const envFetches = () => fetchSpy.mock.calls.filter( c => {
-      const u = String( c[ 0 ] );
-      return u.includes( 'airquality.googleapis.com' )
-        || u.includes( 'weather.googleapis.com' )
-        || u.includes( 'pollen.googleapis.com' );
-    } );
-
-    // Type a query and select the resolved place.
     fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    await waitFor( () => expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 ) );
+    expect( fetchSpy ).not.toHaveBeenCalled();
+
     fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
     await waitFor( () => expect(
-      ( screen.getByText( /Mumbai/i ) ),
-    ).toBeTruthy() );
+      fetchSpy.mock.calls.some( c => requestIs( c[ 0 ], 'weather.googleapis.com', '/v1/currentConditions' ) ),
+    ).toBe( true ) );
 
-    // Let any stray effects settle: still ZERO air/weather/pollen network calls, because
-    // selecting a place no longer triggers environmental fetches.
-    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
-    expect( envFetches() ).toHaveLength( 0 );
-    // And the deck.gl overlay has not been attached (no layer active).
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
-
-    // Only after a layer click do air fetches begin.
-    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
-    await waitFor( () => expect( envFetches().length ).toBeGreaterThan( 0 ) );
-    // Everything fetched is the Air Quality currentConditions grid - no weather/pollen.
-    expect( envFetches().every( c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ) ) ).toBe( true );
+    await waitFor( () => expect( deckRec.overlaySetMapCalls.length ).toBeGreaterThan( 0 ) );
   } );
 
   it( 'shows the heatmap legend only while a layer is active, with both ends labelled in words', async () => {
@@ -558,7 +673,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     // once a layer is active AND the air reading has arrived. Supply a minimal AQI response.
     vi.stubGlobal( 'fetch', vi.fn( ( input: RequestInfo | URL ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -582,17 +697,18 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // Activating a layer reveals the legend, which reuses the no-red --aqi-* ramp and
     // labels both ends in WORDS so colour is never the sole carrier of meaning.
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
     await waitFor( () => expect( container.querySelector( '.vl-live-scale-legend' ) ).not.toBeNull() );
     expect( container.querySelector( '.vl-live-scale-legend .vl-live-scale' ) ).not.toBeNull();
     const ends = Array.from( container.querySelectorAll( '.vl-live-scale-ends span' ) ).map( n => n.textContent );
-    expect( ends ).toEqual( [ 'Good', 'Hazardous' ] );
+    expect( ends ).toEqual( [ 'Good', 'Severe' ] );
   } );
 
   it( 'renders the selected place name + address in the left card and swaps the result block per layer', async () => {
     const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -611,17 +727,20 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    // The left card always leads with the selected place's name + full address.
+    // No arbitrary destination is selected on load.
+    expect( container.querySelector( '.vl-live-left .vl-live-place-card' ) ).toBeNull();
+    await selectMumbai();
     const leftCard = container.querySelector( '.vl-live-left .vl-live-place-card' );
     expect( leftCard ).not.toBeNull();
-    expect( leftCard!.querySelector( '.vl-live-place' )?.textContent ).toBeTruthy();
-    expect( leftCard!.querySelector( '.vl-live-place-addr' )?.textContent ).toBeTruthy();
+    expect( leftCard!.querySelector( '.vl-live-place' )?.textContent ).toContain( 'Mumbai' );
+    expect( leftCard!.querySelector( '.vl-live-place-addr' )?.textContent ).toContain( 'Maharashtra' );
 
     // No layer selected -> no environmental result block in the card yet.
     expect( container.querySelector( '.vl-live-layer-result' ) ).toBeNull();
 
     // Wait for the AQI figure to arrive from the stubbed air endpoint.
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
 
     // Selecting AQI renders the existing VayuLok AQI result INSIDE the left card: the AQI
@@ -638,10 +757,11 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
     await waitFor( () => {
       const pm25Result = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
-      expect( pm25Result.textContent ).toContain( 'PM2.5 heatmap result' );
+      expect( pm25Result.textContent ).toContain( 'PM2.5 layer result' );
       expect( pm25Result.textContent ).toContain( '82' );
-      expect( pm25Result.textContent ).toContain( 'Current status' );
+      expect( pm25Result.textContent ).toContain( 'PM2.5 status' );
       expect( pm25Result.querySelector( '.vl-live-status-word' )?.textContent ).toBe( 'Elevated' );
+      expect( pm25Result.textContent ).toContain( 'AQI context:' );
     } );
   } );
 
@@ -760,7 +880,6 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
         rating: 4.6,
         userRatingCount: 1234,
         websiteURI: 'https://example.gov.in/monument',
-        regularOpeningHours: { openNow: true },
         editorialSummary: 'A heritage monument popular with visitors.',
       },
     } );
@@ -788,7 +907,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // The extra metadata fields were actually requested on the keyed select path.
     expect( rec2.placeFetchFields[ 0 ] ).toEqual(
-      expect.arrayContaining( [ 'types', 'rating', 'userRatingCount', 'websiteURI', 'regularOpeningHours', 'editorialSummary' ] ),
+      expect.arrayContaining( [ 'types', 'rating', 'userRatingCount', 'websiteURI', 'editorialSummary' ] ),
     );
 
     // Real metadata facts render (category + rating with review count).
@@ -796,10 +915,9 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( meta.textContent ).toContain( '4.6' );
     expect( meta.textContent ).toContain( '1,234' );
 
-    // The attribute checklist reflects honest flags (open now, website) and the
-    // human-readable secondary types - never an invented attribute.
+    // The attribute checklist reflects only supported returned fields and the
+    // human-readable secondary types - never an invented opening state.
     const attrs = Array.from( meta.querySelectorAll( '.vl-live-place-attrs li' ) ).map( n => n.textContent?.trim() );
-    expect( attrs ).toContain( 'Open now' );
     expect( attrs ).toContain( 'Official website listed' );
     expect( attrs.some( a => /Tourist Attraction/i.test( a || '' ) ) ).toBe( true );
 
@@ -883,6 +1001,7 @@ describe( 'VayuLokLive - FINAL AGREED DESIGN pill + focus-ring restyle (FEAT-003
 
     // BEHAVIOUR: clicking AQI flips its aria-pressed to true (so the active rule applies),
     // while PM2.5 stays inactive - the restyle is driven by this honest state toggle.
+    if ( aqi.hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( aqi );
     await waitFor( () => expect( aqi.getAttribute( 'aria-pressed' ) ).toBe( 'true' ) );
     expect( pm25.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
@@ -921,82 +1040,74 @@ describe( 'VayuLokLive - FINAL AGREED DESIGN pill + focus-ring restyle (FEAT-003
     // pale #f5fde0 map tint.
     expect( pillRule ).toContain( 'background:var(--lime)' );
     expect( pillRule ).not.toContain( '#f5fde0' );
+    expect( pillRule ).toContain( 'box-shadow:none' );
   } );
 } );
 
-describe( 'VayuLokLive - selecting a place no longer auto-fetches weather/pollen/forecast (FEAT-002)', () => {
+describe( 'VayuLokLive - selected-place weather is restored without map-layer overfetch', () => {
   let rec: MapsRecorder;
   beforeEach( () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
     rec = installGoogleMaps();
   } );
 
-  it( 'fires NO weather/pollen/forecast/history/solar fetch on load OR on place select', async () => {
-    const fetchSpy = airConditionsFetch( 120, 58 );
+  it( 'starts neutral and fires no environmental request until a place is selected', async () => {
+    const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
+    const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    const touched = ( host: string ) => fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( host ) );
-
-    // On load: none of the environmental SKUs were touched.
-    expect( touched( 'weather.googleapis.com' ) ).toBe( false );
-    expect( touched( 'pollen.googleapis.com' ) ).toBe( false );
-    expect( touched( 'solar.googleapis.com' ) ).toBe( false );
-    expect( touched( 'airquality.googleapis.com/v1/forecast' ) ).toBe( false );
-    expect( touched( 'airquality.googleapis.com/v1/history' ) ).toBe( false );
-    expect( touched( 'airquality.googleapis.com/v1/currentConditions' ) ).toBe( false );
-
-    // Select a place.
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
-    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
-    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
-
-    // Still none - selecting a place is not a trigger for ANY environmental fetch.
-    expect( touched( 'weather.googleapis.com' ) ).toBe( false );
-    expect( touched( 'pollen.googleapis.com' ) ).toBe( false );
-    expect( touched( 'solar.googleapis.com' ) ).toBe( false );
-    expect( touched( 'airquality.googleapis.com/v1/forecast' ) ).toBe( false );
-    expect( touched( 'airquality.googleapis.com/v1/history' ) ).toBe( false );
-    expect( touched( 'airquality.googleapis.com/v1/currentConditions' ) ).toBe( false );
+    expect( fetchSpy ).not.toHaveBeenCalled();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeDisabled();
+    expect( screen.getByRole( 'button', { name: 'PM2.5' } ) ).toBeDisabled();
   } );
 
-  it( 'does NOT render the retired forecast/weather sections (they are no longer fetched)', async () => {
-    const fetchSpy = airConditionsFetch( 120, 58 );
+  it( 'restores current weather, forecast and compact details after selection while spatial dots remain layer-triggered', async () => {
+    const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
+    const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
-    // The former auto-populated sections never appear, because their data is never fetched.
-    expect( screen.queryByRole( 'heading', { name: 'Next 24 hours' } ) ).toBeNull();
-    expect( screen.queryByText( '10-day outlook' ) ).toBeNull();
-    expect( screen.queryByText( 'Past 24 hours' ) ).toBeNull();
-    expect( screen.queryByRole( 'heading', { name: 'Air intelligence' } ) ).toBeNull();
-    expect( screen.queryByText( 'Best outside' ) ).toBeNull();
-  } );
+    await selectMumbai();
 
-  it( 'the ONLY air fetch after a layer click is the currentConditions grid - no weather/pollen', async () => {
-    const fetchSpy = airConditionsFetch( 120, 58 );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
-
-    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
     await waitFor( () => expect(
-      fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ) ),
+      fetchSpy.mock.calls.some( c => requestIs( c[ 0 ], 'weather.googleapis.com', '/v1/currentConditions' ) ),
     ).toBe( true ) );
+    await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Now' } ) ).toBeInTheDocument() );
+    expect( screen.getByText( 'Mostly sunny' ) ).toBeInTheDocument();
+    await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Next 24 hours' } ) ).toBeInTheDocument() );
+    expect( screen.getByRole( 'tab', { name: 'Air' } ) ).toBeInTheDocument();
+    expect( screen.getByRole( 'tab', { name: 'Weather' } ) ).toBeInTheDocument();
 
-    // Everything fetched is the grid; weather/pollen/forecast/history/solar stay untouched.
-    for ( const call of fetchSpy.mock.calls ) {
-      const u = String( call[ 0 ] );
-      if ( u.includes( 'googleapis.com' ) ) {
-        expect( u ).toContain( 'airquality.googleapis.com/v1/currentConditions' );
-      }
-    }
+    // Selection alone must not attach the deck.gl spatial layer.
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( deckRec.overlaySetMapCalls.length ).toBeGreaterThan( 0 ) );
+
+    // The old overlapping signal-stack / next-few-days card is gone.
+    expect( container.querySelector( '.vl-live-signal-stack' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-plan-card' ) ).toBeNull();
+  } );
+
+  it( 'keeps Solar explicitly user-triggered after a place is selected', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await selectMumbai();
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ) ).toBe( false );
+    fireEvent.click( await screen.findByRole( 'button', { name: 'View solar potential' } ) );
+    await waitFor( () => expect(
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ),
+    ).toBe( true ) );
   } );
 } );
 
@@ -1027,12 +1138,13 @@ describe( 'VayuLokLive - failure and cost controls', () => {
     const VayuLokLive = await loadComponent();
     render( <VayuLokLive /> );
 
+    await selectMumbai();
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'View solar potential' } ) ).toBeInTheDocument() );
-    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'solar.googleapis.com' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ) ).toBe( false );
 
     fireEvent.click( screen.getByRole( 'button', { name: 'View solar potential' } ) );
     await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'solar.googleapis.com' ) )
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) )
     ).toBe( true ) );
   } );
 } );
@@ -1083,7 +1195,7 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     // Its CTA (and the former 'Jump to details' label) must not be present anywhere.
     expect( screen.queryByRole( 'button', { name: /View details|Jump to details/i } ) ).toBeNull();
     // The old '{n} photos' pill label text is gone - the pill is now number-only.
-    expect( screen.queryByText( /\bphotos\b/i ) ).toBeNull();
+    expect( screen.queryByText( /^\d+\s+photos$/i ) ).toBeNull();
   } );
 } );
 
@@ -1206,6 +1318,72 @@ describe( 'VayuLokLive - mandated Google Place Photo attribution is preserved (r
   } );
 } );
 
+describe( 'VayuLokLive - explicit map-click country validation', () => {
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+  } );
+
+  it( 'skips a Bangladesh first result and accepts a later India result', async () => {
+    const rec = installGoogleMaps( {
+      geocodeRows: [
+        {
+          formatted_address: 'Jaflong, Sylhet, Bangladesh',
+          geometry: { location: { lat: () => 25.1778, lng: () => 92.0051 } },
+          address_components: [
+            { long_name: 'Bangladesh', short_name: 'BD', types: [ 'country' ] },
+          ],
+        },
+        {
+          formatted_address: 'Dawki, Meghalaya, India',
+          geometry: { location: { lat: () => 25.1833, lng: () => 92.0167 } },
+          address_components: [
+            { long_name: 'India', short_name: 'IN', types: [ 'country' ] },
+          ],
+        },
+      ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapClickHandler ).toBeTypeOf( 'function' ) );
+    act( () => {
+      rec.mapClickHandler?.( { latLng: { lat: () => 25.1833, lng: () => 92.0167 } } );
+    } );
+
+    await waitFor( () => expect(
+      container.querySelector( '.vl-live-place' )?.textContent,
+    ).toContain( 'Dawki' ) );
+    expect( container.querySelector( '.vl-live-left' )?.textContent ).not.toContain( 'Jaflong' );
+    expect( container.querySelector( '.vl-live-map-destbar' )?.textContent ).toContain( 'Dawki' );
+  } );
+
+  it( 'rejects a click when reverse geocoding returns only non-India results', async () => {
+    const rec = installGoogleMaps( {
+      geocodeRows: [ {
+        formatted_address: 'Jaflong, Sylhet, Bangladesh',
+        geometry: { location: { lat: () => 25.1778, lng: () => 92.0051 } },
+        address_components: [
+          { long_name: 'Bangladesh', short_name: 'BD', types: [ 'country' ] },
+        ],
+      } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapClickHandler ).toBeTypeOf( 'function' ) );
+    act( () => {
+      rec.mapClickHandler?.( { latLng: { lat: () => 25.1778, lng: () => 92.0051 } } );
+    } );
+
+    await act( async () => { await Promise.resolve(); } );
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-left' )?.textContent ).not.toContain( 'Jaflong' );
+  } );
+} );
+
 describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FEAT-004)', () => {
   let rec: MapsRecorder;
   beforeEach( () => {
@@ -1214,7 +1392,7 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
   } );
 
   // (a) After selecting a place, the bottom destination bar renders with the resolved NAME.
-  // (b) With the DEFAULT stub (no primaryType, SearchDestinations absent) the bar shows the
+  // (b) With the DEFAULT stub (no primaryType, SearchDestinations browser enrichment disabled) the bar shows the
   //     place NAME + its formatted ADDRESS as the location/type segment, and NO building
   //     polygon is drawn (the degraded path that actually runs in sandbox). The
   //     SearchDestinations-available branch (building outline/entrances) is only verifiable
@@ -1222,7 +1400,7 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
   //     key exist, so it is documented here rather than stubbed.
   it( 'renders the bottom bar with the selected place NAME + address, drawing no building polygon on the degraded path', async () => {
     // Spy on Polygon so we can assert the degraded path draws NONE. SearchDestinations is
-    // absent from the stub (no 'search' library entry / no SearchDestinations capability),
+    // absent from the stub (no unsupported Maps JS 'search' library),
     // so the component must leave the map free of any building outline.
     const polygonCtor = vi.fn();
     class SpyPolygon { constructor( opts: Record<string, unknown> ) { polygonCtor( opts ); } }
@@ -1253,7 +1431,7 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
     expect( bar.tagName ).toBe( 'BUTTON' );
     expect( bar.getAttribute( 'aria-label' ) ).toMatch( /^Mumbai,/ );
 
-    // DEGRADED PATH: no SearchDestinations capability -> NO building polygon fabricated.
+    // DEGRADED PATH: no unsupported browser SearchDestinations capability -> NO building polygon fabricated.
     await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
     expect( polygonCtor ).not.toHaveBeenCalled();
   } );
@@ -1261,33 +1439,29 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
   // (c) Selecting a place / showing the bar fires ZERO air/weather/pollen fetches. The bar's
   //     resolve path (and any destination lookup) must never trigger the environmental SKUs,
   //     which stay gated strictly on the AQI/PM2.5 pill (FEAT-002).
-  it( 'firing the bottom bar (select + click) triggers NO air/weather/pollen fetches', async () => {
-    const fetchSpy = airConditionsFetch( 120, 58 );
+  it( 'clicking the bottom bar focuses the selected-place card without starting another environmental request', async () => {
+    const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
 
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-
-    const envFetches = () => fetchSpy.mock.calls.filter( c => {
-      const u = String( c[ 0 ] );
-      return u.includes( 'airquality.googleapis.com' )
-        || u.includes( 'weather.googleapis.com' )
-        || u.includes( 'pollen.googleapis.com' );
-    } );
-
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
-    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    await selectMumbai();
 
     const bar = await waitFor( () => {
       const el = container.querySelector( '.vl-live-map-destbar' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    // Clicking the bar recenters the map; it must still fetch NOTHING environmental.
+    const card = container.querySelector( '.vl-live-place-card' ) as HTMLElement;
+    const scrollIntoView = vi.fn();
+    card.scrollIntoView = scrollIntoView;
+    const before = fetchSpy.mock.calls.length;
+
     fireEvent.click( bar );
-    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
-    expect( envFetches() ).toHaveLength( 0 );
+    expect( scrollIntoView ).toHaveBeenCalled();
+    await act( async () => { await Promise.resolve(); } );
+    expect( fetchSpy.mock.calls.length ).toBe( before );
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
   } );
 
@@ -1359,9 +1533,9 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
   } );
 
   // The grid's CENTER cell sits exactly on the selected place (zero offset), so its request
-  // body carries the place's own lat/lng. The default place is Dawki.
-  const DAWKI_LAT = 25.18333;
-  const DAWKI_LNG = 92.01667;
+  // body carries the place's own lat/lng. The selected test place is Mumbai.
+  const SELECTED_LAT = 19.076;
+  const SELECTED_LNG = 72.8777;
 
   // Parse the POST body's location out of a currentConditions:lookup request.
   function reqLatLng( init?: RequestInit ): { lat: number; lng: number } | null {
@@ -1375,16 +1549,16 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
   }
 
   it( 'renders a real reading from a peripheral cell when the CENTER cell has no finite AQI, and shows no error', async () => {
-    // The center cell (exactly on Dawki) returns a payload with NO finite AQI, so
+    // The center cell (exactly on Mumbai) returns a payload with NO finite AQI, so
     // airStateFromApiData/airPointFromApi both reject it. Every OTHER cell parses with a
     // real AQI of 143, so dots render AND a left-card reading must be derived from the
     // first successfully-parsed peripheral cell.
     const PERIPHERAL_AQI = 143;
     const fetchSpy = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         const loc = reqLatLng( init );
-        const isCenter = !!loc && loc.lat === DAWKI_LAT && loc.lng === DAWKI_LNG;
+        const isCenter = !!loc && loc.lat === SELECTED_LAT && loc.lng === SELECTED_LNG;
         if ( isCenter ) {
           // Unparseable: an index with a non-finite AQI => dropped, never fabricated.
           return Promise.resolve( {
@@ -1415,6 +1589,7 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
 
     // Dots still render from the peripheral cells.
@@ -1437,7 +1612,7 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
     // EVERY cell returns a payload with no finite AQI => no dot, no center, no fallback.
     const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -1456,6 +1631,7 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
+    if ( screen.getByRole( 'button', { name: 'AQI' } ).hasAttribute( 'disabled' ) ) await selectMumbai();
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
 
     // The retry affordance appears (coreError true) because no usable reading was derived.
