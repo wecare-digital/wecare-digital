@@ -543,7 +543,7 @@ def _razorpay_creds():
     """Razorpay API key pair, read at request time from Secrets Manager.
 
     Reads `wecare/razorpay/api`, NOT `wecare/razorpay-webhook`. Those are two
-    different credentials and conflating them is what broke self-service top-up:
+    different credentials and conflating them is what broke customer-service top-up:
 
       wecare/razorpay/api       key_id + key_secret   API auth (this function)
       wecare/razorpay-webhook   webhook_secret        signature verification
@@ -592,7 +592,7 @@ def _do_topup_order(event: dict, body: dict, origin: str):
 
     key_id, key_secret = _razorpay_creds()
     if not key_id or not key_secret:
-        return cors_response(501, {'error': 'Razorpay API keys not configured. Add key_id/key_secret to wecare/razorpay/api to enable self-service top-up.'}, origin)
+        return cors_response(501, {'error': 'Razorpay API keys not configured. Add key_id/key_secret to wecare/razorpay/api to enable customer-service top-up.'}, origin)
 
     # Reserve a durable top-up INTENT before the payment link exists. The Razorpay webhook binds
     # the eventual capture to this stored intent (customer WABA + exact amount) and refuses to
@@ -681,7 +681,7 @@ def handler(event, context):
             return cors_response(400, {'error': 'Invalid JSON body'}, origin)
         return _do_send(event, body, origin)
 
-    # Billing: analytics / settings / top-up / self-service order / view wallets
+    # Billing: analytics / settings / top-up / customer-service order / view wallets
     if '/partners/billing' in path:
         if '/analytics' in path and method == 'GET':
             auth = require_auth(event)
