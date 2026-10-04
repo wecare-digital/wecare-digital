@@ -36,6 +36,9 @@ interface MapsRecorder {
   geocodeCalls: Record<string, unknown>[];
   autocompleteCalls: Record<string, unknown>[];
   placeFetchFields: string[][];
+  // Every library name the component passed to google.maps.importLibrary. Production-like
+  // Geocoder now arrives via importLibrary('geocoding'), so this proves the import happened.
+  importedLibraries: string[];
 }
 
 // Optional author attribution Google supplies with a Place photo. When provided, the
@@ -54,11 +57,27 @@ interface PlaceMetaStub {
   regularOpeningHours?: { openNow?: boolean };
   editorialSummary?: string;
 }
-interface InstallOpts { paintMap?: boolean; photoAttributions?: PhotoAttribution[]; placeMeta?: PlaceMetaStub }
+interface InstallOpts {
+  paintMap?: boolean;
+  photoAttributions?: PhotoAttribution[];
+  placeMeta?: PlaceMetaStub;
+  // When false, DO NOT seed google.maps.Geocoder on the raw namespace. This reproduces the
+  // real modern loader where Geocoder lives only in the 'geocoding' library, proving the
+  // component obtains its Geocoder via importLibrary('geocoding') and not a pre-seeded ns.
+  seedNamespaceGeocoder?: boolean;
+  // Status the FakeGeocoder reports back to the component's geocode callback. Defaults to
+  // 'OK'; set e.g. 'REQUEST_DENIED' to exercise the error-surfacing fallback.
+  geocodeStatus?: string;
+}
 
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
-  const { paintMap = true, photoAttributions, placeMeta }: InstallOpts =
-    typeof opts === 'boolean' ? { paintMap: opts } : opts;
+  const {
+    paintMap = true,
+    photoAttributions,
+    placeMeta,
+    seedNamespaceGeocoder = true,
+    geocodeStatus = 'OK',
+  }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
     overlayPushes: [],
@@ -67,6 +86,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     geocodeCalls: [],
     autocompleteCalls: [],
     placeFetchFields: [],
+    importedLibraries: [],
   };
 
   const overlayMapTypes = {
@@ -89,7 +109,25 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     setTitle() { /* no-op */ }
   }
   class FakeGeocoder {
-    geocode( req: Record<string, unknown> ) { rec.geocodeCalls.push( req ); }
+    geocode(
+      req: Record<string, unknown>,
+      cb?: ( rows: unknown[] | null, status: string ) => void,
+    ) {
+      rec.geocodeCalls.push( req );
+      // Reverse-geocode-on-click (location) and the address fallback both pass a callback.
+      // Report the configured status; on OK return a single plausible India result so the
+      // fallback's mapping path (results + 'idle') is exercised, not just the error branch.
+      if ( typeof cb === 'function' ) {
+        const rows = geocodeStatus === 'OK'
+          ? [ {
+              formatted_address: 'Mumbai, Maharashtra, India',
+              place_id: 'fake-place-id',
+              geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
+            } ]
+          : null;
+        cb( rows, geocodeStatus );
+      }
+    }
   }
   class FakeImageMapType {
     constructor( opts: Record<string, unknown> ) { rec.imageMapTypeOpts.push( opts ); }
@@ -129,23 +167,29 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     },
   };
 
-  ( window as unknown as { google: unknown } ).google = {
-    maps: {
-      Map: FakeMap,
-      Marker: FakeMarker,
-      Geocoder: FakeGeocoder,
-      ImageMapType: FakeImageMapType,
-      LatLng: class { constructor( _a: number, _b: number ) { /* no-op */ } },
-      places,
-      importLibrary: async ( name: string ) => name === 'places'
-        ? places
-        : name === 'maps'
-          ? { Map: FakeMap }
-          : name === 'marker'
-            ? { Marker: FakeMarker }
-            : {},
+  const maps: Record<string, unknown> = {
+    Map: FakeMap,
+    Marker: FakeMarker,
+    ImageMapType: FakeImageMapType,
+    LatLng: class { constructor( _a: number, _b: number ) { /* no-op */ } },
+    places,
+    // Production-like modern loader: Geocoder is delivered by importLibrary('geocoding'),
+    // mirroring how Google documents the geocoding library as separately imported. The
+    // raw-namespace Geocoder is seeded ONLY when seedNamespaceGeocoder is true (legacy
+    // loader), so a test can prove the component imports 'geocoding' rather than relying
+    // on a pre-seeded namespace. Every requested library name is recorded.
+    importLibrary: async ( name: string ) => {
+      rec.importedLibraries.push( name );
+      if ( name === 'places' ) return places;
+      if ( name === 'maps' ) return { Map: FakeMap };
+      if ( name === 'marker' ) return { Marker: FakeMarker };
+      if ( name === 'geocoding' ) return { Geocoder: FakeGeocoder };
+      return {};
     },
   };
+  if ( seedNamespaceGeocoder ) maps.Geocoder = FakeGeocoder;
+
+  ( window as unknown as { google: unknown } ).google = { maps };
 
   return rec;
 }
@@ -835,6 +879,85 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     expect( screen.queryByRole( 'button', { name: /View details|Jump to details/i } ) ).toBeNull();
     // The old '{n} photos' pill label text is gone - the pill is now number-only.
     expect( screen.queryByText( /\bphotos\b/i ) ).toBeNull();
+  } );
+} );
+
+describe( 'VayuLokLive - geocoding library is imported and the geocoding search fallback works', () => {
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+  } );
+
+  // The defect: the component imported maps/marker/places but took Geocoder from the raw
+  // namespace and never imported the 'geocoding' library. Under loading=async the raw
+  // namespace Geocoder is undefined until importLibrary('geocoding') runs. This test
+  // reproduces the real loader by NOT seeding google.maps.Geocoder, then proves the
+  // component still obtains a Geocoder - which can only happen if it imports 'geocoding'.
+  it( 'imports the "geocoding" library on map init even when google.maps.Geocoder is NOT pre-seeded', async () => {
+    const rec = installGoogleMaps( { seedNamespaceGeocoder: false } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    // Hard proof there is no raw-namespace Geocoder masking the import.
+    expect( ( window as unknown as { google?: { maps?: { Geocoder?: unknown } } } ).google?.maps?.Geocoder )
+      .toBeUndefined();
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // 'geocoding' is among the dynamically imported libraries, alongside the map library.
+    await waitFor( () => expect( rec.importedLibraries ).toContain( 'geocoding' ) );
+    expect( rec.importedLibraries ).toContain( 'maps' );
+  } );
+
+  // The autocomplete->geocoding FALLBACK: when the modern Autocomplete Data API is absent,
+  // the search must still resolve via a Geocoder obtained through importLibrary('geocoding')
+  // (NOT a pre-seeded namespace), proving the fallback no longer depends on legacy.Geocoder.
+  it( 'resolves a search via the imported Geocoder when AutocompleteSuggestion is unavailable', async () => {
+    const rec = installGoogleMaps( { seedNamespaceGeocoder: false } );
+    // Remove the modern Autocomplete Data API so runSearch takes the geocoding fallback.
+    delete ( ( window as unknown as { google: { maps: { places: Record<string, unknown> } } } )
+      .google.maps.places ).AutocompleteSuggestion;
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+
+    // The fallback actually calls Geocoder.geocode with the India address restriction, and
+    // the imported Geocoder (not a namespace one) returns a result the user can pick.
+    await waitFor( () => expect( rec.geocodeCalls.length ).toBeGreaterThan( 0 ) );
+    const addressCall = rec.geocodeCalls.find( c => typeof c.address === 'string' );
+    expect( addressCall ).toBeTruthy();
+    expect( ( addressCall!.componentRestrictions as { country?: string } ).country ).toBe( 'in' );
+    expect( rec.importedLibraries ).toContain( 'geocoding' );
+    await waitFor( () => expect( screen.getByRole( 'option', { name: /Mumbai/i } ) ).toBeInTheDocument() );
+  } );
+
+  // Error surfacing: a REQUEST_DENIED geocode status must raise the existing 'unavailable'
+  // search status (amber retry affordance), not be silently swallowed.
+  it( 'surfaces a REQUEST_DENIED geocode status as the "unavailable" search status with a retry', async () => {
+    const rec = installGoogleMaps( { seedNamespaceGeocoder: false, geocodeStatus: 'REQUEST_DENIED' } );
+    delete ( ( window as unknown as { google: { maps: { places: Record<string, unknown> } } } )
+      .google.maps.places ).AutocompleteSuggestion;
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+
+    await waitFor( () => expect( rec.geocodeCalls.length ).toBeGreaterThan( 0 ) );
+    // The failure is user-visible via the existing error status + Retry button, not swallowed.
+    const status = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-search-status.vl-live-search-status-error' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( status.querySelector( 'button' )?.textContent ).toMatch( /Retry/i );
   } );
 } );
 

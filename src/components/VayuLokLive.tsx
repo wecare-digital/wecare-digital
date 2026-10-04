@@ -609,10 +609,16 @@ const VayuLokLive: React.FC = () => {
 
       const markerLib = await imp( 'marker' );
       const placesLib = await imp( 'places' );
+      // Geocoder belongs to the 'geocoding' library under the modern loader; it is NOT
+      // on the raw namespace until importLibrary('geocoding') runs. Import it explicitly
+      // so reverse-geocode-on-map-click and the search geocoding fallback get a real
+      // Geocoder in a live browser, and only fall back to legacy.Geocoder for an older
+      // loader that already populated the namespace. imp() swallows failures -> null.
+      const geocodingLib = await imp( 'geocoding' );
       const maps: MapsCtors = {
         Map: MapCtor,
         Marker: ( markerLib as { Marker?: MapsCtors['Marker'] } | null )?.Marker || legacy.Marker,
-        Geocoder: legacy.Geocoder,
+        Geocoder: ( geocodingLib as { Geocoder?: MapsCtors['Geocoder'] } | null )?.Geocoder || legacy.Geocoder,
         places: ( placesLib as unknown as MapsCtors['places'] ) || legacy.places,
       };
       if ( cancelled ) return;
@@ -1335,6 +1341,34 @@ const VayuLokLive: React.FC = () => {
     }
   }, [] );
 
+  // Obtain a Geocoder the same way the map init effect does: via importLibrary('geocoding')
+  // under the modern loader, falling back to a pre-populated namespace Geocoder only for an
+  // older loader. Mirrors ensurePlacesLibrary so the search geocoding fallback never depends
+  // on legacy.Geocoder being seeded on google.maps. Caches into geocoder.current.
+  const ensureGeocoder = useCallback( async (): Promise<{
+    geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+  } | null> => {
+    const existing = geocoder.current as {
+      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+    } | null;
+    if ( existing ) return existing;
+    const w = window as unknown as { google?: { maps?: {
+      importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
+      Geocoder?: new () => unknown;
+    } } };
+    try {
+      const lib = w.google?.maps?.importLibrary
+        ? await w.google.maps.importLibrary( 'geocoding' )
+        : null;
+      const Ctor = ( lib as { Geocoder?: new () => unknown } | null )?.Geocoder
+        || w.google?.maps?.Geocoder;
+      if ( Ctor ) geocoder.current = new Ctor();
+    } catch { /* no geocoder available -> degrade */ }
+    return geocoder.current as {
+      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
+    } | null;
+  }, [] );
+
   const runSearch = useCallback( async ( text: string ) => {
     if ( !MAPS_KEY || !text.trim() ) {
       setResults( [] );
@@ -1384,14 +1418,10 @@ const VayuLokLive: React.FC = () => {
       }
     }
 
-    // Fallback for a partial Maps load: Geocoding is still India restricted.
-    const w = window as unknown as { google?: { maps?: { Geocoder?: new () => unknown } } };
-    if ( !geocoder.current && w.google?.maps?.Geocoder ) {
-      try { geocoder.current = new w.google.maps.Geocoder(); } catch { /* no geocoder */ }
-    }
-    const gc = geocoder.current as {
-      geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
-    } | null;
+    // Fallback for a partial Maps load: Geocoding is still India restricted. The Geocoder
+    // comes from importLibrary('geocoding') via ensureGeocoder, NOT from a pre-populated
+    // google.maps.Geocoder, so this path works under the modern loading=async loader.
+    const gc = await ensureGeocoder();
     if ( !gc?.geocode ) {
       setResults( [] );
       setOpen( true );
@@ -1401,6 +1431,10 @@ const VayuLokLive: React.FC = () => {
     gc.geocode(
       { address: text, componentRestrictions: { country: 'in' }, region: 'in' },
       ( rows, status ) => {
+        // ZERO_RESULTS is a benign "nothing matched"; every other non-OK status
+        // (REQUEST_DENIED / OVER_QUERY_LIMIT / INVALID_REQUEST / UNKNOWN_ERROR, etc.)
+        // is a real failure the user must see via the existing 'unavailable' retry
+        // affordance rather than being silently swallowed.
         if ( status !== 'OK' || !Array.isArray( rows ) ) {
           setResults( [] );
           setOpen( true );
@@ -1425,7 +1459,7 @@ const VayuLokLive: React.FC = () => {
         setSearchStatus( mapped.length ? 'idle' : 'no-results' );
       },
     );
-  }, [ ensurePlacesLibrary ] );
+  }, [ ensurePlacesLibrary, ensureGeocoder ] );
 
   const onQueryChange = ( e: React.ChangeEvent<HTMLInputElement> ) => {
     const v = e.target.value;
