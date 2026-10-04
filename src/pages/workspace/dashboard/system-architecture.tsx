@@ -273,7 +273,7 @@ const IMPROVEMENTS: RiskItem[] = [
   { id: 'I6', title: 'Add automated tests for critical paths', description: 'Priority test targets: (1) auth-middleware token validation, (2) razorpay-webhook signature verification, (3) inbound-whatsapp message processing, (4) payment flow end-to-end, (5) contact CRUD. Use pytest for Lambda, Vitest for frontend.', priority: 'Important', category: 'Quality' },
   { id: 'I7', title: 'Enable DynamoDB point-in-time recovery', description: 'Enable PITR on critical tables: Contact, Payment, Invoice, InvoicePayment, User, SystemConfig. Cost is minimal (~$0.20/GB/month) but provides 35-day recovery window.', priority: 'Important', category: 'Database' },
   { id: 'I8', title: 'Add TTL to remaining temporal tables', description: 'Add expiresAt/ttl fields and TTL configuration to: TemplateAnalytics, AdClickAttribution, FlowSubmission, FlowLog, WixProductsCache, WixOrdersCache. Prevents unbounded table growth.', priority: 'Important', category: 'Database' },
-  { id: 'I9', title: 'Generate OpenAPI spec for all endpoints', description: 'Document all 30+ API endpoints with OpenAPI 3.0. Include request/response schemas, auth requirements, error codes. Publish at /api/docs for developer self-service.', priority: 'Important', category: 'Documentation' },
+  { id: 'I9', title: 'Generate OpenAPI spec for all endpoints', description: 'Document all 30+ API endpoints with OpenAPI 3.0. Include request/response schemas, auth requirements, error codes. Publish at /api/docs for developer customer-service.', priority: 'Important', category: 'Documentation' },
   { id: 'I10', title: '✅ DONE — Removed dangerouslySetInnerHTML from PageShell', description: 'Replaced dangerouslySetInnerHTML={{__html: tab.icon}} with safe React text rendering {tab.icon} in src/components/PageShell.tsx. XSS vector eliminated.', priority: 'Important', category: 'Security' },
   { id: 'I11', title: 'Add error handling to all empty catch blocks', description: 'Replace 15+ empty catch blocks with proper error logging. At minimum: console.error for dev, toast.error for user-facing, and structured logging for production monitoring. Files: whatsapp/scripts.tsx, auto-response.tsx, flow-responses.tsx, pay/flow/index.tsx, contacts/index.tsx, dashboard/index.tsx.', priority: 'Important', category: 'Frontend' },
   { id: 'I12', title: '✅ DONE — Fixed CORS wildcard on URL shortener API', description: 'Replaced allowOrigins: ["*"] with an explicit origin list in amplify/link-resources.ts. Now ["https://wecare.digital", "https://www.wecare.digital"] — the subdomain in the original fix was dropped when that hostname was retired.', priority: 'Important', category: 'Security' },
@@ -660,7 +660,7 @@ const BOT_MENU: BotMenuItem[] = [
 
 // ─── Data: Selfservice Sub-Menu (WhatsApp Flow Interactive List) ───
 interface SelfserviceItem { row: number; section: string; icon: string; title: string; description: string; flowId: string; keywords: string; }
-const SELFSERVICE_MENU: SelfserviceItem[] = [
+const CUSTOMERSERVICE_MENU: SelfserviceItem[] = [
   { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: '931522532810297', keywords: 'submit request, sr, raise request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: '1533536534833353', keywords: 'amend request, amend, change' },
@@ -686,7 +686,7 @@ function buildSearchIndex (): SearchEntry[] {
   RISKS.forEach( r => entries.push( { type: 'Risk', name: r.title, detail: r.description, category: r.category } ) );
   IMPROVEMENTS.forEach( i => entries.push( { type: 'Improvement', name: i.title, detail: i.description, category: i.category } ) );
   BOT_MENU.forEach( m => entries.push( { type: 'Bot Menu', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
-  SELFSERVICE_MENU.forEach( m => entries.push( { type: 'Selfservice', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
+  CUSTOMERSERVICE_MENU.forEach( m => entries.push( { type: 'Selfservice', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
   return entries;
 }
 
@@ -757,7 +757,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
           { label: 'S3 Paths', value: `${STORAGE_PATHS.length}`, color: C.blueBg, text: C.blue },
           { label: 'Dependencies', value: `${DEPENDENCIES.length}`, color: C.amberBg, text: C.amber },
           { label: 'Bot Menu Items', value: `${BOT_MENU.length}`, color: '#f5f3ff', text: '#7c3aed' },
-          { label: 'Selfservice Flows', value: `${SELFSERVICE_MENU.length}`, color: C.greenBg, text: C.green },
+          { label: 'Selfservice Flows', value: `${CUSTOMERSERVICE_MENU.length}`, color: C.greenBg, text: C.green },
           { label: 'Risks Found', value: `${RISKS.length}`, color: C.redBg, text: C.red },
         ].map( s => (
           <div key={ s.label } style={ statCard( s.color, s.text ) }>
@@ -873,7 +873,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
       {/* Selfservice Sub-Menu */ }
       <div style={ card() }>
         <h3 style={ sectionTitle }>🚀 Selfservice Menu (WhatsApp Interactive List)</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 12px' } }>9 self-service options — triggered when user taps &quot;🚀 Selfservice&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
+        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 12px' } }>9 customer-service options — triggered when user taps &quot;🚀 Selfservice&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
         <div style={ { overflowX: 'auto' } }>
           <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
             <thead>
@@ -884,7 +884,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
               </tr>
             </thead>
             <tbody>
-              { SELFSERVICE_MENU.map( m => (
+              { CUSTOMERSERVICE_MENU.map( m => (
                 <tr key={ m.row } style={ { borderBottom: `1px solid ${C.border}` } }>
                   <td style={ { padding: '8px 10px', color: C.textMuted, fontWeight: 600 } }>{ m.row }</td>
                   <td style={ { padding: '8px 10px' } }><span style={ pill( '#f9fafb', C.textMuted ) }>{ m.section }</span></td>
