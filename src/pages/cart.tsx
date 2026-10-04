@@ -1392,7 +1392,7 @@ export default function Cart (): React.ReactElement {
           .cart-option-label{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:14px;font-weight:700;color:#1a3a2a}
           .cart-option{
             min-height:44px;max-width:260px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;
-            background:#fff;color:#111827;font:inherit;
+            background:#fff;color:#1a1a1a;font:inherit;
           }
           .cart-option:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
           .cart-row-controls{display:flex;align-items:center;gap:12px}
