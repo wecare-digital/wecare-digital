@@ -1,6 +1,0 @@
-{
-  "verdict": "APPROVED",
-  "summary": "Independently re-measured every headline claim and all of them hold: obsolete public workspace destinations are gone while /workspace/** stays private and authorized, legacy prefixes and unknown paths reach the canonical home without a login screen or a loop, the 404 fallback is still a 404 with noindex and an apex canonical, new redirects are 302, the [retired public path ef531503] redirect now drops the caller's query, the return-path validator is a wired reject-by-default allowlist, and every payment, provider, OAuth and protected-API surface keeps its status and rejection semantics (razorpay-webhook 401, mcp 405/400, /get asset 200, www 301 path-preserved). The two deviations from the literal constraint list - a three-line src/pages/account/sign-in.tsx edit and the sibling home-fallback workstream's DNS/CloudFront/ACM work - are both recorded outside the change with authority, evidence and rollback, and the sign-in crossing was ratified by the owning workstream keeping it.",
-  "findings": [],
-  "reviewDoc": "/Users/wecaredigital/wecare-store/.agents/tasks/url-host-cleanup/2026-10-01-200317-review.md"
-}

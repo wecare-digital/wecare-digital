@@ -1,7 +1,0 @@
-{
-  "task_id": "task-whatsapp-menu-wipe-20261002",
-  "task_description": "Delete ALL WhatsApp menu definitions and menu routing from wecare-store so the owner can design a fresh menu from a clean slate. Both Lambda functions stay intact, importable and non-crashing. Every former menu send site becomes one plain-text catch-all: \"We're refreshing our menu - please type *menu* and we'll help you.\" FEAT-001 owns amplify/functions/messaging/inbound-whatsapp-handler/handler.py and its tests; FEAT-002 owns amplify/functions/messaging/whatsapp-calling/handler.py (wd_menu template sends only, IVR buttons untouched). No deploy, no live alias move, no Lambda deletion.",
-  "status": "completed",
-  "feature_order": ["FEAT-001", "FEAT-002"],
-  "blocked_reason": null
-}

@@ -1,7 +1,0 @@
-{
-  "task_id": "task-wix-coupons-giftcards-20261001",
-  "task_description": "Build the Wix coupons and gift-cards (Service Plugin) features from the completed design, resolving every OPEN finding in design-review.json (6 HIGH, 8 MEDIUM, 6 NIT) in code with a test pinning each. New modules only: coupon_store/wix_coupons/gift_card_store/gift_card_settlement/gift_card_spi_auth under lambda_utils/ecommerce, three new Lambdas (wecare-coupons, wecare-gift-cards, wecare-wix-giftcard-spi) with their own least-privilege roles and provisioners, the shared-gate edits (deploy registry, drift allowance, vocabulary raw-scan list, provision_checkout --verify gate), the two design docs promoted to docs/execution, and a handoff doc carrying the cross-workstream seam register. Nothing deploys, publishes, moves an alias, pushes, or enables a flag.",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
-  "blocked_reason": null
-}

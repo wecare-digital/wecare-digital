@@ -1,7 +1,0 @@
-{
-  "task_id": "phone-normalisation-fix-20261001",
-  "task_description": "Fix a confirmed live defect where identity/customer.py::normalize_phone silently rewrites an explicitly-entered foreign phone number into an Indian one (+6591234567 -> +916591234567), by adding a strict additive normaliser that preserves an explicit country code and wiring it at the customer-facing phone entry points only. Plus two hardening items: Cache-Control: no-store on session/auth responses that carry a CSRF or session-bound value, and an owner-approval report on the shared-role IAM over-grant on the customer-session authorisation table. Source + tests + one dated doc only; no deploy.",
-  "status": "pending",
-  "feature_order": ["FEAT-001", "FEAT-002"],
-  "blocked_reason": null
-}

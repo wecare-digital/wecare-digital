@@ -1,7 +1,0 @@
-{
-  "task_id": "get-hero-auth-ui-2026-10-02",
-  "task_description": "Two visual UI changes to src/pages/get.tsx on branch feat/get-hero-and-auth-phone-ui, plus a new Vitest test. (1) Make the 'mobile' and 'otp' stages of /get share ONE input treatment and ONE primary-button treatment, taken value-for-value from the site's canonical customer-auth control set (/account/sign-in.tsx + components/PhoneField.tsx + components/PillButton.tsx, i.e. the cart/login pill the owner named), with no change to any auth logic or copy; close the WCAG 1.4.11 control-boundary gap in the shared field declarations; drop the red error banner for the site's lime state tint. (2) Mount the home page's top section (the animated RotatingHero) on /get directly after the shared header, with its own words and its own animation, nesting the existing form inside it as children exactly as shipments.tsx/perks.tsx do, so the page keeps exactly one <h1> and one <main>, and keep the sign-in control above the fold on a laptop viewport.",
-  "status": "pending",
-  "feature_order": [ "FEAT-001", "FEAT-002" ],
-  "blocked_reason": null
-}
