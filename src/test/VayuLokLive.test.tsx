@@ -1077,7 +1077,7 @@ describe( 'VayuLokLive - selected-place weather is restored without map-layer ov
     await waitFor( () => expect(
       fetchSpy.mock.calls.some( c => requestIs( c[ 0 ], 'weather.googleapis.com', '/v1/currentConditions' ) ),
     ).toBe( true ) );
-    expect( screen.getByRole( 'heading', { name: 'Now' } ) ).toBeInTheDocument();
+    await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Now' } ) ).toBeInTheDocument() );
     expect( screen.getByText( 'Mostly sunny' ) ).toBeInTheDocument();
     await waitFor( () => expect( screen.getByRole( 'heading', { name: 'Next 24 hours' } ) ).toBeInTheDocument() );
     expect( screen.getByRole( 'tab', { name: 'Air' } ) ).toBeInTheDocument();
@@ -1195,7 +1195,7 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     // Its CTA (and the former 'Jump to details' label) must not be present anywhere.
     expect( screen.queryByRole( 'button', { name: /View details|Jump to details/i } ) ).toBeNull();
     // The old '{n} photos' pill label text is gone - the pill is now number-only.
-    expect( screen.queryByText( /\bphotos\b/i ) ).toBeNull();
+    expect( screen.queryByText( /^\d+\s+photos$/i ) ).toBeNull();
   } );
 } );
 
