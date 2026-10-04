@@ -14,7 +14,7 @@ There are **two** Razorpay secrets and they hold different fields::
 Conflating them has already cost this codebase once: ``partner-onboarding`` read
 the API pair out of ``wecare/razorpay-webhook``, which has only ever contained
 ``webhook_secret``, so ``key_id``/``key_secret`` came back empty and every
-self-service top-up returned 501. Verified again 2026-09-25 - both secrets exist,
+customer-service top-up returned 501. Verified again 2026-09-25 - both secrets exist,
 and the webhook one still holds exactly one field.
 
 So this module reads ``wecare/razorpay/api`` and nothing else. If order creation
