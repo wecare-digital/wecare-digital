@@ -66,7 +66,7 @@ ADMIN_POOL_ID = "us-east-1_cSx0RHCIR"
 META_WABA_ID = "2094615664435155"
 # The API key pair lives here. wecare/razorpay-webhook holds only webhook_secret
 # and never the pair - reading the pair from it is the bug that returned 501 on
-# every self-service top-up. See amplify/functions/core/secure-files/razorpay_orders.py
+# every customer-service top-up. See amplify/functions/core/secure-files/razorpay_orders.py
 RAZORPAY_SECRET_NAME = "wecare/razorpay/api"
 
 WEBHOOK_FUNCTION = "wecare-razorpay-webhook"
