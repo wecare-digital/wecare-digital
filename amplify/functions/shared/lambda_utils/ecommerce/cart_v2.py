@@ -194,6 +194,49 @@ def delivery_address(address):
     return out
 
 
+def available_delivery_options(summary):
+    """The delivery options a Calculate/Estimate `summary` offers, cheapest first.
+
+    `[{"id", "title", "pricePaise"}]`, or `[]` when Wix named no option for the address on the
+    cart. See `CartV2.delivery_options` for where the field name comes from and why this returns
+    a list for what Wix currently reports as a single resolved method.
+
+    `pricePaise` is integer paise through `Money.from_wix`, never a float, and it is `None` when
+    Wix sent no parseable amount -- unknown rather than zero, because a missing price silently
+    read as free is the one reading that could pick the wrong option. An unpriced option sorts
+    LAST for the same reason.
+
+    The sort is stable, so Wix's own order survives a tie. That is what makes "the cheapest, ties
+    to the first" a deterministic rule rather than a preference.
+    """
+    delivery = (summary or {}).get("deliverySummary") or {}
+    method = delivery.get("method") or {}
+    code = str(method.get("code") or "").strip()
+    if not code:
+        return []
+    try:
+        price = Money.from_wix((delivery.get("price") or {}).get("amount")).paise
+    except ValueError:
+        price = None
+    title = method.get("title")
+    if isinstance(title, dict):
+        title = title.get("original") or title.get("translated") or ""
+    return [{"id": code, "title": str(title or ""), "pricePaise": price}]
+
+
+def cheapest_delivery_option(options):
+    """The option to select when nobody chose one: lowest price, ties to Wix's own first.
+
+    Pulled out as a named function because it is a DECISION about someone's money, and a
+    decision worth naming is worth testing on its own. `None` for an empty list, so the caller
+    decides what "Wix offered nothing" means rather than inheriting a fabricated default.
+    """
+    ordered = sorted(options or [],
+                     key=lambda option: (option.get("pricePaise") is None,
+                                         option.get("pricePaise") or 0))
+    return ordered[0] if ordered else None
+
+
 def identifier(value):
     if not isinstance(value, str) or str(UUID(value)) != value.lower():
         raise ValueError("invalid cart/catalog identifier")
@@ -284,19 +327,63 @@ class CartV2:
         return self._cart(self.request(f"{BASE}/{cart_id}", method="PATCH", body={
             "cart": {"deliveryInfo": {"address": delivery_address(address)}}}), cart_id)
 
+    def delivery_options(self, cart_id):
+        """Every delivery option Wix currently offers for this cart's address.
+
+        A list of `{"id", "title", "pricePaise"}`, cheapest first, or `[]` when Wix offers
+        nothing for the address on the cart. `id` is what `set_delivery_method` takes.
+
+        THE FIELD IS `summary.deliverySummary`, AND IT WAS MEASURED RATHER THAN GUESSED. The
+        module's own `_not_payable` used to say the enumerating field "could not be confirmed
+        from a fetchable reference page". A live probe against the confirmed site on 2026-10-04
+        settles it, and the answer has a shape worth stating plainly:
+
+            summary.deliverySummary.method = {"code", "appId", "title": {"original", ...},
+                                              "pickup"}
+            summary.deliverySummary.price  = {"amount": "0.00", ...}
+
+        Cart V2 reports ONE resolved method here, not a menu -- `deliverySummary.method` is
+        populated for a cart whose `deliveryInfo.method` is still null and whose summary still
+        carries the `MISSING_DELIVERY_METHOD` violation. So Wix has already decided which option
+        applies to this cart and address; it just has not been selected. There is no V2
+        list-options endpoint (`delivery-options`, `list-delivery-options`,
+        `get-delivery-options`, `shipping-options` and `delivery-methods` all answer 404).
+
+        The retired V1 entity's `shippingInfo.carrierServiceOptions[]` DOES enumerate every
+        carrier, and a V1 id is a V2 cart id, so reading the old entity would return the full
+        menu. It is deliberately not read: V1 is removed on 2027-02-01, and on the live site it
+        returns two carriers with one of them carrying an EMPTY `code`, which is not a value
+        `set_delivery_method` can send. Wix's own resolution is the better authority.
+
+        The return type is still a LIST, with one entry or none. A single-value reader would have
+        to change shape if Wix ever enumerates here, and the caller's "exactly one option" and
+        "no options" branches are the two that matter either way.
+        """
+        return self.preview(cart_id)["deliveryOptions"]
+
     def set_delivery_method(self, cart_id, option_id):
         """Set Delivery Method. New in V2, with no Cart V1 or Checkout V1 equivalent.
 
-        `option_id` identifies a shipping option Wix itself offered for this cart and address.
-        It is an identifier, never a price: the delivery charge that follows is whatever
-        `calculate()` reports in `summary.priceSummary.delivery`, and a caller cannot influence
-        it. That is the same rule `catalog_item` applies to line items.
+        `option_id` identifies a shipping option Wix itself offered for this cart and address --
+        `summary.deliverySummary.method.code`, which `delivery_options` returns as `id`. It is an
+        identifier, never a price: the delivery charge that follows is whatever `calculate()`
+        reports in `summary.priceSummary.delivery`, and a caller cannot influence it. That is the
+        same rule `catalog_item` applies to line items.
+
+        THE REQUEST BODY IS `{"deliveryMethod": {"code": ...}}`, MEASURED LIVE. It was
+        `{"deliveryMethodId": option_id}`, which Wix answers with HTTP 400 and the field
+        violation `deliveryMethod / must not be empty / REQUIRED_FIELD` -- so this method could
+        never have selected anything, and every physical checkout that reached it would still
+        have been refused with `MISSING_DELIVERY_METHOD`. `appId` is NOT sent: `code` alone is
+        accepted, and the selection clears the violation (verified 2026-10-04 against the
+        confirmed site, cart + West Bengal address + the live Rs.1 product).
         """
         if not isinstance(option_id, str) or not option_id.strip() or len(option_id) > 200:
             raise ValueError("a delivery option id is required")
         cart_id = identifier(cart_id)
         return self._cart(self.request(f"{BASE}/{cart_id}/set-delivery-method", method="POST",
-                                       body={"deliveryMethodId": option_id.strip()}), cart_id)
+                                       body={"deliveryMethod": {"code": option_id.strip()}}),
+                          cart_id)
 
     def remove_delivery_method(self, cart_id):
         """Remove Delivery Method. New in V2.
@@ -422,10 +509,13 @@ class CartV2:
     def _not_payable(self, response, cart_id):
         """The shared non-payable projection. One shape, so `estimate` and `preview` cannot drift.
 
-        `deliveryInfo` is handed back verbatim. The exact field Wix uses to enumerate available
-        delivery options on a V2 cart could not be confirmed from a fetchable reference page, so
-        this does not invent a name for it -- the caller gets what Wix sent, and the shape needs
-        one live probe before a UI depends on it.
+        `deliveryInfo` is handed back verbatim, and `deliveryOptions` is the normalised list from
+        `summary.deliverySummary` -- the field the live probe on 2026-10-04 confirmed, replacing
+        this docstring's previous admission that it was unknown.
+
+        `estimate` sends `calculateDelivery: False`, so its `deliveryOptions` is legitimately
+        empty; `preview` runs the full calculation and is the read that answers the question.
+        `CartV2.delivery_options` goes through `preview` for exactly that reason.
         """
         cart = self._cart(response, cart_id)
         summary = response.get("summary") or {}
@@ -438,6 +528,7 @@ class CartV2:
                 "blockingViolations": deepcopy(violations),
                 "coupons": deepcopy(cart.get("coupons") or []),
                 "deliveryInfo": deepcopy(cart.get("deliveryInfo") or {}),
+                "deliveryOptions": available_delivery_options(summary),
                 "items": [{"lineItemId": item.get("id"),
                            "requestedQuantity": (item.get("quantityInfo") or {}).get(
                                "requestedQuantity"),

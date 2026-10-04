@@ -160,10 +160,23 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
 /** The one projection, so the excluded entry is a real `ShopProduct` and not a raw snapshot row. */
 const project = ( raw: RawProduct ): ShopProduct => {
   const paragraphs = toParagraphs( String( raw.descriptionHtml || '' ) );
+  const name = String( raw.name || '' );
+  // A product authored in Wix without a description must still render a complete page and a valid
+  // meta description, or the build invariants reject a real live product (which is exactly how a
+  // newly-added product first appears: no copy yet). When Wix carries no description we synthesise
+  // a safe, name-based tagline and one body line from the product name alone — never inventing a
+  // claim, just stating the product's own name. The owner can add real copy in Wix at any time and
+  // it replaces this automatically on the next catalogue sync.
+  const fallbackTagline = name ? `${name} from WECARE.DIGITAL.` : 'A product from WECARE.DIGITAL.';
+  const fallbackBody = name
+    ? `${name} is available to order from WECARE.DIGITAL. See the details and secure checkout below.`
+    : 'Available to order from WECARE.DIGITAL with secure checkout.';
+  const tagline = paragraphs[ 0 ] || fallbackTagline;
+  const body = paragraphs.length > 1 ? paragraphs.slice( 1 ) : [ fallbackBody ];
   return {
     ...( raw.variants ? { variants: raw.variants } : {} ),
     id: String( raw.id || '' ),
-    name: String( raw.name || '' ),
+    name,
     slug: String( raw.slug || '' ),
     formattedPrice: String( raw.formattedPrice || '' ),
     price: String( raw.price || '' ),
@@ -172,8 +185,8 @@ const project = ( raw: RawProduct ): ShopProduct => {
     // Spread, not `image: raw.image || undefined`, so a product with no image has no `image` KEY
     // at all. ShopProductHead gates the Product node on the field's presence.
     ...( raw.image ? { image: String( raw.image ) } : {} ),
-    tagline: paragraphs[ 0 ] || '',
-    body: paragraphs.slice( 1 ),
+    tagline,
+    body,
   };
 };
 

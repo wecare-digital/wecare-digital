@@ -287,17 +287,91 @@ def test_a_missing_customer_id_is_refused_before_any_wix_call():
 
 # ── preparing delivery, and what the producer may not do ─────────────────────────
 
-def test_prepare_delivery_sets_the_address_and_optionally_the_method():
+def test_prepare_delivery_sets_the_address_and_then_selects_the_offered_method():
+    """THE REGRESSION THIS FILE EXISTS TO PREVENT FROM RETURNING.
+
+    `prepare_delivery` used to set the address and stop whenever no `delivery_option_id` was
+    passed -- which is what every caller does. Cart V2 then answers Calculate Cart with
+    `MISSING_DELIVERY_METHOD`, so no physical website checkout could be priced at all. The old
+    version of this test asserted `== ["PATCH"]`, i.e. it asserted the defect.
+    """
     response = delivery_complete()
     wix = Wix(response)
     pi.prepare_delivery(CartV2(wix), response["cart"]["id"], OWNED)
-    assert [method for method, _, _ in wix.calls] == ["PATCH"]
 
+    assert [method for method, _, _ in wix.calls] == ["PATCH", "POST", "POST"]
+    assert wix.calls[1][1].endswith("/calculate")        # the options read
+    assert wix.calls[2][1].endswith("/set-delivery-method")
+    # And the id selected is the one WIX offered in `summary.deliverySummary.method.code`.
+    assert wix.calls[2][2] == {"deliveryMethod": {
+        "code": response["summary"]["deliverySummary"]["method"]["code"]}}
+
+
+def test_an_explicitly_chosen_option_is_used_without_reading_the_options():
+    """A customer who picked from a UI is not second-guessed, and costs no extra Wix call."""
+    response = delivery_complete()
     wix = Wix(response)
     pi.prepare_delivery(CartV2(wix), response["cart"]["id"], OWNED,
-                        delivery_option_id="opt-1")
+                        delivery_option_id="11111111-2222-3333-4444-555555555555")
+
     assert [method for method, _, _ in wix.calls] == ["PATCH", "POST"]
     assert wix.calls[1][1].endswith("/set-delivery-method")
+    assert not [path for _m, path, _b in wix.calls if path.endswith("/calculate")]
+
+
+def test_zero_offered_options_refuses_and_says_wix_was_asked(caplog):
+    """The honest refusal is kept, and made DISTINGUISHABLE from "we never asked".
+
+    Both states produce the same `MISSING_DELIVERY_METHOD` violation downstream, so the violation
+    cannot tell them apart. The log line can: `website_checkout_delivery_zero_options` is only
+    written after Wix has been asked and has named nothing, which is a Wix delivery-region gap
+    rather than a defect here.
+    """
+    response = delivery_complete()
+    response["summary"].pop("deliverySummary")          # Wix named no option for this address
+    wix = Wix(response)
+
+    with caplog.at_level("WARNING"):
+        with pytest.raises(pi.DeliveryDetailsRequired):
+            pi.prepare_delivery(CartV2(wix), response["cart"]["id"], OWNED)
+
+    # The address was still written; only the method was not chosen.
+    assert [method for method, _, _ in wix.calls] == ["PATCH", "POST"]
+    assert not [path for _m, path, _b in wix.calls if "set-delivery-method" in path]
+
+    events = [json.loads(record.message) for record in caplog.records
+              if record.message.startswith("{")]
+    zero = [event for event in events
+            if event["event"] == "website_checkout_delivery_zero_options"]
+    assert zero and zero[0]["optionCount"] == 0
+    # A cart id and a count. No address, no customer, nothing maskable.
+    assert set(zero[0]) == {"event", "wixCartId", "cartRevision", "optionCount"}
+
+
+def test_several_options_resolve_to_the_cheapest_deterministically():
+    """The rule is named and tested on its own, because it is a decision about someone's money.
+
+    Lowest price wins; a tie keeps Wix's own order; an option Wix priced as unknown sorts LAST
+    rather than being read as free.
+    """
+    from lambda_utils.ecommerce.cart_v2 import cheapest_delivery_option
+
+    assert cheapest_delivery_option([]) is None
+    assert cheapest_delivery_option([
+        {"id": "express", "title": "Express", "pricePaise": 29900},
+        {"id": "free", "title": "Free Delivery", "pricePaise": 0},
+        {"id": "standard", "title": "Standard", "pricePaise": 9900},
+    ])["id"] == "free"
+    # Tie -> Wix's first.
+    assert cheapest_delivery_option([
+        {"id": "first", "title": "A", "pricePaise": 5000},
+        {"id": "second", "title": "B", "pricePaise": 5000},
+    ])["id"] == "first"
+    # Unknown price is not free.
+    assert cheapest_delivery_option([
+        {"id": "unpriced", "title": "?", "pricePaise": None},
+        {"id": "priced", "title": "Standard", "pricePaise": 9900},
+    ])["id"] == "priced"
 
 
 def test_the_producer_makes_no_order_or_charging_call():

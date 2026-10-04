@@ -681,6 +681,38 @@ def test_prepare_sends_the_stored_address_to_wix_without_a_second_contacts_query
         "the threaded profile must not be re-read inside _v2_snapshot"
 
 
+def test_a_physical_checkout_selects_the_delivery_method_wix_offered(env):
+    """THE BLOCKER. Setting the address was never enough, and this is the assertion that says so.
+
+    Cart V2 needs `deliveryInfo.address` AND `deliveryInfo.method`. Every website checkout of a
+    physical product set the address and stopped, so Calculate Cart answered
+    `MISSING_DELIVERY_METHOD` and nothing could be priced -- the live logs for 2026-10-04
+    15:00-15:01 UTC are one `website_checkout_delivery_blocked` per attempt.
+
+    Two things are asserted, and the second is the one a shape change would break silently:
+    the method is selected at all, and it is selected with the body the provider accepts.
+    `{"deliveryMethodId": ...}` returns HTTP 400 `deliveryMethod / must not be empty`, which no
+    fake would have caught on its own.
+    """
+    h, _fake, _lam, wix, monkeypatch = env
+    monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", h._load_owned_address)
+
+    assert h.handler(_prepare_event(), None)["statusCode"] == 200
+
+    selections = [body for method, endpoint, body in wix.requests
+                  if endpoint.endswith("/set-delivery-method")]
+    assert selections, "a physical cart must have a delivery method selected"
+    offered = delivery_complete()["summary"]["deliverySummary"]["method"]["code"]
+    assert selections == [{"deliveryMethod": {"code": offered}}]
+
+    # And the selection happens AFTER the address, because Wix cannot resolve an option without
+    # one. Order, not just presence.
+    sequence = [endpoint.rsplit("/", 1)[-1] for method, endpoint in wix.calls
+                if endpoint.endswith("/set-delivery-method")
+                or (method == "PATCH" and "/carts/" in endpoint)]
+    assert sequence[0] != "set-delivery-method"
+
+
 def test_create_loads_the_stored_address_through_the_loader_itself(env):
     """`_create` threads no profile, so this exercises `_load_owned_address` end to end."""
     h, fake, _lam, wix, monkeypatch = env
@@ -756,10 +788,12 @@ def test_a_stored_address_wix_cannot_map_is_refused_before_any_wix_write(env):
 class _ScriptedCalculateWix(RecordingWix):
     """Replays a different response for each successive Calculate Cart call.
 
-    `calculate` and `preview` are the same Wix endpoint, so the only way to make the second
-    answer differ from the first is to script by call order: 1 = `calculate` (raises inside
-    `purchase_intent`), 2 = `preview` from `_delivery_is_missing`, 3 = `preview` from
-    `_blocking_codes`. An entry that is an exception instance is raised instead of returned.
+    `calculate` and `preview` are the same Wix endpoint, so the only way to make one answer
+    differ from the next is to script by call order. On the website path that order is now:
+    1 = `preview` for the delivery OPTIONS read inside `prepare_delivery`, 2 = `calculate`
+    (raises inside `purchase_intent`), 3 = `preview` from `_delivery_is_missing`, 4 = `preview`
+    from `_blocking_codes`. An entry that is an exception instance is raised instead of returned,
+    and the last entry repeats for any further call.
     """
 
     def __init__(self, script):
@@ -793,11 +827,40 @@ def _method_only():
     return response
 
 
+def _method_only_with_an_offered_option():
+    """`_method_only`, plus the `summary.deliverySummary` the LIVE site really sends.
+
+    Measured 2026-10-04: Wix populates `deliverySummary.method` for a cart whose
+    `deliveryInfo.method` is still null and whose summary still carries
+    `MISSING_DELIVERY_METHOD`. So "Wix offered an option" and "Wix refuses to price this cart"
+    are the same response, and this is the shape in which `prepare_delivery` reads the option.
+
+    Needed because `_method_only` alone now stops the run one step earlier -- no offered option
+    means `prepare_delivery` refuses before `calculate` is ever reached, which is a DIFFERENT
+    path from the one these tests were written to exercise.
+    """
+    response = _method_only()
+    response["summary"]["deliverySummary"] = {
+        "method": {"code": "11111111-2222-3333-4444-555555555555",
+                   "appId": "45c44b27-ca7b-4891-8c0d-1747d588b835",
+                   "title": {"original": "Standard delivery",
+                             "translated": "Standard delivery"},
+                   "pickup": False},
+        "price": {"amount": "500.00", "convertedAmount": "500.00"},
+    }
+    return response
+
+
 def test_a_method_only_refusal_is_distinguishable_from_a_missing_address(env):
     """Wix has the address and offers no way to deliver to it.
 
     Collapsing this into `DELIVERY_DETAILS_REQUIRED` tells a customer to enter an address they
     already saved, forever, and no retry helps -- it needs a shipping rule on the Wix site.
+
+    This now also covers the ZERO-OPTIONS route in: `_method_only` carries no
+    `summary.deliverySummary`, so `prepare_delivery` finds nothing to select, refuses, and the
+    handler's arm reads Wix's own `MISSING_DELIVERY_METHOD` and answers the narrow code. Same
+    answer, reached one step earlier than before, which is the point of raising there.
     """
     h, fake, _lam, _wix, monkeypatch = env
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", h._load_owned_address)
@@ -819,10 +882,17 @@ def test_a_preview_that_fails_is_no_evidence_and_the_refusal_stays_generic(env):
     The violation read behind `DELIVERY_METHOD_UNAVAILABLE` is a second Calculate Cart call, and
     it can fail on its own. An unexplained failure must not be reported to a customer as
     "Wix offers no delivery method here", so the parent refusal re-raises unchanged.
+
+    FOUR scripted Calculate Cart calls now, not three, and the first one is new: 1 = the delivery
+    OPTIONS read inside `prepare_delivery`, 2 = `calculate` (raises inside `purchase_intent`),
+    3 = `preview` from `_delivery_is_missing`, 4 = `preview` from `_blocking_codes`. The first
+    entry must offer an option, or the run refuses at step 1 and never reaches the no-evidence
+    case this test is about.
     """
     h, fake, _lam, _wix, monkeypatch = env
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", h._load_owned_address)
-    wix = _ScriptedCalculateWix([_method_only(), _method_only(),
+    wix = _ScriptedCalculateWix([_method_only_with_an_offered_option(),
+                                 _method_only(), _method_only(),
                                  RuntimeError("wix is unreachable")])
     monkeypatch.setattr(h, "_wix_request", wix)
     monkeypatch.setattr(h.wix_ecom, "_request", wix)

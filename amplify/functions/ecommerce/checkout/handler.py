@@ -1818,24 +1818,33 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
         else:
             _require_same_basket(adapter.get(cart_id), requested)
 
-    # Captured BEFORE the try, because `prepare_delivery`'s return value does not exist on the
-    # no-delivery branch and the except arm below logs the revision. A `NameError` inside an
-    # `except` arm would be swallowed by `_website_prepare`'s generic `except Exception` and
-    # surface as the 503 dead end the new arms exist to remove. Empty on the no-delivery branch
-    # rather than fetched: `adapter.get` purely to log a revision would be a Wix call made for a
-    # log line, and the arm also logs `requiresDelivery`, so an empty revision is unambiguous.
+    # Initialised BEFORE the try, because `prepare_delivery` does not run on the no-delivery
+    # branch and the except arm below logs the revision. A `NameError` inside an `except` arm
+    # would be swallowed by `_website_prepare`'s generic `except Exception` and surface as the 503
+    # dead end the new arms exist to remove. Empty on the no-delivery branch rather than fetched:
+    # `adapter.get` purely to log a revision would be a Wix call made for a log line, and the arm
+    # also logs `requiresDelivery`, so an empty revision is unambiguous.
     prepared_revision = ""
     prepared: Dict[str, Any] = {}
-    if requires_delivery:
-        # `prepare_delivery` is SKIPPED on the no-delivery branch, not called with `None`:
-        # `cart_v2.set_delivery_address` raises on a falsy address, and more importantly a
-        # contribution must not have a postal address written onto its Wix cart at all -- a
-        # payment with no delivery has no destination, and writing one would be a claim about a
-        # place of supply that does not exist.
-        prepared = purchase_intent.prepare_delivery(adapter, cart_id, owned) or {}
-        prepared_revision = str(prepared.get("revision") or "")
 
     try:
+        if requires_delivery:
+            # `prepare_delivery` is SKIPPED on the no-delivery branch, not called with `None`:
+            # `cart_v2.set_delivery_address` raises on a falsy address, and more importantly a
+            # contribution must not have a postal address written onto its Wix cart at all -- a
+            # payment with no delivery has no destination, and writing one would be a claim about
+            # a place of supply that does not exist. It is also why no delivery METHOD is selected
+            # for a contribution: the auto-selection lives inside `prepare_delivery`, so the skip
+            # covers both halves and cannot drift apart.
+            #
+            # INSIDE THE TRY, deliberately. `prepare_delivery` now selects a method, so it can
+            # raise `DeliveryDetailsRequired` itself when Wix offers no option for the address.
+            # Left above the try that would escape to `_website_prepare`'s generic
+            # `except Exception` and become the 503 dead end; inside it, the existing arm below
+            # reads Wix's own violation codes and answers 409 like every other delivery refusal.
+            prepared = purchase_intent.prepare_delivery(adapter, cart_id, owned) or {}
+            prepared_revision = str(prepared.get("revision") or "")
+
         snapshot, calculated = purchase_intent.build_intent_with_calculation(
             adapter, customer_id=identity.customer_id, cart_id=cart_id,
             # `owned or None` so an EMPTY stored address reaches `purchase_intent` as an explicit
