@@ -73,13 +73,16 @@ describe( 'CheckoutIdentityCard', () => {
   it( 'states that the email is verified', () => {
     renderCard();
     expect( row( 'Email' ).textContent ).toContain( 'verified' );
-    expect( screen.getByText( '✓ verified' ) ).toBeInTheDocument();
+    expect( row( 'Email' ).querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
   } );
 
-  it( 'states how the phone was verified, because the session IS the proof', () => {
+  it( 'states that the phone is verified, in the same plain copy as the email', () => {
     renderCard();
-    expect( screen.getByText( '✓ verified by WhatsApp sign-in' ) ).toBeInTheDocument();
-    expect( row( 'Phone' ).textContent ).toContain( 'verified by WhatsApp sign-in' );
+    expect( row( 'Phone' ).textContent ).toContain( 'verified' );
+    expect( row( 'Phone' ).querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
+    // The badge must not name the mechanism - that wording reads as internal, not as customer copy.
+    expect( row( 'Phone' ).textContent ).not.toContain( 'WhatsApp' );
+    expect( row( 'Phone' ).textContent ).not.toContain( 'sign-in' );
   } );
 
   it( 'puts no verified badge on the address, because nobody verified it', () => {

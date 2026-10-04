@@ -27,7 +27,8 @@
  * findings note on the assumption.
  */
 
-import type { ShopProduct } from '../content/shop';
+import { SHOP_PRODUCTS } from '../content/shop';
+import type { ShopProduct, ShopVariant } from '../content/shop';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -73,6 +74,89 @@ function normaliseQuantity ( value: unknown ): number {
   return Number.isFinite( n ) && n > 0 ? n : 1;
 }
 
+/**
+ * Resolve the CURRENT catalogue product for a stored line.
+ *
+ * Rows written since 2026-10-01 carry `productId`, and that ID is authoritative. Older
+ * `wecare.cart.v1` rows predate both `productId` and variant capture; for those rows only, fall
+ * back to the historical `ref` / slug. That narrow fallback is what repairs an old browser cart
+ * without ever remapping a modern row whose product ID points somewhere else.
+ */
+function currentProduct ( item: CartItem ): ShopProduct | null {
+  if ( item.productId )
+  {
+    return SHOP_PRODUCTS.find( product => product.id === item.productId ) || null;
+  }
+  const baseRef = String( item.ref || '' ).split( ':' )[ 0 ];
+  return SHOP_PRODUCTS.find( product =>
+    product.id === baseRef || product.slug === item.slug || product.slug === baseRef ) || null;
+}
+
+/** The current in-stock variant a stored line means, when that meaning is unambiguous. */
+function currentVariant ( item: CartItem, product: ShopProduct ): ShopVariant | null {
+  const available = ( product.variants || [] ).filter( variant => variant.inStock );
+  const exact = item.variantId
+    ? available.find( variant => variant.id === item.variantId )
+    : undefined;
+  if ( exact ) return exact;
+
+  // A single-variant product is safe to repair automatically: there is no customer choice to
+  // invent. This also upgrades the six pre-variant cart rows created before 2026-10-01.
+  if ( available.length === 1 ) return available[ 0 ];
+
+  // If a variant ID changed but the old row already carries the human label, preserve the
+  // customer's choice by matching that exact label. Never choose among multiple possibilities.
+  const labelled = available.filter(
+    variant => item.name === `${product.name} (${variant.label})`,
+  );
+  return labelled.length === 1 ? labelled[ 0 ] : null;
+}
+
+/**
+ * Reconcile persisted rows against the catalogue bundled with THIS deployed storefront.
+ *
+ * This does not make the browser a price authority. It only upgrades identifiers and display
+ * strings; checkout still sends references + quantities and the backend still prices from live
+ * Wix. A multi-variant legacy row with no recoverable choice is deliberately left WITHOUT a
+ * variant so /cart/ can ask the customer to choose one instead of silently guessing a size.
+ */
+function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed: boolean } {
+  const reconciled = items.map( item => {
+    const product = currentProduct( item );
+    if ( !product ) return item;
+
+    const variant = currentVariant( item, product );
+    const hasMultiple = ( product.variants || [] ).length > 1;
+    const next: CartItem = {
+      productId: product.id,
+      ...( variant ? { variantId: variant.id } : {} ),
+      // Keep an unresolved legacy ref distinct until the customer chooses an option. Once a
+      // variant is known, the ref is the canonical product+variant identity used for cart merging.
+      ref: variant ? `${product.id}:${variant.id}` : item.ref,
+      slug: product.slug,
+      name: hasMultiple && variant ? `${product.name} (${variant.label})` : product.name,
+      formattedPrice: product.formattedPrice,
+      quantity: item.quantity,
+    };
+    return next;
+  } );
+
+  // A legacy line and a newer line can reconcile to the same canonical ref. Merge only then, so
+  // the customer cannot be charged twice for two storage records that now mean one cart line.
+  const merged: CartItem[] = [];
+  for ( const item of reconciled )
+  {
+    const existing = merged.find( candidate => candidate.ref === item.ref );
+    if ( existing ) existing.quantity += item.quantity;
+    else merged.push( { ...item } );
+  }
+
+  return {
+    items: merged,
+    changed: JSON.stringify( merged ) !== JSON.stringify( items ),
+  };
+}
+
 /** Parse and validate whatever is in storage into a clean CartItem[]. Never throws. */
 function parseCart ( raw: string | null ): CartItem[] {
   if ( !raw ) return [];
@@ -108,7 +192,15 @@ function parseCart ( raw: string | null ): CartItem[] {
 /** The current cart, or [] on the server / when storage is empty or corrupt. */
 export function readCart (): CartItem[] {
   if ( !hasWindow() ) return [];
-  return parseCart( window.localStorage.getItem( CART_KEY ) );
+  const parsed = parseCart( window.localStorage.getItem( CART_KEY ) );
+  const reconciled = reconcileStoredCart( parsed );
+  if ( reconciled.changed )
+  {
+    // Migration is an implementation detail of the read, not a user cart action. Write directly
+    // rather than dispatching CART_CHANGED_EVENT and synchronously re-entering every cart listener.
+    window.localStorage.setItem( CART_KEY, JSON.stringify( reconciled.items ) );
+  }
+  return reconciled.items;
 }
 
 /** Persist the cart. No-op on the server. */
@@ -161,6 +253,63 @@ export function addItem ( product: ShopProduct, qty = 1, selectedVariantId?: str
   }
   writeCart( items );
   return items;
+}
+
+/**
+ * In-stock choices for a cart line whose current product has multiple variants.
+ *
+ * Empty means either "this item has no customer-selectable choice" or "the product is not in this
+ * deployed snapshot"; the live backend remains authoritative for the latter.
+ */
+export function availableVariantsForItem ( item: CartItem ): ShopVariant[] {
+  const product = currentProduct( item );
+  if ( !product || ( product.variants || [] ).length <= 1 ) return [];
+  return ( product.variants || [] ).filter( variant => variant.inStock );
+}
+
+/** Whether checkout must stop and ask the customer to choose a current variant for this line. */
+export function needsVariantSelection ( item: CartItem ): boolean {
+  const variants = availableVariantsForItem( item );
+  if ( variants.length === 0 ) return false;
+  return !item.variantId || !variants.some( variant => variant.id === item.variantId );
+}
+
+/**
+ * Replace one cart line's variant with an explicitly chosen CURRENT in-stock variant.
+ *
+ * This is the repair path for legacy Merchandise rows that were created before the store captured
+ * Fit/Size. It is intentionally explicit: when several variants exist, the browser never guesses.
+ */
+export function setVariant ( ref: string, variantId: string ): CartItem[] {
+  const items = readCart();
+  const index = items.findIndex( item => item.ref === ref );
+  if ( index < 0 ) return items;
+
+  const item = items[ index ];
+  const product = currentProduct( item );
+  const variant = product?.variants?.find(
+    candidate => candidate.id === variantId && candidate.inStock,
+  );
+  if ( !product || !variant ) throw new Error( 'Choose an available option.' );
+
+  const next: CartItem = {
+    ...item,
+    productId: product.id,
+    variantId: variant.id,
+    ref: `${product.id}:${variant.id}`,
+    slug: product.slug,
+    name: ( product.variants || [] ).length > 1
+      ? `${product.name} (${variant.label})`
+      : product.name,
+    formattedPrice: product.formattedPrice,
+  };
+
+  const remaining = items.filter( ( _candidate, candidateIndex ) => candidateIndex !== index );
+  const duplicate = remaining.find( candidate => candidate.ref === next.ref );
+  if ( duplicate ) duplicate.quantity += next.quantity;
+  else remaining.splice( index, 0, next );
+  writeCart( remaining );
+  return remaining;
 }
 
 /**

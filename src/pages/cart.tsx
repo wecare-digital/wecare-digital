@@ -95,7 +95,8 @@ import type { StoredAddress } from '../components/AddressFields';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import type { CustomerSession } from '../lib/customerAuth';
 import {
-  readCart, setQuantity, removeItem, toLineItems,
+  readCart, setQuantity, removeItem, toLineItems, availableVariantsForItem,
+  needsVariantSelection, setVariant,
 } from '../lib/cart';
 import type { CartItem } from '../lib/cart';
 
@@ -264,6 +265,7 @@ type Outcome =
   | { kind: 'LINE_ITEMS_REQUIRED' }
   | { kind: 'SEND_FAILED' }
   | { kind: 'PRICING_UNAVAILABLE' }
+  | { kind: 'ITEM_UNAVAILABLE' }
   | { kind: 'UNRECOGNISED' };
 
 /**
@@ -632,6 +634,12 @@ export default function Cart (): React.ReactElement {
   // dies with the page, so a reload or a second tab walks straight past it. The server-side
   // one-live-payment-per-basket guard is the guarantee.
   const railTerminalRef = useRef<boolean>( false );
+  // In-flight latch, distinct from railTerminalRef (which guards the terminal rail). This stops a
+  // second concurrent proceed() from firing a second prepare-checkout before the first completes:
+  // the duplicate hit Wix on the already-reserved cart and the server returned 502
+  // CATALOGUE_UNAVAILABLE, shown as "We could not prepare this order." Synchronous ref so the
+  // check-and-set is atomic within a turn.
+  const prepareInFlightRef = useRef<boolean>( false );
   const [ railTerminal, setRailTerminal ] = useState<boolean>( false );
 
   useEffect( () => {
@@ -660,6 +668,13 @@ export default function Cart (): React.ReactElement {
 
   const drop = useCallback( ( ref: string ): void => {
     setItems( removeItem( ref ) );
+  }, [] );
+
+  const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
+    if ( !variantId ) return;
+    setItems( setVariant( ref, variantId ) );
+    setPaymentBlocked( false );
+    setNotice( { kind: 'quiet', message: 'Product option updated. Continue to secure payment.' } );
   }, [] );
 
   /**
@@ -841,6 +856,13 @@ export default function Cart (): React.ReactElement {
       // The message did not go out. The attempt exists and nothing was charged.
       if ( status === 'SEND_FAILED' ) return { kind: 'SEND_FAILED' };
 
+      // A cart item is no longer available in the store (retired/out-of-stock product or variant).
+      // Permanent and caller-fixable: tell the customer to remove it, do not imply a system failure.
+      if ( status === 'CART_ITEM_UNAVAILABLE' )
+      {
+        return { kind: 'ITEM_UNAVAILABLE' };
+      }
+
       // Priced/currency/catalogue problems. The request was refused, so nothing was charged.
       if (
         status === 'UNSUPPORTED_CURRENCY' || status === 'AMOUNT_NOT_SETTLED'
@@ -983,6 +1005,16 @@ export default function Cart (): React.ReactElement {
       return;
     }
 
+    if ( outcome.kind === 'ITEM_UNAVAILABLE' )
+    {
+      setPaymentBlocked( true );
+      setNotice( {
+        kind: 'error',
+        message: 'An item in your cart is no longer available. Remove it and try again.',
+      } );
+      return;
+    }
+
     if ( outcome.kind === 'SDK_UNAVAILABLE' )
     {
       setNotice( { kind: 'error', message: 'Secure payment could not open. Your cart is unchanged.' } );
@@ -998,6 +1030,11 @@ export default function Cart (): React.ReactElement {
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
+    // Re-entry latch: ignore a duplicate proceed() while a prepare-checkout is already in flight,
+    // so the server never receives a second prepare on the already-reserved cart (which 502s).
+    if ( prepareInFlightRef.current ) return;
+    prepareInFlightRef.current = true;
+    try {
     setNotice( { kind: 'none' } );
 
     // AUTH GATE. No session -> sign-in first, cart preserved in localStorage. No create call.
@@ -1063,7 +1100,19 @@ export default function Cart (): React.ReactElement {
     // blip the power to block a payable customer.
 
     setPaymentBlocked( false );
-    const lineItems = toLineItems();
+    const currentItems = readCart();
+    const unresolved = currentItems.find( needsVariantSelection );
+    if ( unresolved )
+    {
+      setItems( currentItems );
+      setPaymentBlocked( true );
+      setNotice( {
+        kind: 'quiet',
+        message: 'Choose a current product option below before secure payment.',
+      } );
+      return;
+    }
+    const lineItems = toLineItems( currentItems );
     if ( lineItems.length === 0 )
     {
       setItems( readCart() );
@@ -1095,6 +1144,9 @@ export default function Cart (): React.ReactElement {
     finally
     {
       setBusy( false );
+    }
+    } finally {
+      prepareInFlightRef.current = false;
     }
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
@@ -1138,6 +1190,22 @@ export default function Cart (): React.ReactElement {
                       </p>
                       {/* DISPLAY ONLY. This Wix passthrough price never reaches the server. */}
                       <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
+                      { needsVariantSelection( item ) && (
+                        <label className="cart-option-label">
+                          <span>Choose option</span>
+                          <select
+                            className="cart-option"
+                            aria-label={ `Choose option for ${item.name}` }
+                            value=""
+                            onChange={ e => chooseVariant( item.ref, e.target.value ) }
+                          >
+                            <option value="" disabled>Select fit / size</option>
+                            { availableVariantsForItem( item ).map( variant => (
+                              <option key={ variant.id } value={ variant.id }>{ variant.label }</option>
+                            ) ) }
+                          </select>
+                        </label>
+                      ) }
                     </div>
                     <div className="cart-row-controls">
                       <label className="cart-qty-label" htmlFor={ `qty-${item.ref}` }>Qty</label>
@@ -1321,6 +1389,12 @@ export default function Cart (): React.ReactElement {
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
+          .cart-option-label{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:14px;font-weight:700;color:#1a3a2a}
+          .cart-option{
+            min-height:44px;max-width:260px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;
+            background:#fff;color:#111827;font:inherit;
+          }
+          .cart-option:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
           .cart-row-controls{display:flex;align-items:center;gap:12px}
           .cart-qty-label{font-size:14px;font-weight:700;color:#1a3a2a}
           /* 44px is the tap-target floor. The site's CTA is 52px; a secondary field is not

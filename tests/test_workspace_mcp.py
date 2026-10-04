@@ -173,7 +173,8 @@ def test_ads_existing_app_uses_pkce_without_dynamic_registration(module, memory,
     assert query['client_id'] == ['2238810740192680']
     assert query['code_challenge_method'] == ['S256']
     assert query['redirect_uri'] == [module.CALLBACK]
-    assert 'ads_mcp_management' in query['scope'][0]
+    assert query['config_id'] == ['1718783392517600']
+    assert 'scope' not in query
     assert 'client_secret' not in query
 
 

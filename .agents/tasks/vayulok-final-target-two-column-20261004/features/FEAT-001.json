@@ -1,0 +1,27 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Confirm baseline is green on branch feat/vayulok-map-right-redesign before the restructure. Existing project; this is the mandatory environment/baseline-confirm step.",
+  "status": "completed",
+  "steps": [
+    "Confirm current branch is feat/vayulok-map-right-redesign via `git branch --show-current`. Do NOT create a new branch.",
+    "Confirm node_modules present; if not, run `npm ci`.",
+    "Run `npm run typecheck` and confirm it is clean.",
+    "Run `npm run lint` and confirm it is clean (or record pre-existing warnings).",
+    "Run `npx vitest run src/test/VayuLokLive.test.tsx` and confirm all 15 tests pass.",
+    "Record baseline results in findings."
+  ],
+  "acceptance_criteria": [
+    "git branch --show-current prints feat/vayulok-map-right-redesign",
+    "npm run typecheck exits 0",
+    "npm run lint exits 0",
+    "npx vitest run src/test/VayuLokLive.test.tsx reports all tests passing"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npx vitest run src/test/VayuLokLive.test.tsx"
+  ],
+  "blocked_reason": null,
+  "findings": "Baseline confirmed GREEN on branch feat/vayulok-map-right-redesign (confirmed via git branch --show-current). node_modules already present; no npm ci needed (Node .nvmrc=24, sandbox v22.23.3). Results: (1) npm run typecheck (tsc --noEmit) -> exit 0, clean. (2) npm run lint (eslint .) -> exit 0 with 203 pre-existing warnings and 0 errors across the repo (none introduced; no source changes made). (3) npx vitest run src/test/VayuLokLive.test.tsx -> exit 0, all 15 tests pass in ~3s. Note: the test logs a benign styled-jsx warning (Received `true` for a non-boolean attribute `jsx`) in the honest-degradation case; it is informational, not a failure. No source code was modified in this feature. Baseline is ready for FEAT-002 (two-column restructure of src/components/VayuLokLive.tsx)."
+}
