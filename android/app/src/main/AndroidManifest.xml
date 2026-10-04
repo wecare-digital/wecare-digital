@@ -33,7 +33,7 @@
             </intent-filter>
 
             <!-- Universal Link: https://wecare.digital
-                 The apex, not the retired stack.wecare.digital: autoVerify fetches
+                 The apex, not the retired retired-legacy-host.invalid: autoVerify fetches
                  /.well-known/assetlinks.json directly and does NOT follow a redirect,
                  so a host that 301s can never verify. -->
             <intent-filter android:autoVerify="true">
