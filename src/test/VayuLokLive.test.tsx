@@ -38,7 +38,15 @@ interface MapsRecorder {
   placeFetchFields: string[][];
 }
 
-function installGoogleMaps( paintMap = true ): MapsRecorder {
+// Optional author attribution Google supplies with a Place photo. When provided, the
+// stubbed search prediction resolves to a Place carrying one photo with these
+// attributions, so the component's mandated-attribution rendering can be exercised.
+interface PhotoAttribution { displayName?: string; uri?: string }
+interface InstallOpts { paintMap?: boolean; photoAttributions?: PhotoAttribution[] }
+
+function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
+  const { paintMap = true, photoAttributions }: InstallOpts =
+    typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
     overlayPushes: [],
@@ -75,6 +83,15 @@ function installGoogleMaps( paintMap = true ): MapsRecorder {
     constructor( opts: Record<string, unknown> ) { rec.imageMapTypeOpts.push( opts ); }
   }
   class FakeAutocompleteSessionToken {}
+  // When photoAttributions are supplied, the resolved Place carries one photo bearing those
+  // Google-mandated author attributions (getURI returns a stable URL). Otherwise photos stay
+  // empty, preserving the default stub behaviour the other suites rely on.
+  const predictionPhotos = photoAttributions
+    ? [ {
+        getURI: ( _o: { maxWidth?: number; maxHeight?: number } ) => 'https://maps.example/photo-with-credit.jpg',
+        authorAttributions: photoAttributions,
+      } ]
+    : [];
   const fakePrediction = {
     mainText: { text: 'Mumbai' },
     secondaryText: { text: 'Maharashtra, India' },
@@ -83,7 +100,7 @@ function installGoogleMaps( paintMap = true ): MapsRecorder {
       displayName: 'Mumbai',
       formattedAddress: 'Mumbai, Maharashtra, India',
       location: { lat: () => 19.076, lng: () => 72.8777 },
-      photos: [],
+      photos: predictionPhotos,
       fetchFields: async ( req: { fields: string[] } ) => { rec.placeFetchFields.push( req.fields ); },
     } ),
   };
@@ -628,5 +645,45 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     expect( screen.queryByRole( 'button', { name: /View details|Jump to details/i } ) ).toBeNull();
     // The old '{n} photos' pill label text is gone - the pill is now number-only.
     expect( screen.queryByText( /\bphotos\b/i ) ).toBeNull();
+  } );
+} );
+
+describe( 'VayuLokLive - mandated Google Place Photo attribution is preserved (req 06)', () => {
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+  } );
+
+  // Req 06 is bounded: the Place Photo AUTHOR attribution is mandatory under Google's Places
+  // API / Maps Platform ToS and MUST stay visible and legible. This test guards against a
+  // future accidental removal: a chosen place whose photo carries authorAttributions MUST
+  // render the .vl-live-photo-credit <figcaption> and a link out to the contributor's uri.
+  it( 'renders the Place Photo credit figcaption and its contributor link when a photo has attributions', async () => {
+    const rec = installGoogleMaps( {
+      photoAttributions: [ { displayName: 'Jane Contributor', uri: 'https://maps.google.com/maps/contrib/123' } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // Drive the real search -> select flow so the component resolves the Place and maps its
+    // photos (with Google's authorAttributions) into previewPlace.photos.
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    fireEvent.mouseDown( option );
+
+    // The mandated attribution figcaption renders, carrying the contributor's name, and links
+    // out to the contributor's Google uri (target _blank). This is what Google's ToS requires.
+    const credit = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-photo-credit' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    const link = credit.querySelector( 'a' ) as HTMLAnchorElement;
+    expect( link ).not.toBeNull();
+    expect( link.getAttribute( 'href' ) ).toBe( 'https://maps.google.com/maps/contrib/123' );
+    expect( link.textContent ).toContain( 'Jane Contributor' );
   } );
 } );
