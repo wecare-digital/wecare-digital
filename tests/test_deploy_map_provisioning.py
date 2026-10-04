@@ -71,6 +71,12 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # wecare-checkout added 2026-10-01: the headless checkout front door (authoritative Wix total,
     # readiness gate, PaymentAttempt, in-chat handoff; initiation off), also new and awaiting first
     # provision.
+    # wecare-customer-orders added 2026-10-03: the customer's own order history and profile
+    # summary. Never created in AWS - its sparse customerId-createdAt-index on OrderTable, its
+    # own least-privilege role and its one route are all first-provisioned by
+    # scripts/provision_customer_orders.py, so a deploy-all run before that is legitimately
+    # awaiting provisioning rather than failing. A code update cannot create the index, and
+    # without the index the function answers 503.
     # wecare-coupons added 2026-10-02: coupon issuance and eligibility, owning
     # stack-wecare-digital-CouponsTable. Never created in AWS - its table, its own least-privilege
     # role and its seven routes are all first-provisioned by scripts/provision_coupons_*.py, so a
@@ -90,6 +96,7 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # without that stack must provision it rather than report a code-update failure.
     assert waiting == ["wecare-customer-session", "wecare-customer-whatsapp-auth", "wecare-email-verification",
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
+                       "wecare-customer-orders",
                        "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi"]
 
 

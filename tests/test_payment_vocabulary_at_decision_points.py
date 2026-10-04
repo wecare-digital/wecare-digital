@@ -52,6 +52,38 @@ def test_paid_and_captured_are_one_state():
     assert ps.canonical(" Paid ") == ps.CAPTURED
 
 
+def test_the_order_records_own_word_is_on_the_ladder():
+    """`PAYMENT_PAID` is what an order row actually holds, and it used to map to nothing.
+
+    `ecommerce/finalization.accept_paid` writes `paymentStatus: 'PAYMENT_PAID'` onto every order
+    it creates. Before the `payment_paid` alias, `canonical()` returned `''` and `rank()` returned
+    0 for that value - so the one word the order table really stores was the one word the
+    vocabulary could not read, and a rank comparison would have let a later `pending` overwrite a
+    confirmed capture.
+    """
+    assert ps.canonical("PAYMENT_PAID") == ps.CAPTURED
+    assert ps.rank("PAYMENT_PAID") == 50
+    # Same state, so the rank matches every other spelling of it.
+    assert ps.rank("PAYMENT_PAID") == ps.rank("captured") == ps.rank("paid")
+
+
+def test_payment_paid_is_also_writable_and_that_is_intended():
+    """`for_storage('PAYMENT_PAID')` now returns 'captured' instead of raising. Deliberate.
+
+    Widening `for_storage` is normally the cost of an alias rather than its benefit, and here it
+    is acceptable for a specific reason: PAYMENT_PAID and `captured` are the SAME state on one
+    ladder, so accepting the write collapses nothing. The attempt vocabulary's other `PAYMENT_*`
+    words are not like that - `payment_attempt._RANK` separates PAYMENT_EXPIRED, PAYMENT_CANCELLED
+    and PAYMENT_FAILED as three distinct attempt states - which is why only this one is mapped.
+    """
+    assert ps.for_storage("PAYMENT_PAID") == ps.CAPTURED
+    for not_mapped in ("PAYMENT_CANCELLED", "PAYMENT_EXPIRED"):
+        assert ps.canonical(not_mapped) == ""
+        assert ps.rank(not_mapped) == 0
+        with pytest.raises(ValueError):
+            ps.for_storage(not_mapped)
+
+
 def test_an_unmappable_word_denies_rather_than_permits():
     """Every guard below relies on this: '' is not CAPTURED and not PENDING, so an
     unrecognised provider word fails closed at each decision point."""
@@ -193,6 +225,12 @@ CONSULTING_FILES = [
     ("messaging/outbound-whatsapp/handler.py", "pay_status"),
     ("messaging/whatsapp-business-api/handler.py", "pay_status"),
     ("messaging/whatsapp-business-api/flows/track_request.py", "pay_status"),
+    # The customer order-history read. It makes no payment decision of its own - it reports a
+    # canonical value and a rank and lets the browser choose the sentence - but it is the one
+    # reader of `OrderTable.paymentStatus` on the customer surface, and that column was measured
+    # holding `pending`, `none`, `paid` and arbitrary admin input. Listing it brings both gates:
+    # the import assertion, and the AST walk that forbids a raw comparison.
+    ("ecommerce/customer-orders/handler.py", "payment_status"),
 ]
 
 #: Files with no payment-status decision of their own, which must still never compare a payment

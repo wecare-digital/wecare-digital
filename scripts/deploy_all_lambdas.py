@@ -223,6 +223,19 @@ SPECS: List[Spec] = [
         "ecommerce/checkout",
         provisioned_by="python scripts/provision_checkout.py",
     ),
+    # The customer's own order history and profile summary, read-only. One Query on the sparse
+    # customerId-createdAt-index, scoped by the Cognito sub from the token rather than by any
+    # value in the request. First creation is owned by scripts/provision_customer_orders.py,
+    # which also creates that index and the dedicated least-privilege role: the role holds
+    # dynamodb:Query on the INDEX ARN only, so a GetItem for purchasedSnapshot is an
+    # AccessDeniedException rather than a review finding. NOT standalone: it imports
+    # lambda_utils.customer_auth, customer_session, dynamo_reads, payment_status, rate_limit,
+    # ecommerce.contact_address, identity.customer, response and logging.
+    Spec(
+        "wecare-customer-orders",
+        "ecommerce/customer-orders",
+        provisioned_by="python scripts/provision_customer_orders.py",
+    ),
     # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable; creates NO
     # discount amount of its own -- the arithmetic is Wix's Calculate Cart. NOT standalone: it
     # imports lambda_utils.customer_auth, response, logging, ecommerce.coupon_store and

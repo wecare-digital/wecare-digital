@@ -1236,6 +1236,13 @@ const schema = a.schema( {
       customerName: a.string(),
       customerEmail: a.string(),
       contactId: a.string(), // link to ContactsTable
+      // Cognito `sub` of the paying customer. Website-checkout lineage ONLY: of the three
+      // lineages that create rows in this table, only finalization.accept_paid writes it, so
+      // it is deliberately NOT .required() — marking it required would describe a constraint
+      // the live table does not have. It is the partition key of the sparse
+      // customerId-createdAt-index that POST /ecommerce/my-orders queries; a row without it is
+      // absent from that index and therefore unreachable from the customer surface.
+      customerId: a.string(),
       // Order details
       orderDate: a.string(), // ISO date "2026-02-22"
       orderTime: a.string(), // "18:00:00"
@@ -1271,6 +1278,11 @@ const schema = a.schema( {
       index( 'source' ),
       index( 'orderStatus' ),
       index( 'shortId' ),
+      // Documentation parity, not deployment: there are zero AppSync APIs in this account, so
+      // no a.model() block here has ever been materialised and the executable owner of this
+      // index is scripts/provision_customer_orders.py. It is declared anyway because this file
+      // is what a reader opens to find out how OrderTable is keyed.
+      index( 'customerId' ).sortKeys( [ 'createdAt' ] ),
     ] )
     .authorization( ( allow ) => [ allow.authenticated() ] ),
 

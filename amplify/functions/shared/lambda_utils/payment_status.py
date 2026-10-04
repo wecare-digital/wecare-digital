@@ -128,6 +128,23 @@ _ALIASES: Dict[str, str] = {
     "success": CAPTURED,
     "successful": CAPTURED,
     "completed": CAPTURED,
+    # `OrderTable.paymentStatus` and `PaymentAttemptsTable.status` speak the PaymentAttempt
+    # vocabulary. `payment_pending` and `payment_failed` were already mapped and `payment_paid`
+    # was not, which left the ladder half mapped - and missing the half that matters:
+    # `ecommerce/finalization.accept_paid` writes 'PAYMENT_PAID' onto every order it creates, so
+    # `canonical()` answered '' and `rank()` answered 0 for a CONFIRMED CAPTURE. Any reader
+    # comparing ranks would have let a later 'pending' overwrite a paid order.
+    #
+    # ACCEPTED CONSEQUENCE: this also widens `for_storage('PAYMENT_PAID')` from "raises" to
+    # 'captured'. That is sound because PAYMENT_PAID and `captured` are the SAME state on one
+    # ladder, so nothing is collapsed. It is NOT a licence to map the rest of the attempt
+    # vocabulary for symmetry: `payment_attempt._RANK` separates PAYMENT_EXPIRED (50),
+    # PAYMENT_CANCELLED (55) and PAYMENT_FAILED (60), so mapping those onto FAILED would flatten
+    # three distinct attempt states into one AND let `for_storage` write 'failed' for an expiry.
+    # `payment_cancelled` and `payment_expired` are therefore deliberately absent; a row holding
+    # either degrades honestly to '' / rank 0, which a reader renders as "status unavailable"
+    # rather than as "not paid".
+    "payment_paid": CAPTURED,
     "pending_payment": PENDING,
     "payment_pending": PENDING,
     "initiated": PENDING,

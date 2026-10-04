@@ -37,6 +37,11 @@ from lambda_utils import customer_session  # noqa: E402
 _ROOT = Path(__file__).resolve().parents[1]
 _REGISTRATION = _ROOT / "amplify/functions/auth/customer-registration/handler.py"
 _EMAIL_VERIFICATION = _ROOT / "amplify/functions/auth/email-verification/handler.py"
+#: The customer order-history read. Added here because its 200 is a per-customer order list and
+#: its 401 is a per-customer denial, and `cors_headers` sets no cache directive on either - so a
+#: shared cache in front of the Amplify `/api/<*>` rewrite could replay one customer's history to
+#: another. Its own module docstring records why the route is POST for the same reason.
+_CUSTOMER_ORDERS = _ROOT / "amplify/functions/ecommerce/customer-orders/handler.py"
 
 #: The builders whose results reach the client. `throttled_response` is in the list because it is
 #: built by `otp_throttle`, not by `cors_response` - a cached 429 would misreport another caller's
@@ -120,8 +125,8 @@ def _returned_response_calls(source_path: Path):
                 yield func.name, node.lineno, name, False
 
 
-@pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION],
-                         ids=["customer-registration", "email-verification"])
+@pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION, _CUSTOMER_ORDERS],
+                         ids=["customer-registration", "email-verification", "customer-orders"])
 def test_every_returned_response_is_hardened(source_path):
     unwrapped = [(fn, line, callee)
                  for fn, line, callee, wrapped in _returned_response_calls(source_path)
@@ -131,8 +136,8 @@ def test_every_returned_response_is_hardened(source_path):
         f"{unwrapped}")
 
 
-@pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION],
-                         ids=["customer-registration", "email-verification"])
+@pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION, _CUSTOMER_ORDERS],
+                         ids=["customer-registration", "email-verification", "customer-orders"])
 def test_the_guard_actually_found_something(source_path):
     # A guard that silently matches nothing proves nothing. Both handlers return several responses;
     # if this count ever drops to zero the walker has stopped seeing them.
@@ -141,8 +146,8 @@ def test_the_guard_actually_found_something(source_path):
     assert all(callee in _RESPONSE_BUILDERS for _, _, callee, _ in found)
 
 
-@pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION],
-                         ids=["customer-registration", "email-verification"])
+@pytest.mark.parametrize("source_path", [_REGISTRATION, _EMAIL_VERIFICATION, _CUSTOMER_ORDERS],
+                         ids=["customer-registration", "email-verification", "customer-orders"])
 def test_the_wrapper_goes_through_the_shared_contract(source_path):
     # The header pair is defined once, in customer_session. A handler that hard-coded the strings
     # would drift the day the contract changes.
