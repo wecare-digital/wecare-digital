@@ -6,7 +6,7 @@ import { selfserviceBySlug } from '../content/selfservice';
  * /submit-request — the Submit Request page.
  *
  * DELIBERATELY THIN, like the seven product pages. Copy lives in
- * src/content/selfservice.ts and the layout in ProductPage.tsx, so the twelve pages that
+ * src/content/customerservice.ts and the layout in ProductPage.tsx, so the twelve pages that
  * share that shape cannot drift apart. This file exists only to own the route.
  *
  * WHY IT EXISTS AT ALL: the header's Selfservice column offered six labels and every one of
@@ -20,6 +20,6 @@ import { selfserviceBySlug } from '../content/selfservice';
  * PUBLIC, AND NOT [retired public path]/submit-request. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-const SubmitRequestPage: React.FC = () => <ProductPage product={ selfserviceBySlug( 'submit-request' ) } />;
+const SubmitRequestPage: React.FC = () => <ProductPage product={ customerserviceBySlug( 'submit-request' ) } />;
 
 export default SubmitRequestPage;
