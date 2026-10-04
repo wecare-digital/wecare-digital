@@ -2532,7 +2532,7 @@ const VayuLokLive: React.FC = () => {
                   onClick={ () => {
                     const card = placeCardRef.current;
                     if ( !card ) return;
-                    card.scrollIntoView( { behavior: 'smooth', block: 'start' } );
+                    card.scrollIntoView?.( { behavior: 'smooth', block: 'start' } );
                     window.setTimeout( () => card.focus( { preventScroll: true } ), 250 );
                   } }
                 >
