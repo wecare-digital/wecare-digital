@@ -349,6 +349,36 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     await waitFor( () => expect( rec.placeFetchFields.length ).toBeGreaterThan( 0 ) );
     expect( rec.placeFetchFields[ 0 ] ).toEqual( expect.arrayContaining( [ 'displayName', 'formattedAddress', 'location', 'photos' ] ) );
   } );
+
+  it( 'exposes an accessible, keyboard-operable expand control that toggles the expanded map stage', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // 03C approach (b): keyboardShortcuts stays false so Google's built-in arrow-pan
+    // never fights the India strictBounds restriction. Keyboard interaction is provided
+    // instead by an explicit accessible expand/collapse <button>.
+    expect( rec.mapOpts!.keyboardShortcuts ).toBe( false );
+    expect( rec.mapOpts!.gestureHandling ).toBe( 'greedy' );
+
+    // The control is a real button, operable by keyboard, and reports its state.
+    const expand = await screen.findByRole( 'button', { name: 'Expand map' } );
+    expect( expand ).toHaveAttribute( 'aria-expanded', 'false' );
+    expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).toBeNull();
+
+    // Activating it (Testing Library click models keyboard/pointer activation of a
+    // native button) expands the stage and flips aria-expanded + the accessible name.
+    fireEvent.click( expand );
+    await waitFor( () => expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).not.toBeNull() );
+    const collapse = screen.getByRole( 'button', { name: 'Collapse map' } );
+    expect( collapse ).toHaveAttribute( 'aria-expanded', 'true' );
+
+    // Toggling again collapses it.
+    fireEvent.click( collapse );
+    await waitFor( () => expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).toBeNull() );
+  } );
 } );
 
 describe( 'VayuLokLive - forecast, history and partial failure rendering', () => {

@@ -405,6 +405,11 @@ const VayuLokLive: React.FC = () => {
 
   // Which heatmap layer is active (user action only). null = none on load.
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
+  // 03C - expandable map. An explicit, keyboard-operable control (Enter/Space, with
+  // aria-expanded) grows the map stage; drag-pan works independently via
+  // gestureHandling:'greedy'. We keep keyboardShortcuts:false so Google's built-in
+  // arrow-pan does not fight the India strictBounds restriction.
+  const [ mapExpanded, setMapExpanded ] = useState( false );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const photoRailRef = useRef<HTMLDivElement | null>( null );
@@ -578,7 +583,13 @@ const VayuLokLive: React.FC = () => {
             lng,
             photos: [],
           };
+          // 03C - selecting an area (here via a map click) recenters the map on that
+          // area's geocoded lat/lng and loads its live data, exactly like choosing a
+          // search result. The recenter effect (center + zoom 14 + marker move) fires on
+          // the place change, so only the selected area's geocoding is shown. mapCandidate
+          // continues to drive the photo overlay / nearby-media enrichment below.
           setMapCandidate( next );
+          setPlace( next );
 
           // If reverse geocoding produced a Place ID, enrich the preview with Google
           // Places photos. Any author attribution supplied by Google is preserved and
@@ -1371,6 +1382,10 @@ const VayuLokLive: React.FC = () => {
     if ( !next ) return;
     rememberPlace( next );
     setPlace( next );
+    // 03C - a fresh search selection owns the view: clear any lingering map-click
+    // candidate so previewPlace (mapCandidate || place) and the photo overlay follow the
+    // newly chosen area, never a stale clicked location.
+    setMapCandidate( null );
     setQuery( next.name );
     setOpen( false );
     setResults( [] );
@@ -1950,7 +1965,7 @@ const VayuLokLive: React.FC = () => {
             browser key can never leave visitors staring at a blank grey panel. */}
         <div className="vl-live-right">
           <div className="vl-live-map-sticky">
-            <div className="vl-live-map-stage">
+            <div className={ `vl-live-map-stage ${mapExpanded ? 'is-expanded' : ''}`.trim() }>
               { !mapReady && (
                 <div
                   className="vl-live-map-fallback"
@@ -2058,6 +2073,17 @@ const VayuLokLive: React.FC = () => {
                     aria-pressed={ layer === 'PM25' }
                     onClick={ () => setLayer( 'PM25' ) }
                   >PM2.5</button>
+                  {/* 03C - accessible expand/collapse control. A real <button> so it is
+                      operable with Enter/Space and exposes aria-expanded; it toggles the
+                      expanded map stage height. Drag-pan still works via gestureHandling:
+                      'greedy'. Kept INLINE in the return so styled-jsx keeps its scope. */}
+                  <button
+                    className="vl-live-layer vl-live-map-expand"
+                    type="button"
+                    aria-expanded={ mapExpanded }
+                    aria-label={ mapExpanded ? 'Collapse map' : 'Expand map' }
+                    onClick={ () => setMapExpanded( v => !v ) }
+                  >{ mapExpanded ? 'Collapse' : 'Expand' }</button>
                 </div>
               ) }
 
@@ -2201,7 +2227,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-left > .vl-live-section{margin-top:64px;padding-top:0;border-top:0}
 
         .vl-live-map-sticky{display:flex;flex-direction:column;gap:10px}
-        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:14px;background:var(--ground);box-shadow:none}
+        /* 03A - the whole map surface reads as ONE rounded panel. The stage owns the
+           20px home panel radius; the canvas and fallback inherit it so no square
+           corner shows through at any zoom. 20px (not 14px) gives the pronounced
+           rounded feel the owner asked for, and stays inside the home token set. */
+        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:20px;background:var(--ground);box-shadow:none;transition:height .32s var(--e-glide)}
+        /* 03C - expanded mode grows the stage height; drag-pan (gestureHandling:'greedy')
+           and the keyboard-operable expand control both still respect India strictBounds. */
+        .vl-live-map-stage.is-expanded{height:560px}
         .vl-live-map-fallback{
           position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;gap:14px;
           width:100%;height:100%;padding:24px;border:0;border-radius:inherit;overflow:hidden;
@@ -2238,9 +2271,13 @@ const VayuLokLive: React.FC = () => {
           .vl-live-band-aside{padding-top:0;border-top:0;padding-left:44px;border-left:1px solid var(--hair)}
         }
 
-        /* Search. */
-        .vl-live-map-search{position:absolute;top:16px;left:16px;z-index:7;width:min(360px,calc(100% - 32px))}
-        .vl-live-search{position:relative;width:100%;max-width:360px}
+        /* Search. 03B - horizontally centred over the map with clear space above it,
+           max-width so it never spans edge-to-edge, and the highest overlay z-index so
+           the field (and its results dropdown anchored directly beneath) sits above the
+           canvas and the layer/photo overlays. The field keeps its 2px #1a3a2a outer
+           border + lime focus ring (defined on .vl-live-search-field below). */
+        .vl-live-map-search{position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:7;width:min(380px,calc(100% - 32px))}
+        .vl-live-search{position:relative;width:100%;max-width:380px}
         .vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         /* One control, matching the shipped BlogSearch field: a single bordered box
            (2px rgba(26,58,42,.22), 12px radius, 52px) that darkens its border and
@@ -2305,6 +2342,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-layer:hover{border-color:var(--lime);background:var(--lime-tint);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-layer:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live-layer[aria-pressed="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
+        /* 03C expand control - reuses the layer pill language; its pressed/open state
+           mirrors the lime active fill used by the layer buttons. */
+        .vl-live-map-expand[aria-expanded="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
 
         .vl-live-scale{height:8px;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--aqi-good) 0%,var(--aqi-sat) 22%,var(--aqi-mod) 48%,var(--aqi-poor) 74%,var(--aqi-worst) 100%)}
         .vl-live-scale-ends{display:flex;justify-content:space-between;margin-top:6px;gap:8px}
@@ -2507,9 +2547,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
         @media(max-width:1023px){
-          .vl-live-map-search{top:12px;left:12px;width:min(330px,calc(100% - 24px))}
-          .vl-live-map-controls{top:76px;left:12px}
-          .vl-live-map-photos{top:76px;right:12px;left:auto;bottom:auto;width:min(360px,calc(100% - 24px))}
+          /* Keep the search centred; drop the layer controls and photo overlay below the
+             centred field so none of them overlap at tablet width. */
+          .vl-live-map-search{top:14px;left:50%;transform:translateX(-50%);width:min(340px,calc(100% - 24px))}
+          .vl-live-map-controls{top:78px;left:12px}
+          .vl-live-map-photos{top:78px;right:12px;left:auto;bottom:auto;width:min(360px,calc(100% - 24px))}
         }
         @media(max-width:767px){
           .vl-live{padding-bottom:48px}
@@ -2522,10 +2564,10 @@ const VayuLokLive: React.FC = () => {
           .vl-live-section{padding-top:0}
           .vl-live-block{padding-block:32px}
           .vl-live-left > .vl-live-section{margin-top:64px}
-          .vl-live-map-search{top:12px;left:12px;right:12px;width:auto}
+          .vl-live-map-search{top:12px;left:50%;right:auto;transform:translateX(-50%);width:calc(100% - 24px)}
           .vl-live-search{max-width:none}
           .vl-live-map-controls{top:76px;left:12px}
-          .vl-live-map-photos{top:132px;width:calc(100% - 24px);max-width:360px}
+          .vl-live-map-photos{top:132px;right:12px;left:auto;transform:none;width:calc(100% - 24px);max-width:360px}
           .vl-live-plan-head{display:block}
           .vl-live-plan-range{margin-top:8px;text-align:left}
           .vl-live-plan-days{gap:6px}
@@ -2535,6 +2577,7 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live-data-skeleton i{animation:none}
+          .vl-live-map-stage{transition:none}
           .vl-live-layer,.vl-live-wa-subscribe,.vl-live-solar-load{transition:none}
           .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible,.vl-live-solar-load:hover{transform:none;box-shadow:none}
         }
