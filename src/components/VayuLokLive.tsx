@@ -1784,7 +1784,14 @@ const VayuLokLive: React.FC = () => {
             };
             return { name: place.name, addr: place.addr, place };
           } )
-          .filter( ( row ): row is SearchResult => Boolean( row ) );
+          // The predicate narrows to the shape the `.map` above ACTUALLY produces, not to
+          // `SearchResult`. `SearchResult.place` is optional, so `row is SearchResult` is not
+          // assignable to this parameter's `{ ..., place: PlaceState } | null` and TS rejects the
+          // guard outright (TS2677) - which then leaves `mapped` as `(... | null)[]` and fails
+          // the annotation too (TS2322). Narrowing to the concrete shape satisfies both, and the
+          // result is still assignable to `SearchResult[]` because a required `place` meets an
+          // optional one. Behaviour is unchanged: every element here is an object or null.
+          .filter( ( row ): row is { name: string; addr: string; place: PlaceState } => row !== null );
         setResults( mapped );
         setActive( mapped.length ? 0 : -1 );
         setOpen( true );
