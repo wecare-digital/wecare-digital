@@ -2351,7 +2351,7 @@ const VayuLokLive: React.FC = () => {
            shows a lime ring on focus. The field owns the ONLY border and the ONLY
            focus ring; the input inside is fully neutralised below. */
         .vl-live-search-field{display:flex;align-items:center;gap:10px;min-height:52px;padding:0 18px;border:2px solid #1a3a2a;border-radius:999px;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:none}
-        .vl-live-search-field:focus-within{border-color:#1a3a2a;outline:3px solid rgba(209,244,112,.78);outline-offset:2px;box-shadow:0 4px 12px rgba(26,58,42,.10)}
+        .vl-live-search-field:focus-within{border-color:#1a3a2a;outline:3px solid #1a3a2a;outline-offset:2px;box-shadow:0 4px 12px rgba(26,58,42,.10)}
         /* The input is neutralised against the site's GLOBAL input:focus rules
            (inner-pages.css / Dashboard.css), which were drawing a second rounded
            box (lime box-shadow + 8px radius + padding) INSIDE this field - the
@@ -2405,13 +2405,16 @@ const VayuLokLive: React.FC = () => {
         /* Map overlays - inset from the bottom corners (Maps Platform ToS). No rule
            anywhere targets .gm-style-cc, a[href*="google"] or img[alt="Google"]. */
         .vl-live-map-controls{position:absolute;top:84px;right:18px;left:auto;z-index:6;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-        .vl-live-layer{min-height:44px;padding:0 18px;border:2px solid rgba(26,58,42,.28);border-radius:var(--r-pill);background:rgba(255,255,255,.58);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);color:var(--green);font:inherit;font-size:14px;font-weight:600;letter-spacing:-.125px;cursor:pointer;transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s}
-        .vl-live-layer:hover{border-color:var(--lime);background:var(--lime-tint);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        /* FINAL AGREED DESIGN - the resting AQI/PM2.5 selector pills are transparent with a
+           subtle dark-green outline and dark-green text (no frosted white fill, no backdrop
+           blur, no resting shadow). Hover gives a light lime tint only (no heavy shadow). */
+        .vl-live-layer{min-height:44px;padding:0 18px;border:1.5px solid #1a3a2a;border-radius:var(--r-pill);background:transparent;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;letter-spacing:-.125px;cursor:pointer;transition:background-color .2s,border-color .2s,transform .2s}
+        .vl-live-layer:hover{border-color:#1a3a2a;background:var(--lime-tint);transform:translateY(-2px)}
         .vl-live-layer:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        /* FINAL TARGET - the active AQI/PM2.5 selector tab presents the EXACT site lime
-           (--lime #d1f470) with #1a3a2a text/boundary, so "the selector uses WECARE lime"
-           holds. The lime now lives on the SELECTOR chrome, not on the data tiles. */
-        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:var(--lime);color:#1a3a2a;font-weight:700}
+        /* FINAL AGREED DESIGN - the active AQI/PM2.5 selector tab presents a TRANSLUCENT lime
+           (#d1f470-based) fill with #1a3a2a text/boundary, distinct from the fully-opaque lime.
+           The lime lives on the SELECTOR chrome, not on the data tiles. */
+        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.55);color:#1a3a2a;font-weight:700}
 
         /* Heatmap scale legend - now rendered INSIDE the left card's layer-result block
            (no longer an absolute on-map overlay). It reuses the no-red --aqi-* ramp

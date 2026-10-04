@@ -832,6 +832,98 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
   } );
 } );
 
+describe( 'VayuLokLive - FINAL AGREED DESIGN pill + focus-ring restyle (FEAT-003)', () => {
+  let rec: MapsRecorder;
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    rec = installGoogleMaps();
+  } );
+
+  // The component ships its CSS through styled-jsx, which injects <style> tags. Collapse
+  // every rendered <style> block into one normalised string so we can assert on the ACTUAL
+  // declarations the AQI/PM2.5 pills and the search field receive, without pinning exact
+  // whitespace or source line numbers.
+  const collectCss = () => Array.from( document.querySelectorAll( 'style' ) )
+    .map( s => s.textContent || '' )
+    .join( '\n' )
+    .replace( /\s+/g, ' ' );
+
+  it( 'the inactive AQI/PM2.5 pills drop the frosted white fill + backdrop blur and the active pill gets a translucent lime fill', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const aqi = await screen.findByRole( 'button', { name: 'AQI' } );
+    const pm25 = screen.getByRole( 'button', { name: 'PM2.5' } );
+
+    // BEHAVIOUR: both pills start un-pressed (inactive) and the pill is the styled hook.
+    expect( aqi.className ).toContain( 'vl-live-layer' );
+    expect( aqi.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
+    expect( pm25.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
+
+    const css = collectCss();
+    // The resting .vl-live-layer rule exists but no longer carries the old frosted look:
+    // no rgba(255,255,255,.58) fill and no backdrop blur anywhere in the pill chrome.
+    const restingRule = css.match( /\.vl-live-layer\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( restingRule ).not.toBe( '' );
+    expect( restingRule ).toContain( 'background:transparent' );
+    expect( restingRule ).not.toContain( 'rgba(255,255,255,.58)' );
+    expect( restingRule ).not.toMatch( /backdrop-filter/ );
+    // Dark-green outline + text at rest (colour never carried by a frosted fill).
+    expect( restingRule ).toContain( '#1a3a2a' );
+
+    // The ACTIVE (aria-pressed=true) rule carries a translucent lime fill (#d1f470-based)
+    // with dark-green text/border - NOT the fully-opaque var(--lime).
+    const activeRule = css.match( /\.vl-live-layer\[aria-pressed="true"\]\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( activeRule ).not.toBe( '' );
+    expect( activeRule ).toMatch( /rgba\(209,\s?244,\s?112,/ );
+    expect( activeRule ).toContain( 'color:#1a3a2a' );
+    expect( activeRule ).toContain( 'border-color:#1a3a2a' );
+
+    // BEHAVIOUR: clicking AQI flips its aria-pressed to true (so the active rule applies),
+    // while PM2.5 stays inactive - the restyle is driven by this honest state toggle.
+    fireEvent.click( aqi );
+    await waitFor( () => expect( aqi.getAttribute( 'aria-pressed' ) ).toBe( 'true' ) );
+    expect( pm25.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
+  } );
+
+  it( 'the search field focus ring is dark-green (not translucent lime) with a single outer border', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const css = collectCss();
+    const focusRule = css.match( /\.vl-live-search-field:focus-within\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( focusRule ).not.toBe( '' );
+    // The ring is dark-green, never the old translucent-lime outline.
+    expect( focusRule ).toContain( 'outline:3px solid #1a3a2a' );
+    expect( focusRule ).not.toContain( 'rgba(209,244,112,.78)' );
+
+    // The field still owns a single outer dark-green border with a white (non-frosted-reliant) bg.
+    const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( fieldRule ).toContain( 'border:2px solid #1a3a2a' );
+  } );
+
+  it( 'the photo count pill uses the exact WECARE lime (#d1f470 via --lime) and no stray #f5fde0 lime surface', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const css = collectCss();
+    const pillRule = css.match( /\.vl-live-photo-count\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( pillRule ).not.toBe( '' );
+    // The pill lime is the exact token (--lime === #d1f470); it must not fall back to the
+    // pale #f5fde0 map tint.
+    expect( pillRule ).toContain( 'background:var(--lime)' );
+    expect( pillRule ).not.toContain( '#f5fde0' );
+  } );
+} );
+
 describe( 'VayuLokLive - selecting a place no longer auto-fetches weather/pollen/forecast (FEAT-002)', () => {
   let rec: MapsRecorder;
   beforeEach( () => {
