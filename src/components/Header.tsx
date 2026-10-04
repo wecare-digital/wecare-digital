@@ -31,7 +31,7 @@ interface NavLink {
 interface NavSection {
   /** '' renders the links with no heading above them. */
   heading: string;
-  /** When set, the heading itself is a link. Used by Selfservice, which is both a
+  /** When set, the heading itself is a link. Used by Customer service, which is both a
    *  real destination and the parent of the rows beneath it. */
   headingHref?: string;
   links: NavLink[];
@@ -54,7 +54,7 @@ interface NavColumn {
 // EVERY ROW NOW HAS ITS OWN PAGE, and the placeholder that stood here is gone with the
 // constants it defined.
 //
-// What it said: every Selfservice child pointed at /contact/, chosen over href="#" or an
+// What it said: every Customer service child pointed at /contact/, chosen over href="#" or an
 // invented path so that each row at least worked. The consequence, measured on the built
 // home page, was six distinct labels - Submit Request, Request Amendment, Drop Docs, Leave
 // Review, Refer & Earn and Contact us - resolving to one destination, on all 872 documents.
@@ -85,7 +85,7 @@ interface NavColumn {
 // Header.test.tsx asserts all seven rows exist, so a typo here cannot silently drop one.
 
 // One structure, rendered as columns, rather than the single flat list this used to
-// be. The Selfservice group is why: seven children under one parent made a
+// be. The Customer service group is why: seven children under one parent made a
 // single-column dropdown roughly 700px tall, past the bottom of a laptop viewport.
 //
 // Trailing slashes are load-bearing on the static pages: next.config.js sets
@@ -110,8 +110,8 @@ const COLUMNS: NavColumn[] = [
         links: [
           { label: 'Grahak OS', href: '/grahak-os/', match: '/grahak-os' },
           { label: 'VayuLok', href: '/vayulok/', match: '/vayulok' },
-          // Bharat Rx moved here from Selfservice: it is a product, not one of the
-          // request actions the Selfservice column lists. It now has its own page, so it
+          // Bharat Rx moved here from Customer service: it is a product, not one of the
+          // request actions the Customer service column lists. It now has its own page, so it
           // is a local route with `match` rather than a PENDING_HREF placeholder - a
           // product listed beside Grahak OS and VayuLok that landed on a generic
           // marketing page was worse than not listing it.
@@ -133,18 +133,18 @@ const COLUMNS: NavColumn[] = [
   {
     sections: [
       {
-        // NO headingHref. "Selfservice" is a group label now, not a destination - the
-        // owner's instruction is that there is no Selfservice page, only the items under
+        // NO headingHref. "Customer service" is a group label now, not a destination - the
+        // owner's instruction is that there is no Customer service page, only the items under
         // it. It previously linked to the external landing page, which made the heading
         // both a category and a link and gave a visitor two things to click for one idea.
-        // Renamed from 'Selfservice' on 2026-09-27 (owner instruction: remove the word
+        // Renamed from 'Customer service' on 2026-09-27 (owner instruction: remove the word
         // everywhere it is customer-visible). It named a portal that has no page at any
         // address - the in-repo [retired public path] route went in PR #47 on 2026-09-24 and nothing
         // replaced it, so the label promised a destination that did not exist. The only
         // [retired public path] route left is the ADMIN flow dashboard under /workspace/forms/.
         // 'Requests' described what the rows beneath it do; the owner's instruction (Section 1)
         // is the singular 'Request' as the exact customer-facing label, and never 'Get Help',
-        // 'Customer-Service', 'Selfservice' or 'Help Hub'. This is a label change only - no internal
+        // 'Customer-Service', 'Customer service' or 'Help Hub'. This is a label change only - no internal
         // `customerservice` identifier, config/public-pages.json group id, workspace route, provider
         // template, API or historical integration id is touched.
         heading: 'Request',
@@ -197,8 +197,8 @@ const COLUMNS: NavColumn[] = [
           // delivery-status) as a clearly non-transacting affordance.
           { label: 'Shipments', href: '/shipments/', match: '/shipments' },
           { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
-          // CONTACT MOVED OUT of Selfservice into the third column (Work with us), on
-          // owner instruction - the Selfservice column is now the request ACTIONS only,
+          // CONTACT MOVED OUT of Customer service into the third column (Work with us), on
+          // owner instruction - the Customer service column is now the request ACTIONS only,
           // and Contact sits with Refer & Earn as a way to reach the company.
         ],
       },
@@ -208,9 +208,9 @@ const COLUMNS: NavColumn[] = [
     sections: [
       // "Work with us", NOT "Company" - that word was explicitly retired from this
       // menu, and restructuring into columns nearly reintroduced it. Not "Service"
-      // either: that would sit one column away from "Selfservice" and read as the
+      // either: that would sit one column away from "Customer service" and read as the
       // same category. This heading says who the column is for, which is the honest
-      // distinction - Selfservice is for existing customers, this is for prospective
+      // distinction - Customer service is for existing customers, this is for prospective
       // referral partners.
       // "Refer & Earn", not "Partners", on instruction. It is also the better label: it says
       // what you get rather than what you become, and the destination is the referral-partner
@@ -225,9 +225,9 @@ const COLUMNS: NavColumn[] = [
       // set, so /contact would redirect before resolving).
       { heading: 'Contact', links: [ { label: 'Contact us', href: '/contact/', match: '/contact' } ] },
       // LEGAL STUFF LIVES HERE NOW, under Work with us. It moved out of the middle
-      // column (where it sat beneath Selfservice) on owner instruction, so the third
+      // column (where it sat beneath Customer service) on owner instruction, so the third
       // column carries the "about the company" rows - Refer & Earn plus the policies -
-      // and the middle column is purely the Selfservice actions.
+      // and the middle column is purely the Customer service actions.
       // EXTRAS SITS IMMEDIATELY ABOVE LEGAL STUFF, on owner instruction (Section 4). The GROUP
       // HEADING is the category ("Extras"); the ROW is the page's own name, "Perks".
       // THE ROW READ "Extras" UNDER A HEADING THAT ALSO READ "Extras" — the word printed twice,
@@ -666,7 +666,7 @@ const Header: React.FC = () => {
            to clear it. #wecarewa-widget is injected by an external script at
            z-index 2147483647, the maximum 32-bit integer, so nothing can ever be
            stacked above it - measured here, the full-height mobile panel ran straight
-           through it and the green circle painted over the Selfservice rows. The
+           through it and the green circle painted over the Customer service rows. The
            design contract records this for .wc-langbar; it applies to any floating
            panel. The measured footprint (60x60, 80px from the bottom) does not match
            the documented one (64x64, 120px), so the reserve clears the LARGER of the
@@ -778,7 +778,7 @@ const Header: React.FC = () => {
         .nav-products-scroll::-webkit-scrollbar-track{background:transparent}
         .nav-products-scroll::-webkit-scrollbar-thumb{background:#d1f470;border-radius:20px}
         .nav-products-scroll::-webkit-scrollbar-thumb:hover{background:#c5e866}
-        /* The Selfservice heading is a link, so it needs an affordance the plain
+        /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}
         /* Split, same reason as .lgd-toc-link: this was one rule giving hover and
@@ -800,7 +800,7 @@ const Header: React.FC = () => {
            inner-pages.css's .layout .nav-item block is empty and out of scope for the
            public header anyway.
            The row is 46px here, not the 54px of the old single column: three columns
-           of 19px rows at 54px made the panel taller than the Selfservice list needs,
+           of 19px rows at 54px made the panel taller than the Customer service list needs,
            and 46px still clears the 44px minimum touch target. */
         /* position:relative so the divider hairline and the animated sweep (::after /
            ::before below) can be absolutely positioned within each row. */
