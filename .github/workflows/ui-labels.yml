@@ -85,7 +85,7 @@ jobs:
       - name: Check design drift
         run: python scripts/check_design_drift.py --gate
 
-      # Retired hostnames must not be allowed by a CORS list. `stack.wecare.digital`
+      # Retired hostnames must not be allowed by a CORS list. `retired legacy frontend host`
       # is NXDOMAIN since its CNAME was removed on 2026-09-25, and the retirement
       # cleanup reached the API, Amplify, Cognito and every source allow-list but
       # missed the S3 bucket `app.wecare.digital` — the live media CDN — which kept
