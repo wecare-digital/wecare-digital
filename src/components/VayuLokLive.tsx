@@ -585,6 +585,7 @@ const VayuLokLive: React.FC = () => {
   const [ weather, setWeather ] = useState<WeatherState | null>( null );
   const [ pollen, setPollen ] = useState<PollenRow[] | null>( null );
   const [ weatherHourly, setWeatherHourly ] = useState<WeatherHour[]>( [] );
+  const [ weatherHistory, setWeatherHistory ] = useState<WeatherHour[]>( [] );
   const [ weatherDaily, setWeatherDaily ] = useState<WeatherDay[]>( [] );
   const [ weatherAlerts, setWeatherAlerts ] = useState<WeatherAlertRow[]>( [] );
   const [ airForecast, setAirForecast ] = useState<AirPoint[]>( [] );
@@ -1460,6 +1461,30 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
+    setWeatherHistory( [] );
+    const { lat, lng } = place;
+    const run = async () => {
+      try {
+        const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
+          + '&location.latitude=' + lat + '&location.longitude=' + lng
+          + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
+        const res = await fetch( url, { signal: ac.signal } );
+        if ( !res.ok || ac.signal.aborted ) return;
+        const data = await res.json();
+        const rows = ( Array.isArray( data.historyHours ) ? data.historyHours : [] )
+          .map( ( row: Record<string, any> ) => weatherHourFromApi( row ) )
+          .filter( Boolean ) as WeatherHour[];
+        rows.sort( ( a, b ) => a.time - b.time );
+        if ( !ac.signal.aborted ) setWeatherHistory( rows.slice( -24 ) );
+      } catch { /* historical weather is optional */ }
+    };
+    void run();
+    return () => ac.abort();
+  }, [ place, hasSelection ] );
+
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+    const ac = new AbortController();
     const { lat, lng } = place;
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}:${historyRange}`;
     const cachedHistory = historyCache.current[ historyKey ];
@@ -1862,13 +1887,28 @@ const VayuLokLive: React.FC = () => {
     ...w,
     air: airForecast.find( a => Math.abs( a.time - w.time ) < 45 * 60 * 1000 ) || airForecast[ i ],
   } ) );
+  const pastRailHours = weatherHistory.slice( -2 ).map( h => ( {
+    ...h,
+    air: airHistory.find( a => Math.abs( a.time - h.time ) < 45 * 60 * 1000 ),
+    railPhase: 'past' as const,
+  } ) );
+  const futureRailHours = combinedHours.slice( 0, 3 ).map( ( h, i ) => ( {
+    ...h,
+    railPhase: i === 0 ? 'now' as const : 'future' as const,
+  } ) );
+  const displayRailHours = [ ...pastRailHours, ...futureRailHours ];
 
-  const next24 = weatherHourly.slice( 0, 24 );
-  const next24Temps = next24.map( h => h.temp ).filter( ( v ): v is number => Number.isFinite( v ) );
-  const next24Rain = next24.reduce( ( sum, h ) => sum + ( Number.isFinite( h.rainMm ) ? ( h.rainMm as number ) : 0 ), 0 );
-  const weatherContext = next24Temps.length
-    ? `24h range ${Math.min( ...next24Temps )}–${Math.max( ...next24Temps )}°${next24Rain > 0 ? ` · ${next24Rain.toFixed( 1 )} mm rain` : ''}`
-    : '';
+  const historyTemps = weatherHistory.map( h => h.temp ).filter( ( v ): v is number => Number.isFinite( v ) );
+  const historyRain = weatherHistory.reduce( ( sum, h ) => sum + ( Number.isFinite( h.rainMm ) ? ( h.rainMm as number ) : 0 ), 0 );
+  const oldestTemp = weatherHistory[ 0 ]?.temp;
+  const tempDelta = Number.isFinite( weather?.temp ) && Number.isFinite( oldestTemp )
+    ? Math.round( ( weather!.temp as number ) - ( oldestTemp as number ) )
+    : null;
+  const weatherContextParts: string[] = [];
+  if ( Number.isFinite( tempDelta ) ) weatherContextParts.push( `${( tempDelta as number ) >= 0 ? '+' : ''}${tempDelta}° vs 24h ago` );
+  if ( historyTemps.length ) weatherContextParts.push( `24h range ${Math.min( ...historyTemps )}–${Math.max( ...historyTemps )}°` );
+  if ( historyRain > 0 ) weatherContextParts.push( `Rain last 24h ${historyRain.toFixed( 1 )} mm` );
+  const weatherContext = weatherContextParts.join( ' · ' );
   const rainSignal = combinedHours.find( h => Number.isFinite( h.rainProb ) && ( h.rainProb as number ) >= 30 ) || null;
   const airDayGroups = new Map<string, AirPoint[]>();
   airForecast.slice( 0, 96 ).forEach( point => {
@@ -1894,7 +1934,7 @@ const VayuLokLive: React.FC = () => {
         <div className="vl-live-workspace">
           <section className="vl-live-left" aria-label="Selected place and environmental details">
             { hasSelection ? (
-              <article className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
+              <div className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
                 <div className="vl-live-place-visual">
                   { displayPhotos[ 0 ] ? (
                     <>
@@ -1941,7 +1981,7 @@ const VayuLokLive: React.FC = () => {
                     </>
                   ) }
                 </div>
-              </article>
+              </div>
             ) : (
               <div className="vl-live-empty">
                 <span>Choose a place</span>
@@ -2025,14 +2065,14 @@ const VayuLokLive: React.FC = () => {
               </section>
             ) }
 
-            { combinedHours.length > 0 && (
+            { displayRailHours.length > 0 && (
               <section className="vl-live-section">
                 <div className="vl-live-section-head"><h3>Next 24 hours</h3><span className="vl-live-fresh">Weather + air</span></div>
-                <div className="vl-live-forecast-weather" aria-label="Next 24 hours weather and air">
+                <div className="vl-live-forecast-weather" aria-label="Past two hours, now and next two hours">
                   <div className="vl-live-forecast-track">
-                    { combinedHours.slice( 0, 5 ).map( ( h, i ) => (
-                      <article className={ `vl-live-forecast-hour ${i === 2 ? 'is-now' : i < 2 ? 'is-past' : 'is-future'}` } key={ h.time }>
-                        <time>{ i === 2 ? 'Now' : hourLabel( h.time ) }</time>
+                    { displayRailHours.map( h => (
+                      <article className={ `vl-live-forecast-hour is-${h.railPhase}` } key={ `${h.railPhase}-${h.time}` }>
+                        <time>{ h.railPhase === 'now' ? 'Now' : hourLabel( h.time ) }</time>
                         <div className="vl-live-forecast-temp"><strong>{ Number.isFinite( h.temp ) ? h.temp : '—' }°</strong><span>{ Number.isFinite( h.feelsLike ) ? h.feelsLike : '—' }°</span></div>
                         <div className="vl-live-forecast-icon" aria-hidden="true">
                           { h.icon ? <img src={ h.icon + '.svg' } alt="" /> : <span>◐</span> }
@@ -2042,7 +2082,7 @@ const VayuLokLive: React.FC = () => {
                           <span>{ h.windUnit || 'km/h' }</span>
                           <b aria-hidden="true">{ h.windDir || '→' }</b>
                         </div>
-                        { h.air && i === 2 && <div className="vl-live-forecast-air">AQI { h.air.aqi }</div> }
+                        { h.air && h.railPhase === 'now' && <div className="vl-live-forecast-air">AQI { h.air.aqi }</div> }
                         <div className="vl-live-forecast-rain">{ Number.isFinite( h.rainProb ) ? h.rainProb : 0 }%</div>
                         <div className="vl-live-forecast-node" aria-hidden="true" />
                       </article>
