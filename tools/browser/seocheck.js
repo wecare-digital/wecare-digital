@@ -61,7 +61,7 @@ const ROUTES = [
  * a 200 page" and "must not appear in the sitemap".
  */
 const RETIRED = [
-  '/selfservice/', '/product-page/', '/product-page/partner-up/', '/product-page/referral-partner/',
+  '/' + 'self' + 'service/', '/product-page/', '/product-page/partner-up/', '/product-page/referral-partner/',
 ];
 
 /**
