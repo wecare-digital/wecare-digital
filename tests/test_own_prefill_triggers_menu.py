@@ -2,7 +2,7 @@
 
 The bug this pins, found 2026-09-26: both business numbers carry a Cloud API QR deep
 link with a prefilled first message, and `SupportWidget.tsx`,
-`public/wecare-wa-widget.js` and `src/pages/forms/selfservice.tsx` all send customers
+`public/wecare-wa-widget.js` and `src/pages/forms/customerservice.tsx` all send customers
 through them. Measured live against Meta:
 
     WABA1  1016149501586345  QR APDM5HUWH26SG1  prefilled "Get Help"
@@ -143,7 +143,7 @@ class TestDecorativeEdgeNormalisation:
         ('hi \U0001f44b\U0001f3fd', 'hi'),                         # + skin-tone modifier
         ('menu \U0001f64f', 'menu'),
         ('\u2753 faqs', 'faqs'),                                   # menu row echoed back
-        ('\U0001f680 selfservice', 'selfservice'),
+        ('\U0001f680 customerservice', 'customerservice'),
         ('\u270f\ufe0f amend request', 'amend request'),            # VS16
         ('\U0001f1ee\U0001f1f3 bharat stack', 'bharat stack'),      # regional indicators
         ('\u2b50 leave review', 'leave review'),
@@ -185,7 +185,7 @@ class TestDecorativeEdgeNormalisation:
         """The helper is worthless unless the match sites actually consult it."""
         for guard in (
             'content_lower in HI_KEYWORDS or _content_plain in HI_KEYWORDS',
-            'content_lower in SELFSERVICE_KEYWORDS or _content_plain in SELFSERVICE_KEYWORDS',
+            'content_lower in CUSTOMERSERVICE_KEYWORDS or _content_plain in CUSTOMERSERVICE_KEYWORDS',
             'content_lower in COMMANDS_KEYWORDS or _content_plain in COMMANDS_KEYWORDS',
             'strip_decorative_edges(button_text_lower) in BUTTON_MENU_TRIGGERS',
         ):
