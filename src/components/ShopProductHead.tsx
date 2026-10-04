@@ -55,7 +55,6 @@ export const shopProductSchema = (
   product: ShopProduct,
 ): { '@context': string; '@graph': LdNode[] } => {
   const url = ORIGIN + shopProductPath( product );
-  const shopUrl = ORIGIN + '/shop/';
   const description = shopMetaDescription( product );
 
   /**
@@ -113,12 +112,20 @@ export const shopProductSchema = (
         publisher: { '@id': ORG_ID },
       },
       {
+        // TWO ITEMS, NOT THREE, since 2026-10-04. Position 2 was
+        // { name: 'Shop', item: ORIGIN + '/shop/' } and the catalogue index has been withdrawn on
+        // owner instruction, so that URL 301s to the home page - which would make position 2
+        // resolve to the same page as position 1.
+        //
+        // IT MATCHES THE RENDERED TRAIL ON PURPOSE. src/pages/shop/[slug].tsx now renders
+        // [ Home, product ], and a BreadcrumbList describing a trail the page does not render is
+        // the mismatch that makes a rich result disappear SILENTLY - no error, no warning, the
+        // breadcrumb simply stops being shown. The two must be edited together.
         '@type': 'BreadcrumbList',
         '@id': url + '#breadcrumb',
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: ORIGIN + '/' },
-          { '@type': 'ListItem', position: 2, name: 'Shop', item: shopUrl },
-          { '@type': 'ListItem', position: 3, name: product.name, item: url },
+          { '@type': 'ListItem', position: 2, name: product.name, item: url },
         ],
       },
       ...productNode,

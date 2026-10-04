@@ -157,11 +157,25 @@ describe( 'public route registration', () => {
     // 404s - which is how [retired public path] and /studio came to be listed long after deletion.
     const allowlist = readAllowlist();
     const rootRoutes = new Set( rootPageFiles.map( routeForFile ) );
-    // Directory-backed public routes. These resolve to <dir>/index.tsx rather than a
-    // root-level file, so they are checked against the directory instead.
+    /*
+     * Directory-backed public routes. These resolve to <dir>/index.tsx rather than a
+     * root-level file, so they are checked against the directory instead.
+     *
+     * TIGHTENED 2026-10-04 TO REQUIRE index.tsx, not merely the directory. The old test was
+     * `existsSync( dir ) && statSync( dir ).isDirectory()`, which asks whether the FOLDER exists
+     * and never whether anything in it serves the route. That is the `[retired path]` defect by
+     * name: when the /shop index was withdrawn, src/pages/shop/ stayed on disk because
+     * [slug].tsx lives in it, so '/shop' would have remained classified dir-backed and this
+     * orphan test would have passed with a deleted page still advertised in the allowlist and
+     * the sitemap - the exact failure the test exists to catch.
+     *
+     * The same file already does it correctly for `dirPages` above, which filters on
+     * index.tsx. All four currently dir-backed allowlist routes (/blog, /grahak-os, /vayulok,
+     * and /shop before its withdrawal) have an index.tsx, so this breaks nothing that renders.
+     */
     const dirBacked = Array.from( allowlist ).filter( route => {
       const dir = path.join( PAGES_DIR, route.replace( /^\//, '' ) );
-      return route !== '/' && fs.existsSync( dir ) && fs.statSync( dir ).isDirectory();
+      return route !== '/' && fs.existsSync( path.join( dir, 'index.tsx' ) );
     } );
 
     /**

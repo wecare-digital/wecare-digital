@@ -7,9 +7,18 @@ import fs from 'fs';
 import path from 'path';
 
 import * as cart from '../lib/cart';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
 import type { ShopProduct } from '../content/shop';
 import type { StoredAddress } from '../components/AddressFields';
 import * as customerAuth from '../lib/customerAuth';
+
+/**
+ * The three contribution choices, by position, so a case can seed a basket without re-typing a
+ * GUID. `MID` stands wherever the previous revision wrote `setContribution( 400 )`: the amount was
+ * arbitrary there and still is, because those cases are about the checkout rail rather than the
+ * figure. `LOW` stands where a SECOND, DIFFERENT amount is the point.
+ */
+const [ LOW, MID ] = CONTRIBUTION_CHOICES;
 
 /**
  * THE SHARED CheckoutProfile DOUBLE.
@@ -413,6 +422,35 @@ describe( 'toLineItems emits references and quantities ONLY', () => {
     {
       expect( Object.keys( item ).sort() ).toEqual( [ 'catalogReference', 'quantity' ] );
     }
+  } );
+
+  it( 'sends the Wix Stores appId the SERVER validates against, byte for byte', () => {
+    /*
+     * `wix_ecom.resolved_catalog_lines` refuses any reference whose `appId` is not
+     * `cart_v2.STORES_APP_ID`, as "invalid catalogue reference" -> `WixEcomError` -> 502
+     * CATALOGUE_UNAVAILABLE. The two constants are separate declarations in two languages, so
+     * drift between them is an outage with a misleading error code.
+     *
+     * Pinned here because during a live 502 investigation on 2026-10-04 this was a leading
+     * suspect, and answering it needed a measurement rather than a reading. It matches.
+     */
+    cart.addItem( PRODUCT, 1 );
+    const [ line ] = cart.toLineItems();
+    // The value in amplify/functions/shared/lambda_utils/ecommerce/cart_v2.py:STORES_APP_ID.
+    expect( line.catalogReference.appId ).toBe( '215238eb-22a5-4c36-9e7b-e7c08025e04e' );
+    // And the id is the PRODUCT id, never the slug: a slug 404s at the V3 product GET.
+    expect( line.catalogReference.catalogItemId ).toBe( PRODUCT.id );
+    expect( line.catalogReference.catalogItemId ).not.toBe( PRODUCT.slug );
+  } );
+
+  it( 'omits `options` entirely for a line with no variant, which is the V3 shape', () => {
+    // A no-option Catalog V3 product's reference carries no `options` key at all. An
+    // `options: { variantId: undefined }` would serialise as `"options":{}` and is not the same
+    // thing. `PRODUCT` has no `variants`, so this is the no-variant branch of `toLineItems`.
+    cart.addItem( PRODUCT, 1 );
+    const [ line ] = cart.toLineItems();
+    expect( 'options' in line.catalogReference ).toBe( false );
+    expect( JSON.stringify( line ) ).not.toContain( 'options' );
   } );
 
   it( 'serialises with no price-like key anywhere in the payload', () => {
@@ -1312,14 +1350,105 @@ describe( 'the payment rail latches once it has returned a result', () => {
     expect( pill?.disabled ).toBe( false );
   } );
 
-  it( 'has no INTENT_CHANGED auto-retry to leave unlatched', () => {
-    // The dangerous shape a sibling branch had: a refusal self-healing by minting a fresh request
-    // key and opening a SECOND modal with no further click. It does not exist here, and this row
-    // is what keeps it from being introduced unlatched later.
+  it( 'has exactly ONE INTENT_CHANGED rotation, bounded by there being no loop around it', () => {
+    /*
+     * REPLACES an assertion that there was NO rotation at all, and the replacement is narrower
+     * rather than weaker.
+     *
+     * The original concern is still the right one: a refusal self-healing by minting a fresh
+     * request key and opening a SECOND modal with no further click. What changed is that the
+     * absence of a rotation turned out to be a dead end of its own. `intent_fingerprint` keeps
+     * `cart_revision` AND `snapshot_hash`, and `checkout_pricing.basket_hash`'s docstring records
+     * as measured that the website prepare path WRITES TO THE WIX CART on every call - so a second
+     * prepare of an UNEDITED basket can present a different `snapshot_hash`, answer
+     * 409 CHECKOUT_REJECTED, and latch `paymentBlocked` for the life of the tab for a refusal no
+     * human caused.
+     *
+     * So the guard becomes the BOUND, asserted here as a source pin because no render can observe
+     * it: the rotation is gated on the ONE reason a fresh key can clear, and it removes BOTH slots
+     * - which is what makes a second `INTENT_CHANGED` impossible rather than merely unlikely,
+     * because no reservation then holds the new key. It cannot open a second modal: the
+     * one-live-payment guard is keyed on the CART and runs before the reservation, so the re-post
+     * either prepares cleanly or is refused as CHECKOUT_AMBIGUOUS, which this page answers by
+     * navigating.
+     *
+     * WHAT THIS NO LONGER CLAIMS. An earlier version of this pin asserted a `let rotated = false`
+     * local and called it "the bound". That local was dead: with no loop around the block, `!rotated`
+     * was unconditionally true at its single evaluation and the assignment was never read, so the
+     * pin read stronger than it was. The real bound is STRUCTURAL - straight-line code reached once
+     * per `proceed` - and what this pin can honestly hold is the number of `postPrepare` CALL SITES
+     * reachable from one click. Three: the first post, the post-save retry, this rotation. A fourth
+     * site, or a loop reusing one of them, breaks this. The observable bound ("a second
+     * INTENT_CHANGED latches and issues no third post") is proved behaviourally below.
+     */
     const source = fs.readFileSync(
       path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    // No retry flag of any shape - unbounded, or vestigial and pretending to bound something.
+    // Matched on DECLARATION and ASSIGNMENT rather than on the bare word, because the comment that
+    // records why the flag went necessarily names it.
     expect( source ).not.toMatch( /retriedIntent/ );
-    expect( source.match( /INTENT_CHANGED/g ) || [] ).toHaveLength( 0 );
+    expect( source ).not.toMatch( /let rotated/ );
+    expect( source ).not.toMatch( /rotated = true/ );
+    expect( source ).not.toMatch( /rotatedRef/ );
+    // Scoped to the one recoverable reason, and to nothing else.
+    expect( source ).toMatch(
+      /outcome\.kind === 'CHECKOUT_REJECTED' && outcome\.reason === 'INTENT_CHANGED'\s*\)/ );
+    // Both slots removed, which is what makes the second post unable to refuse the same way.
+    expect( source ).toMatch( /removeItem\( CHECKOUT_REQUEST_KEY \)/ );
+    expect( source ).toMatch( /removeItem\( CHECKOUT_REQUEST_BASKET \)/ );
+    // THE BOUND, as a count of call sites: first post, post-save retry, rotation. No loop.
+    expect( source.match( /await postPrepare\(/g ) || [] ).toHaveLength( 3 );
+    expect( source ).not.toMatch( /(for|while)\s*\([^)]*\)\s*\{[^}]*postPrepare/ );
+  } );
+
+  it( 'consumes the resetCart one-shot on ENTRY to the run, above every early return', () => {
+    /*
+     * A SOURCE PIN for the ordering, paired with the behavioural case in the CART_RESET_REQUIRED
+     * describe that drives an actual early return.
+     *
+     * The read used to sit immediately above the first `postPrepare`, inside the `try`, with six
+     * `return`s above it. Arm the flag with "Start a new cart", hit any of them, and the flag
+     * survived into the NEXT click - which then posted `resetCart: true` and abandoned a saved cart
+     * the customer never asked to discard. `setCartResetOffered(false)` was already at the top, so
+     * the control disappeared while the flag it armed stayed armed.
+     *
+     * Pinned as source as well as behaviour because the defect is a PLACEMENT: a future edit could
+     * keep every test in this file green while moving the read back down past one new guard.
+     *
+     * ANCHORED ON `runCheckout`, NOT ON `proceed`. The in-flight latch split the two: `proceed` is
+     * now a latch wrapper and `runCheckout` is the body this ordering is about. Anchoring on
+     * `proceed` would measure the wrapper and pass vacuously.
+     */
+    const source = fs.readFileSync(
+      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    const runAt = source.indexOf( 'const runCheckout = useCallback(' );
+    expect( runAt ).toBeGreaterThan( 0 );
+    const clearAt = source.indexOf( 'resetCartRef.current = false;', runAt );
+    const firstPostAt = source.indexOf( 'await postPrepare(', runAt );
+    expect( clearAt ).toBeGreaterThan( 0 );
+    expect( clearAt ).toBeLessThan( firstPostAt );
+
+    // EVERY early return in the run sits below the clear, with exactly ONE exception: the
+    // `railTerminalRef` guard, which is deliberately the very first statement and cannot leak -
+    // nothing clears that ref, so once it is set every later run returns there and no
+    // `postPrepare` can carry the flag again. Scan is bounded to the pre-post region, which is
+    // where all the early returns live.
+    const preamble = source.slice( runAt, firstPostAt );
+    const returnsAboveClear = ( preamble.slice( 0, clearAt - runAt ).match( /return;/g ) || [] ).length;
+    const returnsBelowClear = ( preamble.slice( clearAt - runAt ).match( /return;/g ) || [] ).length;
+    expect( returnsAboveClear ).toBe( 1 );
+    expect( preamble.slice( 0, clearAt - runAt ) ).toMatch( /railTerminalRef\.current \) return;/ );
+    // The point of the move: there are several, and all of them are now below the clear.
+    expect( returnsBelowClear ).toBeGreaterThanOrEqual( 4 );
+    // Read into a local and cleared, never read twice inside the run.
+    const run = source.slice( runAt, source.indexOf( 'const proceed = useCallback' ) );
+    expect( run.match( /resetCartRef\.current = false;/g ) || [] ).toHaveLength( 1 );
+    expect( run.match( /resetCartRef\.current;/g ) || [] ).toHaveLength( 1 );
+    // EXACTLY TWO clears in the file, and the second one is load-bearing rather than a duplicate:
+    // the latch disarms the one-shot when it turns a `startNewCart` call away, so a flag the
+    // customer armed cannot survive into their next ordinary Checkout press. The behavioural case
+    // for it is in the double-fire describe.
+    expect( source.match( /resetCartRef\.current = false;/g ) || [] ).toHaveLength( 2 );
   } );
 
   it( 'branches the readiness decision on a local, never on the profileStatus state', () => {
@@ -1334,9 +1463,730 @@ describe( 'the payment rail latches once it has returned a result', () => {
      */
     const source = fs.readFileSync( path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
     expect( source ).toMatch( /let status = profileStatus;/ );
-    expect( source ).toMatch( /if \( status === 'required' \)/ );
+    // The branch now carries the BASKET condition too: a missing address blocks only a basket that
+    // needs delivery, while a missing identity (`mode === 'create'`) blocks every basket. `mode`
+    // and not `profile?.email`, because `profile` is a `useState` value captured in this closure
+    // and is still undefined on a FIRST click - which would open the address editor for a
+    // contribution-only cart belonging to a fully provisioned customer.
+    expect( source ).toMatch(
+      /if \( status === 'required' && \( needsDelivery \|\| mode === 'create' \) \)/ );
+    expect( source ).toMatch( /const needsDelivery = cartRequiresDelivery\(\);/ );
+    // NO ARGUMENT: the helper must read storage, not the `items` state the useCallback captured.
+    expect( source ).not.toMatch( /cartRequiresDelivery\( items \)/ );
     // The branch must never test the state directly.
     expect( source ).not.toMatch( /if \( profileStatus === 'required' \)/ );
-    expect( source.match( /postPrepare\( session, lineItems \)/g ) || [] ).toHaveLength( 2 );
+    // Three posts now, all keyed on the `lineItems` ARGUMENT rather than on a storage read: the
+    // first (carrying the one-shot reset flag), the post-save retry, and the one rotation.
+    expect( source.match( /postPrepare\( session, lineItems(, resetCart)? \)/g ) || [] )
+      .toHaveLength( 3 );
   } );
 } );
+
+/**
+ * THE CTA, WHATEVER IT CURRENTLY SAYS.
+ *
+ * `PillButton`'s accessible name is its ACTION segment alone, and that segment is state-dependent:
+ * 'Proceed' with no identity, 'Pay securely' once ready, 'Try again' after a blocked attempt,
+ * 'Preparing...' while busy. A test that pins one of them is really pinning the state it happened
+ * to be in, which is not what any of the cases below are about.
+ */
+const CTA = /Pay securely|Proceed|Try again|Preparing/;
+
+describe( 'a contribution basket skips the address gate, on the FIRST click', () => {
+  /**
+   * T13. The server skip is necessary but not sufficient.
+   *
+   * `deriveStatus('PROFILE_READY', addressComplete=false)` returns 'required', which opens the
+   * address editor and returns -- so a contribution-only cart would never reach the server's
+   * delivery skip at all. The gate now also asks whether the BASKET needs delivery.
+   *
+   * THE FIRST CLICK IS THE CASE THAT MATTERS, and that is why `profileStatus` starts 'unknown'
+   * here. `profile` is a `useState` value captured in `proceed`'s closure and `setProfile` does
+   * not change it for the remainder of the invocation, so a gate written as `!profile?.email`
+   * would be true on a first click and would open the editor for a fully provisioned customer --
+   * failing on click one and working on click two. The gate reads `mode`, which is reassigned
+   * from the readiness reply inside the same invocation.
+   */
+  it( 'does not open the address editor and DOES call prepare', async () => {
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: { ...PROFILE_READY, addressComplete: false, address: null } },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-c1' } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+    expect( screen.queryByTestId( 'checkout-profile' ) ).toBeNull();
+  } );
+
+  it( 'DOES open the address editor on the same first click for a physical line', async () => {
+    // The control. A physical basket genuinely has a place of supply, and the gate must still
+    // demand one -- the requirement became conditional, not optional.
+    signedIn();
+    stubFetch( {
+      profile: { body: { ...PROFILE_READY, addressComplete: false, address: null } },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-c2' } },
+    } );
+    cart.addItem( PRODUCT, 1 );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    expect( await screen.findByTestId( 'checkout-profile' ) ).toBeInTheDocument();
+  } );
+
+  it( 'opens the editor for BOTH baskets when the identity itself is missing', async () => {
+    // `mode === 'create'` is "there is no identity yet", and that blocks every basket. A
+    // brand-new customer whose first action is a contribution is asked once for an address to
+    // CREATE a checkout identity, not to deliver the contribution, and never asked again.
+    for ( const seed of [ () => cart.setContribution( MID.variantId ), () => cart.addItem( PRODUCT, 1 ) ] )
+    {
+      window.localStorage.clear();
+      signedIn();
+      stubFetch( { profile: { body: PROFILE_REQUIRED } } );
+      seed();
+      const { unmount } = render( <Cart /> );
+      fireEvent.click(
+        await screen.findByRole( 'button', { name: CTA } ) );
+      expect( await screen.findByTestId( 'checkout-profile' ) ).toBeInTheDocument();
+      unmount();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  } );
+} );
+
+describe( 'a mixed basket is refused in the browser, before the auth gate', () => {
+  it( 'shows the notice, disables Checkout and calls no prepare', async () => {
+    signedIn();
+    const fetchMock = stubFetch( { profile: { body: PROFILE_READY } } );
+    cart.setContribution( MID.variantId );
+    cart.addItem( PRODUCT, 1 );
+
+    render( <Cart /> );
+    const button = await screen.findByRole(
+      'button', { name: CTA } );
+    expect( button ).toBeDisabled();
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
+  } );
+
+  it( 'removing the kiosk lets the SAME click through, with no re-render in between', async () => {
+    /*
+     * The stale-closure case, driven as the sequence that produces it.
+     *
+     * `proceed` is `useCallback(..., [profile, profileStatus])` and `items` is NOT a dependency,
+     * so a mixed-basket check reading `items` would see the value captured at the last render --
+     * stale after a row is removed with no intervening profile change. The helper is called with
+     * NO ARGUMENT so it reads storage, which is the same thing `toLineItems()` does one line
+     * below for the same reason.
+     */
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-c3' } },
+    } );
+    cart.setContribution( MID.variantId );
+    cart.addItem( PRODUCT, 1 );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: `Remove ${ PRODUCT.name }` } ) );
+    fireEvent.click( await screen.findByRole(
+      'button', { name: CTA } ) );
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+  } );
+
+  it( 'the mirror: a kiosk added AFTER the render is still refused, because proceed reads storage',
+    async () => {
+      /*
+       * This page does not subscribe to cart-changed events -- it reads `readCart()` on mount and
+       * after its own mutations -- so a line added from elsewhere leaves the render stale and the
+       * CTA enabled. That is exactly the case the no-argument storage read exists for, and
+       * asserting it here is stronger than asserting the disabled button: it proves the guard
+       * holds when the render has NOT caught up.
+       *
+       * In a real browser the kiosk is added on the shop page and the customer then navigates to
+       * /cart/, which is a fresh mount and the case above. This is the same refusal reached the
+       * other way.
+       */
+      signedIn();
+      const fetchMock = stubFetch( { profile: { body: PROFILE_READY } } );
+      cart.setContribution( MID.variantId );
+      render( <Cart /> );
+      const button = await screen.findByRole( 'button', { name: CTA } );
+      expect( button ).not.toBeDisabled();
+
+      // Storage changes under the render.
+      cart.addItem( PRODUCT, 1 );
+      fireEvent.click( button );
+
+      await waitFor( () => expect(
+        screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument() );
+      expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
+    } );
+} );
+
+describe( 'two clicks cannot post two prepares - the measured live blocker', () => {
+  /**
+   * THE BUG, from API Gateway and Lambda logs on checkout v11, not from reasoning.
+   *
+   * `prepare-checkout` was posted TWICE in rapid succession. The first answered 200 and reserved
+   * the cart; the second, one to three seconds later, reached Wix on that already-reserved cart,
+   * `wix_ecom` raised, and the handler's `except wix_ecom.WixEcomError` answered 502
+   * `CATALOGUE_UNAVAILABLE` -- which this page renders as "We could not prepare this order."
+   * EVERY payment attempt failed, and it was the customer's own first attempt that broke their
+   * second.
+   *
+   * `disabled={ busy || ... }` did not stop it because `busy` is React STATE: `setBusy(true)` does
+   * not disable the button until a render commits, so both clicks are already inside `proceed`
+   * before the attribute changes. State cannot guard re-entry into the function that sets it.
+   *
+   * HOW THE CONCURRENCY IS REPRODUCED, AND WHY `fireEvent.click` TWICE IS NOT ENOUGH. `fireEvent`
+   * wraps each event in `act()`, which commits the render before returning -- so by the second
+   * call `busy` is already true, the button is already `disabled`, and jsdom swallows the click.
+   * Two `fireEvent.click`s therefore PASS against the broken code and prove nothing. Measured:
+   * they do.
+   *
+   * Dispatching inside ONE `act()` block is the faithful shape. React cannot commit between
+   * events batched in a single act block, exactly as a browser cannot commit between two click
+   * events delivered in the same task. Measured with the latch removed: three dispatches produce
+   * THREE prepare posts. With the latch: one.
+   */
+  it( 'posts prepare ONCE for three clicks delivered before any render commits', async () => {
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-d1' } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    const button = await screen.findByRole( 'button', { name: CTA } );
+    await act( async () => {
+      button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      await new Promise( resolve => { setTimeout( resolve, 120 ); } );
+    } );
+
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+    // And it STAYS one: the extra clicks are dropped, not deferred.
+    await new Promise( resolve => { setTimeout( resolve, 30 ); } );
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+  } );
+
+  it( 'posts prepare ONCE even while the first post is still unresolved', async () => {
+    // The production timing: the first prepare takes a second or two against Wix, and the extra
+    // clicks arrive while it is in flight rather than after it settles.
+    signedIn();
+    let release: ( () => void ) | null = null;
+    const held = new Promise<void>( resolve => { release = resolve; } );
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-d2' } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    const button = await screen.findByRole( 'button', { name: CTA } );
+    await act( async () => {
+      button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      button.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      if ( release ) release();
+      await held;
+      await new Promise( resolve => { setTimeout( resolve, 120 ); } );
+    } );
+
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+  } );
+
+  it( 'RELEASES the latch, so a second checkout is possible after the first finishes', async () => {
+    /*
+     * The other half, and the one that matters if the latch is ever written without a `finally`:
+     * a latch that is set and never cleared turns one failed attempt into a page that can never
+     * check out again, which is strictly worse than the double-post it replaced.
+     *
+     * The first run ends in a non-latching refusal (`CART_RECONCILIATION_REQUIRED` leaves
+     * `paymentBlocked` alone and does not touch `railTerminalRef`), so the only thing that could
+     * stop the second click is the in-flight ref.
+     */
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    const button = await screen.findByRole( 'button', { name: CTA } );
+    fireEvent.click( button );
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+  } );
+
+  it( 'DISARMS the reset one-shot when it turns a Start-a-new-cart click away', async () => {
+    /*
+     * `startNewCart` arms `resetCartRef` and then calls `proceed`. If the latch drops that call
+     * with the flag still armed, the customer's NEXT ordinary Checkout press posts
+     * `resetCart: true` and the server abandons a saved cart nobody asked to discard --
+     * `resetCartRef`'s own docstring names that as the failure to avoid.
+     *
+     * Driven as the sequence that produces it: the reset is offered, the control is clicked
+     * TWICE in one synchronous block so the second entry is the refused one, and the third post
+     * (an ordinary click, after the run finishes) must not carry the flag.
+     */
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: [
+        { ok: false, status: 409, body: { error: 'CART_RESET_REQUIRED' } },
+        { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+        { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+      ],
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    const control = await screen.findByRole( 'button', { name: 'Start a new cart' } );
+
+    // Batched in ONE act block, so the second entry is genuinely the refused one rather than a
+    // click jsdom swallowed against a committed `disabled`.
+    await act( async () => {
+      control.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      control.dispatchEvent( new MouseEvent( 'click', { bubbles: true } ) );
+      await new Promise( resolve => { setTimeout( resolve, 120 ); } );
+    } );
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 );
+
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 3 ) );
+
+    const posts = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+    expect( posts[ 0 ].body.resetCart ).toBeUndefined();
+    expect( posts[ 1 ].body.resetCart ).toBe( true );
+    // THE ASSERTION THIS CASE EXISTS FOR: the dropped click's flag did not survive into here.
+    expect( posts[ 2 ].body.resetCart ).toBeUndefined();
+  } );
+
+  it( 'keeps the latch OUTSIDE the run, so no early return can skip it', () => {
+    // A source pin, because the guarantee is structural rather than observable: `runCheckout` has
+    // fourteen `return` statements, and a latch checked inside it would need every one of them to
+    // clear the flag. Pinning the shape stops a later edit "simplifying" the wrapper away.
+    const source = fs.readFileSync( path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    const wrapper = source.slice( source.indexOf( 'const proceed = useCallback' ) );
+    expect( wrapper ).toMatch( /if \( proceedInFlightRef\.current \)/ );
+    expect( wrapper ).toMatch( /proceedInFlightRef\.current = true;/ );
+    expect( wrapper ).toMatch( /finally\s*\{\s*proceedInFlightRef\.current = false;/ );
+    // The run itself must not check the latch: two checks in two places is how one of them ends
+    // up being the only one maintained.
+    //
+    // ASSERTED ON THE USE, NOT ON THE MENTION, for the reason the contribution-endpoint pin in
+    // BlogContribution.test.tsx gives: the comment that explains why the latch is NOT here has to
+    // be able to name it, and a text search cannot tell an explanation from a check. What must not
+    // come back is an expression that reads or writes the ref -- `.current` is what every such
+    // expression needs, and a bare mention cannot latch anything.
+    const run = source.slice( source.indexOf( 'const runCheckout = useCallback' ),
+      source.indexOf( 'const proceed = useCallback' ) );
+    expect( run ).not.toMatch( /proceedInFlightRef\s*\.\s*current/ );
+    // And `railTerminalRef` is untouched: this latch is additional, never a replacement.
+    expect( run ).toMatch( /if \( railTerminalRef\.current \) return;/ );
+  } );
+} );
+
+describe( 'the contribution row CHOOSES an amount, it does not count copies', () => {
+  /**
+   * WHAT THIS BLOCK STOPPED ASSERTING ON 2026-10-04. The row used to be a free-text number field
+   * with a draft string, a commit on blur or Enter, ₹10–₹1,00,000 bounds and a help line on
+   * refusal. There was an `it.each` over `''`, `'4'`, `'49.5'`, `'100001'` and `'-10'` proving
+   * each left the stored amount alone, and a case proving a valid amount committed on both blur
+   * and Enter.
+   *
+   * All of it tested a control that can no longer exist: the amount is the chosen variant's own
+   * price, so the row offers the three amounts and there is no draft, no commit moment and no
+   * invalid value to leave the cart alone for. The cases below assert what replaced it.
+   */
+  it( 'has an amount chooser and no Qty stepper', async () => {
+    signedIn();
+    stubFetch( { profile: { body: PROFILE_READY } } );
+    cart.setContribution( MID.variantId );
+    render( <Cart /> );
+
+    const chooser = await screen.findByLabelText( 'Contribution amount' );
+    expect( chooser ).toBeInTheDocument();
+    // A stepper is the wrong control: two copies of a ₹250 contribution is not a ₹500
+    // contribution, it is a basket the server refuses as two contributions.
+    expect( screen.queryByLabelText( 'Qty' ) ).toBeNull();
+    expect( ( chooser as HTMLSelectElement ).value ).toBe( MID.variantId );
+    // Exactly the three choices, in config order, each labelled with its rupee figure.
+    expect( Array.from( ( chooser as HTMLSelectElement ).options ).map( o => o.textContent ) )
+      .toEqual( CONTRIBUTION_CHOICES.map( choice => `\u20B9${ choice.rupees }` ) );
+  } );
+
+  it( 'REPLACES the line when another amount is chosen, and keeps quantity 1', async () => {
+    signedIn();
+    stubFetch( { profile: { body: PROFILE_READY } } );
+    cart.setContribution( MID.variantId );
+    render( <Cart /> );
+
+    const chooser = await screen.findByLabelText( 'Contribution amount' );
+    fireEvent.change( chooser, { target: { value: LOW.variantId } } );
+
+    expect( cart.readCart() ).toHaveLength( 1 );
+    expect( cart.readCart()[ 0 ].variantId ).toBe( LOW.variantId );
+    expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
+    // And the row re-renders from the cart rather than from its own state.
+    expect( ( await screen.findByLabelText( 'Contribution amount' ) as HTMLSelectElement ).value )
+      .toBe( LOW.variantId );
+  } );
+
+  it( 'hides RedemptionPanel on a contribution cart and shows it otherwise', async () => {
+    signedIn();
+    stubFetch( { profile: { body: PROFILE_READY } } );
+    cart.setContribution( MID.variantId );
+    const { unmount } = render( <Cart /> );
+    // A contribution takes neither a coupon nor a gift card: a coupon would make the recorded
+    // amount differ from the amount contributed, and spending store credit is not a contribution.
+    expect( screen.queryByLabelText( /Coupon code/i ) ).toBeNull();
+    unmount();
+
+    window.localStorage.clear();
+    cart.addItem( PRODUCT, 1 );
+    render( <Cart /> );
+    expect( await screen.findByLabelText( /Coupon code/i ) ).toBeInTheDocument();
+  } );
+} );
+
+describe( 'CONTRIBUTION_NOT_PAYABLE says what is true instead of naming an impossible action', () => {
+  /**
+   * Review pass 3, CR3-3. The server arm this covers fires when Wix will not price a
+   * contribution-only cart - most likely because it wants a delivery destination for a PHYSICAL
+   * product, which is what the live `Contribute` product is. It used to answer `CART_NOT_PAYABLE`,
+   * whose copy is "Please review your cart and try again": the basket is one donation, so there is
+   * nothing in it to review and no edit that changes the answer. The same dead end
+   * `CART_RESET_REQUIRED` was given its own code to avoid.
+   */
+  it( 'renders the honest sentence, offers no cart-review instruction, and does not latch', async () => {
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: [
+        { ok: false, status: 409, body: {
+          error: 'CONTRIBUTION_NOT_PAYABLE',
+          message: 'Contributions cannot be taken right now. Nothing has been charged.' } },
+        { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-cnp' } },
+      ],
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+
+    await waitFor( () => expect( screen.getByText(
+      /Contributions cannot be taken right now\./ ) ).toBeInTheDocument() );
+    // The two sentences the generic code would have produced, neither of which is true here.
+    expect( screen.queryByText( /review your cart/i ) ).toBeNull();
+    expect( screen.getByText( /Nothing has been charged\./ ) ).toBeInTheDocument();
+
+    // NOT latched: no payment was attempted, and a dashboard setting can be fixed between two
+    // presses, so a second click must still reach the server.
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+  } );
+
+  it( 'is a DISTINCT outcome from CART_NOT_PAYABLE rather than a relabelling of it', async () => {
+    // The control, and the reason the split is worth a code: the generic refusal must keep its
+    // own words, so the two conditions stay distinguishable from the customer's side too.
+    signedIn();
+    stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { ok: false, status: 409, body: { error: 'CART_NOT_PAYABLE' } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+
+    await waitFor( () => expect(
+      screen.getByText( /Please review your cart and try again\./ ) ).toBeInTheDocument() );
+    expect( screen.queryByText( /Contributions cannot be taken right now/ ) ).toBeNull();
+  } );
+} );
+
+describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
+  it( 'renders a control that re-posts the same prepare with resetCart and the same lineItems',
+    async () => {
+      signedIn();
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: [
+          { ok: false, status: 409, body: { error: 'CART_RESET_REQUIRED' } },
+          { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-r2' } },
+        ],
+      } );
+      cart.setContribution( MID.variantId );
+      render( <Cart /> );
+      fireEvent.click( await screen.findByRole(
+        'button', { name: CTA } ) );
+
+      const control = await screen.findByRole( 'button', { name: 'Start a new cart' } );
+      expect( screen.getByText( /too many items to update/ ) ).toBeInTheDocument();
+      fireEvent.click( control );
+
+      await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+      const [ first, second ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+      expect( first.body.resetCart ).toBeUndefined();
+      expect( second.body.resetCart ).toBe( true );
+      expect( second.body.lineItems ).toEqual( first.body.lineItems );
+      // The BROWSER cart is untouched: the reset abandons the SERVER pointer only, and the next
+      // prepare rebuilds the Wix cart from this same localStorage basket.
+      expect( cart.readCart() ).toHaveLength( 1 );
+      expect( cart.readCart()[ 0 ].variantId ).toBe( MID.variantId );
+    } );
+
+  it( 'does NOT leak resetCart into a later click when the reset click is refused before posting',
+    async () => {
+      /*
+       * THE ONE-SHOT, DRIVEN THROUGH AN EARLY RETURN. The case above covers the happy path only:
+       * first post omits `resetCart`, second sends `true`. Nothing stopped the reset click short
+       * of the post.
+       *
+       * Here it is stopped. The reset is offered, a /shop/ line arrives (the second tab, or a
+       * `/shop/` add, that the mixed-basket refusal exists for), and "Start a new cart" is clicked
+       * - which arms the flag and calls `proceed`, where the mixed-basket check refuses BEFORE the
+       * auth gate and returns having posted nothing. The customer then removes the stray line and
+       * checks out normally.
+       *
+       * That second post must NOT carry `resetCart`. The customer asked to discard a saved cart
+       * once, was refused, and fixed their basket; discarding the server pointer on the ordinary
+       * Checkout click that follows is a destructive write nobody requested. Bounded - no
+       * reservation, attempt or gateway order is written, and the browser cart is untouched - but a
+       * surprise rather than a recovery, which is exactly what `resetCartRef`'s docstring promises
+       * it is not.
+       */
+      signedIn();
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: [
+          { ok: false, status: 409, body: { error: 'CART_RESET_REQUIRED' } },
+          { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-r3' } },
+        ],
+      } );
+      cart.setContribution( MID.variantId );
+      render( <Cart /> );
+      fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+
+      const control = await screen.findByRole( 'button', { name: 'Start a new cart' } );
+      await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+
+      // The basket turns mixed between the offer and the click.
+      await act( async () => { cart.addItem( PRODUCT, 1 ); } );
+      fireEvent.click( control );
+
+      // Refused locally: still one post, and the refusal is the shared wording.
+      await waitFor( () => expect(
+        screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument() );
+      expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+
+      // Fix the basket, then check out the ordinary way.
+      await act( async () => { cart.removeItem( PRODUCT.id ); } );
+      fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+      await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+
+      const [ first, second ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+      expect( first.body.resetCart ).toBeUndefined();
+      expect( second.body.resetCart ).toBeUndefined();
+      // And the saved cart the customer never asked to discard is still theirs to reset: the
+      // control comes back with the next CART_RESET_REQUIRED, which is the recoverable direction.
+      expect( cart.readCart() ).toHaveLength( 1 );
+      expect( cart.readCart()[ 0 ].variantId ).toBe( MID.variantId );
+    } );
+} );
+
+describe( 'the request key is scoped to the basket, and rotates once on INTENT_CHANGED', () => {
+  /** The two slots the key lifecycle uses. Named here so a rename fails loudly. */
+  const KEY_SLOT = 'wc_checkout_request_key';
+  const BASKET_SLOT = 'wc_checkout_request_basket';
+
+  async function clickCheckout (): Promise<void> {
+    fireEvent.click( await screen.findByRole(
+      'button', { name: CTA } ) );
+  }
+
+  it( 'sends the SAME key for two clicks on an unchanged basket', async () => {
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      // A quiet, NON-LATCHING refusal: `PAYMENT_INITIATION_DISABLED` sets `paymentBlocked`, which
+      // changes the CTA's action segment and the notice -- neither of which this case is about,
+      // and both of which would make the second click measure the wrong thing.
+      prepare: { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+    } );
+    cart.addItem( PRODUCT, 1 );
+    render( <Cart /> );
+
+    await clickCheckout();
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+    await clickCheckout();
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+
+    const keys = callsTo( fetchMock, PREPARE_URL, 'prepare' ).map( call => call.body.requestKey );
+    expect( keys[ 0 ] ).toBe( keys[ 1 ] );
+    // Two slots, FIXED. The previous shape minted a key once per tab and never cleared it; a
+    // per-basket slot NAME would grow without bound.
+    expect( Object.keys( window.sessionStorage ).sort() )
+      .toEqual( [ BASKET_SLOT, KEY_SLOT ].sort() );
+  } );
+
+  it( 'sends DIFFERENT keys for kiosk then contribution, and never sets paymentBlocked',
+    async () => {
+      signedIn();
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+      } );
+      cart.addItem( PRODUCT, 1 );
+      render( <Cart /> );
+      await clickCheckout();
+      await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+
+      // Dismiss, then replace the basket with a contribution.
+      await act( async () => {
+        cart.removeItem( cart.readCart()[ 0 ].ref );
+        cart.setContribution( LOW.variantId );
+      } );
+      await clickCheckout();
+      await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+
+      const keys = callsTo( fetchMock, PREPARE_URL, 'prepare' ).map( call => call.body.requestKey );
+      expect( keys[ 0 ] ).not.toBe( keys[ 1 ] );
+      expect( screen.queryByRole( 'button', { name: /Try again/ } ) ).toBeNull();
+      // Two slots, still. A per-basket slot name would be three by now.
+      expect( Object.keys( window.sessionStorage ) ).toHaveLength( 2 );
+    } );
+
+  it( 'A then B then back to A mints a THIRD key, never A\'s original', async () => {
+    /*
+     * Deliberate, and the reason the slot name is not the fingerprint. Getting back to A re-ran
+     * the server-side reconcile, whose add/remove commands mint new `lineItemId`s and move
+     * `cart.revision`, so A's original reservation CANNOT match any more. Resuming it would be a
+     * guaranteed refusal rather than a resumption.
+     */
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+    } );
+    cart.setContribution( LOW.variantId );
+    render( <Cart /> );
+    await clickCheckout();
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+
+    await act( async () => { cart.setContribution( MID.variantId ); } );
+    await clickCheckout();
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+
+    await act( async () => { cart.setContribution( LOW.variantId ); } );
+    await clickCheckout();
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 3 ) );
+
+    const keys = callsTo( fetchMock, PREPARE_URL, 'prepare' ).map( call => call.body.requestKey );
+    expect( new Set( keys ).size ).toBe( 3 );
+  } );
+
+  it( 'rotates ONCE on INTENT_CHANGED and reaches the second answer', async () => {
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: [
+        { ok: false, status: 409,
+          body: { status: 'CHECKOUT_REJECTED', reason: 'INTENT_CHANGED' } },
+        // Non-latching, so "not latched" is measurable: the second answer must not itself be the
+        // thing that sets `paymentBlocked`.
+        { ok: false, status: 409, body: { error: 'CART_RECONCILIATION_REQUIRED' } },
+      ],
+    } );
+    cart.setContribution( MID.variantId );
+    render( <Cart /> );
+    await clickCheckout();
+
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+    const keys = callsTo( fetchMock, PREPARE_URL, 'prepare' ).map( call => call.body.requestKey );
+    expect( keys[ 0 ] ).not.toBe( keys[ 1 ] );
+    // NOT LATCHED: the refusal no human caused did not end the tab's ability to pay. The CTA is
+    // still the ordinary one rather than the post-block 'Try again'.
+    expect( await screen.findByRole( 'button', { name: /Pay securely/ } ) ).toBeInTheDocument();
+  } );
+
+  it( 'is BOUNDED: a second INTENT_CHANGED latches and issues no third post', async () => {
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { ok: false, status: 409,
+        body: { status: 'CHECKOUT_REJECTED', reason: 'INTENT_CHANGED' } },
+    } );
+    cart.setContribution( MID.variantId );
+    render( <Cart /> );
+    await clickCheckout();
+
+    await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 ) );
+    // Exactly two: the original and the one rotation. `rotated` is a local, so one per click.
+    await new Promise( resolve => { setTimeout( resolve, 20 ); } );
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 2 );
+  } );
+
+  it( 'the asymmetry holds: another CHECKOUT_REJECTED reason latches on the FIRST refusal',
+    async () => {
+      // The rotation is scoped to the one reason a NEW KEY can clear. An ownership or snapshot
+      // failure is not it, and a retry would only repeat it.
+      signedIn();
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: { ok: false, status: 409,
+          body: { status: 'CHECKOUT_REJECTED', reason: 'SNAPSHOT_MISMATCH' } },
+      } );
+      cart.setContribution( MID.variantId );
+      render( <Cart /> );
+      await clickCheckout();
+
+      await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+      await new Promise( resolve => { setTimeout( resolve, 20 ); } );
+      expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+    } );
+
+  it( 'CART_PAYMENT_IN_FLIGHT navigates, sets no latch, rotates nothing and keeps both slots',
+    async () => {
+      /*
+       * Asserted at the 409 DELIBERATELY. `CART_PAYMENT_IN_FLIGHT` is in the handler's
+       * `_CART_BLOCKED` tuple, so the code is 409 rather than 200 -- and it changes nothing about
+       * the behaviour, because `postPrepare` short-circuits on 401 only and branches on
+       * `data.status` thereafter. Recorded so a reader who checks the code against the design
+       * finds the discrepancy already resolved.
+       *
+       * This is the guard WORKING, not a regression: one cart, one payable modal. Dismissing the
+       * Razorpay modal makes no server call, so the earlier attempt stays in flight and the cart
+       * pointer still names it.
+       */
+      signedIn();
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: { ok: false, status: 409, body: {
+          status: 'CHECKOUT_AMBIGUOUS', reason: 'CART_PAYMENT_IN_FLIGHT',
+          paymentAttemptId: 'pa_x',
+        } },
+      } );
+      cart.setContribution( MID.variantId );
+      render( <Cart /> );
+      await clickCheckout();
+
+      await waitFor( () => expect( navigatedTo ).toContain( '/checkout/status/?a=pa_x' ) );
+      expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+      expect( Object.keys( window.sessionStorage ) ).toHaveLength( 2 );
+      // No latch: `paymentBlocked` would change the CTA's action segment to 'Try again'.
+      expect( screen.queryByRole( 'button', { name: /Try again/ } ) ).toBeNull();
+    } );
+} );
+

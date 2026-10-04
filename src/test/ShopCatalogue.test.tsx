@@ -1,14 +1,19 @@
+import fs from 'fs';
+import path from 'path';
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { readCart, toLineItems } from '../lib/cart';
-import ShopIndex from '../pages/shop/index';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
 import ShopProductPage from '../pages/shop/[slug]';
 import { shopProductSchema } from '../components/ShopProductHead';
 import {
   SHOP_PRODUCTS, shopProductBySlug, shopMetaDescription, shopPageTitle, shopProductPath,
   toParagraphs, catalogReadOn, CATALOG_FETCHED_AT,
+  CONTRIBUTION_CONFIGURED, CONTRIBUTION_PRODUCT, CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_RAW,
+  CONTRIBUTION_SLUG, projectForTest,
 } from '../content/shop';
+import { getStaticPaths } from '../pages/shop/[slug]';
 import type { ShopProduct } from '../content/shop';
 
 /**
@@ -249,58 +254,22 @@ describe( 'the derived head strings stay inside the bounds seocheck enforces', (
  * href="/contact/" in the export.
  *
  * Measured on the built export rather than assumed:
- *   out/shop/index.html        href="/shop/file-assist/" ... href="/shop/viveka/"   (7 links)
- *   out/shop/kiosk/index.html  href="/contact/"  href="/shop/"
+ *   out/shop/kiosk/index.html  href="/contact/"  href="/"
  *
  * So these tests assert the path the PAGE hands to Link, normalised the way this environment
  * normalises it. The canonical form of the built URL is seocheck.js's assertion, against the
  * export, where the real config applies. Hard-coding the slashless string instead would hide which
  * of the two is being checked.
+ *
+ * The out/shop/index.html line above was removed on 2026-10-04 along with the file: the owner
+ * withdrew the catalogue index, so there is no listing document in the export any more. The
+ * `describe( 'the listing page' )` block that followed - five its covering the product links,
+ * the formatted price, the boundary copy and both stock branches - went with it, because the
+ * component it rendered no longer exists. Every property it asserted that is still reachable is
+ * asserted against the product page below: formatted price, boundary copy, and both stock
+ * branches all have equivalents in `describe( 'the product page' )`.
  */
 const asRendered = ( path: string ): string => path.replace( /\/$/, '' ) || '/';
-
-describe( 'the listing page', () => {
-  it( 'links every product at its own URL', () => {
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    for ( const product of SHOP_PRODUCTS ) {
-      const link = screen.getByRole( 'link', { name: product.name } );
-      expect( link.getAttribute( 'href' ) ).toBe( asRendered( shopProductPath( product ) ) );
-    }
-  } );
-
-  it( 'prints the price Wix formatted, not a rebuilt one', () => {
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    expect( screen.getByText( '₹24,999.00' ) ).toBeTruthy();
-    expect( screen.getByText( '₹599.00' ) ).toBeTruthy();
-  } );
-
-  it( 'says where the prices come from and that nothing is charged', () => {
-    /*
-     * The owner replaced the snapshot DATE with a shorter sentence, so this no longer asserts
-     * "read on 26 September 2026". The substance that had to survive is still asserted: the price is
-     * the catalogue's rather than a quote, the store is what confirms it, and proceeding charges
-     * nothing. Dropping the date loses a freshness cue and was the owner's call.
-     */
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    expect( screen.getByText( /Review your final total in the cart before payment/ ) ).toBeTruthy();
-    expect( screen.queryByText( /Live payment is not on yet/ ) ).toBeNull();
-    expect( screen.getByText( /before payment/ ) ).toBeTruthy();
-  } );
-
-  it( 'says nothing about stock while everything is in stock', () => {
-    // Seven identical "In stock" chips would be seven badges carrying no information, which is why
-    // the notice is rendered only when it is false. This is the negative half.
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    expect( screen.queryByText( /Not available right now/ ) ).toBeNull();
-  } );
-
-  it( 'marks an item that is out of stock', () => {
-    // The positive half, and the reason this page takes its catalogue as a prop: every item in the
-    // committed snapshot is in stock, so this branch is unreachable from the real data.
-    render( <ShopIndex products={ [ SYNTHETIC ] } /> );
-    expect( screen.getByText( 'Not available right now.' ) ).toBeTruthy();
-  } );
-} );
 
 describe( 'the product page', () => {
   it( 'renders the name as the only h1 and the description as text', () => {
@@ -442,10 +411,151 @@ describe( 'the product page', () => {
     expect( json ).not.toContain( '[slug]' );
   } );
 
-  it( 'offers a way back to the listing', () => {
+  it( 'offers a way out through a two-item breadcrumb, never back to the withdrawn listing', () => {
+    /*
+     * REWRITTEN 2026-10-04. This was `offers a way back to the listing` and asserted an
+     * "All items in the shop" link pointing at /shop/. The owner withdrew the catalogue index, so
+     * that link and the middle "Shop" breadcrumb both pointed at a URL that 301s to the home page -
+     * and the trail's middle step redirected to its own first step.
+     *
+     * The crumb is REMOVED rather than left href-less: components/Breadcrumbs.tsx renders an
+     * href-less item as <span aria-current="page">, so keeping it would announce two current pages.
+     * That is why the negative half below checks for the absence of a /shop/ href AND the absence
+     * of a second aria-current.
+     */
     const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
-    render( <ShopProductPage product={ kiosk } /> );
-    expect( screen.getByRole( 'link', { name: 'All items in the shop' } ).getAttribute( 'href' ) )
-      .toBe( asRendered( '/shop/' ) );
+    const { container } = render( <ShopProductPage product={ kiosk } /> );
+
+    const trail = container.querySelector( 'nav[aria-label="Breadcrumb"]' ) as HTMLElement;
+    expect( trail, 'the product page renders no breadcrumb trail' ).toBeTruthy();
+    expect( trail.querySelectorAll( 'li' ) ).toHaveLength( 2 );
+    expect( screen.getByRole( 'link', { name: 'Home' } ).getAttribute( 'href' ) )
+      .toBe( asRendered( '/' ) );
+    // Exactly one current page, and it is the product.
+    const current = trail.querySelectorAll( '[aria-current="page"]' );
+    expect( current ).toHaveLength( 1 );
+    expect( current[ 0 ].textContent ).toBe( 'Kiosk' );
+
+    // Nothing on the page points at the withdrawn index, in either spelling.
+    const hrefs = Array.from( container.querySelectorAll( 'a' ) )
+      .map( a => a.getAttribute( 'href' ) );
+    expect( hrefs ).not.toContain( '/shop/' );
+    expect( hrefs ).not.toContain( '/shop' );
+    expect( screen.queryByRole( 'link', { name: 'All items in the shop' } ) ).toBeNull();
+  } );
+} );
+
+describe( 'the contribution product is a payment vehicle, not a shop listing', () => {
+  /**
+   * T11, SPLIT BY SOURCE, and the split is the point rather than a formality.
+   *
+   * The contribution product MUST be visible in Wix, because the checkout refuses
+   * `product.visible === false` - so `scripts/fetch-wix-catalog.js` picks it up and it would
+   * otherwise appear at /shop/ with its own page and sitemap entry. The place to choose a
+   * contribution is the "Contribute" block at the foot of a blog post, not a product page with an
+   * "Amount" dropdown.
+   *
+   * `productType` and the three counts are read off the RAW snapshot entry, never off
+   * `CONTRIBUTION_PRODUCT`: `interface ShopProduct` declares none of them, and `shop.ts`'s own
+   * header records why the omission is deliberate - `productType` reads PHYSICAL on every product
+   * in the snapshot, so surfacing it would put a false statement on five pages. The
+   * `ShopProduct`-shaped assertions stay against the projection.
+   *
+   * WHAT THIS BLOCK STOPPED ASSERTING ON 2026-10-04, because it was pinning a retired assumption:
+   * `raw.productType === 'DIGITAL'`, with a comment calling DIGITAL "what makes the checkout skip
+   * the delivery address". The live `Contribute` product is PHYSICAL - a Wix digital product with
+   * no downloadable file attached is not purchasable - and the delivery skip now keys on
+   * contribution product IDENTITY in `checkout/handler.py:_v2_catalog_items`. Asserting the
+   * product's Wix type would therefore fail against the real product AND push the next reader back
+   * towards the rule that was removed. The identity-keyed property is asserted instead.
+   */
+  it( 'appears in neither SHOP_PRODUCTS nor the generated paths', async () => {
+    expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
+    expect( shopProductBySlug( CONTRIBUTION_SLUG ) ).toBeNull();
+    const result = await getStaticPaths( {} as never );
+    const paths = ( result as unknown as { paths: { params: { slug: string } }[] } ).paths;
+    expect( paths.some( entry => entry.params.slug === CONTRIBUTION_SLUG ) ).toBe( false );
+    // `generate-sitemap.js` crawls the BUILT output tree, so removing the page removes the entry.
+    // No sitemap change is needed and this is the concrete fact behind that.
+    expect( paths.length ).toBe( SHOP_PRODUCTS.length );
+  } );
+
+  it( 'is excluded by PRODUCT ID, not only by slug', () => {
+    // The id is the identity the server, the cart and `shop.ts` all key on, and it cannot be
+    // edited in the Wix dashboard. The slug can, so a slug-only exclusion would put a
+    // /shop/<renamed>/ page live the next time somebody tidied the product's URL.
+    const shopSource = fs.readFileSync(
+      path.resolve( __dirname, '../content/shop.ts' ), 'utf8' );
+    expect( shopSource ).toMatch( /CONTRIBUTION_PRODUCT_ID/ );
+    expect( SHOP_PRODUCTS.some( product => product.id === CONTRIBUTION_PRODUCT_ID ) ).toBe( false );
+  } );
+
+  it( 'projects through the SAME function the shop listings use', () => {
+    // So the excluded entry is a real `ShopProduct` and not a raw snapshot row mislabelled as one.
+    // Driven from an injected fixture row, because the committed snapshot may not carry the entry.
+    const projected = projectForTest( {
+      id: CONTRIBUTION_PRODUCT_ID,
+      name: 'Contribute',
+      slug: CONTRIBUTION_SLUG,
+      formattedPrice: '\u20B9100.00',
+      price: '100.00',
+      currency: 'INR',
+      inStock: true,
+      visible: true,
+      descriptionHtml: '<p>Support this work.</p><p>Thank you.</p>',
+      variants: CONTRIBUTION_CHOICES.map( choice => ( {
+        id: choice.variantId, label: `\u20B9${ choice.rupees }`, inStock: true } ) ),
+    } );
+    expect( projected.tagline ).toBe( 'Support this work.' );
+    expect( projected.body ).toEqual( [ 'Thank you.' ] );
+    expect( projected.variants ).toHaveLength( 3 );
+    expect( projected.variants?.every( variant => variant.inStock ) ).toBe( true );
+  } );
+
+  it.skipIf( CONTRIBUTION_RAW !== null )(
+    'is absent from the committed snapshot, which costs the feature nothing', () => {
+      // SKIPPED-WITH-REASON once the snapshot carries the entry: this case and the next are two
+      // halves of one question and exactly one of them is meaningful at a time.
+      //
+      // Absence is NOT a configuration problem any more, which is the change from the previous
+      // revision: the product id and the three variant ids are committed constants in
+      // src/config/contribution.ts, because `slim()` in scripts/fetch-wix-catalog.js emits no
+      // `variants` array and so a refresh could never supply them. All the snapshot entry buys is
+      // the /shop/ exclusion, which only matters once the entry exists.
+      expect( CONTRIBUTION_RAW ).toBeNull();
+      expect( CONTRIBUTION_PRODUCT ).toBeNull();
+      expect( CONTRIBUTION_CONFIGURED ).toBe( true );
+    } );
+
+  it.skipIf( CONTRIBUTION_RAW === null )(
+    'carries the invariant fields the checkout depends on', () => {
+      const raw = CONTRIBUTION_RAW as Record<string, unknown>;
+      expect( raw.visible ).toBe( true );
+      // THE DELIVERY SKIP DOES NOT COME FROM `productType`, and this is where that is pinned.
+      // The live product is PHYSICAL; what makes the checkout skip the address is the line's
+      // product id being in the recognised contribution set. So the identity is asserted and the
+      // Wix type deliberately is not - the server is free to see either one.
+      expect( String( raw.id ).toLowerCase() ).toBe( CONTRIBUTION_PRODUCT_ID );
+      // Three variants, one option, no modifiers: an invariant of THIS product, not of the
+      // catalogue. The option is the "Amount" chooser and its three choices are the three prices,
+      // which is why a contribution line MUST carry an explicit variantId - with three variants
+      // there is no single-variant fallback and Wix answers "choose an available product option".
+      expect( [ raw.variantCount, raw.optionCount, raw.modifierCount ] ).toEqual( [ 3, 1, 0 ] );
+      // The cheapest and dearest choices, so a changed price in Wix is caught here rather than by
+      // a customer. `price` is the minimum of the range and `priceMax` the maximum.
+      expect( raw.price ).toBe( `${ CONTRIBUTION_CHOICES[ 0 ].rupees }.00` );
+      expect( raw.priceMax ).toBe(
+        `${ CONTRIBUTION_CHOICES[ CONTRIBUTION_CHOICES.length - 1 ].rupees }.00` );
+    } );
+
+  it( 'needs a product id AND three variant ids to count as configured', () => {
+    // A product id with no variant id would mint a cart line that reaches
+    // `normalized_catalog_items`' single-variant fallback -- the guess the explicit variant exists
+    // to avoid -- and answers a 502 on this three-variant product.
+    expect( CONTRIBUTION_CONFIGURED ).toBe(
+      !!CONTRIBUTION_PRODUCT_ID
+      && CONTRIBUTION_CHOICES.length > 0
+      && CONTRIBUTION_CHOICES.every( choice => !!choice.variantId ) );
+    expect( CONTRIBUTION_CONFIGURED ).toBe( true );
   } );
 } );

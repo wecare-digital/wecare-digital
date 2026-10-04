@@ -54,13 +54,58 @@ notes amount is ignored), a conditional one-time claim keyed by the payment id i
 settle write (so a replay settles exactly once), the capture is verified against Razorpay's API,
 and a paid-but-unresolvable capture is QUARANTINED for a human rather than guessed. No Wix order
 is ever created.
+
+PHASE 2 (2026-10-03): THIS MODULE'S OWN MONEY PATH IS RETIRED, NOT DELETED
+--------------------------------------------------------------------------
+A contribution is now **one fixed-price Wix product line in the existing cart**, priced by
+``cart_v2.calculate`` on the one live checkout path. ``POST /api/ecommerce/contribution`` stays 404
+and is never built, so ``prepare_contribution``, ``verify_contribution_callback`` and
+``settle_contribution_capture`` have no production caller and gain none. They are retained rather
+than removed because the webhook still carries a keyed ``BLOG_CONTRIBUTION`` arm and because
+deleting a verified payment implementation is not this phase's job.
+
+OWNER MODEL CHANGE (2026-10-04): THREE FIXED PRICES, NOT AN AMOUNT CARRIED AS A QUANTITY
+----------------------------------------------------------------------------------------
+The first Phase-2 revision made a contribution one Rs.1 product whose ``quantity`` WAS the rupee
+amount, with server-side bounds and a free-text field. That is retired. There are now exactly three
+contributions -- Rs.100, Rs.250 and Rs.500 -- each a fixed-price VARIANT of the one ``Contribute``
+product, added at ``quantity: 1``. No custom amount, no bounds, no ``quantity x 100``
+re-derivation. The change DELETES the amount arithmetic rather than relocating it, which is why
+there is less money code after it than before.
+
+What IS live in this module is the part the unified checkout imports rather than re-declares:
+``CONTRIBUTION_PRODUCT_IDS`` -- the committed recognition set that makes the
+``CONTRIBUTION_PRODUCT_ID`` env key a kill switch rather than a de-guard -- and
+``CONTRIBUTION_CHOICES_PAISE``, the three allowed variants and the collection each one must price
+to.
+
+``CONTRIBUTION_PRESETS_PAISE`` and ``validate_contribution_amount`` belong to the RETIRED
+own-money path above. They are no longer on the live checkout path: nothing in
+``checkout/handler.py`` calls them any more, because with three fixed prices there is no amount
+for a customer to propose and therefore nothing to validate a proposal against.
+
+They were narrowed independently of this phase, and the dates matter because the two changes
+agree rather than collide: a separate change (merged to ``stack`` as #219, "use common
+contribution amounts across blog and VayuLok") moved ``CONTRIBUTION_PRESETS_PAISE`` to
+``(10000, 25000, 50000)``, made ``validate_contribution_amount`` **preset-only**, and DELETED
+``CONTRIBUTION_MIN_PAISE`` / ``CONTRIBUTION_MAX_PAISE`` along with the free-text custom amount.
+So the retired path now offers the same three figures the live path does, by a different
+mechanism, and there is no longer any bounded custom amount anywhere in this module.
+
+OWNER DECISION [PHASE2-FEE-001], answered 2026-10-03: a contribution is **fee-exempt**. The
+customer pays exactly the amount they chose, to the paise, via
+``checkout_pricing.exempt_quote`` substituted at ``build_intent_with_calculation``'s existing
+``quote_fn`` seam. This AGREES with point 1 of the header above rather than reversing it:
+``compute_quote``'s convenience fee and GST-on-fee stay off a contribution, and ``compute_quote``
+itself is unchanged for every ordinary basket.
 """
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple
+from types import MappingProxyType
+from typing import Any, Callable, Dict, FrozenSet, Mapping, Optional, Tuple
 
 from lambda_utils.ecommerce import order_keys, payment_attempt
 from lambda_utils.ecommerce.money import positive_paise
@@ -83,6 +128,50 @@ CONTRIBUTION_CURRENCY = "INR"
 #: Only these exact three values are accepted.
 CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 
+#: Every Wix catalogue product id that has ever served as a contribution vehicle, lowercased.
+#: COMMITTED rather than configured, because this set is what makes CONTRIBUTION_PRODUCT_ID a kill
+#: switch instead of a de-guard: unsetting the env key must REFUSE a contribution basket, and that
+#: is only possible if the server can still recognise one. Ids are catalogue references, not
+#: secrets. An id is added here, never removed -- a retired vehicle must stay recognisable.
+#:
+#: The one entry is the live `Contribute` product (slug ``contribute``), MEASURED against the live
+#: Wix catalogue on 2026-10-04 rather than transcribed: ``PHYSICAL``, ``visible: true``, one option
+#: named "Amount" rendered as TEXT_CHOICES, three visible in-stock variants priced Rs.100 / Rs.250 /
+#: Rs.500. Note the shape, because it is NOT what the owner's instruction said: the three GUIDs
+#: supplied are the three VARIANT ids of ONE product, not three product ids. A `catalogItemId` of a
+#: variant id would 404 at `GET /stores/v3/products/{id}`, so the distinction is load-bearing.
+CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
+    "af326b8c-f373-45ea-ad0d-b7a38b8ce0cc",
+})
+
+#: The ONLY three contributions that can be made, as ``{variant id: integer paise}``.
+#:
+#: FIXED PRICES, NOT AN AMOUNT-TIMES-QUANTITY (owner model change, 2026-10-04). The previous model
+#: was one Rs.1 product whose QUANTITY carried the amount, with bounds and a free-text field. That
+#: is retired in favour of three fixed-price variants chosen at quantity 1, which deletes the
+#: quantity arithmetic, the bounds and the custom-amount validation rather than adding to them.
+#:
+#: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that ``cart_v2.calculate`` is the sole price
+#: authority: the browser's button says "Contribute Rs.250", and a Wix price edit would otherwise
+#: charge a different figure than the one the customer was promised. So this is not a second price
+#: -- it is the EXPECTED collection the Wix-computed total is asserted against, and a mismatch
+#: FAILS CLOSED (``checkout/handler.py:_assert_contribution_total``) rather than charging either
+#: figure. Changing a price in the Wix dashboard therefore refuses contributions until this map
+#: moves with it, which is the correct direction: the alternative is a label that lies.
+#:
+#: MIRRORED IN src/config/contribution.ts as CONTRIBUTION_CHOICES, deliberately as a separate
+#: declaration so the browser cannot widen the trusted set.
+#: tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract is the guard
+#: that fails if the two drift.
+CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
+    "166ba5b0-a0da-4ea2-b1d2-032af12e916d": 10000,     # Rs.100
+    "81d2d73a-b4ab-43fb-8043-505971763bcc": 25000,     # Rs.250
+    "8594562c-286e-48fc-b854-b09a863ba031": 50000,     # Rs.500
+})
+
+#: The variant ids above as a set, for membership tests that do not need the amount.
+CONTRIBUTION_VARIANT_IDS: FrozenSet[str] = frozenset(CONTRIBUTION_CHOICES_PAISE)
+
 # ── outcome states: the SAME documented website-checkout contract the shipped UI binds to ──
 PAYMENT_INITIATION_DISABLED = "PAYMENT_INITIATION_DISABLED"
 CHECKOUT_OPTIONS_READY = "CHECKOUT_OPTIONS_READY"
@@ -101,8 +190,22 @@ SETTLE_DUPLICATE = "DUPLICATE"
 SETTLE_QUARANTINED = "QUARANTINED"
 
 
-class ContributionRejected(Exception):
-    """A pre-create guard failed. Carries a stable ``reason`` code; never a provider/body string."""
+class ContributionRejected(ValueError):
+    """A pre-create guard failed. Carries a stable ``reason`` code; never a provider/body string.
+
+    BASE CLASS IS ``ValueError``, DELIBERATELY, and it is load-bearing (Phase 2, Sec 2.6).
+    ``checkout/handler.py:_contribution_request`` raises this from inside ``_v2_snapshot`` on the
+    live checkout function, and ``_v2_snapshot`` has two callers. ``_create`` -- which ``_action``
+    reaches for any unrecognised action or path -- ends its except chain with
+    ``except ValueError`` => ``409 AMOUNT_NOT_SETTLED``. Derived from bare ``Exception`` this
+    would instead reach ``handler``'s outer ``except Exception`` and answer
+    ``500 INTERNAL_ERROR`` on that route. ``_website_prepare`` catches it by name and answers
+    ``409 CONTRIBUTION_AMOUNT_INVALID``. The precedent is
+    ``checkout/handler.py``'s ``DeliveryMethodUnavailable``, whose docstring records the same rule.
+
+    Safe to re-base: every reference outside this module is a ``pytest.raises``, which is
+    indifferent to the base class.
+    """
 
     def __init__(self, reason: str) -> None:
         super().__init__(reason)

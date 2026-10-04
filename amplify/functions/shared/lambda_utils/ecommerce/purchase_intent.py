@@ -29,8 +29,8 @@ else. Passing a subtotal, or re-deriving the total locally, would either double-
 or under-collect it. `compute_quote`'s own docstring states the contract; this module is where
 it is honoured.
 
-WHY THE ADDRESS IS REQUIRED RATHER THAN OPTIONAL
-------------------------------------------------
+WHY THE ADDRESS IS REQUIRED WHENEVER THE BASKET REQUIRES DELIVERY
+-----------------------------------------------------------------
 Two independent reasons, and both are about the number being right rather than present:
 
 1. Delivery is a *component* of the collection total. A quote taken before a delivery method
@@ -46,6 +46,23 @@ a total in the same situation only because it validated nothing.
 There is deliberately **no** placeholder-address path here. A fabricated address makes Calculate
 Cart answer 200 and produces a wrong tax split that would then be charged, which is worse than
 no quote at all.
+
+AND WHY `owned_address` IS NEVERTHELESS `Optional` (Phase 2, Sec 3.3). Both reasons above remain
+true for a physical basket and nothing about them is softened. What changed is that a basket can
+now contain no line that requires delivery at all -- a DIGITAL contribution product -- and for
+such a basket there is no place of supply to state. Two cases follow:
+
+1. A no-delivery basket passes `owned_address=None`. `gst_state_code(None)` would raise
+   `UnmappableAddress` through `normalize_address`, so the call below is guarded and
+   `seller_state_known` becomes `None`. `_intra_state(None)` already answers `None`, and
+   `compute_quote` already documents its own fallback ("It defaults to intra-state when neither
+   is available"), so no new rule is invented. `checkout_pricing.exempt_quote` -- the fee-exempt
+   `quote_fn` a contribution substitutes here -- normalises the same unknown the same way.
+2. A physical basket with no resolvable stored address still raises `DeliveryDetailsRequired`
+   from its caller, before any Wix write. The guard is not removed, it is made conditional on
+   the basket, and the condition lives in `checkout/handler.py:_v2_snapshot`.
+
+Do not read the `= None` default as an invitation to stop requiring an address for goods.
 
 INTEGER PAISE THROUGHOUT
 ------------------------
@@ -118,7 +135,8 @@ def prepare_delivery(adapter, cart_id: str, owned: Dict[str, Any],
     return cart
 
 
-def build_intent(adapter, *, customer_id: str, cart_id: str, owned_address: Dict[str, Any],
+def build_intent(adapter, *, customer_id: str, cart_id: str,
+                 owned_address: Optional[Dict[str, Any]] = None,
                  now: int, site: Any = None, buyer_gstin: Optional[str] = None,
                  ttl_seconds: int = QUOTE_TTL_SECONDS,
                  quote_fn: Callable[..., Any] = compute_quote) -> QuoteSnapshot:
@@ -136,7 +154,8 @@ def build_intent(adapter, *, customer_id: str, cart_id: str, owned_address: Dict
 
 
 def build_intent_with_calculation(adapter, *, customer_id: str, cart_id: str,
-                                  owned_address: Dict[str, Any], now: int, site: Any = None,
+                                  owned_address: Optional[Dict[str, Any]] = None,
+                                  now: int, site: Any = None,
                                   buyer_gstin: Optional[str] = None,
                                   ttl_seconds: int = QUOTE_TTL_SECONDS,
                                   quote_fn: Callable[..., Any] = compute_quote,
@@ -161,6 +180,11 @@ def build_intent_with_calculation(adapter, *, customer_id: str, cart_id: str,
     snapshot hash, and its state resolves `intra_state` for the GST on our convenience fee. The
     supply tax is whatever Wix calculated from the address already on the cart.
 
+    `owned_address` may be `None`, and only for a basket where no line requires delivery -- see
+    the module header. `intra_state` then falls back to the documented intra-state default
+    instead of being resolved from a state code. The caller, not this function, decides whether
+    an address was required.
+
     Raises `DeliveryDetailsRequired` when the cart cannot be quoted because delivery details are
     missing, and lets any other `CartContractError` through unchanged.
     """
@@ -182,7 +206,20 @@ def build_intent_with_calculation(adapter, *, customer_id: str, cart_id: str,
     if calculated["currency"] != "INR":
         raise PricingError("only INR carts can be quoted")
 
-    seller_state_known = gst_state_code(owned_address)
+    # `None` for a basket with no line that requires delivery (Phase 2, Sec 3.3). Guarded
+    # rather than passed through: `gst_state_code(None)` raises `UnmappableAddress` via
+    # `normalize_address`. `_intra_state(None)` already answers `None`, which both
+    # `compute_quote` and `exempt_quote` normalise to intra-state.
+    #
+    # THE TEST IS `is not None`, NOT TRUTHINESS, and the difference is a guard rather than a
+    # style choice. An EMPTY dict is a placeholder address, and
+    # `test_an_unmappable_owned_address_never_reaches_a_quote` requires `{}`, `{"state":
+    # "Unknown"}` and a dashes-only address to raise `UnmappableAddress` rather than be laundered
+    # into a price. Truthiness would make `{}` skip the resolution silently and quote anyway.
+    # Only an explicit `None` -- which only a no-delivery basket passes, see
+    # `checkout/handler.py:_v2_snapshot`, where the argument is `owned or None` -- means "there is
+    # no place of supply to resolve".
+    seller_state_known = gst_state_code(owned_address) if owned_address is not None else None
     quote = quote_fn(
         calculated["amountPaise"],
         currency="INR",

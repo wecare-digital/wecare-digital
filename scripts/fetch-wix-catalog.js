@@ -86,8 +86,41 @@
  *   mediaCount       from media.itemsInfo.items, not media.items
  *   infoSectionCount NEW. V3 info sections carry the real product copy.
  *   productUrl       NEW. Wix's own canonical URL for the product.
+ *   variants         NEW, 2026-10-04. See below - this script used to emit variantCount and no
+ *                    variants array, so running it DESTROYED data the site depends on.
  *
  * IMAGES ARE NOT PULLED. Data only, and all seven products carry zero media items.
+ *
+ * VARIANTS ARE HYDRATED FROM A SECOND ENDPOINT, AND THIS CLOSES A LATENT DATA-LOSS BUG
+ * ------------------------------------------------------------------------------------
+ * Added 2026-10-04. Before this, slim() emitted `variantCount` from variantSummary and NO
+ * `variants` array, and there was no top-level `variantVerifiedAt` - while the committed snapshot
+ * carries both. So this script was no longer able to reproduce its own output: running it would
+ * have silently dropped every variant array and broken three things at once, none of which would
+ * have failed at build time:
+ *
+ *   - the merchandise fit/size selector in src/pages/shop/[slug].tsx, which renders only when
+ *     `product.variants.length > 1` - it would simply stop appearing, and merchandise has 10
+ *   - `toLineItems()` in src/lib/cart.ts, which sends `catalogReference.options.variantId`
+ *   - the merchandise variant test in src/test/ShopCatalogue.test.tsx
+ *
+ * `/stores/v3/products/search` does NOT return variants, so a second call is required.
+ *
+ * THE REQUEST ENVELOPE IS NOT THE PRODUCT LOOP'S, and getting that wrong is a 400 rather than an
+ * empty result. The search endpoint takes `{ search: { cursorPaging }, fields }`;
+ * query-variants takes `{ fields, query }` with the paging INSIDE `query`. The endpoint, the
+ * `productData.productId $in` filter and the cursor loop are mirrored from
+ * amplify/functions/ecommerce/wix-store/handler.py:196-209, which is the only first-party
+ * evidence in this repo of a working call against it.
+ *
+ * THE PROJECTION IS NOT MIRRORED - it is new here, and deliberately different. The Python helper's
+ * `_read_only_variant_to_product_variant` emits the DASHBOARD shape; the site needs
+ * `{ id, label, inStock }`. src/test/ShopIndexRedirect.test.ts assertion (h) is what pins this
+ * shape against the committed snapshot, so a future change to either one is caught.
+ *
+ * `variantVerifiedAt` is emitted TOP-LEVEL, not per product, and records the date the variants
+ * endpoint was actually read - it is the field that distinguishes "this snapshot has verified
+ * variant data" from "this snapshot predates variant hydration".
  */
 
 // ESM, because package.json declares "type": "module" - a require() here dies with
@@ -166,11 +199,74 @@ async function visitorToken( clientId ) {
 const money = range => ( range && range.minValue ) || {};
 
 /**
+ * Hydrate every product's variants from /stores/v3/products/query-variants.
+ *
+ * Returns a Map of productId -> [ { id, label, inStock } ], with the API's own order preserved
+ * within each product. Order matters: the fit/size <select> renders in array order, and sorting it
+ * here would make the committed snapshot churn whenever Wix reordered its response.
+ *
+ * `visible !== false` rather than `visible === true`: a row that omits the field is treated as
+ * visible, which matches how slim() reads the product-level flag.
+ */
+async function fetchVariants( token, productIds ) {
+  const byProduct = new Map( productIds.map( id => [ id, [] ] ) );
+  let cursor = '';
+
+  // Same guard as the product loop, and for the same reason: a cursor that never empties would
+  // otherwise spin forever. 1000 per page against seven products means one request today.
+  for ( let guard = 0; guard < 50; guard++ ) {
+    const query = cursor
+      ? { cursorPaging: { limit: 1000, cursor } }
+      : { filter: { 'productData.productId': { $in: productIds } }, cursorPaging: { limit: 1000 } };
+
+    const res = await fetch( `${API}/stores/v3/products/query-variants`, {
+      method: 'POST',
+      headers: { 'Authorization': token, 'Content-Type': 'application/json' },
+      // NOTE THE SHAPE: { fields, query }, with paging inside `query`. The product search above
+      // takes { search: { cursorPaging }, fields } - sending that shape here returns 400.
+      body: JSON.stringify( { fields: [ 'CURRENCY' ], query } ),
+    } );
+
+    if ( !res.ok ) {
+      const body = await res.text().catch( () => '' );
+      die( `HTTP ${res.status} from the Wix variants endpoint. ${body.slice( 0, 300 )}\n` +
+        '  A 400 here usually means the request envelope was built like the product search.\n' +
+        '  query-variants takes { fields, query } with cursorPaging INSIDE query - see\n' +
+        '  amplify/functions/ecommerce/wix-store/handler.py for the working call.\n' +
+        '  Nothing is written when this fails: the existing snapshot keeps its variants.' );
+    }
+
+    const data = await res.json();
+    const rows = data.variants || [];
+
+    for ( const row of rows ) {
+      if ( row.visible === false ) continue;
+      const productId = ( row.productData || {} ).productId;
+      if ( !byProduct.has( productId ) ) continue;
+      byProduct.get( productId ).push( {
+        id: row.variantId || row.id,
+        label: ( row.optionChoices || [] )
+          .map( c => ( c.optionChoiceNames || {} ).choiceName )
+          .filter( Boolean )
+          .join( ' / ' ) || 'Standard',
+        inStock: ( row.inventoryStatus || {} ).inStock === true,
+      } );
+    }
+
+    const meta = data.pagingMetadata || {};
+    cursor = ( meta.cursors || {} ).next || '';
+    if ( !rows.length || !cursor ) break;
+  }
+
+  return byProduct;
+}
+
+/**
  * Keep only the fields the site actually renders. Two reasons beyond tidiness: the raw
  * payload is mostly media and inventory internals, and a snapshot that mirrors every
  * upstream field turns every unrelated Wix change into a diff in this repo.
  */
-function slim( p ) {
+function slim( p, variantsByProduct ) {
   const min = money( p.actualPriceRange );
   const max = ( p.actualPriceRange && p.actualPriceRange.maxValue ) || {};
   const compareAt = money( p.compareAtPriceRange );
@@ -209,6 +305,10 @@ function slim( p ) {
     mediaCount: ( ( ( p.media || {} ).itemsInfo || {} ).items || [] ).length,
     infoSectionCount: ( p.infoSections || [] ).length,
     productUrl: `https://wecare.digital/shop/${p.slug}/`,
+    // Hydrated from query-variants, not from the product payload - the search endpoint does not
+    // return variants at all. Emitting this is what stops a refresh destroying the fit/size
+    // selector and the catalogReference.options.variantId the cart sends.
+    variants: ( variantsByProduct && variantsByProduct.get( p.id ) ) || [],
   };
 }
 
@@ -252,8 +352,15 @@ async function main() {
       '  catalog is far more likely to be a scope or query problem than a real change.' );
   }
 
+  // Read the variants BEFORE building the snapshot, so a failure here writes nothing at all and
+  // the committed file keeps the variant data it already has.
+  const variantsByProduct = await fetchVariants(
+    token, products.map( p => p.id ).filter( Boolean ),
+  );
+  const variantVerifiedAt = new Date().toISOString();
+
   const slimmed = products
-    .map( slim )
+    .map( p => slim( p, variantsByProduct ) )
     // Stable order so the committed file does not churn when Wix reorders its response.
     .sort( ( a, b ) => a.slug.localeCompare( b.slug ) );
 
@@ -265,6 +372,9 @@ async function main() {
     fetchedAt: new Date().toISOString(),
     productCount: slimmed.length,
     products: slimmed,
+    // TOP-LEVEL, not per product: it records when the variants ENDPOINT was read, which is one
+    // fact about the whole snapshot rather than seven facts about seven products.
+    variantVerifiedAt,
   };
 
   fs.mkdirSync( path.dirname( OUT ), { recursive: true } );
@@ -274,7 +384,10 @@ async function main() {
   for ( const p of slimmed ) {
     const range = p.price !== p.priceMax ? `${p.formattedPrice}+` : p.formattedPrice;
     console.log( `  ${p.slug.padEnd( 20 )} ${range.padStart( 11 )}  ${p.productType.padEnd( 9 )} ` +
-      `opts=${p.optionCount} variants=${p.variantCount} media=${p.mediaCount} ` +
+      // Both numbers, because they come from different endpoints: variantCount is
+      // variantSummary from the product search, variants.length is what query-variants
+      // actually returned. A disagreement is the visible symptom of a hydration problem.
+      `opts=${p.optionCount} variants=${p.variantCount}/${p.variants.length} media=${p.mediaCount} ` +
       `info=${p.infoSectionCount}${p.visible ? '' : '  (HIDDEN)'}` );
   }
 }

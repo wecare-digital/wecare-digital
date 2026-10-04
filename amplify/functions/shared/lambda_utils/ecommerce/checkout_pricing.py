@@ -328,6 +328,77 @@ def compute_quote(collection_before_convenience_paise: Any,
     )
 
 
+def exempt_quote(collection_before_convenience_paise: Any,
+                 *,
+                 currency: str = "INR",
+                 buyer_gstin: Optional[str] = None,
+                 intra_state: Optional[bool] = None) -> CheckoutQuote:
+    """A quote that collects the supply total and adds no convenience fee.
+
+    OWNER DECISION [PHASE2-FEE-001], answered 2026-10-03: a voluntary contribution carries no
+    convenience fee and no GST on a fee that does not exist, so the customer pays exactly the
+    amount they chose.
+
+    Same signature as `compute_quote` so it is substitutable as a `quote_fn`. Fee and GST are
+    zero, so `CheckoutQuote.__post_init__`'s `total == collection + fee + gst` identity holds
+    and `split_gst(0, ...)` reconciles. `compute_quote` is untouched: a fee policy that varies
+    by basket must not live inside the calculator every other basket shares.
+
+    `intra_state is None` is normalised to **True**, matching `compute_quote`'s own documented
+    default ("It defaults to intra-state when neither is available"). `split_gst` treats None as
+    falsy and would take the IGST branch, so a zero split would be stored as `intraState: false`
+    -- a value that changes no total but is printed on a receipt and is covered by `basket_hash`.
+    Two code paths must not disagree about an unknown.
+
+    WHEN `intra_state` IS ACTUALLY None HERE, because the normalisation is otherwise dead code and
+    a reader will delete it: NOT "a contribution has no address". Every checkout identity has one
+    -- `auth/customer-profile/handler.py` refuses an addressless create -- so `owned` is normally
+    truthy and the caller's `_intra_state(gst_state_code(owned))` is normally not None. The
+    reachable case is a stored address that no longer RESOLVES: a legacy contact row predating the
+    create-time requirement, or one whose address `contact_address.from_contact` now rejects.
+    Rare, real, and the one the test is written against.
+
+    IT RUNS COMPUTE_QUOTE'S OWN VALIDATORS, and that is the point rather than a formality. "Same
+    signature" is not "same refusals": a substituted calculator that validated less than the one
+    it replaces would make the exempt path the LENIENT side of a seam whose whole job is to be the
+    strict one. `CheckoutQuote.__post_init__` is a real backstop -- it re-checks `type(v) is int`
+    on all four components and calls `_validate_currency` -- but it does not see a GSTIN, and it
+    would accept an integral Decimal that `compute_quote` would have normalised. So the three
+    validation lines are written out below rather than inherited by assumption.
+    """
+    collection = _validate_collection_paise(collection_before_convenience_paise)
+    _validate_currency(currency)
+    validated_buyer = _validate_buyer_gstin(buyer_gstin)
+
+    # Fee and GST are zero, so total == collection, `__post_init__`'s
+    # `total == collection + fee + gst` identity holds, and `split_gst(0, ...)` reconciles.
+    # No `total > _MAX_PAISE` check is needed: `_validate_collection_paise` already enforces the
+    # paise ceiling and nothing is added to the figure it returned.
+    total = collection
+
+    # compute_quote's OWN normalisation block, mirrored rather than simplified, so the two
+    # calculators cannot disagree about an unknown. See the paragraph above for when this is
+    # reached. The split is zero either way; what this decides is the `intraState` flag that gets
+    # stored, hashed into `basket_hash` and printed.
+    if intra_state is None:
+        if validated_buyer is not None:
+            intra_state = _state_code(validated_buyer) == _state_code(SELLER_GSTIN)
+        else:
+            intra_state = True
+
+    return CheckoutQuote(
+        collection_before_convenience_paise=collection,
+        convenience_fee_paise=0,
+        convenience_gst_paise=0,
+        total_payable_paise=total,
+        currency=currency,
+        policy_version=CALCULATION_POLICY_VERSION,
+        seller_gstin=SELLER_GSTIN,
+        buyer_gstin=validated_buyer,
+        convenience_gst_split=split_gst(0, intra_state=intra_state),
+    )
+
+
 # ── immutable quote snapshot ───────────────────────────────────────────────────────
 
 def _canonical(value: Any) -> Any:

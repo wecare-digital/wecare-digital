@@ -140,8 +140,11 @@ describe( 'safeLocalReturnPath — absent and malformed input', () => {
 } );
 
 describe( 'safeLocalReturnPath — the accepted set', () => {
+  // '/shop/' left this set on 2026-10-04 when the owner withdrew the catalogue index. Its
+  // rejection is asserted positively in the inversion block further down, rather than only by
+  // absence here.
   it( 'accepts each customer destination in its slashed form', () => {
-    for ( const ok of [ '/cart/', '/orders/', '/shop/', '/blog/', '/' ] ) {
+    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/' ] ) {
       expect( safeLocalReturnPath( ok ) ).toBe( ok );
     }
   } );
@@ -150,7 +153,6 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
     // `trailingSlash: true`, so the unslashed form would 301 to the slashed one anyway.
     expect( safeLocalReturnPath( '/cart' ) ).toBe( '/cart/' );
     expect( safeLocalReturnPath( '/orders' ) ).toBe( '/orders/' );
-    expect( safeLocalReturnPath( '/shop' ) ).toBe( '/shop/' );
     expect( safeLocalReturnPath( '/blog' ) ).toBe( '/blog/' );
   } );
 
@@ -166,11 +168,14 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   } );
 
   it( 'only ever returns a member of the allowed set', () => {
-    const allowed = new Set( [ '/cart/', '/orders/', '/shop/', '/blog/', '/' ] );
+    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/' ] );
     const inputs = [
       '/cart', '/cart/', '/', '//evil', '/workspace/access', 'https://evil.example/',
       '%2f%2fevil', '/../x', '', null, undefined, '/terms/', '/cart/#f',
       '/checkout/', '/account/', '\\\\evil.example',
+      // Withdrawn 2026-10-04. Both spellings, plus a product page, must come back as the
+      // fallback rather than as themselves.
+      '/shop/', '/shop', '/shop/file-assist/',
     ];
     for ( const input of inputs ) {
       expect( allowed.has( safeLocalReturnPath( input ) ), `${String( input )} escaped the allowlist` )
@@ -233,14 +238,43 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     fs.existsSync( path.join( PAGES_DIR, segment, 'index.tsx' ) )
     || fs.existsSync( path.join( PAGES_DIR, `${segment}.tsx` ) );
 
-  it( 'confirms every one of the five allowed destinations really does have a page', () => {
+  it( 'confirms every one of the four allowed destinations really does have a page', () => {
     // `/` is `src/pages/index.tsx`. If one of these ever stops existing, the validator would
     // start handing out a 404 for a destination this test vouches for — which is exactly the
     // gap this block used to record, so the check is now total rather than partial.
+    //
+    // FIVE BECAME FOUR ON 2026-10-04, and this is the second use of the inversion convention the
+    // header prescribes. `shop` was in this loop and the loop CAUGHT the withdrawal: the owner
+    // deleted `src/pages/shop/index.tsx` that day, so `/shop/` stopped having an exported page
+    // and this assertion went red - working exactly as designed, rather than letting the
+    // validator keep vouching for a URL that now 301s to the home page. The prescribed
+    // resolutions were "the entry leaves ALLOWED" or "the page lands"; the page is not landing,
+    // because the withdrawal is the owner's instruction, so the entry left and the fallback is
+    // asserted below.
     expect( fs.existsSync( path.join( PAGES_DIR, 'index.tsx' ) ), '/ must have an exported page' ).toBe( true );
-    for ( const segment of [ 'cart', 'orders', 'shop', 'blog' ] ) {
+    for ( const segment of [ 'cart', 'orders', 'blog' ] ) {
       expect( pageExists( segment ), `/${segment}/ must have an exported page` ).toBe( true );
     }
+  } );
+
+  it( 'no longer accepts /shop/, because the owner withdrew the catalogue index', () => {
+    /*
+     * THE INVERSION, in the same shape as the /checkout/ and /account/ block below it.
+     *
+     * Measured from the filesystem rather than trusted: src/pages/shop/ holds only [slug].tsx
+     * after the withdrawal, so `output: 'export'` emits the seven PRODUCT pages and no index.
+     * A `?return=/shop/` would otherwise be handed back verbatim and spend a redirect landing on
+     * the home page.
+     *
+     * No in-app flow is affected: src/pages/cart.tsx is the only producer of a `return` value and
+     * it produces /cart/. The seven product pages are unaffected by this and were never allowlist
+     * members - a return path is one of a few fixed destinations, not an arbitrary product URL.
+     */
+    expect( pageExists( 'shop' ) ).toBe( false );
+    expect( safeLocalReturnPath( '/shop/' ) ).toBe( DEFAULT );
+    expect( safeLocalReturnPath( '/shop' ) ).toBe( DEFAULT );
+    // And a product page is not smuggled in either, for the same reason: it is not on the list.
+    expect( safeLocalReturnPath( '/shop/file-assist/' ) ).toBe( DEFAULT );
   } );
 
   it( 'no longer accepts /checkout/ or /account/, because neither has a page', () => {

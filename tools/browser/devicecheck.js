@@ -57,10 +57,16 @@ const launchEngine = async () => {
 const ROUTES = [ '/', '/grahak-os/', '/vayulok/', '/bharat-rx/', '/contact/', '/orders/',
   '/terms/', '/privacy/', '/anew/', '/clear-closure/', '/dastavez/', '/elsewhere/',
   '/expo-week/', '/niji-setu/', '/ritual-guru/', '/hunar/', '/vault/', '/404/', '/blog/', '/get/',
-  // The catalogue. /shop/ for the grid's three-to-two-to-one reflow, /shop/kiosk/ because it is the
-  // one catalogue route whose band is not RotatingHero's - it uses components/PageTopBand, so that
-  // component's 108px/96px clearance and its h1 clamp are proved here across all fifteen devices.
-  '/shop/', '/shop/kiosk/',
+  // The catalogue. '/shop/' WAS HERE for the grid's three-to-two-to-one reflow and was removed on
+  // 2026-10-04: the owner withdrew the index, so it 301s to the home page, and a harness that
+  // loads a redirect either follows it and audits home a second time or reports a failure -
+  // neither is information. There is no grid left to reflow.
+  //
+  // /shop/kiosk/ STAYS, and now carries the coverage alone. It is a catalogue slug rendered by
+  // src/pages/shop/[slug].tsx - the component this change edits - and it is the one catalogue
+  // route whose band is not RotatingHero's: it uses components/PageTopBand, so that component's
+  // 108px/96px clearance and its h1 clamp are proved here across every device posture.
+  '/shop/kiosk/',
   // THE TRANSACTIONAL ROUTES, AND THEIR ABSENCE WAS THE DEFECT. All four are public (registered in
   // the isPublic chain in _app.tsx) and all four were invisible to this harness, which carries a
   // hardcoded list. Two of them - /checkout/status/ and /checkout/success/ - shipped with NO header

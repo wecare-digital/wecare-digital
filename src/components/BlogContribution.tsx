@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
 import PillButton from './PillButton';
-import {
-  CONTRIBUTION_CURRENCY,
-  CONTRIBUTION_PRESETS_PAISE,
-  CONTRIBUTION_PURPOSE,
-  paiseToRupees,
-} from '../config/contribution';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
+import { CONTRIBUTION_CONFIGURED } from '../content/shop';
+import { isContributionItem, readCart, setContribution } from '../lib/cart';
 
 /**
  * "SUPPORT THIS WORK" - the Section 5 voluntary-contribution block that sits on every blog post,
@@ -14,31 +11,48 @@ import {
  *
  * WHAT THIS COMPONENT IS, AND WHAT IT IS NOT
  * ------------------------------------------
- * It is the UI + the client seam. It renders the three common preset amounts and, on a user
- * action, ASKS a backend contribution-initiation endpoint to start a payment. It is NOT the payment. The authoritative half - the BLOG_CONTRIBUTION purpose, the
- * server-decided amount, the Razorpay gateway order, verification, the webhook, idempotency and the
- * stored records - is FEAT-004 and lives in the Python backend. That endpoint is gated OFF by
- * default (CHECKOUT_INITIATION_ENABLED, see amplify/functions/ecommerce/checkout/handler.py), so
- * for now the call cannot complete a real charge, and this component is built to say so honestly.
+ * It is the UI and NOTHING ELSE. It renders the three fixed contribution choices, and on a user
+ * action it PUTS A LINE IN THE CART and navigates to /cart/. It issues no network request, holds
+ * no payment state, and knows nothing about Razorpay.
  *
- * HONEST DEGRADATION IS THE WHOLE POINT
- * -------------------------------------
- * The brief is explicit that we must never treat a query string, a browser success callback,
- * frontend state, or a bare Razorpay signature as proof of payment. So:
- *   - The default, server-rendered state is the normal available-presets form. It does NOT fetch
- *     at render/prerender time (this is a static export; a fetch at build time would break it).
- *   - A call happens ONLY on a user click, in the browser.
- *   - PAYMENT_INITIATION_DISABLED (the gate's default), any non-ready/unknown response, a network
- *     failure, or an endpoint that does not exist yet all resolve to the SAME honest state:
- *     "Contributions are not available right now." No success is ever fabricated.
- *   - A CHECKOUT_OPTIONS_READY response does NOT itself mean "paid". It would carry the public
- *     keyId / gateway orderId / server amount for a Razorpay handoff that FEAT-004 wires; until
- *     then this component treats "ready" as "the backend is live" and leaves the actual Razorpay
- *     open + verify to FEAT-004. It never shows a receipt or a thank-you as if money moved.
+ * There is no custom-amount input and no client-side amount validation: a choice is one of three
+ * fixed-price Wix variants, so there is no number for the reader to propose and nothing to parse.
  *
- * The request/response contract shape mirrors the website-checkout client contract documented in
- * handler.py: POST a small JSON body, read a `state` field, branch on PAYMENT_INITIATION_DISABLED /
- * CHECKOUT_OPTIONS_READY / CHECKOUT_REJECTED / CHECKOUT_AMBIGUOUS. FEAT-004 can bind to this seam.
+ * PHASE 2 (2026-10-03): THE ENTIRE NETWORK AND PAYMENT HALF OF THIS COMPONENT WAS DELETED
+ * ----------------------------------------------------------------------------------------
+ * It used to POST to `${API_BASE}/ecommerce/contribution` and branch on a backend state. That
+ * endpoint never existed - it answered 404, which the component honestly degraded to
+ * "Contributions are not available right now." - and it is never going to exist. A contribution is
+ * now ONE fixed-price Wix product line in the existing cart, paid on the one live checkout path:
+ *
+ *   choose an amount -> setContribution( variantId ) -> /cart/ -> POST /ecommerce/prepare-checkout
+ *   -> cart_v2.calculate prices it -> Razorpay modal -> POST /ecommerce/verify-callback -> one order
+ *
+ * `src/pages/cart.tsx` already owns the Razorpay SDK load, the modal, the `payment.failed`
+ * handler, the dismiss handler, the rail-terminal latch and the verify POST. Deleting the ~70
+ * lines of client-side payment handling that used to live here is what makes "one checkout path"
+ * true rather than aspirational, and nothing replaces them.
+ *
+ * THREE FIXED CHOICES, NO "OTHER" (owner model change, 2026-10-04)
+ * ---------------------------------------------------------------
+ * There are exactly three contributions - Rs.100, Rs.250, Rs.500 - each a fixed-price variant of
+ * the one `Contribute` product, added at quantity 1. The custom-amount radio, the free-text rupee
+ * field, its `aria-describedby` help text, the client-side bounds check and the `invalid` phase
+ * are all GONE rather than hidden. A form with no free text cannot be given an invalid value, so
+ * there is no refusal to render: every control on it leads somewhere.
+ *
+ * HONEST DEGRADATION IS STILL THE WHOLE POINT, with a narrower and knowable trigger
+ * ---------------------------------------------------------------------------------
+ * The only browser-side gate is now CONFIGURATION, and it is knowable at BUILD time - which is
+ * what a static export needs. Configured means a contribution product id and three variant ids are
+ * declared in src/config/contribution.ts. Unconfigured renders the honest line and NO FORM, and
+ * never navigates - so a build with no vehicle says contributions are unavailable instead of
+ * offering a button that cannot work.
+ *
+ * The server remains the authority: `_contribution_request` looks the chosen variant up in its OWN
+ * committed copy of the three choices and refuses anything else, and `_assert_contribution_total`
+ * holds Wix's computed total to the figure on the button. Nothing here is ever treated as proof of
+ * payment, because nothing here touches a payment.
  */
 
 export interface BlogContributionProps {
@@ -50,84 +64,74 @@ export interface BlogContributionProps {
   embedded?: boolean;
 }
 
-/** The browser-visible outcome states. "idle" is the default, server-rendered state. */
-type Phase = 'idle' | 'submitting' | 'unavailable' | 'ready';
-
-/** The documented backend states this client understands. Anything else degrades to unavailable. */
-type BackendState =
-  | 'PAYMENT_INITIATION_DISABLED'
-  | 'CHECKOUT_OPTIONS_READY'
-  | 'CHECKOUT_REJECTED'
-  | 'CHECKOUT_AMBIGUOUS';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
-/**
- * The initiation endpoint FEAT-004 owns. Kept here as the one place the path is named so the
- * backend binding is a one-line change. The call is defensive about this not existing yet.
- */
-const CONTRIBUTION_INITIATE_URL = `${API_BASE}/ecommerce/contribution`;
-
-
 const HONEST_UNAVAILABLE = 'Contributions are not available right now.';
 
 const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embedded = false } ) => {
-  const [ choice, setChoice ] = useState<number>( CONTRIBUTION_PRESETS_PAISE[ 0 ] );
-  const [ phase, setPhase ] = useState<Phase>( 'idle' );
-  const [ message, setMessage ] = useState( '' );
+  /**
+   * The selected variant id. A STRING rather than an index, so the value in state is the value
+   * that goes into the cart line and no lookup can slip between the two.
+   *
+   * There is no `null` state and no validation state: one of the three is always selected, so
+   * "nothing chosen" and "chosen badly" are both unreachable.
+   */
+  const [ variantId, setVariantId ] = useState<string>( CONTRIBUTION_CHOICES[ 0 ].variantId );
 
+  const chosen = CONTRIBUTION_CHOICES.find( choice => choice.variantId === variantId )
+    || CONTRIBUTION_CHOICES[ 0 ];
 
-  const onSubmit = async ( event: React.FormEvent ) => {
+  /**
+   * Put the choice in the cart and go there. NO `async`, no network, no payment state.
+   *
+   * Two steps and that is the whole of it: `setContribution`, navigate. `setContribution` SETS
+   * rather than increments, so choosing Rs.100 and then Rs.500 leaves ONE line at Rs.500 - which
+   * is what "choose an amount" means, and is why `addItem` is not reused.
+   */
+  const onSubmit = ( event: React.FormEvent ) => {
     event.preventDefault();
-    const paise = choice;
-
-    setPhase( 'submitting' );
-    setMessage( '' );
-
-    try {
-      const response = await fetch( CONTRIBUTION_INITIATE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify( {
-          purpose: CONTRIBUTION_PURPOSE,
-          postId,
-          slug,
-          // The browser's REQUESTED amount, in paise. The server re-decides authoritatively.
-          amountPaise: paise,
-          currency: CONTRIBUTION_CURRENCY,
-        } ),
-      } );
-
-      // A missing endpoint (404) or any non-OK status is honestly unavailable, never a failure
-      // the reader has to read as their fault.
-      if ( !response.ok ) {
-        setPhase( 'unavailable' );
-        setMessage( HONEST_UNAVAILABLE );
-        return;
-      }
-
-      const body = await response.json().catch( () => ( {} as Record<string, unknown> ) );
-      const state = String( ( body as { state?: string } ).state || '' ) as BackendState | '';
-
-      if ( state === 'CHECKOUT_OPTIONS_READY' ) {
-        // The backend is live and has issued a server-side gateway order. The actual Razorpay
-        // open + authoritative verify is FEAT-004's job; we DO NOT fabricate a paid/thank-you
-        // state here, because a browser-side "ready" is not proof of payment.
-        setPhase( 'ready' );
-        setMessage( 'Opening a secure payment\u2026' );
-        return;
-      }
-
-      // PAYMENT_INITIATION_DISABLED (the default gate), CHECKOUT_REJECTED, CHECKOUT_AMBIGUOUS and
-      // any unknown/absent state all land on the same honest, non-error unavailable message.
-      setPhase( 'unavailable' );
-      setMessage( HONEST_UNAVAILABLE );
-    } catch {
-      // Network absent, offline, DNS, CORS - all transient in shape and none of them a charge.
-      setPhase( 'unavailable' );
-      setMessage( HONEST_UNAVAILABLE );
-    }
+    setContribution( chosen.variantId );
+    window.location.assign( '/cart/' );
   };
 
+  /**
+   * Unconfigured renders the honest line and NO FORM, and never navigates.
+   *
+   * Placed before every control rather than disabling them, because a form that cannot work is
+   * worse than no form: it invites the click and then explains. Returned early so the markup below
+   * does not need a conditional on every node.
+   */
+  if ( !CONTRIBUTION_CONFIGURED )
+  {
+    return (
+      <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
+        <h2 className="bc-title" id="bc-title">Contribute</h2>
+        <p className="bc-status" role="status" data-phase="unavailable">{ HONEST_UNAVAILABLE }</p>
+        <style jsx>{`
+          .bc{
+            margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb;
+            font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+          }
+          .bc.is-embedded{margin-top:0;padding-top:0;border-top:0}
+          .bc-title{
+            font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;
+            color:rgba(0,0,0,.54);margin:0 0 12px;
+          }
+          .bc-status{font-size:15px;line-height:1.5;color:rgba(0,0,0,.7);margin:0}
+        `}</style>
+      </section>
+    );
+  }
+
+  /**
+   * Does the cart ALREADY hold something that is not a contribution?
+   *
+   * NOT `cartMixesContribution()`, which answers "is the basket already mixed" and is therefore
+   * false at the moment this warning is needed: the contribution has not been added yet. The
+   * question here is whether adding one WOULD mix it.
+   *
+   * Reads storage rather than taking an argument, because the cart may have been edited in
+   * another tab since this page rendered.
+   */
+  const mixes = readCart().some( item => !isContributionItem( item ) );
 
   return (
     <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
@@ -141,44 +145,54 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
         <fieldset className="bc-fieldset">
           <legend className="bc-legend">Choose an amount</legend>
           <div className="bc-choices" role="radiogroup" aria-label="Contribution amount">
-            { CONTRIBUTION_PRESETS_PAISE.map( paise => (
-              <label className="bc-choice" key={ paise }>
+            { CONTRIBUTION_CHOICES.map( choice => (
+              <label className="bc-choice" key={ choice.variantId }>
                 <input
                   type="radio"
-                  name="bc-amount"
+                  name={ `bc-amount-${ slug }` }
                   className="bc-radio"
-                  value={ String( paise ) }
-                  checked={ choice === paise }
-                  onChange={ () => { setChoice( paise ); setPhase( 'idle' ); setMessage( '' ); } }
+                  value={ choice.variantId }
+                  checked={ variantId === choice.variantId }
+                  onChange={ () => setVariantId( choice.variantId ) }
                 />
-                <span className="bc-choice-face">&#8377;{ paiseToRupees( paise ) }</span>
+                <span className="bc-choice-face">&#8377;{ choice.rupees }</span>
               </label>
             ) ) }
           </div>
         </fieldset>
 
-
         <div className="bc-submit-wrap">
+          {/* The button NAVIGATES rather than pays now, so it must say what it is about to put in
+              the cart. It can always name a figure, because one of the three is always selected.
+              No fee-disclosure line sits under it: OWNER DECISION [PHASE2-FEE-001] is answered
+              fee-exempt, so the customer pays exactly the figure on the button and a disclosure
+              about a fee that is not charged would be its own small untruth. */}
           <PillButton
             as="button"
             type="submit"
-            action={ phase === 'submitting' ? 'One moment\u2026' : 'Contribute' }
-            disabled={ phase === 'submitting' }
-            busy={ phase === 'submitting' }
+            action={ `Contribute \u20B9${ chosen.rupees }` }
           />
         </div>
 
-        {/* One live region for every outcome. role=status so a screen reader hears the honest
-            unavailable/invalid message; it is never a success affordance. */}
-        { message && (
-          <p
-            className={ `bc-status${ phase === 'ready' ? ' is-ready' : '' }` }
-            role="status"
-            data-phase={ phase }
-          >
-            { message }
+        {/* A contribution is paid on its own, so warn at the ENTRY POINT rather than letting the
+            customer discover it at the cart. The submit still navigates to /cart/, where the
+            notice and the per-row Remove controls live - deciding for them which lines to drop
+            would be worse than telling them.
+
+            The copy DESCRIBES WHAT THE CART DOES rather than promising a prompt. It used to read
+            "the cart will ask which to keep"; the cart does not ask - it shows a notice, disables
+            Checkout and leaves every row's Remove button in place. Naming an interaction that
+            does not exist sends the customer looking for it. */}
+        { mixes && (
+          <p className="bc-note" data-phase="mixed">
+            Your cart has other items. A contribution is paid on its own, so remove either the
+            contribution or the other items at the cart before checking out.
           </p>
         ) }
+
+        {/* NO LIVE REGION ON THE FORM ANY MORE. It existed to announce a rejected custom amount,
+            and with three fixed choices there is no amount to reject. The unavailable branch above
+            keeps its own `role="status"`, which is the one message that remains. */}
       </form>
 
       <style jsx>{`
@@ -209,8 +223,14 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
         /* The real radio is visually hidden but keyboard-reachable; the face is the pill. */
         .bc-choice{position:relative;display:inline-flex}
         .bc-radio{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+        /* min-height 44px is the tap-target floor, and it is here because the pill MEASURED
+           43px in Chromium at 390x844 - one pixel under, which no suite was looking at and no
+           eye would catch. The 8px/16px padding is kept so the shape does not change; the floor
+           just stops the box rounding below it. The site's primary CTA is 52px; a secondary
+           choice is not required to match it, only to clear 44. */
         .bc-choice-face{
           display:inline-flex;align-items:center;justify-content:center;min-width:64px;
+          min-height:44px;
           padding:8px 16px;border:2px solid #e5e7eb;border-radius:999px;background:#fff;
           font-size:15px;font-weight:700;letter-spacing:-.125px;color:#1a3a2a;cursor:pointer;
           transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
@@ -222,13 +242,16 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
         .bc-radio:checked + .bc-choice-face{border-color:#1a3a2a;background:#d1f470}
         /* Opaque focus ring at offset, the page's standard - never a translucent alpha. */
         .bc-radio:focus-visible + .bc-choice-face{outline:3px solid #1a3a2a;outline-offset:2px}
+        /* The custom-amount field's six rules (.bc-custom, -label, -row, .bc-rupee, -input, and
+           the :focus-within border) went with the field itself. .bc-note is what is left: the
+           quiet line under the choices that warns a mixed basket. */
+        .bc-note{font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:8px 0 0}
         /* The action itself is the shared public PillButton. This wrapper owns only placement,
            so Contribute cannot drift from Sign in / Checkout / Subscribe in shape or palette. */
         .bc-submit-wrap{margin-top:20px;display:flex;align-items:center}
-        /* The status line is deliberately plain, not a success banner. The ready variant is
-           informational only and never a receipt. */
+        /* The status line is deliberately plain, not a success banner: it carries the honest
+           "not available" sentence and nothing else. It is never a receipt. */
         .bc-status{font-size:15px;line-height:1.5;color:rgba(0,0,0,.7);margin:16px 0 0}
-        .bc-status.is-ready{color:#1a3a2a}
         @media(prefers-reduced-motion:reduce){
           .bc-choice-face{transition:none}
           .bc-radio:hover + .bc-choice-face{transform:none;box-shadow:none}

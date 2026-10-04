@@ -64,17 +64,22 @@ const OFFERINGS = [
 /**
  * Ways to interact with us, and page kinds. Neither is a thing we sell.
  *
- * /shop IS IN THIS LIST AND THAT IS THE INTERESTING ONE, because it is the page most obviously
- * about things that are sold. It is a LIST of them, not one of them: a Service node here would
- * claim the catalogue itself is an offering with a single serviceType, when the seven items it
- * links to are seven different things. Each of those pages emits a schema.org Product with an
- * Offer - price, currency and availability - through components/ShopProductHead.tsx, which is the
- * node that describes something purchasable. /shop emits an ItemList saying what it collects.
+ * '/shop' WAS IN THIS LIST AND WAS REMOVED ON 2026-10-04. It was the interesting entry - the page
+ * most obviously about things that are sold, classified here because it was a LIST of them rather
+ * than one of them. The owner then withdrew the catalogue index entirely: it 301s to the home page
+ * and its page file is deleted, so the route no longer exists and this is no longer a claim about
+ * anything. Leaving it would not have failed - `covers every route` only requires
+ * allRoutes() to be a subset of OFFERINGS plus NOT_OFFERINGS - which is exactly why it had to be
+ * removed deliberately rather than being caught by a gate.
+ *
+ * The seven PRODUCT pages were never classified here and still are not: they are the dynamic route
+ * '/shop/[slug]' and each emits its own schema.org Product with an Offer - price, currency and
+ * availability - through components/ShopProductHead.tsx.
  */
 const NOT_OFFERINGS = [
   '/submit-request', '/request-amendment', '/drop-docs', '/vault', '/leave-review',
   '/refer-and-earn',
-  '/terms', '/privacy', '/contact', '/orders', '/shop',
+  '/terms', '/privacy', '/contact', '/orders',
   // Shipments is a hub that signposts the request actions, and Perks is a quiet landing page for
   // the small thank-yous we send - neither is a thing we sell, and both render their non-backed
   // controls as non-transacting. A Service node would describe a site we do not have. (The former

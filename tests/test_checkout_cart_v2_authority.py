@@ -314,10 +314,19 @@ def test_without_an_owned_address_the_handler_refuses_before_touching_wix(env):
     usable address -- the seam itself reads the CRM contact row and is no longer `None`.
 
     The response is a recoverable 409 naming what the customer must do, not a 500 and not a total
-    computed from a placeholder. The stronger assertion is the second one: **no Wix call is made at
-    all**. An earlier revision created the cart first and read the address afterwards, so every
-    attempt left a real, never-completed cart on the live site with nothing to clean it up. A
-    request that cannot be priced has to be refused before it can leave anything behind.
+    computed from a placeholder. The stronger assertion is the second one: **no Wix call that can
+    LEAVE ANYTHING BEHIND is made**. An earlier revision created the cart first and read the
+    address afterwards, so every attempt left a real, never-completed cart on the live site with
+    nothing to clean it up. A request that cannot be priced has to be refused before it can leave
+    anything behind.
+
+    Asserted as "no Wix WRITE", not "no Wix call at all", because Phase 2 moved the address
+    REQUIREMENT (not the address load) below `_v2_catalog_items`: the basket's delivery need is
+    now read from Wix's own `productType`, so the refusal has to know what is in the basket before
+    it can know whether an address was required. `_v2_catalog_items` performs
+    `GET /stores/v3/products/{id}` only -- it creates nothing, and it already ran before
+    `CustomerCart.ensure` on every request -- so the leave-nothing-behind property is preserved
+    exactly while the proxy for it ("zero calls") is not. The property is what this asserts.
     """
     h, fake, _lam, wix, monkeypatch = env
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", None)
@@ -325,7 +334,8 @@ def test_without_an_owned_address_the_handler_refuses_before_touching_wix(env):
 
     assert response["statusCode"] == 409
     assert json.loads(response["body"])["error"] == "DELIVERY_DETAILS_REQUIRED"
-    assert wix.calls == [], "no Wix call may precede the address check"
+    assert all(method == "GET" for method, *_ in wix.calls), (
+        "no Wix call that writes may precede the address check")
     # Nothing was reserved and no attempt exists: a refused price creates no intent.
     assert fake.all_rows(ATTEMPTS_TABLE) == []
 
@@ -337,7 +347,9 @@ def test_an_empty_profile_address_is_not_coerced_into_a_default(env):
         response = h.handler(_create_event(), None)
         assert response["statusCode"] == 409
         assert json.loads(response["body"])["error"] == "DELIVERY_DETAILS_REQUIRED"
-    assert wix.calls == []
+    # Read-only product reads are permitted; a write is not. See the test above for why the
+    # assertion is the property rather than a zero-call count.
+    assert all(method == "GET" for method, *_ in wix.calls)
     assert fake.all_rows(ATTEMPTS_TABLE) == []
 
 
@@ -455,6 +467,83 @@ def test_a_saved_cart_holding_something_else_is_refused_rather_than_priced(env):
     assert json.loads(response["body"])["error"] == "CART_NOT_PAYABLE"
     after = [r for r in fake.all_rows(KEYS_TABLE) if str(r["orderId"]).startswith("PAYREF#")]
     assert len(after) == before, "a mismatched basket must reserve nothing"
+
+
+def test_the_create_route_does_not_reconcile_and_that_is_the_default(env):
+    """`reconcile=False` is `_v2_snapshot`'s default, and only `_website_snapshot` overrides it.
+
+    The test above is the behavioural proof; this is the structural one, because the default is
+    what keeps the WhatsApp payment path unchanged. Reconciling unconditionally would silently
+    alter a live payment path that has no contribution entry point and gains nothing from it.
+    """
+    h, _fake, _lam, _wix, _mp = env
+    import inspect
+    signature = inspect.signature(h._v2_snapshot)
+    assert signature.parameters["reconcile"].default is False
+    assert signature.parameters["reset"].default is False
+    assert signature.parameters["reconcile"].kind is inspect.Parameter.KEYWORD_ONLY
+    assert signature.parameters["reset"].kind is inspect.Parameter.KEYWORD_ONLY
+
+    website = inspect.signature(h._website_snapshot)
+    assert website.parameters["reset"].default is False
+    assert website.parameters["reset"].kind is inspect.Parameter.KEYWORD_ONLY
+    # Positional call still works, which `tests/test_graft_money_correctness.py` relies on.
+    assert [name for name, p in website.parameters.items()
+            if p.kind is inspect.Parameter.POSITIONAL_OR_KEYWORD] == [
+        "identity", "line_items", "now"]
+
+
+def test_the_website_route_reconciles_the_same_mismatch_the_create_route_refuses(env):
+    """The asymmetry, driven through the handler on the prepare route.
+
+    The website request comes from the cart page the customer is looking at, so making the Wix
+    cart match it is "asking them to review it" carried out rather than bypassed. The refusal that
+    stands on `_create` has no equivalent surface there -- and before this, it answered
+    `503 TEMPORARILY_UNAVAILABLE` on the website route, a transient code for a condition no retry
+    clears, for up to thirty days.
+    """
+    h, _fake, _lam, wix, _mp = env
+    assert h.handler(_create_event(), None)["statusCode"] == 200
+
+    reference = delivery_complete()["cart"]["lineItems"][0]["source"]["catalogReference"]
+    event = {
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.5"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer tok"},
+        "rawPath": "/ecommerce/prepare-checkout",
+        "body": json.dumps({"lineItems": [{
+            "catalogReference": {"appId": reference["appId"],
+                                 "catalogItemId": reference["catalogItemId"],
+                                 "options": {"variantId": reference["options"]["variantId"]}},
+            "quantity": 2}], "requestKey": "rk-reconcile-1"}),
+    }
+    before = len([path for method, path in wix.calls
+                  if method == "POST" and path.endswith("/update-line-items")])
+    response = h.handler(event, None)
+    # The canned fixture always replays quantity 1, so the backstop still refuses after the
+    # reconcile -- which is the point worth asserting here: it is a 409 in the Cart V2 vocabulary
+    # rather than the 503 dead end, AND a reconcile command was actually issued.
+    assert response["statusCode"] == 409
+    assert json.loads(response["body"])["error"] == "CART_NOT_PAYABLE"
+    after = len([path for method, path in wix.calls
+                 if method == "POST" and path.endswith("/update-line-items")])
+    assert after > before, "the website route must attempt a reconcile before refusing"
+
+
+def test_a_physical_create_basket_with_no_stored_address_still_demands_one(env):
+    """Sec 3.7's property, not the absence of a diff.
+
+    `_create` gained a CONDITIONAL address requirement because it shares `_v2_snapshot`. That is
+    behaviourally inert today -- every one of the seven catalogue products is PHYSICAL, so
+    `any(requiresDelivery)` is True for every basket that exists -- but it is still a change to a
+    live payment path, so the property is pinned rather than left to be discovered.
+    """
+    h, fake, _lam, wix, monkeypatch = env
+    monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", lambda customer_id: None)
+    response = h.handler(_create_event(), None)
+    assert response["statusCode"] == 409
+    assert json.loads(response["body"])["error"] == "DELIVERY_DETAILS_REQUIRED"
+    assert all(method == "GET" for method, *_ in wix.calls)
+    assert fake.all_rows(ATTEMPTS_TABLE) == []
 
 
 # ── nothing here can create or place an order ───────────────────────────────────
@@ -640,11 +729,14 @@ def test_a_raw_session_phone_still_resolves_the_address_on_the_pricing_path(env)
     assert json.loads(response["body"]).get("error") != "DELIVERY_DETAILS_REQUIRED"
 
 
-def test_a_stored_address_wix_cannot_map_is_refused_before_any_wix_call(env):
+def test_a_stored_address_wix_cannot_map_is_refused_before_any_wix_write(env):
     """`from_contact` re-validates, so an unmappable stored address is a recoverable 409.
 
     Not a 503, which no retry fixes, and not a priced cart with the wrong CGST/SGST-versus-IGST
-    split. And nothing is left behind on the live site: zero Wix calls.
+    split. And nothing is left behind on the live site: no Wix WRITE. The read-only product GET
+    that resolves whether this basket needs delivery at all is permitted and creates nothing --
+    see `test_without_an_owned_address_the_handler_refuses_before_touching_wix` for why the
+    assertion is the property rather than a zero-call count.
     """
     h, fake, _lam, wix, monkeypatch = env
     monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", h._load_owned_address)
@@ -655,7 +747,7 @@ def test_a_stored_address_wix_cannot_map_is_refused_before_any_wix_call(env):
     response = h.handler(_prepare_event(), None)
     assert response["statusCode"] == 409
     assert json.loads(response["body"])["error"] == "DELIVERY_DETAILS_REQUIRED"
-    assert wix.calls == []
+    assert all(method == "GET" for method, *_ in wix.calls)
     assert fake.all_rows(ATTEMPTS_TABLE) == []
 
 

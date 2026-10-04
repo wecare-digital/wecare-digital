@@ -72,7 +72,8 @@ def _api_key() -> str:
     value = ""
     try:
         data = json.loads(raw)
-        value = (data.get("apiKey") or data.get("value") or data.get("key") or "").strip()
+        value = (data.get("apiKey") or data.get("api_key")
+                 or data.get("value") or data.get("key") or "").strip()
     except (ValueError, TypeError):
         value = raw.strip()
     if not value:
@@ -157,8 +158,19 @@ def create_checkout(line_items: List[Dict[str, Any]], *,
     return checkout
 
 
-def normalized_catalog_items(line_items):
-    """Resolve live V3 variants before pricing. Never silently select apparel options.
+def resolved_catalog_lines(line_items):
+    """Resolve live V3 variants before pricing, and report whether each line needs delivery.
+
+    -> [{'productId', 'variantId', 'quantity', 'requiresDelivery'}]
+
+    Same validation, same product cache, same refusals and the same number of HTTP calls as
+    `normalized_catalog_items`, which is now a projection of this function; one extra field.
+
+    `requiresDelivery` is `str(product.get('productType') or '').upper() != 'DIGITAL'`, so an
+    absent, empty, lowercase or unrecognised `productType` FAILS CLOSED to "needs an address"
+    rather than silently skipping the one gate that sets the place of supply. Asking for an
+    address unnecessarily annoys a customer; not asking ships a physical order nowhere with the
+    wrong GST split.
 
 Get Product: https://dev.wix.com/docs/api-reference/business-solutions/stores/catalog-v3/products-v3/get-product
 Stores' catalogue reference contract is shared with our existing Cart V2 adapter.
@@ -198,10 +210,25 @@ Stores' catalogue reference contract is shared with our existing Cart V2 adapter
             variant_id = variants[0].get('id')
         if not variant_id or not any(v.get('id') == variant_id for v in variants):
             raise WixEcomError('choose an available product option')
-        resolved.append({'catalogReference': {'appId': STORES_APP_ID,
-                        'catalogItemId': product_id, 'options': {'variantId': variant_id}},
-                         'quantity': quantity})
+        resolved.append({'productId': product_id, 'variantId': variant_id,
+                         'quantity': quantity,
+                         'requiresDelivery': str(product.get('productType') or '').upper() != 'DIGITAL'})
     return resolved
+
+
+def normalized_catalog_items(line_items):
+    """Unchanged contract and unchanged return shape, now a projection of
+    `resolved_catalog_lines`.
+
+Get Product: https://dev.wix.com/docs/api-reference/business-solutions/stores/catalog-v3/products-v3/get-product
+Stores' catalogue reference contract is shared with our existing Cart V2 adapter.
+"""
+    from lambda_utils.ecommerce.cart_v2 import STORES_APP_ID
+    return [{'catalogReference': {'appId': STORES_APP_ID,
+                                  'catalogItemId': line['productId'],
+                                  'options': {'variantId': line['variantId']}},
+             'quantity': line['quantity']}
+            for line in resolved_catalog_lines(line_items)]
 
 
 def get_checkout(checkout_id: str) -> Dict[str, Any]:

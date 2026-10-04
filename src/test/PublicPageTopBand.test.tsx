@@ -14,6 +14,7 @@ import { shopProductBySlug } from '../content/shop';
 import type { ShopProduct } from '../content/shop';
 import * as customerAuth from '../lib/customerAuth';
 import * as cartLib from '../lib/cart';
+import { CONTRIBUTION_CHOICES } from '../config/contribution';
 
 /**
  * THE TOP SECTION EVERY PUBLIC PAGE MUST CARRY, and the four transactional pages that did not.
@@ -593,5 +594,93 @@ describe( 'the country code is a segment of the one divided field, on owner inst
     expect( field.getAttribute( 'aria-describedby' ) ).toBe( 'si-hint si-error' );
     // BOTH segments are marked, because the field is wrong as a whole rather than one half of it.
     expect( screen.getByLabelText( 'Calling code' ).getAttribute( 'aria-invalid' ) ).toBe( 'true' );
+  } );
+} );
+
+describe( 'the cart keeps its own top band, and every Phase-2 addition lands BELOW it', () => {
+  /**
+   * T15, and the owner's top-band requirement guarded against a later refactor.
+   *
+   * Phase 2 creates no new page. /cart/ already carries a `PageTopBand` with its own heading and
+   * sub in the home hero's visual language, and the three routes the brief also names -
+   * /checkout/status/, /checkout/success/ and /account/sign-in/ - already carry one with
+   * per-outcome content. So the requirement is met by NOT REGRESSING it, which is a thing a test
+   * can hold and a comment cannot: the cases above already drive all four pages through the same
+   * band matrix, and keeping them green with NO edit to those pages is what makes them
+   * verified-unchanged rather than merely unedited.
+   *
+   * The new work here is the second case: every Phase-2 addition - the mixed-basket notice, the
+   * contribution amount row, the new outcome copy, the "Start a new cart" control - must render as
+   * a descendant of the band's `children` and NOT inside `.ptb-top`. The band states what the page
+   * is; it carries no CTA, no price and no conversion furniture.
+   */
+  it( 'renders exactly one h1, inside the band, with the cart\'s own heading and sub', () => {
+    vi.spyOn( customerAuth, 'getSession' ).mockReturnValue( null );
+    const { container } = render( <Cart /> );
+    const h1s = container.querySelectorAll( 'h1' );
+    expect( h1s ).toHaveLength( 1 );
+    expect( h1s[ 0 ].textContent ).toBe( 'Your cart' );
+    // Inside the band, not merely on the page.
+    expect( container.querySelector( '.ptb-top h1' ) ).not.toBeNull();
+    // Its own sub, page-specific rather than generic. Still accurate for a contribution basket:
+    // a contribution IS in the cart.
+    expect( container.textContent )
+      .toContain( 'Review what you have added before you check out.' );
+  } );
+
+  it( 'puts no cart control, notice or amount field inside .ptb-top', () => {
+    vi.spyOn( customerAuth, 'getSession' ).mockReturnValue( null );
+    // A basket that exercises the contribution row and the mixed-basket notice together.
+    cartLib.clearCart();
+    cartLib.setContribution( CONTRIBUTION_CHOICES[ 1 ].variantId );
+    cartLib.addItem( KIOSK(), 1 );
+    const { container } = render( <Cart /> );
+    const band = container.querySelector( '.ptb-top' ) as HTMLElement;
+    expect( band ).not.toBeNull();
+
+    // Nothing actionable and nothing money-shaped in the band itself.
+    expect( band.querySelectorAll( 'button' ) ).toHaveLength( 0 );
+    expect( band.querySelectorAll( 'input' ) ).toHaveLength( 0 );
+    expect( band.querySelectorAll( 'a' ) ).toHaveLength( 0 );
+    expect( band.textContent || '' ).not.toMatch( /\u20B9/ );
+    expect( band.textContent || '' ).not.toMatch( /Amount in rupees/ );
+    expect( band.textContent || '' ).not.toMatch( /paid on its own/ );
+
+    // And the additions really are on the page, below it - so this is not passing vacuously.
+    expect( container.querySelectorAll( 'input' ).length ).toBeGreaterThan( 0 );
+    cartLib.clearCart();
+  } );
+
+  it( 'leaves the checkout pages and sign-in untouched, which is why their cases still pass', () => {
+    // A source pin on the three routes the brief names but the design puts no code change on. If
+    // a future edit moves a band on any of them, this fails beside the matrix above rather than
+    // leaving "verified unchanged" as an unchecked claim.
+    for ( const relative of [
+      'src/pages/checkout/status.tsx',
+      'src/pages/checkout/success.tsx',
+      'src/pages/account/sign-in.tsx',
+      'src/components/PageTopBand.tsx',
+    ] )
+    {
+      const source = fs.readFileSync( path.resolve( __dirname, '../..', relative ), 'utf8' );
+      // Each still mounts the STATIC band, never the rotating marketing hero: content that moves
+      // automatically for over 5s with no pause mechanism is a WCAG 2.2.2 failure, and four cycle
+      // words above a screen a customer is reading to find out whether their money moved would be
+      // invented marketing copy.
+      if ( relative !== 'src/components/PageTopBand.tsx' )
+      {
+        expect( source, relative ).toMatch( /<PageTopBand/ );
+      }
+      // `PageTopBand.tsx` itself NAMES `RotatingHero` in its header, where it explains why it
+      // omits the rotation -- a WCAG 2.2.2 pause failure, plus invented marketing copy above a
+      // screen a customer is reading to find out whether their money moved. A page MOUNTING it is
+      // the thing being refused, so the check is scoped to the pages.
+      if ( relative !== 'src/components/PageTopBand.tsx' )
+      {
+        expect( source, relative ).not.toMatch( /RotatingHero/ );
+      }
+      // And no contribution code leaked into any of them.
+      expect( source, relative ).not.toMatch( /[Cc]ontribution/ );
+    }
   } );
 } );

@@ -66,11 +66,14 @@ const ROUTES = [
   '/hunar/', '/vault/',
   // '/llm/' was here until 2026-09-30. The page is retired and the URL now 301s to
   // /llms.txt, which is a text file with no DOM to audit.
-  // The catalogue, one page of each SHAPE rather than all eight: /shop/ is the grid, and one
-  // product page stands for the seven, which are the same component with different strings.
+  // The catalogue. '/shop/' - the grid - was removed on 2026-10-04 when the owner withdrew the
+  // index: it 301s to the home page, and Lighthouse auditing a redirect measures the home page a
+  // second time rather than the catalogue.
+  //
+  // ONE product page stands for the seven, which are the same component with different strings.
   // /shop/kiosk/ is the sample because it has the most description paragraphs of the seven, so it
   // is the longest document the template produces.
-  '/shop/', '/shop/kiosk/',
+  '/shop/kiosk/',
   '/post/a-break-is-still-part-of-life/', '/404.html',
 ];
 

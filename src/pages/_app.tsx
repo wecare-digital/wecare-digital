@@ -560,18 +560,21 @@ const PUBLIC_PAGE_META: Record<string, {
   '/vault': { name: 'Vault', type: 'WebPage', description: 'Ask for a copy of a document held against one of your requests.' },
   '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
   '/refer-and-earn': { name: 'Refer & Earn', type: 'WebPage', description: 'Introduce someone who would find this useful.' },
-  // The catalogue index. NO serviceType, and that is the decision rather than an omission: this
-  // page is a LIST of things that are sold, not itself a thing offered - the seven items each get
-  // their own page emitting a schema.org Product with an Offer, which is the node that describes
-  // something purchasable. src/test/StructuredDataService.test.ts records the same call in
-  // NOT_OFFERINGS.
+  // THE CATALOGUE INDEX IS WITHDRAWN, 2026-10-04, on owner instruction: /shop/ is no longer
+  // browsable and 301s to the home page (scripts/provision_legacy_redirects.py declares all three
+  // spellings, and src/pages/shop/index.tsx is deleted so it leaves the export entirely). Its
+  // '/shop' key is therefore gone from this map, together with its '/shop' entry in PUBLIC_EXACT in
+  // scripts/generate-sitemap.js - the two are coupled by src/test/PublicRouteRegistration.test.ts,
+  // which requires every route in this map to be in the sitemap allowlist, so neither could be
+  // withdrawn alone.
   //
-  // The seven product pages are NOT here. They are '/shop/[slug]', a dynamic route, and this map
-  // is keyed on router.pathname - so an entry for them would key on the literal string
-  // '/shop/[slug]' and every URL computed from it, canonical included, would name a page that does
-  // not exist. They qualify through the isContentPublic chain below and own their whole <head>
-  // through components/ShopProductHead.tsx, exactly as /post/[slug] does through SEO.tsx.
-  '/shop': { name: 'Shop', type: 'CollectionPage', description: 'What WECARE.DIGITAL sells, with each item\'s price and what it includes.' },
+  // THE SEVEN PRODUCT PAGES ARE UNAFFECTED and still render. They were never in this map: they are
+  // '/shop/[slug]', a dynamic route, and this map is keyed on router.pathname - so an entry for
+  // them would key on the literal string '/shop/[slug]' and every URL computed from it, canonical
+  // included, would name a page that does not exist. They qualify through the isContentPublic chain
+  // below and own their whole <head> through components/ShopProductHead.tsx, exactly as
+  // /post/[slug] does through SEO.tsx. Do not remove '/shop/[slug]' from that chain while
+  // withdrawing this entry: without it a product page renders the staff sign-in shell at HTTP 200.
   // Shipments gathers the request/delivery/pickup actions in one place. It links the real request
   // routes (orders, request-amendment, drop-docs, vault, leave-review) and renders anything with
   // no backend (pickup/visit/delivery tracking) as a clearly non-transacting item.
