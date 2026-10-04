@@ -12,7 +12,7 @@ import { SITE_ORIGIN } from '../config/share';
  * fetched CLIENT-SIDE from Google's India-SKU APIs plus the Maps JavaScript API.
  *
  * THE MOCK'S "never call these from a browser" STANCE IS A MOCK CONSTRAINT, NOT THIS
- * PAGE'S. The mock header says weather/air/solar/pollen are server-side web services
+ * PAGE'S. The mock header says weather/air/pollen are server-side web services
  * and uses static placeholders. For the real page the owner wants LIVE data, and these
  * Google APIs ARE called client-side from the browser with the referrer-restricted
  * browser key - exactly as the shipped src/components/ContactLocation.tsx already calls
@@ -264,6 +264,22 @@ function aqiCategory( aqi: number ): { word: string; sev: Sev } {
   return { word: 'Severe', sev: 'worst' };
 }
 
+/* The "Past air quality" history bar's AQI-ramp class. This reuses the SAME band logic as the
+   live dot / pollutant tone (aqiCategory) so the history reads with the identical
+   good -> sat -> mod -> poor -> worst ramp rather than a flat lime->green gradient. No new
+   thresholds are invented here; the single source of truth stays aqiCategory. */
+function aqiBarClass( aqi: number ): string {
+  return `vl-live-history-bar-${aqiCategory( aqi ).sev}`;
+}
+
+/* Human-readable label for the selected history range, used in the chart's aria-label so a
+   screen reader hears "last 24 hours" rather than a raw hour count. */
+function historyRangeLabel( hours: 24 | 168 | 720 ): string {
+  if ( hours === 24 ) return 'last 24 hours';
+  if ( hours === 168 ) return 'last 7 days';
+  return 'last 30 days';
+}
+
 /* A plain-English "current status" word for the PM2.5 result block, derived from the SAME
    severity band the dot and category already use (never a new scale). The mockup's
    "Elevated" sits in this ramp between the clean and the hazardous ends. */
@@ -357,12 +373,6 @@ interface WeatherAlertRow {
   severity?: string;
   urgency?: string;
   expires?: string;
-}
-interface SolarState {
-  maxPanels?: number;
-  roofAreaM2?: number;
-  yearlyKwh?: number;
-  sunshineHrs?: number;
 }
 interface PollenRow { label: string; index: number; word: string; day: string; }
 
@@ -575,12 +585,9 @@ const VayuLokLive: React.FC = () => {
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ photoIndex, setPhotoIndex ] = useState( 0 );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
-  const [ solarRequested, setSolarRequested ] = useState( false );
-  const [ solarLoading, setSolarLoading ] = useState( false );
 
   const [ air, setAir ] = useState<AirState | null>( null );
   const [ weather, setWeather ] = useState<WeatherState | null>( null );
-  const [ solar, setSolar ] = useState<SolarState | null>( null );
   const [ pollen, setPollen ] = useState<PollenRow[] | null>( null );
   const [ weatherHourly, setWeatherHourly ] = useState<WeatherHour[]>( [] );
   const [ weatherDaily, setWeatherDaily ] = useState<WeatherDay[]>( [] );
@@ -643,9 +650,6 @@ const VayuLokLive: React.FC = () => {
   const destAbortRef = useRef<AbortController | null>( null );
 
   useEffect( () => {
-    setSolar( null );
-    setSolarRequested( false );
-    setSolarLoading( false );
     setPhotoIndex( 0 );
     setMapCandidate( null );
     setNearbyPhotos( [] );
@@ -1179,8 +1183,7 @@ const VayuLokLive: React.FC = () => {
 
   /* ---------------------------------------------------------------------------------
      LIVE DATA for the selected place. Air + Weather + Pollen fire together whenever
-     the place changes AND a key is present. Solar is deliberately user-triggered because
-     Building Insights is the comparatively expensive SKU. Each call is independently guarded,
+     the place changes AND a key is present. Each call is independently guarded,
      uses AbortController + Number.isFinite + silent degradation, and caches per place. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
@@ -1570,32 +1573,6 @@ const VayuLokLive: React.FC = () => {
     void run().catch( () => { if ( !ac.signal.aborted ) setHistoryLoading( false ); } );
     return () => ac.abort();
   }, [ place, historyRange, hasSelection ] );
-
-  const loadSolar = useCallback( async () => {
-    if ( !MAPS_KEY || !hasSelection || solarLoading ) return;
-    setSolarRequested( true );
-    setSolarLoading( true );
-    try {
-      const res = await fetch(
-        `https://solar.googleapis.com/v1/buildingInsights:findClosest?key=${encodeURIComponent( MAPS_KEY )}&location.latitude=${place.lat}&location.longitude=${place.lng}`,
-      );
-      if ( !res.ok ) { setSolar( null ); return; }
-      const d = await res.json();
-      const sp = d?.solarPotential;
-      if ( !sp ) { setSolar( null ); return; }
-      const out: SolarState = {};
-      if ( Number.isFinite( sp.maxArrayPanelsCount ) ) out.maxPanels = sp.maxArrayPanelsCount;
-      if ( Number.isFinite( sp.maxArrayAreaMeters2 ) ) out.roofAreaM2 = Math.round( sp.maxArrayAreaMeters2 );
-      if ( Number.isFinite( sp.maxSunshineHoursPerYear ) ) out.sunshineHrs = Math.round( sp.maxSunshineHoursPerYear );
-      const cfg = Array.isArray( sp.solarPanelConfigs ) ? sp.solarPanelConfigs[ sp.solarPanelConfigs.length - 1 ] : null;
-      if ( cfg && Number.isFinite( cfg.yearlyEnergyDcKwh ) ) out.yearlyKwh = Math.round( cfg.yearlyEnergyDcKwh );
-      setSolar( Object.keys( out ).length ? out : null );
-    } catch {
-      setSolar( null );
-    } finally {
-      setSolarLoading( false );
-    }
-  }, [ place.lat, place.lng, solarLoading, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
@@ -2414,18 +2391,18 @@ const VayuLokLive: React.FC = () => {
                     </div>
                   </div>
                   { historyLoading ? (
-                    <p className="vl-live-small">Loading history…</p>
+                    <p className="vl-live-small" role="status" aria-live="polite">Loading history…</p>
                   ) : airHistory.length > 0 ? (
-                    <div className="vl-live-history" aria-label={ 'AQI history for ' + historyRange + ' hours' }>
+                    <div className="vl-live-history" role="img" aria-label={ 'Air quality history, ' + historyRangeLabel( historyRange ) }>
                       { airHistory.filter( ( _, i ) => {
                         const step = Math.max( 1, Math.ceil( airHistory.length / 72 ) );
                         return i % step === 0 || i === airHistory.length - 1;
                       } ).map( p => (
-                        <i key={ p.time } style={ { height: Math.max( 8, Math.min( 100, p.aqi / 5 ) ) + '%' } } title={ hourLabel( p.time ) + ' · AQI ' + p.aqi } />
+                        <i key={ p.time } className={ aqiBarClass( p.aqi ) } style={ { height: Math.max( 8, Math.min( 100, p.aqi / 5 ) ) + '%' } } title={ hourLabel( p.time ) + ' · AQI ' + p.aqi } />
                       ) ) }
                     </div>
                   ) : (
-                    <p className="vl-live-small">Air history is not available for this location right now.</p>
+                    <p className="vl-live-small" role="status" aria-live="polite">Air history is not available for this location right now.</p>
                   ) }
                 </div>
               ) }
@@ -2486,38 +2463,6 @@ const VayuLokLive: React.FC = () => {
                   ) }
                 </div>
               ) }
-            </section>
-          ) }
-
-          {/* SOLAR - expensive relative to Weather/Air, so load only after explicit user action. */}
-          { hasSelection && (
-            <section className="vl-live-section" aria-labelledby="vl-live-solar-title">
-            <h3 className="vl-live-h2" id="vl-live-solar-title">Solar &ndash; Building Insights</h3>
-            { !solarRequested && (
-              <>
-                <p className="vl-live-small vl-live-mb16">Rooftop solar potential is loaded only when you ask for it.</p>
-                <button className="vl-live-solar-load" type="button" onClick={ () => void loadSolar() }>View solar potential</button>
-              </>
-            ) }
-            { solarLoading && <p className="vl-live-small">Loading rooftop potential…</p> }
-            { solarRequested && !solarLoading && !solar && <p className="vl-live-small">Solar building insights are not available for this location.</p> }
-            { solar && ( Number.isFinite( solar.maxPanels ) || Number.isFinite( solar.roofAreaM2 ) || Number.isFinite( solar.yearlyKwh ) || Number.isFinite( solar.sunshineHrs ) ) && (
-              <>
-              <p className="vl-live-small vl-live-mb16">Rooftop solar potential for this address, from the Solar API&rsquo;s building insights.</p>
-              { Number.isFinite( solar.maxPanels ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Max panels</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-mod" style={ { width: '62%' } } /></span><span className="vl-live-metric-md">{ solar.maxPanels } panels</span><span className="vl-live-prow-cat">Rooftop</span></div>
-              ) }
-              { Number.isFinite( solar.sunshineHrs ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Sunshine</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-poor" style={ { width: '78%' } } /></span><span className="vl-live-metric-md">{ solar.sunshineHrs!.toLocaleString( 'en-IN' ) } hrs/yr</span><span className="vl-live-prow-cat">Per year</span></div>
-              ) }
-              { Number.isFinite( solar.roofAreaM2 ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Roof area</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-sat" style={ { width: '48%' } } /></span><span className="vl-live-metric-md">{ solar.roofAreaM2 } m²</span><span className="vl-live-prow-cat">Usable</span></div>
-              ) }
-              { Number.isFinite( solar.yearlyKwh ) && (
-                <div className="vl-live-prow"><p className="vl-live-label">Yearly energy</p><span className="vl-live-track"><span className="vl-live-bar vl-live-bar-poor" style={ { width: '71%' } } /></span><span className="vl-live-metric-md">{ solar.yearlyKwh!.toLocaleString( 'en-IN' ) } kWh</span><span className="vl-live-prow-cat">Estimated</span></div>
-              ) }
-              </>
-            ) }
             </section>
           ) }
 
@@ -3216,10 +3161,20 @@ const VayuLokLive: React.FC = () => {
         .vl-live-history-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-top:24px}
         .vl-live-history-head .vl-live-minor-title{margin:0}
         .vl-live-history-controls{display:flex;gap:6px}
-        .vl-live-history-controls button{min-height:34px;padding:0 11px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+        .vl-live-history-controls button{min-height:34px;padding:0 11px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background-color .2s,border-color .2s}
+        .vl-live-history-controls button:hover{border-color:var(--green);background:var(--lime-tint)}
+        .vl-live-history-controls button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live-history-controls button[aria-pressed="true"]{border-color:var(--green);background:var(--lime)}
         .vl-live-history{height:132px;display:flex;align-items:flex-end;gap:2px;margin-top:14px;padding:10px 0 2px;border-bottom:1px solid var(--hair)}
-        .vl-live-history i{flex:1 1 0;min-width:2px;max-width:10px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--lime),var(--green))}
+        /* History bars share the live AQI ramp: good -> sat -> mod -> poor -> worst, keyed by the
+           SAME band as the dots (--aqi-* tokens), so the chart reads like the live dot colours.
+           Geometry (flex sizing, radii, min/max width) is unchanged. */
+        .vl-live-history i{flex:1 1 0;min-width:2px;max-width:10px;border-radius:4px 4px 0 0;background:var(--aqi-sat)}
+        .vl-live-history i.vl-live-history-bar-good{background:var(--aqi-good)}
+        .vl-live-history i.vl-live-history-bar-sat{background:var(--aqi-sat)}
+        .vl-live-history i.vl-live-history-bar-mod{background:var(--aqi-mod)}
+        .vl-live-history i.vl-live-history-bar-poor{background:var(--aqi-poor)}
+        .vl-live-history i.vl-live-history-bar-worst{background:var(--aqi-worst)}
         .vl-live-weather-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--hair)}
         .vl-live-weather-grid>div{padding:16px 14px 16px 0;border-bottom:1px solid var(--hair)}
         .vl-live-weather-grid>div:nth-child(even){padding-left:14px;border-left:1px solid var(--hair)}
@@ -3275,10 +3230,6 @@ const VayuLokLive: React.FC = () => {
 
         .vl-live-section{padding-top:0}
 
-        .vl-live-solar-load{min-height:52px;padding:0 24px;border:2px solid var(--green);border-radius:50px;background:var(--lime);color:var(--green);font:inherit;font-size:17px;font-weight:600;cursor:pointer;transition:background-color .2s,transform .2s,box-shadow .2s}
-        .vl-live-solar-load:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
-        .vl-live-solar-load:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-
         /* SUBSCRIBE - same home-page CTA geometry and interaction as the blog-post anchor. */
         .vl-live-wa-subscribe{display:inline-flex;align-items:center;gap:10px;min-height:52px;padding:0 28px;border:2px solid var(--green);border-radius:50px;background:var(--lime);color:var(--green);font-size:17px;font-weight:600;text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s}
         .vl-live-wa-subscribe svg{flex:0 0 auto}
@@ -3314,8 +3265,8 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live-data-skeleton i{animation:none}
-          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-solar-load{transition:none}
-          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible,.vl-live-solar-load:hover{transform:none;box-shadow:none}
+          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-history-controls button{transition:none}
+          .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible{transform:none;box-shadow:none}
         }
       `}</style>
     </section>
