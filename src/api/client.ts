@@ -367,6 +367,25 @@ export async function testConnection (): Promise<{ success: boolean; message: st
 // CONTACTS API
 // ============================================================================
 
+/**
+ * The stored checkout delivery address. Mirrors what
+ * `lambda_utils.ecommerce.contact_address.normalize_for_storage` returns, and every field is a
+ * string there - `_text` coerces or drops, so a number never reaches storage.
+ *
+ * Every field is optional on the read side even though storage requires four of them: a row
+ * written before a rule tightened must render rather than crash the panel.
+ */
+export interface CheckoutDeliveryAddress {
+  addressLine1?: string;
+  addressLine2?: string;
+  locality?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
+  countryCode?: string;
+}
+
 export interface Contact {
   id: string;
   contactId: string;
@@ -388,6 +407,16 @@ export interface Contact {
   contactBookName?: string;
   shippingAddress?: string;
   billingAddress?: string;
+  /**
+   * The address the customer typed at checkout, written by `auth/customer-profile` through
+   * `lambda_utils.ecommerce.contact_address` and READ-ONLY here. Structured, not a string, and
+   * deliberately NOT merged into `shippingAddress`: the two answer different questions - this
+   * one is what the customer gave for their own order, `shippingAddress` is what the business
+   * curated - and collapsing them would let a checkout save overwrite a hand-typed CRM address.
+   */
+  checkoutDeliveryAddress?: CheckoutDeliveryAddress;
+  /** Epoch seconds the checkout address was last written. */
+  checkoutAddressUpdatedAt?: number;
   // Structured address JSON (Meta shipping_info format) — set by subscribe flow
   shippingAddressJson?: string;
   billingAddressJson?: string;
@@ -502,6 +531,27 @@ function normalizeContact ( item: any ): Contact {
     contactBookName: item.contactBookName || '',
     shippingAddress: item.shippingAddress || '',
     billingAddress: item.billingAddress || '',
+    /*
+     * READ-ONLY, written by `auth/customer-profile`.
+     *
+     * This mapper is a CLOSED whitelist and the only way a contact reaches the UI
+     * (`listContacts`, `getContact`, `createContact`, `updateContact` all funnel through it),
+     * so an attribute the backend already returns stays `undefined` in the browser until it is
+     * named HERE. That is not hypothetical: the first attempt at this fix added both fields to
+     * the `Contact` interface only, and shipped a CRM column that rendered the em-dash for every
+     * contact while `tsc` and the suite stayed green.
+     *
+     * Carried through WHOLE rather than rebuilt field by field. The stored map also holds
+     * `fullAddress` (derived by `identity.address.normalize_address`), and a second closed
+     * whitelist at this layer would be a second place to forget a field — the exact failure
+     * mode this comment exists to record. Only the shape is checked; `formatCheckoutAddress`
+     * coerces each part, because this is server data and a legacy row may hold a number or a
+     * null where a string is expected.
+     */
+    checkoutDeliveryAddress: normalizeCheckoutAddress( item.checkoutDeliveryAddress ),
+    // Epoch SECONDS, deliberately NOT through `normalizeTimestamp`: `Contact` types this as a
+    // number, and the page's `timeAgo` already handles both epoch scales.
+    checkoutAddressUpdatedAt: normalizeEpochSeconds( item.checkoutAddressUpdatedAt ),
     shippingAddressJson: item.shippingAddressJson || '',
     billingAddressJson: item.billingAddressJson || '',
     gstin: item.gstin || '',
@@ -542,6 +592,31 @@ function normalizeContact ( item: any ): Contact {
     updatedAt: normalizeTimestamp( item.updatedAt ) || new Date().toISOString(),
     deletedAt: item.deletedAt,
   };
+}
+
+/**
+ * The stored checkout delivery address, or `undefined` when there is nothing usable.
+ *
+ * Shape check only, then pass through. An array is rejected because `typeof [] === 'object'`
+ * and an array would reach `formatCheckoutAddress` as a dict of numeric keys, rendering ''
+ * rather than announcing the problem. An empty object collapses to `undefined` so the caller's
+ * existing `value || '—'` renders the same dash every other empty field renders.
+ */
+function normalizeCheckoutAddress ( value: any ): CheckoutDeliveryAddress | undefined {
+  if ( !value || typeof value !== 'object' || Array.isArray( value ) ) return undefined;
+  return Object.keys( value ).length ? value as CheckoutDeliveryAddress : undefined;
+}
+
+/**
+ * Epoch seconds as a number, or `undefined`.
+ *
+ * Guards the two values `Number()` quietly turns into a real timestamp: `Number(null)` is 0 and
+ * `Number('')` is 0, either of which would render as 1 January 1970 instead of a dash.
+ */
+function normalizeEpochSeconds ( value: any ): number | undefined {
+  if ( value === null || value === undefined || value === '' ) return undefined;
+  const seconds = Number( value );
+  return Number.isFinite( seconds ) && seconds > 0 ? seconds : undefined;
 }
 
 /**

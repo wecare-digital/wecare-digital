@@ -242,6 +242,42 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
     }
   };
 
+  /**
+   * The verify counterpart of `applySendFailure`, and it exists for the same reason: the
+   * question is not "what went wrong" but "was the code judged at all". A 5xx fires BEFORE or
+   * INSTEAD OF the comparison, so the code was never ruled on - telling the customer it is
+   * "invalid or expired" is a false statement about their input, and clearing `proof` would
+   * discard a verification they may already hold. Only a 400 is the server saying it looked.
+   *
+   * This is not hypothetical. A reserved-word defect in the consume step made every CORRECT
+   * code answer 503, and the bare `catch` that used to live here reported all eight of them as
+   * a bad code, which is what the customer and the owner both saw.
+   */
+  const applyVerifyFailure = ( error: unknown ) => {
+    const detail = ( error || {} ) as { status?: number };
+    const status = detail.status;
+    setStep( 'error' );
+    if ( typeof status === 'number' && status >= 500 ) {
+      // `proof` deliberately NOT cleared: a server fault must not revoke a proof already held.
+      setMessage( 'We could not check that code just now. Try again.' );
+      return;
+    }
+    if ( typeof status !== 'number' ) {
+      // NO status at all, which is a different failure from a 5xx and arrives by a different
+      // route: `jsonPost` only ever sets `error.status` from a real response, so an offline
+      // browser, a DNS failure, a CORS rejection, an aborted request - and the local
+      // `PROOF_MISSING` throw on a 200 that carried no proof - all land here. None of them is
+      // the server saying it looked at the code, so the same two rules as the 5xx arm apply:
+      // do not claim the customer's input was wrong, and do not clear a proof already held.
+      // This mirrors `applySendFailure`'s terminal arm; omitting it is what still let a dropped
+      // connection report a correct code as invalid.
+      setMessage( 'We could not reach the server. Try again.' );
+      return;
+    }
+    setProof( '' );
+    setMessage( 'That email code is invalid or expired.' );
+  };
+
   const verifyCode = async () => {
     if ( code.trim().length < 4 ) return;
     setMessage( '' );
@@ -258,10 +294,8 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
       setCode( '' );
       setStep( 'verified' );
       setMessage( 'Email verified.' );
-    } catch {
-      setProof( '' );
-      setStep( 'error' );
-      setMessage( 'That email code is invalid or expired.' );
+    } catch ( error ) {
+      applyVerifyFailure( error );
     }
   };
 

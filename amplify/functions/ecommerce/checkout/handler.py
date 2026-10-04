@@ -329,13 +329,37 @@ def _profile_phone(identity: customer_auth.CustomerIdentity) -> str:
         return str(identity.phone or "")
 
 
+def _unowned(item: Dict[str, Any]) -> bool:
+    """Whether this contact row has no `checkoutCustomerId` at all.
+
+    A CRM-created contact carries none, because only the checkout path writes one. Refusing such
+    a row made a customer who already exists in the CRM look brand new at checkout.
+
+    This handler ADOPTS the row for reading; it does not stamp it. The stamp is a write, and this
+    function's role holds `dynamodb:Query` on `ContactsTable/index/phone-index` and nothing else
+    (`amplify/infra/checkout.json`, Sid `ReadVerifiedCheckoutProfile`). The claim is written by
+    `auth/customer-profile`, which already emits `checkoutCustomerId` on every save and has the
+    `UpdateItem` grant to do it. Widening this role to write would be a larger change than the
+    defect requires, so the ownership predicate is relaxed here and the stamp happens there.
+
+    A row owned by a DIFFERENT customer is still refused, so this cannot read across customers.
+    """
+    return not str(item.get("checkoutCustomerId") or "").strip()
+
+
 def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:
     """The verified CRM profile for this signed-in phone, or None.
 
     The lookup key comes from the proven session, through `_profile_phone` so it is the same
     string `customer-profile` stored the row under. A browser cannot choose a phone/customer id.
-    A row written by customer-profile carries both checkoutCustomerId and emailVerifiedAt; both
-    have to match before its name/email are allowed into Razorpay prefill.
+    A row is accepted when it is either owned by this customer or owned by nobody (see
+    `_unowned`), and in BOTH cases it must still carry `emailVerifiedAt` and a non-empty email
+    before its name/email are allowed into Razorpay prefill.
+
+    **The email gate is not relaxed, deliberately.** Claiming a row on a phone match says "this
+    row is about me"; it says nothing about the email on it. Paying against an unverified email
+    is a worse problem than being asked to verify one, so a claimed-but-unverified row still
+    answers `PROFILE_REQUIRED` and goes through email verification first.
     """
     try:
         response = _table(CONTACTS_TABLE).query(
@@ -347,17 +371,24 @@ def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict
         logger.error(json.dumps({"event": "checkout_profile_lookup_failed",
                                  "error": type(error).__name__}))
         raise
+    # An owned row wins over an unowned one, so a customer with their own row never reads a
+    # stray unowned duplicate on the same number. Both still pass the email-verified gate.
+    claimable: Optional[Dict[str, Any]] = None
     for item in response.get("Items") or []:
         if item.get("deletedAt") is not None:
             continue
-        if str(item.get("checkoutCustomerId") or "") != identity.customer_id:
+        owned = str(item.get("checkoutCustomerId") or "") == identity.customer_id
+        if not owned and not _unowned(item):
             continue
         if not item.get("emailVerifiedAt"):
             continue
         if not str(item.get("email") or "").strip():
             continue
-        return item
-    return None
+        if owned:
+            return item
+        if claimable is None:
+            claimable = item
+    return claimable
 
 
 def _load_owned_address(
