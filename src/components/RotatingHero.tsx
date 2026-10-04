@@ -68,7 +68,7 @@ interface RotatingHeroProps {
    * plus WECARE.DIGITAL only 109px below the header's own lockup, so the brand was stated
    * twice inside 109px and was the first thing anyone read. src/test/BlogDesign.test.tsx pins
    * the same decision for /blog/ - "does not repeat the brand eyebrow".
-   * The product and Selfservice pages still pass it, because on those the badge names the
+   * The product and Customer service pages still pass it, because on those the badge names the
    * PRODUCT rather than repeating the company. Where the label would just be the site again,
    * leave it out.
    */
@@ -86,7 +86,7 @@ interface RotatingHeroProps {
    * SUBORDINATE MODE, for a page that already owns its main landmark and its h1.
    *
    * By default this renders <main> and <h1>, which is right when the hero IS the page - the
-   * home page, the seven product pages, the five Selfservice pages. On a blog post it is not:
+   * home page, the seven product pages, the five Customer service pages. On a blog post it is not:
    * the article owns the <main> and the post title owns the <h1>, and stacking a second of
    * each produces markup that fails two checks in tools/audit/htmlcheck.js at once -
    * MANY-MAIN at HIGH and H1-MANY - which on the blog would mean 824 pages failing both.
@@ -120,7 +120,7 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
     // disabled: shutter matrix(1,0,0,1,0,0), dot matrix(0,0,0,0,0,0).
     //
     // index.tsx carried the same bug and was fixed; this component was not, so every page
-    // using it kept it - the seven product pages and the five Selfservice pages.
+    // using it kept it - the seven product pages and the five Customer service pages.
     //
     // The CSS now ships the FINISHED state and this effect adds .is-armed, which is what puts
     // it back to the start, and only once it knows the animation can play. No JS, a failed
