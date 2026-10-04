@@ -84,13 +84,13 @@ AWS account 775261844268, us-east-1. Amplify latest build 1215 succeeded for com
 | https://mta-sts.wecare.digital/ | HTTP 403 / no redirect |
 | https://r.wecare.digital/ | https://wecare.digital/ |
 | https://selfcare.wecare.digital/ | https://wecare.digital/ |
-| https://selfservice.wecare.digital/ | https://wecare.digital/ |
+| https://customerservice.wecare.digital/ | https://wecare.digital/ |
 | https://sg.wecare.digital/ | HTTP 0 / gaierror |
 | https://shop.wecare.digital/ | https://wecare.digital/ |
 | https://shop.wecare.digital/old/path?old=1 | https://wecare.digital/ |
 | https://signin.wecare.digital/ | https://wecare.digital/ |
 | https://sip.wecare.digital/ | HTTP 0 / ConnectionRefusedError |
-| https://stack.wecare.digital/ | https://wecare.digital/ |
+| https://retired-legacy-host.invalid/ | https://wecare.digital/ |
 | https://store.wecare.digital/ | https://wecare.digital/ |
 | https://workspace.wecare.digital/ | https://wecare.digital/ |
 | https://www.wecare.digital/ | https://wecare.digital/ |
