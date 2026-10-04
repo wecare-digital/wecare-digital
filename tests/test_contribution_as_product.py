@@ -276,6 +276,15 @@ def test_t3_a_contribution_skips_delivery_whatever_wix_calls_the_product(monkeyp
     So the answer must be the same for every value Wix could return, including the empty and
     unrecognised ones. This runs with NO stored address at all, so a `productType`-keyed skip
     fails the PHYSICAL row loudly.
+
+    THE SKIP IS THE ADDRESS, NOT THE DELIVERY METHOD, and that distinction is measured rather
+    than chosen. This test used to assert that `/set-delivery-method` was never called either,
+    which encoded the defect that made every live contribution unpayable: the live `Contribute`
+    product is PHYSICAL, so Cart V2 answers an unaddressed contribution cart with an
+    ERROR-severity `MISSING_DELIVERY_METHOD` and refuses to be priced. A probe on 2026-10-05
+    confirmed Wix prices the line correctly (total 100.00, delivery 0.00, tax 0.00) and blocks
+    only on the unselected method. So the method is now selected and the ADDRESS is still never
+    written, which is the half that carries a place of supply.
     """
     wix = ContributionWix(product_type={CONTRIBUTION_ID: product_type,
                                         KIOSK_ID: "PHYSICAL", OTHER_ID: "PHYSICAL"})
@@ -285,8 +294,9 @@ def test_t3_a_contribution_skips_delivery_whatever_wix_calls_the_product(monkeyp
     assert response["statusCode"] == 200, body_of(response)
     # No address was asked for, and none was written onto the cart: a payment with no delivery has
     # no destination, and writing one would claim a place of supply that does not exist.
-    assert not any(path.endswith("/set-delivery-method") for path in wix.paths())
     assert wix.delivery_address is None
+    # The method Wix itself resolved IS selected, which is what makes the cart priceable at all.
+    assert any(path.endswith("/set-delivery-method") for path in wix.paths())
 
 
 @pytest.mark.parametrize("product_type,needs_address", [
@@ -851,14 +861,21 @@ def test_t6_wix_demanding_delivery_for_a_contribution_names_its_own_refusal(monk
 
     AND NOT `CART_NOT_PAYABLE` EITHER, which is what this asserted until review pass 3. That code
     carries "Please review your cart and try again", and the basket is one donation: there is
-    nothing in it to review and no edit that changes the answer. The live `Contribute` product is
-    PHYSICAL, so this is also the arm that fires if Wix wants a shipping destination for physical
-    goods -- ordinary Wix behaviour, unmeasured, and therefore possibly the path every
-    contribution takes rather than a rare dashboard fault. A distinct code also separates it from
-    the shipping-rate and tax-class refusals `_assert_contribution_total` raises, which a shared
-    `CART_NOT_PAYABLE` could not.
+    nothing in it to review and no edit that changes the answer. A distinct code also separates it
+    from the shipping-rate and tax-class refusals `_assert_contribution_total` raises, which a
+    shared `CART_NOT_PAYABLE` could not.
+
+    THE PREMISE IS NOW A DELIVERY-REGION GAP, AND IT IS THE DASHBOARD FAULT THIS ARM WAS ALWAYS
+    MEANT TO NAME. The fake used to reach this arm on `require_delivery_on_calculate` alone, which
+    stood in for "the live Contribute product is PHYSICAL so Wix may demand delivery" -- a premise
+    this file recorded as unmeasured. It is measured now, and it was the path EVERY contribution
+    took: Wix prices the unaddressed line correctly and blocks only on the unselected METHOD, so
+    `_v2_snapshot` now selects the option Wix itself resolved and a contribution is payable. What
+    is left, and what this drives, is Wix offering NO option at all -- `offered_delivery_options`
+    empty, which is a delivery region in the Wix dashboard that covers this product with nothing.
+    Still not a customer step, still not an address they can save, and still fail-closed.
     """
-    wix = ContributionWix(require_delivery_on_calculate=True)
+    wix = ContributionWix(require_delivery_on_calculate=True, offered_delivery_options=[])
     h, fake, _wix = make_env(monkeypatch, wix=wix)
     with caplog.at_level("INFO"):
         response = h.handler(prepare_event([contribution_line()]), None)
@@ -873,6 +890,49 @@ def test_t6_wix_demanding_delivery_for_a_contribution_names_its_own_refusal(monk
     assert blocked and blocked[0]["requiresDelivery"] is False
     assert [e for e in events if e.get("event") == "contribution_not_payable"]
     assert fake.all_rows(ATTEMPTS_TABLE) == []
+
+
+@pytest.mark.parametrize("variant", CONTRIBUTION_VARIANTS)
+def test_t6_a_physical_contribution_blocked_on_the_METHOD_is_paid_not_refused(monkeypatch, caplog,
+                                                                             variant):
+    """THE REGRESSION PIN FOR THE LIVE CONDITION. This is the state the production site was in.
+
+    Measured against live Wix on 2026-10-05 with the real `Contribute` product and no address
+    written by us:
+
+        summary.violations   = [{"scope": "DELIVERY", "code": "MISSING_DELIVERY_METHOD",
+                                 "severity": "ERROR"}]
+        summary.priceSummary = subtotal 100.00, discount 0, delivery 0.00, additionalFees 0,
+                               tax 0.00, total 100.00
+
+    `cart_v2.calculate` refuses any cart carrying a blocking violation, so every contribution
+    raised `ContributionNotPayable` -- enabled and unusable. Selecting the one ₹0 option Wix had
+    already resolved is the whole fix, and `require_delivery_on_calculate=True` is the fake's
+    model of that exact violation, so this test fails on the pre-fix handler.
+
+    Asserted for all three choices, at exactly the contributed paise, with NO address written:
+    the invariant is that selecting a delivery method cannot move the money, which is what makes
+    the fix safe rather than merely effective.
+    """
+    wix = ContributionWix(require_delivery_on_calculate=True)
+    h, fake, wix = make_env(monkeypatch, wix=wix, address=None)
+    with caplog.at_level("INFO"):
+        response = h.handler(prepare_event([contribution_line(variant)]), None)
+
+    assert response["statusCode"] == 200, body_of(response)
+    # The money is EXACTLY the contributed amount. `_assert_contribution_total` additionally
+    # refuses any non-zero delivery, tax, fee or discount component, so a Wix shipping rate or
+    # tax class landing on the product would have failed here instead of being charged.
+    attempt = fake.all_rows(ATTEMPTS_TABLE)[0]
+    assert int(attempt["amountPaise"]) == contribution_paise(variant)
+    assert type(attempt["amountPaise"]) is int
+    # The method was selected; the address was not written. A donation still claims no place of
+    # supply, which is the half of `prepare_delivery` that must stay skipped.
+    assert any(path.endswith("/set-delivery-method") for path in wix.paths())
+    assert wix.delivery_address is None
+    # And the refusal arm was never reached, so this is a payment rather than a lucky 200.
+    events = [json.loads(r.message) for r in caplog.records if r.message.startswith("{")]
+    assert [e for e in events if e.get("event") == "contribution_not_payable"] == []
 
 
 def test_t6_the_same_refusal_on_an_ORDINARY_no_delivery_basket_keeps_the_generic_code(monkeypatch,

@@ -1531,12 +1531,29 @@ class ContributionNotPayable(cart_v2.CartContractError):
     a tax class landing on the product, which `_assert_contribution_total` refuses -- which a
     single shared code cannot be.
 
-    PREMISE, STATED BECAUSE IT IS UNVERIFIED: the live `Contribute` product is `PHYSICAL`
-    (measured 2026-10-04), and whether Wix eCom prices a physical line with no `deliveryInfo`
-    address at all has not been measured. If it does not, this is the arm every contribution
-    takes. Fail-closed either way: nothing is reserved, no attempt is written and no gateway order
-    is created, so no money moves. One `calculate` against a physical-no-address cart settles it,
-    and that measurement is owed before `CONTRIBUTION_PRODUCT_ID` is written live.
+    THE PREMISE IS NOW MEASURED, AND IT WAS WRONG IN THE DIRECTION THAT MATTERED. This docstring
+    used to say that whether Wix prices a `PHYSICAL` line with no `deliveryInfo` address had not
+    been measured, and that if it did not, this would be the arm EVERY contribution took. It was.
+    The probe on 2026-10-05, against the live `Contribute` product with no address written:
+
+        summary.violations  = [{"scope": "DELIVERY", "code": "MISSING_DELIVERY_METHOD",
+                                "severity": "ERROR"}]
+        summary.priceSummary = subtotal 100.00, discount 0, delivery 0.00, additionalFees 0,
+                               tax 0.00, total 100.00
+
+    So Wix prices it exactly right and blocks only on the unselected delivery METHOD -- and it
+    populates `deliveryInfo.address` itself, from the site's own location, on Create Cart. The fix
+    is therefore the method and not an address: `_v2_snapshot`'s no-delivery branch now calls
+    `purchase_intent.select_offered_delivery_method`, which selects the single ₹0 option Wix
+    already resolved and writes nothing. All three choices then price to exactly the contributed
+    paise (10000 / 25000 / 50000) with delivery, tax, fees and discount all zero, which
+    `_assert_contribution_total` re-checks on every request.
+
+    THIS ARM IS THEREFORE NO LONGER THE EXPECTED PATH; it is the dashboard fault it was always
+    meant to describe -- a Wix delivery region that offers a contribution no option at all, which
+    `select_offered_delivery_method` reports by returning `None` and leaving the cart unpriceable.
+    Fail-closed either way: nothing is reserved, no attempt is written and no gateway order is
+    created, so no money moves.
 
     Base class is load-bearing and follows `DeliveryMethodUnavailable`: `_v2_snapshot`'s other
     caller is `_create`, whose `except cart_v2.CartContractError` arm answers
@@ -1818,32 +1835,53 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
         else:
             _require_same_basket(adapter.get(cart_id), requested)
 
-    # Initialised BEFORE the try, because `prepare_delivery` does not run on the no-delivery
-    # branch and the except arm below logs the revision. A `NameError` inside an `except` arm
-    # would be swallowed by `_website_prepare`'s generic `except Exception` and surface as the 503
-    # dead end the new arms exist to remove. Empty on the no-delivery branch rather than fetched:
-    # `adapter.get` purely to log a revision would be a Wix call made for a log line, and the arm
-    # also logs `requiresDelivery`, so an empty revision is unambiguous.
+    # Initialised BEFORE the try, because neither branch below is guaranteed to assign and the
+    # except arm logs the revision. A `NameError` inside an `except` arm would be swallowed by
+    # `_website_prepare`'s generic `except Exception` and surface as the 503 dead end the new arms
+    # exist to remove. It stays empty when Wix offers no delivery option at all, which the arm
+    # disambiguates with `requiresDelivery` and Wix's own violation codes.
     prepared_revision = ""
     prepared: Dict[str, Any] = {}
 
     try:
         if requires_delivery:
-            # `prepare_delivery` is SKIPPED on the no-delivery branch, not called with `None`:
-            # `cart_v2.set_delivery_address` raises on a falsy address, and more importantly a
-            # contribution must not have a postal address written onto its Wix cart at all -- a
-            # payment with no delivery has no destination, and writing one would be a claim about
-            # a place of supply that does not exist. It is also why no delivery METHOD is selected
-            # for a contribution: the auto-selection lives inside `prepare_delivery`, so the skip
-            # covers both halves and cannot drift apart.
-            #
             # INSIDE THE TRY, deliberately. `prepare_delivery` now selects a method, so it can
             # raise `DeliveryDetailsRequired` itself when Wix offers no option for the address.
             # Left above the try that would escape to `_website_prepare`'s generic
             # `except Exception` and become the 503 dead end; inside it, the existing arm below
             # reads Wix's own violation codes and answers 409 like every other delivery refusal.
             prepared = purchase_intent.prepare_delivery(adapter, cart_id, owned) or {}
-            prepared_revision = str(prepared.get("revision") or "")
+        elif contribution_paise is not None:
+            # THE ADDRESS IS STILL NEVER WRITTEN HERE. `prepare_delivery` is not called and
+            # `owned` is not passed: a contribution must not have a postal address written onto
+            # its Wix cart, because a payment with no delivery has no place of supply and writing
+            # one would be a claim about a destination that does not exist.
+            #
+            # THE METHOD, HOWEVER, IS NOW SELECTED, AND THAT IS A MEASURED CORRECTION rather than
+            # a relaxation. Skipping both halves made every contribution unpayable: the live
+            # `Contribute` product is PHYSICAL, so Cart V2 answers a contribution-only cart with
+            # an ERROR-severity `MISSING_DELIVERY_METHOD`, `cart_v2.calculate` refuses a cart
+            # carrying a blocking violation, and `build_intent_with_calculation` converts that
+            # into `DeliveryDetailsRequired` -- which the arm below then turned into
+            # `ContributionNotPayable` on EVERY attempt. That was the unverified premise in
+            # `ContributionNotPayable`'s docstring; the probe on 2026-10-05 resolved it. Wix
+            # prices the no-address line correctly (subtotal 100.00, delivery 0.00, tax 0.00,
+            # fees 0, total 100.00) and blocks only on the unselected method, and it populates
+            # `deliveryInfo.address` itself from the site's own location on Create Cart -- so the
+            # missing piece was never an address of ours.
+            #
+            # SCOPED TO A CONTRIBUTION, NOT TO EVERY NO-DELIVERY BASKET. The ordinary all-digital
+            # basket (today unreachable: all seven shop products are PHYSICAL) needs no method,
+            # Wix does not demand one for it, and selecting whatever Wix happened to resolve would
+            # be adding a shipping decision to a cart that has nothing to ship. Its behaviour is
+            # deliberately left exactly as it was.
+            #
+            # `select_offered_delivery_method` is NON-RAISING, so "Wix named no option at all" --
+            # a genuine delivery-region gap in the dashboard -- still arrives at the arm below
+            # through `calculate` and still answers `ContributionNotPayable`, which is the
+            # dashboard fault that exception was always meant to name.
+            prepared = purchase_intent.select_offered_delivery_method(adapter, cart_id) or {}
+        prepared_revision = str(prepared.get("revision") or "")
 
         snapshot, calculated = purchase_intent.build_intent_with_calculation(
             adapter, customer_id=identity.customer_id, cart_id=cart_id,

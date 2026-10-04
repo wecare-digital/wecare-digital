@@ -167,29 +167,67 @@ def prepare_delivery(adapter, cart_id: str, owned: Dict[str, Any],
     Returns the updated cart.
     """
     cart = adapter.set_delivery_address(cart_id, to_wix_address(owned))
-    if delivery_option_id is None:
-        options = adapter.delivery_options(cart_id)
-        chosen = cheapest_delivery_option(options)
-        if chosen is None:
-            # Wix was ASKED and named nothing. A region/rate gap in the Wix dashboard, not a bug
-            # here, and not something the customer can fix by re-entering their address. The cart
-            # id is a resource id and the option count is a count: no address, no PII.
-            logger.warning(json.dumps({"event": "website_checkout_delivery_zero_options",
-                                       "wixCartId": str(cart_id),
-                                       "cartRevision": str(cart.get("revision") or ""),
-                                       "optionCount": 0}))
-            raise DeliveryDetailsRequired(
-                "wix offered no delivery option for this address, so the cart cannot be priced")
-        delivery_option_id = chosen["id"]
-        logger.info(json.dumps({"event": "website_checkout_delivery_selected",
-                                "wixCartId": str(cart_id),
-                                "optionCount": len(options),
-                                # The charge itself still arrives from `calculate`; this is the
-                                # figure the selection was made ON, logged so a surprising
-                                # delivery charge can be traced to the option that carried it.
-                                "optionPricePaise": chosen.get("pricePaise"),
-                                "autoSelected": True}))
-    return adapter.set_delivery_method(cart_id, delivery_option_id)
+    if delivery_option_id is not None:
+        return adapter.set_delivery_method(cart_id, delivery_option_id)
+    updated = select_offered_delivery_method(adapter, cart_id)
+    if updated is None:
+        # Wix was ASKED and named nothing. A region/rate gap in the Wix dashboard, not a bug
+        # here, and not something the customer can fix by re-entering their address. The cart
+        # id is a resource id and the option count is a count: no address, no PII.
+        logger.warning(json.dumps({"event": "website_checkout_delivery_zero_options",
+                                   "wixCartId": str(cart_id),
+                                   "cartRevision": str(cart.get("revision") or ""),
+                                   "optionCount": 0}))
+        raise DeliveryDetailsRequired(
+            "wix offered no delivery option for this address, so the cart cannot be priced")
+    return updated
+
+
+def select_offered_delivery_method(adapter, cart_id: str) -> Optional[Dict[str, Any]]:
+    """Select the delivery method WIX ITSELF resolved for this cart. Writes NO address.
+
+    Returns the updated cart, or `None` when Wix offered no option -- NON-RAISING, so each caller
+    decides what "Wix named nothing" means for its own basket. `prepare_delivery` turns it into
+    `DeliveryDetailsRequired`, because a physical cart with no method cannot be priced. The
+    no-delivery branch in `checkout/handler.py:_v2_snapshot` leaves the cart alone instead,
+    because an all-digital basket legitimately has no delivery option and must still be payable.
+
+    EXTRACTED FROM `prepare_delivery` RATHER THAN COPIED, and the reason is a measurement.
+    `prepare_delivery` wrote the address and chose the method together, so the only way to get a
+    method was to also claim a place of supply -- and a contribution has none to claim. A live
+    probe on 2026-10-05 against the `Contribute` product settles what Cart V2 actually needs:
+
+        cart created, NO address written by us  ->  summary.violations =
+            [{"scope": "DELIVERY", "code": "MISSING_DELIVERY_METHOD", "severity": "ERROR"}]
+        priceSummary on that same response      ->  subtotal 100.00, delivery 0.00, tax 0.00,
+                                                    additionalFees 0, discount 0, total 100.00
+
+    So Wix PRICES the physical no-address line correctly and blocks only on the missing METHOD --
+    and `summary.deliverySummary` already names the option it resolved ("Free shipping", 0 paise),
+    because Wix populates `deliveryInfo.address` itself from the site's own location on Create
+    Cart. Selecting that one resolved option is therefore sufficient, and it is all this does.
+
+    The three safety properties `prepare_delivery` documents for the auto-selection hold here
+    unchanged, and the first is still the load-bearing one: WIX PICKS, NOT US. `delivery_options`
+    reads `summary.deliverySummary`, which is Wix's own resolution for this cart; the option is an
+    identifier and the charge still arrives from `calculate`, so a selection cannot move money in
+    anyone's favour. For a contribution the caller additionally asserts the total is exactly the
+    contributed amount (`_assert_contribution_total`), which is what makes this safe rather than
+    merely plausible.
+    """
+    options = adapter.delivery_options(cart_id)
+    chosen = cheapest_delivery_option(options)
+    if chosen is None:
+        return None
+    logger.info(json.dumps({"event": "website_checkout_delivery_selected",
+                            "wixCartId": str(cart_id),
+                            "optionCount": len(options),
+                            # The charge itself still arrives from `calculate`; this is the
+                            # figure the selection was made ON, logged so a surprising
+                            # delivery charge can be traced to the option that carried it.
+                            "optionPricePaise": chosen.get("pricePaise"),
+                            "autoSelected": True}))
+    return adapter.set_delivery_method(cart_id, chosen["id"])
 
 
 def build_intent(adapter, *, customer_id: str, cart_id: str,
@@ -357,6 +395,7 @@ __all__ = [
     "DeliveryDetailsRequired",
     "apply_coupon",
     "prepare_delivery",
+    "select_offered_delivery_method",
     "build_intent",
     "build_intent_with_calculation",
 ]
