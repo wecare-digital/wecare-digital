@@ -173,9 +173,29 @@ def test_ads_existing_app_uses_pkce_without_dynamic_registration(module, memory,
     assert query['client_id'] == ['2238810740192680']
     assert query['code_challenge_method'] == ['S256']
     assert query['redirect_uri'] == [module.CALLBACK]
-    assert query['config_id'] == ['1718783392517600']
-    assert 'scope' not in query
+    # Exactly one permission mechanism is requested: a Login for Business configuration id
+    # when the policy carries one, otherwise the scope list. Never both.
+    if module.POLICY['connections']['meta-ads'].get('loginConfigId'):
+        assert 'scope' not in query
+    else:
+        assert 'ads_mcp_management' in query['scope'][0]
+        assert 'config_id' not in query
     assert 'client_secret' not in query
+
+
+def test_ads_login_configuration_replaces_scope_on_the_consent_dialog(module, memory, monkeypatch):
+    import urllib.parse
+    module.POLICY['connections']['meta-ads']['loginConfigId'] = 'test-login-config-123'
+    monkeypatch.setattr(module, 'http', lambda *a, **kw: pytest.fail('must not register a dynamic Ads client'))
+    value = module.oauth_begin('owner', 'meta-ads')
+    query = urllib.parse.parse_qs(urllib.parse.urlparse(value['authorizationUrl']).query)
+    assert query['config_id'] == ['test-login-config-123']
+    assert 'scope' not in query
+    assert query['client_id'] == ['2238810740192680']
+    assert query['redirect_uri'] == [module.CALLBACK]
+    assert query['code_challenge_method'] == ['S256']
+    assert query['resource'] == ['https://mcp.facebook.com/ads']
+    assert query['state'] and query['code_challenge']
 
 
 def test_ads_rejects_token_from_a_different_oauth_client(module, memory):
