@@ -46,34 +46,16 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 // WECARE.DIGITAL selected-place marker: dark green body, lime centre, white ring.
 const BRAND_MARKER_ICON = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent( `<svg xmlns="http://www.w3.org/2000/svg" width="38" height="48" viewBox="0 0 38 48"><path fill="#1a3a2a" d="M19 0C8.5 0 0 8.5 0 19c0 14.3 19 29 19 29s19-14.7 19-29C38 8.5 29.5 0 19 0Z"/><circle cx="19" cy="19" r="7.5" fill="#fff"/><circle cx="19" cy="19" r="5" fill="#d1f470"/></svg>` )}`;
 
-// FINAL TARGET: the AQI / PM2.5 map layer is a deck.gl ScatterplotLayer of REAL sampled
-// air-quality points (see RESEARCH-deckgl-sampling-architecture.md), rendered over the
-// Google roadmap through GoogleMapsOverlay. The old raster air-quality layer-tile overlay is gone.
-// Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome; the dots use the
-// STANDARD AQI severity ramp (green -> yellow -> orange -> red) converted to RGBA below.
-
-// OWNER OVERRIDE (reference screenshot, 2026-10-06): the owner chose to match the screenshot
-// literally, which reverses the prior VayuLok "no-red" dot rule for the air-quality dots.
-// See .agents/tasks/vayulok-screenshot-match-20261006/decisions.md (Decision 1). The dots now
-// use a STANDARD CPCB-aligned AQI color scale keyed by the existing Sev band - red IS allowed
-// for the worst band. Dots remain driven by REAL sampled Air-Quality values (airPointFromApi);
-// nothing is fabricated. Severity is also carried by the category WORD + numeric value in the
-// left result (WCAG 1.4.1), so color is not the sole severity carrier.
-// Five bands matching Sev good|sat|mod|poor|worst, alpha ~210:
-//   good  green         [46,125,50]
-//   sat   yellow-green  [124,179,66]
-//   mod   yellow        [253,216,53]
-//   poor  orange        [245,124,0]
-//   worst red           [211,47,47]
+// AQI / PM2.5 spatial dots follow the approved VayuLok no-red palette.
+// Real values still determine the band; only the presentation ramp is brand-scoped.
 const DOT_FILL_RGBA: Record<Sev, [ number, number, number, number ]> = {
-  good: [ 46, 125, 50, 210 ],
-  sat: [ 124, 179, 66, 210 ],
-  mod: [ 253, 216, 53, 210 ],
-  poor: [ 245, 124, 0, 210 ],
-  worst: [ 211, 47, 47, 210 ],
+  good: [ 61, 163, 90, 210 ],     // #3da35a
+  sat: [ 209, 244, 112, 210 ],    // #d1f470
+  mod: [ 232, 197, 71, 210 ],     // #e8c547
+  poor: [ 201, 138, 46, 210 ],    // #c98a2e
+  worst: [ 201, 138, 46, 210 ],   // warm cap; intentionally no red
 };
-// Dark outline so dots read against light roads.
-const DOT_LINE_RGBA: [ number, number, number, number ] = [ 33, 33, 33, 230 ];
+const DOT_LINE_RGBA: [ number, number, number, number ] = [ 255, 255, 255, 230 ];
 
 // PM2.5 (µg/m³) -> severity band, mirroring the AQI ramp's no-red bands so a PM2.5 dot
 // shares the same five-step palette as the AQI dot. Real values only; callers drop NaN.
@@ -116,6 +98,7 @@ interface PlaceState {
   userRatingCount?: number;
   websiteURI?: string;
   summary?: string;
+  viewport?: { north: number; south: number; east: number; west: number };
 }
 
 // The extra Place fields requested on the keyed search/select + map-click paths, on top of
@@ -128,6 +111,7 @@ const PLACE_META_FIELDS = [
   'userRatingCount',
   'websiteURI',
   'editorialSummary',
+  'viewport',
 ] as const;
 
 /* The shape of a resolved google.maps.places.Place once fetchFields has run. Mirrors the
@@ -150,6 +134,7 @@ interface GooglePlaceLike {
   userRatingCount?: number;
   websiteURI?: string;
   editorialSummary?: string;
+  viewport?: { toJSON?: () => { north: number; south: number; east: number; west: number } };
 }
 
 /* Pull the honest metadata subset off a resolved Google Place. Returns only the fields
@@ -168,6 +153,8 @@ function metaFromGooglePlace( p: GooglePlaceLike ): Partial<PlaceState> {
   if ( typeof p.websiteURI === 'string' && p.websiteURI ) meta.websiteURI = p.websiteURI;
   const summary = typeof p.editorialSummary === 'string' ? p.editorialSummary.trim() : '';
   if ( summary ) meta.summary = summary;
+  const viewport = p.viewport?.toJSON?.();
+  if ( viewport && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite ) ) meta.viewport = viewport;
   return meta;
 }
 
@@ -610,6 +597,8 @@ const VayuLokLive: React.FC = () => {
   const [ coreFetchedAt, setCoreFetchedAt ] = useState<number | null>( null );
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
   const [ nearbyPhotos, setNearbyPhotos ] = useState<PlacePhoto[]>( [] );
+  const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
+  const [ elevationM, setElevationM ] = useState<number | null>( null );
 
   // Search combobox state.
   const [ query, setQuery ] = useState( '' );
@@ -653,6 +642,8 @@ const VayuLokLive: React.FC = () => {
     setPhotoIndex( 0 );
     setMapCandidate( null );
     setNearbyPhotos( [] );
+    setAddressDescriptor( '' );
+    setElevationM( null );
   }, [ place.lat, place.lng ] );
 
   useEffect( () => {
@@ -790,7 +781,7 @@ const VayuLokLive: React.FC = () => {
         const gc = geocoder.current as {
           geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
         } | null;
-        gc?.geocode?.( { location: { lat, lng }, region: 'in' }, async ( rows, status ) => {
+        gc?.geocode?.( { location: { lat, lng }, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }, async ( rows, status ) => {
           if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
           const first = rows.find( row => isIndiaResult( row ) ) as
             | { formatted_address?: string; place_id?: string }
@@ -896,7 +887,7 @@ const VayuLokLive: React.FC = () => {
     script.id = ID;
     script.async = true;
     // Places library requested so client-side India-scoped autocomplete can run.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&libraries=places&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&libraries=places&loading=async&v=beta`;
     document.head.appendChild( script );
     // Start the same namespace-readiness path immediately; it will resolve once
     // the async loader exposes google.maps, without depending on a DOM load event.
@@ -1526,10 +1517,66 @@ const VayuLokLive: React.FC = () => {
   }, [ place, historyRange, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
+     Place enrichment used by the approved v8 card. Both calls are optional and disappear
+     cleanly when a project has not enabled the corresponding service. */
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
+    let cancelled = false;
+
+    const describe = async () => {
+      const gc = await ensureGeocoder();
+      if ( !gc?.geocode || cancelled ) return;
+      const request: Record<string, unknown> = place.placeId
+        ? { placeId: place.placeId, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
+        : { location: { lat: place.lat, lng: place.lng }, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
+      try {
+        gc.geocode( request, ( rows, status ) => {
+          if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
+          const descriptor = ( rows[ 0 ] as any )?.address_descriptor;
+          const landmark = Array.isArray( descriptor?.landmarks ) ? descriptor.landmarks[ 0 ] : null;
+          const area = Array.isArray( descriptor?.areas ) ? descriptor.areas[ 0 ] : null;
+          const landmarkName = landmark?.display_name || landmark?.displayName?.text || landmark?.display_name?.text;
+          const areaName = area?.display_name || area?.displayName?.text || area?.display_name?.text;
+          const relationship = String( landmark?.spatial_relationship || '' );
+          const relationshipLabel: Record<string, string> = {
+            NEAR: 'Near', WITHIN: 'Within', BESIDE: 'Beside', ACROSS_THE_ROAD: 'Across the road from',
+            DOWN_THE_ROAD: 'Down the road from', AROUND_THE_CORNER: 'Around the corner from', BEHIND: 'Behind',
+          };
+          const parts: string[] = [];
+          if ( landmarkName ) parts.push( `${relationshipLabel[ relationship ] || 'Near'} ${landmarkName}` );
+          if ( areaName && areaName !== landmarkName ) parts.push( `Within ${areaName}` );
+          if ( parts.length ) setAddressDescriptor( parts.join( ' · ' ) );
+        } );
+      } catch { /* descriptor enrichment is optional */ }
+    };
+
+    const elevate = async () => {
+      try {
+        const maps = ( window as any )?.google?.maps;
+        const lib = maps?.importLibrary ? await maps.importLibrary( 'elevation' ) : null;
+        const ElevationService = lib?.ElevationService || maps?.ElevationService;
+        if ( cancelled || !ElevationService ) return;
+        const service = new ElevationService();
+        const response = await service.getElevationForLocations( { locations: [ { lat: place.lat, lng: place.lng } ] } );
+        const value = response?.results?.[ 0 ]?.elevation;
+        if ( !cancelled && Number.isFinite( value ) ) setElevationM( Math.round( value ) );
+      } catch { /* elevation is optional */ }
+    };
+
+    void describe();
+    void elevate();
+    return () => { cancelled = true; };
+  }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
+
+  /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
   useEffect( () => {
     const w = window as unknown as { google?: { maps?: unknown } };
-    const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( zoom: number ) => void } | null;
+    const map = mapRef.current as {
+      setCenter?: ( p: { lat: number; lng: number } ) => void;
+      setZoom?: ( zoom: number ) => void;
+      fitBounds?: ( bounds: { north: number; south: number; east: number; west: number }, padding?: number ) => void;
+    } | null;
     if ( !map || !w.google?.maps || !hasSelection ) return;
 
     if ( !markerRef.current && markerCtorRef.current ) {
@@ -1547,8 +1594,11 @@ const VayuLokLive: React.FC = () => {
       setTitle?: ( t: string ) => void;
       setMap?: ( m: unknown ) => void;
     } | null;
-    map.setCenter?.( { lat: place.lat, lng: place.lng } );
-    map.setZoom?.( 14 );
+    if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
+    else {
+      map.setCenter?.( { lat: place.lat, lng: place.lng } );
+      map.setZoom?.( 14 );
+    }
     marker?.setMap?.( map );
     marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
     marker?.setTitle?.( place.name );
@@ -1877,10 +1927,18 @@ const VayuLokLive: React.FC = () => {
                   <div className="vl-live-place-kicker">Selected place</div>
                   <h3 className="vl-live-place-name">{ previewPlace.name }</h3>
                   { previewPlace.addr && <p className="vl-live-place-address">{ previewPlace.addr }</p> }
-                  { previewPlace.primaryType && (
-                    <div className="vl-live-place-meta">
-                      <span className="vl-live-meta-chip">{ previewPlace.primaryType }</span>
-                    </div>
+                  { addressDescriptor && <p className="vl-live-descriptor-line">{ addressDescriptor }</p> }
+                  { ( previewPlace.primaryType || Number.isFinite( elevationM ) ) && (
+                    <>
+                      { previewPlace.primaryType && (
+                        <div className="vl-live-place-meta">
+                          <span className="vl-live-meta-chip">{ previewPlace.primaryType }</span>
+                        </div>
+                      ) }
+                      { Number.isFinite( elevationM ) && (
+                        <div className="vl-live-place-facts"><span>Elevation { elevationM } m</span></div>
+                      ) }
+                    </>
                   ) }
                 </div>
               </article>
@@ -2094,7 +2152,7 @@ const VayuLokLive: React.FC = () => {
               { liveActive && previewPlace.name && (
                 <div className="vl-live-selected-label" aria-live="polite">
                   <strong>{ previewPlace.name }</strong>
-                  { ( previewPlace.primaryType || previewPlace.addr ) && <span>{ previewPlace.primaryType || previewPlace.addr }</span> }
+                  { ( addressDescriptor || previewPlace.primaryType || previewPlace.addr ) && <span>{ addressDescriptor || previewPlace.primaryType || previewPlace.addr }</span> }
                 </div>
               ) }
             </div>
@@ -2132,8 +2190,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-place-kicker{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(26,58,42,.70)}
         .vl-live-place-name{margin:7px 0 0;color:var(--heading);font-size:32px;line-height:1.05;letter-spacing:-1.1px;font-weight:700}
         .vl-live-place-address{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--muted)}
+        .vl-live-descriptor-line{margin:8px 0 0;color:var(--green);font-size:12.5px;line-height:1.45;font-weight:700}
         .vl-live-place-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
         .vl-live-meta-chip{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:11px;font-weight:700}
+        .vl-live-place-facts{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+        .vl-live-place-facts span{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border-radius:999px;background:var(--alt);color:var(--muted);font-size:10.5px;font-weight:700}
         .vl-live-empty{padding:22px;border:1px solid var(--hair);border-radius:14px;background:#fff}
         .vl-live-empty span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--green)}
         .vl-live-empty strong{display:block;margin-top:8px;font-size:22px;color:var(--heading)}
