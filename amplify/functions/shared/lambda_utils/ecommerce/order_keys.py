@@ -685,7 +685,7 @@ def reserve_order_number(table: Any,
 #: up duplicates. Writes NOTHING financial: it only records that a human must look.
 QUARANTINE_PREFIX = "CAPTUREQUARANTINE#"
 
-#: A stored wallet top-up intent. The self-service top-up flow reserves one of these BEFORE
+#: A stored wallet top-up intent. The customer-service top-up flow reserves one of these BEFORE
 #: the payment link is created, so a `payment.captured` for a wallet top-up can be bound to a
 #: customer/amount the business actually asked for - rather than trusting the event notes.
 TOPUP_INTENT_PREFIX = "TOPUPINTENT#"
