@@ -10,6 +10,7 @@ import React, { useEffect, useState } from 'react';
 
 import PageTopBand from '../../components/PageTopBand';
 import { getSession, restoreSession } from '../../lib/customerAuth';
+import { isOrderNumber, isPaid } from '../../lib/paymentVocabulary';
 
 const STATUS_URL = `${process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api'}/ecommerce/checkout/status`;
 
@@ -34,7 +35,9 @@ export default function CheckoutSuccess (): React.ReactElement {
         if ( !response.ok ) return;
         const data = await response.json() as { attempt?: { status?: string; orderNumber?: string } };
         const number = data.attempt?.orderNumber || '';
-        if ( !stopped && data.attempt?.status === 'PAYMENT_PAID' && /^[A-Z0-9-]{8,20}$/.test( number ) ) {
+        // Same vocabulary and same shape check /checkout/status uses, so the two screens cannot
+        // disagree about what counts as paid. Behaviour is unchanged; the literal is gone.
+        if ( !stopped && isPaid( data.attempt?.status ) && isOrderNumber( number ) ) {
           setOrderNumber( number ); setVerified( true );
         }
       } catch { /* An unavailable verification is never a successful payment. */ }

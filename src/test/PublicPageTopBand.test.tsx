@@ -371,7 +371,12 @@ describe( 'the money copy survived being shortened', () => {
     // may carry an action that starts a new checkout, and it is reached solely from a terminal
     // backend status.
     expect( viewFor( 'PAYMENT_PAID', null ) ).toBe( 'finalizing' );
-    expect( viewFor( 'PAYMENT_PAID', 'WD-ORD-000123' ) ).toBe( 'confirming' );
+    // 'paid' RATHER THAN 'confirming', and this line is the record of why. A paid attempt with a
+    // server order number used to map to 'confirming' because the page was about to redirect to
+    // /checkout/success - a value that was momentary in theory and permanent in practice, since
+    // the status endpoint never returned an order number at all. The confirmation now renders
+    // here, and it carries no retry either, so the invariant this test exists for is unchanged.
+    expect( viewFor( 'PAYMENT_PAID', 'WD-ORD-000123' ) ).toBe( 'paid' );
     expect( viewFor( 'PAYMENT_PENDING', null ) ).toBe( 'confirming' );
     expect( viewFor( 'PAYMENT_REQUEST_SENT', null ) ).toBe( 'confirming' );
     expect( viewFor( 'PAYMENT_INITIATION_DISABLED', null ) ).toBe( 'unavailable' );

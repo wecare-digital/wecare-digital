@@ -275,15 +275,75 @@ def test_send_failure_leaves_attempt_and_no_order(env):
 
 # ── status / IDOR ──────────────────────────────────────────────────────────
 
-def _store_attempt(h, fake, customer_id, status='PAYMENT_PENDING', order_number=None):
+def _store_attempt(h, fake, customer_id, status='PAYMENT_PENDING', order_number=None,
+                   finalization_stage=None, finalization_reason=None):
     from lambda_utils.ecommerce import payment_attempt as pa
     attempt = pa.build(customer_id=customer_id, reference_id='WD-PAY-ABCDEFGHJKMNPQ',
                        amount_paise=59900, configuration_name='WECAREDIGITAL')
     attempt = pa.transition(attempt, status) if status != 'CREATED' else attempt
     if order_number:
         attempt['orderNumber'] = order_number
+    if finalization_stage:
+        attempt['finalizationStage'] = finalization_stage
+    if finalization_reason:
+        attempt['finalizationReason'] = finalization_reason
     fake.Table(ATTEMPTS_TABLE).put_item(Item=attempt)
     return attempt
+
+
+def test_status_returns_the_order_number_of_a_paid_but_unreconciled_attempt(env):
+    """A captured payment whose Wix writeback is still pending must still report its order.
+
+    This is the live shape, not a hypothetical: the writeback gate is off, so
+    `finalization.accept_paid` commits the internal order, writes `orderNumber` at
+    INTERNAL_ORDER_CREATED, then moves the stage to NEEDS_RECONCILIATION with
+    WIX_WRITE_CONTRACT_REQUIRED. Order WD-ORD-7ZTSG8X7 sat exactly there.
+
+    `order_number` used to be read only inside the `_finalize_from_claim` arm, which runs only
+    while `finalizationStage` is unset -- so an attempt the webhook had already finalized reported
+    `orderNumber: None` forever and the paying customer was shown "we are creating your order"
+    permanently. The number is evidence the order record committed, and the reconciliation stage
+    is bookkeeping against the store; the first must reach the customer and the second must not.
+    """
+    h, fake, _lam, _mp = env
+    attempt = _store_attempt(h, fake, CUSTOMER, status='PAYMENT_PAID',
+                             order_number='WD-ORD-7ZTSG8X7',
+                             finalization_stage='NEEDS_RECONCILIATION',
+                             finalization_reason='WIX_WRITE_CONTRACT_REQUIRED')
+    resp = h.handler(_event('status', paymentAttemptId=attempt['paymentAttemptId']), None)
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['status'] == 'PAYMENT_PAID'
+    assert body['attempt']['orderNumber'] == 'WD-ORD-7ZTSG8X7'
+    # The amount the screen prints, in integer paise with the currency named explicitly.
+    assert body['attempt']['amountPaise'] == 59900
+    assert isinstance(body['attempt']['amountPaise'], int)
+    assert body['attempt']['currency'] == 'INR'
+    # No retry on a paid attempt, and no internal bookkeeping in a customer-facing payload: the
+    # stage and its reason are the words that would turn a completed payment into a worry.
+    assert body['attempt']['canRetry'] is False
+    assert 'finalizationStage' not in body['attempt']
+    assert 'finalizationReason' not in body['attempt']
+    assert 'NEEDS_RECONCILIATION' not in resp['body']
+    assert 'WIX_WRITE_CONTRACT_REQUIRED' not in resp['body']
+
+
+def test_status_strips_an_order_number_from_a_non_paid_row(env):
+    """The row carries a number and the state does not permit one, so the view drops it.
+
+    Reading `orderNumber` off the attempt row is what makes the test above pass; this is the
+    other half of that change. `payment_history_entry` gates on ORDER_ELIGIBLE_STATES, so a
+    failed attempt cannot show an order number however it got onto the row.
+    """
+    h, fake, _lam, _mp = env
+    attempt = _store_attempt(h, fake, CUSTOMER, status='PAYMENT_FAILED',
+                             order_number='WD-ORD-7ZTSG8X7',
+                             finalization_stage='NEEDS_RECONCILIATION')
+    resp = h.handler(_event('status', paymentAttemptId=attempt['paymentAttemptId']), None)
+    assert resp['statusCode'] == 200
+    body = json.loads(resp['body'])
+    assert body['attempt']['orderNumber'] is None
+    assert 'WD-ORD-7ZTSG8X7' not in resp['body']
 
 
 def test_status_of_own_attempt_returns_no_order_number_when_not_paid(env):

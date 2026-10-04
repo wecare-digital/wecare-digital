@@ -2187,7 +2187,6 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
 
     owned = customer_auth.authorize_resource(identity, stored, owner_field="customerId")
-    order_number = ""
     if not owned.get("finalizationStage"):
         # Not yet finalized -- which is the closed-tab shape, where the webhook gave the attempt
         # order identity and nothing wrote the order record. `_finalize_from_claim` decides from
@@ -2199,12 +2198,27 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 owned = _attempts_table().get_item(
                     Key={"paymentAttemptId": attempt_id},
                     ConsistentRead=True).get("Item") or owned
-                order_number = str(owned.get("orderNumber") or "")
         except Exception as error:  # noqa: BLE001
             # The poll must still answer. A failure here leaves the attempt exactly as it was.
             logger.error(json.dumps({"event": "checkout_status_finalize_failed",
                                      "alert": "PAID_BUT_NO_ORDER_RECORD",
                                      "error": type(error).__name__}))
+    # READ THE NUMBER OFF THE ROW, NOT OFF THE BRANCH ABOVE. `finalization._stage` writes
+    # `orderNumber` at INTERNAL_ORDER_CREATED, which happens only AFTER the order record has
+    # committed, so its presence on the attempt is exactly the evidence an order exists.
+    #
+    # It used to be set only inside the `_finalize_from_claim` arm, which runs only while
+    # `finalizationStage` is still unset. So the ordinary case -- the webhook finalized the
+    # attempt, as it did for the real captured order WD-ORD-7ZTSG8X7 -- fell straight past it and
+    # reported `orderNumber: None` forever. The paid customer got the "we are creating your order"
+    # screen permanently and never saw a confirmation.
+    #
+    # The stage itself is deliberately NOT consulted and NOT returned. A paid order rests at
+    # NEEDS_RECONCILIATION / WIX_WRITE_CONTRACT_REQUIRED while the Wix writeback is gated off;
+    # that is our bookkeeping against the store and it is not a fact about the customer's payment.
+    # `payment_history_entry` still strips the number unless the state is in
+    # ORDER_ELIGIBLE_STATES, so a non-paid attempt cannot carry one no matter what is on its row.
+    order_number = str(owned.get("orderNumber") or "")
     # payment_history_entry never carries an order number for a non-paid attempt, and collapses a
     # failed one to the "Payment failed — no order created" label. It is the exact customer-facing
     # projection the status UI needs.

@@ -11,9 +11,30 @@
  *
  *   in flight (CREATED / READINESS_CHECKED / REQUEST_SENT / PENDING)  -> "Confirming your payment"
  *   paid, order still finalizing (PAID but no order number yet)       -> "Payment received"
- *   done (PAID + order number)                                        -> redirect to /checkout/success
+ *   done (PAID + order number)                                        -> "Payment received", in place
  *   failed / cancelled / expired                                      -> "Payment wasn't completed"
  *   disabled (initiation off) / unknown                               -> a neutral holding message
+ *
+ * The paid state is rendered HERE, and it used to redirect
+ * ---------------------------------------------------------
+ * A PAID attempt with an order number sent the browser to /checkout/success, which then
+ * re-authenticated and re-read the same attempt to show the same two facts. In practice that
+ * redirect never fired: `_status` built its view with `payment_history_entry(owned)` and never
+ * passed the order number stored on the attempt row, so the field was always `null` and a real
+ * paid order sat on the "we are creating your order" screen for good. A customer who had paid —
+ * order WD-ORD-7ZTSG8X7, captured and recorded — was never shown a confirmation.
+ *
+ * Both halves are fixed: the endpoint now returns the number it already holds, and the paid
+ * state renders in place with the order number and the amount captured. One authenticated read,
+ * one screen, no hop that can fail between the money and the confirmation.
+ *
+ * `finalizationStage` is NOT consulted, and that is the point
+ * ----------------------------------------------------------
+ * The internal order commits before the Wix writeback is attempted, and the writeback is gated
+ * off, so a real paid order rests at NEEDS_RECONCILIATION / WIX_WRITE_CONTRACT_REQUIRED. That is
+ * our bookkeeping against the store and it says nothing about the customer's payment. The status
+ * endpoint does not return the stage at all, so this screen structurally cannot turn a pending
+ * writeback into doubt about a captured payment.
  *
  * Authority and privacy
  * ---------------------
@@ -58,6 +79,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 
 import PageTopBand from '../../components/PageTopBand';
 import { getSession, restoreSession } from '../../lib/customerAuth';
+import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const CHECKOUT_STATUS_URL = `${API_BASE}/ecommerce/checkout/status`;
@@ -69,6 +91,7 @@ const POLL_CEILING_MS = 5 * 60 * 1000;
 
 type View =
   | 'confirming'
+  | 'paid'
   | 'finalizing'
   | 'failed'
   | 'unavailable';
@@ -76,26 +99,32 @@ type View =
 interface AttemptView {
   status?: string;
   orderNumber?: string | null;
+  amountPaise?: number | null;
+  currency?: string | null;
   canRetry?: boolean;
 }
 
-/** Which of the four screens a backend status maps to. Redirect to success is handled separately. */
+/**
+ * Which of the five screens a backend status maps to.
+ *
+ * Every branch asks `paymentVocabulary`, never a string. The literals used to live here, and a
+ * sixth spelling arriving from the backend would have fallen through every `===` into
+ * `unavailable` without anything saying so. The vocabulary module is the one place that knows the
+ * ladder, mirroring `payment_attempt`'s frozen sets.
+ */
 export function viewFor ( status: string | undefined, orderNumber: string | null | undefined ): View {
-  const s = String( status || '' ).toUpperCase();
-  if ( s === 'PAYMENT_PAID' )
+  if ( isPaid( status ) )
   {
-    // With an order number the redirect fires and this value is momentary; without one the order
-    // is still being created, which is its own screen and never offers a retry.
-    return orderNumber ? 'confirming' : 'finalizing';
+    // With a server order number the payment is complete as far as the customer is concerned, and
+    // this screen says so. Without one the order record is still being written, which is its own
+    // screen - it still leads with "Payment received", because the money did arrive.
+    return isOrderNumber( orderNumber ) ? 'paid' : 'finalizing';
   }
-  if ( s === 'PAYMENT_FAILED' || s === 'PAYMENT_CANCELLED' || s === 'PAYMENT_EXPIRED' )
+  if ( isRetryable( status ) )
   {
     return 'failed';
   }
-  if (
-    s === 'CREATED' || s === 'PAYMENT_READINESS_CHECKED'
-    || s === 'PAYMENT_REQUEST_SENT' || s === 'PAYMENT_PENDING'
-  )
+  if ( isInFlight( status ) )
   {
     return 'confirming';
   }
@@ -123,6 +152,13 @@ const COPY: Record<View, { title: string; body: string }> = {
     title: 'Confirming your payment',
     body: 'We are checking with the payment provider. This page updates on its own.',
   },
+  // The settled, happy ending. It states the outcome and nothing about what is still being
+  // written on our side: no stage name, no "reconciling", no "pending" - a customer reading
+  // internal bookkeeping on a confirmation screen learns only that something might be wrong.
+  paid: {
+    title: 'Payment received',
+    body: 'Your order is confirmed. We will be in touch on WhatsApp.',
+  },
   finalizing: {
     title: 'Payment received',
     body: 'We are creating your order now. Do not pay again.',
@@ -141,6 +177,10 @@ export default function CheckoutStatus (): React.ReactElement {
   // The settled server state is "confirming": a no-JS load shows a coherent, honest screen rather
   // than a blank one. Polling only ever refines this.
   const [ view, setView ] = useState<View>( 'confirming' );
+  // Only ever set from an authenticated status read, and only shown on the paid view. Neither
+  // value comes from the URL: the URL carries the opaque attempt id and nothing else.
+  const [ orderNumber, setOrderNumber ] = useState<string>( '' );
+  const [ amount, setAmount ] = useState<string>( '' );
 
   const poll = useCallback( async ( attemptId: string ): Promise<boolean> => {
     let session;
@@ -169,16 +209,16 @@ export default function CheckoutStatus (): React.ReactElement {
       const data = ( await response.json() ) as { attempt?: AttemptView; status?: string };
       const attempt = data.attempt || {};
       const nextView = viewFor( attempt.status, attempt.orderNumber );
-      if ( String( attempt.status || '' ).toUpperCase() === 'PAYMENT_PAID' && attempt.orderNumber )
+      if ( nextView === 'paid' )
       {
-        // Done. Hand off to the success page, which owns the confirmation copy.
-        const n = encodeURIComponent( String( attempt.orderNumber ) );
-        window.location.replace( `/checkout/success/?a=${encodeURIComponent( attemptId )}&o=${n}` );
-        return true;
+        // The two facts a paying customer needs, both from the server. The amount is the paise
+        // the attempt was created with, rendered by the integer helper - never recomputed here.
+        setOrderNumber( String( attempt.orderNumber ) );
+        setAmount( amountLabel( attempt.amountPaise, attempt.currency ) );
       }
       setView( nextView );
-      // Keep polling only while still in flight. A failed/unavailable state is not going to
-      // change on its own from here, so stop and let the customer act.
+      // Keep polling only while still in flight. Paid, failed and unavailable are not going to
+      // change on their own from here, so stop and let the customer read the screen.
       return nextView !== 'confirming' && nextView !== 'finalizing';
     }
     catch
@@ -227,7 +267,38 @@ export default function CheckoutStatus (): React.ReactElement {
           it. There is no CTA in the band: the actions sit below, per skill §6. */}
       <PageTopBand heading={ copy.title } sub={ copy.body } ariaLabel="Checkout status">
         <section className="co-card" role="status" aria-live="polite">
-          <div className={ `co-mark co-mark-${view}` } aria-hidden="true" />
+          {/* The paid mark is a tick drawn from two borders, the same construction and the same
+              56px as /checkout/success - a typed ✓ varies in shape and weight by platform font.
+              A tick is an ORIENTATION, not a side, so it is not mirrored under rtl: a flipped
+              tick reads as a cross. Every other view keeps the plain disc. */}
+          {view === 'paid'
+            ? <div className="co-mark co-mark-paid" aria-hidden="true"><i className="co-tick" /></div>
+            : <div className={ `co-mark co-mark-${view}` } aria-hidden="true" />}
+
+          {view === 'paid' && (
+            <dl className="co-facts">
+              <div className="co-fact">
+                <dt>Order number</dt>
+                {/* data-wc-no-translate: an identifier. A translated or regrouped WD-ORD-… is a
+                    different string, and this is the value a customer reads back to us. */}
+                <dd data-wc-no-translate="true">{orderNumber}</dd>
+              </div>
+              {amount && (
+                <div className="co-fact">
+                  <dt>Amount paid</dt>
+                  <dd data-wc-no-translate="true">{amount}</dd>
+                </div>
+              )}
+            </dl>
+          )}
+
+          {view === 'paid' && (
+            <div className="co-actions">
+              {/* No retry here, and nothing that starts a second payment. */}
+              <Link className="co-btn co-btn-primary" href="/orders/">View my orders</Link>
+              <Link className="co-btn co-btn-quiet" href="/shop/">Continue shopping</Link>
+            </div>
+          )}
 
           {view === 'finalizing' && (
             <p className="co-note">Keep this page open. It usually takes a few seconds.</p>
@@ -270,12 +341,41 @@ export default function CheckoutStatus (): React.ReactElement {
             border-block-start-color:#3da35a;
             animation:co-spin 900ms linear infinite;
           }
+          /* The one positive mark on this screen, and the palette's grassy green #3da35a rather
+             than a new hue - the same disc /checkout/success draws, so the two checkout screens
+             agree on what a confirmed payment looks like. Red appears nowhere on this page: a
+             captured payment is not a failure, and the failed view does not use red either. */
+          .co-mark-paid{
+            background:#3da35a;display:flex;align-items:center;justify-content:center;
+          }
+          /* 10px x 20px with two borders stroked at 3px, rotated 45deg. Deliberately NOT mirrored
+             for rtl - see the note on the markup. */
+          .co-tick{
+            inline-size:10px;block-size:20px;box-sizing:border-box;
+            border-right:3px solid #fff;border-bottom:3px solid #fff;
+            transform:rotate(45deg) translateY(-2px);
+          }
           /* NO RED on the failed mark, on owner instruction. It was #fbe9e9, a pink wash that
              exists nowhere else on this site. Both terminal marks are now neutral discs at the
              site's own alpha: the heading above states the outcome, so the disc is a position
              marker and not the message. */
           .co-mark-failed,
           .co-mark-unavailable{background:rgba(0,0,0,.06)}
+
+          /* The order number and the amount, on the same two rungs /checkout/success gives the
+             order number: a 14px/700 uppercase label at the dim rung, and the 22px/700/-.25px
+             card-heading rung in dark green for the value. Tabular figures so the digits line up
+             between the two rows. */
+          .co-facts{margin:0;display:flex;flex-wrap:wrap;gap:24px 48px}
+          .co-fact{display:flex;flex-direction:column;gap:6px}
+          .co-facts dt{
+            font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+            color:rgba(0,0,0,.54);
+          }
+          .co-facts dd{
+            margin:0;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
+            color:#1a3a2a;font-variant-numeric:tabular-nums;
+          }
 
           .co-note{
             margin:0;font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
