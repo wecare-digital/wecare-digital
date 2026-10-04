@@ -99,6 +99,7 @@ interface MapsRecorder {
   // Every library name the component passed to google.maps.importLibrary. Production-like
   // Geocoder now arrives via importLibrary('geocoding'), so this proves the import happened.
   importedLibraries: string[];
+  mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
 }
 
 // Optional author attribution Google supplies with a Place photo. When provided, the
@@ -127,6 +128,7 @@ interface InstallOpts {
   // Status the FakeGeocoder reports back to the component's geocode callback. Defaults to
   // 'OK'; set e.g. 'REQUEST_DENIED' to exercise the error-surfacing fallback.
   geocodeStatus?: string;
+  geocodeRows?: unknown[];
 }
 
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
@@ -136,6 +138,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     placeMeta,
     seedNamespaceGeocoder = true,
     geocodeStatus = 'OK',
+    geocodeRows,
   }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
@@ -157,8 +160,9 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     overlayMapTypes = overlayMapTypes;
     constructor( _el: HTMLElement, opts: Record<string, unknown> ) { rec.mapOpts = opts; }
     setCenter() { /* no-op */ }
-    addListener( eventName: string, handler: () => void ) {
-      if ( eventName === 'tilesloaded' && paintMap ) requestAnimationFrame( handler );
+    addListener( eventName: string, handler: ( event?: any ) => void ) {
+      if ( eventName === 'tilesloaded' && paintMap ) requestAnimationFrame( () => handler() );
+      if ( eventName === 'click' ) rec.mapClickHandler = handler;
       return { remove() { /* no-op */ } };
     }
   }
@@ -179,14 +183,14 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
       // fallback's mapping path (results + 'idle') is exercised, not just the error branch.
       if ( typeof cb === 'function' ) {
         const rows = geocodeStatus === 'OK'
-          ? [ {
+          ? ( geocodeRows || [ {
               formatted_address: 'Mumbai, Maharashtra, India',
               place_id: 'fake-place-id',
               geometry: { location: { lat: () => 19.076, lng: () => 72.8777 } },
               address_components: [
                 { long_name: 'India', short_name: 'IN', types: [ 'country' ] },
               ],
-            } ]
+            } ] )
           : null;
         cb( rows, geocodeStatus );
       }
@@ -1311,6 +1315,72 @@ describe( 'VayuLokLive - mandated Google Place Photo attribution is preserved (r
     expect( link ).not.toBeNull();
     expect( link.getAttribute( 'href' ) ).toBe( 'https://maps.google.com/maps/contrib/123' );
     expect( link.textContent ).toContain( 'Jane Contributor' );
+  } );
+} );
+
+describe( 'VayuLokLive - explicit map-click country validation', () => {
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+  } );
+
+  it( 'skips a Bangladesh first result and accepts a later India result', async () => {
+    const rec = installGoogleMaps( {
+      geocodeRows: [
+        {
+          formatted_address: 'Jaflong, Sylhet, Bangladesh',
+          geometry: { location: { lat: () => 25.1778, lng: () => 92.0051 } },
+          address_components: [
+            { long_name: 'Bangladesh', short_name: 'BD', types: [ 'country' ] },
+          ],
+        },
+        {
+          formatted_address: 'Dawki, Meghalaya, India',
+          geometry: { location: { lat: () => 25.1833, lng: () => 92.0167 } },
+          address_components: [
+            { long_name: 'India', short_name: 'IN', types: [ 'country' ] },
+          ],
+        },
+      ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapClickHandler ).toBeTypeOf( 'function' ) );
+    act( () => {
+      rec.mapClickHandler?.( { latLng: { lat: () => 25.1833, lng: () => 92.0167 } } );
+    } );
+
+    await waitFor( () => expect(
+      container.querySelector( '.vl-live-place' )?.textContent,
+    ).toContain( 'Dawki' ) );
+    expect( container.querySelector( '.vl-live-left' )?.textContent ).not.toContain( 'Jaflong' );
+    expect( container.querySelector( '.vl-live-map-destbar' )?.textContent ).toContain( 'Dawki' );
+  } );
+
+  it( 'rejects a click when reverse geocoding returns only non-India results', async () => {
+    const rec = installGoogleMaps( {
+      geocodeRows: [ {
+        formatted_address: 'Jaflong, Sylhet, Bangladesh',
+        geometry: { location: { lat: () => 25.1778, lng: () => 92.0051 } },
+        address_components: [
+          { long_name: 'Bangladesh', short_name: 'BD', types: [ 'country' ] },
+        ],
+      } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapClickHandler ).toBeTypeOf( 'function' ) );
+    act( () => {
+      rec.mapClickHandler?.( { latLng: { lat: () => 25.1778, lng: () => 92.0051 } } );
+    } );
+
+    await act( async () => { await Promise.resolve(); } );
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-left' )?.textContent ).not.toContain( 'Jaflong' );
   } );
 } );
 
