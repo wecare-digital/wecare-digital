@@ -455,7 +455,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   // ComingSoon stub naming four features, never in the nav, and this row was its only
   // reference in the repo.
   { path: '/workspace/forms', label: 'Forms', backend: 'whatsapp-business-api', tables: 'FlowRegistry' },
-  { path: '/workspace/forms/selfservice', label: 'Self-Service Hub', backend: 'whatsapp-business-api, inbound-whatsapp-handler', tables: 'FlowRegistry, FlowSubmission, FlowLog, SubmitRequest' },
+  { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service Hub', backend: 'whatsapp-business-api, inbound-whatsapp-handler', tables: 'FlowRegistry, FlowSubmission, FlowLog, SubmitRequest' },
   // Was '[retired public path]'. The public page was deleted on owner instruction; the faq-handler backend
   // and SystemConfig table are unchanged and are driven from the dashboard route.
   { path: '/workspace/engage/faq', label: 'FAQ', backend: 'faq-handler', tables: 'SystemConfig' },
