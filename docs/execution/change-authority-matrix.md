@@ -1,5 +1,51 @@
 # Change authority matrix
 
+## 2026-10-04 Phase 2 contribution-as-cart-product merge and deploy
+- A0_READ: re-fetched origin/stack (branch was 49 behind with all work uncommitted),
+  read the pass-4 APPROVED review and plan section F, measured which functions consume
+  the five changed shared modules, and captured wecare-checkout's live alias version,
+  env key NAMES (never values) and code SHA before anything moved.
+- A1_LOCAL: resolved eight rebase conflicts. Four were decisions between two sessions:
+  kept stack's 409 CART_ITEM_UNAVAILABLE and ADDED this phase's `detail` diagnostic to
+  the same arm; removed stack's unreachable inner double-fire latch in favour of this
+  phase's `proceed` wrapper, which also disarms the resetCart one-shot it would have
+  leaked; took this phase's CONTRIBUTION_CHOICES over stack's CONTRIBUTION_PRESETS_PAISE
+  after proving VayuLok never imported the deleted export; and adopted #219's preset-only
+  narrowing of the retired own-money path, correcting a module docstring that claimed
+  those constants were untouched. Repaired the worktree's stale node_modules with
+  `npm install` from the existing lockfile (36 packages; package.json and
+  package-lock.json unchanged and not committed).
+- A2_REMOTE_CODE: committed 27 files by explicit pathspec file with `commit --only` so a
+  pre-staged file from another session could not ride along; index verified clean
+  immediately before staging. Rebased onto 619a8793 and pushed non-force, fast-forward
+  619a8793..6153b682 to origin stack. No new remote branch, no history rewrite.
+- A3_PRODUCTION: deployed wecare-checkout only, after proving the other three consumers
+  of the changed shared modules are behaviourally unaffected (contract-preserving
+  projection, pure addition, and an untouched settlement function). Published v13 and
+  moved the `live` alias 12 -> 13; State Active, LastUpdateStatus Successful, 13 env keys
+  preserved including WIX_CART_V2_ENABLED. Amplify job 1351 for 6153b682 SUCCEED
+  (BUILD/DEPLOY/VERIFY). CONTRIBUTION_PRODUCT_ID deliberately NOT set, so the feature is
+  live and fail-closed at 409 CONTRIBUTION_UNAVAILABLE.
+- Refusals: no payment, capture, refund or payment-configuration mutation; no OTP
+  supplied or requested; no live-send flag flipped; no credential read and no
+  `get-secret-value` in any spelling, so the eCom Cart scope probe behind the
+  pre-existing production checkout failure was left as owner work rather than worked
+  around; no S3 bucket; `POST /api/ecommerce/contribution` stays 404.
+- WAITING_FOR_OWNER: three unmeasured Wix dashboard settings on the live `Contribute`
+  product (inventory untracked/in-stock, excluded from shipping rules, tax class
+  zero-rated and not tax-inclusive); two owed live Wix measurements (does a PHYSICAL line
+  price with no delivery address; does a contribution price to exactly the contributed
+  paise with tax/delivery/fees/discount all zero); and the item 33 scenarios including
+  any real charge.
+Evidence: `.agents/tasks/phase2-contribution-unify-20261003/deploy-record.md`, plus
+pytest 7499 passed / 0 failed, vitest 986 passed / 0 failed, typecheck exit 0, build
+exit 0, check_design_drift.py OK, 108 money and payment-vocabulary gate rows passed, and
+`out/shop/` carrying the seven shop products with no `contribute/` and zero `contribute`
+occurrences in `out/sitemap.xml`. Rollback:
+`aws lambda update-alias --function-name wecare-checkout --name live --function-version 12`
+reverts the backend; the contribution itself needs no rollback because its env key was
+never written, which is the designed lever.
+
 ## 2026-10-02 dashboard MCP connection controls
 
 - A0_READ: refreshed origin/stack, inspected current dashboard navigation, staff
