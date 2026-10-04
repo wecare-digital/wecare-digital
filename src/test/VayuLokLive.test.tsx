@@ -1744,6 +1744,59 @@ describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FE
     await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
   } );
 
+  /* OWNER OVERRIDE (reference screenshot = option 2; decisions.md Decision 3). The SECOND
+     India gate: coords that ARE inside INDIA_BOUNDS (so they pass the cheap box pre-check)
+     but whose reverse-geocode returns a NON-India result must still be rejected by the
+     isIndiaResult check, with NO selection and the honest 'outside-india' status. The sibling
+     London case short-circuits at the box pre-check, so it never reaches this branch. This
+     test re-installs the Maps stub with a non-India reverse-geocode row (country short code
+     'BD'), so it would FAIL if the isIndiaResult reverse-geocode check were removed - a bare
+     first row carries formatted_address + place_id and would be selected. */
+  it( 'rejects an in-box geolocation fix whose reverse-geocode is non-India (isIndiaResult gate)', async () => {
+    // Re-install with a reverse-geocode row OUTSIDE India (Dhaka, country short code 'BD').
+    // It still carries formatted_address + place_id so a missing isIndiaResult check would
+    // wrongly select it - the assertions below would then fail.
+    rec = installGoogleMaps( {
+      geocodeRows: [ {
+        formatted_address: 'Dhaka, Dhaka Division, Bangladesh',
+        place_id: 'fake-non-india-place-id',
+        geometry: { location: { lat: () => 23.8103, lng: () => 90.4125 } },
+        address_components: [
+          { long_name: 'Bangladesh', short_name: 'BD', types: [ 'country' ] },
+        ],
+      } ],
+    } );
+    // Coords INSIDE INDIA_BOUNDS (Mumbai) so the box pre-check passes and the reverse-geocode
+    // branch is actually reached; the geocoder then returns the non-India row above.
+    stubGeolocation( success => success( coords( 19.076, 72.8777 ) ) );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const locate = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-locate' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( () => fireEvent.click( locate ) ).not.toThrow();
+
+    // Let the async geocoder callback settle.
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); } );
+
+    // No selection: no place card, no destination bar, no marker, and the AQI/PM2.5 pills
+    // stay disabled.
+    expect( container.querySelector( '.vl-live-left .vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( rec.markerOpts ).toHaveLength( 0 );
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeDisabled();
+    // The reverse-geocode was actually consulted with the in-box location.
+    expect( rec.geocodeCalls.some( call => 'location' in call ) ).toBe( true );
+    // The honest "outside India" status surfaces (no crash, no spam).
+    await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
+  } );
+
   // (e) Honest degradation: with no key, no map and NO bottom bar render, and nothing fetches.
   it( 'renders no bottom bar when the key is absent', async () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
