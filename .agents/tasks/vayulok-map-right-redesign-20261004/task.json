@@ -1,0 +1,7 @@
+{
+  "task_id": "vayulok-map-right-redesign-20261004",
+  "task_description": "Redesign the VayuLok /vayulok/ live map area in src/components/VayuLokLive.tsx per four requirements: (01) make the numeric pill number-only with the provided referee-style SVG on a lime pill background, with the associated photo on the same lime background; (02) remove the overlaid place card (the .vl-live-map-preview card); (03) redesign the right side of the map - rounded borders, a centered search bar with a clear border and Google Maps India SKU autocomplete, show only the selected area's geocoding, and make the map expandable via drag/keyboard respecting India bounds and Google attribution; (04) align all styling to the homepage design system. Work stays on branch vayulok-retired-host-cleanup. Verification is typecheck/lint/vitest only (the referrer-restricted Maps key means no live map in sandbox - honest degradation path is the verification surface).",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
