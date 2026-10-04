@@ -135,7 +135,7 @@ export function addLinkResources(stack: Stack) {
     apiName: 'stack-wecare-short-links',
     description: 'URL Shortener API, reached via the apex /r/<*> proxy',
     corsPreflight: {
-      // stack.wecare.digital removed with that hostname's retirement; it only 301'd
+      // retired-legacy-host.invalid removed with that hostname's retirement; it only 301'd
       // to the apex, and a redirecting host is never a usable allowed origin.
       allowOrigins: [
         'https://wecare.digital',
