@@ -101,7 +101,17 @@ import {
   isContributionItem, setContribution,
 } from '../lib/cart';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
-import { CONTRIBUTION_CHOICES } from '../config/contribution';
+import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
+import { colors } from '../lib/design-tokens';
+/**
+ * THE OPAQUE SQUARE MARK, and it has to be that one. Razorpay composites this logo onto its own
+ * modal surface, so it is a renderer we do not control - exactly the case src/test/BrandAssets.
+ * test.ts bans `wecaredigital.png` from, because that file is 68.4% transparent with a black mark
+ * and flattens to an invisible logo on a dark ground. `schema.ts`'s LOGO_URL is the 1080x1080
+ * opaque-white-ground asset already serving apple-touch-icon and the Organization logo, and it is
+ * imported rather than restated so the two cannot drift.
+ */
+import { LOGO_URL } from '../lib/schema';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const PREPARE_CHECKOUT_URL = `${API_BASE}/ecommerce/prepare-checkout`;
@@ -354,10 +364,40 @@ type RazorpayOptions = {
   order_id: string;
   name: string;
   description: string;
+  /** Absolute URL of the brand mark Razorpay paints at the head of its modal. */
+  image?: string;
+  /** Razorpay tints the modal header and its primary button with this hex. */
+  theme?: { color: string };
   prefill?: Record<string, string>;
   handler: ( result: RazorpaySuccess ) => void | Promise<void>;
   modal?: { ondismiss?: () => void };
 };
+
+/**
+ * WHAT THE MODAL CALLS THIS PAYMENT, derived from the basket being sent and nothing else.
+ *
+ * A CONTRIBUTION IS NOT AN ORDER, which is why this is a branch rather than one string. The terms
+ * say so in as many words - a contribution "does not create an order, a product or a shipment" -
+ * so labelling a contribution modal "Order payment" would be the payment surface contradicting
+ * the agreement the same page links to.
+ *
+ * IT TAKES THE LINE ITEMS AS AN ARGUMENT for the same reason `postPrepare` takes everything as
+ * one: the descriptor must describe the basket in THIS request body, and reading component state
+ * here would let the post-save retry label a basket it is not sending. `CheckoutLineItem` carries
+ * a catalogue reference and a quantity only - never a name and never a price - so the item count
+ * is the most this can honestly say about a mixed basket, and no money figure appears in it.
+ *
+ * Falls back to 'Order payment' for an empty list, which `proceed` does not produce.
+ */
+function checkoutDescription ( lineItems: CheckoutLineItem[] ): string {
+  if ( lineItems.length === 0 ) return 'Order payment';
+  const allContribution = !!CONTRIBUTION_PRODUCT_ID && lineItems.every(
+    line => line.catalogReference.catalogItemId === CONTRIBUTION_PRODUCT_ID,
+  );
+  if ( allContribution ) return 'Contribution to WECARE.DIGITAL';
+  const units = lineItems.reduce( ( total, line ) => total + line.quantity, 0 );
+  return units === 1 ? 'Order payment - 1 item' : `Order payment - ${ units } items`;
+}
 
 declare global {
   interface Window {
@@ -944,8 +984,23 @@ export default function Cart (): React.ReactElement {
           amount: options.amountPaise,
           currency: options.currency,
           order_id: options.orderId,
+          /*
+           * THE BRAND HALF OF THE MODAL, and it is the ONLY half this block decides. `key`,
+           * `amount`, `currency` and `order_id` above all come from the server's prepare
+           * response and are untouched - the browser still never names a figure or an order.
+           *
+           * `theme.color` is `colors.primary` from src/lib/design-tokens.ts (#1a3a2a, the dark
+           * forest green that tokens.css publishes as --accent / --color-primary), imported
+           * rather than written as a hex so the pay modal cannot drift from the site it opened
+           * from. The lime (#d1f470) is deliberately NOT used here: Razorpay tints its primary
+           * BUTTON with this value and paints white label text on it, and lime measures about
+           * 1.4:1 against white - the same measurement that already disqualified it as a mark in
+           * BrandLockup. The green is the colour the rest of the site uses for a primary action.
+           */
           name: 'WECARE.DIGITAL',
-          description: 'Order payment',
+          description: checkoutDescription( lineItems ),
+          image: LOGO_URL,
+          theme: { color: colors.primary },
           prefill: options.prefill,
           handler: async ( result: RazorpaySuccess ) => {
             // Latched BEFORE verify runs. This is what makes it hold on a LOST response: the

@@ -8,6 +8,8 @@ import path from 'path';
 
 import * as cart from '../lib/cart';
 import { CONTRIBUTION_CHOICES } from '../config/contribution';
+import { colors } from '../lib/design-tokens';
+import { MEDIA_BASE } from '../config/share';
 import type { ShopProduct } from '../content/shop';
 import type { StoredAddress } from '../components/AddressFields';
 import * as customerAuth from '../lib/customerAuth';
@@ -627,8 +629,32 @@ describe( 'the cart page proceed flow', () => {
     expect( receivedOptions.order_id ).toBe( 'order-fixture-1' );
     expect( receivedOptions.amount ).toBe( 121481 );
     expect( receivedOptions.currency ).toBe( 'INR' );
+    expect( receivedOptions.prefill.name ).toBe( 'Asha Sen' );
     expect( receivedOptions.prefill.email ).toBe( 'asha@example.com' );
+    expect( receivedOptions.prefill.contact ).toBe( '+919330994400' );
     expect( receivedOptions ).not.toHaveProperty( 'key_secret' );
+
+    /*
+     * THE BRAND HALF OF THE MODAL. A real Razorpay modal cannot be opened here, so what is
+     * assertable is the options object the SDK is handed - which is the whole of what this repo
+     * controls about how that modal looks.
+     *
+     * theme.color IS COMPARED TO THE TOKEN, not to a hex literal. Restating '#1a3a2a' here would
+     * let the token move while the test went on passing against the old value, which is the one
+     * failure a colour test exists to catch. The literal below is asserted ONCE, against the
+     * token itself, so the pay modal and the site cannot drift apart silently.
+     *
+     * The logo must be the OPAQUE square: Razorpay composites it onto its own surface, so this is
+     * the external-renderer case BrandAssets.test.ts bans the 68%-transparent mark from.
+     */
+    expect( receivedOptions.name ).toBe( 'WECARE.DIGITAL' );
+    expect( receivedOptions.theme.color ).toBe( colors.primary );
+    expect( colors.primary ).toBe( '#1a3a2a' );
+    expect( receivedOptions.image ).toBe( `${MEDIA_BASE}/wecare-digital.png` );
+    expect( receivedOptions.image ).not.toContain( 'wecaredigital.png' );
+    // One product, quantity one - so the descriptor says so and still names no amount.
+    expect( receivedOptions.description ).toBe( 'Order payment - 1 item' );
+    expect( receivedOptions.description ).not.toMatch( /\u20b9|\d{3,}/ );
 
     const [ prepare ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
     expect( prepare.body.action ).toBe( 'prepare' );
@@ -652,6 +678,57 @@ describe( 'the cart page proceed flow', () => {
     } );
     expect( navigatedTo ).toBe( '/checkout/status/?a=att-web-1' );
     expect( cart.readCart() ).toHaveLength( 1 );
+  } );
+
+  it( 'calls a contribution a contribution in the modal, not an order', async () => {
+    /*
+     * THE ONE BRANCH IN THE DESCRIPTOR, and it is a correctness assertion rather than a cosmetic
+     * one. src/content/legal/terms.ts says a contribution "does not create an order, a product or
+     * a shipment"; a modal headed "Order payment" over a contribution would have the payment
+     * surface contradicting the agreement this same page links to.
+     *
+     * Nothing else about the rail changes - same name, same logo, same theme token, and still no
+     * amount in the description, which is asserted here too because a contribution is the case
+     * where naming a figure would be most tempting.
+     */
+    signedIn( 'fixture-session' );
+
+    let receivedOptions: any = null;
+    const open = vi.fn();
+    class FakeRazorpay {
+      constructor ( options: any ) { receivedOptions = options; }
+      open = open;
+      on = vi.fn();
+    }
+    Object.defineProperty( window, 'Razorpay', {
+      configurable: true, writable: true, value: FakeRazorpay,
+    } );
+
+    stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { body: {
+        status: 'CHECKOUT_OPTIONS_READY',
+        paymentAttemptId: 'att-contrib-1',
+        options: {
+          keyId: 'fixture-publishable-id',
+          orderId: 'order-contrib-1',
+          amountPaise: 25000,
+          currency: 'INR',
+          prefill: { name: 'Asha Sen', email: 'asha@example.com', contact: '+919330994400' },
+        },
+      } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely|Proceed/ } ) );
+
+    await waitFor( () => expect( open ).toHaveBeenCalledTimes( 1 ) );
+    expect( receivedOptions.description ).toBe( 'Contribution to WECARE.DIGITAL' );
+    expect( receivedOptions.description ).not.toMatch( /order/i );
+    expect( receivedOptions.description ).not.toMatch( /\u20b9|\d/ );
+    expect( receivedOptions.name ).toBe( 'WECARE.DIGITAL' );
+    expect( receivedOptions.theme.color ).toBe( colors.primary );
   } );
 
   it( 'routes PAYMENT_REQUEST_SENT to the hosted status screen', async () => {
