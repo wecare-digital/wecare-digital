@@ -303,10 +303,19 @@ beforeEach( () => {
 // A fetch stub that answers the Air Quality currentConditions:lookup (the grid + center
 // sample) with a real-shaped payload and refuses everything else. `aqi` drives the parsed
 // severity band; the stub is used by the deck.gl / gating tests below.
+function requestUrl( input: RequestInfo | URL ): URL | null {
+  try { return new URL( String( input ) ); } catch { return null; }
+}
+
+function requestIs( input: RequestInfo | URL, hostname: string, pathnamePrefix?: string ): boolean {
+  const url = requestUrl( input );
+  return Boolean( url && url.hostname === hostname && ( !pathnamePrefix || url.pathname.startsWith( pathnamePrefix ) ) );
+}
+
 function airConditionsFetch( aqi = 120, pm25 = 58 ) {
   return vi.fn( ( input: RequestInfo | URL ) => {
     const url = String( input );
-    if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -326,7 +335,7 @@ function environmentFetch() {
   const hour = ( offset: number ) => new Date( now.getTime() + offset * 60 * 60 * 1000 ).toISOString();
   return vi.fn( ( input: RequestInfo | URL ) => {
     const url = String( input );
-    if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -340,7 +349,7 @@ function environmentFetch() {
         } ),
       } as Response );
     }
-    if ( url.includes( 'weather.googleapis.com/v1/currentConditions' ) ) {
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/currentConditions' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -359,7 +368,7 @@ function environmentFetch() {
         } ),
       } as Response );
     }
-    if ( url.includes( 'weather.googleapis.com/v1/forecast/hours' ) ) {
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/forecast/hours' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -374,7 +383,7 @@ function environmentFetch() {
         } ),
       } as Response );
     }
-    if ( url.includes( 'weather.googleapis.com/v1/forecast/days' ) ) {
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/forecast/days' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -388,13 +397,13 @@ function environmentFetch() {
         } ),
       } as Response );
     }
-    if ( url.includes( 'weather.googleapis.com/v1/publicAlerts' ) ) {
+    if ( requestIs( input, 'weather.googleapis.com', '/v1/publicAlerts' ) ) {
       return Promise.resolve( { ok: true, json: async () => ( { weatherAlerts: [] } ) } as Response );
     }
-    if ( url.includes( 'pollen.googleapis.com/v1/forecast' ) ) {
+    if ( requestIs( input, 'pollen.googleapis.com', '/v1/forecast' ) ) {
       return Promise.resolve( { ok: true, json: async () => ( { dailyInfo: [] } ) } as Response );
     }
-    if ( url.includes( 'airquality.googleapis.com/v1/forecast' ) ) {
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/forecast' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -406,7 +415,7 @@ function environmentFetch() {
         } ),
       } as Response );
     }
-    if ( url.includes( 'airquality.googleapis.com/v1/history' ) ) {
+    if ( requestIs( input, 'airquality.googleapis.com', '/v1/history' ) ) {
       return Promise.resolve( {
         ok: true,
         json: async () => ( {
@@ -544,9 +553,9 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // On load (no layer active): NO air fetch, and the deck.gl overlay is NOT attached.
     const airFetches = () => fetchSpy.mock.calls.filter(
-      c => String( c[ 0 ] ).includes( 'airquality.googleapis.com/v1/currentConditions' ),
+      c => requestIs( c[ 0 ], 'airquality.googleapis.com', '/v1/currentConditions' ),
     );
-    const heatmapTilesHit = () => fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'heatmapTiles' ) );
+    const heatmapTilesHit = () => fetchSpy.mock.calls.some( c => requestUrl( c[ 0 ] )?.pathname.includes( 'heatmapTiles' ) === true );
     expect( airFetches() ).toHaveLength( 0 );
     expect( heatmapTilesHit() ).toBe( false );
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
@@ -622,7 +631,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     // No raster path was taken for either layer.
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
-    expect( fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'heatmapTiles' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( c => requestUrl( c[ 0 ] )?.pathname.includes( 'heatmapTiles' ) === true ) ).toBe( false );
 
     // The PM2.5 scatter layer still paints no-red fills.
     const pm25Scatter = deckRec.scatterProps.at( -1 )!;
@@ -646,7 +655,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
 
     fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
     await waitFor( () => expect(
-      fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'weather.googleapis.com/v1/currentConditions' ) ),
+      fetchSpy.mock.calls.some( c => requestIs( c[ 0 ], 'weather.googleapis.com', '/v1/currentConditions' ) ),
     ).toBe( true ) );
 
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
@@ -660,7 +669,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     // once a layer is active AND the air reading has arrived. Supply a minimal AQI response.
     vi.stubGlobal( 'fetch', vi.fn( ( input: RequestInfo | URL ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -695,7 +704,7 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
   it( 'renders the selected place name + address in the left card and swaps the result block per layer', async () => {
     const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
@@ -1062,7 +1071,7 @@ describe( 'VayuLokLive - selected-place weather is restored without map-layer ov
     await selectMumbai();
 
     await waitFor( () => expect(
-      fetchSpy.mock.calls.some( c => String( c[ 0 ] ).includes( 'weather.googleapis.com/v1/currentConditions' ) ),
+      fetchSpy.mock.calls.some( c => requestIs( c[ 0 ], 'weather.googleapis.com', '/v1/currentConditions' ) ),
     ).toBe( true ) );
     expect( screen.getByRole( 'heading', { name: 'Now' } ) ).toBeInTheDocument();
     expect( screen.getByText( 'Mostly sunny' ) ).toBeInTheDocument();
@@ -1090,10 +1099,10 @@ describe( 'VayuLokLive - selected-place weather is restored without map-layer ov
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
 
     await selectMumbai();
-    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'solar.googleapis.com' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ) ).toBe( false );
     fireEvent.click( await screen.findByRole( 'button', { name: 'View solar potential' } ) );
     await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'solar.googleapis.com' ) ),
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ),
     ).toBe( true ) );
   } );
 } );
@@ -1127,11 +1136,11 @@ describe( 'VayuLokLive - failure and cost controls', () => {
 
     await selectMumbai();
     await waitFor( () => expect( screen.getByRole( 'button', { name: 'View solar potential' } ) ).toBeInTheDocument() );
-    expect( fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'solar.googleapis.com' ) ) ).toBe( false );
+    expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) ) ).toBe( false );
 
     fireEvent.click( screen.getByRole( 'button', { name: 'View solar potential' } ) );
     await waitFor( () => expect(
-      fetchSpy.mock.calls.some( call => String( call[ 0 ] ).includes( 'solar.googleapis.com' ) )
+      fetchSpy.mock.calls.some( call => requestIs( call[ 0 ], 'solar.googleapis.com' ) )
     ).toBe( true ) );
   } );
 } );
@@ -1477,7 +1486,7 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
     const PERIPHERAL_AQI = 143;
     const fetchSpy = vi.fn( ( input: RequestInfo | URL, init?: RequestInit ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         const loc = reqLatLng( init );
         const isCenter = !!loc && loc.lat === SELECTED_LAT && loc.lng === SELECTED_LNG;
         if ( isCenter ) {
@@ -1533,7 +1542,7 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
     // EVERY cell returns a payload with no finite AQI => no dot, no center, no fallback.
     const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
       const url = String( input );
-      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
         return Promise.resolve( {
           ok: true,
           json: async () => ( {
