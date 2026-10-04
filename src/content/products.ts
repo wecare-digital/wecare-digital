@@ -85,7 +85,7 @@ export interface ProductDef {
 // over: `www` 301s to the apex, and `[retired public path]` was deleted with the retired-URL stubs
 // in commit 6bc44a35, so the chain ran 301 -> 301 -> 404. Now the apex directly, and
 // /contact/ because it is a real 200 page and is the destination the retirement note in
-// _app.tsx nominated for /selfservice.
+// _app.tsx nominated for /customerservice.
 const PRODUCT_CTA = 'https://wecare.digital/contact/';
 
 export const PRODUCTS: ProductDef[] = [
