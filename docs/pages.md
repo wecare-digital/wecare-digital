@@ -149,7 +149,7 @@ Behind authentication. Listed so the set is reviewable, but none of these is pub
 | `[retired public path 169e0fd8]/` | [http://localhost:3000/forms/](http://localhost:3000/forms/) |
 | `[retired public path 169e0fd8]/create/` | [http://localhost:3000/forms/create/](http://localhost:3000/forms/create/) |
 | `[retired public path 169e0fd8]/logs/` | [http://localhost:3000/forms/logs/](http://localhost:3000/forms/logs/) |
-| `[retired public path 169e0fd8][retired public path b180810d]/` | [http://localhost:3000/forms/selfservice/](http://localhost:3000/forms/selfservice/) |
+| `[retired public path 169e0fd8][retired public path b180810d]/` | [http://localhost:3000/forms/customerservice/](http://localhost:3000/forms/customerservice/) |
 
 ### service (4)
 
