@@ -127,6 +127,48 @@ describe( 'Get page', () => {
     expect( container.querySelector( '.sf-cta' ) ).toBeNull();
   } );
 
+  it( 'offers a resend on the code stage, which this page did not have at all', async () => {
+    /*
+     * THE GAP. The Phase 4 audit measured the four OTP surfaces and found this stage had no way
+     * to ask for another code. "Use a different number" is a way to START OVER, not a way to try
+     * the same number again, so a customer whose code did not arrive - a delayed Meta send, a
+     * phone that was off - had to abandon the page.
+     *
+     * handleRequestOtp is reused verbatim rather than a second send path being written: it
+     * already re-issues the challenge and re-enters this stage, so the resend cannot drift from
+     * the first send. What is asserted is that the control is present, that it calls the same
+     * send, and that the shared cooldown then stops a double-tap from spending two more of the
+     * customer's hourly budget.
+     */
+    vi.useFakeTimers();
+    const requestOtp = vi.spyOn( customerAuth, 'requestOtp' ).mockResolvedValue( {
+      session: 'session-1', destination: '+91••••••0044', registered: true,
+    } as never );
+    const { container } = render( <GetPage /> );
+    const { act, fireEvent } = await import( '@testing-library/react' );
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+
+    const number = container.querySelector( '.pf-num' ) as HTMLInputElement;
+    fireEvent.change( number, { target: { value: '9876543210' } } );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Send OTP on WhatsApp' } ) );
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    expect( container.querySelector( '#code' ) ).toBeTruthy();
+
+    const resend = screen.getByRole( 'button', { name: /^Resend OTP on WhatsApp/ } );
+    fireEvent.click( resend );
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    expect( requestOtp ).toHaveBeenCalledTimes( 2 );
+
+    // The shared 30s cooldown, so an impatient second tap is not a second send.
+    const cooling = screen.getByRole( 'button', { name: /^Resend OTP on WhatsApp/ } );
+    expect( cooling ).toBeDisabled();
+    fireEvent.click( cooling );
+    expect( requestOtp ).toHaveBeenCalledTimes( 2 );
+
+    await act( async () => { await vi.advanceTimersByTimeAsync( 30_000 ); } );
+    expect( screen.getByRole( 'button', { name: 'Resend OTP on WhatsApp' } ) ).toBeEnabled();
+    vi.useRealTimers();
+  } );
   it( 'still refuses to show a code box for an unregistered number (auth logic unchanged)', async () => {
     // The guard that must survive a styling change: Cognito issues a challenge for an unknown
     // number too, so without this the person waits forever for a message never sent.

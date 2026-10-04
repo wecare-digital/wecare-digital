@@ -198,13 +198,34 @@ const PillButton: React.FC<PillButtonProps> = ( {
            The 2px #1a3a2a edge stays (12.48:1 vs white, clears WCAG 1.4.11 for a control
            boundary), the full 999px radius stays so the global 13px in src/styles/button.css
            cannot flatten it, and 52px stays as the site's CTA height, matching PhoneField and
-           .si-input. */
+           .si-input.
+
+           TWO NUMBERS WERE PULLED BACK TO THE REFERENCE IN THE PHASE 4 SWEEP, both measured
+           against src/pages/index.tsx's .home-close-cta, which is the home page's only call to
+           action and therefore the button standard:
+             - the label was font-weight:700 where the reference is 600. Measured in the built
+               export, .shopd-cta, .co-btn-primary, .cs-btn-primary and the /blog/ search
+               button all render 600, so this control was the single outlier - on
+               /account/sign-in/, /cart/, /get/, /orders/ and the contribute blocks, i.e. most
+               of the places a customer meets a button.
+             - the hover shadow was rgba(26,58,42,.18) where every other primary on the site,
+               and the reference, use .12.
+           Neither changes the silhouette; both are why the pages read as slightly different
+           designs when you move between them. */
+        /* color AND font-weight ARE ON THE CONTROL, not only on the label span, and that is a
+           Phase 4 correction. The outer element declared neither, so it measured
+           color:rgb(0,0,0) / font-weight:400 while .pill-action inside it painted #1a3a2a / 600.
+           Nothing visible was wrong - the span holds all the text - but anything the control
+           renders without going through that span (a glyph, a pseudo-element, a future icon)
+           would arrive black at weight 400 on a lime fill. The reference .home-close-cta
+           declares both on the control itself; this now matches it, and the span's identical
+           declarations become a harmless restatement rather than the only source. */
         .pill{
           display:inline-flex;align-items:center;justify-content:center;isolation:isolate;
           min-height:52px;box-sizing:border-box;
           border:2px solid #1a3a2a;border-radius:999px;background:#d1f470;
           padding:0 28px;cursor:pointer;
-          font-family:inherit;text-decoration:none;
+          color:#1a3a2a;font-family:inherit;font-size:17px;font-weight:600;text-decoration:none;
           transition:background-color .2s,transform .2s,box-shadow .2s;
         }
         .pill-block{display:flex;width:100%}
@@ -219,7 +240,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
         .pill-action{
           display:inline-flex;align-items:center;justify-content:center;
           min-inline-size:0;
-          color:#1a3a2a;font-size:17px;font-weight:700;line-height:1.2;
+          color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
           text-align:center;
         }
 
@@ -231,7 +252,7 @@ const PillButton: React.FC<PillButtonProps> = ( {
            shade" - wrong, because the label is 17px bold and WCAG's large-text exemption only
            begins at 18.66px bold (or 24px regular). White gives #1a3a2a type 12.48:1 instead. */
         .pill:hover:not([disabled]):not([aria-disabled='true']){
-          background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.18);
+          background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
         }
         .pill:active:not([disabled]):not([aria-disabled='true']){transform:translateY(0)}
 

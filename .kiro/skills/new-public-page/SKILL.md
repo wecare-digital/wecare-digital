@@ -314,6 +314,7 @@ npx vitest run
 node tools/browser/animcheck.js        # rotating-headline reflow, 21 viewports
 node tools/browser/homeprobe.js        # the degradation states from §3
 node tools/browser/pageaudit.js        # structure + translation census + overflow
+node tools/browser/designsweep.js      # buttons/fields/scrollbar vs the home CTA, 20 routes
 node tools/browser/devicecheck.js      # 18 routes × 15 postures, incl. foldables
 node tools/browser/devicecheck.js --firefox   # same matrix on Gecko
 node tools/browser/translatecheck.js   # brand name must NOT translate; header/footer must
@@ -339,6 +340,16 @@ known task, not a caveat.
 not name it, so a full pass of §7 returned green having never loaded a foldable posture — this
 skill's own failure mode turned on itself. Two people finding the same omission separately is the
 argument for keeping it listed.
+
+**`designsweep.js` is the one that compares pages with each other**, which is the axis every other
+gate structurally cannot see. It harvests the home CTA's computed style at run time and holds every
+other route's buttons, fields and scrollbar against it. The whole suite above ran green while the
+dial-code half of the phone field shipped with **none of its own styling** on four public surfaces,
+while the scrollbar was lime in Firefox and a 5px grey hairline in Chromium, while one `!important`
+in `Layout.css` overrode the 17px field size four components declare, and while `/account/sign-in/`
+and `/get/` had no way at all to ask for another OTP. Those are cross-page facts; a per-page
+assertion cannot reach any of them. It also carries a hardcoded `ROUTES` array, so add a new public
+route by hand.
 
 A new page adds a route to `pageaudit.js`'s discovery automatically, but **`devicecheck.js`
 carries a hardcoded `ROUTES` array** — 18 routes against 126 page files, and a new public route

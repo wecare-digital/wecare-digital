@@ -71,8 +71,9 @@ html {
   overscroll-behavior-y: auto;
   overscroll-behavior-x: none;
   max-width: 100vw;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(26, 58, 42, 0.15) transparent;
+  /* NO scrollbar-color HERE. It was `rgba(26,58,42,.15) transparent`, which is the Firefox
+     half of the removed !important block below, and it disagreed with the WebKit half on every
+     other engine. The single declaration lives in inner-ux.css. */
 }
 
 body {
@@ -91,38 +92,22 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-/* Global scrollbar — lime + dark green theme, no arrows */
-::-webkit-scrollbar {
-  width: 5px !important;
-  height: 5px !important;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(26, 58, 42, 0.15) !important;
-  border-radius: 10px !important;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #d1f470 !important;
-}
-
-::-webkit-scrollbar-thumb:active {
-  background: #0f2a1d !important;
-}
-
-::-webkit-scrollbar-button {
-  display: none !important;
-  height: 0 !important;
-  width: 0 !important;
-}
-
-::-webkit-scrollbar-corner {
-  background: transparent !important;
-}
+/* THE GLOBAL SCROLLBAR USED TO BE DECLARED HERE, WITH !important ON EVERY LINE, AND THAT IS
+   WHY THE SITE SHOWED TWO DIFFERENT SCROLLBARS.
+   
+   It was `::-webkit-scrollbar{width:5px!important}` with a `rgba(26,58,42,.15)` thumb on a
+   transparent track. Nothing could override it, so inner-ux.css's "HOME DESIGN NORMALIZATION"
+   block - which carries no !important - was dead in Chromium, Safari and every WebView.
+   Firefox read `scrollbar-color` instead, which inner-ux.css DID win, so Firefox got a
+   branded scrollbar and everybody else got a 5px grey-green hairline. Measured on every
+   public route: Firefox `rgb(209,244,112) rgb(250,250,250)`, Chromium
+   `rgba(26,58,42,0.15)` on transparent at 5px.
+   
+   There is now exactly ONE site-wide scrollbar declaration, in src/styles/inner-ux.css, built
+   from the --scrollbar-* tokens. Do not add a second one here or anywhere else: the engines
+   read different properties for the same thing, so a competing copy does not look like a
+   conflict, it looks like a browser bug.
+   tools/browser/designsweep.js asserts both halves agree. */
 
 body {
   margin: 0;
@@ -144,8 +129,31 @@ button, a, input[type="checkbox"], input[type="radio"], select {
   min-height: 32px;
 }
 
+/* NO !important HERE ANY MORE, AND THAT WAS NOT A STYLE PREFERENCE - IT WAS MAKING EVERY
+   COMPONENT'S DECLARED FIELD SIZE A LIE.
+   
+   This read `font-size: var(--text-base) !important`, which is 16px forced onto every input,
+   textarea and select on the site. Measured consequence: .si-input, .sf-input, PhoneField's two
+   segments and BlogSearch's input ALL declare 17px - the site's field size, chosen so a field
+   matches the 17px CTA it feeds - and every one of them painted at 16px. Four components, four
+   deliberate declarations, none of them reaching the page. Read with
+   CSS.getMatchedStylesForNode on /account/sign-in/, where `.pf-code.jsx-<hash>{font-size:17px}`
+   sat under this rule and lost to the !important.
+   
+   THE RULE'S PURPOSE IS A FLOOR, NOT A CEILING. 16px is the size below which iOS Safari zooms
+   the viewport when a field takes focus, which on a one-field form looks like the page jumping.
+   A floor implemented as `!important` cannot be exceeded either, so it stopped a component
+   asking for MORE than the minimum - the opposite of what it exists to prevent.
+   
+   WITHOUT !important THE FLOOR STILL HOLDS, in two places, so nothing is traded away:
+     - this rule still beats tokens.css's `input,select,textarea{font-size:var(--text-md)}` (14px)
+       on source order at equal specificity, because tokens.css arrives through the @import at
+       the top of THIS file. So an input that declares nothing still gets 16px.
+     - tokens.css keeps `@media screen and (max-width:768px){input,select,textarea{font-size:16px
+       !important}}`, which is the mobile-only floor and the only place the iOS behaviour applies.
+   A class-based component rule now wins on desktop, which is the whole point. */
 input, textarea, select {
-  font-size: var(--text-base) !important;
+  font-size: var(--text-base);
 }
 
 /* Page layout */

@@ -61,6 +61,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useState } from 'react';
 
+import OtpResend from '../../components/OtpResend';
 import PageTopBand from '../../components/PageTopBand';
 import PhoneField from '../../components/PhoneField';
 import PillButton from '../../components/PillButton';
@@ -419,6 +420,65 @@ export default function CustomerSignIn (): React.ReactElement {
     }
   }, [ phase, normalised, code, session, persistent ] );
 
+  /**
+   * ASK FOR ANOTHER CODE. This page had no resend affordance at all, which the Phase 4 audit
+   * measured as the one functional gap in the OTP surfaces: a shopper whose WhatsApp code never
+   * arrived had nothing to press and had to leave the page. OtpResend owns the control, the
+   * wording and the 30s cooldown; this callback owns only which send to repeat.
+   *
+   * IT REPEATS THE SEND THAT GOT US TO THIS PHASE, rather than starting over, and the three
+   * phases do not share one send:
+   *   'register-code'  the registration front door, which issues its own WhatsApp OTP.
+   *   'code' / 'signin-code'  the Cognito CUSTOM_AUTH challenge, via requestOtp.
+   * requestOtp returns a NEW session, and it is stored - answering the new code against the
+   * old session is a guaranteed rejection, which would read to the shopper as "the resend
+   * broke the page".
+   *
+   * `code` IS CLEARED. Whatever is in the box belongs to the superseded challenge. Leaving it
+   * would let a shopper press Confirm on a code that can no longer be right.
+   *
+   * THE MESSAGES ARE THE EXISTING TABLES. A resend fails for exactly the reasons a first send
+   * fails, so messageForHttpStatus and messageForAuthError are reused rather than a third
+   * wording invented here - and RATE_LIMITED is the one that matters, because this is the
+   * control most likely to reach a throttle.
+   */
+  const resendCode = useCallback( async (): Promise<void> => {
+    if ( !normalised ) return;
+    setError( '' );
+    setBusy( true );
+    try
+    {
+      if ( phase === 'register-code' )
+      {
+        const response = await fetch( REGISTRATION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify( { action: 'request', phone: normalised } ),
+        } );
+        if ( !response.ok )
+        {
+          const data = ( await response.json().catch( () => ( {} ) ) ) as { status?: string };
+          setError( messageForHttpStatus( response.status, String( data.status || '' ) ) );
+          return;
+        }
+        setCode( '' );
+        return;
+      }
+      const challenge = await requestOtp( normalised );
+      setSession( challenge.session );
+      setDestination( challenge.destination );
+      setCode( '' );
+    }
+    catch ( err )
+    {
+      setError( messageForAuthError( err ) );
+    }
+    finally
+    {
+      setBusy( false );
+    }
+  }, [ phase, normalised ] );
+
   return (
     <>
       <Head>
@@ -562,6 +622,14 @@ export default function CustomerSignIn (): React.ReactElement {
                 busy={ busy }
                 describedBy={ error ? 'si-error' : undefined }
               />
+              {/* THE WAY OUT OF A CODE THAT NEVER ARRIVED. This page had none, which is the
+                  functional half of the owner's OTP report. The control is the derived
+                  SECONDARY - white fill, lime on hover - so the lime primary above it is still
+                  the only lime surface on the page. OtpResend owns the wording and the
+                  cooldown so this and /get/ cannot drift apart again. */}
+              <div className="si-resend">
+                <OtpResend onResend={ () => { void resendCode(); } } busy={ busy } />
+              </div>
             </form>
           )}
 
@@ -624,6 +692,10 @@ export default function CustomerSignIn (): React.ReactElement {
             background:rgba(209,244,112,.22);border-inline-start:4px solid #d1f470;
             font-size:16px;font-weight:700;line-height:1.5;color:#1a3a2a;
           }
+          /* The resend sits under the confirm button with one gap between them, not beside it:
+             at 280px two 52px pills on one row cannot both fit without wrapping mid-label, and
+             a wrapped button row reads as a layout fault. Stacked is the same at every width. */
+          .si-resend{margin-top:12px}
           /* 44px, so the way back off this page is a real target. */
           .si-back{margin:28px 0 0;font-size:16px;line-height:1.55}
           .si-back :global(a){
