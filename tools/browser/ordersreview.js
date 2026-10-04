@@ -471,6 +471,27 @@ function jsxHashOf ( markup, what ) {
     const H_CART = await harvest( browser, t.base, '/cart/', { main: 'main.ptb-shell' } );
     const H_STATUS = await harvest( browser, t.base, '/checkout/status/', { main: 'main.ptb-shell' } );
 
+    // THE REBUILD HAS LANDED, SO THIS GENERATOR IS SPENT - and saying so is the honest answer
+    // rather than a harvest error that reads like a broken harness.
+    //
+    // `main.rh-shell` / `.rh-head` is the RotatingHero band of the UN-REBUILT page. FEAT-003
+    // replaced it with PageTopBand, so those selectors are now absent from out/ by design. The
+    // artifact this file wrote - docs/orders-review.html, committed at the mock commit - IS the
+    // pre-rebuild evidence and is deliberately not regenerated: re-harvesting now would pick up
+    // the rebuild in the "before" panels and demonstrate nothing. Design 6.0c, plan decision D3,
+    // and the new-public-page skill's own rule that a mock regenerated after its fixes is void.
+    //
+    // Exit 0, because nothing is wrong: the page it mocked no longer exists.
+    // The two halves are the whole distinction: a PRESENT header proves out/ built and the route
+    // served, so an ABSENT rh-shell means the band changed rather than that the harvest failed.
+    // Both absent is a real failure and still throws below.
+    if ( !H_ORDERS.frags.main && H_ORDERS.frags.header )
+    {
+      console.log( 'ordersreview: /orders/ no longer serves the RotatingHero band this mock was' );
+      console.log( '  taken from - the rebuild has landed. docs/orders-review.html stands as the' );
+      console.log( '  PRE-REBUILD evidence and is not regenerated. Nothing to do.' );
+      return;
+    }
     if ( !H_ORDERS.frags.main || !H_ORDERS.frags.header ) throw new Error( 'ordersreview: failed to harvest /orders/ from out/' );
     if ( !H_BAND.frags.h1 || !H_BAND.frags.pill ) throw new Error( 'ordersreview: failed to harvest PageTopBand or PillButton from /account/sign-in/' );
 
