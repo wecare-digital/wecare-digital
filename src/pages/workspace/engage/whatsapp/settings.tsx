@@ -71,7 +71,7 @@ const BOT_MENU = [
   { row: 9, section: 'Help & Answers', icon: '💛', title: 'About WECARE.DIGITAL', description: 'Learn more about WECARE.DIGITAL', action: 'CTA link → wecare.digital' },
 ];
 
-const SELFSERVICE_MENU = [
+const CUSTOMERSERVICE_MENU = [
   { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: '931522532810297', keywords: 'submit request, sr, raise request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: '1533536534833353', keywords: 'amend request, amend, change' },
@@ -131,7 +131,7 @@ const BotMenuTab: React.FC = () => (
           </tr>
         </thead>
         <tbody>
-          { SELFSERVICE_MENU.map( m => (
+          { CUSTOMERSERVICE_MENU.map( m => (
             <tr key={ m.row } style={ { borderBottom: '1px solid #f3f4f6' } }>
               <td style={ { padding: '8px 10px', color: '#6b7280', fontWeight: 600 } }>{ m.row }</td>
               <td style={ { padding: '8px 10px' } }><span style={ pill( '#f9fafb', '#6b7280' ) }>{ m.section }</span></td>
