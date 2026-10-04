@@ -1,0 +1,33 @@
+{
+  "_what": "Account state immediately BEFORE scripts/provision_wix_catalog_webhook.py --apply created the Wix catalogue webhook receiver. This is the rollback target.",
+  "_measured": "2026-10-04, account 775261844268, us-east-1, read-only",
+  "_rollback": [
+    "aws apigatewayv2 delete-route      --api-id zllr9lrg7j --route-id <the POST /wix-catalog-webhook route>",
+    "aws apigatewayv2 delete-integration --api-id zllr9lrg7j --integration-id <the AWS_PROXY onto wecare-wix-catalog-webhook:live>",
+    "aws lambda delete-function         --function-name wecare-wix-catalog-webhook",
+    "aws iam delete-role-policy --role-name wecare-wix-catalog-webhook-role --policy-name wecare-wix-catalog-webhook-reads",
+    "aws iam delete-role        --role-name wecare-wix-catalog-webhook-role",
+    "aws logs delete-log-group  --log-group-name /aws/lambda/wecare-wix-catalog-webhook"
+  ],
+  "_rollback_note": "Every one of those is in block_catastrophic.py's DESTRUCTIVE_AWS table and therefore ASKS before running. Nothing else is touched: the change is purely additive, so rollback is deletion of exactly what was added and no pre-existing resource needs restoring. Catalogue auto-sync survives the rollback intact - .github/workflows/catalogue-sync.yml needs no AWS resource at all.",
+  "api_zllr9lrg7j": {
+    "route_count": 371,
+    "integration_count": 72,
+    "wix_catalog_webhook_routes": [],
+    "wix_catalog_webhook_integrations": []
+  },
+  "lambda": {
+    "function_count": 72,
+    "wecare_wix_catalog_webhook_exists": false
+  },
+  "iam": {
+    "role_count": 61,
+    "wecare_wix_catalog_webhook_role_exists": false
+  },
+  "secretsmanager": {
+    "secret_count": 28,
+    "wecare_wix_catalog_webhook_exists": false,
+    "wecare_github_pat_exists": true,
+    "_note": "wecare/wix/catalog-webhook is ABSENT and stays absent: creating it requires the Wix app public key, which is owner-only work (WAITING_FOR_OWNER in docs/wix-catalogue-auto-sync.md). The receiver therefore answers 401 to everything until the owner acts, which is the correct resting state for an endpoint whose success path starts a production build."
+  }
+}

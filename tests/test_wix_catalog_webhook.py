@@ -493,6 +493,46 @@ def test_a_missing_github_token_is_reported_without_a_retry_inducing_error(keys,
     assert sent.calls == []
 
 
+@pytest.mark.parametrize("failure", [
+    RuntimeError("ResourceNotFoundException"),
+    ValueError("not json"),
+    KeyError("SecretString"),
+    OSError("connection reset"),
+])
+def test_a_secret_READ_failure_is_401_and_not_500(monkeypatch, failure):
+    """A REGRESSION TEST, for a defect the LIVE PROBE found and this file originally missed.
+
+    `wecare/wix/catalog-webhook` does not exist, so a JWT-SHAPED body got past the cheap checks,
+    reached the key read, and boto3's `ResourceNotFoundException` escaped the verifier's
+    `WixWebhookUnauthorized` handler. Measured against the deployed endpoint:
+
+        POST 'not-a-jwt'                           -> 401
+        POST 'eyJhbGciOiJSUzI1NiJ9.eyJ...fQ.c2ln'  -> 500   <- the defect
+        POST ''                                    -> 401
+
+    Every case in this file's rejection parametrisation used a body that was refused BEFORE the
+    read, so none of them could have caught it. A verifier that cannot read its key must refuse,
+    not crash - so this drives the reader to RAISE and asserts the answer is still 401 with no
+    dispatch.
+    """
+    sent = Dispatches()
+
+    def exploding_client(*args, **kwargs):
+        raise failure
+
+    # Patch `boto3.client` itself, so the REAL `_read_secret` body runs and its own except clause
+    # is the thing under test. Patching `_read_secret` would be testing the test.
+    import boto3
+    monkeypatch.setattr(boto3, "client", exploding_client)
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+
+    answer = receiver.handler({"body": "eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJ3aXguY29tIn0.c2ln"}, None)
+
+    assert answer["statusCode"] == 401
+    assert answer["body"] == ""
+    assert sent.calls == []
+
+
 def test_a_github_failure_is_reported_rather_than_raised(keys, monkeypatch):
     sent = Dispatches(status=500)
 

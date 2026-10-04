@@ -82,17 +82,42 @@ DISPATCH_TIMEOUT_SECONDS = 10
 
 
 def _read_secret(secret_id: str) -> Mapping[str, Any]:
-    """Read a JSON secret by id, at request time. No cache, deliberately.
+    """Read a JSON secret by id, at request time. No cache, and NEVER raises.
 
     A module-scope read is frozen into a warm sandbox, so a rotation would not take effect until
     every sandbox recycled - the defect fixed in `payments/razorpay-webhook` on 2026-09-19.
     Nothing here logs the result, not even its shape or its truthiness: CodeQL tracks taint across
     function boundaries and a ternary on a secret is still a finding.
+
+    `{}` ON ANY FAILURE, AND THAT IS NOT DEFENSIVE PADDING - it is the difference between 401 and
+    500, found by probing the live endpoint rather than by reading this file. `wecare/wix/
+    catalog-webhook` does not exist yet, so a JWT-SHAPED body got past the cheap checks, reached
+    the key read, and boto3's `ResourceNotFoundException` escaped the verifier's
+    `WixWebhookUnauthorized` handler entirely:
+
+        POST 'not-a-jwt'                           -> 401   (refused before the read)
+        POST 'eyJhbGciOiJSUzI1NiJ9.eyJ...fQ.c2ln'  -> 500   <- the defect
+        POST ''                                    -> 401
+
+    A verifier that cannot read its key must REFUSE, not crash. Returning `{}` lands in
+    `verify_signature`'s "no usable public key is configured" branch, which is a 401. The same
+    applies to a transient Secrets Manager failure: refusing is correct and the six-hourly
+    `catalogue-sync.yml` cron is what covers the missed event.
     """
-    import boto3
-    client = boto3.client("secretsmanager",
-                          region_name=os.environ.get("AWS_REGION", "us-east-1"))
-    return json.loads(client.get_secret_value(SecretId=secret_id)["SecretString"])
+    try:
+        import boto3
+        client = boto3.client("secretsmanager",
+                              region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        return json.loads(client.get_secret_value(SecretId=secret_id)["SecretString"])
+    except Exception as error:  # noqa: BLE001 - a read failure is a refusal, never a 500
+        # The secret NAME and the exception TYPE. Never the value, and never a message that
+        # could carry one.
+        logger.warning(json.dumps({
+            "event": "secret_read_failed",
+            "secretId": secret_id,
+            "errorType": type(error).__name__,
+        }))
+        return {}
 
 
 def _unauthorized() -> Dict[str, Any]:
