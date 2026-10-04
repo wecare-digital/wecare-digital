@@ -1222,10 +1222,12 @@ const VayuLokLive: React.FC = () => {
     // server-rendered rasters with a baked colormap and no colour parameter, so the
     // "same lime as the site" + "fully translucent" treatment is applied CLIENT-SIDE.
     // (1) The ImageMapType carries a low `opacity` so the geo/road map underneath stays
-    //     clearly visible. (2) A CSS filter + blend recolours the overlay tile <img>s
-    //     toward the site --lime (#d1f470) and removes any red tone; that CSS is scoped
-    //     to the tile pane only (see .vl-live-map-stage .vl-live-overlay-lime below) and
-    //     is reached by tagging the overlay pane node with a stable class once painted.
+    //     clearly visible. (2) A CSS filter + blend recolours alt-less overlay tile <img>s
+    //     toward the site --lime (#d1f470) and removes any red tone. That CSS selector is
+    //     `.vl-live-overlay-lime :global(div[style*="z-index"] img:not([alt]))` (see below) -
+    //     it has NO .vl-live-map-stage ancestor. Its scope is the runtime-added
+    //     `vl-live-overlay-lime` class, which this effect adds to the .vl-live-map-canvas
+    //     host element below (not a nested stage node) while a layer is active.
     const overlay = new w.google.maps.ImageMapType( {
       name: layer,
       tileSize: { width: 256, height: 256 },
@@ -1236,10 +1238,14 @@ const VayuLokLive: React.FC = () => {
     const typed = overlay as { setOpacity?: ( o: number ) => void };
     typed.setOpacity?.( HEATMAP_OPACITY );
     map.overlayMapTypes?.push( overlay );
-    // Tag the host so the scoped CSS filter reaches ONLY the overlay tile pane - never the
-    // base map and never Google's logo/legal (ToS). styled-jsx attaches its scope class to
-    // .vl-live-map-canvas; this adds the lime treatment flag alongside it. Removed in the
-    // cleanup when no layer is active so the overlay styling disappears with the layer.
+    // Tag the map-canvas host so the scoped CSS filter can reach alt-less overlay tile
+    // <img>s. The :not([alt]) guard keeps Google's labelled logo/legal/attribution image
+    // out of the match (ToS); the selector matches alt-less imgs under z-indexed panes of
+    // this canvas, which is the overlay tiles (Google's base-map raster tiles are likewise
+    // alt-less, so a live check that the lime wash does not bleed onto them is advisable).
+    // styled-jsx attaches its scope class to .vl-live-map-canvas; this adds the runtime
+    // `vl-live-overlay-lime` flag alongside it (no .vl-live-map-stage ancestor involved).
+    // Removed in the cleanup when no layer is active so the overlay styling disappears.
     const host = mapHost.current;
     host?.classList.add( 'vl-live-overlay-lime' );
     return () => { host?.classList.remove( 'vl-live-overlay-lime' ); };
@@ -2296,20 +2302,23 @@ const VayuLokLive: React.FC = () => {
 
         /* Req 05 (Option B) - recolour the AQI/PM2.5 heatmap overlay tiles toward the site
            lime (--lime #d1f470) and keep them fully translucent so the geo/road map stays
-           clearly visible, with NO red tone (page-wide no-red constraint). The selector is
-           scoped to the overlay tile <img>s ONLY, reached via the .vl-live-overlay-lime flag
-           the heatmap effect adds to this canvas while a layer is active. It deliberately
-           targets the overlay pane's tile images and NOT the whole map, so it never cascades
-           onto Google's logo/legal/attribution UI (Maps Platform ToS). No rule anywhere
-           targets .gm-style-cc, a[href*="google"] or img[alt="Google"].
+           clearly visible, with NO red tone (page-wide no-red constraint). The selector has
+           NO .vl-live-map-stage ancestor: it is scoped by the runtime .vl-live-overlay-lime
+           class the heatmap effect adds to the .vl-live-map-canvas host while a layer is
+           active, and it matches alt-less <img>s inside z-indexed panes under that host. The
+           :not([alt]) guard keeps Google's labelled logo/legal/attribution image out of the
+           match (Maps Platform ToS); no rule anywhere targets .gm-style-cc, a[href*="google"]
+           or img[alt="Google"]. Note the match is not pane-exact - Google's base-map raster
+           tiles are also alt-less, so the wash can reach them too (flagged for a live check).
            The filter collapses Google's multi-hue baked ramp toward a single lime-ish hue
            and removes red; opacity (with the ImageMapType opacity) keeps it translucent;
            mix-blend-mode lets the lime read over the base map. Exact per-pixel #d1f470 is not
            achievable from a baked raster (that would need a custom tile renderer, Option D in
            the research) - this unifies toward --lime and kills the red, matching the intent. */
         .vl-live-overlay-lime :global(div[style*="z-index"] img:not([alt])){
-          /* Scoped to the overlay pane's tile <img>s only (Maps renders overlayMapTypes
-             tiles as plain, alt-less <img>s inside a positioned z-index pane). The
+          /* Matches alt-less tile <img>s inside z-indexed panes under the canvas host
+             (Maps renders overlayMapTypes tiles as plain, alt-less <img>s inside a
+             positioned z-index pane). The
              :not([alt]) guard means Google's own labelled attribution/logo image (which
              carries an alt text) is never matched or recoloured - attribution stays intact.
              --lime #d1f470: grayscale+brightness lift, then sepia+hue-rotate+saturate steer
