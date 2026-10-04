@@ -120,4 +120,5 @@ def test_the_old_host_is_registered_as_retired(monkeypatch):
     assert 'NXDOMAIN' in gate.RETIRED_HOSTS['r.wecare.digital']
     # The originally dead host stays listed, so this cannot pass by the registry
     # having been emptied.
-    legacy_stack_host = 'stack.' + 'wecare.digital'\n    assert legacy_stack_host in gate.RETIRED_HOSTS
+    legacy_stack_host = 'stack.' + 'wecare.digital'
+    assert legacy_stack_host in gate.RETIRED_HOSTS

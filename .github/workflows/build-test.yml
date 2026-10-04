@@ -63,6 +63,18 @@ jobs:
         with:
           python-version: '3.12'
 
+      # FAST PYTHON SYNTAX GATE.
+      #
+      # The full Python suite lives in route-auth.yml, while this primary build workflow
+      # historically exercised only the web/TypeScript side. That allowed a malformed
+      # Python test file to coexist with a green "Build and test" result until the separate
+      # route-auth job reached pytest collection. Compile every Python source tree here
+      # before dependency installation so a literal escaped newline, conflict marker, bad
+      # indentation or other SyntaxError fails immediately and points at the exact file/line.
+      # compileall parses bytecode only; it imports nothing and needs no third-party packages.
+      - name: Gate - Python sources compile
+        run: python -m compileall -q tests scripts amplify/functions
+
       # `npm ci` AT LAST, AND THE PROBE THAT USED TO SIT HERE IS GONE WITH IT.
       #
       # This step was `npm install` for a long time, with a comment explaining that `npm ci`
