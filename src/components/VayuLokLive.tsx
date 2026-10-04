@@ -130,6 +130,7 @@ interface GooglePlaceLike {
   displayName?: string;
   formattedAddress?: string;
   location?: { lat?: () => number; lng?: () => number };
+  addressComponents?: { types?: string[]; shortText?: string }[];
   photos?: {
     getURI?: ( opts: { maxWidth?: number; maxHeight?: number } ) => string;
     authorAttributions?: { displayName?: string; uri?: string }[];
@@ -171,6 +172,27 @@ function humanisePlaceType( raw: unknown ): string | undefined {
   return cleaned.replace( /\b\w/g, c => c.toUpperCase() );
 }
 
+/* Hard India gate. Region/country restrictions bias Google results, but border locations can
+   still resolve outside India. Accept only an explicit country short code of IN; support both
+   classic Geocoder address_components and modern Place addressComponents shapes. */
+function isIndiaResult( result: unknown ): boolean {
+  if ( !result || typeof result !== 'object' ) return false;
+  const r = result as {
+    address_components?: { types?: string[]; short_name?: string }[];
+    addressComponents?: { types?: string[]; shortText?: string }[];
+  };
+  const components = Array.isArray( r.address_components )
+    ? r.address_components
+    : ( Array.isArray( r.addressComponents ) ? r.addressComponents : [] );
+  for ( const component of components ) {
+    if ( !component || !Array.isArray( component.types ) || !component.types.includes( 'country' ) ) continue;
+    const code = ( ( component as { short_name?: string } ).short_name
+      || ( component as { shortText?: string } ).shortText || '' ).toUpperCase();
+    return code === 'IN';
+  }
+  return false;
+}
+
 interface SearchResult {
   name: string;
   addr: string;
@@ -189,6 +211,26 @@ const DEFAULT_PLACE: PlaceState = {
   lng: 78.6569,
   photos: [],
 };
+
+const BRAND_MARKER_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">'
+  + '<path d="M18 1C9.2 1 2 8.2 2 17c0 11.5 16 30 16 30s16-18.5 16-30C34 8.2 26.8 1 18 1z" '
+  + 'fill="#1a3a2a" stroke="#ffffff" stroke-width="2"/>'
+  + '<circle cx="18" cy="17" r="7" fill="#d1f470" stroke="#ffffff" stroke-width="1.5"/>'
+  + '</svg>';
+const BRAND_MARKER_ICON_URL =
+  'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent( BRAND_MARKER_SVG );
+
+function brandMarkerIcon( g: {
+  Size?: new ( w: number, h: number ) => unknown;
+  Point?: new ( x: number, y: number ) => unknown;
+} ) {
+  return {
+    url: BRAND_MARKER_ICON_URL,
+    scaledSize: g.Size ? new g.Size( 36, 48 ) : undefined,
+    anchor: g.Point ? new g.Point( 18, 47 ) : undefined,
+  };
+}
 
 // GEOMETRY ON THE REPO PALETTE, ported verbatim from the mock's map styles.
 const MAP_STYLES = [
@@ -539,7 +581,7 @@ const VayuLokLive: React.FC = () => {
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
   const [ photoIndex, setPhotoIndex ] = useState( 0 );
-  const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
+  const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
   const [ solarRequested, setSolarRequested ] = useState( false );
   const [ solarLoading, setSolarLoading ] = useState( false );
 
@@ -577,6 +619,7 @@ const VayuLokLive: React.FC = () => {
   const placeCardRef = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   const markerRef = useRef<unknown>( null );
+  const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
   const autocompleteTokenRef = useRef<unknown>( null );
   const geocoder = useRef<unknown>( null );
@@ -733,16 +776,9 @@ const VayuLokLive: React.FC = () => {
       } );
       mapRef.current = map;
 
-      if ( maps.Marker ) {
-        markerRef.current = new maps.Marker( {
-          position: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-          map: null,
-          title: '',
-          icon: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(
-            '<svg xmlns="http://www.w3.org/2000/svg" width="34" height="42" viewBox="0 0 34 42"><path d="M17 1C8.2 1 1 8.2 1 17c0 11.1 16 24 16 24s16-12.9 16-24C33 8.2 25.8 1 17 1Z" fill="%23d1f470" stroke="%231a3a2a" stroke-width="2"/><circle cx="17" cy="17" r="5.5" fill="%231a3a2a"/></svg>',
-          ),
-        } );
-      }
+      // No selected-place marker exists on load. Keep the constructor and create the
+      // branded marker lazily after the first real selection.
+      markerCtorRef.current = maps.Marker || null;
 
       if ( maps.Geocoder ) geocoder.current = new maps.Geocoder();
       placesLibRef.current = placesLib || maps.places || null;
@@ -759,16 +795,11 @@ const VayuLokLive: React.FC = () => {
         } | null;
         gc?.geocode?.( { location: { lat, lng }, region: 'in' }, async ( rows, status ) => {
           if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const typedRows = rows as Array<{
-            formatted_address?: string;
-            place_id?: string;
-            address_components?: Array<{ short_name?: string; types?: string[] }>;
-          }>;
-          const first = typedRows.find( row => row.address_components?.some(
-            component => component.types?.includes( 'country' ) && component.short_name === 'IN',
-          ) );
+          const first = rows.find( row => isIndiaResult( row ) ) as
+            | { formatted_address?: string; place_id?: string }
+            | undefined;
           if ( !first ) {
-            setSearchStatus( 'no-results' );
+            setSearchStatus( 'outside-india' );
             return;
           }
           const next: PlaceState = {
@@ -780,6 +811,7 @@ const VayuLokLive: React.FC = () => {
             photos: [],
           };
           setHasSelection( true );
+          setSearchStatus( 'idle' );
           // 03C - selecting an area (here via a map click) recenters the map on that
           // area's geocoded lat/lng and loads its live data, exactly like choosing a
           // search result. The recenter effect (center + zoom 14 + marker move) fires on
@@ -882,8 +914,8 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' || !mapReady ) return;
     const target = mapCandidate || place;
-    const exactPhotos = target.photos || [];
-    if ( exactPhotos.length ) {
+    const hasExactPhoto = ( target.photos || [] ).some( photo => Boolean( photo.url ) );
+    if ( hasExactPhoto ) {
       setNearbyPhotos( [] );
       return;
     }
@@ -1571,23 +1603,34 @@ const VayuLokLive: React.FC = () => {
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
   useEffect( () => {
-    const w = window as unknown as { google?: { maps?: { LatLng: new ( a: number, b: number ) => unknown } } };
+    const w = window as unknown as {
+      google?: { maps?: {
+        Size?: new ( w: number, h: number ) => unknown;
+        Point?: new ( x: number, y: number ) => unknown;
+      } };
+    };
     const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( zoom: number ) => void } | null;
+    if ( !map || !w.google?.maps || !hasSelection ) return;
+
+    if ( !markerRef.current && markerCtorRef.current ) {
+      const MarkerCtor = markerCtorRef.current;
+      markerRef.current = new MarkerCtor( {
+        position: { lat: place.lat, lng: place.lng },
+        map,
+        title: place.name,
+        icon: brandMarkerIcon( w.google.maps ),
+      } );
+    }
     const marker = markerRef.current as {
       setPosition?: ( p: { lat: number; lng: number } ) => void;
       setTitle?: ( t: string ) => void;
       setMap?: ( m: unknown ) => void;
     } | null;
-    if ( !map || !marker || !w.google?.maps ) return;
-    if ( !hasSelection ) {
-      marker.setMap?.( null );
-      return;
-    }
     map.setCenter?.( { lat: place.lat, lng: place.lng } );
     map.setZoom?.( 14 );
-    marker.setMap?.( map );
-    marker.setPosition?.( { lat: place.lat, lng: place.lng } );
-    marker.setTitle?.( place.name );
+    marker?.setMap?.( map );
+    marker?.setPosition?.( { lat: place.lat, lng: place.lng } );
+    marker?.setTitle?.( place.name );
   }, [ place, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
@@ -1723,18 +1766,25 @@ const VayuLokLive: React.FC = () => {
           setSearchStatus( status === 'ZERO_RESULTS' ? 'no-results' : 'unavailable' );
           return;
         }
-        const mapped: SearchResult[] = rows.slice( 0, 6 ).map( ( row: unknown ) => {
-          const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
-          const loc = pr.geometry?.location;
-          const place: PlaceState = {
-            name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
-            addr: pr.formatted_address || '',
-            lat: loc ? loc.lat() : DEFAULT_PLACE.lat,
-            lng: loc ? loc.lng() : DEFAULT_PLACE.lng,
-            photos: [],
-          };
-          return { name: place.name, addr: place.addr, place };
-        } );
+        const mapped: SearchResult[] = rows
+          .filter( ( row: unknown ) => isIndiaResult( row ) )
+          .slice( 0, 6 )
+          .map( ( row: unknown ) => {
+            const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
+            const loc = pr.geometry?.location;
+            const lat = loc?.lat?.();
+            const lng = loc?.lng?.();
+            if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return null;
+            const place: PlaceState = {
+              name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
+              addr: pr.formatted_address || '',
+              lat: lat as number,
+              lng: lng as number,
+              photos: [],
+            };
+            return { name: place.name, addr: place.addr, place };
+          } )
+          .filter( ( row ): row is SearchResult => Boolean( row ) );
         setResults( mapped );
         setActive( mapped.length ? 0 : -1 );
         setOpen( true );
@@ -1764,7 +1814,11 @@ const VayuLokLive: React.FC = () => {
     if ( !next && r.prediction?.toPlace ) {
       try {
         const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'photos', ...PLACE_META_FIELDS ] } );
+        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'photos', ...PLACE_META_FIELDS ] } );
+        if ( !isIndiaResult( googlePlace ) ) {
+          setSearchStatus( 'outside-india' );
+          return;
+        }
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
@@ -1919,7 +1973,7 @@ const VayuLokLive: React.FC = () => {
                     { photoPages.map( ( page, pageIndex ) => (
                       <div className="vl-live-photo-page" key={ page.map( p => p.url ).join( '|' ) }>
                         { page.map( ( photo, i ) => (
-                          <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'}`.trim() } key={ photo.url }>
+                          <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'} ${pageIndex === 0 && i === 0 ? 'vl-live-photo-hero' : ''}`.trim() } key={ photo.url }>
                             <img
                               src={ photo.url }
                               alt={ `${previewPlace.name} area ${pageIndex * 3 + i + 1}` }
@@ -2475,6 +2529,7 @@ const VayuLokLive: React.FC = () => {
                     </ul>
                     { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching India…</p> }
                     { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found in India.</p> }
+                    { searchStatus === 'outside-india' && <p className="vl-live-search-status" role="status">That location is outside India.</p> }
                     { searchStatus === 'unavailable' && (
                       <p className="vl-live-search-status vl-live-search-status-error" role="status">
                         Place search is temporarily unavailable. <button type="button" onClick={ () => { if ( query.trim() ) void runSearch( query ); } }>Retry</button>
@@ -2773,7 +2828,7 @@ const VayuLokLive: React.FC = () => {
         /* FINAL AGREED DESIGN - the active AQI/PM2.5 selector tab presents a TRANSLUCENT lime
            (#d1f470-based) fill with #1a3a2a text/boundary, distinct from the fully-opaque lime.
            The lime lives on the SELECTOR chrome, not on the data tiles. */
-        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.55);color:#1a3a2a;font-weight:700}
+        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.6);color:#1a3a2a;font-weight:700}
 
         /* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR. A floating,
            centered, pill-ish card over the roadmap showing the selected destination

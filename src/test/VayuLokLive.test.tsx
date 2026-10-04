@@ -99,6 +99,7 @@ interface MapsRecorder {
   // Every library name the component passed to google.maps.importLibrary. Production-like
   // Geocoder now arrives via importLibrary('geocoding'), so this proves the import happened.
   importedLibraries: string[];
+  markerOpts: Record<string, unknown>[];
   mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
 }
 
@@ -129,6 +130,7 @@ interface InstallOpts {
   // 'OK'; set e.g. 'REQUEST_DENIED' to exercise the error-surfacing fallback.
   geocodeStatus?: string;
   geocodeRows?: unknown[];
+  placeCountryCode?: string;
 }
 
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
@@ -139,6 +141,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     seedNamespaceGeocoder = true,
     geocodeStatus = 'OK',
     geocodeRows,
+    placeCountryCode = 'IN',
   }: InstallOpts = typeof opts === 'boolean' ? { paintMap: opts } : opts;
   const rec: MapsRecorder = {
     mapOpts: null,
@@ -149,6 +152,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     autocompleteCalls: [],
     placeFetchFields: [],
     importedLibraries: [],
+    markerOpts: [],
   };
 
   const overlayMapTypes = {
@@ -167,7 +171,7 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     }
   }
   class FakeMarker {
-    constructor( _opts: Record<string, unknown> ) { /* no-op */ }
+    constructor( opts: Record<string, unknown> ) { rec.markerOpts.push( opts ); }
     setPosition() { /* no-op */ }
     setTitle() { /* no-op */ }
     setMap() { /* no-op */ }
@@ -215,8 +219,11 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     text: { toString: () => 'Mumbai, Maharashtra, India' },
     toPlace: () => ( {
       displayName: 'Mumbai',
-      formattedAddress: 'Mumbai, Maharashtra, India',
+      formattedAddress: placeCountryCode === 'IN' ? 'Mumbai, Maharashtra, India' : 'Dhaka, Bangladesh',
       location: { lat: () => 19.076, lng: () => 72.8777 },
+      addressComponents: [
+        { longText: placeCountryCode === 'IN' ? 'India' : 'Bangladesh', shortText: placeCountryCode, types: [ 'country' ] },
+      ],
       photos: predictionPhotos,
       // Honest metadata only when the test opts in; otherwise undefined so the
       // metadata/attributes/description lines must not render.
@@ -239,6 +246,8 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     Marker: FakeMarker,
     ImageMapType: FakeImageMapType,
     LatLng: class { constructor( _a: number, _b: number ) { /* no-op */ } },
+    Size: class { constructor( _w: number, _h: number ) { /* no-op */ } },
+    Point: class { constructor( _x: number, _y: number ) { /* no-op */ } },
     places,
     // Production-like modern loader: Geocoder is delivered by importLibrary('geocoding'),
     // mirroring how Google documents the geocoding library as separately imported. The
@@ -995,7 +1004,7 @@ describe( 'VayuLokLive - FINAL AGREED DESIGN pill + focus-ring restyle (FEAT-003
     // with dark-green text/border - NOT the fully-opaque var(--lime).
     const activeRule = css.match( /\.vl-live-layer\[aria-pressed="true"\]\{[^}]*\}/ )?.[ 0 ] ?? '';
     expect( activeRule ).not.toBe( '' );
-    expect( activeRule ).toMatch( /rgba\(209,\s?244,\s?112,/ );
+    expect( activeRule ).toContain( 'rgba(209,244,112,.6)' );
     expect( activeRule ).toContain( 'color:#1a3a2a' );
     expect( activeRule ).toContain( 'border-color:#1a3a2a' );
 
@@ -1382,6 +1391,43 @@ describe( 'VayuLokLive - explicit map-click country validation', () => {
     expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-left' )?.textContent ).not.toContain( 'Jaflong' );
   } );
+
+  it( 'rejects a modern Places selection whose explicit country is not India', async () => {
+    const rec = installGoogleMaps( { placeCountryCode: 'BD' } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Dhaka' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    await waitFor( () => expect( screen.getByText( /outside India/i ) ).toBeInTheDocument() );
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( rec.markerOpts ).toHaveLength( 0 );
+  } );
+
+  it( 'creates the selected marker lazily with the dark-green/lime no-red brand icon', async () => {
+    const rec = installGoogleMaps();
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    expect( rec.markerOpts ).toHaveLength( 0 );
+
+    await selectMumbai();
+    await waitFor( () => expect( rec.markerOpts ).toHaveLength( 1 ) );
+
+    const icon = rec.markerOpts[ 0 ].icon as { url?: string } | undefined;
+    expect( icon?.url ).toContain( 'data:image/svg+xml' );
+    const decoded = decodeURIComponent( icon?.url || '' ).toLowerCase();
+    expect( decoded ).toContain( '#1a3a2a' );
+    expect( decoded ).toContain( '#d1f470' );
+    expect( decoded ).not.toMatch( /#ff0000|#f00\b|red/ );
+  } );
+
 } );
 
 describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FEAT-004)', () => {
