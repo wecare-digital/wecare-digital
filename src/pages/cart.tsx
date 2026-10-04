@@ -632,6 +632,12 @@ export default function Cart (): React.ReactElement {
   // dies with the page, so a reload or a second tab walks straight past it. The server-side
   // one-live-payment-per-basket guard is the guarantee.
   const railTerminalRef = useRef<boolean>( false );
+  // In-flight latch, distinct from railTerminalRef (which guards the terminal rail). This stops a
+  // second concurrent proceed() from firing a second prepare-checkout before the first completes:
+  // the duplicate hit Wix on the already-reserved cart and the server returned 502
+  // CATALOGUE_UNAVAILABLE, shown as "We could not prepare this order." Synchronous ref so the
+  // check-and-set is atomic within a turn.
+  const prepareInFlightRef = useRef<boolean>( false );
   const [ railTerminal, setRailTerminal ] = useState<boolean>( false );
 
   useEffect( () => {
@@ -998,6 +1004,11 @@ export default function Cart (): React.ReactElement {
     // AHEAD of the notice reset, deliberately: a re-entry -- from CheckoutProfile's onSaved, or
     // a stray click -- must neither re-enter the rail nor wipe the explanation already on screen.
     if ( railTerminalRef.current ) return;
+    // Re-entry latch: ignore a duplicate proceed() while a prepare-checkout is already in flight,
+    // so the server never receives a second prepare on the already-reserved cart (which 502s).
+    if ( prepareInFlightRef.current ) return;
+    prepareInFlightRef.current = true;
+    try {
     setNotice( { kind: 'none' } );
 
     // AUTH GATE. No session -> sign-in first, cart preserved in localStorage. No create call.
@@ -1095,6 +1106,9 @@ export default function Cart (): React.ReactElement {
     finally
     {
       setBusy( false );
+    }
+    } finally {
+      prepareInFlightRef.current = false;
     }
     // `postPrepare` and `applyOutcome` are `useCallback(..., [])`, so they are referentially
     // stable for the life of this component and cannot go stale. The only live dependencies are
