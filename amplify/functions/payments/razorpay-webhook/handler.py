@@ -861,7 +861,7 @@ def _quarantine_unverified_capture(reference_id: str, payment_id: str,
 
 
 def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
-    """Credit a partner wallet for a self-service top-up — bound, verified, and once.
+    """Credit a partner wallet for a customer-service top-up — bound, verified, and once.
 
     This used to trust the event body outright: it read the amount and the recipient WABA from
     `payment.notes` and called `partner_billing.topup` immediately. The webhook signing secret is
@@ -872,7 +872,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
 
     Three gates close that, in order:
 
-      1. A STORED top-up intent must exist for this reference. The self-service flow reserves one
+      1. A STORED top-up intent must exist for this reference. The customer-service flow reserves one
          (`reserve_topup_intent`) before the payment link is created, carrying the WABA and amount
          the business actually asked for. No intent -> this is not an authorised top-up -> credit
          nothing. The event notes are never the authority for who or how much.
@@ -973,7 +973,7 @@ def _handle_wallet_topup_captured(payment: Dict, request_id: str) -> None:
         amount_rupees = Decimal(intent_paise) / 100
         from lambda_utils import partner_billing
         r = partner_billing.topup(intent_waba, amount_rupees,
-                                  note=f'Razorpay top-up {payment_id}', actor='self-service')
+                                  note=f'Razorpay top-up {payment_id}', actor='customer-service')
         logger.info(json.dumps({'event': 'partner_wallet_topup_paid', 'wabaId': intent_waba,
                                 'amountPaise': intent_paise, 'balance': r.get('balance'),
                                 'paymentId': payment_id, 'referenceId': reference_id or None,
@@ -1042,7 +1042,7 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     description = payment.get('description', '')
     notes = payment.get('notes', {})
 
-    # Partner prepaid wallet top-up (self-service): if this payment was created for
+    # Partner prepaid wallet top-up (customer-service): if this payment was created for
     # a wallet top-up, credit the tenant's wallet and stop (not an invoice payment).
     if (notes or {}).get('purpose') == 'wallet_topup' and (notes or {}).get('wabaId'):
         _handle_wallet_topup_captured(payment, request_id)
