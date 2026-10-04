@@ -599,6 +599,14 @@ const VayuLokLive: React.FC = () => {
   const deckOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
+  // FEAT-004: the Google-Destinations-style bottom bar. destGeometryRef holds any building
+  // outline polygon + entrance markers drawn by the SearchDestinations enhancement so they
+  // can be cleared when the place changes / on unmount; destAbortRef aborts an in-flight
+  // destination-resolution lookup. These are ONLY populated when SearchDestinations is
+  // feature-detected in the loaded Maps JS build (not in sandbox / referrer-restricted keys),
+  // so the sandbox/degraded path leaves them null and draws no geometry.
+  const destGeometryRef = useRef<{ polygon?: unknown; entrances?: unknown[] }>( {} );
+  const destAbortRef = useRef<AbortController | null>( null );
 
   useEffect( () => {
     setSolar( null );
@@ -1144,6 +1152,150 @@ const VayuLokLive: React.FC = () => {
     map.setZoom?.( 14 );
     marker.setPosition?.( { lat: place.lat, lng: place.lng } );
     marker.setTitle?.( place.name );
+  }, [ place, mapReady ] );
+
+  /* ---------------------------------------------------------------------------------
+     FEAT-004 - HYBRID DESTINATION RESOLVE (Google-Destinations-style, like
+     https://mapsplatform.google.com/demos/destinations/). This is a PROGRESSIVE
+     ENHANCEMENT layered on top of the existing Places/geocoding selection flow; it
+     NEVER fetches air/weather/pollen (those stay gated on the AQI/PM2.5 pill, FEAT-002)
+     and it NEVER adds any browser-GPS / "use my location" control (dropped by the user).
+
+     Behaviour:
+     - Clear any outline/entrance geometry from the previous place first, so stale
+       building geometry never lingers over a new selection, and abort any in-flight
+       destination lookup.
+     - Localities / administrative areas (cities, towns, areas) are NOT valid
+       SearchDestinations searches per Google's docs, so they always keep just the
+       marker + bottom-bar name (no building outline). We treat a place with NO
+       primaryType, or a primaryType that reads as a locality/administrative area, as a
+       city/area and skip SearchDestinations entirely.
+     - For navigable destinations (building / POI / address, i.e. a place that carries a
+       primaryType), FEATURE-DETECT SearchDestinations by importing its library and
+       checking the capability exists. If present, resolve the destination and, when a
+       building outline (displayPolygon) / entrances are returned, draw them with the
+       no-red palette (dark-green/lime strokes, low-opacity translucent-lime fill so the
+       roads stay visible). If the capability is ABSENT (the common case: the loaded
+       build lacks it, or the browser key is referrer-restricted in sandbox), DEGRADE
+       SILENTLY - no outline, no error - leaving the marker + bottom-bar name only. */
+  useEffect( () => {
+    const w = window as unknown as {
+      google?: { maps?: {
+        importLibrary?: ( name: string ) => Promise<Record<string, unknown>>;
+        Polygon?: new ( opts: Record<string, unknown> ) => unknown;
+        Marker?: new ( opts: Record<string, unknown> ) => unknown;
+      } };
+    };
+
+    // Always start by clearing the previous place's geometry and aborting any pending
+    // destination lookup. This runs on every place change and is also the unmount path.
+    const clearGeometry = () => {
+      const geo = destGeometryRef.current;
+      ( geo.polygon as { setMap?: ( m: unknown ) => void } | undefined )?.setMap?.( null );
+      ( geo.entrances || [] ).forEach( e => ( e as { setMap?: ( m: unknown ) => void } ).setMap?.( null ) );
+      destGeometryRef.current = {};
+    };
+    clearGeometry();
+    destAbortRef.current?.abort();
+    destAbortRef.current = null;
+
+    if ( !MAPS_KEY || !mapReady ) return;
+    const g = w.google?.maps;
+    const map = mapRef.current;
+    if ( !g || !map ) return;
+
+    // CITY / TOWN / AREA -> Places/geocoding only (no SearchDestinations, no outline).
+    // A place with no primaryType is treated as an area (choose() only sets primaryType
+    // when Google actually returned one). primaryTypes that denote administrative areas
+    // or localities are likewise excluded, mirroring Google's "localities and
+    // administrative areas are not valid destination searches" limitation.
+    const primaryType = place.primaryType ? String( place.primaryType ).toLowerCase() : '';
+    const areaLike = /locality|administrative|political|country|region|state|province|postal|neighborhood|neighbourhood/;
+    const isNavigableDestination = Boolean( primaryType ) && !areaLike.test( primaryType );
+    if ( !isNavigableDestination ) return;
+
+    let cancelled = false;
+    const ac = new AbortController();
+    destAbortRef.current = ac;
+
+    const run = async () => {
+      // FEATURE-DETECT SearchDestinations. It is an experimental/limited Maps JS
+      // capability that is very likely NOT present in the loaded build (and cannot run
+      // against a referrer-restricted key in sandbox). We try the 'search' library and
+      // look for a SearchDestinations capability; absence => silent degrade.
+      let lib: Record<string, unknown> | null = null;
+      try {
+        lib = typeof g.importLibrary === 'function' ? await g.importLibrary( 'search' ) : null;
+      } catch { lib = null; }
+      if ( cancelled || !lib ) return;
+
+      const SearchDestinations = ( lib.SearchDestinations
+        || ( lib as { Destinations?: unknown } ).Destinations ) as {
+          searchDestinations?: ( req: Record<string, unknown> ) => Promise<unknown>;
+        } | undefined;
+      const searchFn = SearchDestinations?.searchDestinations;
+      if ( typeof searchFn !== 'function' ) return; // capability absent -> degrade silently
+
+      type DestEntrance = { location?: { lat: number; lng: number } };
+      type DestResult = {
+        displayPolygon?: { paths?: { lat: number; lng: number }[] };
+        entrances?: DestEntrance[];
+      };
+      let result: DestResult | null = null;
+      try {
+        result = await searchFn.call( SearchDestinations, {
+          query: place.name,
+          location: { lat: place.lat, lng: place.lng },
+          signal: ac.signal,
+        } ) as DestResult | null;
+      } catch { return; } // network/abort -> degrade silently, keep marker + bar name only
+      if ( cancelled || !result ) return;
+
+      // Draw the building outline when a displayPolygon is returned, using the no-red
+      // palette: dark-green/lime strokes with a low-opacity translucent-lime fill so the
+      // underlying roads remain visible. No fabricated geometry is ever drawn.
+      const paths = result.displayPolygon?.paths;
+      if ( Array.isArray( paths ) && paths.length && g.Polygon ) {
+        const polygon = new g.Polygon( {
+          paths,
+          strokeColor: '#1a3a2a',
+          strokeOpacity: 0.9,
+          strokeWeight: 2,
+          fillColor: '#d1f470',
+          fillOpacity: 0.18,
+          clickable: false,
+          map,
+        } );
+        destGeometryRef.current.polygon = polygon;
+      }
+
+      // Entrances / navigation points as small lime markers (no red).
+      const entrances: DestEntrance[] = Array.isArray( result.entrances ) ? result.entrances : [];
+      if ( entrances.length && g.Marker ) {
+        destGeometryRef.current.entrances = entrances
+          .filter( e => e.location && Number.isFinite( e.location.lat ) && Number.isFinite( e.location.lng ) )
+          .map( e => new g.Marker!( {
+            position: { lat: e.location!.lat, lng: e.location!.lng },
+            map,
+            icon: {
+              path: 0, // google.maps.SymbolPath.CIRCLE
+              scale: 5,
+              fillColor: '#d1f470',
+              fillOpacity: 1,
+              strokeColor: '#1a3a2a',
+              strokeWeight: 1.5,
+            },
+          } ) );
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+      clearGeometry();
+    };
   }, [ place, mapReady ] );
 
   /* ---------------------------------------------------------------------------------
@@ -2227,6 +2379,45 @@ const VayuLokLive: React.FC = () => {
                   >PM2.5</button>
                 </div>
               ) }
+
+              {/* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR (like
+                  https://mapsplatform.google.com/demos/destinations/). Renders only when
+                  live (a Maps key exists) AND a place name is in state. It is a real
+                  keyboard-focusable button: clicking it RE-CENTERS the map on the
+                  destination (setCenter + marker) - it NEVER fetches air/weather/pollen
+                  (those stay gated on the AQI/PM2.5 pill). Shows the destination NAME
+                  (uppercased in CSS) + a middle-dot + the location/type (previewPlace
+                  .primaryType when Google returned it, else the formatted address) + a
+                  trailing chevron. Never fabricates a type/location: name + addr are
+                  always present, primaryType only when Google actually returned it.
+                  Kept INLINE so styled-jsx keeps its vl-live- scope. The CSS insets it
+                  from the bottom-left (Google logo) and bottom-right (.gm-style-cc legal)
+                  corners so the mandated attribution stays visible. */}
+              { liveActive && previewPlace.name && (
+                <button
+                  type="button"
+                  className="vl-live-map-destbar"
+                  aria-label={ `${previewPlace.name}, ${previewPlace.primaryType || previewPlace.addr || ''}`.trim().replace( /,\s*$/, '' ) }
+                  onClick={ () => {
+                    const map = mapRef.current as { setCenter?: ( p: { lat: number; lng: number } ) => void; setZoom?: ( z: number ) => void } | null;
+                    const marker = markerRef.current as { setPosition?: ( p: { lat: number; lng: number } ) => void } | null;
+                    map?.setCenter?.( { lat: previewPlace.lat, lng: previewPlace.lng } );
+                    map?.setZoom?.( 16 );
+                    marker?.setPosition?.( { lat: previewPlace.lat, lng: previewPlace.lng } );
+                  } }
+                >
+                  <span className="vl-live-map-destbar-text">
+                    <span className="vl-live-map-destbar-name">{ previewPlace.name }</span>
+                    { ( previewPlace.primaryType || previewPlace.addr ) && (
+                      <>
+                        <span className="vl-live-map-destbar-sep" aria-hidden="true">·</span>
+                        <span className="vl-live-map-destbar-meta">{ previewPlace.primaryType || previewPlace.addr }</span>
+                      </>
+                    ) }
+                  </span>
+                  <span className="vl-live-map-destbar-chevron" aria-hidden="true">›</span>
+                </button>
+              ) }
             </div>
           </div>
         </div>
@@ -2415,6 +2606,24 @@ const VayuLokLive: React.FC = () => {
            (#d1f470-based) fill with #1a3a2a text/boundary, distinct from the fully-opaque lime.
            The lime lives on the SELECTOR chrome, not on the data tiles. */
         .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:rgba(209,244,112,.55);color:#1a3a2a;font-weight:700}
+
+        /* FEAT-004 - Google-Destinations-style BOTTOM SELECTED-PLACE BAR. A floating,
+           centered, pill-ish card over the roadmap showing the selected destination
+           name + location/type + a chevron. INSET from the bottom corners (bottom:36px,
+           max-width + horizontal margin) so Google's bottom-left logo and bottom-right
+           .gm-style-cc legal attribution stay fully visible per the Maps Platform ToS -
+           no rule anywhere targets .gm-style-cc / a[href*="google"] / img[alt="Google"].
+           White surface, dark-green #1a3a2a text, 14px home panel radius, only a light
+           elevation (it floats over the map), lime #d1f470 reserved for the chevron
+           accent. z-index sits below the search dropdown (z-7) but above the canvas. */
+        .vl-live-map-destbar{position:absolute;left:50%;bottom:36px;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:12px;max-width:min(420px,calc(100% - 96px));min-height:48px;padding:10px 16px;border:1px solid rgba(26,58,42,.16);border-radius:14px;background:var(--paper);color:#1a3a2a;font:inherit;text-align:left;cursor:pointer;box-shadow:0 2px 10px rgba(26,58,42,.12);transition:box-shadow .2s,transform .2s}
+        .vl-live-map-destbar:hover{transform:translateX(-50%) translateY(-1px);box-shadow:0 4px 14px rgba(26,58,42,.16)}
+        .vl-live-map-destbar:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live-map-destbar-text{flex:1 1 auto;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden;white-space:nowrap}
+        .vl-live-map-destbar-name{font-size:14px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#1a3a2a;flex:0 0 auto;max-width:60%;overflow:hidden;text-overflow:ellipsis}
+        .vl-live-map-destbar-sep{color:rgba(26,58,42,.5);flex:0 0 auto}
+        .vl-live-map-destbar-meta{font-size:13px;font-weight:500;color:rgba(26,58,42,.66);overflow:hidden;text-overflow:ellipsis;min-width:0}
+        .vl-live-map-destbar-chevron{flex:0 0 auto;font-size:20px;line-height:1;font-weight:700;color:#1a3a2a}
 
         /* Heatmap scale legend - now rendered INSIDE the left card's layer-result block
            (no longer an absolute on-map overlay). It reuses the no-red --aqi-* ramp

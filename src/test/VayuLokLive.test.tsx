@@ -1201,3 +1201,138 @@ describe( 'VayuLokLive - mandated Google Place Photo attribution is preserved (r
     expect( link.textContent ).toContain( 'Jane Contributor' );
   } );
 } );
+
+describe( 'VayuLokLive - Google-Destinations-style bottom selected-place bar (FEAT-004)', () => {
+  let rec: MapsRecorder;
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    rec = installGoogleMaps();
+  } );
+
+  // (a) After selecting a place, the bottom destination bar renders with the resolved NAME.
+  // (b) With the DEFAULT stub (no primaryType, SearchDestinations absent) the bar shows the
+  //     place NAME + its formatted ADDRESS as the location/type segment, and NO building
+  //     polygon is drawn (the degraded path that actually runs in sandbox). The
+  //     SearchDestinations-available branch (building outline/entrances) is only verifiable
+  //     on a live *.wecare.digital origin where the capability + a non-referrer-restricted
+  //     key exist, so it is documented here rather than stubbed.
+  it( 'renders the bottom bar with the selected place NAME + address, drawing no building polygon on the degraded path', async () => {
+    // Spy on Polygon so we can assert the degraded path draws NONE. SearchDestinations is
+    // absent from the stub (no 'search' library entry / no SearchDestinations capability),
+    // so the component must leave the map free of any building outline.
+    const polygonCtor = vi.fn();
+    class SpyPolygon { constructor( opts: Record<string, unknown> ) { polygonCtor( opts ); } }
+    ( ( window as unknown as { google: { maps: Record<string, unknown> } } ).google.maps ).Polygon = SpyPolygon;
+
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // Select a place via the real search -> select flow.
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    // The bottom bar appears carrying the resolved NAME and the formatted address segment.
+    const bar = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-destbar' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( bar.querySelector( '.vl-live-map-destbar-name' )?.textContent ).toContain( 'Mumbai' );
+    // The default stub returns no primaryType, so the meta segment falls back to the address.
+    expect( bar.querySelector( '.vl-live-map-destbar-meta' )?.textContent ).toContain( 'Maharashtra' );
+    // A chevron affordance is present.
+    expect( bar.querySelector( '.vl-live-map-destbar-chevron' )?.textContent ).toContain( '\u203a' );
+    // It is a real, keyboard-focusable control whose aria-label reads "<name>, <loc/type>".
+    expect( bar.tagName ).toBe( 'BUTTON' );
+    expect( bar.getAttribute( 'aria-label' ) ).toMatch( /^Mumbai,/ );
+
+    // DEGRADED PATH: no SearchDestinations capability -> NO building polygon fabricated.
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    expect( polygonCtor ).not.toHaveBeenCalled();
+  } );
+
+  // (c) Selecting a place / showing the bar fires ZERO air/weather/pollen fetches. The bar's
+  //     resolve path (and any destination lookup) must never trigger the environmental SKUs,
+  //     which stay gated strictly on the AQI/PM2.5 pill (FEAT-002).
+  it( 'firing the bottom bar (select + click) triggers NO air/weather/pollen fetches', async () => {
+    const fetchSpy = airConditionsFetch( 120, 58 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const envFetches = () => fetchSpy.mock.calls.filter( c => {
+      const u = String( c[ 0 ] );
+      return u.includes( 'airquality.googleapis.com' )
+        || u.includes( 'weather.googleapis.com' )
+        || u.includes( 'pollen.googleapis.com' );
+    } );
+
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+
+    const bar = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-destbar' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    // Clicking the bar recenters the map; it must still fetch NOTHING environmental.
+    fireEvent.click( bar );
+    await act( async () => { await Promise.resolve(); await Promise.resolve(); } );
+    expect( envFetches() ).toHaveLength( 0 );
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+  } );
+
+  // (d) There is NO 'Use my location' / geolocation control anywhere, and the component never
+  //     references navigator.geolocation. The user explicitly dropped that idea.
+  it( 'exposes NO "use my location"/geolocation control and never calls navigator.geolocation', async () => {
+    const getCurrentPosition = vi.fn();
+    const watchPosition = vi.fn();
+    Object.defineProperty( window.navigator, 'geolocation', {
+      configurable: true,
+      value: { getCurrentPosition, watchPosition, clearWatch: vi.fn() },
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // No control (button or text) offers to use the visitor's location.
+    expect( screen.queryByText( /use my location|my location|current location/i ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: /use my location|my location|current location/i } ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
+
+    // Select a place and click the bar - the geolocation API is never touched.
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'Mumbai' } } );
+    fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    const bar = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-destbar' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    fireEvent.click( bar );
+    await act( async () => { await Promise.resolve(); } );
+    expect( getCurrentPosition ).not.toHaveBeenCalled();
+    expect( watchPosition ).not.toHaveBeenCalled();
+  } );
+
+  // (e) Honest degradation: with no key, no map and NO bottom bar render, and nothing fetches.
+  it( 'renders no bottom bar when the key is absent', async () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
+    const fetchSpy = vi.fn();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await act( async () => { await Promise.resolve(); } );
+
+    expect( container.querySelector( '.vl-live-map-canvas' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-destbar' ) ).toBeNull();
+    expect( fetchSpy ).not.toHaveBeenCalled();
+  } );
+} );
