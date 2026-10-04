@@ -69,13 +69,15 @@ describe( 'the Wix snapshot is read correctly', () => {
     expect( JSON.stringify( toLineItems() ) ).not.toMatch( /price|amount|formattedPrice/ );
     window.localStorage.clear();
   } );
-  it( 'reads the seven visible products the snapshot holds', () => {
-    // Pinned at seven, not derived from the file. Derived, it would agree with whatever the
-    // snapshot said, including an empty array - which is how a catalogue page ships blank.
-    expect( SHOP_PRODUCTS ).toHaveLength( 7 );
+  it( 'reads the visible non-contribution products the snapshot holds', () => {
+    // Pinned to an explicit slug list, not derived from the file: a derived check would agree with
+    // whatever the snapshot said, including an empty array - which is how a catalogue page ships
+    // blank. The contribution product is excluded from SHOP_PRODUCTS (it has its own surface), so
+    // it is not in this list. The ₹1 test product sorts first because its name begins with a
+    // digit, which orders before the Latin letters under localeCompare.
     expect( SHOP_PRODUCTS.map( p => p.slug ) ).toEqual( [
-      'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
-      'referral-partner', 'viveka',
+      '1-test-product', 'file-assist', 'guided-resolution', 'kiosk', 'merchandise',
+      'paperwork', 'referral-partner', 'viveka',
     ] );
   } );
 
@@ -114,9 +116,16 @@ describe( 'the Wix snapshot is read correctly', () => {
   it( 'renders the fetch date in UTC, so the build cannot produce two answers', () => {
     // The snapshot timestamp is UTC. Resolving it in the visitor's zone would print a different
     // date either side of midnight for one build, which is a hydration mismatch as well as a wrong
-    // answer.
-    expect( CATALOG_FETCHED_AT ).toBe( '2026-09-26T02:02:44.271Z' );
-    expect( catalogReadOn() ).toBe( '26 September 2026' );
+    // answer. The catalogue is auto-synced from Wix (every sync rewrites fetchedAt), so this test
+    // pins the SHAPE and UTC-stability rather than a frozen date: a hardcoded date would break on
+    // every legitimate refresh.
+    expect( CATALOG_FETCHED_AT ).toMatch( /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/ );
+    // catalogReadOn() must render that same UTC instant deterministically, in the
+    // "D Month YYYY" form, with no dependence on the host timezone.
+    const utcExpected = new Date( CATALOG_FETCHED_AT ).toLocaleDateString( 'en-GB', {
+      day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+    } );
+    expect( catalogReadOn() ).toBe( utcExpected );
   } );
 } );
 

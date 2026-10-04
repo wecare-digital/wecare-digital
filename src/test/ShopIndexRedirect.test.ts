@@ -159,10 +159,18 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
     }>;
     return result.then( ( { paths, fallback } ) => {
       const slugs = paths.map( entry => entry.params.slug );
-      expect( slugs ).toHaveLength( 7 );
-      expect( slugs ).toContain( 'file-assist' );
+      // The catalogue auto-syncs from Wix, so the count is not frozen: assert every known product
+      // slug has a statically-generated path, not an exact length that would break whenever a
+      // product is added or removed in Wix.
+      for ( const slug of [
+        'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
+        'referral-partner', 'viveka',
+      ] ) {
+        expect( slugs, `${ slug } has no static path` ).toContain( slug );
+      }
+      expect( slugs.length ).toBeGreaterThanOrEqual( 7 );
       // fallback: false because next.config.js sets output: 'export' - there is no server to
-      // render an eighth slug on demand.
+      // render a missing slug on demand.
       expect( fallback ).toBe( false );
     } );
   } );

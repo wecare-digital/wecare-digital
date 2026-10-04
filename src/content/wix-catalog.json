@@ -1,9 +1,83 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-09-26T02:02:44.271Z",
-  "productCount": 7,
+  "fetchedAt": "2026-10-04T14:49:13.404Z",
+  "productCount": 9,
   "products": [
+    {
+      "id": "15a80e88-97b5-4603-86bf-c4864082b328",
+      "name": "₹1 test product",
+      "slug": "1-test-product",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "1.00",
+      "priceMax": "1.00",
+      "currency": "INR",
+      "formattedPrice": "₹1.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "",
+      "categoryIds": [
+        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+      ],
+      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 0,
+      "infoSectionCount": 0,
+      "productUrl": "https://wecare.digital/shop/1-test-product/",
+      "variants": [
+        {
+          "id": "f6015a21-0427-4055-9f5a-e208d9fbb1e8",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "af326b8c-f373-45ea-ad0d-b7a38b8ce0cc",
+      "name": "Contribute",
+      "slug": "contribute",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "100.00",
+      "priceMax": "500.00",
+      "currency": "INR",
+      "formattedPrice": "₹100.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "",
+      "categoryIds": [
+        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+      ],
+      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "optionCount": 1,
+      "modifierCount": 0,
+      "variantCount": 3,
+      "mediaCount": 0,
+      "infoSectionCount": 0,
+      "productUrl": "https://wecare.digital/shop/contribute/",
+      "variants": [
+        {
+          "id": "166ba5b0-a0da-4ea2-b1d2-032af12e916d",
+          "label": "₹100",
+          "inStock": true
+        },
+        {
+          "id": "81d2d73a-b4ab-43fb-8043-505971763bcc",
+          "label": "₹250",
+          "inStock": true
+        },
+        {
+          "id": "8594562c-286e-48fc-b854-b09a863ba031",
+          "label": "₹500",
+          "inStock": true
+        }
+      ]
+    },
     {
       "id": "8c4d4a7d-18c8-44f4-8eb0-78b9844a2365",
       "name": "File Assist",
@@ -136,18 +210,18 @@
           "inStock": true
         },
         {
-          "id": "a464d20e-804a-4109-af5d-ab50af71c1d3",
-          "label": "Men’s / L",
+          "id": "3c59ba29-3358-465f-aa7c-9623ce755ae2",
+          "label": "Women’s / L",
           "inStock": true
         },
         {
-          "id": "b1f68d51-4eda-4945-8324-eaaece4bc4cc",
-          "label": "Men’s / XL",
+          "id": "6c1f4b25-f94e-4af3-a5a4-a5bb3d39b606",
+          "label": "Women’s / XL",
           "inStock": true
         },
         {
-          "id": "a2c806fa-a462-4c51-ba68-e885069c79ff",
-          "label": "Men’s / 2XL",
+          "id": "710875e9-5977-4cdc-bac9-633bea09108e",
+          "label": "Women’s / 2XL",
           "inStock": true
         },
         {
@@ -161,18 +235,18 @@
           "inStock": true
         },
         {
-          "id": "3c59ba29-3358-465f-aa7c-9623ce755ae2",
-          "label": "Women’s / L",
+          "id": "a2c806fa-a462-4c51-ba68-e885069c79ff",
+          "label": "Men’s / 2XL",
           "inStock": true
         },
         {
-          "id": "6c1f4b25-f94e-4af3-a5a4-a5bb3d39b606",
-          "label": "Women’s / XL",
+          "id": "a464d20e-804a-4109-af5d-ab50af71c1d3",
+          "label": "Men’s / L",
           "inStock": true
         },
         {
-          "id": "710875e9-5977-4cdc-bac9-633bea09108e",
-          "label": "Women’s / 2XL",
+          "id": "b1f68d51-4eda-4945-8324-eaaece4bc4cc",
+          "label": "Men’s / XL",
           "inStock": true
         }
       ]
@@ -274,5 +348,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-01"
+  "variantVerifiedAt": "2026-10-04T14:49:13.391Z"
 }
