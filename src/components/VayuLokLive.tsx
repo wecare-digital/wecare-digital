@@ -264,6 +264,22 @@ function aqiCategory( aqi: number ): { word: string; sev: Sev } {
   return { word: 'Severe', sev: 'worst' };
 }
 
+/* The "Past air quality" history bar's AQI-ramp class. This reuses the SAME band logic as the
+   live dot / pollutant tone (aqiCategory) so the history reads with the identical
+   good -> sat -> mod -> poor -> worst ramp rather than a flat lime->green gradient. No new
+   thresholds are invented here; the single source of truth stays aqiCategory. */
+function aqiBarClass( aqi: number ): string {
+  return `vl-live-history-bar-${aqiCategory( aqi ).sev}`;
+}
+
+/* Human-readable label for the selected history range, used in the chart's aria-label so a
+   screen reader hears "last 24 hours" rather than a raw hour count. */
+function historyRangeLabel( hours: 24 | 168 | 720 ): string {
+  if ( hours === 24 ) return 'last 24 hours';
+  if ( hours === 168 ) return 'last 7 days';
+  return 'last 30 days';
+}
+
 /* A plain-English "current status" word for the PM2.5 result block, derived from the SAME
    severity band the dot and category already use (never a new scale). The mockup's
    "Elevated" sits in this ramp between the clean and the hazardous ends. */
@@ -2375,18 +2391,18 @@ const VayuLokLive: React.FC = () => {
                     </div>
                   </div>
                   { historyLoading ? (
-                    <p className="vl-live-small">Loading history…</p>
+                    <p className="vl-live-small" role="status" aria-live="polite">Loading history…</p>
                   ) : airHistory.length > 0 ? (
-                    <div className="vl-live-history" aria-label={ 'AQI history for ' + historyRange + ' hours' }>
+                    <div className="vl-live-history" role="img" aria-label={ 'Air quality history, ' + historyRangeLabel( historyRange ) }>
                       { airHistory.filter( ( _, i ) => {
                         const step = Math.max( 1, Math.ceil( airHistory.length / 72 ) );
                         return i % step === 0 || i === airHistory.length - 1;
                       } ).map( p => (
-                        <i key={ p.time } style={ { height: Math.max( 8, Math.min( 100, p.aqi / 5 ) ) + '%' } } title={ hourLabel( p.time ) + ' · AQI ' + p.aqi } />
+                        <i key={ p.time } className={ aqiBarClass( p.aqi ) } style={ { height: Math.max( 8, Math.min( 100, p.aqi / 5 ) ) + '%' } } title={ hourLabel( p.time ) + ' · AQI ' + p.aqi } />
                       ) ) }
                     </div>
                   ) : (
-                    <p className="vl-live-small">Air history is not available for this location right now.</p>
+                    <p className="vl-live-small" role="status" aria-live="polite">Air history is not available for this location right now.</p>
                   ) }
                 </div>
               ) }
@@ -3145,10 +3161,20 @@ const VayuLokLive: React.FC = () => {
         .vl-live-history-head{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-top:24px}
         .vl-live-history-head .vl-live-minor-title{margin:0}
         .vl-live-history-controls{display:flex;gap:6px}
-        .vl-live-history-controls button{min-height:34px;padding:0 11px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+        .vl-live-history-controls button{min-height:34px;padding:0 11px;border:1px solid var(--hair);border-radius:999px;background:#fff;color:var(--green);font:inherit;font-size:12px;font-weight:700;cursor:pointer;transition:background-color .2s,border-color .2s}
+        .vl-live-history-controls button:hover{border-color:var(--green);background:var(--lime-tint)}
+        .vl-live-history-controls button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live-history-controls button[aria-pressed="true"]{border-color:var(--green);background:var(--lime)}
         .vl-live-history{height:132px;display:flex;align-items:flex-end;gap:2px;margin-top:14px;padding:10px 0 2px;border-bottom:1px solid var(--hair)}
-        .vl-live-history i{flex:1 1 0;min-width:2px;max-width:10px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--lime),var(--green))}
+        /* History bars share the live AQI ramp: good -> sat -> mod -> poor -> worst, keyed by the
+           SAME band as the dots (--aqi-* tokens), so the chart reads like the live dot colours.
+           Geometry (flex sizing, radii, min/max width) is unchanged. */
+        .vl-live-history i{flex:1 1 0;min-width:2px;max-width:10px;border-radius:4px 4px 0 0;background:var(--aqi-sat)}
+        .vl-live-history i.vl-live-history-bar-good{background:var(--aqi-good)}
+        .vl-live-history i.vl-live-history-bar-sat{background:var(--aqi-sat)}
+        .vl-live-history i.vl-live-history-bar-mod{background:var(--aqi-mod)}
+        .vl-live-history i.vl-live-history-bar-poor{background:var(--aqi-poor)}
+        .vl-live-history i.vl-live-history-bar-worst{background:var(--aqi-worst)}
         .vl-live-weather-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--hair)}
         .vl-live-weather-grid>div{padding:16px 14px 16px 0;border-bottom:1px solid var(--hair)}
         .vl-live-weather-grid>div:nth-child(even){padding-left:14px;border-left:1px solid var(--hair)}
@@ -3239,7 +3265,7 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live-data-skeleton i{animation:none}
-          .vl-live-layer,.vl-live-wa-subscribe{transition:none}
+          .vl-live-layer,.vl-live-wa-subscribe,.vl-live-history-controls button{transition:none}
           .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible{transform:none;box-shadow:none}
         }
       `}</style>

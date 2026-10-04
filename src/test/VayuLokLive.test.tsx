@@ -2099,3 +2099,136 @@ describe( 'VayuLokLive - left-card reading falls back off the center cell (revie
     expect( container.querySelector( '.vl-live-left .vl-live-layer-result' ) ).toBeNull();
   } );
 } );
+
+// FEAT-003 polish - the "Past air quality" history chart. These tests drive the real
+// stubbed-google + stubbed-fetch air path (select -> activate AQI layer): the center
+// currentConditions:lookup populates the left card so the AIR detail panel (and its history
+// chart) renders, and history:lookup supplies the per-bar AQI samples. They assert the
+// OBSERVABLE polish and fail if the per-bar AQI colouring / range-aware aria-label is reverted.
+describe( 'VayuLokLive - Past air quality history polish (FEAT-003)', () => {
+  let rec: MapsRecorder;
+  beforeEach( () => {
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
+    rec = installGoogleMaps();
+  } );
+
+  // currentConditions:lookup answers EVERY grid + center cell so `air` is set (panel renders),
+  // and history:lookup returns the supplied AQI samples (first = low, last = high) so the chart
+  // paints bars we can assert band classes on. The filter in the component always keeps the
+  // first and last sample, so a two-sample history yields exactly those two bars.
+  const historyFetch = ( samples: number[] ) => {
+    const now = Date.now();
+    return vi.fn( ( input: RequestInfo | URL ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: 120, category: 'Moderate', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 58, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+            healthRecommendations: { generalPopulation: 'Limit prolonged outdoor exertion.' },
+          } ),
+        } as Response );
+      }
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/history' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            hoursInfo: samples.map( ( aqi, i ) => ( {
+              dateTime: new Date( now - ( samples.length - i ) * 60 * 60 * 1000 ).toISOString(),
+              indexes: [ { code: 'ind_cpcb', aqi } ],
+              pollutants: [ { code: 'pm25', concentration: { value: 20, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+            } ) ),
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } );
+  };
+
+  const activateAir = async () => {
+    const aqi = await screen.findByRole( 'button', { name: 'AQI' } );
+    if ( aqi.hasAttribute( 'disabled' ) ) await selectMumbai();
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+  };
+
+  it( 'colours each history bar by its AQI value using the live AQI ramp band (low=good, high=worst)', async () => {
+    // 30 => Good band (aqi<=50); 380 => Very Poor => worst band (aqi>300). Same aqiCategory
+    // thresholds the live dots use; no new scale is introduced by the chart.
+    vi.stubGlobal( 'fetch', historyFetch( [ 30, 380 ] ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await activateAir();
+
+    // The chart paints once the history fetch resolves.
+    await waitFor( () => expect( container.querySelectorAll( '.vl-live-history i' ).length ).toBeGreaterThan( 0 ) );
+    const bars = Array.from( container.querySelectorAll( '.vl-live-history i' ) );
+
+    // At least one bar carries an AQI-ramp class (the polish - not the old flat gradient).
+    expect( bars.some( b => /vl-live-history-bar-(good|sat|mod|poor|worst)/.test( b.className ) ) ).toBe( true );
+
+    // The value-to-band mapping is honoured end to end: the low sample reads 'good', the high
+    // sample reads 'worst'. Order is preserved (points are sorted by time ascending).
+    expect( bars[ 0 ].className ).toContain( 'vl-live-history-bar-good' );
+    expect( bars[ bars.length - 1 ].className ).toContain( 'vl-live-history-bar-worst' );
+    // The flat lime->green gradient bar (no band class) must not be what renders.
+    expect( bars[ 0 ].className ).not.toBe( '' );
+  } );
+
+  it( 'range toggle reflects aria-pressed and the chart aria-label names the selected range in human terms', async () => {
+    vi.stubGlobal( 'fetch', historyFetch( [ 40, 90 ] ) );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    await activateAir();
+    await waitFor( () => expect( container.querySelector( '.vl-live-history' ) ).not.toBeNull() );
+
+    // Default range is 24h: only that button is pressed and the chart says "last 24 hours".
+    const btn24 = screen.getByRole( 'button', { name: '24h' } );
+    const btn7d = screen.getByRole( 'button', { name: '7d' } );
+    const btn30d = screen.getByRole( 'button', { name: '30d' } );
+    expect( btn24.getAttribute( 'aria-pressed' ) ).toBe( 'true' );
+    expect( btn7d.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
+    expect( screen.getByRole( 'img', { name: 'Air quality history, last 24 hours' } ) ).toBeInTheDocument();
+
+    // Switching to 7d moves aria-pressed and re-labels the chart ("last 7 days" for 168h).
+    fireEvent.click( btn7d );
+    await waitFor( () => expect( btn7d.getAttribute( 'aria-pressed' ) ).toBe( 'true' ) );
+    expect( btn24.getAttribute( 'aria-pressed' ) ).toBe( 'false' );
+    await waitFor( () =>
+      expect( screen.getByRole( 'img', { name: 'Air quality history, last 7 days' } ) ).toBeInTheDocument() );
+
+    // And 30d maps to "last 30 days" (720h), never a raw hour count.
+    fireEvent.click( btn30d );
+    await waitFor( () => expect( btn30d.getAttribute( 'aria-pressed' ) ).toBe( 'true' ) );
+    await waitFor( () =>
+      expect( screen.getByRole( 'img', { name: 'Air quality history, last 30 days' } ) ).toBeInTheDocument() );
+  } );
+
+  it( 'the range toggle buttons carry a dark-green focus-visible ring + hover affordance (keyboard parity)', async () => {
+    vi.stubGlobal( 'fetch', historyFetch( [ 60, 150 ] ) );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const css = Array.from( document.querySelectorAll( 'style' ) )
+      .map( s => s.textContent || '' ).join( '\n' ).replace( /\s+/g, ' ' );
+
+    const focusRule = css.match( /\.vl-live-history-controls button:focus-visible\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( focusRule ).not.toBe( '' );
+    expect( focusRule ).toContain( 'outline:3px solid var(--green)' );
+    expect( focusRule ).toContain( 'outline-offset:3px' );
+
+    const hoverRule = css.match( /\.vl-live-history-controls button:hover\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( hoverRule ).not.toBe( '' );
+    expect( hoverRule ).toContain( 'border-color:var(--green)' );
+
+    // The bars are coloured by the AQI ramp tokens, not the old flat lime->green gradient.
+    const barRule = css.match( /\.vl-live-history i\{[^}]*\}/ )?.[ 0 ] ?? '';
+    expect( barRule ).not.toContain( 'linear-gradient' );
+    expect( css ).toContain( '.vl-live-history i.vl-live-history-bar-worst{background:var(--aqi-worst)}' );
+  } );
+} );
