@@ -9,7 +9,7 @@ WHY A SCRIPT RATHER THAN A NOTE. The approval state is invisible in the obvious 
 actively misleading in two others, so anybody checking by eye reaches the wrong answer:
 
   1. ALL EIGHT modern GBP APIs report `state: ENABLED` on this project. Enabling them is
-     self-service and means nothing about approval. Only the legacy
+     customer-service and means nothing about approval. Only the legacy
      `mybusiness.googleapis.com` behaves as the docs describe - invisible until approved,
      and it answers HTTP 403 from serviceusage and an HTML 404 from the API itself.
   2. An actual call returns **HTTP 429 RESOURCE_EXHAUSTED**, which reads as rate limiting.
@@ -128,7 +128,7 @@ def main() -> int:
 
     adc = adc_token()
 
-    print("\nAPI enablement state (self-service; NOT an approval signal)")
+    print("\nAPI enablement state (customer-service; NOT an approval signal)")
     enabled = 0
     for s in GBP_SERVICES:
         code, body = get(
