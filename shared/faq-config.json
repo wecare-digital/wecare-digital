@@ -9,7 +9,7 @@
     "instagram": "https://www.instagram.com/wecare.digital/"
   },
   "section_title": "Frequently asked questions",
-  "section_label": "Self Service",
+  "section_label": "Customer Service",
   "faqs": [
     {
       "question": "How do I submit a request?",
@@ -84,7 +84,7 @@
     },
     {
       "question": "How do I book an appointment?",
-      "answer": "You can book an appointment through self-service for supported services. Once you choose your preferred slot and provide the required details, you will receive confirmation based on availability.",
+      "answer": "You can book an appointment through customer-service for supported services. Once you choose your preferred slot and provide the required details, you will receive confirmation based on availability.",
       "requirements": [
         "Contact details",
         "Relevant request or case information, if applicable"
@@ -109,7 +109,7 @@
     },
     {
       "question": "What are your business hours?",
-      "answer": "Our online team is available Monday to Friday from 9:00 AM to 6:00 PM IST. Outside these hours, you can still use the self-service portal for routine tasks at any time.",
+      "answer": "Our online team is available Monday to Friday from 9:00 AM to 6:00 PM IST. Outside these hours, you can still use the customer-service portal for routine tasks at any time.",
       "requirements": [],
       "sortOrder": 10
     },
