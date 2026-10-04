@@ -154,3 +154,8 @@ content/conversations/drafts/
 # beside each one records the CodeSha256 that identifies it, so the zip itself does not
 # need to be in history.
 docs/execution/snapshots/*.zip
+
+# Agent task artifacts: per-run findings, plans, reviews and verification notes written
+# under .agents/tasks by workflow/agent runs. They are transient scratch, never built or
+# deployed, and should not clutter source control or the repo history.
+.agents/
