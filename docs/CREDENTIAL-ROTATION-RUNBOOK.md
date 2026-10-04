@@ -30,7 +30,7 @@ is a `rzp_live_` pair, not test.
 |---|---|
 | Secrets Manager | `wecare/razorpay-webhook` → fields `key_id`, `key_secret` |
 | Read by | `wecare-partner-onboarding` (`_razorpay_creds()`, handler.py:542) |
-| Used for | self-service wallet top-up — creates payment links |
+| Used for | customer-service wallet top-up — creates payment links |
 | Also in that secret | `webhook_secret`, read by `wecare-razorpay-webhook` for signature verification |
 
 **Do not rotate `webhook_secret` at the same time** unless you also update the
