@@ -554,4 +554,19 @@ describe( 'VayuLokLive - reuse and the exact Subscribe URL (key present)', () =>
     expect( share.getAttribute( 'href' ) ).toContain( encodeURIComponent( `${SITE_ORIGIN}/vayulok/` ) );
     expect( container.querySelector( '.share-row' ) ).not.toBeNull();
   } );
+
+  it( 'no longer renders the removed map place card (name/metrics/insight/view-details overlay)', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await act( async () => { await Promise.resolve(); } );
+
+    // Requirement 02: the absolutely-positioned place card is gone from the DOM entirely.
+    expect( container.querySelector( '.vl-live-map-preview' ) ).toBeNull();
+    // Its CTA (and the former 'Jump to details' label) must not be present anywhere.
+    expect( screen.queryByRole( 'button', { name: /View details|Jump to details/i } ) ).toBeNull();
+    // The old '{n} photos' pill label text is gone - the pill is now number-only.
+    expect( screen.queryByText( /\bphotos\b/i ) ).toBeNull();
+  } );
 } );
