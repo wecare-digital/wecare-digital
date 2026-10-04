@@ -420,7 +420,7 @@ def _is_deterministic_trigger(message: dict) -> bool:
 #    Hindi input - PAY_KEYWORDS carries 'भुगतान', 'बिल', 'पेमेंट' and 'बाकी', and
 #    silently truncating those would be a worse bug than the one being fixed.
 #  * ASCII punctuation is NOT stripped, because '/menu' must survive intact.
-#  * Applied ONLY to the greeting / self-service / commands sets, where a false
+#  * Applied ONLY to the greeting / customer-service / commands sets, where a false
 #    positive costs a stray reply. NOT to PAY_KEYWORDS (money), DEFAULT_FLOW_TRIGGERS
 #    (creates records) or MY_ID_KEYWORDS (discloses subscriber details).
 #
@@ -1799,7 +1799,7 @@ def _process_message(
             'requestId': request_id,
         }))
         # Map common button texts to the site menu.
-        # `selfservice` is here because the `Selfservice` ice breaker is live on
+        # `customerservice` is here because the `Selfservice` ice breaker is live on
         # both numbers and can arrive as `button` rather than `text`. The text
         # branch below is skipped entirely for a button message, so before this
         # it was a silent tap. THE TRIGGER SET STAYS: you cannot answer a trigger
@@ -1807,7 +1807,7 @@ def _process_message(
         # Meta's side as a QR prefill, an ice breaker or a slash command.
         BUTTON_MENU_TRIGGERS = {'get started', 'start', 'menu', 'hi', 'hello', 'hey',
                                 'main menu', 'need help!', 'get help',
-                                'selfservice', 'self service', 'self-service'}
+                                'customerservice', 'customer service', 'customer-service'}
         if (button_text_lower in BUTTON_MENU_TRIGGERS
                 or strip_decorative_edges(button_text_lower) in BUTTON_MENU_TRIGGERS
                 or button_text_lower.startswith('get started')):
@@ -1845,7 +1845,7 @@ def _process_message(
                 content_lower = _cmd_token
 
         # Decoration-stripped alias, used as a FALLBACK by the greeting /
-        # self-service / commands checks below so "Hi 👋", "menu 🙏" and "❓ FAQs"
+        # customer-service / commands checks below so "Hi 👋", "menu 🙏" and "❓ FAQs"
         # route the same as their bare forms. Computed after slash normalisation so
         # '/menu' is already collapsed. See strip_decorative_edges() for why this is
         # deliberately not applied to the pay, flow-trigger or subscriber-id sets.
@@ -2056,7 +2056,7 @@ def _process_message(
         # path deliberately sends nothing.
         #
         # Matched as literal variants rather than by stripping the emoji, which is
-        # the existing convention in this file ('📋 submit request', '🚀 selfservice',
+        # the existing convention in this file ('📋 submit request', '🚀 customerservice',
         # '❓ faqs'). Fixing the keyword rather than editing the QR is deliberate:
         # the QR codes are already printed and the links are already shared, so the
         # inbound side is the only place a fix reaches messages already in the wild.
@@ -2104,14 +2104,14 @@ def _process_message(
 
         # ── Ice breaker: "Selfservice" / "[retired public path]" ──
         # THE KEYWORDS STAY. `Selfservice` is a live ice breaker and
-        # `selfservice` a live slash command on BOTH numbers (read off Meta's
+        # `customerservice` a live slash command on BOTH numbers (read off Meta's
         # conversational_automation on 2026-09-26), so dropping the trigger would
         # stop answering something customers are actively invited to tap. It opens
         # the same site menu as a greeting — the commands reply says so.
         SELFSERVICE_KEYWORDS = {'self-service', 'selfservice', 'self service', '/selfservice', '/service'}
-        if content_lower in SELFSERVICE_KEYWORDS or _content_plain in SELFSERVICE_KEYWORDS:
+        if content_lower in CUSTOMERSERVICE_KEYWORDS or _content_plain in CUSTOMERSERVICE_KEYWORDS:
             logger.info(json.dumps({
-                'event': 'selfservice_triggered',
+                'event': 'customerservice_triggered',
                 'content': content_lower,
                 'contactId': mask_contact_id(contact_id),
                 'requestId': request_id,
@@ -2134,7 +2134,7 @@ def _process_message(
         # ── Ice breaker: "Commands" / "/commands" / "/help" ──
         COMMANDS_KEYWORDS = {'commands', '/commands', '/help', 'help'}
         if content_lower in COMMANDS_KEYWORDS or _content_plain in COMMANDS_KEYWORDS:
-            # Only `menu`, `subscribe`, `selfservice` and `pay` are registered as
+            # Only `menu`, `subscribe`, `customerservice` and `pay` are registered as
             # tappable commands on Meta (both numbers, verified 2026-09-26).
             # `/bharatstack` and `/help` work when typed but cannot be tapped,
             # so they are listed last. `[retired public path]` no longer opens a second
@@ -2142,7 +2142,7 @@ def _process_message(
             commands_text = (
                 "*Available Commands*\n\n"
                 "/menu - Open the menu\n"
-                "/selfservice - Opens the same menu\n"
+                "/customerservice - Opens the same menu\n"
                 "/subscribe - Register for updates and orders\n"
                 "/pay - Make a payment or check dues\n"
                 "/bharatstack - Explore WECARE.DIGITAL services\n"
@@ -4745,7 +4745,7 @@ def _send_submit_request_flow(contact_id: str, phone_number_id: str, sender_phon
         _waba_suffix = '1' if phone_number_id == PHONE_NUMBER_ID_1 else '2'
         flow_token = f'sr-{uuid.uuid4()}-waba-{_waba_suffix}-ph-{sender_phone}'
         interactive_data = {
-            'body': msg.get('body', '\U0001f447Please use the self-service option below. Once we receive it, we\u2019ll review it and follow up if needed.'),
+            'body': msg.get('body', '\U0001f447Please use the customer-service option below. Once we receive it, we\u2019ll review it and follow up if needed.'),
             'footer': msg.get('footer', 'WECARE.DIGITAL'),
             'flowId': flow_id,
             'flowCta': msg.get('flowCta', 'Submit Request'),
@@ -5253,7 +5253,7 @@ def _send_help_about(contact_id: str, phone_number_id: str, request_id: str) -> 
     """The one menu's single Help row, and the `help & about` keyword.
 
     This reply carries the weight of the 10-row cap. Meta allows 10 rows in a
-    list; the previous main menu plus the self-service submenu held 18 between
+    list; the previous main menu plus the customer-service submenu held 18 between
     them. The 8 that did not make the cut were not deleted — they moved to
     keyword access — and this is the only place a customer is told they exist.
     Do not trim the "just type" list without moving those entries onto the menu.
