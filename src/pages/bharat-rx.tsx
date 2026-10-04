@@ -6,7 +6,7 @@ import RotatingHero, { type CycleWord } from '../components/RotatingHero';
  * /bharat-rx — the Bharat Rx product page.
  *
  * WHY THIS EXISTS: Bharat Rx was moved into the Products column of the mega menu but had
- * no page, so the row pointed at the generic Selfservice landing page. A product listed
+ * no page, so the row pointed at the generic Customer service landing page. A product listed
  * beside Grahak OS and VayuLok and then landing somewhere unrelated is worse than not
  * listing it.
  *
