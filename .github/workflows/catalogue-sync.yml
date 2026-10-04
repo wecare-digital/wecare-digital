@@ -1,0 +1,198 @@
+name: Wix catalogue sync
+
+# Adding a product in Wix must put it on the live site without anyone refreshing a snapshot.
+#
+# THE DEFECT THIS CLOSES. `src/content/wix-catalog.json` is a COMMITTED snapshot, read at build
+# time by src/content/shop.ts, because next.config.js is `output: 'export'` and there is no server
+# of ours at runtime. So a product created in Wix did not appear until a human remembered to run
+# `scripts/fetch-wix-catalog.js`, commit it and let Amplify rebuild. Measured 2026-10-04:
+# `1-test-product` and `contribute` were live in Wix and absent from the site, and `/shop/
+# 1-test-product/` was a 404, for days.
+#
+# THE SHAPE OF THE FIX - B2, from .agents/tasks/wix-catalog-auto-sync-b2.md. The static export and
+# the SEO it buys are KEPT. What becomes automatic is the REBUILD: this job re-reads Wix, commits
+# the snapshot if the catalogue actually moved, and the push to `stack` triggers the existing
+# Amplify production build. `getStaticPaths` in src/pages/shop/[slug].tsx enumerates
+# `SHOP_PRODUCTS`, so a new slug gets its own statically-generated /shop/<slug>/ page with no
+# per-slug registration anywhere - see "PREFIX, NOT PER-SLUG" below.
+#
+# WHY THE PUSH IS ENOUGH. Branch `stack` has `enableAutoBuild: true` on Amplify app
+# d22dm4b0jn71jw (measured 2026-10-04), and `deps-upgrade.yml` already relies on exactly this -
+# its commit step is named "(triggers Amplify deploy)". A push made with `GITHUB_TOKEN` does not
+# start other GitHub Actions workflows, which is a documented GitHub restriction, but it does
+# deliver the push webhook to the Amplify GitHub App. If a sync commit ever lands without a build
+# following it, that is the thing to re-check first.
+#
+# NO CREDENTIAL. `scripts/fetch-wix-catalog.js` mints an ANONYMOUS VISITOR token from the PUBLIC
+# `WIX_CLIENT_ID` in src/config/wix.ts and reads the storefront catalogue with it. There is no
+# secret in this workflow, no OIDC role, and nothing for a rotation to break - which is also why
+# this job can be scheduled at all, where a job needing an AWS role would sit red waiting for an
+# IAM decision (the reason mcp-catalogue-drift.yml records for its own schedule).
+#
+# CONSEQUENCE OF THE VISITOR SCOPE, stated because it is real: a product HIDDEN in Wix is simply
+# absent from the fetch, so this job will report it as a removal. That is correct for a snapshot
+# feeding the public site.
+#
+# PREFIX, NOT PER-SLUG - verified 2026-10-04, and the whole point of B2 depends on it:
+#   src/pages/shop/[slug].tsx   getStaticPaths maps over SHOP_PRODUCTS           -> every slug
+#   scripts/generate-sitemap.js PUBLIC_PREFIXES contains '/shop/'                -> every slug
+#   src/pages/_app.tsx          isContentPublic keys on the '/shop/[slug]' PATTERN -> every slug
+#   src/test/ShopCatalogue.test.tsx  derives its expected slug set from the snapshot, with a
+#                               LOWER-BOUND floor instead of a literal list (it used to pin eight
+#                               slugs, which was the one hand edit a new product needed)
+# Nothing takes a per-slug entry. If a future change introduces one, auto-sync is broken and this
+# comment is the place that said so.
+
+on:
+  schedule:
+    # Every six hours at :25. Off the hour because GitHub's scheduler queues heavily on the hour,
+    # and :25 keeps this clear of mcp-catalogue-drift (06:40) and plivo-drift (06:30). Four runs a
+    # day is the BACKSTOP rate: the Wix webhook receiver (wecare-wix-catalog-webhook) fires a
+    # repository_dispatch for near-immediate sync, and until the owner registers that webhook in
+    # Wix this schedule is the entire mechanism. Six hours is the worst-case staleness in that
+    # state, which is the number to argue with if it is too slow.
+    - cron: '25 */6 * * *'
+  # The near-instant path. `wecare-wix-catalog-webhook` POSTs this event type after verifying the
+  # RS256 signature on a Wix Stores product event. An UNVERIFIED call never reaches here, because
+  # the receiver answers 401 before it holds a GitHub token at all.
+  repository_dispatch:
+    types: [wix-catalogue-changed]
+  workflow_dispatch:
+    inputs:
+      allow_large_removal:
+        description: 'Commit even if more than half the catalogue disappeared (see the guard)'
+        type: boolean
+        default: false
+
+permissions:
+  # To commit the refreshed snapshot. Nothing else: no packages, no issues, and deliberately no
+  # id-token, because this job assumes no AWS role.
+  contents: write
+
+concurrency:
+  # Serialised, never cancelled. Two runs committing the same file would race on the push, and a
+  # cancelled run that had already fetched but not yet committed would simply lose the work.
+  group: catalogue-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Re-read Wix, commit the snapshot if it moved
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # EXPLICIT. A `repository_dispatch` run checks out the default branch, and a `schedule`
+          # run checks out the default branch too - both of which are `stack` today. Naming it
+          # means this keeps working if the default ever moves, and makes the push target obvious
+          # to a reader.
+          ref: stack
+          # The push below needs a real remote and credentials, which the default persisted
+          # GITHUB_TOKEN provides. A shallow clone is fine: nothing here reads history.
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v6
+        with:
+          # Matching amplify.yml's `nvm install 24`, so the fetch script runs on the same major
+          # the production build runs on. Both scripts here are stdlib-only ESM - node:fs,
+          # node:path, node:url and global fetch - so there is deliberately NO `npm ci`. A
+          # dependency install would make a catalogue refresh depend on the npm registry being up.
+          node-version: '24'
+
+      - name: Keep the committed snapshot for comparison
+        # The snapshot as `stack` has it, before the fetch overwrites it. Written to the runner's
+        # temp dir rather than into the working tree, so it cannot be staged by accident.
+        run: cp src/content/wix-catalog.json "$RUNNER_TEMP/catalogue-before.json"
+
+      - name: Read the live Wix catalogue
+        # Exits non-zero and writes NOTHING when Wix returns 0 products, or when the variants call
+        # fails - both guards are inside the script and both are load-bearing. An empty catalogue
+        # is far more likely a scope or query problem than a real change, and a snapshot with the
+        # `variants` array dropped would break the merchandise size selector and the
+        # `catalogReference.options.variantId` the cart sends.
+        run: node scripts/fetch-wix-catalog.js
+
+      - name: Did the catalogue actually change?
+        id: diff
+        # `fetchedAt` and `variantVerifiedAt` are restamped on EVERY fetch, so `git diff` is dirty
+        # on every run even when Wix returned byte-identical products. Branching on `git diff`
+        # would commit to `stack` four times a day and trigger four production builds carrying no
+        # change. scripts/catalogue-diff.js ignores exactly those two fields and nothing else.
+        run: node scripts/catalogue-diff.js "$RUNNER_TEMP/catalogue-before.json" src/content/wix-catalog.json
+
+      - name: Refuse a mass disappearance
+        # The script already refuses ZERO products. This refuses the other shape of the same
+        # problem: most of the catalogue vanishing at once, which is what a changed OAuth client,
+        # a revoked headless app or a site-wide visibility edit looks like. A real catalogue does
+        # not lose half its products in six hours, and committing it would take every one of those
+        # /shop/<slug>/ pages off the live site in one build.
+        #
+        # It FAILS rather than skipping, because silence here is indistinguishable from "nothing
+        # changed". The override is a deliberate human act with the reason in the run log.
+        if: steps.diff.outputs.changed == 'true' && inputs.allow_large_removal != true
+        run: |
+          set -euo pipefail
+          removed="${{ steps.diff.outputs.removed }}"
+          if [ -z "$removed" ]; then
+            echo "No removals."
+            exit 0
+          fi
+          gone=$(printf '%s' "$removed" | tr ',' '\n' | grep -c . || true)
+          # jq, not `node -e`: package.json declares "type": "module", so a `require` in an
+          # --eval string is a module-system coin toss across Node majors. jq ships on the runner.
+          before=$(jq '.products | length' "$RUNNER_TEMP/catalogue-before.json")
+          echo "removed=$gone of $before"
+          if [ "$gone" -gt $(( before / 2 )) ]; then
+            echo "::error::$gone of $before products disappeared from Wix in one fetch ($removed). Refusing to commit: this is far more likely a scope or auth change than a real catalogue edit, and committing it would unpublish those /shop/<slug>/ pages. If the removal is genuine, re-run this workflow with allow_large_removal=true."
+            exit 1
+          fi
+
+      - name: Commit the refreshed snapshot to stack
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # `--only`, by explicit path, with no `git add` at all. The file is already tracked, so
+          # `--only` commits EXACTLY it and ignores anything else in the index - which is the rule
+          # .kiro/steering/multi-session-parallel-agents.md 3b exists for, written after a chained
+          # `git add && git commit` twice absorbed another session's staged files. Nothing else
+          # should be staged in a fresh runner checkout, and `--only` means it does not matter if
+          # it is.
+          git commit --only src/content/wix-catalog.json \
+            -m "chore(catalogue): ${{ steps.diff.outputs.summary }}" \
+            -m "Automatic Wix catalogue sync. Run ${{ github.run_id }}, trigger ${{ github.event_name }}."
+          # Rebase-and-retry once. `stack` is the single long-lived branch and other jobs and
+          # people push to it, so a non-fast-forward here is an ordinary race rather than a fault.
+          # --autostash is harmless: there is nothing to stash but the two timestamp lines that
+          # the commit has already taken.
+          if ! git push origin HEAD:stack; then
+            echo "push rejected, rebasing onto origin/stack and retrying once"
+            git pull --rebase --autostash origin stack
+            git push origin HEAD:stack
+          fi
+
+      - name: Discard the timestamp-only churn
+        if: steps.diff.outputs.changed != 'true'
+        # Leaves the checkout clean. Nothing reads the tree after this step, so this is for the
+        # reader rather than for correctness: it makes "no change" mean the tree is unchanged too.
+        run: git checkout -- src/content/wix-catalog.json
+
+      - name: Report
+        if: always()
+        run: |
+          {
+            echo '### Wix catalogue sync'
+            echo ''
+            echo "- trigger: \`${{ github.event_name }}\`"
+            echo "- changed: \`${{ steps.diff.outputs.changed }}\`"
+            echo "- ${{ steps.diff.outputs.summary }}"
+            if [ '${{ steps.diff.outputs.changed }}' = 'true' ]; then
+              echo ''
+              echo 'Committed `src/content/wix-catalog.json` to `stack`. Amplify app'
+              echo '`d22dm4b0jn71jw` builds branch `stack` automatically, so the new catalogue'
+              echo 'reaches the live site - and any new slug gets its own `/shop/<slug>/` page -'
+              echo 'at the end of that build.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -266,6 +266,22 @@ SPECS: List[Spec] = [
         provisioned_by="python scripts/provision_gift_cards_roles.py && "
                        "python scripts/provision_gift_card_routes.py",
     ),
+    # The Wix CATALOGUE webhook receiver. Wix calls this one too, with the same kind of signed
+    # JWT as the request body and no API Gateway authorizer, so signature verification in
+    # lambda_utils/ecommerce/wix_webhook.py is the only control -- see
+    # .agents/tasks/wix-catalog-auto-sync-b2.md step 3 and docs/wix-catalogue-auto-sync.md.
+    # It fires a GitHub repository_dispatch and does nothing else: no table, no Wix read.
+    # Needs the cryptography layer attached; provision_wix_catalog_webhook.py does it, along
+    # with the role, the route and the integration.
+    #
+    # THE SCHEDULED JOB IS THE BACKSTOP, so this function being absent or failing closed does
+    # not break catalogue auto-sync. .github/workflows/catalogue-sync.yml re-reads Wix on a
+    # six-hourly cron with no credential at all; this receiver only makes it near-instant.
+    Spec(
+        "wecare-wix-catalog-webhook",
+        "ecommerce/wix-catalog-webhook",
+        provisioned_by="python scripts/provision_wix_catalog_webhook.py --apply",
+    ),
     # Cognito CustomMessage trigger: branded HTML for MFA, verification and
     # recovery email. First creation is owned by
     # scripts/provision_cognito_custom_message.py, which also gives it a

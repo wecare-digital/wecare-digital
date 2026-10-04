@@ -92,12 +92,20 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # wecare-blog-subscribe added 2026-10-02: the public OTP-gated blog subscriber front door.
     # It intentionally has its own least-privilege role/routes and must be first-created by
     # provision_blog_subscribe.py before deploy-all can update its code.
+    # wecare-wix-catalog-webhook added 2026-10-04: the Wix catalogue webhook receiver for
+    # auto-sync. Never created in AWS - its own least-privilege role (two secret reads and its
+    # log group, nothing else), the version-pinned cryptography layer its verifier needs, and
+    # its one route are all first-provisioned by scripts/provision_wix_catalog_webhook.py, so a
+    # deploy-all run before that is legitimately awaiting provisioning. Note its absence costs
+    # catalogue auto-sync NOTHING: .github/workflows/catalogue-sync.yml re-reads Wix on a
+    # six-hourly cron with no credential, and this receiver only makes it near-instant.
     # Session infrastructure is owned by its CloudFormation template; an account
     # without that stack must provision it rather than report a code-update failure.
     assert waiting == ["wecare-customer-session", "wecare-customer-whatsapp-auth", "wecare-email-verification",
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
                        "wecare-customer-orders",
-                       "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi"]
+                       "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi",
+                       "wecare-wix-catalog-webhook"]
 
 
 def test_the_summary_line_reports_the_new_state(deploy_module):

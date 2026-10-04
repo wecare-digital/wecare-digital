@@ -15,6 +15,10 @@ import {
 } from '../content/shop';
 import { getStaticPaths } from '../pages/shop/[slug]';
 import type { ShopProduct } from '../content/shop';
+// The RAW snapshot, so the assertions below can compare the projection against its own source
+// instead of against a literal copied out of it. A literal is a per-product hand edit, and
+// `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
+import catalog from '../content/wix-catalog.json';
 
 /**
  * The /shop/ catalogue: the snapshot reader, and the two pages built on it.
@@ -49,6 +53,18 @@ const SYNTHETIC: ShopProduct = {
  */
 const ld = ( value: unknown ): Record<string, unknown> => value as Record<string, unknown>;
 
+/** The raw snapshot row for one slug, with every field read as a string. */
+const rawRow = ( slug: string ): Record<string, string> => {
+  const rows = ( catalog.products as unknown as Record<string, unknown>[] );
+  const row = rows.find( r => r.slug === slug );
+  expect( row, `${slug} is in SHOP_PRODUCTS but not in the snapshot` ).toBeDefined();
+  const out: Record<string, string> = {};
+  for ( const [ key, value ] of Object.entries( row as Record<string, unknown> ) ) {
+    out[ key ] = typeof value === 'string' ? value : String( value );
+  }
+  return out;
+};
+
 describe( 'the Wix snapshot is read correctly', () => {
   it( 'requires a merchandise variant and keeps distinct sizes in distinct cart lines', () => {
     window.localStorage.clear();
@@ -70,15 +86,45 @@ describe( 'the Wix snapshot is read correctly', () => {
     window.localStorage.clear();
   } );
   it( 'reads the visible non-contribution products the snapshot holds', () => {
-    // Pinned to an explicit slug list, not derived from the file: a derived check would agree with
-    // whatever the snapshot said, including an empty array - which is how a catalogue page ships
-    // blank. The contribution product is excluded from SHOP_PRODUCTS (it has its own surface), so
-    // it is not in this list. The ₹1 test product sorts first because its name begins with a
-    // digit, which orders before the Latin letters under localeCompare.
-    expect( SHOP_PRODUCTS.map( p => p.slug ) ).toEqual( [
-      '1-test-product', 'file-assist', 'guided-resolution', 'kiosk', 'merchandise',
-      'paperwork', 'referral-partner', 'viveka',
-    ] );
+    /*
+     * ASSERTS THE PROPERTY, NOT THE SPELLING - changed 2026-10-04 for catalogue auto-sync.
+     *
+     * This used to pin an explicit eight-slug list, and the reason given was a good one: a check
+     * derived from the file would agree with whatever the file said, INCLUDING AN EMPTY ARRAY,
+     * which is how a catalogue page ships blank.
+     *
+     * But a literal slug list is a PER-SLUG ALLOWLIST, and `.github/workflows/catalogue-sync.yml`
+     * now commits a refreshed snapshot on its own every six hours. Adding one product in Wix would
+     * turn this green test red with no code change behind it, and a human would have to hand-edit
+     * a list - which is the exact manual step B2 exists to remove. Everything else on the /shop/
+     * path is already prefix-based (getStaticPaths enumerates SHOP_PRODUCTS, the sitemap carries
+     * the '/shop/' PREFIX, _app.tsx keys on the '/shop/[slug]' PATTERN), so this list was the only
+     * place a new product needed a hand edit.
+     *
+     * THE BLANK-CATALOGUE PROTECTION IS KEPT, and it is what the floor is for. A derived check
+     * cannot be satisfied by an empty array while `FLOOR` must also hold, so the failure the old
+     * comment was defending against still fails. The floor is a LOWER BOUND, which a new product
+     * cannot cross; only a product being REMOVED from Wix can, and that is a change worth a human
+     * reading the diff.
+     */
+    const FLOOR = 6;
+    const rows = ( catalog.products as { slug?: string; visible?: boolean; name?: string }[] );
+    const expected = rows
+      .filter( r => r.visible !== false && !!r.slug && !!r.name )
+      .filter( r => r.slug !== CONTRIBUTION_SLUG )
+      .map( r => r.slug as string )
+      .sort();
+    expect( SHOP_PRODUCTS.length ).toBeGreaterThanOrEqual( FLOOR );
+    expect( [ ...SHOP_PRODUCTS.map( p => p.slug ) ].sort() ).toEqual( expected );
+    // Every slug is route-safe, because the slug IS the path segment of its page. A slug Wix would
+    // accept but a URL would not (a space, an uppercase letter, a slash) must fail here rather
+    // than produce a page nobody can reach.
+    for ( const product of SHOP_PRODUCTS ) {
+      expect( product.slug, `${product.slug} is not a route-safe slug` )
+        .toMatch( /^[a-z0-9]+(?:-[a-z0-9]+)*$/ );
+    }
+    // No duplicates: two rows sharing a slug would collide on one static path.
+    expect( new Set( SHOP_PRODUCTS.map( p => p.slug ) ).size ).toBe( SHOP_PRODUCTS.length );
   } );
 
   it( 'sorts by name, because the snapshot offers no other order', () => {
@@ -87,22 +133,43 @@ describe( 'the Wix snapshot is read correctly', () => {
   } );
 
   it( 'passes Wix\'s own formatted price through rather than rebuilding it', () => {
-    // The rule the whole commerce architecture rests on: a price rendered here must be the string
-    // Wix would quote, not a locally formatted version of the number beside it. A reimplemented
-    // formatter is a second opinion about the amount.
-    const kiosk = shopProductBySlug( 'kiosk' );
-    expect( kiosk?.formattedPrice ).toBe( '₹24,999.00' );
-    expect( kiosk?.price ).toBe( '24999.00' );
-    expect( kiosk?.currency ).toBe( 'INR' );
+    /*
+     * The rule the whole commerce architecture rests on: a price rendered here must be the string
+     * Wix would quote, not a locally formatted version of the number beside it. A reimplemented
+     * formatter is a second opinion about the amount.
+     *
+     * ASSERTED AGAINST THE SNAPSHOT ROW, not against a literal - changed 2026-10-04 with
+     * catalogue auto-sync. A hardcoded '₹24,999.00' tests a PRICE, which the owner may change in
+     * Wix at any moment and the scheduled sync will then commit. Comparing the projection to the
+     * raw row tests the PASS-THROUGH, which is the property that must never change, and it holds
+     * for every product rather than for one.
+     */
+    for ( const product of SHOP_PRODUCTS ) {
+      const raw = rawRow( product.slug );
+      expect( product.formattedPrice, `${product.slug} reformats the price` )
+        .toBe( raw.formattedPrice );
+      expect( product.price, `${product.slug} alters the decimal amount` ).toBe( raw.price );
+      // INR only, compared explicitly and never inferred from the amount.
+      expect( product.currency, `${product.slug} is not priced in INR` ).toBe( 'INR' );
+    }
   } );
 
   it( 'splits the description into a tagline and body paragraphs', () => {
-    const kiosk = shopProductBySlug( 'kiosk' );
-    expect( kiosk?.tagline ).toBe( 'Put your location to work.' );
-    expect( kiosk?.body[ 0 ] ).toBe( 'You already have the place.' );
-    // Every one of the seven has a tagline and at least one body paragraph, so neither the card
-    // nor the detail page can render an empty lead.
+    // Derived from each row's own descriptionHtml rather than pinning one product's copy: the
+    // owner edits this text in Wix and the scheduled catalogue sync commits the edit, so a literal
+    // sentence here would fail on a legitimate content change. `toParagraphs` has its own
+    // exhaustive unit tests below; this asserts the PROJECTION uses it.
     for ( const product of SHOP_PRODUCTS ) {
+      const raw = rawRow( product.slug );
+      const paragraphs = toParagraphs( raw.descriptionHtml || '' );
+      if ( paragraphs.length ) {
+        expect( product.tagline, `${product.slug} does not lead with its own first paragraph` )
+          .toBe( paragraphs[ 0 ] );
+      }
+      // Every product has a tagline and at least one body paragraph, so neither the card nor the
+      // detail page can render an empty lead. A product authored in Wix with NO description
+      // reaches the synthesised fallback in shop.ts rather than an empty string - which is what
+      // lets a brand-new product render a complete page before anybody writes copy for it.
       expect( product.tagline.length, `${product.slug} has no tagline` ).toBeGreaterThan( 0 );
       expect( product.body.length, `${product.slug} has no body copy` ).toBeGreaterThan( 0 );
     }

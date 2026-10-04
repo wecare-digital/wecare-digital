@@ -183,18 +183,39 @@ def test_variant_counts_are_not_all_zero(snapshot):
     )
 
 
-def test_every_product_has_a_description(snapshot):
+def test_the_description_projection_is_read_from_plain_description(snapshot):
     """Guards the plainDescription vs description trap.
 
     In V3 `description` is Ricos rich-content NODES and `plainDescription` is the HTML
     string. Reading `description` would put a JSON blob in the UI; reading neither leaves
     every product blank.
+
+    RELAXED FROM "EVERY PRODUCT" TO "AT LEAST ONE", 2026-10-04, for catalogue auto-sync, and
+    both halves of the change matter:
+
+      - A PRODUCT WITH NO DESCRIPTION IS A REAL SHAPE, not a fetch bug. It is how a newly
+        created Wix product looks before anybody writes copy for it, and `1-test-product` and
+        `contribute` are both live in that state today. Requiring copy on every row made a
+        legitimate live product fail this suite, and
+        `.github/workflows/catalogue-sync.yml` now commits a refreshed snapshot on a schedule -
+        so the owner adding a product in Wix would turn CI red with no code change behind it.
+        That is the manual step B2 exists to remove.
+        `src/content/shop.ts` already synthesises a safe name-based tagline and body for an
+        empty description, so the PAGE renders completely; `src/test/ShopCatalogue.test.tsx`
+        asserts every product has a non-empty tagline, which is the invariant that protects the
+        reader.
+      - THE TRAP IS STILL GUARDED, and that is what "at least one" is for. The two failures
+        this test was written against are both catalogue-WIDE, not per-product: dropping
+        PLAIN_DESCRIPTION from the field projection empties EVERY description, and reading
+        `description` puts Ricos JSON in EVERY one. Either still fails here. A single product
+        the owner has not written copy for does not.
     """
-    for product in snapshot["products"]:
-        assert product["descriptionHtml"].strip(), (
-            f"{product['slug']} has an empty description. V3 omits it unless "
-            f"PLAIN_DESCRIPTION is in the field projection."
-        )
+    described = [p for p in snapshot["products"] if p["descriptionHtml"].strip()]
+    assert described, (
+        "no product carries a description at all. That is the field-projection failure, not an "
+        "unwritten product: V3 omits plainDescription unless PLAIN_DESCRIPTION is in FIELDS."
+    )
+    for product in described:
         assert not product["descriptionHtml"].lstrip().startswith("{"), (
             f"{product['slug']} description looks like Ricos JSON, not HTML - the "
             f"mapping read `description` instead of `plainDescription`"
