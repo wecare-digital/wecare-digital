@@ -1051,7 +1051,7 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="footer">
     <div style="font-size:12px;font-weight:bold;margin:6px 0">Thank You!</div>
     <div>Visit Again!</div>
-    <div style="margin-top:2px">wecare.digital/selfservice</div>
+    <div style="margin-top:2px">wecare.digital/customerservice</div>
 </div>
 </body></html>'''
 
@@ -1401,7 +1401,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     if reference_id:
         _left(f"Ref: {reference_id}", F)
         y += LINE_H
-    # Brand: all selfservice/flow invoices → "Selfservice"
+    # Brand: all customerservice/flow invoices → "Selfservice"
     # Pay flow / WhatsApp payment → "Pay"
     # Manual / admin → no brand line
     entry_point = invoice.get('entryPoint', '')
@@ -1592,7 +1592,7 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         _center(f"Status: {payment_status}", FB)
         y += LINE_H
 
-    # ═══ QR CODE — links to selfservice ═══
+    # ═══ QR CODE — links to customerservice ═══
     #
     # Served from a pre-rendered S3 object, not generated. The runtime `import
     # qrcode` branch that used to lead this block was removed on 2026-09-24:
@@ -1608,11 +1608,11 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     #     it per render was work to reproduce a fixed asset.
     #
     # Adding the dependency would have been the wrong repair for the same reason:
-    # the right artifact for a constant is a file. `stream/media/m/qr-selfservice.png`
+    # the right artifact for a constant is a file. `stream/media/m/qr-customerservice.png`
     # is present (459 bytes, image/png, verified 2026-09-24).
     qr_rendered = False
     try:
-        qr_s3_img = _load_s3_image(media_paths.public('stream/media/m/qr-selfservice.png'))
+        qr_s3_img = _load_s3_image(media_paths.public('stream/media/m/qr-customerservice.png'))
         if qr_s3_img:
             qr_s3_img = qr_s3_img.resize((80, 80), Image.LANCZOS).convert('RGB')
             qr_x = (W - 80) // 2
