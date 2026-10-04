@@ -41,10 +41,10 @@
     "@deck.gl/google-maps": "^9.4.0",
     "@deck.gl/layers": "^9.4.0",
     "aws-amplify": "^6.18.0",
+    "material": "file:vendor/material",
     "next": "^16.2.9",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "material": "file:vendor/material"
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.4.1",
