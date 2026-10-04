@@ -229,7 +229,7 @@ if (notes or {}).get('purpose') == 'wallet_topup' and (notes or {}).get('wabaId'
     try:
         from lambda_utils import partner_billing
         r = partner_billing.topup(notes['wabaId'], amount_rupees,
-                                  note=f'Razorpay top-up {payment_id}', actor='self-service')
+                                  note=f'Razorpay top-up {payment_id}', actor='customer-service')
         ...
     return
 ```
@@ -722,7 +722,7 @@ Deliberately **not** on this list: website Standard Checkout initiation and call
 # handler.py:709
 if (notes or {}).get('purpose') == 'wallet_topup' and (notes or {}).get('wabaId'):
     r = partner_billing.topup(notes['wabaId'], amount_rupees,
-                              note=f'Razorpay top-up {payment_id}', actor='self-service')
+                              note=f'Razorpay top-up {payment_id}', actor='customer-service')
     return
 ```
 
