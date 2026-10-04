@@ -1,11 +1,11 @@
 {
-  "_why": "Rollback snapshot taken immediately before switching NEXT_PUBLIC_APP_URL from the retired stack.wecare.digital subdomain to the apex. Amplify's UpdateBranch REPLACES the whole environmentVariables map, so the full set is recorded here rather than just the changed key - restoring one key from memory would silently drop the other sixteen.",
+  "_why": "Rollback snapshot taken immediately before switching NEXT_PUBLIC_APP_URL from the retired retired-legacy-host.invalid subdomain to the apex. Amplify's UpdateBranch REPLACES the whole environmentVariables map, so the full set is recorded here rather than just the changed key - restoring one key from memory would silently drop the other sixteen.",
   "_captured": "2026-09-25",
   "appId": "d22dm4b0jn71jw",
   "branch": "stack",
   "change": {
     "key": "NEXT_PUBLIC_APP_URL",
-    "before": "https://stack.wecare.digital/",
+    "before": "https://retired-legacy-host.invalid/",
     "after": "https://wecare.digital/",
     "verified": "GetBranch re-read after the write: 17 vars before, 17 after, NEXT_PUBLIC_APP_URL the only difference, no key added or lost"
   },
@@ -13,7 +13,7 @@
   "_rollback": "UpdateBranch on appId d22dm4b0jn71jw branch stack with environmentVariables set to environmentVariables_before below, then trigger a build - the value is read at build time, so a redeploy is required for it to take effect.",
   "environmentVariables_before": {
     "NEXT_PUBLIC_API_BASE": "https://api.wecare.digital",
-    "NEXT_PUBLIC_APP_URL": "https://stack.wecare.digital/",
+    "NEXT_PUBLIC_APP_URL": "https://retired-legacy-host.invalid/",
     "NEXT_PUBLIC_AWS_ACCOUNT_ID": "775261844268",
     "NEXT_PUBLIC_AWS_REGION": "us-east-1",
     "NEXT_PUBLIC_COGNITO_CLIENT_ID": "1j8kbi48m4v2rped3n224rlevb",
