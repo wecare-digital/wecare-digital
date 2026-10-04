@@ -1,7 +1,7 @@
 /**
  * Catalog & Flow Builder — add products to a Meta WhatsApp catalog and create
  * WhatsApp Flows from one place. Styled with the app "subscribe" theme
- * (forest-green #1a3a2a / lime #d1f470, mirrors forms/selfservice.tsx).
+ * (forest-green #1a3a2a / lime #d1f470, mirrors forms/customerservice.tsx).
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../../components/Layout';
