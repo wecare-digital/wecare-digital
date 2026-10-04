@@ -94,6 +94,9 @@ interface PlaceState {
   addr: string;
   lat: number;
   lng: number;
+  // Retain the resolved Google Place ID so a future server-side Geocoding v4
+  // SearchDestinations relay can enrich discrete destinations without re-searching.
+  placeId?: string;
   photos?: PlacePhoto[];
   // Honest, optional Google Place metadata surfaced in the left card. Each is written to
   // state ONLY when the Places API actually returned it, so the card never shows an
@@ -123,6 +126,7 @@ const PLACE_META_FIELDS = [
    it. We never fabricate; absence simply means that line does not render. */
 interface GooglePlaceLike {
   fetchFields?: ( req: { fields: string[] } ) => Promise<void>;
+  id?: string;
   displayName?: string;
   formattedAddress?: string;
   location?: { lat?: () => number; lng?: () => number };
@@ -772,6 +776,7 @@ const VayuLokLive: React.FC = () => {
             addr: first.formatted_address || '',
             lat,
             lng,
+            placeId: first.place_id,
             photos: [],
           };
           setHasSelection( true );
@@ -1759,7 +1764,7 @@ const VayuLokLive: React.FC = () => {
     if ( !next && r.prediction?.toPlace ) {
       try {
         const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'displayName', 'formattedAddress', 'location', 'photos', ...PLACE_META_FIELDS ] } );
+        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'photos', ...PLACE_META_FIELDS ] } );
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
@@ -1776,6 +1781,7 @@ const VayuLokLive: React.FC = () => {
             addr: googlePlace.formattedAddress || r.addr,
             lat: lat as number,
             lng: lng as number,
+            placeId: googlePlace.id,
             photos,
             // Surface only the metadata Google actually returned; absent fields stay
             // undefined so the left card renders no placeholder for them.
