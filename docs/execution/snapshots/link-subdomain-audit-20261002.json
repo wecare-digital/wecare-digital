@@ -2470,12 +2470,12 @@
         "contentType": "text/html"
       },
       {
-        "url": "https://selfservice.wecare.digital/",
+        "url": "https://customerservice.wecare.digital/",
         "status": 200,
         "terminal": "https://wecare.digital/",
         "hops": [
           {
-            "url": "https://selfservice.wecare.digital/",
+            "url": "https://customerservice.wecare.digital/",
             "status": 302,
             "location": "https://wecare.digital/"
           },
@@ -2574,12 +2574,12 @@
         "contentType": ""
       },
       {
-        "url": "https://stack.wecare.digital/",
+        "url": "https://retired-legacy-host.invalid/",
         "status": 200,
         "terminal": "https://wecare.digital/",
         "hops": [
           {
-            "url": "https://stack.wecare.digital/",
+            "url": "https://retired-legacy-host.invalid/",
             "status": 302,
             "location": "https://wecare.digital/"
           },
