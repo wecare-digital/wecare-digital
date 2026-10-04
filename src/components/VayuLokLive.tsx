@@ -48,7 +48,7 @@ const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 
 // FINAL TARGET: the AQI / PM2.5 map layer is a deck.gl ScatterplotLayer of REAL sampled
 // air-quality points (see RESEARCH-deckgl-sampling-architecture.md), rendered over the
-// Google roadmap through GoogleMapsOverlay. The old raster heatmap-tile overlay is gone.
+// Google roadmap through GoogleMapsOverlay. The old raster air-quality layer-tile overlay is gone.
 // Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome; the dots use the
 // VayuLok no-red severity ramp (--aqi-good -> --aqi-worst) converted to RGBA below.
 
@@ -319,12 +319,6 @@ interface WeatherAlertRow {
   urgency?: string;
   expires?: string;
 }
-interface WeatherHistoryPoint {
-  time: number;
-  temp?: number;
-  rainProb?: number;
-  condition?: string;
-}
 interface SolarState {
   maxPanels?: number;
   roofAreaM2?: number;
@@ -556,7 +550,6 @@ const VayuLokLive: React.FC = () => {
   const [ airHistory, setAirHistory ] = useState<AirPoint[]>( [] );
   const [ historyRange, setHistoryRange ] = useState<24 | 168 | 720>( 24 );
   const [ historyLoading, setHistoryLoading ] = useState( false );
-  const [ weatherHistory, setWeatherHistory ] = useState<WeatherHistoryPoint[]>( [] );
   const [ dataLoading, setDataLoading ] = useState( false );
   const [ coreError, setCoreError ] = useState( false );
   const [ refreshNonce, setRefreshNonce ] = useState( 0 );
@@ -571,7 +564,7 @@ const VayuLokLive: React.FC = () => {
   const [ active, setActive ] = useState( -1 );
 
   // Which air-quality layer is active (user action only). null = none on load. Selecting a
-  // layer both toggles the map heatmap AND swaps the environmental RESULT content shown
+  // layer both toggles the map air-quality layer AND swaps the environmental RESULT content shown
   // in the LEFT card (AQI result vs PM2.5-focused result).
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
 
@@ -591,7 +584,6 @@ const VayuLokLive: React.FC = () => {
     daily: WeatherDay[];
     alerts: WeatherAlertRow[];
     airForecast: AirPoint[];
-    weatherHistory: WeatherHistoryPoint[];
   }>>( {} );
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
@@ -1360,7 +1352,6 @@ const VayuLokLive: React.FC = () => {
       setWeatherDaily( cachedForecast.daily );
       setWeatherAlerts( cachedForecast.alerts );
       setAirForecast( cachedForecast.airForecast );
-      setWeatherHistory( cachedForecast.weatherHistory );
       return () => ac.abort();
     }
 
@@ -1368,7 +1359,6 @@ const VayuLokLive: React.FC = () => {
     setWeatherDaily( [] );
     setWeatherAlerts( [] );
     setAirForecast( [] );
-    setWeatherHistory( [] );
     const forecastStore: {
       hourly: WeatherHour[];
       daily: WeatherDay[];
@@ -1401,27 +1391,6 @@ const VayuLokLive: React.FC = () => {
       }
       forecastStore.hourly = rows.slice( 0, 48 );
       setWeatherHourly( rows.slice( 0, 48 ) );
-    };
-
-    const loadWeatherHistory = async () => {
-      const url = 'https://weather.googleapis.com/v1/history/hours:lookup?key=' + encodeURIComponent( MAPS_KEY )
-        + '&location.latitude=' + lat + '&location.longitude=' + lng
-        + '&hours=24&pageSize=24&unitsSystem=METRIC&languageCode=en';
-      const data = await getJson( url );
-      if ( !data || ac.signal.aborted ) return;
-      const rows: WeatherHistoryPoint[] = ( Array.isArray( data.historyHours ) ? data.historyHours : [] ).map( ( row: any ) => {
-        const time = new Date( row?.interval?.startTime || 0 ).getTime();
-        const temp = n( row?.temperature?.degrees );
-        const rain = n( row?.precipitation?.probability?.percent );
-        return {
-          time,
-          ...( Number.isFinite( temp ) ? { temp: Math.round( temp ) } : {} ),
-          ...( Number.isFinite( rain ) ? { rainProb: Math.round( rain ) } : {} ),
-          ...( typeof row?.weatherCondition?.description?.text === 'string' ? { condition: row.weatherCondition.description.text } : {} ),
-        };
-      } ).filter( ( row: WeatherHistoryPoint ) => Number.isFinite( row.time ) );
-      forecastStore.weatherHistory = rows;
-      setWeatherHistory( rows );
     };
 
     const loadDaily = async () => {
@@ -1570,7 +1539,7 @@ const VayuLokLive: React.FC = () => {
   }, [ place, historyRange, hasSelection ] );
 
   const loadSolar = useCallback( async () => {
-    if ( !MAPS_KEY || solarLoading ) return;
+    if ( !MAPS_KEY || !hasSelection || solarLoading ) return;
     setSolarRequested( true );
     setSolarLoading( true );
     try {
@@ -1593,7 +1562,7 @@ const VayuLokLive: React.FC = () => {
     } finally {
       setSolarLoading( false );
     }
-  }, [ place.lat, place.lng, solarLoading ] );
+  }, [ place.lat, place.lng, solarLoading, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
@@ -1870,10 +1839,6 @@ const VayuLokLive: React.FC = () => {
     ...w,
     air: airForecast.find( a => Math.abs( a.time - w.time ) < 45 * 60 * 1000 ) || airForecast[ i ],
   } ) );
-  const forecastBest = airForecast.length ? airForecast.reduce( ( a, b ) => b.aqi < a.aqi ? b : a ) : null;
-  const forecastWorst = airForecast.length ? airForecast.reduce( ( a, b ) => b.aqi > a.aqi ? b : a ) : null;
-  const forecastDelta = airForecast.length > 1 ? airForecast[ airForecast.length - 1 ].aqi - airForecast[ 0 ].aqi : 0;
-  const forecastTrend = Math.abs( forecastDelta ) < 6 ? 'Stable' : forecastDelta < 0 ? 'Improving' : 'Worsening';
 
   /* LEFT-CARD metadata/attributes/description/supporting-info, derived from data already
      in state. Each list is built ONLY from values genuinely present on the selected
@@ -2341,7 +2306,8 @@ const VayuLokLive: React.FC = () => {
           ) }
 
           {/* SOLAR - expensive relative to Weather/Air, so load only after explicit user action. */}
-          <section className="vl-live-section" aria-labelledby="vl-live-solar-title">
+          { hasSelection && (
+            <section className="vl-live-section" aria-labelledby="vl-live-solar-title">
             <h3 className="vl-live-h2" id="vl-live-solar-title">Solar &ndash; Building Insights</h3>
             { !solarRequested && (
               <>
@@ -2368,7 +2334,8 @@ const VayuLokLive: React.FC = () => {
               ) }
               </>
             ) }
-          </section>
+            </section>
+          ) }
 
           {/* POLLEN - section renders only when the forecast returned types. */}
           { pollen && pollen.length > 0 && (
@@ -2514,7 +2481,7 @@ const VayuLokLive: React.FC = () => {
 
               {/* AQI | PM2.5 air-quality selector. The ONLY controls remaining on the map
                   (FINAL TARGET: no Expand/Collapse, no photo gallery, no on-map place
-                  card). Selecting a layer both toggles the map heatmap AND swaps the
+                  card). Selecting a layer both toggles the map air-quality layer AND swaps the
                   LEFT-card result content. The active tab is filled with the EXACT site
                   lime #d1f470 (--lime) with #1a3a2a text. Controls appear only once the
                   Maps JS canvas exists, so a fallback map never implies a toggleable layer.
