@@ -562,20 +562,20 @@ const CODE_ASSETS: CodeAsset[] = [
   // WhatsApp Flows
   { id: 'flow-sr', category: 'WhatsApp Flows', name: 'WD_SR_PAY — Submit Request', description: 'Multi-screen flow for order service requests with ₹49 payment.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/submit-request-flow.json', type: 'Flow JSON', status: 'Published' },
   { id: 'flow-sub', category: 'WhatsApp Flows', name: 'WD Subscribe', description: 'Subscription flow collecting name, phone, email, company, shipping + billing address.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/subscribe-flow.json', type: 'Flow JSON', status: 'Published' },
-  // Selfservice Flows (9 WhatsApp Flows triggered from interactive list)
-  { id: 'ss-submit', category: 'Selfservice Flows', name: '📋 Submit Request', description: 'Start a new support request with optional ₹49 payment.', path: 'Flow ID: 931522532810297', type: 'WA Flow', status: 'Published' },
-  { id: 'ss-track', category: 'Selfservice Flows', name: '🔍 Track Request', description: 'Check the status of an existing request by order ID.', path: 'Flow ID: 973888792200167', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-amend', category: 'Selfservice Flows', name: '✏️ Amend Request', description: 'Edit or correct a previously submitted request.', path: 'Flow ID: 1533536534833353', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-appt', category: 'Selfservice Flows', name: '📅 Appointment', description: 'Schedule a consultation or service visit.', path: 'Flow ID: 1475722977488573', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-rx', category: 'Selfservice Flows', name: '💊 RX Slot', description: 'Schedule a medical tourism or prescription-related visit.', path: 'Flow ID: 1892784521355352', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-docs', category: 'Selfservice Flows', name: '📄 Drop Docs', description: 'Send supporting documents for a request.', path: 'Flow ID: 1737801600902350', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-enterprise', category: 'Selfservice Flows', name: '🏢 Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries.', path: 'Flow ID: 2132515287534606', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-review', category: 'Selfservice Flows', name: '⭐ Leave Review', description: 'Share experience and feedback.', path: 'Flow ID: 963443293213262', type: 'WA Flow', status: 'Draft' },
+  // Customer Service Flows (9 WhatsApp Flows triggered from interactive list)
+  { id: 'ss-submit', category: 'Customer Service Flows', name: '📋 Submit Request', description: 'Start a new support request with optional ₹49 payment.', path: 'Flow ID: 931522532810297', type: 'WA Flow', status: 'Published' },
+  { id: 'ss-track', category: 'Customer Service Flows', name: '🔍 Track Request', description: 'Check the status of an existing request by order ID.', path: 'Flow ID: 973888792200167', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-amend', category: 'Customer Service Flows', name: '✏️ Amend Request', description: 'Edit or correct a previously submitted request.', path: 'Flow ID: 1533536534833353', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-appt', category: 'Customer Service Flows', name: '📅 Appointment', description: 'Schedule a consultation or service visit.', path: 'Flow ID: 1475722977488573', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-rx', category: 'Customer Service Flows', name: '💊 RX Slot', description: 'Schedule a medical tourism or prescription-related visit.', path: 'Flow ID: 1892784521355352', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-docs', category: 'Customer Service Flows', name: '📄 Drop Docs', description: 'Send supporting documents for a request.', path: 'Flow ID: 1737801600902350', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-enterprise', category: 'Customer Service Flows', name: '🏢 Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries.', path: 'Flow ID: 2132515287534606', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-review', category: 'Customer Service Flows', name: '⭐ Leave Review', description: 'Share experience and feedback.', path: 'Flow ID: 963443293213262', type: 'WA Flow', status: 'Draft' },
   // path was '[retired public path]' with status 'Active' until 2026-09-25. The public [retired public path] page was
   // deleted on owner instruction, so that link 404'd and "Active" was a false claim in
   // the one table this project treats as its source of truth. The live FAQ surface is the
   // dashboard route below; the customer-facing answer arrives over WhatsApp, not as a page.
-  { id: 'ss-faq', category: 'Selfservice Flows', name: '❓ FAQ', description: 'View frequently asked questions.', path: '/workspace/engage/faq', type: 'Page Link', status: 'Active' },
+  { id: 'ss-faq', category: 'Customer Service Flows', name: '❓ FAQ', description: 'View frequently asked questions.', path: '/workspace/engage/faq', type: 'Page Link', status: 'Active' },
   // Frontend Pages
   { id: 'p-dashboard', category: 'Frontend Pages', name: 'Dashboard Overview', description: 'Main analytics dashboard with billing, conversation metrics.', path: 'src/pages/workspace/dashboard/index.tsx', type: 'Page' },
   { id: 'p-control', category: 'Frontend Pages', name: 'Project Control Center', description: '18-tab system architecture dashboard — single source of truth.', path: 'src/pages/workspace/dashboard/system-architecture.tsx', type: 'Page' },
@@ -644,7 +644,7 @@ const CODE_ASSET_CATEGORIES = [ 'All', ...Array.from( new Set( CODE_ASSETS.map( 
 // ─── Data: WhatsApp Bot Menu (Persistent Menu / Welcome Message) ───
 interface BotMenuItem { row: number; section: string; icon: string; title: string; description: string; action: string; }
 const BOT_MENU: BotMenuItem[] = [
-  { row: 1, section: 'Start Here', icon: '🚀', title: 'Selfservice', description: 'Requests, appointments, documents, and support', action: 'Opens Self-service list' },
+  { row: 1, section: 'Start Here', icon: '🚀', title: 'Customer Service', description: 'Requests, appointments, documents, and support', action: 'Opens Self-service list' },
   { row: 2, section: 'Start Here', icon: '🔔', title: 'Subscribe for Updates', description: 'Get updates, offers, and service news', action: 'Opens subscribe form' },
   { row: 3, section: 'Start Here', icon: '🆔', title: 'Find Profile ID', description: 'Locate your subscription or profile ID', action: 'Opens ID lookup' },
   { row: 4, section: 'Start Here', icon: '💳', title: 'Make a Payment', description: 'Pay an invoice or complete a pending payment', action: 'Opens payment lookup' },
@@ -658,9 +658,9 @@ const BOT_MENU: BotMenuItem[] = [
   { row: 9, section: 'Help & Answers', icon: '💛', title: 'About WECARE.DIGITAL', description: 'Learn more about WECARE.DIGITAL', action: 'CTA link → wecare.digital' },
 ];
 
-// ─── Data: Selfservice Sub-Menu (WhatsApp Flow Interactive List) ───
-interface SelfserviceItem { row: number; section: string; icon: string; title: string; description: string; flowId: string; keywords: string; }
-const CUSTOMERSERVICE_MENU: SelfserviceItem[] = [
+// ─── Data: Customer Service Sub-Menu (WhatsApp Flow Interactive List) ───
+interface CustomerServiceItem { row: number; section: string; icon: string; title: string; description: string; flowId: string; keywords: string; }
+const CUSTOMERSERVICE_MENU: CustomerServiceItem[] = [
   { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: '931522532810297', keywords: 'submit request, sr, raise request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
   { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: '1533536534833353', keywords: 'amend request, amend, change' },
@@ -686,7 +686,7 @@ function buildSearchIndex (): SearchEntry[] {
   RISKS.forEach( r => entries.push( { type: 'Risk', name: r.title, detail: r.description, category: r.category } ) );
   IMPROVEMENTS.forEach( i => entries.push( { type: 'Improvement', name: i.title, detail: i.description, category: i.category } ) );
   BOT_MENU.forEach( m => entries.push( { type: 'Bot Menu', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
-  CUSTOMERSERVICE_MENU.forEach( m => entries.push( { type: 'Selfservice', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
+  CUSTOMERSERVICE_MENU.forEach( m => entries.push( { type: 'Customer Service', name: `${m.icon} ${m.title}`, detail: m.description, category: m.section } ) );
   return entries;
 }
 
@@ -757,7 +757,7 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
           { label: 'S3 Paths', value: `${STORAGE_PATHS.length}`, color: C.blueBg, text: C.blue },
           { label: 'Dependencies', value: `${DEPENDENCIES.length}`, color: C.amberBg, text: C.amber },
           { label: 'Bot Menu Items', value: `${BOT_MENU.length}`, color: '#f5f3ff', text: '#7c3aed' },
-          { label: 'Selfservice Flows', value: `${CUSTOMERSERVICE_MENU.length}`, color: C.greenBg, text: C.green },
+          { label: 'Customer Service Flows', value: `${CUSTOMERSERVICE_MENU.length}`, color: C.greenBg, text: C.green },
           { label: 'Risks Found', value: `${RISKS.length}`, color: C.redBg, text: C.red },
         ].map( s => (
           <div key={ s.label } style={ statCard( s.color, s.text ) }>
@@ -870,10 +870,10 @@ const SystemArchitecturePage: React.FC<PageProps> = ( { signOut, user } ) => {
           </table>
         </div>
       </div>
-      {/* Selfservice Sub-Menu */ }
+      {/* Customer Service Sub-Menu */ }
       <div style={ card() }>
-        <h3 style={ sectionTitle }>🚀 Selfservice Menu (WhatsApp Interactive List)</h3>
-        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 12px' } }>9 customer-service options — triggered when user taps &quot;🚀 Selfservice&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
+        <h3 style={ sectionTitle }>🚀 Customer Service Menu (WhatsApp Interactive List)</h3>
+        <p style={ { fontSize: 13, color: C.textMuted, margin: '0 0 12px' } }>9 customer-service options — triggered when user taps &quot;🚀 Customer Service&quot; from the bot menu. Each row opens a WhatsApp Flow.</p>
         <div style={ { overflowX: 'auto' } }>
           <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
             <thead>
