@@ -320,6 +320,67 @@ describe( 'the cart store', () => {
     expect( cart.readCart() ).toEqual( [] );
   } );
 
+
+  it( 'migrates a pre-productId single-variant row to the current Wix product and variant', () => {
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      ref: 'kiosk',
+      slug: 'kiosk',
+      name: 'Kiosk',
+      formattedPrice: '₹24,999.00',
+      quantity: 2,
+    } ] ) );
+
+    const [ item ] = cart.readCart();
+    expect( item.productId ).toBe( '00d4c72b-f694-441a-a192-e16f4b192440' );
+    expect( item.variantId ).toBe( '2d072962-37c0-4821-9c02-2cc223448711' );
+    expect( item.ref ).toBe(
+      '00d4c72b-f694-441a-a192-e16f4b192440:2d072962-37c0-4821-9c02-2cc223448711',
+    );
+    expect( cart.toLineItems() ).toEqual( [ {
+      catalogReference: {
+        appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e',
+        catalogItemId: '00d4c72b-f694-441a-a192-e16f4b192440',
+        options: { variantId: '2d072962-37c0-4821-9c02-2cc223448711' },
+      },
+      quantity: 2,
+    } ] );
+  } );
+
+  it( 'does not guess a variant for a legacy multi-variant merchandise row', () => {
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      ref: 'f05c3a28-0d2f-4cae-ab6c-c0b68635b951',
+      slug: 'merchandise',
+      name: 'Merchandise',
+      formattedPrice: '₹1,199.00',
+      quantity: 1,
+    } ] ) );
+
+    const [ item ] = cart.readCart();
+    expect( item.productId ).toBe( 'f05c3a28-0d2f-4cae-ab6c-c0b68635b951' );
+    expect( item.variantId ).toBeUndefined();
+    expect( cart.needsVariantSelection( item ) ).toBe( true );
+    expect( cart.availableVariantsForItem( item ) ).toHaveLength( 10 );
+  } );
+
+  it( 'repairs a legacy merchandise row when the customer chooses a current variant', () => {
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      ref: 'f05c3a28-0d2f-4cae-ab6c-c0b68635b951',
+      slug: 'merchandise',
+      name: 'Merchandise',
+      formattedPrice: '₹1,199.00',
+      quantity: 1,
+    } ] ) );
+    const [ item ] = cart.readCart();
+    const target = cart.availableVariantsForItem( item )[ 0 ];
+
+    const repaired = cart.setVariant( item.ref, target.id );
+    expect( repaired[ 0 ].variantId ).toBe( target.id );
+    expect( repaired[ 0 ].ref ).toBe(
+      `f05c3a28-0d2f-4cae-ab6c-c0b68635b951:${target.id}`,
+    );
+    expect( cart.needsVariantSelection( repaired[ 0 ] ) ).toBe( false );
+  } );
+
   it( 'is SSR-safe: reads return empty and writes are no-ops when window is undefined', () => {
     const realWindow = globalThis.window;
     // Simulate the server: no window at all. The guards in cart.ts must not touch storage.
@@ -366,6 +427,40 @@ describe( 'toLineItems emits references and quantities ONLY', () => {
     // The display price the cart holds must not have leaked into the payload.
     expect( serialised ).not.toContain( '24,999' );
     expect( serialised ).not.toContain( '24999' );
+  } );
+} );
+
+describe( 'legacy cart option recovery', () => {
+  it( 'blocks prepare and asks for an option until a legacy merchandise row is repaired', async () => {
+    signedIn();
+    const fetchMock = stubFetch( { profile: { body: PROFILE_READY } } );
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      ref: 'f05c3a28-0d2f-4cae-ab6c-c0b68635b951',
+      slug: 'merchandise',
+      name: 'Merchandise',
+      formattedPrice: '₹1,199.00',
+      quantity: 1,
+    } ] ) );
+
+    render( <Cart /> );
+    expect( await screen.findByText( 'Ready to pay' ) ).toBeTruthy();
+    fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+
+    expect( await screen.findByText(
+      'Choose a current product option below before secure payment.',
+    ) ).toBeTruthy();
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
+
+    const select = await screen.findByRole( 'combobox', { name: /Choose option for Merchandise/ } );
+    fireEvent.change( select, {
+      target: { value: '00ebbae6-7025-4724-835e-37f4bffc2476' },
+    } );
+    expect( await screen.findByText(
+      'Product option updated. Continue to secure payment.',
+    ) ).toBeTruthy();
+    expect( cart.readCart()[ 0 ].variantId ).toBe(
+      '00ebbae6-7025-4724-835e-37f4bffc2476',
+    );
   } );
 } );
 
