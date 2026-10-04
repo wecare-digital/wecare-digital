@@ -727,7 +727,7 @@ New in `partner_billing.py`:
 
 ```python
 def credit_topup_once(waba_id: str, amount_paise: int, *, idempotency_key: str,
-                      note: str = "", actor: str = "self-service") -> Dict[str, Any]:
+                      note: str = "", actor: str = "customer-service") -> Dict[str, Any]:
     """Credit a verified top-up at most once, in ONE conditional UpdateItem.
 
         UpdateExpression:  SET balance = balance + :amount, updatedAt = :now
