@@ -1,0 +1,460 @@
+"""The CRM and the checkout stop being two systems that cannot see each other's contacts.
+
+Two defects, one shape
+----------------------
+`auth/customer-profile` and `core/contacts` write to the SAME `ContactsTable` row and had two
+different vocabularies for the same two facts, so each was invisible to the other:
+
+1. **The address.** Checkout writes `checkoutDeliveryAddress` (a Map, via
+   `lambda_utils.ecommerce.contact_address`); the CRM rendered `shippingAddress`. An address a
+   customer typed at checkout appeared nowhere in the CRM - the owner's "ZZZ / SSS would not
+   have shown up even if the save had worked".
+2. **The owner.** Only the checkout path writes `checkoutCustomerId`, and both the profile
+   editor and the checkout read refused any row without one. A contact created in the CRM was
+   therefore invisible to a signed-in customer standing on the same phone number, and was pushed
+   through the entire first-time flow: name, email, a fresh email code, address. Worse, it was
+   self-perpetuating - the only thing that could stamp the attribute was a save, and the save was
+   blocked by the OTP 503.
+
+The owner's decisions, which these tests encode rather than re-litigate
+-----------------------------------------------------------------------
+- The CRM READS the checkout attribute. Checkout's write is unchanged, so a checkout-captured
+  address stays distinguishable from a hand-curated one, and there is no migration.
+- An unowned row IS claimed on a phone match, because the phone comes from a Cognito session only
+  a WhatsApp OTP can mint.
+- **The email-verified gate is NOT relaxed.** That is the one assertion here worth reading twice:
+  claiming a row says "this row is about me", not "its email is proven". Several tests below exist
+  only to pin that distinction, because relaxing it is the easy mistake and it would let somebody
+  pay against an address nobody verified.
+"""
+
+from __future__ import annotations
+
+import ast
+import importlib.util
+import json
+import pathlib
+import sys
+
+import pytest
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
+from crm_fake_dynamo import FakeDynamo  # noqa: E402
+from lambda_utils.ecommerce import contact_address  # noqa: E402
+from lambda_utils.identity import customer as customer_identity  # noqa: E402
+
+CONTACTS = "stack-wecare-digital-ContactsTable"
+ATTEMPTS = "stack-wecare-digital-PaymentAttemptsTable"
+KEYS = "stack-wecare-digital-CommerceKeys"
+OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
+
+CONTACTS_HANDLER = ROOT / "amplify/functions/core/contacts/handler.py"
+CHECKOUT_HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
+PROFILE_HANDLER = ROOT / "amplify/functions/auth/customer-profile/handler.py"
+
+CUSTOMER = "CUS_01J8Z9EXAMPLECUSTOMER"
+OTHER_CUSTOMER = "CUS_01J8Z9SOMEONEELSE000"
+RAW_PHONE = "+91 81006 40044"
+STORED_PHONE = customer_identity.normalize_phone_preserving_country(RAW_PHONE)
+EMAIL = "asha@example.com"
+ADDRESS = {"addressLine1": "12 Dalhousie Square", "city": "Kolkata",
+           "state": "West Bengal", "postalCode": "700001"}
+
+
+def _load(path: pathlib.Path, name: str):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# ─── FIX 3: the CRM can see the checkout address ───────────────────────────────
+
+@pytest.fixture
+def contacts(monkeypatch):
+    monkeypatch.setenv("CONTACTS_TABLE", CONTACTS)
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    return _load(CONTACTS_HANDLER, "contacts_crm_address_under_test")
+
+
+def test_the_crm_declares_the_same_attribute_names_the_checkout_writes(contacts):
+    """One definition of the two names, in two places that must never drift.
+
+    `core/contacts` does not import `contact_address` - that would pull `wix_address` and the
+    India tax tables into a CRM handler for two string constants - so the names are repeated
+    locally and pinned HERE instead. A rename on the write side fails this test rather than
+    silently blanking a column.
+    """
+    assert contacts.CHECKOUT_ADDRESS_READ_FIELDS == (
+        contact_address.ATTRIBUTE, contact_address.UPDATED_ATTRIBUTE)
+
+
+def test_a_contact_read_carries_the_checkout_address_through(contacts):
+    """`_from_dynamo` is the single funnel every contact read passes through."""
+    row = {
+        "id": "contact-1", "contactId": "contact-1",
+        "phone": STORED_PHONE, "email": EMAIL, "name": "Asha Sen",
+        contact_address.ATTRIBUTE: dict(ADDRESS),
+        contact_address.UPDATED_ATTRIBUTE: 1700000000,
+    }
+    out = contacts._from_dynamo(row)
+    assert out[contact_address.ATTRIBUTE] == ADDRESS
+    assert out[contact_address.UPDATED_ATTRIBUTE] == 1700000000
+
+
+def test_the_crm_cannot_write_the_checkout_address(contacts):
+    """One writer, and it is the checkout path.
+
+    A hand-edit here could produce a map `contact_address.from_contact` re-validates to `None`,
+    which demotes a payable customer to `409 DELIVERY_DETAILS_REQUIRED` with nothing in the CRM
+    to explain why. `PUT /contacts` filters on `ALLOWED_UPDATE_FIELDS`, so absence from that set
+    is the enforcement.
+    """
+    for field in contacts.CHECKOUT_ADDRESS_READ_FIELDS:
+        assert field not in contacts.ALLOWED_UPDATE_FIELDS
+
+
+def test_no_contact_read_narrows_itself_with_a_projection():
+    """The way this fix would most plausibly be undone.
+
+    `_list_all` is a full-table scan, so adding a `ProjectionExpression` to it is the obvious
+    next optimisation - and it would drop the two attributes again without touching anything
+    named after them. The only `ProjectionExpression` in the file belongs to
+    `_check_duplicate_scan`, which compares phone and email and reads no address at all.
+    """
+    tree = ast.parse(CONTACTS_HANDLER.read_text(encoding="utf-8"))
+    readers = {"_list_all", "_read_one", "_search"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in readers:
+            rendered = ast.unparse(node)
+            assert "ProjectionExpression" not in rendered, \
+                f"{node.name} projects, which silently drops attributes it does not name"
+
+
+def test_the_crm_ui_renders_the_checkout_address():
+    """The backend already returned the attribute; nothing displayed it. Asserted on the source
+    because the whole defect was a field that existed everywhere except on screen."""
+    page = (ROOT / "src/pages/workspace/contacts/index.tsx").read_text(encoding="utf-8")
+    assert "checkoutDeliveryAddress" in page
+    assert "formatCheckoutAddress" in page
+    assert "Checkout Delivery Address" in page, "the detail panel needs a labelled row"
+    assert "Checkout Address" in page, "the list needs a column"
+
+
+def _normalize_contact_body() -> str:
+    """The body of `normalizeContact`, sliced out of `client.ts`.
+
+    Textual rather than parsed because there is no TypeScript AST available here. The slice runs
+    from the declaration to the first line that is exactly `}`, which is the mapper's own closer:
+    the function is a single `return { ... };`, so no nested brace sits in column zero.
+    """
+    client = (ROOT / "src/api/client.ts").read_text(encoding="utf-8")
+    start = client.index("function normalizeContact")
+    end = client.index("\n}\n", start)
+    return client[start:end]
+
+
+def test_the_client_mapper_carries_the_checkout_address_not_just_the_type():
+    """The way this fix was ALREADY shipped dead once, so the assertion has to reach the mapper.
+
+    `normalizeContact` is a closed field-by-field object literal with no spread of `item`, and
+    it is the only way a contact enters the UI - `listContacts`, `getContact`, `createContact`
+    and `updateContact` all map through it. The first attempt added both fields to the `Contact`
+    interface and nothing to the mapper, so `checkoutDeliveryAddress` was `undefined` in the
+    browser for every contact and the new column rendered the em-dash permanently.
+
+    Nothing caught it: `tsc --noEmit` passes because both fields are optional, and the guard
+    assertion was `"checkoutDeliveryAddress" in client`, which a type declaration alone
+    satisfies. Green suite, dead feature - the same shape as the OTP defect this branch exists
+    to fix, where a dict fake could not enforce the constraint that actually mattered.
+
+    `src/test/CrmCheckoutAddress.test.ts` is the stronger half of this guard: it drives the real
+    `listContacts` against a stubbed payload and reads the field off the result.
+    """
+    body = _normalize_contact_body()
+    for field in ("checkoutDeliveryAddress", "checkoutAddressUpdatedAt"):
+        assert f"{field}:" in body, (
+            f"`{field}` must be assigned inside normalizeContact; declaring it on the Contact "
+            "interface alone leaves it undefined in the browser"
+        )
+
+
+# ─── FIX 4a: customer-profile claims an unowned row ────────────────────────────
+
+class ProfileIdentity:
+    def __init__(self, customer_id=CUSTOMER, phone=RAW_PHONE):
+        self.customer_id = customer_id
+        self.phone = phone
+        self.subject = "sub-fixture"
+
+
+@pytest.fixture
+def profile(monkeypatch):
+    monkeypatch.setenv("OTP_TABLE", OTP_TABLE)
+    monkeypatch.setenv("CONTACTS_TABLE", CONTACTS)
+    monkeypatch.setenv("APP_ENV", "development")
+    h = _load(PROFILE_HANDLER, "customer_profile_claim_under_test")
+    fake = FakeDynamo(
+        keys={OTP_TABLE: "grantId", CONTACTS: "id"},
+        indexes={CONTACTS: {"phone-index": ("phone", None), "email-index": ("email", None)}},
+    )
+    monkeypatch.setattr(h, "_dynamodb", fake)
+    monkeypatch.setattr(h, "_pepper", lambda: "claim-test-pepper")
+    monkeypatch.setattr(h.customer_auth, "require_customer",
+                        lambda event: (ProfileIdentity(), None))
+    return h, fake, monkeypatch
+
+
+def crm_row(fake, **overrides):
+    """A contact as the CRM creates one: no `checkoutCustomerId`, no `emailVerifiedAt`."""
+    row = {
+        "id": "crm-1", "contactId": "crm-1",
+        "phone": STORED_PHONE, "email": EMAIL,
+        "name": "Asha Sen", "firstName": "Asha", "lastName": "Sen",
+        "shippingAddress": "12 Dalhousie Square, Kolkata",
+        "tags": ["Lead"], "createdAt": 1, "updatedAt": 1, "deletedAt": None,
+    }
+    row.update(overrides)
+    fake.Table(CONTACTS).put_item(
+        Item={k: v for k, v in row.items() if v is not None or k == "deletedAt"})
+    return row
+
+
+def test_an_unowned_crm_row_is_claimable(profile):
+    h, fake, _ = profile
+    crm_row(fake)
+    owned = h._owned_contact(STORED_PHONE, CUSTOMER)
+    assert owned is not None and owned["id"] == "crm-1"
+
+
+def test_a_row_owned_by_another_customer_is_never_claimed(profile):
+    """The security boundary. Claiming is for a row with NO owner, never for someone else's."""
+    h, fake, _ = profile
+    crm_row(fake, checkoutCustomerId=OTHER_CUSTOMER)
+    assert h._owned_contact(STORED_PHONE, CUSTOMER) is None
+
+
+def test_an_already_owned_row_wins_over_a_claimable_duplicate(profile):
+    """Otherwise a session with its own row could adopt a stray unowned one on the same number
+    and start editing the wrong record."""
+    h, fake, _ = profile
+    crm_row(fake, id="crm-1", contactId="crm-1")
+    crm_row(fake, id="mine-1", contactId="mine-1", checkoutCustomerId=CUSTOMER)
+    owned = h._owned_contact(STORED_PHONE, CUSTOMER)
+    assert owned is not None and owned["id"] == "mine-1"
+
+
+def test_a_claimed_row_is_stamped_with_the_session_customer_id(profile):
+    """The claim is a WRITE, and this is where it lands: `_upsert_contact`'s edit path already
+    emits `checkoutCustomerId` on every save, so routing the request there IS the claim."""
+    h, fake, _ = profile
+    crm_row(fake)
+    response = h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"address": dict(ADDRESS)}),
+    }, None)
+    assert response["statusCode"] == 200
+    row = fake.all_rows(CONTACTS)[0]
+    assert row["checkoutCustomerId"] == CUSTOMER
+    # The NORMALISED address, not the submitted dict: `normalize_for_storage` fills in
+    # `countryCode`, `country` and `fullAddress`. Asserting on the submitted keys only, because
+    # the normalisation itself is `test_contact_address.py`'s job, not this file's.
+    stored = row[contact_address.ATTRIBUTE]
+    assert {key: stored[key] for key in ADDRESS} == ADDRESS
+
+
+def test_claiming_does_not_verify_the_email(profile):
+    """THE GUARDRAIL. A claimed row must not inherit verification it never had.
+
+    A CRM row carries no `emailVerifiedAt`, so an address-only save stamps ownership and nothing
+    else - and `checkout`'s own predicate still refuses to let it pay.
+    """
+    h, fake, _ = profile
+    crm_row(fake)
+    h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"address": dict(ADDRESS)}),
+    }, None)
+    row = fake.all_rows(CONTACTS)[0]
+    assert row["checkoutCustomerId"] == CUSTOMER
+    assert "emailVerifiedAt" not in row, \
+        "claiming a row must not stamp it verified; only a validated proof may do that"
+
+
+def test_a_claimed_blog_subscriber_row_keeps_the_verification_it_already_proved(profile):
+    """The claim path CAN inherit an `emailVerifiedAt`, and this is the one writer that produces
+    such a row. Stated as a test because the original justification for the widening was wrong.
+
+    `auth/blog-subscribe` writes `phone`, `email`, `phoneVerifiedAt` and `emailVerifiedAt` onto a
+    ContactsTable row and never writes `checkoutCustomerId` (`handler.py:345` on its update path,
+    `:373` in its new-item map). That row is `_claimable`, so a phone-proven session adopts it,
+    `creating` is False, and re-submitting the SAME stored email matches row 4 of the ladder -
+    saved with no email proof.
+
+    Sound rather than a hole, and the reason is the proof chain rather than the attribute:
+    `blog-subscribe` refuses to write the row unless it holds BOTH a phone proof and an email
+    proof, each re-checked against the normalised pair (`handler.py:408-409`). Row 4 also
+    requires equality with the stored email, so no new address rides in. Pinned here so that a
+    future change to either writer has to confront the consequence rather than rediscover it.
+    """
+    h, fake, _ = profile
+    crm_row(fake, emailVerifiedAt=1700000000)
+    response = h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"email": EMAIL}),
+    }, None)
+    assert response["statusCode"] == 200, "row 4: the stored email is already proven"
+    row = fake.all_rows(CONTACTS)[0]
+    assert row["checkoutCustomerId"] == CUSTOMER, "the claim is still written"
+    assert row["emailVerifiedAt"] == 1700000000, \
+        "an inherited verification must not be re-stamped; the timestamp records when it was proved"
+
+
+def test_a_claimed_verified_row_still_demands_a_proof_for_a_DIFFERENT_email(profile):
+    """Row 4's equality test is what bounds the case above. A changed address falls to row 5."""
+    h, fake, _ = profile
+    crm_row(fake, emailVerifiedAt=1700000000)
+    response = h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"email": "someone.else@example.com"}),
+    }, None)
+    assert response["statusCode"] == 400
+    assert json.loads(response["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
+    row = fake.all_rows(CONTACTS)[0]
+    assert row["email"] == EMAIL, "the unproven address must not have been written"
+
+
+def test_a_claimed_row_still_needs_a_proof_before_its_email_is_trusted(profile):
+    """The same guardrail from the other direction: submitting an email on a claimed row whose
+    stored email was never verified falls to the proof-required rows, not to the exempt one."""
+    h, fake, _ = profile
+    crm_row(fake)
+    response = h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"email": EMAIL}),
+    }, None)
+    assert response["statusCode"] == 400
+    assert json.loads(response["body"])["error"] == "EMAIL_VERIFICATION_REQUIRED"
+    assert "emailVerifiedAt" not in fake.all_rows(CONTACTS)[0]
+
+
+# ─── FIX 4b: checkout reads an unowned row, but not an unverified one ──────────
+
+class CheckoutIdentity:
+    def __init__(self, customer_id=CUSTOMER, phone=RAW_PHONE):
+        self.customer_id = customer_id
+        self.phone = phone
+        self.subject = "sub-fixture"
+
+    def owns(self, value):
+        return bool(value) and value == self.customer_id
+
+
+@pytest.fixture
+def checkout(monkeypatch):
+    monkeypatch.setenv("CONTACTS_TABLE", CONTACTS)
+    monkeypatch.setenv("PAYMENT_ATTEMPTS_TABLE", ATTEMPTS)
+    monkeypatch.setenv("COMMERCE_KEYS_TABLE", KEYS)
+    monkeypatch.setenv("APP_ENV", "development")
+    h = _load(CHECKOUT_HANDLER, "checkout_claim_under_test")
+    fake = FakeDynamo(
+        keys={CONTACTS: "id", ATTEMPTS: "paymentAttemptId", KEYS: "orderId"},
+        indexes={CONTACTS: {"phone-index": ("phone", None)}},
+    )
+    monkeypatch.setattr(h, "_dynamodb", fake)
+    monkeypatch.setattr(h.customer_auth, "require_customer",
+                        lambda event: (CheckoutIdentity(), None))
+    return h, fake, monkeypatch
+
+
+def payable_row(fake, **overrides):
+    """A row that is ready to pay except for whatever the test overrides."""
+    row = {
+        "id": "contact-1", "contactId": "contact-1",
+        "phone": STORED_PHONE, "email": EMAIL,
+        "name": "Asha Sen", "firstName": "Asha", "lastName": "Sen",
+        "checkoutCustomerId": CUSTOMER, "emailVerifiedAt": 1,
+        contact_address.ATTRIBUTE: dict(ADDRESS),
+        contact_address.UPDATED_ATTRIBUTE: 1,
+        "deletedAt": None,
+    }
+    row.update(overrides)
+    fake.Table(CONTACTS).put_item(
+        Item={k: v for k, v in row.items() if v is not None or k == "deletedAt"})
+    return row
+
+
+def test_an_unowned_but_verified_row_is_this_session_s_profile(checkout):
+    h, fake, _ = checkout
+    payable_row(fake, checkoutCustomerId=None)
+    row = h._checkout_profile(CheckoutIdentity())
+    assert row is not None and row["id"] == "contact-1"
+
+
+def test_an_unowned_row_with_no_verified_email_still_cannot_pay(checkout):
+    """THE GUARDRAIL, restated where it is enforced. This is the exact relaxation that must NOT
+    happen: paying against an unverified email is worse than being asked to verify one."""
+    h, fake, _ = checkout
+    payable_row(fake, checkoutCustomerId=None, emailVerifiedAt=None)
+    assert h._checkout_profile(CheckoutIdentity()) is None
+
+
+def test_an_unowned_row_with_no_email_at_all_cannot_pay(checkout):
+    h, fake, _ = checkout
+    payable_row(fake, checkoutCustomerId=None, email=None)
+    assert h._checkout_profile(CheckoutIdentity()) is None
+
+
+def test_a_row_owned_by_another_customer_is_still_refused(checkout):
+    h, fake, _ = checkout
+    payable_row(fake, checkoutCustomerId=OTHER_CUSTOMER)
+    assert h._checkout_profile(CheckoutIdentity()) is None
+
+
+def test_a_deleted_row_is_not_claimable(checkout):
+    h, fake, _ = checkout
+    payable_row(fake, checkoutCustomerId=None, deletedAt=1)
+    assert h._checkout_profile(CheckoutIdentity()) is None
+
+
+def test_an_owned_row_wins_over_an_unowned_one(checkout):
+    h, fake, _ = checkout
+    payable_row(fake, id="stray-1", contactId="stray-1", checkoutCustomerId=None)
+    payable_row(fake, id="mine-1", contactId="mine-1")
+    row = h._checkout_profile(CheckoutIdentity())
+    assert row is not None and row["id"] == "mine-1"
+
+
+def test_checkout_does_not_try_to_write_the_claim_it_has_no_grant_for():
+    """`amplify/infra/checkout.json` gives this role `dynamodb:Query` on the phone index and
+    nothing else on ContactsTable, so a stamp from here would fail with AccessDenied at runtime
+    and no test would see it. The claim is written by `auth/customer-profile`, which holds
+    `UpdateItem`. Asserted on the source, because this is about a call that must NOT appear.
+    """
+    tree = ast.parse(CHECKOUT_HANDLER.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in {"_checkout_profile", "_unowned"}:
+            rendered = ast.unparse(node)
+            for writer in ("update_item", "put_item", "delete_item"):
+                assert writer not in rendered, \
+                    f"{node.name} calls {writer}; this role has no write grant on ContactsTable"
+
+    infra = json.loads((ROOT / "amplify/infra/checkout.json").read_text(encoding="utf-8"))
+    policy = infra["Resources"]["CheckoutRole"]["Properties"]["Policies"][0]
+    statements = policy["PolicyDocument"]["Statement"]
+    contacts_statements = [
+        s for s in statements
+        if any("ContactsTable" in json.dumps(r) for r in s.get("Resource", []))
+    ]
+    assert contacts_statements, "expected a ContactsTable statement to assert against"
+    for statement in contacts_statements:
+        assert set(statement["Action"]) == {"dynamodb:Query"}, \
+            "the ContactsTable grant must stay read-only; the claim is written elsewhere"

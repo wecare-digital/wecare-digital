@@ -139,12 +139,40 @@ def _active_match(index: str, field: str, value: str) -> Optional[Dict[str, Any]
     return None
 
 
+def _claimable(item: Dict[str, Any]) -> bool:
+    """Whether this session may take ownership of a row that has no owner yet.
+
+    A CRM-created contact — typed by staff, or arriving from an import or a People sync — carries
+    no `checkoutCustomerId`, because only the checkout path ever writes one. Treating that as
+    "not mine" made the row invisible and pushed a customer who already exists in the CRM through
+    the whole first-time create flow: name, email, a fresh email code, and an address.
+
+    Claiming it is defensible for exactly one reason, and it is worth stating because it is the
+    security trade: **the phone is not browser-supplied.** It comes from a Cognito session that
+    only a WhatsApp OTP can mint, and the lookup is keyed on the normalised form of that proven
+    number. So "a row bearing my verified phone and belonging to nobody" is a row about me.
+
+    It is still a real widening, so it is bounded on both sides:
+
+    - An EMPTY owner only. A row owned by a different `checkoutCustomerId` is refused exactly as
+      before — this cannot be used to reach another customer's contact.
+    - Claiming is NOT verifying. The claim writes `checkoutCustomerId` and nothing else; it
+      never stamps `emailVerifiedAt`, and `checkout/handler.py::_checkout_profile` still demands
+      that timestamp before the customer can pay. A claimed row with an unverified email must go
+      through email verification like any other.
+      Note this is about what claiming *writes*, not about what the row may already hold: a
+      claimable row CAN arrive already carrying a verified email, because `auth/blog-subscribe`
+      writes one onto an unowned row. See the row-1 comment in `handler` for why that is sound.
+    """
+    return not str(item.get("checkoutCustomerId") or "").strip()
+
+
 def _owned_contact(phone: str, customer_id: str) -> Optional[Dict[str, Any]]:
     """The non-deleted contact row this session is allowed to edit, or `None`.
 
     Three different questions get asked about a contact row and they have three different
-    answers. This one is "may this session edit this row?" — non-deleted **and**
-    `checkoutCustomerId == customer_id`. It is deliberately WEAKER than
+    answers. This one is "may this session edit this row?" — non-deleted **and** either already
+    owned by this customer or owned by nobody (see `_claimable`). It is deliberately WEAKER than
     `checkout/handler.py::_checkout_profile` ("is this customer ready to pay?", which also
     demands `emailVerifiedAt` and a non-empty `email`), because the required-field and
     email-proof rules below have to be able to see a row that exists but is unverified. The
@@ -161,10 +189,20 @@ def _owned_contact(phone: str, customer_id: str) -> Optional[Dict[str, Any]]:
         KeyConditionExpression=Key("phone").eq(phone),
         Limit=5,
     )
+    # An already-owned row is preferred over a claimable one, so a session that has its own row
+    # never adopts a stray unowned duplicate on the same number.
+    claimable: Optional[Dict[str, Any]] = None
     for item in result.get("Items") or []:
-        if item.get("deletedAt") is None and item.get("checkoutCustomerId") == customer_id:
+        if item.get("deletedAt") is not None:
+            continue
+        if item.get("checkoutCustomerId") == customer_id:
             return item
-    return None
+        if claimable is None and _claimable(item):
+            claimable = item
+    # The claim itself is a WRITE, and it happens in `_upsert_contact`'s edit path, which already
+    # emits `checkoutCustomerId=:customer` on every save. Returning the row here is what routes
+    # the request down that path instead of the create path.
+    return claimable
 
 
 def _merge_tags(existing: Any) -> list[str]:
@@ -427,8 +465,31 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # of the cases deliberately overlap.
     if creating:
         # Row 1: a new row needs a proof bound to the submitted email before it can be stamped.
-        # An adopted phone-matched row also lands here, because `_owned_contact` returned nothing
-        # for it — so it cannot inherit verification it never had.
+        #
+        # A CLAIMED row (phone-matched, previously unowned — see `_claimable`) no longer lands
+        # here: `_owned_contact` now returns it, so `creating` is False and the rows below apply.
+        #
+        # WHAT A CLAIMED ROW CAN AND CANNOT INHERIT, because this is the question the widening
+        # actually turns on and there are TWO writers of `emailVerifiedAt` on `ContactsTable`:
+        #
+        # 1. `_upsert_contact` here, only with `proof_validated`. A row it wrote already carries
+        #    a `checkoutCustomerId`, so it is never claimable in the first place.
+        # 2. `auth/blog-subscribe/handler.py` — `:345` on its update path and `:373` in its
+        #    new-item map — which writes `phone`, `email`, `phoneVerifiedAt` and
+        #    `emailVerifiedAt` and NEVER writes `checkoutCustomerId`. That row IS claimable.
+        #
+        # So a claimed row CAN reach row 4 and save its own stored email with no email proof.
+        # That is sound rather than a hole, and the reason is specific: `blog-subscribe` refuses
+        # to write the row at all unless it holds BOTH a phone proof and an email proof
+        # (`handler.py:408-409`), each minted by its own OTP exchange and each re-checked against
+        # the normalised phone/email pair. The binding behind that `emailVerifiedAt` is therefore
+        # at least as strong as the one this handler mints, and the claim itself is keyed on a
+        # phone a Cognito session proved. Row 4 additionally requires the submitted email to
+        # EQUAL the stored one, so no new address can ride in on it.
+        #
+        # What a claimed row still cannot do is inherit verification nothing ever proved: a
+        # CRM-typed or imported row carries no `emailVerifiedAt`, so row 4 cannot match it and
+        # any email it submits falls to rows 5/6, which demand a proof.
         proof_required = True
     elif _present(body.get("emailProof")) and email is None:
         # Row 2, and it beats row 3: a proof is a claim about an ADDRESS. Binding it to the

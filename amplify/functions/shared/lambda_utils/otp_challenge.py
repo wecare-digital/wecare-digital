@@ -137,6 +137,31 @@ def _digest(pepper: str, *parts: str) -> str:
     return hmac.new(pepper.encode("utf-8"), message, sha256).hexdigest()
 
 
+#: Service errors that mean "this request is malformed and every retry will fail identically".
+#: Deliberately short: a transient fault must still become `OtpStorageUnavailable` so a storage
+#: outage never burns a customer's attempt budget. Only a permanent *request* fault belongs here.
+_PERMANENT_REQUEST_ERRORS = frozenset({
+    "ValidationException",      # a bad expression - e.g. an unaliased reserved word
+    "SerializationException",   # a value DynamoDB cannot read at all
+})
+
+
+def _error_code(error: Any) -> str:
+    """The DynamoDB error code on a botocore `ClientError`, or `""` for anything else."""
+    return str((getattr(error, "response", None) or {}).get("Error", {}).get("Code") or "")
+
+
+def _is_permanent_request_error(error: Any) -> bool:
+    """Whether this error is our bug rather than the store's weather.
+
+    Kept separate from the transient path because the two need opposite handling: a transient
+    fault must be reported as `OtpStorageUnavailable` (503, retry), while a permanent one must
+    SURFACE. Disguising a permanent coding error as "temporarily unavailable" is what let the
+    reserved-keyword defect in `verify`'s consume step run for two days with no log line.
+    """
+    return _error_code(error) in _PERMANENT_REQUEST_ERRORS
+
+
 def challenge_key(pepper: str, purpose: str, subject: str) -> str:
     """The table key for one (purpose, subject) pair. Contains no plaintext subject."""
     if not purpose or not subject:
@@ -338,16 +363,31 @@ def verify(table: Any, *,
     try:
         table.update_item(
             Key={key_attr: key},
-            UpdateExpression="SET consumed = :true, consumedAt = :now",
-            ConditionExpression="consumed = :false",
+            # `consumed` MUST be aliased. It is a DynamoDB reserved word, and an unaliased
+            # occurrence makes DynamoDB refuse the whole call with `ValidationException` - so
+            # only a CORRECT code failed, because the wrong-code branch above happens to name
+            # no reserved word. That is exactly the shape the live defect took: eight 503s on
+            # the one path that was supposed to succeed, with `attempts` stuck at 0.
+            #
+            # The alias is required on BOTH expressions. `UpdateExpression` is validated first,
+            # so aliasing only the condition still fails.
+            UpdateExpression="SET #consumed = :true, consumedAt = :now",
+            ConditionExpression="#consumed = :false",
+            ExpressionAttributeNames={"#consumed": "consumed"},
             ExpressionAttributeValues={":true": True, ":false": False, ":now": moment},
         )
     except Exception as error:  # noqa: BLE001
         # A lost conditional race means a concurrent request consumed it first. That request
         # succeeded, this one must not - exactly one verification per code.
-        if (getattr(error, "response", None) or {}).get(
-                "Error", {}).get("Code") == "ConditionalCheckFailedException":
+        if _error_code(error) == "ConditionalCheckFailedException":
             return VerificationResult(ALREADY_USED)
+        if _is_permanent_request_error(error):
+            # A malformed expression is a coding error, not an outage, and it will fail
+            # identically on every retry. Reporting it as `OtpStorageUnavailable` produced a
+            # 503 "temporarily unavailable" that logged nothing, which is what hid the reserved
+            # keyword above for two days. Let it escape: the handler's own arm answers 500 and
+            # records the exception type.
+            raise
         raise OtpStorageUnavailable(
             f"could not consume the challenge: {type(error).__name__}"
         ) from error

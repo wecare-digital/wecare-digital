@@ -42,6 +42,35 @@ INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppIn
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 
+# The checkout delivery address, READ-ONLY on this handler.
+#
+# `auth/customer-profile` writes `checkoutDeliveryAddress` (a Map) and
+# `checkoutAddressUpdatedAt` (epoch seconds) via `lambda_utils.ecommerce.contact_address`, on the
+# same ContactsTable row the CRM displays. The CRM renders `shippingAddress`, so an address a
+# customer typed at checkout was invisible here - two vocabularies for one fact, and nothing
+# reconciling them.
+#
+# The fix is for the CRM to READ the checkout attribute, not for checkout to write the CRM's
+# fields: that keeps a checkout-captured address distinguishable from a hand-curated one, needs
+# no migration, and removes the risk of a checkout save overwriting what a human typed.
+#
+# Deliberately NOT in `ALLOWED_UPDATE_FIELDS`. Hand-editing it in the CRM could produce a map
+# `contact_address.from_contact` re-validates to None, which demotes a payable customer to
+# `409 DELIVERY_DETAILS_REQUIRED` at checkout. One writer, and it is the checkout path.
+#
+# THIS CONSTANT IS A TEST ANCHOR, NOT PROJECTION CONFIGURATION. No handler code reads it, and
+# that is deliberate rather than an oversight: `_list_all`, `_read_one` and `_search` return the
+# whole item through `_from_dynamo`, so the two attributes already reach the client and there is
+# nothing for a list of names to switch on. Narrowing the reads to this tuple would be strictly
+# worse - it would turn every attribute NOT named here into a silent omission.
+#
+# What it buys is a rename trip-wire. `test_crm_contact_claim_and_checkout_address.py` asserts
+# this tuple equals `contact_address.ATTRIBUTE` / `UPDATED_ATTRIBUTE`, so renaming either on the
+# write side fails a test instead of silently blanking a CRM column; a second test forbids a
+# `ProjectionExpression` appearing on any of the three readers, which is the obvious next
+# optimisation on a full-table scan and would drop both attributes without naming them.
+CHECKOUT_ADDRESS_READ_FIELDS = ('checkoutDeliveryAddress', 'checkoutAddressUpdatedAt')
+
 ALLOWED_UPDATE_FIELDS = {
     'name', 'phone', 'email', 'shippingAddress', 'billingAddress',
     'shippingAddressJson', 'billingAddressJson', 'gstin',

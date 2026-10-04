@@ -48,13 +48,50 @@ const tagLabel = ( tag: string ) => tag.toLowerCase() === 'blog-subscriber' ? 'B
  */
 const COUNTRY_CODES = DIAL_CODES;
 
-type ColumnKey = 'shipping' | 'updated' | 'tags';
+type ColumnKey = 'shipping' | 'checkoutAddress' | 'updated' | 'tags';
 const ALL_COLUMNS: { key: ColumnKey; label: string }[] = [
   { key: 'shipping', label: 'Delivery Address' },
+  // A SECOND address column, not a replacement. See `formatCheckoutAddress`: checkout writes
+  // `checkoutDeliveryAddress` and the CRM only ever read `shippingAddress`, so an address a
+  // customer typed at checkout showed as a dash here. Visible by default, because "it is not in
+  // the CRM" is the reported symptom; it is in the column menu for anyone who wants it hidden.
+  { key: 'checkoutAddress', label: 'Checkout Address' },
   { key: 'updated', label: 'Updated' },
   { key: 'tags', label: 'Tags' },
 ];
 
+/**
+ * One line out of the structured checkout address, or '' when there is nothing stored.
+ *
+ * Returns '' rather than a partial placeholder so the caller's existing `value || '—'` renders
+ * the same dash every other empty field renders. Each part is coerced and trimmed because this
+ * is server data: a legacy row may hold a number or a null where a string is expected, and
+ * `[a, b].join()` on those would print 'null' into the panel.
+ */
+function formatCheckoutAddress(address?: api.CheckoutDeliveryAddress): string {
+  if (!address || typeof address !== 'object') return '';
+  const parts = [
+    address.addressLine1, address.addressLine2, address.locality,
+    address.city, address.state, address.postalCode, address.countryCode,
+  ].map(part => String(part ?? '').trim()).filter(Boolean);
+  return parts.join(', ');
+}
+
+/**
+ * The checkout address for the detail panel, with the age of the write appended.
+ *
+ * `checkoutAddressUpdatedAt` answers a question the address alone cannot: whether this is what
+ * the customer typed for the order being looked at, or an address from a purchase months ago.
+ * Folded into this row rather than given a row of its own, so a contact that never checked out
+ * still shows one dash here instead of two. Returns '' on an empty address for the same reason
+ * `formatCheckoutAddress` does - the caller's `value || '—'` owns the placeholder.
+ */
+function formatCheckoutAddressDetail(contact: api.Contact): string {
+  const line = formatCheckoutAddress(contact.checkoutDeliveryAddress);
+  if (!line) return '';
+  const age = contact.checkoutAddressUpdatedAt ? timeAgo(contact.checkoutAddressUpdatedAt) : '';
+  return age && age !== '—' ? `${line} (saved ${age})` : line;
+}
 function timeAgo(dateStr?: string | number): string {
   if (!dateStr && dateStr !== 0) return '—';
   // Backend stores timestamps as Unix epoch seconds (int(time.time()))
@@ -1084,6 +1121,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                       <SortHeader label="Phone" sKey="phone" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                       <SortHeader label="Email" sKey="email" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                       {colVisible('shipping') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Delivery Address</th>}
+                      {colVisible('checkoutAddress') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Checkout Address</th>}
                       {colVisible('updated') && <SortHeader label="Updated" sKey="updatedAt" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />}
                       {colVisible('tags') && <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: 14, fontWeight: 600, color: '#374151', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Tags</th>}
                       <th style={{ width: 100, padding: '12px 10px', background: '#f9fafb', borderBottom: '2px solid #f3f4f6', position: 'sticky', top: 0, zIndex: 2 }}>Actions</th>
@@ -1114,6 +1152,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                           ) : (c.email || '—')}
                         </td>
                         {colVisible('shipping') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{c.shippingAddress || '—'}</td>}
+                        {colVisible('checkoutAddress') && <td title={formatCheckoutAddress(c.checkoutDeliveryAddress)} style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14 }}>{formatCheckoutAddress(c.checkoutDeliveryAddress) || '—'}</td>}
                         {colVisible('updated') && <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6', color: '#6b7280', fontSize: 13 }} title={c.updatedAt ? (() => { const n = Number(c.updatedAt); const d = new Date(!isNaN(n) && n < 1e12 ? n * 1000 : (!isNaN(n) ? n : c.updatedAt)); return isNaN(d.getTime()) ? '' : d.toLocaleString(); })() : ''}>{timeAgo(c.updatedAt)}</td>}
                         {colVisible('tags') && (
                           <td style={{ padding: '10px 14px', borderBottom: '1px solid #f3f4f6' }} onClick={e => e.stopPropagation()}>
@@ -1268,6 +1307,12 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                   { label: 'Job Title', value: detailContact.designation },
                   { label: 'Username', value: detailContact.username },
                   { label: 'Delivery Address', value: detailContact.shippingAddress },
+                  // Shown as its OWN row, next to the curated one rather than instead of it.
+                  // Checkout writes `checkoutDeliveryAddress`; this panel used to read only
+                  // `shippingAddress`, so an address a customer typed at checkout appeared
+                  // nowhere in the CRM. Two separate rows keep "what the customer gave for this
+                  // order" distinguishable from "what we curated".
+                  { label: 'Checkout Delivery Address', value: formatCheckoutAddressDetail(detailContact) },
                   { label: 'Created', value: detailContact.createdAt ? (() => { const ts = Number(detailContact.createdAt); const d = new Date(!isNaN(ts) && ts < 1e12 ? ts * 1000 : (!isNaN(ts) ? ts : detailContact.createdAt)); return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); })() : '—' },
                   { label: 'Updated', value: timeAgo(detailContact.updatedAt) },
                   { label: 'Last Message', value: timeAgo(detailContact.lastInboundMessageAt) },

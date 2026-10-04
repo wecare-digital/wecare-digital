@@ -2303,10 +2303,8 @@ const VayuLokLive: React.FC = () => {
             </a>
           </section>
 
-          {/* CONTRIBUTE - reuse the shipped component. It reads shipped presets from
-              src/config/contribution.ts (CONTRIBUTION_PRESETS_PAISE [20000,40000,60000]);
-              the mock's Rs50/Rs200/Rs400 are NOT shipped and changing those is out of scope
-              here, so this renders the shipped presets. src/config/contribution.ts unchanged. */}
+          {/* CONTRIBUTE - reuse the shipped component and its shared central preset config:
+              ₹100 / ₹250 / ₹500, with no separate custom amount path. */}
           <section className="vl-live-section">
             <BlogContribution postId="vayulok" slug="vayulok" embedded />
           </section>

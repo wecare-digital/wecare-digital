@@ -226,6 +226,142 @@ describe( 'the failures that differ on whether a send was consumed', () => {
   } );
 } );
 
+/**
+ * THE CONFIRM SIDE, AND THE DEFECT THAT MADE IT MATTER.
+ *
+ * `otp_challenge.verify` consumed a code with an unaliased `consumed` - a DynamoDB reserved
+ * keyword - so DynamoDB refused the write, the module raised `OtpStorageUnavailable`, and the
+ * endpoint answered 503. ONLY a correct code took that branch; a wrong one wrote `attempts` and
+ * returned a clean 400. The bare `catch {}` that used to live in `verifyCode` collapsed both into
+ * "That email code is invalid or expired.", so the browser told the customer their correct code
+ * was bad eight times in a row and cleared the proof each time.
+ *
+ * The rule is the same one `applySendFailure` already follows: a 5xx means the code was never
+ * ruled on, so do not make a claim about the customer's input and do not revoke a proof they may
+ * already hold. Only a 400 is the server saying it looked.
+ */
+describe( 'the confirm control, where a server fault is not a bad code', () => {
+  const confirmControl = () => screen.getByRole( 'button', { name: 'Confirm email code' } );
+
+  async function sendThenEnterCode ( replies: Reply[] ) {
+    stubRequests( [ { ok: true }, ...replies ] );
+    mount();
+    fireEvent.click( sendControl() );
+    await flush();
+    fireEvent.change( screen.getByLabelText( 'Email verification code' ),
+      { target: { value: '123456' } } );
+  }
+
+  it( 'reports a 503 on verify as a server fault, not as an invalid code', async () => {
+    vi.useFakeTimers();
+    await sendThenEnterCode( [
+      { ok: false, status: 503, payload: { error: 'TEMPORARILY_UNAVAILABLE' } } ] );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+
+    expect( screen.getByText(
+      'We could not check that code just now. Try again.' ) ).toBeInTheDocument();
+    expect( screen.queryByText( 'That email code is invalid or expired.' ) ).toBeNull();
+    // The code box is still there and still usable: the same code may well be correct.
+    expect( screen.getByLabelText( 'Email verification code' ) ).toBeInTheDocument();
+    expect( confirmControl() ).toBeEnabled();
+  } );
+
+  it( 'reports a 500 on verify the same way', async () => {
+    vi.useFakeTimers();
+    await sendThenEnterCode( [
+      { ok: false, status: 500, payload: { error: 'INTERNAL_ERROR' } } ] );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+
+    expect( screen.getByText(
+      'We could not check that code just now. Try again.' ) ).toBeInTheDocument();
+  } );
+
+  it( 'still says invalid or expired on a 400, because that is the server having looked', async () => {
+    vi.useFakeTimers();
+    await sendThenEnterCode( [
+      { ok: false, status: 400, payload: { status: 'INVALID_OR_EXPIRED' } } ] );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+
+    expect( screen.getByText( 'That email code is invalid or expired.' ) ).toBeInTheDocument();
+  } );
+
+  it( 'reports a dropped connection as unreachable, not as an invalid code', async () => {
+    // The failure with NO status, which is a different route to the same wrong answer.
+    // `jsonPost` sets `error.status` only from a real response, so an offline browser, a DNS
+    // failure, a CORS rejection and an aborted request all arrive with nothing to key on. With
+    // only a `status >= 500` arm they fell through to the 400 wording and cleared the proof -
+    // the same false claim about the customer's input, and the same destruction of a held
+    // proof, that the 5xx arm exists to prevent. `applySendFailure` has had this terminal arm
+    // all along; this is the confirm side catching up.
+    vi.useFakeTimers();
+    let call = 0;
+    vi.stubGlobal( 'fetch', vi.fn( async () => {
+      call += 1;
+      if ( call === 1 ) return { ok: true, status: 200, json: async () => ( { status: 'sent' } ) };
+      throw new TypeError( 'Failed to fetch' );
+    } ) );
+    mount();
+    fireEvent.click( sendControl() );
+    await flush();
+    fireEvent.change( screen.getByLabelText( 'Email verification code' ),
+      { target: { value: '123456' } } );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+
+    expect( screen.getByText( 'We could not reach the server. Try again.' ) ).toBeInTheDocument();
+    expect( screen.queryByText( 'That email code is invalid or expired.' ) ).toBeNull();
+    // Still retryable with the same digits, for the same reason as the 503: nothing ruled on it.
+    expect( screen.getByLabelText( 'Email verification code' ) ).toHaveValue( '123456' );
+    expect( confirmControl() ).toBeEnabled();
+  } );
+
+  it( 'reports a 200 that carried no proof the same way, because nothing ruled on the code', async () => {
+    // `verifyCode` throws `PROOF_MISSING` locally on a 2xx that is missing `status: VERIFIED`
+    // or the proof itself. That error carries no `status` either, and it is the server
+    // answering in a shape it is not supposed to - not the server saying the code was wrong.
+    vi.useFakeTimers();
+    await sendThenEnterCode( [ { ok: true, payload: { status: 'VERIFIED' } } ] );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+
+    expect( screen.getByText( 'We could not reach the server. Try again.' ) ).toBeInTheDocument();
+    expect( screen.queryByText( 'That email code is invalid or expired.' ) ).toBeNull();
+    expect( screen.queryByText( 'Email verified.' ) ).toBeNull();
+  } );
+
+  it( 'leaves the customer able to retry the SAME code and succeed', async () => {
+    vi.useFakeTimers();
+    // The outcome that actually mattered to the owner: the code was right the whole time, and
+    // the server fault must not be a dead end. Nothing is cleared, nothing is re-sent, and the
+    // second attempt with the same digits goes through.
+    await sendThenEnterCode( [
+      { ok: false, status: 503, payload: { error: 'TEMPORARILY_UNAVAILABLE' } },
+      { ok: true, payload: { status: 'VERIFIED', proof: 'proof-token' } },
+    ] );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+    expect( screen.getByText(
+      'We could not check that code just now. Try again.' ) ).toBeInTheDocument();
+
+    // The same code is still in the box - a 5xx does not wipe the input the way a reset would.
+    expect( screen.getByLabelText( 'Email verification code' ) ).toHaveValue( '123456' );
+
+    fireEvent.click( confirmControl() );
+    await flush();
+    expect( screen.getByText( 'Email verified.' ) ).toBeInTheDocument();
+    expect( screen.getByText( '✓ Email verified' ) ).toBeInTheDocument();
+  } );
+} );
+
 describe( 'RESEND_LIMIT_REACHED, the one failure with no retry hint', () => {
   it( 'stops asking while leaving the email field editable', async () => {
     vi.useFakeTimers();

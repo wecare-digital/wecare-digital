@@ -277,8 +277,11 @@ def test_creation_without_an_email_is_refused(env):
 
 def test_an_adopted_phone_row_is_stamped_but_still_had_to_prove_its_email(env):
     h, fake, _ = env
-    # No `checkoutCustomerId`, so `_owned_contact` returns nothing and this is a CREATION: an
-    # adopted row cannot inherit verification it never had.
+    # No `checkoutCustomerId`, so the row is CLAIMABLE: `_owned_contact` adopts it and this is an
+    # EDIT, not a creation. The outcome asserted below is unchanged, and that is the point - the
+    # submitted email differs from the stored one and the row carries no `emailVerifiedAt`, so the
+    # ordered proof rules still land on "proof required". A claimed row cannot inherit
+    # verification it never had.
     fake.Table(CONTACTS_TABLE).put_item(Item={
         "id": "legacy-1", "contactId": "legacy-1", "phone": PHONE,
         "email": "old@example.com", "tags": [], "deletedAt": None,
