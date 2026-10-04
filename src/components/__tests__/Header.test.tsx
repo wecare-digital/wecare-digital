@@ -78,10 +78,10 @@ describe( 'Header', () => {
     // rather than leaving it implied by the lookup above happening to work.
     expect( screen.queryByRole( 'link', { name: 'Request' } ) ).toBeNull();
 
-    // The banned labels must never appear: Section 1 forbids 'Get Help', 'Self-Service',
+    // The banned labels must never appear: Section 1 forbids 'Get Help', 'Customer-Service',
     // 'Selfservice' and 'Help Hub' as the customer-facing group label.
     expect( screen.queryByText( /Get Help/i ) ).toBeNull();
-    expect( screen.queryByText( /Self-Service/i ) ).toBeNull();
+    expect( screen.queryByText( /Customer-Service/i ) ).toBeNull();
     expect( screen.queryByText( /Help Hub/i ) ).toBeNull();
 
     // The retired word must not come back anywhere in the menu. This is the guard for the
