@@ -54,7 +54,7 @@ const SEOPages: React.FC<PageProps> = ( { signOut, user } ) => {
   }
 
   const PAGE_TYPES = [
-    'homepage', 'core_site', 'brand', 'brand_store', 'function_self_service',
+    'homepage', 'core_site', 'brand', 'brand_store', 'function_customer_service',
     'blog_hub', 'blog_post', 'product', 'legal_compliance', 'contact_support',
     'app_download', 'stack', 'unknown'
   ];
