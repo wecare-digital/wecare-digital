@@ -61,7 +61,7 @@ interface NavColumn {
 // The menu made six promises and kept one.
 //
 // That note also named the way out, and this is it: public pages, registered in
-// PUBLIC_PAGE_META. Copy lives in src/content/selfservice.ts, layout in ProductPage.tsx -
+// PUBLIC_PAGE_META. Copy lives in src/content/customerservice.ts, layout in ProductPage.tsx -
 // the same shape the seven product pages use, so twelve pages cannot drift apart. Contact us
 // keeps /contact/, which is its real destination, so five pages were needed rather than six.
 //
@@ -144,8 +144,8 @@ const COLUMNS: NavColumn[] = [
         // [retired public path] route left is the ADMIN flow dashboard under /workspace/forms/.
         // 'Requests' described what the rows beneath it do; the owner's instruction (Section 1)
         // is the singular 'Request' as the exact customer-facing label, and never 'Get Help',
-        // 'Self-Service', 'Selfservice' or 'Help Hub'. This is a label change only - no internal
-        // `selfservice` identifier, config/public-pages.json group id, workspace route, provider
+        // 'Customer-Service', 'Selfservice' or 'Help Hub'. This is a label change only - no internal
+        // `customerservice` identifier, config/public-pages.json group id, workspace route, provider
         // template, API or historical integration id is touched.
         heading: 'Request',
         links: [
@@ -176,7 +176,7 @@ const COLUMNS: NavColumn[] = [
           // the pair only reads that way when the rows are adjacent.
           //
           // IT HAD TO BE TYPED HERE, unlike the products above. This group's rows are
-          // written out rather than mapped from src/content/selfservice.ts, so an entry in
+          // written out rather than mapped from src/content/customerservice.ts, so an entry in
           // that file alone gives Vault a page and a sitemap line but no way to reach it
           // from the menu. If Vault ever goes missing from the nav, this list is why.
           { label: 'Vault', href: '/vault/', match: '/vault' },
