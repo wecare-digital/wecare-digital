@@ -1928,7 +1928,7 @@ const VayuLokLive: React.FC = () => {
 
   return (
     <section className="vl-live" aria-labelledby="vl-live-title">
-      <h2 className="vl-live-sr" id="vl-live-title">Live air quality and weather</h2>
+      <span className="vl-live-sr" id="vl-live-title">Live air quality and weather</span>
 
       <main className="vl-live-shell">
         <div className="vl-live-workspace">
