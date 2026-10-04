@@ -1517,58 +1517,6 @@ const VayuLokLive: React.FC = () => {
   }, [ place, historyRange, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
-     Place enrichment used by the approved v8 card. Both calls are optional and disappear
-     cleanly when a project has not enabled the corresponding service. */
-  useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
-    let cancelled = false;
-
-    const describe = async () => {
-      const gc = await ensureGeocoder();
-      if ( !gc?.geocode || cancelled ) return;
-      const request: Record<string, unknown> = place.placeId
-        ? { placeId: place.placeId, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
-        : { location: { lat: place.lat, lng: place.lng }, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
-      try {
-        gc.geocode( request, ( rows, status ) => {
-          if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const descriptor = ( rows[ 0 ] as any )?.address_descriptor;
-          const landmark = Array.isArray( descriptor?.landmarks ) ? descriptor.landmarks[ 0 ] : null;
-          const area = Array.isArray( descriptor?.areas ) ? descriptor.areas[ 0 ] : null;
-          const landmarkName = landmark?.display_name || landmark?.displayName?.text || landmark?.display_name?.text;
-          const areaName = area?.display_name || area?.displayName?.text || area?.display_name?.text;
-          const relationship = String( landmark?.spatial_relationship || '' );
-          const relationshipLabel: Record<string, string> = {
-            NEAR: 'Near', WITHIN: 'Within', BESIDE: 'Beside', ACROSS_THE_ROAD: 'Across the road from',
-            DOWN_THE_ROAD: 'Down the road from', AROUND_THE_CORNER: 'Around the corner from', BEHIND: 'Behind',
-          };
-          const parts: string[] = [];
-          if ( landmarkName ) parts.push( `${relationshipLabel[ relationship ] || 'Near'} ${landmarkName}` );
-          if ( areaName && areaName !== landmarkName ) parts.push( `Within ${areaName}` );
-          if ( parts.length ) setAddressDescriptor( parts.join( ' · ' ) );
-        } );
-      } catch { /* descriptor enrichment is optional */ }
-    };
-
-    const elevate = async () => {
-      try {
-        const maps = ( window as any )?.google?.maps;
-        const lib = maps?.importLibrary ? await maps.importLibrary( 'elevation' ) : null;
-        const ElevationService = lib?.ElevationService || maps?.ElevationService;
-        if ( cancelled || !ElevationService ) return;
-        const service = new ElevationService();
-        const response = await service.getElevationForLocations( { locations: [ { lat: place.lat, lng: place.lng } ] } );
-        const value = response?.results?.[ 0 ]?.elevation;
-        if ( !cancelled && Number.isFinite( value ) ) setElevationM( Math.round( value ) );
-      } catch { /* elevation is optional */ }
-    };
-
-    void describe();
-    void elevate();
-    return () => { cancelled = true; };
-  }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
-
-  /* ---------------------------------------------------------------------------------
      RECENTRE the map + move the marker when the place changes (after the map exists). */
   useEffect( () => {
     const w = window as unknown as { google?: { maps?: unknown } };
@@ -1650,6 +1598,58 @@ const VayuLokLive: React.FC = () => {
       geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
     } | null;
   }, [] );
+
+  /* ---------------------------------------------------------------------------------
+     Place enrichment used by the approved v8 card. Both calls are optional and disappear
+     cleanly when a project has not enabled the corresponding service. */
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
+    let cancelled = false;
+
+    const describe = async () => {
+      const gc = await ensureGeocoder();
+      if ( !gc?.geocode || cancelled ) return;
+      const request: Record<string, unknown> = place.placeId
+        ? { placeId: place.placeId, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
+        : { location: { lat: place.lat, lng: place.lng }, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
+      try {
+        gc.geocode( request, ( rows, status ) => {
+          if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
+          const descriptor = ( rows[ 0 ] as any )?.address_descriptor;
+          const landmark = Array.isArray( descriptor?.landmarks ) ? descriptor.landmarks[ 0 ] : null;
+          const area = Array.isArray( descriptor?.areas ) ? descriptor.areas[ 0 ] : null;
+          const landmarkName = landmark?.display_name || landmark?.displayName?.text || landmark?.display_name?.text;
+          const areaName = area?.display_name || area?.displayName?.text || area?.display_name?.text;
+          const relationship = String( landmark?.spatial_relationship || '' );
+          const relationshipLabel: Record<string, string> = {
+            NEAR: 'Near', WITHIN: 'Within', BESIDE: 'Beside', ACROSS_THE_ROAD: 'Across the road from',
+            DOWN_THE_ROAD: 'Down the road from', AROUND_THE_CORNER: 'Around the corner from', BEHIND: 'Behind',
+          };
+          const parts: string[] = [];
+          if ( landmarkName ) parts.push( `${relationshipLabel[ relationship ] || 'Near'} ${landmarkName}` );
+          if ( areaName && areaName !== landmarkName ) parts.push( `Within ${areaName}` );
+          if ( parts.length ) setAddressDescriptor( parts.join( ' · ' ) );
+        } );
+      } catch { /* descriptor enrichment is optional */ }
+    };
+
+    const elevate = async () => {
+      try {
+        const maps = ( window as any )?.google?.maps;
+        const lib = maps?.importLibrary ? await maps.importLibrary( 'elevation' ) : null;
+        const ElevationService = lib?.ElevationService || maps?.ElevationService;
+        if ( cancelled || !ElevationService ) return;
+        const service = new ElevationService();
+        const response = await service.getElevationForLocations( { locations: [ { lat: place.lat, lng: place.lng } ] } );
+        const value = response?.results?.[ 0 ]?.elevation;
+        if ( !cancelled && Number.isFinite( value ) ) setElevationM( Math.round( value ) );
+      } catch { /* elevation is optional */ }
+    };
+
+    void describe();
+    void elevate();
+    return () => { cancelled = true; };
+  }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
   const runSearch = useCallback( async ( text: string ) => {
     if ( !MAPS_KEY || !text.trim() ) {
