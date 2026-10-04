@@ -236,12 +236,19 @@ def handler(event, context):  # noqa: ARG001 - Lambda signature
     # `eventType`, `slug` and `entityId` are Wix catalogue identifiers for PUBLIC products. None
     # is a credential and none is personal data, so they are logged in full - this is the
     # correlation a reader needs to tie a Wix edit to a workflow run to an Amplify build.
+    #
+    # `audience` is the token's `aud` claim, i.e. the appId Wix addressed this delivery to. It is
+    # here because `app_id` in `wecare/wix/catalog-webhook` is not configured, so step 7 of
+    # `verify_signature` is dormant, and a real delivery is the only authority on which of the
+    # candidate appIds to store. Same class of value as `instanceId`: a public installation
+    # identifier, not a credential.
     logger.info(json.dumps({
         "event": "wix_webhook_verified",
         "eventType": verified.event_type,
         "slug": verified.slug,
         "entityId": verified.entity_id,
         "instanceId": verified.instance_id,
+        "audience": verified.audience,
     }))
 
     accepted = _dispatch()

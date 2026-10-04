@@ -391,6 +391,32 @@ def test_an_envelope_sent_as_an_object_rather_than_a_string_is_read(keys):
     assert verified.slug == "kiosk"
 
 
+def test_the_audience_is_reported_even_when_no_app_id_is_configured(keys):
+    """The point of reporting `aud` at all: step 7 cannot run until `app_id` is known.
+
+    With `app_id` unset the verifier does not compare the audience, so the delivered token is the
+    only authority on which appId Wix addressed. Reporting it is what lets the right value be
+    configured; an appId is a public installation identifier, the same class as `instanceId`.
+    """
+    verified = wix_webhook.verify_signature(
+        token(keys, claims(aud="6cbf8eaf-264d-495a-bde1-d63d016d58a9")), now=NOW,
+        reader=reader_for(keys["public_pem"], app_id=None))
+    assert verified.audience == "6cbf8eaf-264d-495a-bde1-d63d016d58a9"
+
+
+@pytest.mark.parametrize("audience", [None, 123, ["a", "b"], {"aud": "a"}])
+def test_a_non_string_audience_is_reported_as_empty_rather_than_coerced(keys, audience):
+    """Matching step 7, which refuses a list-valued `aud` rather than searching it.
+
+    `str(["a", "b"])` in a log line would read like an audience this endpoint accepted. Empty is
+    the honest report for "the token did not name a single app".
+    """
+    verified = wix_webhook.verify_signature(
+        token(keys, claims(aud=audience)), now=NOW,
+        reader=reader_for(keys["public_pem"], app_id=None))
+    assert verified.audience == ""
+
+
 # ── 4. the handler: 401 and NO dispatch, or 200 and one dispatch ─────────────
 
 
@@ -414,6 +440,28 @@ def test_the_handler_dispatches_exactly_once_on_a_verified_event(keys, monkeypat
     assert call["body"] == {"event_type": receiver.DISPATCH_EVENT_TYPE}
     # A hung GitHub must not hold a Lambda to its own timeout.
     assert call["timeout"] == receiver.DISPATCH_TIMEOUT_SECONDS
+
+
+def test_the_verified_log_line_carries_the_audience(keys, monkeypatch):
+    """`audience` is the field a reader greps for in /aws/lambda/wecare-wix-catalog-webhook.
+
+    It exists so the correct `app_id` can be written into `wecare/wix/catalog-webhook` from a real
+    delivery rather than guessed between two candidates. Asserted on the emitted line, because a
+    field present on the dataclass and absent from the log would be invisible where it is needed.
+    """
+    lines = []
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.time, "time", lambda: NOW)
+    monkeypatch.setattr(receiver.logger, "info", lambda line: lines.append(line))
+
+    receiver.handler({"body": token(keys)}, None)
+
+    verified = next(json.loads(line) for line in lines
+                    if json.loads(line).get("event") == "wix_webhook_verified")
+    assert verified["audience"] == APP_ID
+    assert verified["instanceId"] == INSTANCE_ID
 
 
 @pytest.mark.parametrize("event", [

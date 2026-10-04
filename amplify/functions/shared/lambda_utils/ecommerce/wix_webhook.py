@@ -154,6 +154,12 @@ class WixEvent:
     slug: str = ""
     entity_id: str = ""
     instance_id: str = ""
+    #: The token's `aud` claim, which Wix sets to the receiving app's appId. Reported so a log
+    #: line can answer "which app did Wix address this to" while `app_id` is still unconfigured -
+    #: step 7 of `verify_signature` cannot run until that is known, and the token is the only
+    #: authority on it. An appId is a public installation identifier, not a credential and not
+    #: personal data, so it is logged in full exactly as `instance_id` is.
+    audience: str = ""
 
 
 SecretReader = Callable[[str], Mapping[str, Any]]
@@ -250,11 +256,16 @@ def _describe(payload: Mapping[str, Any]) -> WixEvent:
         or entity.get("_id")
         or ""
     )
+    # `aud` is read off the TOP-LEVEL payload, not the envelope, and only when it is a string -
+    # the list-valued form is reported as empty rather than joined, matching step 7's refusal to
+    # treat "one of these apps" as an audience.
+    audience = payload.get("aud")
     return WixEvent(
         event_type=str(envelope.get("eventType") or envelope.get("eventName") or ""),
         slug=str(slug or ""),
         entity_id=str(entity_id or ""),
         instance_id=str(envelope.get("instanceId") or ""),
+        audience=audience if isinstance(audience, str) else "",
     )
 
 
