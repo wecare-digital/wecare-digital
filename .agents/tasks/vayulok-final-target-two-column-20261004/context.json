@@ -1,0 +1,23 @@
+{
+  "project_type": "Next.js (pages router) static export site on AWS Amplify; TypeScript React; type:module; next.config output:'export'",
+  "language": "TypeScript / React (.tsx)",
+  "build_system": "npm; next build (preceded by generator scripts). For this task only typecheck+lint+vitest are the relevant gates; full next build runs generator scripts unrelated to this change.",
+  "test_framework": "vitest + @testing-library/react (jsdom). Component test file: src/test/VayuLokLive.test.tsx. Tests dynamically import the component after stubbing NEXT_PUBLIC_GOOGLE_MAPS_KEY so the module-scope key read is exercised both present and absent.",
+  "build_command": "npm run typecheck && npm run lint",
+  "test_command": "npx vitest run src/test/VayuLokLive.test.tsx (full suite: npm run test)",
+  "verification_instructions": "1) npm run typecheck (tsc --noEmit) clean. 2) npm run lint (eslint .) clean. 3) npx vitest run src/test/VayuLokLive.test.tsx all green, then npm run test for full suite. Live Google map/overlay/autocomplete CANNOT render in sandbox/CI because the browser Maps key is referrer-restricted to *.wecare.digital/*; a blank/absent map there is EXPECTED. Verify via the honest-degradation path (no key -> no map, no fetch) and the Google-stub tests, NOT by expecting a live map.",
+  "snapshot_or_generated_files": "none relevant to this change (sitemap/public-pages/blog-search/llms generators run in full build but are unrelated to VayuLokLive).",
+  "setup_instructions": "node_modules already present (Node pinned via .nvmrc = 24; sandbox runs v22.23.3). No install needed. If missing: npm ci.",
+  "environment_constraints": "Browser Maps key referrer-restricted to *.wecare.digital/* => no live map/overlay/autocomplete in sandbox; expected, not a failure. Do NOT hardcode a key; read ONLY from process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY. Honest degradation must hold: no key => no map, no overlay, zero network calls, left card still renders sensibly.",
+  "contribution_requirements": "NO RED anywhere on the page. Google attribution MUST remain (Maps logo + .gm-style-cc legal; Place Photo author attributions visible/legible). No CSS targeting .gm-style-cc / a[href*=\"google\"] / img[alt=\"Google\"]. Keep overlays inset from map bottom corners. styled-jsx attaches its scope class ONLY to markup statically visible in the component return tree => keep ALL new left-card and right-map markup INLINE in VayuLokLive's return. Hero in src/pages/vayulok/index.tsx must stay UNCHANGED.",
+  "key_patterns": "Single self-styled component src/components/VayuLokLive.tsx (~2675 lines) with one <style jsx> block, vl-live- class scope, tokens on .vl-live (--lime #d1f470, --green #1a3a2a, AQI ramp --aqi-good/sat/mod/poor/worst dark-green->lime->amber, no red). Current layout: .vl-live-grid two columns at >=1024px = LEFT (.vl-live-left) all live content stacked; RIGHT (.vl-live-right > .vl-live-map-sticky > .vl-live-map-stage) map with ON-MAP overlays (search .vl-live-map-search, layer controls .vl-live-map-controls incl. Expand/Collapse .vl-live-map-expand, photo overlay .vl-live-map-photos with .vl-live-photo-count number pill + referee SVG, legend .vl-live-scale-legend). Heatmap effect keyed on `layer` creates google.maps.ImageMapType with opacity HEATMAP_OPACITY (currently 0.35) and adds runtime class vl-live-overlay-lime to the canvas host; a scoped CSS filter (.vl-live-overlay-lime :global(div[style*=\"z-index\"] img:not([alt]))) currently COLLAPSES tile hue toward flat lime. AQI mapType=UAQI_RED_GREEN, PM25=PM25_INDIGO_PERSIAN.",
+  "relevant_files": [
+    "src/components/VayuLokLive.tsx",
+    "src/test/VayuLokLive.test.tsx",
+    "src/pages/vayulok/index.tsx (hero - MUST stay unchanged; read for design language only)",
+    ".agents/tasks/vayulok-home-aligned-mock/design-tokens.md",
+    ".agents/tasks/vayulok-home-aligned-mock/owner-constraints.md",
+    ".agents/tasks/vayulok-overlay-lime-attribution-20261004/RESEARCH-05-heatmap-lime-translucent.md"
+  ],
+  "directory_structure": "src/components/VayuLokLive.tsx = the only implementation file to change. src/pages/vayulok/index.tsx = page wrapper hosting the hero + <VayuLokLive/> (hero unchanged). src/test/VayuLokLive.test.tsx = the test suite. .agents/tasks/ = task state."
+}

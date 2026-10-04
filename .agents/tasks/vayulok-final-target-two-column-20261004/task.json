@@ -1,0 +1,7 @@
+{
+  "task_id": "vayulok-final-target-two-column-20261004",
+  "task_description": "Restructure src/components/VayuLokLive.tsx into the FINAL TARGET two-column desktop workspace: LEFT = selected-place card (photo + lime #d1f470 number pill + name/address/metadata/attributes/description + the existing VayuLok AQI/PM2.5 environmental result system when a layer is active); RIGHT = map only with search bar + AQI|PM2.5 selector + single marker + Google attribution. Remove on-map Expand/Collapse + keyboard-expand, floating photo gallery, photo-count overlay, on-map place card, extra map controls. Resolve the heatmap conflict (overrides req 05): preserve scientific value variation at ~30% opacity instead of flattening to flat lime; lime applies to the selector chrome only. Keep the hero (src/pages/vayulok/index.tsx) unchanged. Work on branch feat/vayulok-map-right-redesign (extends PR #218); do not push.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": null
+}

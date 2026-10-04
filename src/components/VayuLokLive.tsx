@@ -46,12 +46,14 @@ import { SITE_ORIGIN } from '../config/share';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 
-// Req 05: the AQI / PM2.5 heatmap overlay must be FULLY TRANSLUCENT so the geo/road map
-// underneath stays clearly visible. The ImageMapType is created with this low opacity (and
-// setOpacity is also called for Maps builds that only honour the setter), on top of the
-// scoped CSS filter/blend that drives the baked tile colours toward the site --lime. Low
-// enough that road geometry and labels read through; see RESEARCH-05-heatmap-lime-translucent.md.
-const HEATMAP_OPACITY = 0.35;
+// FINAL TARGET (overrides req 05): the AQI / PM2.5 heatmap overlay stays semi-transparent
+// (~30%) so the geo/road map underneath remains clearly visible, BUT the scientific tiles
+// keep their meaningful value variation - they are NOT flattened into one solid lime. The
+// ImageMapType is created with this low opacity (and setOpacity is also called for Maps builds
+// that only honour the setter). Lime #d1f470 now applies to the SELECTOR/UI chrome only, not
+// to recolouring the data tiles. See RESEARCH-05-heatmap-lime-translucent.md for the earlier
+// (now reversed) single-hue recolour decision.
+const HEATMAP_OPACITY = 0.3;
 
 // India bounds, so the map cannot be panned off the product's area. Verbatim from the
 // mock's map options.
@@ -410,13 +412,10 @@ const VayuLokLive: React.FC = () => {
   const [ open, setOpen ] = useState( false );
   const [ active, setActive ] = useState( -1 );
 
-  // Which heatmap layer is active (user action only). null = none on load.
+  // Which heatmap layer is active (user action only). null = none on load. Selecting a
+  // layer both toggles the map heatmap AND swaps the environmental RESULT content shown
+  // in the LEFT card (AQI result vs PM2.5-focused result).
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
-  // 03C - expandable map. An explicit, keyboard-operable control (Enter/Space, with
-  // aria-expanded) grows the map stage; drag-pan works independently via
-  // gestureHandling:'greedy'. We keep keyboardShortcuts:false so Google's built-in
-  // arrow-pan does not fight the India strictBounds restriction.
-  const [ mapExpanded, setMapExpanded ] = useState( false );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const photoRailRef = useRef<HTMLDivElement | null>( null );
@@ -1218,16 +1217,14 @@ const VayuLokLive: React.FC = () => {
     // rather than US_AQI so heatmap colours line up with the India-CPCB legend/panels on
     // this page, and PM25_INDIGO_PERSIAN for PM2.5 (PM25_HEATMAP is not a valid enum value).
     const mapType = layer === 'PM25' ? 'PM25_INDIGO_PERSIAN' : 'UAQI_RED_GREEN';
-    // Req 05 (Option B, see RESEARCH-05-heatmap-lime-translucent.md): the tiles are
-    // server-rendered rasters with a baked colormap and no colour parameter, so the
-    // "same lime as the site" + "fully translucent" treatment is applied CLIENT-SIDE.
-    // (1) The ImageMapType carries a low `opacity` so the geo/road map underneath stays
-    //     clearly visible. (2) A CSS filter + blend recolours alt-less overlay tile <img>s
-    //     toward the site --lime (#d1f470) and removes any red tone. That CSS selector is
-    //     `.vl-live-overlay-lime :global(div[style*="z-index"] img:not([alt]))` (see below) -
-    //     it has NO .vl-live-map-stage ancestor. Its scope is the runtime-added
-    //     `vl-live-overlay-lime` class, which this effect adds to the .vl-live-map-canvas
-    //     host element below (not a nested stage node) while a layer is active.
+    // FINAL TARGET (reverses req 05's single-hue recolour): the heatmap tiles are
+    // server-rendered rasters whose baked colormap carries meaningful AQI/PM2.5 VALUE
+    // VARIATION, and the owner now wants that variation PRESERVED rather than flattened
+    // into one solid lime. So the only client-side treatment is TRANSLUCENCY: the
+    // ImageMapType carries a low `opacity` (~0.30) so the geo/road map underneath stays
+    // clearly visible while the tiles keep their scientific gradient. No hue-collapsing
+    // CSS filter is applied, so no runtime `vl-live-overlay-lime` class is added to the
+    // canvas host any more. Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome.
     const overlay = new w.google.maps.ImageMapType( {
       name: layer,
       tileSize: { width: 256, height: 256 },
@@ -1238,17 +1235,7 @@ const VayuLokLive: React.FC = () => {
     const typed = overlay as { setOpacity?: ( o: number ) => void };
     typed.setOpacity?.( HEATMAP_OPACITY );
     map.overlayMapTypes?.push( overlay );
-    // Tag the map-canvas host so the scoped CSS filter can reach alt-less overlay tile
-    // <img>s. The :not([alt]) guard keeps Google's labelled logo/legal/attribution image
-    // out of the match (ToS); the selector matches alt-less imgs under z-indexed panes of
-    // this canvas, which is the overlay tiles (Google's base-map raster tiles are likewise
-    // alt-less, so a live check that the lime wash does not bleed onto them is advisable).
-    // styled-jsx attaches its scope class to .vl-live-map-canvas; this adds the runtime
-    // `vl-live-overlay-lime` flag alongside it (no .vl-live-map-stage ancestor involved).
-    // Removed in the cleanup when no layer is active so the overlay styling disappears.
-    const host = mapHost.current;
-    host?.classList.add( 'vl-live-overlay-lime' );
-    return () => { host?.classList.remove( 'vl-live-overlay-lime' ); };
+    return () => { map.overlayMapTypes?.clear(); };
   }, [ layer ] );
 
   /* ---------------------------------------------------------------------------------
@@ -1465,17 +1452,158 @@ const VayuLokLive: React.FC = () => {
       <h2 className="vl-live-sr" id="vl-live-title">Live air quality and weather</h2>
 
       <div className="vl-live-wrap vl-live-grid">
-        {/* ===== LEFT COLUMN: all content, stacked ===== */}
+        {/* ===== LEFT COLUMN: selected-place card first, then all content, stacked =====
+            FINAL TARGET: the LEFT column leads with the selected-place card (photo + lime
+            number pill + place name + address), and, when a heatmap layer is active, the
+            existing VayuLok air-quality RESULT system renders inside this card. All markup
+            stays INLINE in the return so styled-jsx keeps its vl-live- scope. */}
         <div className="vl-live-left">
+
+          {/* SELECTED-PLACE CARD. The photo + number pill moved OFF the map into this card
+              (FINAL TARGET: the gallery no longer floats on the map). The place name and
+              full address always render here - they are known without a key, so this is a
+              sensible lead, not a misleading placeholder. Google Place Photo author
+              attributions (.vl-live-photo-credit + contributor <a>) ride WITH the photo in
+              this new location, as the Maps Platform ToS and the req-06 guard require. */}
+          <div className="vl-live-block vl-live-block-top">
+            <div className="vl-live-place-card">
+              { displayPhotos.length > 0 && (
+                <div className="vl-live-photo-shell">
+                  {/* Number-only pill (req 01): referee SVG + bare number (e.g. "8"),
+                      never "8 photos". Pill background is exactly the site lime #d1f470. */}
+                  <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" aria-hidden="true"><path d="M240-280v-120H120v-80h120v-120h80v120h120v80H320v120h-80Zm390 80v-438l-92 66-46-70 164-118h64v560h-90Z"/></svg>
+                    <span>{ displayPhotos.length }</span>
+                  </div>
+                  <div
+                    ref={ photoRailRef }
+                    className="vl-live-place-photos"
+                    aria-label={ `Photos near ${previewPlace.name}` }
+                    onScroll={ e => {
+                      const el = e.currentTarget;
+                      if ( el.clientWidth ) setPhotoIndex( Math.max( 0, Math.min( photoPages.length - 1, Math.round( el.scrollLeft / el.clientWidth ) ) ) );
+                    } }
+                  >
+                    { photoPages.map( ( page, pageIndex ) => (
+                      <div className="vl-live-photo-page" key={ page.map( p => p.url ).join( '|' ) }>
+                        { page.map( ( photo, i ) => (
+                          <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'}`.trim() } key={ photo.url }>
+                            <img
+                              src={ photo.url }
+                              alt={ `${previewPlace.name} area ${pageIndex * 3 + i + 1}` }
+                              loading={ pageIndex === 0 && i === 0 ? 'eager' : 'lazy' }
+                            />
+                            { photo.attributions.length > 0 && (
+                              <figcaption className="vl-live-photo-credit">
+                                { photo.attributions.slice( 0, 2 ).map( ( credit, creditIndex ) => (
+                                  <React.Fragment key={ `${credit.name}-${creditIndex}` }>
+                                    { creditIndex > 0 ? ' · ' : '' }
+                                    { credit.uri
+                                      ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a>
+                                      : credit.name }
+                                  </React.Fragment>
+                                ) ) }
+                              </figcaption>
+                            ) }
+                          </figure>
+                        ) ) }
+                      </div>
+                    ) ) }
+                  </div>
+                  { photoPages.length > 1 && (
+                    <div className="vl-live-photo-tabs" role="tablist" aria-label={ `Photo set ${photoIndex + 1} of ${photoPages.length}` }>
+                      { photoPages.map( ( _, i ) => (
+                        <span
+                          key={ i }
+                          className="vl-live-photo-tab"
+                          role="tab"
+                          tabIndex={ 0 }
+                          aria-selected={ i === photoIndex }
+                          aria-label={ `Show photo set ${i + 1}` }
+                          onClick={ () => {
+                            const el = photoRailRef.current;
+                            if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
+                            setPhotoIndex( i );
+                          } }
+                          onKeyDown={ e => {
+                            if ( e.key !== 'Enter' && e.key !== ' ' ) return;
+                            e.preventDefault();
+                            const el = photoRailRef.current;
+                            if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
+                            setPhotoIndex( i );
+                          } }
+                        />
+                      ) ) }
+                    </div>
+                  ) }
+                </div>
+              ) }
+
+              <div className="vl-live-place-body">
+                <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
+                <p className="vl-live-place-addr">{ place.addr }</p>
+
+                {/* ENVIRONMENTAL RESULT - reuses the EXISTING VayuLok air-quality result
+                    markup/styles. Shown INSIDE the left card only when a heatmap layer is
+                    active. AQI leads with the AQI value/category/dominant pollutant; PM2.5
+                    leads with the PM2.5 reading. Both reuse the same severity dot, category
+                    pill, pollutant rows and health guidance already defined on this page. */}
+                { liveActive && layer && air && (
+                  <div className="vl-live-layer-result" aria-labelledby="vl-live-layer-result-title">
+                    <p className="vl-live-eyebrow" id="vl-live-layer-result-title">
+                      { layer === 'PM25' ? 'PM2.5 heatmap result' : 'Air quality now' }
+                    </p>
+
+                    { layer === 'AQI' && (
+                      <>
+                        <div className="vl-live-figure">
+                          <span className={ dotClass( air.sev ) } aria-hidden="true" />
+                          <span className="vl-live-metric-xl">{ air.aqi }</span>
+                          <span className="vl-live-cat">{ air.word }</span>
+                        </div>
+                        { air.pollutants.filter( p => p.code === 'pm25' ).map( p => (
+                          <p className="vl-live-sub-fact" key="layer-pm25">PM2.5 { Math.round( p.value ) } { p.unit }</p>
+                        ) ) }
+                        { air.dominant && <p className="vl-live-cond">Dominant pollutant { air.dominant }.</p> }
+                      </>
+                    ) }
+
+                    { layer === 'PM25' && (
+                      <>
+                        { air.pollutants.filter( p => p.code === 'pm25' ).map( p => (
+                          <div className="vl-live-figure" key="layer-pm25-figure">
+                            <span className={ dotClass( air.sev ) } aria-hidden="true" />
+                            <span className="vl-live-metric-xl">{ Math.round( p.value ) }</span>
+                            <span className="vl-live-cat">{ p.unit }</span>
+                          </div>
+                        ) ) }
+                        <p className="vl-live-sub-fact">AQI { air.aqi } · { air.word } band</p>
+                        { air.dominant && <p className="vl-live-cond">Dominant pollutant { air.dominant }.</p> }
+                      </>
+                    ) }
+
+                    {/* Heatmap scale - reuses the existing no-red --aqi-* ramp, both ends
+                        labelled in WORDS so colour is never the sole carrier of meaning. */}
+                    <div className="vl-live-scale-legend" role="img" aria-label={ `${layer === 'PM25' ? 'PM2.5' : 'Air quality'} heatmap scale from good to hazardous` }>
+                      <div className="vl-live-scale" aria-hidden="true" />
+                      <div className="vl-live-scale-ends">
+                        <span>Good</span>
+                        <span>Hazardous</span>
+                      </div>
+                    </div>
+
+                    { air.advisory && <p className="vl-live-body vl-live-layer-advisory">{ air.advisory }</p> }
+                  </div>
+                ) }
+              </div>
+            </div>
+          </div>
 
           {/* NOW - editorial display type. The whole block is gated on a key: with no key
               there is no map and no live data, so a bare place name would be misleading.
-              The place name renders once live context exists; the live figures only once
-              they actually arrived. */}
+              The live figures render only once they actually arrived. */}
           { liveActive && (
           <div className="vl-live-block">
-            <p className="vl-live-place" id="vl-live-now-place">{ place.name }</p>
-
             { dataLoading && (
               <div className="vl-live-data-skeleton" role="status" aria-label="Loading current conditions">
                 <i /><i /><i /><i />
@@ -1488,7 +1616,6 @@ const VayuLokLive: React.FC = () => {
                 <button type="button" onClick={ () => setRefreshNonce( n => n + 1 ) }>Retry</button>
               </div>
             ) }
-            <p className="vl-live-place-addr">{ place.addr }</p>
 
             { ( air || weather ) && (
               <div className="vl-live-now vl-live-band">
@@ -1996,7 +2123,7 @@ const VayuLokLive: React.FC = () => {
             browser key can never leave visitors staring at a blank grey panel. */}
         <div className="vl-live-right">
           <div className="vl-live-map-sticky">
-            <div className={ `vl-live-map-stage ${mapExpanded ? 'is-expanded' : ''}`.trim() }>
+            <div className="vl-live-map-stage">
               { !mapReady && (
                 <div
                   className="vl-live-map-fallback"
@@ -2087,130 +2214,30 @@ const VayuLokLive: React.FC = () => {
                 </div>
               ) }
 
-              {/* Heatmap controls only make sense once the Maps JS canvas exists.
-                  On the fallback map they stay hidden rather than implying a layer
-                  can be toggled when there is no ImageMapType to receive it. */}
+              {/* AQI | PM2.5 heatmap selector. The ONLY controls remaining on the map
+                  (FINAL TARGET: no Expand/Collapse, no photo gallery, no on-map place
+                  card). Selecting a layer both toggles the map heatmap AND swaps the
+                  LEFT-card result content. The active tab is filled with the EXACT site
+                  lime #d1f470 (--lime) with #1a3a2a text. Controls appear only once the
+                  Maps JS canvas exists, so a fallback map never implies a toggleable layer.
+                  Kept INLINE so styled-jsx keeps its scope; inset from the bottom corners
+                  so Google's logo/legal stays visible. */}
               { mapReady && (
-                <div className="vl-live-map-controls">
+                <div className="vl-live-map-controls" role="group" aria-label="Heatmap layers">
                   <button
                     className="vl-live-layer"
                     type="button"
                     aria-pressed={ layer === 'AQI' }
-                    onClick={ () => setLayer( 'AQI' ) }
+                    onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
                   >AQI</button>
                   <button
                     className="vl-live-layer"
                     type="button"
                     aria-pressed={ layer === 'PM25' }
-                    onClick={ () => setLayer( 'PM25' ) }
+                    onClick={ () => setLayer( v => v === 'PM25' ? null : 'PM25' ) }
                   >PM2.5</button>
-                  {/* 03C - accessible expand/collapse control. A real <button> so it is
-                      operable with Enter/Space and exposes aria-expanded; it toggles the
-                      expanded map stage height. Drag-pan still works via gestureHandling:
-                      'greedy'. Kept INLINE in the return so styled-jsx keeps its scope. */}
-                  <button
-                    className="vl-live-layer vl-live-map-expand"
-                    type="button"
-                    aria-expanded={ mapExpanded }
-                    aria-label={ mapExpanded ? 'Collapse map' : 'Expand map' }
-                    onClick={ () => setMapExpanded( v => !v ) }
-                  >{ mapExpanded ? 'Collapse' : 'Expand' }</button>
                 </div>
               ) }
-
-                {/* Standalone photo overlay. The former place card (name/metrics/
-                    insight/view-details) was removed; only the photo rail with its
-                    numeric pill survives as its own overlay. It stays inset from the
-                    map's bottom corners so Google's logo/legal stays visible. All
-                    markup stays INLINE in the return so styled-jsx keeps its scope. */}
-                { displayPhotos.length > 0 && (
-                  <div className="vl-live-map-photos">
-                    <div className="vl-live-photo-shell">
-                      <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
-                        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#1f1f1f" aria-hidden="true"><path d="M240-280v-120H120v-80h120v-120h80v120h120v80H320v120h-80Zm390 80v-438l-92 66-46-70 164-118h64v560h-90Z"/></svg>
-                        <span>{ displayPhotos.length }</span>
-                      </div>
-                      <div
-                        ref={ photoRailRef }
-                        className="vl-live-place-photos"
-                        aria-label={ `Photos near ${previewPlace.name}` }
-                        onScroll={ e => {
-                          const el = e.currentTarget;
-                          if ( el.clientWidth ) setPhotoIndex( Math.max( 0, Math.min( photoPages.length - 1, Math.round( el.scrollLeft / el.clientWidth ) ) ) );
-                        } }
-                      >
-                        { photoPages.map( ( page, pageIndex ) => (
-                          <div className="vl-live-photo-page" key={ page.map( p => p.url ).join( '|' ) }>
-                            { page.map( ( photo, i ) => (
-                              <figure className={ `vl-live-place-photo ${i === 0 ? 'is-primary' : 'is-secondary'}`.trim() } key={ photo.url }>
-                                <img
-                                  src={ photo.url }
-                                  alt={ `${previewPlace.name} area ${pageIndex * 3 + i + 1}` }
-                                  loading={ pageIndex === 0 && i === 0 ? 'eager' : 'lazy' }
-                                />
-                                { photo.attributions.length > 0 && (
-                                  <figcaption className="vl-live-photo-credit">
-                                    { photo.attributions.slice( 0, 2 ).map( ( credit, creditIndex ) => (
-                                      <React.Fragment key={ `${credit.name}-${creditIndex}` }>
-                                        { creditIndex > 0 ? ' · ' : '' }
-                                        { credit.uri
-                                          ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a>
-                                          : credit.name }
-                                      </React.Fragment>
-                                    ) ) }
-                                  </figcaption>
-                                ) }
-                              </figure>
-                            ) ) }
-                          </div>
-                        ) ) }
-                      </div>
-                    </div>
-                    { photoPages.length > 1 && (
-                      <div className="vl-live-photo-tabs" role="tablist" aria-label={ `Photo set ${photoIndex + 1} of ${photoPages.length}` }>
-                        { photoPages.map( ( _, i ) => (
-                          <span
-                            key={ i }
-                            className="vl-live-photo-tab"
-                            role="tab"
-                            tabIndex={ 0 }
-                            aria-selected={ i === photoIndex }
-                            aria-label={ `Show photo set ${i + 1}` }
-                            onClick={ () => {
-                              const el = photoRailRef.current;
-                              if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
-                              setPhotoIndex( i );
-                            } }
-                            onKeyDown={ e => {
-                              if ( e.key !== 'Enter' && e.key !== ' ' ) return;
-                              e.preventDefault();
-                              const el = photoRailRef.current;
-                              if ( el ) el.scrollTo( { left: el.clientWidth * i, behavior: 'smooth' } );
-                              setPhotoIndex( i );
-                            } }
-                          />
-                        ) ) }
-                      </div>
-                    ) }
-                  </div>
-                ) }
-
-                {/* Req 05 - heatmap legend. Restored after it was dropped with the old
-                    place card. Rendered ONLY while a layer is active so it appears and
-                    disappears with the overlay. It reuses the existing no-red --aqi-*
-                    ramp (dark green -> lime -> amber) and labels BOTH ends in words so
-                    colour is never the sole carrier. Kept INLINE so styled-jsx keeps its
-                    scope, and inset from the map's bottom corners so Google's logo/legal
-                    stays visible (Maps Platform ToS). */}
-                { layer && (
-                  <div className="vl-live-scale-legend" role="img" aria-label={ `${layer === 'PM25' ? 'PM2.5' : 'Air quality'} heatmap scale from good to hazardous` }>
-                    <div className="vl-live-scale" aria-hidden="true" />
-                    <div className="vl-live-scale-ends">
-                      <span>Good</span>
-                      <span>Hazardous</span>
-                    </div>
-                  </div>
-                ) }
             </div>
           </div>
         </div>
@@ -2225,7 +2252,7 @@ const VayuLokLive: React.FC = () => {
           color:#1a1a1a;-webkit-font-smoothing:antialiased;background:#fff;padding-bottom:72px;
 
           --paper:#fff;--ground:#fafafa;
-          --lime:#d1f470;--lime-tint:rgba(209,244,112,.22);--lime-solid:#f5fde0;
+          --lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
           --green:#1a3a2a;--green-dot:#3da35a;--hair:#e5e7eb;
           --ink-head:rgba(0,0,0,.95);--ink-body:rgba(0,0,0,.898);--ink-strong:#000;
           --ink-base:#1a1a1a;--ink-muted:rgba(0,0,0,.54);--ink-status:rgba(0,0,0,.7);--ink-second:rgba(0,0,0,.66);
@@ -2276,13 +2303,9 @@ const VayuLokLive: React.FC = () => {
 
         .vl-live-map-sticky{display:flex;flex-direction:column;gap:10px}
         /* 03A - the whole map surface reads as ONE rounded panel. The stage owns the
-           20px home panel radius; the canvas and fallback inherit it so no square
-           corner shows through at any zoom. 20px (not 14px) gives the pronounced
-           rounded feel the owner asked for, and stays inside the home token set. */
-        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:20px;background:var(--ground);box-shadow:none;transition:height .32s var(--e-glide)}
-        /* 03C - expanded mode grows the stage height; drag-pan (gestureHandling:'greedy')
-           and the keyboard-operable expand control both still respect India strictBounds. */
-        .vl-live-map-stage.is-expanded{height:560px}
+           14px home panel radius (per design-tokens.md); the canvas and fallback inherit
+           it so no square corner shows through at any zoom. */
+        .vl-live-map-stage{position:relative;height:340px;overflow:hidden;border:1px solid rgba(209,244,112,.92);border-radius:14px;background:var(--ground);box-shadow:none}
         .vl-live-map-fallback{
           position:absolute;inset:0;z-index:0;display:flex;align-items:center;justify-content:center;gap:14px;
           width:100%;height:100%;padding:24px;border:0;border-radius:inherit;overflow:hidden;
@@ -2300,34 +2323,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-fallback-status{margin:3px 0 0;font-size:13px;line-height:1.35;color:var(--ink-muted)}
         .vl-live-map-canvas{position:absolute;inset:0;z-index:2;opacity:0;pointer-events:none;border-radius:inherit;overflow:hidden;background:transparent}
 
-        /* Req 05 (Option B) - recolour the AQI/PM2.5 heatmap overlay tiles toward the site
-           lime (--lime #d1f470) and keep them fully translucent so the geo/road map stays
-           clearly visible, with NO red tone (page-wide no-red constraint). The selector has
-           NO .vl-live-map-stage ancestor: it is scoped by the runtime .vl-live-overlay-lime
-           class the heatmap effect adds to the .vl-live-map-canvas host while a layer is
-           active, and it matches alt-less <img>s inside z-indexed panes under that host. The
-           :not([alt]) guard keeps Google's labelled logo/legal/attribution image out of the
-           match (Maps Platform ToS); no rule anywhere targets .gm-style-cc, a[href*="google"]
-           or img[alt="Google"]. Note the match is not pane-exact - Google's base-map raster
-           tiles are also alt-less, so the wash can reach them too (flagged for a live check).
-           The filter collapses Google's multi-hue baked ramp toward a single lime-ish hue
-           and removes red; opacity (with the ImageMapType opacity) keeps it translucent;
-           mix-blend-mode lets the lime read over the base map. Exact per-pixel #d1f470 is not
-           achievable from a baked raster (that would need a custom tile renderer, Option D in
-           the research) - this unifies toward --lime and kills the red, matching the intent. */
-        .vl-live-overlay-lime :global(div[style*="z-index"] img:not([alt])){
-          /* Matches alt-less tile <img>s inside z-indexed panes under the canvas host
-             (Maps renders overlayMapTypes tiles as plain, alt-less <img>s inside a
-             positioned z-index pane). The
-             :not([alt]) guard means Google's own labelled attribution/logo image (which
-             carries an alt text) is never matched or recoloured - attribution stays intact.
-             --lime #d1f470: grayscale+brightness lift, then sepia+hue-rotate+saturate steer
-             the result into the lime-green family (no red), tuned low-contrast so it reads as
-             a translucent wash rather than a solid block. */
-          filter:grayscale(1) brightness(1.08) sepia(0.72) hue-rotate(32deg) saturate(2.1) brightness(1.06) !important;
-          mix-blend-mode:multiply;
-          opacity:.72;
-        }
+        /* FINAL TARGET (reverses req 05's single-hue recolour): the heatmap tiles keep their
+           scientific VALUE VARIATION. No CSS filter recolours them any more - the only
+           client-side treatment is translucency via the ImageMapType opacity option (~0.30).
+           Lime #d1f470 is reserved for the AQI|PM2.5 selector chrome. No rule anywhere targets
+           .gm-style-cc, a[href*="google"] or img[alt="Google"], so Google's logo/legal and
+           the Place Photo author attributions stay intact (Maps Platform ToS). */
 
         .vl-live-map-retry{min-height:44px;margin-top:10px;padding:0 18px;border:2px solid #1a3a2a;border-radius:999px;background:#fff;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;cursor:pointer}        .vl-live-map-canvas.is-ready{opacity:1;pointer-events:auto}
 
@@ -2414,42 +2415,43 @@ const VayuLokLive: React.FC = () => {
 
         /* Map overlays - inset from the bottom corners (Maps Platform ToS). No rule
            anywhere targets .gm-style-cc, a[href*="google"] or img[alt="Google"]. */
-        .vl-live-map-controls{position:absolute;top:80px;left:16px;z-index:6;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+        .vl-live-map-controls{position:absolute;top:84px;right:18px;left:auto;z-index:6;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
         .vl-live-layer{min-height:44px;padding:0 18px;border:2px solid rgba(26,58,42,.28);border-radius:var(--r-pill);background:rgba(255,255,255,.58);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);color:var(--green);font:inherit;font-size:14px;font-weight:600;letter-spacing:-.125px;cursor:pointer;transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s}
         .vl-live-layer:hover{border-color:var(--lime);background:var(--lime-tint);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-layer:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        /* Req 05 - the active AQI/PM2.5 layer presents the EXACT site lime (--lime #d1f470),
-           not the earlier approximate translucent rgba(209,244,112,.72), so "same lime as the
-           site" holds for the control that drives the lime heatmap. */
-        .vl-live-layer[aria-pressed="true"]{border-color:rgba(26,58,42,.55);background:var(--lime)}
-        /* 03C expand control - reuses the layer pill language; its pressed/open state
-           mirrors the lime active fill used by the layer buttons. Kept on the approximate
-           translucent lime: the owner tied the exact-lime change to the AQI/PM2.5 layer
-           controls (req 05), not to the unrelated expand toggle (req 03). */
-        .vl-live-map-expand[aria-expanded="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
+        /* FINAL TARGET - the active AQI/PM2.5 selector tab presents the EXACT site lime
+           (--lime #d1f470) with #1a3a2a text/boundary, so "the selector uses WECARE lime"
+           holds. The lime now lives on the SELECTOR chrome, not on the data tiles. */
+        .vl-live-layer[aria-pressed="true"]{border-color:#1a3a2a;background:var(--lime);color:#1a3a2a;font-weight:700}
 
-        /* Req 05 - the heatmap legend container is pinned to the map's BOTTOM-LEFT and
-           inset from the corner so it never overlaps Google's bottom-corner logo/legal
-           (Maps Platform ToS). It only renders while a layer is active (see the return). */
-        .vl-live-scale-legend{position:absolute;left:16px;bottom:16px;right:auto;top:auto;z-index:5;width:min(220px,calc(100% - 150px));padding:10px 12px;border:1px solid rgba(209,244,112,.9);border-radius:12px;background:rgba(255,255,255,.9);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        /* Heatmap scale legend - now rendered INSIDE the left card's layer-result block
+           (no longer an absolute on-map overlay). It reuses the no-red --aqi-* ramp
+           (dark green -> lime -> amber) and labels both ends in WORDS so colour is never
+           the sole carrier of meaning. */
+        .vl-live-scale-legend{margin-top:16px;padding:10px 12px;border:1px solid rgba(209,244,112,.9);border-radius:12px;background:#fff}
         .vl-live-scale{height:8px;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--aqi-good) 0%,var(--aqi-sat) 22%,var(--aqi-mod) 48%,var(--aqi-poor) 74%,var(--aqi-worst) 100%)}
         .vl-live-scale-ends{display:flex;justify-content:space-between;margin-top:6px;gap:8px}
         .vl-live-scale-ends span{font-size:11px;font-weight:700;color:var(--green)}
 
-        /* Standalone photo overlay (the former place card was removed). It is a
-           self-contained lime-framed photo rail pinned to the map's top-right, inset
-           so Google's bottom-corner logo/legal stays visible. */
-        .vl-live-map-photos{position:absolute;top:80px;right:16px;left:auto;bottom:auto;z-index:4;width:min(400px,calc(100% - 150px));padding:0;border:1px solid rgba(209,244,112,.9);border-radius:20px;background:var(--lime-solid);box-shadow:0 14px 34px rgba(26,58,42,.14);overflow:hidden}
+        /* SELECTED-PLACE CARD (left column). FINAL TARGET: the photo + lime number pill
+           relocated OFF the map into this card, which leads the left column. The card uses
+           the home panel radius (14px) and hairline, no resting shadow. */
+        .vl-live-place-card{border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
+        .vl-live-place-body{padding:20px}
+        .vl-live-place-body .vl-live-place{margin-top:0}
+        .vl-live-layer-result{margin-top:20px;padding-top:20px;border-top:1px solid var(--hair)}
+        .vl-live-layer-result .vl-live-figure{margin-top:4px}
+        .vl-live-layer-advisory{margin-top:14px;font-size:17px}
         .vl-live-photo-shell{position:relative;margin:0}
-        .vl-live-place-photos{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;border-radius:20px 20px 0 0;scroll-snap-type:x mandatory;scrollbar-width:none}
+        .vl-live-place-photos{display:flex;gap:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none}
         .vl-live-place-photos::-webkit-scrollbar{display:none}
-        /* The photo cells sit on the same lime pill colour so a loading/absent image
-           reads as the lime behind the numeric pill. */
-        .vl-live-photo-page{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);grid-template-rows:1fr 1fr;gap:6px;flex:0 0 100%;height:236px;padding:0;scroll-snap-align:start;background:var(--lime-solid)}
-        .vl-live-place-photo{position:relative;width:100%;height:100%;margin:0;overflow:hidden;background:var(--lime-solid)}
-        .vl-live-place-photo.is-primary{grid-row:1 / span 2;border-radius:20px 0 0 0}
+        /* The photo cells sit on the SAME exact lime (--lime #d1f470) as the number pill
+           (req 01: photo + pill share the same lime), so a loading/absent image reads as
+           the pill's lime rather than the lighter --lime-solid used before. */
+        .vl-live-photo-page{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);grid-template-rows:1fr 1fr;gap:6px;flex:0 0 100%;height:236px;padding:0;scroll-snap-align:start;background:var(--lime)}
+        .vl-live-place-photo{position:relative;width:100%;height:100%;margin:0;overflow:hidden;background:var(--lime)}
+        .vl-live-place-photo.is-primary{grid-row:1 / span 2}
         .vl-live-place-photo.is-secondary{border-radius:0}
-        .vl-live-place-photo.is-secondary:nth-child(2){border-radius:0 20px 0 0}
         .vl-live-place-photo img{display:block;width:100%;height:100%;object-fit:cover}
         .vl-live-photo-credit{position:absolute;right:6px;bottom:5px;left:6px;z-index:2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;border-radius:7px;background:rgba(255,255,255,.76);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);font-size:8px;line-height:1.2;color:rgba(26,58,42,.78)}
         .vl-live-photo-credit a{color:inherit;text-decoration:none}
@@ -2633,11 +2635,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
         @media(max-width:1023px){
-          /* Keep the search centred; drop the layer controls and photo overlay below the
-             centred field so none of them overlap at tablet width. */
+          /* Keep the search centred; the only other on-map control is the AQI|PM2.5
+             selector, pinned top-right below the centred field. */
           .vl-live-map-search{top:14px;left:50%;transform:translateX(-50%);width:min(340px,calc(100% - 24px))}
-          .vl-live-map-controls{top:78px;left:12px}
-          .vl-live-map-photos{top:78px;right:12px;left:auto;bottom:auto;width:min(360px,calc(100% - 24px))}
+          .vl-live-map-controls{top:78px;right:12px;left:auto}
         }
         @media(max-width:767px){
           .vl-live{padding-bottom:48px}
@@ -2652,8 +2653,7 @@ const VayuLokLive: React.FC = () => {
           .vl-live-left > .vl-live-section{margin-top:64px}
           .vl-live-map-search{top:12px;left:50%;right:auto;transform:translateX(-50%);width:calc(100% - 24px)}
           .vl-live-search{max-width:none}
-          .vl-live-map-controls{top:76px;left:12px}
-          .vl-live-map-photos{top:132px;right:12px;left:auto;transform:none;width:calc(100% - 24px);max-width:360px}
+          .vl-live-map-controls{top:76px;right:12px;left:auto}
           .vl-live-plan-head{display:block}
           .vl-live-plan-range{margin-top:8px;text-align:left}
           .vl-live-plan-days{gap:6px}
@@ -2663,7 +2663,6 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live-data-skeleton i{animation:none}
-          .vl-live-map-stage{transition:none}
           .vl-live-layer,.vl-live-wa-subscribe,.vl-live-solar-load{transition:none}
           .vl-live-layer:hover,.vl-live-wa-subscribe:hover,.vl-live-wa-subscribe:focus-visible,.vl-live-solar-load:hover{transform:none;box-shadow:none}
         }

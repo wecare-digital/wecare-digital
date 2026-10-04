@@ -325,7 +325,22 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
   } );
 
   it( 'shows the heatmap legend only while a layer is active, with both ends labelled in words', async () => {
-    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    // The legend now lives inside the left card's environmental RESULT block, which renders
+    // once a layer is active AND the air reading has arrived. Supply a minimal AQI response.
+    vi.stubGlobal( 'fetch', vi.fn( ( input: RequestInfo | URL ) => {
+      const url = String( input );
+      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: 120, category: 'Moderate', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 58, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } ) );
     const VayuLokLive = await loadComponent();
 
     const { container } = render( <VayuLokLive /> );
@@ -343,6 +358,58 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( container.querySelector( '.vl-live-scale-legend .vl-live-scale' ) ).not.toBeNull();
     const ends = Array.from( container.querySelectorAll( '.vl-live-scale-ends span' ) ).map( n => n.textContent );
     expect( ends ).toEqual( [ 'Good', 'Hazardous' ] );
+  } );
+
+  it( 'renders the selected place name + address in the left card and swaps the result block per layer', async () => {
+    const fetchSpy = vi.fn( ( input: RequestInfo | URL ) => {
+      const url = String( input );
+      if ( url.includes( 'airquality.googleapis.com/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', aqi: 168, category: 'Moderate', dominantPollutant: 'pm25' } ],
+            pollutants: [ { code: 'pm25', concentration: { value: 82, units: 'MICROGRAMS_PER_CUBIC_METER' } } ],
+            healthRecommendations: { generalPopulation: 'Limit prolonged outdoor exertion.' },
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: false, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    // The left card always leads with the selected place's name + full address.
+    const leftCard = container.querySelector( '.vl-live-left .vl-live-place-card' );
+    expect( leftCard ).not.toBeNull();
+    expect( leftCard!.querySelector( '.vl-live-place' )?.textContent ).toBeTruthy();
+    expect( leftCard!.querySelector( '.vl-live-place-addr' )?.textContent ).toBeTruthy();
+
+    // No layer selected -> no environmental result block in the card yet.
+    expect( container.querySelector( '.vl-live-layer-result' ) ).toBeNull();
+
+    // Wait for the AQI figure to arrive from the stubbed air endpoint.
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    // Selecting AQI renders the existing VayuLok AQI result INSIDE the left card: the AQI
+    // value, its category word, and the health guidance all appear in the left column.
+    await waitFor( () => expect( container.querySelector( '.vl-live-left .vl-live-layer-result' ) ).not.toBeNull() );
+    const aqiResult = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
+    expect( aqiResult.textContent ).toContain( '168' );
+    expect( aqiResult.textContent ).toContain( 'Moderate' );
+    expect( aqiResult.textContent ).toContain( 'Air quality now' );
+
+    // Switching to PM2.5 swaps the left-card result to the PM2.5-focused block.
+    fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
+    await waitFor( () => {
+      const pm25Result = container.querySelector( '.vl-live-left .vl-live-layer-result' ) as HTMLElement;
+      expect( pm25Result.textContent ).toContain( 'PM2.5 heatmap result' );
+      expect( pm25Result.textContent ).toContain( '82' );
+    } );
   } );
 
   it( 'builds the map restricted to India and searches India-scoped (not duplicated literals)', async () => {
@@ -397,34 +464,59 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     expect( rec.placeFetchFields[ 0 ] ).toEqual( expect.arrayContaining( [ 'displayName', 'formattedAddress', 'location', 'photos' ] ) );
   } );
 
-  it( 'exposes an accessible, keyboard-operable expand control that toggles the expanded map stage', async () => {
+  it( 'no longer renders the on-map Expand/Collapse control, and keeps greedy drag-pan', async () => {
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
     const VayuLokLive = await loadComponent();
 
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    // Wait for the ready-only controls so the right-map chrome has rendered.
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
 
-    // 03C approach (b): keyboardShortcuts stays false so Google's built-in arrow-pan
-    // never fights the India strictBounds restriction. Keyboard interaction is provided
-    // instead by an explicit accessible expand/collapse <button>.
-    expect( rec.mapOpts!.keyboardShortcuts ).toBe( false );
-    expect( rec.mapOpts!.gestureHandling ).toBe( 'greedy' );
-
-    // The control is a real button, operable by keyboard, and reports its state.
-    const expand = await screen.findByRole( 'button', { name: 'Expand map' } );
-    expect( expand ).toHaveAttribute( 'aria-expanded', 'false' );
+    // FINAL TARGET: the Expand map / Collapse map control is REMOVED from the map. No
+    // button carries either accessible name, and the expand-only CSS hook is gone.
+    expect( screen.queryByRole( 'button', { name: 'Expand map' } ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Collapse map' } ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-expand' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).toBeNull();
 
-    // Activating it (Testing Library click models keyboard/pointer activation of a
-    // native button) expands the stage and flips aria-expanded + the accessible name.
-    fireEvent.click( expand );
-    await waitFor( () => expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).not.toBeNull() );
-    const collapse = screen.getByRole( 'button', { name: 'Collapse map' } );
-    expect( collapse ).toHaveAttribute( 'aria-expanded', 'true' );
+    // Basic usable map pan is kept via gestureHandling:'greedy'; keyboardShortcuts stays
+    // false so Google's built-in arrow-pan never fights the India strictBounds restriction.
+    expect( rec.mapOpts!.gestureHandling ).toBe( 'greedy' );
+    expect( rec.mapOpts!.keyboardShortcuts ).toBe( false );
+  } );
 
-    // Toggling again collapses it.
-    fireEvent.click( collapse );
-    await waitFor( () => expect( container.querySelector( '.vl-live-map-stage.is-expanded' ) ).toBeNull() );
+  it( 'does not float a photo gallery overlay on the map (photo + pill live in the left card)', async () => {
+    const rec2 = installGoogleMaps( {
+      photoAttributions: [ { displayName: 'Jane Contributor', uri: 'https://maps.google.com/maps/contrib/123' } ],
+    } );
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec2.mapOpts ).not.toBeNull() );
+
+    // Drive search -> select so photos resolve into previewPlace.photos.
+    const input = screen.getByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    fireEvent.mouseDown( option );
+
+    // The number pill renders (number-only), and it lives INSIDE the left column, not in
+    // a floating on-map overlay. The removed overlay container is gone from the DOM.
+    const pill = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-photo-count' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( container.querySelector( '.vl-live-map-photos' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-left .vl-live-photo-count' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-right .vl-live-photo-count' ) ).toBeNull();
+
+    // The pill is number-only: its visible text is a bare integer, never '{n} photos'.
+    const visible = ( pill.textContent || '' ).trim();
+    expect( visible ).toMatch( /^\d+$/ );
+    expect( visible ).not.toMatch( /photo/i );
   } );
 } );
 
