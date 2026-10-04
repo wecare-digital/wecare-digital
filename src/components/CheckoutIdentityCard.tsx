@@ -20,10 +20,12 @@ import { StoredAddress } from './AddressFields';
  * `src/test/CheckoutIdentityCard.test.tsx` pins this with a fixture whose components would
  * compose a DIFFERENT line, so a re-composition fails the build rather than shipping quietly.
  *
- * WHAT IS VERIFIED, AND HOW, IS STATED INLINE RATHER THAN IMPLIED
- * --------------------------------------------------------------
- *   - the PHONE carries "verified by WhatsApp sign-in", which is always true because it IS the
- *     session - there is no path to this card without having signed in on that number;
+ * WHAT IS VERIFIED IS STATED INLINE RATHER THAN IMPLIED
+ * -----------------------------------------------------
+ *   - the PHONE carries "verified", which is always true because it IS the session - there is no
+ *     path to this card without having signed in on that number. The badge deliberately does NOT
+ *     name the mechanism: how we proved it is our business, not the customer's, and the owner
+ *     asked for plain customer copy here rather than an internal-sounding label;
  *   - the EMAIL carries "verified", because a one-time code proved it before it was stored;
  *   - the ADDRESS carries NO badge. Nobody verified it. A tick there would be a claim we cannot
  *     support, and the customer is the only authority on where they live.
@@ -110,7 +112,7 @@ const CheckoutIdentityCard: React.FC<Props> = ( {
           <dt>Phone</dt>
           <dd>
             <span className="identity-value">{ maskPhone( identity.phone ) }</span>
-            <span className="identity-badge">✓ verified by WhatsApp sign-in</span>
+            <span className="identity-badge">✓ verified</span>
           </dd>
         </div>
 
