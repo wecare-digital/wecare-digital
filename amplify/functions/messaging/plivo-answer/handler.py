@@ -461,7 +461,7 @@ def _external_party(params: dict) -> tuple:
 
 
 def _send_post_call_sms(caller: str, call_uuid: str, request_id: str) -> None:
-    """Text the customer the self-service links. Fire and forget.
+    """Text the customer the customer-service links. Fire and forget.
 
     LEGACY, and triggered by hangup, which the brief lists as *not* a notification
     trigger. It is retained because it is the only connected-call notification
