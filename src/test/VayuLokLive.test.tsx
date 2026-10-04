@@ -276,6 +276,15 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     await waitFor( () => expect( rec.overlayPushes ).toHaveLength( 1 ) );
     expect( rec.imageMapTypeOpts ).toHaveLength( 1 );
 
+    // Req 05: the overlay carries the fully-translucent lime wiring. The ImageMapType is
+    // constructed with a low `opacity` so the geo/road map stays visible underneath; the
+    // lime recolour itself is a scoped CSS filter the live tiles receive (not asserted by
+    // brittle numeric filter values). Assert the opacity option is present and translucent.
+    const opacity = rec.imageMapTypeOpts[ 0 ].opacity as number;
+    expect( typeof opacity ).toBe( 'number' );
+    expect( opacity ).toBeGreaterThan( 0 );
+    expect( opacity ).toBeLessThan( 1 );
+
     // The overlay's tile URL points at the air-quality heatmapTiles SKU (built lazily per tile),
     // and uses a VALID Air Quality API mapType. The AQI layer must use the universal UAQI scale
     // (not US_AQI) so the heatmap matches the India-CPCB legend/panels on the page. The mapType
@@ -296,6 +305,27 @@ describe( 'VayuLokLive - map wiring, heatmap on user action, India scoping (key 
     const pm25Type = getPm25TileUrl( { x: 1, y: 2 }, 3 ).match( /\/mapTypes\/([^/]+)\/heatmapTiles\// )?.[ 1 ];
     expect( pm25Type ).toBe( 'PM25_INDIGO_PERSIAN' );
     expect( pm25Type ).not.toBe( 'PM25_HEATMAP' );
+  } );
+
+  it( 'shows the heatmap legend only while a layer is active, with both ends labelled in words', async () => {
+    vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, json: async () => ( {} ) } ) );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await waitFor( () => expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeInTheDocument() );
+
+    // No layer selected on load -> no legend in the DOM.
+    expect( container.querySelector( '.vl-live-scale-legend' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-scale' ) ).toBeNull();
+
+    // Activating a layer reveals the legend, which reuses the no-red --aqi-* ramp and
+    // labels both ends in WORDS so colour is never the sole carrier of meaning.
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+    await waitFor( () => expect( container.querySelector( '.vl-live-scale-legend' ) ).not.toBeNull() );
+    expect( container.querySelector( '.vl-live-scale-legend .vl-live-scale' ) ).not.toBeNull();
+    const ends = Array.from( container.querySelectorAll( '.vl-live-scale-ends span' ) ).map( n => n.textContent );
+    expect( ends ).toEqual( [ 'Good', 'Hazardous' ] );
   } );
 
   it( 'builds the map restricted to India and searches India-scoped (not duplicated literals)', async () => {

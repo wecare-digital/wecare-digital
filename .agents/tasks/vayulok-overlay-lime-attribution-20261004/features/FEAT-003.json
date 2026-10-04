@@ -1,0 +1,31 @@
+{
+  "id": "FEAT-003",
+  "type": "chore",
+  "description": "Requirement 06, bounded to the legally permissible subset the owner approved (the full removal is NOT permissible). Google Maps Platform attribution/logo/legal and Google Place Photo author attributions are MANDATORY under Google ToS and MUST remain visible and legible - they MUST NOT be removed or hidden. This feature does the permissible work: (1) verify and document the EXIF/metadata reality, and (2) optionally make the mandated Place Photo attribution as visually minimal as the ToS allows WHILE keeping it visible, or make no change if there is no safe room. Place Photos are fetched live from Google photo URLs (the app never holds raw bytes), so there is NO local EXIF to strip on those; a repo-wide grep found ZERO EXIF/sharp/piexif/image-metadata tooling in src/ or scripts/, and the only image path (presigned S3 upload in src/api/client.ts) forwards user File/Blob bytes unchanged without generating or transforming rasters. The deliverable here is mostly documentation plus, at most, a minimal, ToS-safe styling touch to the attribution figcaption - NOT its removal. This feature touches VayuLokLive.tsx; implement after FEAT-002 to avoid conflicts.",
+  "status": "pending",
+  "steps": [
+    "Confirm the EXIF finding by re-grepping: run `grep -rniE \"exif|piexif|\\bsharp\\b|image.?size|strip.*metadata\" src/ scripts/` and confirm no EXIF/metadata-stripping tooling or image-generation pipeline exists. Inspect src/api/client.ts getMediaUploadUrl / uploadFileToS3 / uploadFileViaPresignedPost (~713-770) and confirm they upload the user-provided File/Blob as-is with no raster re-encoding. Record the result as the authoritative EXIF finding in this feature's findings and in a short note appended to RESEARCH-05's sibling (or a new FINDINGS-06.md in this task folder): 'No project-owned image generation/upload path re-encodes rasters; Google Place Photos are fetched live from Google URLs so the app never holds raw bytes - there is NO local EXIF to strip and nothing to add. No new dependency is introduced.'",
+    "In src/components/VayuLokLive.tsx, DO NOT remove or hide the Place Photo author attribution figcaption (.vl-live-photo-credit, ~lines 2120-2129) or its links to credit.uri, and DO NOT remove the attributions data capture (~617, ~720, ~1361). These are the Google-mandated Place Photo author attributions. Removing/hiding them would violate Google ToS and will be rejected by the semantic reviewer.",
+    "DO NOT add any CSS targeting .gm-style-cc, a[href*=\"google\"], or img[alt=\"Google\"], and do not change the overlay insets that keep Google's bottom-corner logo/legal visible. The Maps attribution is untouchable.",
+    "PERMITTED (optional) presentation touch: the .vl-live-photo-credit CSS (~line 2368) is already minimal (position inset from corners, 8px font, truncated with ellipsis, ~76% opacity background). If and only if it can be done while keeping the text legible and visible per ToS, you MAY make a small, documented presentation refinement (e.g. consistent inset so it never collides with the map's bottom-corner Google logo). If there is no safe room to reduce it further without harming legibility/visibility, make NO change and document that decision. Do NOT reduce it to invisibility, zero-opacity, display:none, or off-screen.",
+    "Keep the 'clean photo' preference logic (attributions.length === 0 preferred for media) exactly as-is - it already surfaces attribution-free photos first where available WITHOUT suppressing attribution on photos that have it.",
+    "Update src/test/VayuLokLive.test.tsx to ADD a guard that the mandated Place Photo attribution still renders when a photo carries attributions (prevents a future accidental removal). Supply a place/photo with a non-empty authorAttributions through the existing google stub path and assert the .vl-live-photo-credit figcaption (and its credit link) renders. Keep all existing tests green.",
+    "Run npm run typecheck, npm run lint, npm run test and fix any failures."
+  ],
+  "acceptance_criteria": [
+    "A written EXIF finding exists in the task folder stating no project-owned raster generation/EXIF pipeline exists, Google Place Photos are live-fetched (no local bytes), nothing to strip, and no dependency added.",
+    "The Place Photo author attribution figcaption (.vl-live-photo-credit) and its credit links remain present, visible, and legible in the component; the attributions data capture is unchanged.",
+    "No CSS targets .gm-style-cc, a[href*=\"google\"], or img[alt=\"Google\"]; Google's bottom-corner logo/legal remains unobstructed.",
+    "A test asserts the mandated attribution still renders when a photo has authorAttributions.",
+    "npm run typecheck, npm run lint, npm run test all pass."
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm run lint",
+    "npm run test",
+    "grep -nE \"gm-style-cc|a\\[href\\*=.google|img\\[alt=.Google|display:\\s*none|opacity:\\s*0\\b\" src/components/VayuLokLive.tsx shows no attribution-hiding rule",
+    "grep -n \"vl-live-photo-credit\" src/components/VayuLokLive.tsx confirms the figcaption and its CSS still exist"
+  ],
+  "blocked_reason": null,
+  "findings": ""
+}

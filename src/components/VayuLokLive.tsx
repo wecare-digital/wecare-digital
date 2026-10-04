@@ -46,6 +46,13 @@ import { SITE_ORIGIN } from '../config/share';
 
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || '';
 
+// Req 05: the AQI / PM2.5 heatmap overlay must be FULLY TRANSLUCENT so the geo/road map
+// underneath stays clearly visible. The ImageMapType is created with this low opacity (and
+// setOpacity is also called for Maps builds that only honour the setter), on top of the
+// scoped CSS filter/blend that drives the baked tile colours toward the site --lime. Low
+// enough that road geometry and labels read through; see RESEARCH-05-heatmap-lime-translucent.md.
+const HEATMAP_OPACITY = 0.35;
+
 // India bounds, so the map cannot be panned off the product's area. Verbatim from the
 // mock's map options.
 const INDIA_BOUNDS = { north: 37.6, south: 6.4, west: 68.1, east: 97.4 };
@@ -1211,13 +1218,31 @@ const VayuLokLive: React.FC = () => {
     // rather than US_AQI so heatmap colours line up with the India-CPCB legend/panels on
     // this page, and PM25_INDIGO_PERSIAN for PM2.5 (PM25_HEATMAP is not a valid enum value).
     const mapType = layer === 'PM25' ? 'PM25_INDIGO_PERSIAN' : 'UAQI_RED_GREEN';
+    // Req 05 (Option B, see RESEARCH-05-heatmap-lime-translucent.md): the tiles are
+    // server-rendered rasters with a baked colormap and no colour parameter, so the
+    // "same lime as the site" + "fully translucent" treatment is applied CLIENT-SIDE.
+    // (1) The ImageMapType carries a low `opacity` so the geo/road map underneath stays
+    //     clearly visible. (2) A CSS filter + blend recolours the overlay tile <img>s
+    //     toward the site --lime (#d1f470) and removes any red tone; that CSS is scoped
+    //     to the tile pane only (see .vl-live-map-stage .vl-live-overlay-lime below) and
+    //     is reached by tagging the overlay pane node with a stable class once painted.
     const overlay = new w.google.maps.ImageMapType( {
       name: layer,
       tileSize: { width: 256, height: 256 },
+      opacity: HEATMAP_OPACITY,
       getTileUrl: ( coord: { x: number; y: number }, zoom: number ) =>
         `https://airquality.googleapis.com/v1/mapTypes/${mapType}/heatmapTiles/${zoom}/${coord.x}/${coord.y}?key=${encodeURIComponent( MAPS_KEY )}`,
     } );
+    const typed = overlay as { setOpacity?: ( o: number ) => void };
+    typed.setOpacity?.( HEATMAP_OPACITY );
     map.overlayMapTypes?.push( overlay );
+    // Tag the host so the scoped CSS filter reaches ONLY the overlay tile pane - never the
+    // base map and never Google's logo/legal (ToS). styled-jsx attaches its scope class to
+    // .vl-live-map-canvas; this adds the lime treatment flag alongside it. Removed in the
+    // cleanup when no layer is active so the overlay styling disappears with the layer.
+    const host = mapHost.current;
+    host?.classList.add( 'vl-live-overlay-lime' );
+    return () => { host?.classList.remove( 'vl-live-overlay-lime' ); };
   }, [ layer ] );
 
   /* ---------------------------------------------------------------------------------
@@ -2163,6 +2188,23 @@ const VayuLokLive: React.FC = () => {
                     ) }
                   </div>
                 ) }
+
+                {/* Req 05 - heatmap legend. Restored after it was dropped with the old
+                    place card. Rendered ONLY while a layer is active so it appears and
+                    disappears with the overlay. It reuses the existing no-red --aqi-*
+                    ramp (dark green -> lime -> amber) and labels BOTH ends in words so
+                    colour is never the sole carrier. Kept INLINE so styled-jsx keeps its
+                    scope, and inset from the map's bottom corners so Google's logo/legal
+                    stays visible (Maps Platform ToS). */}
+                { layer && (
+                  <div className="vl-live-scale-legend" role="img" aria-label={ `${layer === 'PM25' ? 'PM2.5' : 'Air quality'} heatmap scale from good to hazardous` }>
+                    <div className="vl-live-scale" aria-hidden="true" />
+                    <div className="vl-live-scale-ends">
+                      <span>Good</span>
+                      <span>Hazardous</span>
+                    </div>
+                  </div>
+                ) }
             </div>
           </div>
         </div>
@@ -2251,6 +2293,32 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-fallback-place{margin:0;font-size:16px;font-weight:700;line-height:1.25;color:var(--green)}
         .vl-live-map-fallback-status{margin:3px 0 0;font-size:13px;line-height:1.35;color:var(--ink-muted)}
         .vl-live-map-canvas{position:absolute;inset:0;z-index:2;opacity:0;pointer-events:none;border-radius:inherit;overflow:hidden;background:transparent}
+
+        /* Req 05 (Option B) - recolour the AQI/PM2.5 heatmap overlay tiles toward the site
+           lime (--lime #d1f470) and keep them fully translucent so the geo/road map stays
+           clearly visible, with NO red tone (page-wide no-red constraint). The selector is
+           scoped to the overlay tile <img>s ONLY, reached via the .vl-live-overlay-lime flag
+           the heatmap effect adds to this canvas while a layer is active. It deliberately
+           targets the overlay pane's tile images and NOT the whole map, so it never cascades
+           onto Google's logo/legal/attribution UI (Maps Platform ToS). No rule anywhere
+           targets .gm-style-cc, a[href*="google"] or img[alt="Google"].
+           The filter collapses Google's multi-hue baked ramp toward a single lime-ish hue
+           and removes red; opacity (with the ImageMapType opacity) keeps it translucent;
+           mix-blend-mode lets the lime read over the base map. Exact per-pixel #d1f470 is not
+           achievable from a baked raster (that would need a custom tile renderer, Option D in
+           the research) - this unifies toward --lime and kills the red, matching the intent. */
+        .vl-live-overlay-lime :global(div[style*="z-index"] img:not([alt])){
+          /* Scoped to the overlay pane's tile <img>s only (Maps renders overlayMapTypes
+             tiles as plain, alt-less <img>s inside a positioned z-index pane). The
+             :not([alt]) guard means Google's own labelled attribution/logo image (which
+             carries an alt text) is never matched or recoloured - attribution stays intact.
+             --lime #d1f470: grayscale+brightness lift, then sepia+hue-rotate+saturate steer
+             the result into the lime-green family (no red), tuned low-contrast so it reads as
+             a translucent wash rather than a solid block. */
+          filter:grayscale(1) brightness(1.08) sepia(0.72) hue-rotate(32deg) saturate(2.1) brightness(1.06) !important;
+          mix-blend-mode:multiply;
+          opacity:.72;
+        }
 
         .vl-live-map-retry{min-height:44px;margin-top:10px;padding:0 18px;border:2px solid #1a3a2a;border-radius:999px;background:#fff;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;cursor:pointer}        .vl-live-map-canvas.is-ready{opacity:1;pointer-events:auto}
 
@@ -2341,11 +2409,20 @@ const VayuLokLive: React.FC = () => {
         .vl-live-layer{min-height:44px;padding:0 18px;border:2px solid rgba(26,58,42,.28);border-radius:var(--r-pill);background:rgba(255,255,255,.58);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);color:var(--green);font:inherit;font-size:14px;font-weight:600;letter-spacing:-.125px;cursor:pointer;transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s}
         .vl-live-layer:hover{border-color:var(--lime);background:var(--lime-tint);transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-layer:focus-visible{outline:3px solid var(--green);outline-offset:3px}
-        .vl-live-layer[aria-pressed="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
+        /* Req 05 - the active AQI/PM2.5 layer presents the EXACT site lime (--lime #d1f470),
+           not the earlier approximate translucent rgba(209,244,112,.72), so "same lime as the
+           site" holds for the control that drives the lime heatmap. */
+        .vl-live-layer[aria-pressed="true"]{border-color:rgba(26,58,42,.55);background:var(--lime)}
         /* 03C expand control - reuses the layer pill language; its pressed/open state
-           mirrors the lime active fill used by the layer buttons. */
+           mirrors the lime active fill used by the layer buttons. Kept on the approximate
+           translucent lime: the owner tied the exact-lime change to the AQI/PM2.5 layer
+           controls (req 05), not to the unrelated expand toggle (req 03). */
         .vl-live-map-expand[aria-expanded="true"]{border-color:rgba(26,58,42,.55);background:rgba(209,244,112,.72)}
 
+        /* Req 05 - the heatmap legend container is pinned to the map's BOTTOM-LEFT and
+           inset from the corner so it never overlaps Google's bottom-corner logo/legal
+           (Maps Platform ToS). It only renders while a layer is active (see the return). */
+        .vl-live-scale-legend{position:absolute;left:16px;bottom:16px;right:auto;top:auto;z-index:5;width:min(220px,calc(100% - 150px));padding:10px 12px;border:1px solid rgba(209,244,112,.9);border-radius:12px;background:rgba(255,255,255,.9);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-scale{height:8px;border-radius:var(--r-pill);background:linear-gradient(90deg,var(--aqi-good) 0%,var(--aqi-sat) 22%,var(--aqi-mod) 48%,var(--aqi-poor) 74%,var(--aqi-worst) 100%)}
         .vl-live-scale-ends{display:flex;justify-content:space-between;margin-top:6px;gap:8px}
         .vl-live-scale-ends span{font-size:11px;font-weight:700;color:var(--green)}

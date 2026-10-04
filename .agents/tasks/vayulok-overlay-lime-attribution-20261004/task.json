@@ -1,0 +1,7 @@
+{
+  "task_id": "vayulok-overlay-lime-attribution-20261004",
+  "task_description": "VayuLok live page, cycle for requirements 05 and 06 (extends open PR #218 on branch feat/vayulok-map-right-redesign). 05: render the AQI and PM2.5 heatmap overlay in the site lime (#d1f470) and fully translucent so the geo map stays visible, removing the red cast - chosen approach documented in RESEARCH-05 (Option B: CSS filter/blend/opacity on overlay tiles, scoped, reusing --lime). 06 (bounded to the owner-approved permissible subset): keep Google Maps attribution/logo/legal AND Google Place Photo author attributions visible and legible (ToS mandatory - NOT removed); document the EXIF finding (no project-owned raster/EXIF pipeline exists; Place Photos are live-fetched so no local bytes to strip); optional minimal ToS-safe styling only. All work in src/components/VayuLokLive.tsx + src/test/VayuLokLive.test.tsx; hero page untouched. No push, no PR.",
+  "status": "in_progress",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003"],
+  "blocked_reason": null
+}
