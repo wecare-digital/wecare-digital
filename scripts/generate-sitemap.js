@@ -71,11 +71,11 @@ const PUBLIC_EXACT = new Set( [
   // copy back. It is NOT /get/, which stays out of the sitemap because it needs a verified
   // link to mean anything - this page is the linkable front door that points at it.
   '/vault',
-  // The catalogue index. Same rule as every group above: it is in PUBLIC_PAGE_META in _app.tsx,
-  // so it renders. The seven product pages under it are NOT listed here - they come in through
-  // the '/shop/' prefix below, because the set moves with the catalogue snapshot rather than with
-  // the code, which is the same reason '/blog/page/' is a prefix.
-  '/shop',
+  // THE CATALOGUE INDEX '/shop' IS WITHDRAWN, 2026-10-04, on owner instruction: it 301s to the
+  // home page and its page file is deleted, so advertising it here would submit a URL that
+  // redirects. Its PUBLIC_PAGE_META entry in _app.tsx went with it - the two are coupled by
+  // src/test/PublicRouteRegistration.test.ts. The seven PRODUCT pages are NOT withdrawn: they come
+  // in through the '/shop/' PREFIX below, which stays.
   // Zip (the request/delivery/pickup hub) and Perks (gift cards, rewards, offers). Same rule as
   // every group above: both are in PUBLIC_PAGE_META in _app.tsx, so they render; advertising them
   // here without that entry would put blank pages in front of a crawler. /perks is also the
@@ -98,9 +98,14 @@ const PUBLIC_EXACT = new Set( [
 // '/shop/' is the seven catalogue pages. A prefix rather than seven exact entries because the set
 // is enumerated from src/content/wix-catalog.json by getStaticPaths - it changes when the snapshot
 // is refreshed, which is a content change, and listing the slugs here would mean a sitemap that
-// goes stale on a data refresh instead of on a code change. THEY MUST BE IN THE SITEMAP: /shop/
-// links to all seven, but a product page is the page a search for the product should land on, and
-// each one carries its own Product and Offer markup.
+// goes stale on a data refresh instead of on a code change.
+//
+// THIS PREFIX MUST STAY, and since 2026-10-04 it is the ONLY way the product pages are advertised.
+// It used to read "/shop/ links to all seven, but a product page is the page a search should land
+// on" - the index was withdrawn on owner instruction that day, so there is no longer a listing
+// linking to them at all and this prefix is their only crawlable route in. Note it keeps working
+// because normalizeRoute('/shop/file-assist/') yields '/shop/file-assist', which still
+// startsWith('/shop/'); the withdrawn index was an EXACT entry, so removing it cannot affect this.
 const PUBLIC_PREFIXES = [ '/post/', '/blog/page/', '/blog/topic/', '/shop/' ];
 
 function normalizeRoute ( base ) {

@@ -116,8 +116,13 @@ RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
     ("https://www.wecare.digital", "https://wecare.digital", "301"):
         "Host canonicalisation, restored 2026-10-01T08:59:52Z. Source and target are bare "
         "origins with no path, which is what makes Amplify carry the request path across - "
-        "measured, www /shop/ -> apex /shop/, not apex home. Evidence: "
-        "docs/execution/url-host-matrix-20261001.md.",
+        "measured, www /contact/ -> apex /contact/, not apex home. Evidence: "
+        "docs/execution/url-host-matrix-20261001.md. SAMPLE CORRECTED 2026-10-04: this reason "
+        "cited www /shop/ -> apex /shop/, which stops being a clean demonstration now that the "
+        "/shop index itself 301s - www /shop/ chains 301 -> apex /shop/ -> 301 -> apex /, so "
+        "landing on home would no longer distinguish path preservation from path loss. "
+        "/contact/ is a terminal 200, so it still tells the two apart. The path-preservation "
+        "PROPERTY is unchanged; only the sample URL moved.",
     ("/zip", "/shipments/", "301"):
         "RENAMED, not retired. bb1cf39b: the owner retired the product name Zip on 2026-10-02 "
         "and the page moved to /shipments/ with content unchanged. retired_url_equity.py: a 404 "
@@ -130,6 +135,27 @@ RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
         "carry both - declaring one leaves the other 404ing. Target keeps its trailing slash "
         "because /shipments would itself redirect before resolving. 301 not 302: only a "
         "permanent redirect consolidates ranking.",
+    ("/shop", "/", "301"):
+        "WITHDRAWN, neither renamed nor retired-as-wrong. Owner instruction 2026-10-04: the "
+        "catalogue INDEX stops being browsable and /shop/ goes to the home page. Because the "
+        "listing has no replacement page, retired_url_equity.py's equity argument does not "
+        "apply - this 301 is instruction compliance, not equity recovery. 301 not 302: the "
+        "withdrawal is permanent, and a temporary status would keep the URL in the index. "
+        "Measured before the change: /shop 301 -> /shop/ -> 200 serving the full listing.",
+    ("/shop/", "/", "301"):
+        "The canonical form under next.config trailingSlash, and the spelling the owner named. "
+        "Owner instruction 2026-10-04. Measured before the change: /shop/ served the full "
+        "listing at 200. Both slash forms are declared because an Amplify source pattern is "
+        "matched as given rather than normalised, so declaring one leaves the other browsable. "
+        "EXACT SOURCE, NEVER /shop/<*>: a wildcard would 301 all seven /shop/<slug>/ product "
+        "pages, which the same instruction requires to keep rendering and adding to cart.",
+    ("/shop/index.html", "/", "301"):
+        "The third spelling, and the one that is easy to miss. Owner instruction 2026-10-04. "
+        "Measured before the change: /shop/index.html returned 200 AND served the full listing, "
+        "because output: 'export' writes out/shop/index.html and Amplify serves that file by "
+        "its own name. Deleting the page closes this for the current build; the rule is kept "
+        "PERMANENTLY anyway, because it is what stops a re-added index becoming reachable again "
+        "through a URL nobody is watching. It cannot touch a product page: the source is exact.",
 }
 
 RATIFIED_RULES = [
@@ -438,6 +464,84 @@ def test_no_ratified_redirect_can_shadow_a_passthrough_or_target_the_staff_tree(
         )
 
 
+def test_the_shop_index_redirect_cannot_match_a_product_page(
+    redirects, before, tmp_path, monkeypatch,
+):
+    """The /shop index 301s in all three spellings, and NOT ONE of them can touch a product page.
+
+    THE TWO HALVES OF THE 2026-10-04 INSTRUCTION ARE IN TENSION, which is the whole reason this
+    test exists. The owner asked for `/shop/` to stop being browsable AND for every
+    `/shop/<slug>/` product page to keep rendering and keep adding to cart. One `/shop/<*>`
+    source would satisfy the first half with a single line and silently destroy the second,
+    301ing all seven product pages onto the home page - a self-inflicted catalogue outage that
+    no status-code check on `/shop/` itself would ever notice.
+
+    So the wildcard's ABSENCE is asserted here as a first-class requirement, through this file's
+    own `_match_prefix` rather than a substring search: `'<*>' in source` would also match a
+    source that merely CONTAINS the characters, and `_match_prefix` asks the real question -
+    does this pattern wildcard its suffix.
+
+    The three `_patterns_overlap` probes are deliberately a trio including a POSITIVE case. Two
+    negatives alone would pass on a predicate that had been broken into always returning False,
+    which would disable the shadowing guard in the same file; the `/shop/<*>` case proves the
+    predicate can still tell the dangerous pattern from the safe ones.
+
+    No AWS call: `apply()` takes the capturing stub and the committed pre-change fixture.
+    """
+    monkeypatch.setattr(redirects, "ROOT", tmp_path)
+    client = _CapturingAmplify()
+    assert redirects.apply(client, [dict(r) for r in before]) == 0
+    assert client.written is not None, (
+        "apply() short-circuited - nothing below measured the written array. Drive this from a "
+        "PRE-change array, not a converged one."
+    )
+
+    written = {_rule_key(r) for r in client.written}
+    for spelling in ("/shop", "/shop/", "/shop/index.html"):
+        assert (spelling, "/", "301") in written, (
+            f"{spelling} does not 301 to the home page. The owner asked on 2026-10-04 for the "
+            f"catalogue index to stop being browsable in every spelling; /shop/index.html was "
+            f"measured serving the full listing at 200, so omitting one leaves it reachable."
+        )
+
+    wildcarded = sorted(
+        str(r.get("source", "")) for r in client.written
+        if str(r.get("source", "")).startswith("/shop") and _match_prefix(str(r.get("source", "")))[1]
+    )
+    assert not wildcarded, (
+        f"a /shop source wildcards its suffix: {wildcarded}. An Amplify wildcard matches any "
+        f"suffix, so this 301s every /shop/<slug>/ product page onto the home page. The three "
+        f"index spellings must stay EXACT sources."
+    )
+
+    assert not _patterns_overlap("/shop/", "/shop/file-assist/"), (
+        "the exact /shop/ redirect is reported as able to match a product page"
+    )
+    assert not _patterns_overlap("/shop/index.html", "/shop/file-assist/"), (
+        "the exact /shop/index.html redirect is reported as able to match a product page"
+    )
+    assert _patterns_overlap("/shop/<*>", "/shop/file-assist/"), (
+        "_patterns_overlap no longer reports /shop/<*> as matching a product page, so the two "
+        "negative assertions above prove nothing - the predicate itself is broken"
+    )
+
+    catalogue = json.loads((ROOT / "src/content/wix-catalog.json").read_text())
+    slugs = [str(p["slug"]) for p in catalogue["products"] if p.get("slug")]
+    assert slugs, (
+        "no slugs were read from the catalogue snapshot, so the per-product loop below would "
+        "assert nothing"
+    )
+    for slug in slugs:
+        product_path = f"/shop/{slug}/"
+        for source, _target, _status in RATIFIED_REDIRECTS:
+            if not source.startswith("/"):
+                continue  # the host rule's source is an origin, not a path
+            assert not _patterns_overlap(source, product_path), (
+                f"ratified redirect {source} can match the product page {product_path}, which "
+                f"the owner's same instruction requires to keep rendering"
+            )
+
+
 def test_pattern_overlap_is_segment_aware_in_both_directions():
     """The predicate the shadowing guard turns on, pinned by example in both directions.
 
@@ -526,10 +630,16 @@ def test_the_catch_all_is_last_and_unique_in_the_snapshot_and_in_the_write(
 def test_the_host_rule_is_first_and_carries_no_path(after):
     """Source and target are bare origins, which is what preserves the request path.
 
-    Measured after applying: `https://www.wecare.digital/shop/` -> 301 ->
-    `https://wecare.digital/shop/`. Had the source carried a path, www would have collapsed
+    Measured after applying: `https://www.wecare.digital/contact/` -> 301 ->
+    `https://wecare.digital/contact/`. Had the source carried a path, www would have collapsed
     every URL onto the apex home page - worse than the duplicate-content state the rule was
     restored to fix.
+
+    SAMPLE CORRECTED 2026-10-04. This docstring cited `/shop/` as the measured sample. With the
+    /shop index now 301ing to home, `www /shop/` chains 301 -> `apex /shop/` -> 301 -> `apex /`,
+    so a reader checking that sample would see www traffic terminate on home - which is
+    indistinguishable from the path-LOSS failure this rule exists to prevent. `/contact/` is a
+    terminal 200, so it still separates the two. The property asserted below is unchanged.
     """
     assert after[0] == WWW_CANONICAL, f"first rule must be the host canonicalisation, found {after[0]}"
     for field in ("source", "target"):

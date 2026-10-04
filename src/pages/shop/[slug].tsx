@@ -58,9 +58,17 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
         ariaLabel={ product.name }
       >
         <div className="shopd-in">
+          {/* TWO ITEMS, NOT THREE, since 2026-10-04. The middle crumb was
+              { label: 'Shop', href: '/shop/' } and the catalogue index has been withdrawn on owner
+              instruction, so that href now 301s to the home page - a breadcrumb trail whose middle
+              step redirects to its own first step.
+              THE ITEM IS REMOVED RATHER THAN HAVING ITS href DROPPED: components/Breadcrumbs.tsx
+              renders an href-less crumb as <span aria-current="page">, so keeping it would
+              announce TWO current pages to a screen reader. ShopProductHead's BreadcrumbList is
+              cut to the same two items, because a graph describing a trail the page does not
+              render is how a rich result disappears silently. */}
           <Breadcrumbs items={ [
             { label: 'Home', href: '/' },
-            { label: 'Shop', href: '/shop/' },
             { label: product.name },
           ] } />
 
@@ -114,8 +122,9 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             <p className="shopd-note">
               Review your final total in the cart before payment.
             </p>
-
-            <p className="shopd-back"><Link href="/shop/">All items in the shop</Link></p>
+            {/* The "All items in the shop" link was here. Removed 2026-10-04: the catalogue index
+                is withdrawn, so it pointed at a URL that 301s to the home page - an invitation to
+                a list that no longer exists. The Home crumb above is the way out of this page. */}
           </section>
         </div>
 
@@ -169,13 +178,8 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
           }
 
-          /* 44px, so the way back to the listing is a real target. */
-          .shopd-back{margin:28px 0 0;font-size:16px;line-height:1.55}
-          .shopd-back :global(a){
-            display:inline-flex;align-items:center;min-height:44px;
-            color:#1a3a2a;font-weight:700;text-underline-offset:3px;
-          }
-          .shopd-back :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
+          /* The .shopd-back rules went with the link they styled, 2026-10-04. The class has no
+             other reference in src/ or tools/, so these were dead declarations. */
 
           @media(max-width:767px){
             .shopd-p{font-size:18px}

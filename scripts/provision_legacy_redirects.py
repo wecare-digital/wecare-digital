@@ -37,7 +37,7 @@ def amplify():
 
 
 def desired_redirects() -> list[dict]:
-    """The www canonicalisation, plus the /zip -> /shipments rename.
+    """The www canonicalisation, the /zip -> /shipments rename, and the withdrawn /shop index.
 
     WHY A SECOND REDIRECT NOW EXISTS, when this module's whole posture is that retired paths
     should 404 rather than be kept alive: because /zip was not RETIRED, it was RENAMED.
@@ -65,6 +65,26 @@ def desired_redirects() -> list[dict]:
     301, not 302: the move is permanent, and only a permanent redirect consolidates ranking onto
     the new URL.
 
+    WHY THREE /shop RULES NOW EXIST, and why this one is neither a rename nor a retirement.
+
+    On 2026-10-04 the owner instructed that the catalogue INDEX stop being browsable and that
+    /shop/ go to the home page. The listing is WITHDRAWN - it is neither replaced by another page
+    nor deleted because it was wrong - so retired_url_equity.py's equity argument does not apply
+    here at all. The 301 is INSTRUCTION COMPLIANCE, not equity recovery. 301 rather than 302
+    because the withdrawal is permanent and a temporary status would keep the old URL in the index.
+
+    THE SEVEN PRODUCT PAGES ARE NOT AFFECTED AND MUST NOT BE. /shop/<slug>/ keeps rendering and
+    keeps its add-to-cart. That is why these are three EXACT sources and never a /shop/<*>
+    wildcard: an Amplify wildcard source matches any suffix, so /shop/<*> would 301 every product
+    page onto the home page and destroy the catalogue. Do not "simplify" the three rules into one.
+
+    ALL THREE SPELLINGS ARE DECLARED, and the third is the one that is easy to miss. Measured on
+    2026-10-04 before this change: /shop/ served the full listing at 200, /shop 301'd to /shop/,
+    and /shop/index.html ALSO served the full listing at 200 - because `output: 'export'` writes
+    out/shop/index.html and Amplify will serve that file by its own name. Deleting the page from
+    the export closes that for the current build, but the rule is kept PERMANENTLY: it is what
+    stops a re-added index page becoming reachable again by a URL nobody is watching.
+
     NOTE FOR WHOEVER RUNS --apply: verify() compares the live rule list against this function for
     EXACT equality, so a live app that still carries only the www rule will report FAIL until
     --apply has run. That FAIL is the expected pre-apply state, not a fault in this list.
@@ -73,6 +93,9 @@ def desired_redirects() -> list[dict]:
         {"source": "https://www.wecare.digital", "target": SITE, "status": "301"},
         {"source": "/zip", "target": "/shipments/", "status": "301"},
         {"source": "/zip/", "target": "/shipments/", "status": "301"},
+        {"source": "/shop", "target": "/", "status": "301"},
+        {"source": "/shop/", "target": "/", "status": "301"},
+        {"source": "/shop/index.html", "target": "/", "status": "301"},
     ]
 
 

@@ -50,11 +50,16 @@ const ROUTES = [
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   '/refer-and-earn/',
-  // The catalogue. /shop/ is a hero plus a card grid, like /blog/ above it; /shop/kiosk/ is the
-  // one public page that does NOT wrap itself in RotatingHero, so it is the only route here whose
-  // band structure and header clearance are its own file's work rather than the shared shell's.
-  // That is exactly the case this harness exists for.
-  '/shop/', '/shop/kiosk/',
+  // The catalogue. '/shop/' WAS HERE and was described as "a hero plus a card grid, like /blog/
+  // above it". THAT DESCRIPTION IS NO LONGER TRUE: the owner withdrew the index on 2026-10-04, so
+  // the route 301s to the home page and there is no hero and no grid to inspect. Removed rather
+  // than re-described, because a harness that loads a redirect audits home twice or fails.
+  //
+  // /shop/kiosk/ STAYS and is the whole catalogue coverage now. It is a slug rendered by
+  // src/pages/shop/[slug].tsx and it is the one public page that does NOT wrap itself in
+  // RotatingHero, so its band structure and header clearance are its own file's work rather than
+  // the shared shell's. That is exactly the case this harness exists for.
+  '/shop/kiosk/',
 ];
 
 const inventory = async () => {

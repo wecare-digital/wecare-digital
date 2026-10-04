@@ -45,13 +45,17 @@ const ROUTES = [
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   '/refer-and-earn/',
-  // The catalogue. BOTH shapes are here, and the product page is the one that earns its place:
-  // /shop/ takes its head from PageMeta plus the sitewide block in _app.tsx, which fourteen routes
-  // above already prove, but /shop/kiosk/ declares every tag itself through ShopProductHead.tsx -
-  // so it is the only route in this list where a missing or duplicated og tag would be nobody
-  // else's bug. The canonical assertion is the point: a dynamic route's pathname is the pattern,
-  // and this check is what proves the built page says /shop/kiosk/ rather than /shop/[slug]/.
-  '/shop/', '/shop/kiosk/',
+  // The catalogue. '/shop/' WAS HERE and was removed on 2026-10-04 when the owner withdrew the
+  // index: it 301s to the home page, so it has no head of its own left to check. It was also the
+  // weaker of the two rows - it took its head from PageMeta plus the sitewide block in _app.tsx,
+  // which fourteen routes above already prove.
+  //
+  // /shop/kiosk/ WAS ALWAYS THE ROW THAT EARNED ITS PLACE and it stays. It declares every tag
+  // itself through ShopProductHead.tsx, so it is the only route in this list where a missing or
+  // duplicated og tag would be nobody else's bug. The canonical assertion is the point: a dynamic
+  // route's pathname is the PATTERN, and this check is what proves the built page says
+  // /shop/kiosk/ rather than /shop/[slug]/.
+  '/shop/kiosk/',
 ];
 
 /**

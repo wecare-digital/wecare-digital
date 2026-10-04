@@ -77,11 +77,25 @@
  *
  * Re-adding `/checkout/` or `/account/` is therefore conditional on those pages existing,
  * not a free edit — the test above will fail first, which is the intended order.
+ *
+ * NARROWED AGAIN 2026-10-04, from five entries to four, for exactly the reason stated above.
+ * `/shop/` LEFT the set because the owner withdrew the catalogue index that day: the page file is
+ * deleted, so `output: 'export'` emits nothing for it and the edge 301s the URL to the home page.
+ * Keeping it would make this function vouch for a destination that no longer resolves, which is
+ * the one thing the contract above forbids — and the test took the prescribed route of INVERTING
+ * rather than being deleted, so `/shop/` is now asserted to fall back to `/cart/`.
+ *
+ * WHAT THIS CHANGES FOR A VISITOR, stated rather than left to be discovered. No in-app flow is
+ * affected: `src/pages/cart.tsx:117` is the ONLY producer of a `return` value in this codebase and
+ * it produces `/cart/`, so nothing here ever asked to come back to `/shop/`. The difference is
+ * confined to a hand-written or externally-supplied `?return=/shop/`, which now lands on `/cart/`
+ * instead of being forwarded to `/shop/` and bounced to the home page by the 301. Neither is the
+ * catalogue listing, because the listing is gone; this is the one that does not spend a redirect
+ * on a dead URL.
  */
 const ALLOWED: ReadonlySet<string> = new Set( [
   '/cart/',
   '/orders/',
-  '/shop/',
   '/blog/',
   '/',
 ] );

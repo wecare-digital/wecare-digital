@@ -15,7 +15,14 @@ from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
-CUSTOMER_PAGES = ('/shop/', '/cart/', '/account/sign-in/', '/orders/',
+# '/shop/' was removed on 2026-10-04: the owner withdrew the catalogue index, so there is no
+# out/shop/index.html to read and a probe for one raises, which `main()` turns into a failure row
+# and exits 1 - AFTER `next build` has already succeeded, failing the Amplify build for a page that
+# was deliberately deleted. NOTE `paths()` BELOW UNIONS TWO SOURCES: this tuple and
+# config/public-pages.json, whose own '/shop' entry is turned straight back into '/shop/' by the
+# rstrip-then-append. Cleaning only one of the two leaves the page in the probe set, so both were
+# cleaned together.
+CUSTOMER_PAGES = ('/cart/', '/account/sign-in/', '/orders/',
                   '/checkout/status/', '/checkout/success/')
 RETIRED_HOSTS = {'store.wecare.digital', 'shop.wecare.digital', 'xout.wecare.digital',
                  'bnbclub.in', 'legalchamp.in', 'nofault.in', 'ritualguru.in', 'swdhya.in'}

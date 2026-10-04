@@ -1,0 +1,47 @@
+[
+    {
+        "source": "https://www.wecare.digital",
+        "target": "https://wecare.digital",
+        "status": "301"
+    },
+    {
+        "source": "/get",
+        "target": "/get/index.html",
+        "status": "200"
+    },
+    {
+        "source": "/get/",
+        "target": "/get/index.html",
+        "status": "200"
+    },
+    {
+        "source": "/get/<*>",
+        "target": "https://d1kf2rchz7yras.cloudfront.net/<*>",
+        "status": "200"
+    },
+    {
+        "source": "/r/<*>",
+        "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/r/<*>",
+        "status": "200"
+    },
+    {
+        "source": "/api/<*>",
+        "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/<*>",
+        "status": "200"
+    },
+    {
+        "source": "/mcp",
+        "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/mcp",
+        "status": "200"
+    },
+    {
+        "source": "/mcp/",
+        "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/mcp",
+        "status": "200"
+    },
+    {
+        "source": "/<*>",
+        "target": "/404.html",
+        "status": "404-200"
+    }
+]

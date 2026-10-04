@@ -95,27 +95,20 @@ const STRUCTURAL = [
   { path: '/blog', group: 'start', name: 'Blog',
     description: 'Published articles. Paginated index; individual posts live under /post/<slug>/.' },
   /*
-   * The catalogue index. It needs a line here rather than coming through a content module because
-   * its items are read from a committed Wix snapshot, not declared as ProductDefs - the two
-   * contentModule() readers below parse `slug` and `name` out of products.ts and customerservice.ts,
-   * and src/content/shop.ts has neither field in that shape.
+   * THE CATALOGUE INDEX '/shop' IS WITHDRAWN, 2026-10-04, on owner instruction: it 301s to the
+   * home page and src/pages/shop/index.tsx is deleted. Its entry sat here, immediately before
+   * /orders, and it is gone rather than commented out because the generated
+   * config/public-pages.json is READ BY THE PRODUCTION BUILD GATE: scripts/checkout_release_check.py
+   * turns every catalogue path into a page to fetch from the export, so a '/shop' entry becomes a
+   * read of out/shop/index.html, which no longer exists - and that failure lands AFTER
+   * `next build` has succeeded, failing the Amplify build.
    *
-   * IT SITS IMMEDIATELY BEFORE /orders, and the pair is the reason: Shop is where something is
-   * bought and Orders is where it is tracked, so buying before tracking is the order a reader
-   * would expect. This is the only place that order is decided - the comment at the top of this
-   * array records that within-group order is this declaration's order.
+   * The seven PRODUCT pages were never listed here and still are not: /shop/<slug>/ comes into the
+   * sitemap through the '/shop/' prefix in scripts/generate-sitemap.js, and this file only carries
+   * structural front doors. They keep rendering.
    *
-   * 'start' rather than 'services'. That group is described as "consumer-facing services, each
-   * with its own page", and this is not a service page; it is a front door to a list, like Blog
-   * and Orders beside it. The seven items under it are not catalogued individually: /shop/ links
-   * to all seven, and PUBLIC_EXACT deliberately admits them by prefix rather than by name, so
-   * there is nothing here for this file to place.
-   *
-   * No name or description: PUBLIC_PAGE_META in _app.tsx carries both, and
-   * src/test/PublicAiSurface.test.ts asserts the catalogue reuses that description verbatim so a
-   * crawler and a model reading llms.txt get one account of the page rather than two.
+   * Regenerate with `node scripts/generate-public-pages.js`; never hand-edit the JSON.
    */
-  { path: '/shop', group: 'start' },
   { path: '/orders', group: 'start' },
   // Zip is the request/delivery/pickup hub — a front door to a set of actions, like Orders and
   // Blog beside it, rather than a service page — so it sits in 'start'. Its name and description

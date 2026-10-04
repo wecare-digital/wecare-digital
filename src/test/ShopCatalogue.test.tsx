@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { readCart, toLineItems } from '../lib/cart';
 import { CONTRIBUTION_CHOICES } from '../config/contribution';
-import ShopIndex from '../pages/shop/index';
 import ShopProductPage from '../pages/shop/[slug]';
 import { shopProductSchema } from '../components/ShopProductHead';
 import {
@@ -255,58 +254,22 @@ describe( 'the derived head strings stay inside the bounds seocheck enforces', (
  * href="/contact/" in the export.
  *
  * Measured on the built export rather than assumed:
- *   out/shop/index.html        href="/shop/file-assist/" ... href="/shop/viveka/"   (7 links)
- *   out/shop/kiosk/index.html  href="/contact/"  href="/shop/"
+ *   out/shop/kiosk/index.html  href="/contact/"  href="/"
  *
  * So these tests assert the path the PAGE hands to Link, normalised the way this environment
  * normalises it. The canonical form of the built URL is seocheck.js's assertion, against the
  * export, where the real config applies. Hard-coding the slashless string instead would hide which
  * of the two is being checked.
+ *
+ * The out/shop/index.html line above was removed on 2026-10-04 along with the file: the owner
+ * withdrew the catalogue index, so there is no listing document in the export any more. The
+ * `describe( 'the listing page' )` block that followed - five its covering the product links,
+ * the formatted price, the boundary copy and both stock branches - went with it, because the
+ * component it rendered no longer exists. Every property it asserted that is still reachable is
+ * asserted against the product page below: formatted price, boundary copy, and both stock
+ * branches all have equivalents in `describe( 'the product page' )`.
  */
 const asRendered = ( path: string ): string => path.replace( /\/$/, '' ) || '/';
-
-describe( 'the listing page', () => {
-  it( 'links every product at its own URL', () => {
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    for ( const product of SHOP_PRODUCTS ) {
-      const link = screen.getByRole( 'link', { name: product.name } );
-      expect( link.getAttribute( 'href' ) ).toBe( asRendered( shopProductPath( product ) ) );
-    }
-  } );
-
-  it( 'prints the price Wix formatted, not a rebuilt one', () => {
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    expect( screen.getByText( '₹24,999.00' ) ).toBeTruthy();
-    expect( screen.getByText( '₹599.00' ) ).toBeTruthy();
-  } );
-
-  it( 'says where the prices come from and that nothing is charged', () => {
-    /*
-     * The owner replaced the snapshot DATE with a shorter sentence, so this no longer asserts
-     * "read on 26 September 2026". The substance that had to survive is still asserted: the price is
-     * the catalogue's rather than a quote, the store is what confirms it, and proceeding charges
-     * nothing. Dropping the date loses a freshness cue and was the owner's call.
-     */
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    expect( screen.getByText( /Review your final total in the cart before payment/ ) ).toBeTruthy();
-    expect( screen.queryByText( /Live payment is not on yet/ ) ).toBeNull();
-    expect( screen.getByText( /before payment/ ) ).toBeTruthy();
-  } );
-
-  it( 'says nothing about stock while everything is in stock', () => {
-    // Seven identical "In stock" chips would be seven badges carrying no information, which is why
-    // the notice is rendered only when it is false. This is the negative half.
-    render( <ShopIndex products={ SHOP_PRODUCTS } /> );
-    expect( screen.queryByText( /Not available right now/ ) ).toBeNull();
-  } );
-
-  it( 'marks an item that is out of stock', () => {
-    // The positive half, and the reason this page takes its catalogue as a prop: every item in the
-    // committed snapshot is in stock, so this branch is unreachable from the real data.
-    render( <ShopIndex products={ [ SYNTHETIC ] } /> );
-    expect( screen.getByText( 'Not available right now.' ) ).toBeTruthy();
-  } );
-} );
 
 describe( 'the product page', () => {
   it( 'renders the name as the only h1 and the description as text', () => {
@@ -448,11 +411,37 @@ describe( 'the product page', () => {
     expect( json ).not.toContain( '[slug]' );
   } );
 
-  it( 'offers a way back to the listing', () => {
+  it( 'offers a way out through a two-item breadcrumb, never back to the withdrawn listing', () => {
+    /*
+     * REWRITTEN 2026-10-04. This was `offers a way back to the listing` and asserted an
+     * "All items in the shop" link pointing at /shop/. The owner withdrew the catalogue index, so
+     * that link and the middle "Shop" breadcrumb both pointed at a URL that 301s to the home page -
+     * and the trail's middle step redirected to its own first step.
+     *
+     * The crumb is REMOVED rather than left href-less: components/Breadcrumbs.tsx renders an
+     * href-less item as <span aria-current="page">, so keeping it would announce two current pages.
+     * That is why the negative half below checks for the absence of a /shop/ href AND the absence
+     * of a second aria-current.
+     */
     const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
-    render( <ShopProductPage product={ kiosk } /> );
-    expect( screen.getByRole( 'link', { name: 'All items in the shop' } ).getAttribute( 'href' ) )
-      .toBe( asRendered( '/shop/' ) );
+    const { container } = render( <ShopProductPage product={ kiosk } /> );
+
+    const trail = container.querySelector( 'nav[aria-label="Breadcrumb"]' ) as HTMLElement;
+    expect( trail, 'the product page renders no breadcrumb trail' ).toBeTruthy();
+    expect( trail.querySelectorAll( 'li' ) ).toHaveLength( 2 );
+    expect( screen.getByRole( 'link', { name: 'Home' } ).getAttribute( 'href' ) )
+      .toBe( asRendered( '/' ) );
+    // Exactly one current page, and it is the product.
+    const current = trail.querySelectorAll( '[aria-current="page"]' );
+    expect( current ).toHaveLength( 1 );
+    expect( current[ 0 ].textContent ).toBe( 'Kiosk' );
+
+    // Nothing on the page points at the withdrawn index, in either spelling.
+    const hrefs = Array.from( container.querySelectorAll( 'a' ) )
+      .map( a => a.getAttribute( 'href' ) );
+    expect( hrefs ).not.toContain( '/shop/' );
+    expect( hrefs ).not.toContain( '/shop' );
+    expect( screen.queryByRole( 'link', { name: 'All items in the shop' } ) ).toBeNull();
   } );
 } );
 
