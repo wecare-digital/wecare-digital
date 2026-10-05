@@ -16,15 +16,45 @@ import { I18n } from 'aws-amplify/utils';
    `Authenticator`, `ThemeProvider`, `Theme` and `useAuthenticator` used to be imported at
    this line, which put the library's 450 kB client chunk in the shared bundle and therefore
    on every public page. AuthShell owns them now; the file's header records the measurement.
-   SSR IS DELIBERATELY NOT DISABLED. `next/dynamic` defaults to `ssr: true` and it stays
-   there: this is a static export, so SSR means "rendered to HTML at build time", and
-   `ssr: false` would have emptied 113 exported workspace pages of their sign-in shell.
-   Splitting still works - Next emits the chunk's preload only for a page whose export
-   actually rendered the dynamic module, and the public branch never does.
+   `ssr: false` IS MANDATORY HERE, AND IT IS A BUG FIX RATHER THAN AN OPTIMISATION.
+   This line carried the default `ssr: true` from the split until 2026-10-05, on the reasoning
+   that a static export renders SSR at build time so leaving it on costs nothing and keeps a
+   sign-in shell in the HTML of 113 workspace pages. The reasoning was sound and the result was
+   that https://wecare.digital/workspace/engage/ RENDERED BLANK, as did every other
+   /workspace/* page. Measured in Chromium against the export, not inferred:
+
+     out/workspace/engage/index.html   #__next children: [div[data-amplify-theme], style]
+     after hydration                   #__next children: [div, style, div, style]
+
+   TWO COPIES. The first is the build-time render, and its `.ag-centre` is EMPTY - at export
+   time the Authenticator's state machine has not resolved, so it renders nothing, and the HTML
+   holds header + an empty 592px centre + footer. The second is the live client render, carrying
+   the real sign-in card, appended BELOW it at y=900 - off the bottom of a 900px viewport. So
+   the first screen was header, blank, footer, with the working page just out of sight.
+
+   WHY IT CANNOT HYDRATE. This builds with Turbopack (next.config.js sets `turbopack.root`), and
+   a Turbopack pages-router build emits no `react-loadable-manifest.json`, so `__NEXT_DATA__`
+   carries no `dynamicIds` - verified: the string is absent from every exported page. Next awaits
+   exactly those ids in `__NEXT_PRELOADREADY` before calling `hydrateRoot`, so with none to await
+   it hydrates while this chunk is still in flight. The first client render therefore produces
+   null where the server HTML holds the whole Amplify subtree, hydration fails, and React
+   recovers by client-rendering the boundary while leaving the server nodes in place. In a
+   production build that failure is silent: no console error, no uncaught exception, HTTP 200,
+   159 KB of HTML. Under `ssr: false` both sides render null on the first pass, they agree, and
+   there is one tree with the card centred in the viewport.
+
+   WHAT IS GIVEN UP, STATED PLAINLY: the 113 exported workspace pages now ship an empty
+   `#__next`. That costs nothing measurable. They are `noindex, nofollow` (see the <Head> on the
+   authenticated branch below), none of them functions without JavaScript, and the shell they
+   used to ship was the half-render described above rather than a usable sign-in screen.
+   DO NOT RESTORE `ssr: true` to put that HTML back - it is what blanked the page, and
+   src/test/PublicBundleWeight.test.ts now fails the change.
+   The perf win is untouched: the public branch still never renders this module, so no public
+   page downloads the 450 kB chunk. `ssr: false` splits it at least as aggressively.
    `aws-amplify` itself (Amplify.configure, I18n, fetchAuthSession) stays a static import:
    the configuration must be in place before any route runs, `src/pages/get.tsx` is a public
    route that calls the API client, and the auth core is a fraction of the UI library's size. */
-const AuthShell = dynamic( () => import( '../components/AuthShell' ) );
+const AuthShell = dynamic( () => import( '../components/AuthShell' ), { ssr: false } );
 /* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
    A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
    on every route - and the built file is 310 kB minified, which made it the largest single

@@ -16,12 +16,17 @@
  * top of a file is unconditional. Moving the branch into its own module makes the bundler's
  * split match the runtime's.
  *
- * SSR IS LEFT ON. `next/dynamic`'s default is `ssr: true`, and it stays that way: the site is
- * a static export, so "SSR" here means the authenticated routes are still rendered to HTML at
- * build time exactly as before. `ssr: false` would have emptied 113 exported workspace pages
- * of their sign-in shell and changed what `tools/browser/pageaudit.js` measures. The chunk is
- * still split - Next only emits the preload for a dynamic module that the page being exported
- * actually rendered.
+ * SSR IS OFF, AND IT HAS TO BE. This said the opposite until 2026-10-05 - "SSR is left on,
+ * the site is a static export so SSR means rendered to HTML at build time" - and the
+ * consequence was that every /workspace/* page rendered BLANK in a browser. A Turbopack
+ * pages-router build emits no react-loadable manifest, so `__NEXT_DATA__` carries no
+ * `dynamicIds`; Next awaits those before hydrating, finds none, and hydrates while this
+ * chunk is still loading. The client's first render is then null against a server tree full
+ * of Amplify markup, hydration fails, and React leaves the build-time copy in the document
+ * and appends a live one below it - two trees in `#__next`, the working one pushed past the
+ * fold. `ssr: false` makes both first renders null, so they agree.
+ * The full measurement, and why the HTML those pages lose is worth nothing, is recorded at
+ * the `dynamic()` call in `src/pages/_app.tsx`. The chunk stays split either way.
  *
  * THE STYLESHEET TRAVELS SEPARATELY, and it has to. Next refuses a global CSS import from any
  * file but the custom App, so `@aws-amplify/ui-react/styles.css` cannot be imported here.

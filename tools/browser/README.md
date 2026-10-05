@@ -114,7 +114,17 @@ recorded here (12/12 and 28/28) were stale — both suites have grown since.
 | `lhcheck.js` | **20 routes, no unexplained findings** — a11y 100 on 19, `/blog/` 96 by documented exemption, seo 100 throughout |
 | `rtlcheck.js` | **6883/6883** |
 | `pageaudit.js` | 180 routes, **0** horizontal overflow |
+| `hydratecheck.js` | **48/48** on the fixed export — and **8 failed** against the deployment that still carried the defect, which is the half that makes the number mean something |
 | `sectioncheck.js`, `devicecheck.js`, `closeprobe.js` | run clean; `closeprobe` leaves its band findings red on purpose |
+
+`hydratecheck.js` is the only harness here that visits `/workspace/*`, and it was added
+because every other one missed a blank page. All of `/workspace/*` rendered as a header, 592px
+of white and a footer; the HTML was 159 KB, the status was 200, and there was no console error
+to find. The cause was React leaving the build-time render in the document and appending a
+live copy below it, so the suites that measure one settled state found the right elements and
+never asked whether there were two of each. It asserts the duplication directly — see the
+file's own header for the mechanism and for why the obvious check (is the first screen
+painted?) passes on the broken page.
 
 Those failures are left red deliberately. They are not tuned to pass.
 

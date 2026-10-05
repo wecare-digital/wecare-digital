@@ -75,17 +75,39 @@ describe( 'the public bundle does not carry the sign-in UI', () => {
     ).not.toMatch( /@aws-amplify\/ui-react\/styles\.css/ );
   } );
 
-  it( 'loads the authenticated shell lazily, with SSR left on', () => {
+  it( 'loads the authenticated shell lazily, with SSR OFF', () => {
     expect( app ).toMatch( /dynamic\(\s*\(\)\s*=>\s*import\(\s*'\.\.\/components\/AuthShell'\s*\)/ );
-    // ssr:false WOULD BE A REGRESSION, NOT AN OPTIMISATION. This is a static export, so SSR
-    // means "rendered to HTML at build time"; turning it off would empty the sign-in shell
-    // out of 113 exported workspace pages and change what tools/browser/pageaudit.js
-    // measures, while saving nothing - the chunk is already split either way.
+    // THIS ASSERTION USED TO REQUIRE THE OPPOSITE, AND IT WAS WRONG IN A WAY THAT BLANKED THE
+    // PRODUCT. It read `.not.toMatch( /ssr\s*:\s*false/ )`, on the reasoning that a static
+    // export renders SSR at build time, so leaving it on keeps a sign-in shell in the HTML of
+    // 113 workspace pages and saves nothing. Every clause of that is true and the conclusion
+    // was still a defect: measured in Chromium, /workspace/engage/ shipped the build-time
+    // render AND a second client-rendered copy in `#__next`, because a Turbopack pages-router
+    // build writes no react-loadable manifest, so `__NEXT_DATA__` has no `dynamicIds` for Next
+    // to await before `hydrateRoot`. Hydration therefore ran against an unloaded chunk, failed,
+    // and React appended the live tree below the dead one - putting the sign-in card at y=1148
+    // on a 900px viewport. The visible page was header, 592px of nothing, footer.
+    //
+    // So the direction is inverted rather than the check removed: `ssr: false` is the only
+    // setting under which this module hydrates, and a well-meant revert to `ssr: true` would
+    // re-blank every authenticated route with no error, no warning and HTTP 200. The cost it
+    // guarded against - an empty `#__next` in the export - is nil: those routes are
+    // `noindex, nofollow` and none of them functions without JavaScript.
+    //
+    // Matched against `appCode`, comments stripped, for the reason this file already documents:
+    // the note above necessarily writes `ssr: true`.
+    // Up to the end of the STATEMENT, not to the first `)`. The old pattern was lazy and
+    // stopped at the `)` that closes `import(...)`, so it could never see an options object
+    // at all - it would have read `ssr: true` as absent just as happily.
+    const call = appCode.match(
+      /dynamic\(\s*\(\)\s*=>\s*import\(\s*'\.\.\/components\/AuthShell'\s*\)[^;]*/
+    )?.[ 0 ] ?? '';
     expect(
-      appCode.match( /dynamic\([\s\S]{0,200}?AuthShell[\s\S]{0,120}?\)/ )?.[ 0 ] ?? '',
-      'AuthShell must keep SSR on: the export would otherwise ship 113 workspace pages with '
-      + 'no sign-in shell in the HTML'
-    ).not.toMatch( /ssr\s*:\s*false/ );
+      call,
+      'AuthShell must be loaded with ssr:false. With SSR on, a Turbopack export hydrates '
+      + 'before the chunk arrives, hydration fails, and every /workspace/* page renders blank '
+      + 'with a second copy of the tree below the fold.'
+    ).toMatch( /ssr\s*:\s*false/ );
   } );
 
   it( 'keeps the Amplify UI tree, and only it, inside AuthShell', () => {
