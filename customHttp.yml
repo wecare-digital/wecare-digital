@@ -41,13 +41,26 @@
 # were already live. Deleting a line here is a live header removal, not a revert to
 # the console value.
 #
-# `Cache-Control` is deliberately ABSENT. Amplify manages it: the apex serves
-# `public, max-age=0, s-maxage=31536000`, which is not in the app-level customHeaders
-# and is therefore Amplify's own. amplify.yml used to declare
-# `public, max-age=0, must-revalidate`, which never applied. Setting it here would
-# drop a one-year edge TTL to must-revalidate and push HTML traffic to the origin -
-# a real performance and cost change with nothing to do with security headers. If
-# that is ever wanted it belongs in its own commit, measured.
+# `Cache-Control` IS STILL ABSENT FROM THE SITEWIDE `**/*` BLOCK, for the reason below,
+# AND IS NOW SET ON `/_next/static/**/*` ONLY. The distinction is the whole point, so
+# both halves are stated:
+#
+#   HTML keeps Amplify's own `public, max-age=0, s-maxage=31536000`. Declaring a
+#   Cache-Control on `**/*` would drop that one-year EDGE TTL and push HTML traffic to
+#   the origin - a real performance and cost change with nothing to do with security
+#   headers. amplify.yml used to declare `public, max-age=0, must-revalidate` and it
+#   never applied, which is the only reason nobody noticed.
+#
+#   `/_next/static/*` is different in kind: every filename in it is content-hashed by
+#   the build, so the bytes at a given URL can never change. `max-age=0` makes a
+#   returning visitor send a conditional request for each of those files on every
+#   navigation and get a 304 back every time - round trips that cannot produce a
+#   different answer. `immutable` is the directive that says so, and Lighthouse's
+#   cache-insight audit is reporting exactly this.
+#
+# Amplify documents customHttp.yml's Cache-Control as taking precedence over its own
+# default (userguide/managing-cache-configuration.html), and it clears the CDN cache on
+# every CI/CD deployment, so a long browser TTL on hashed assets cannot strand anyone.
 #
 # Verify the DEPLOYED headers, never this file:
 #   python scripts/verify_deployed_headers.py
@@ -170,3 +183,46 @@ customHeaders:
           base-uri 'self';
           frame-ancestors 'self';
           form-action 'self'
+
+  # ── The build's own content-hashed assets ─────────────────────────────────────────
+  #
+  # ONE HEADER IS NEW HERE; THE OTHERS ARE RESTATED ON PURPOSE.
+  #
+  # AWS documents that customHttp.yml overrides the console header set, and it documents
+  # `pattern` as a glob, but it does NOT document whether two matching patterns MERGE or
+  # whether the more specific one replaces the other. Treating that as unknown is the
+  # cheap, safe reading - the same reasoning this file already applies to the
+  # file-versus-console override at the top. So every header that must be live on a JS or
+  # CSS response is written out again. Under either semantics the result is correct; under
+  # a replace semantics, omitting them would quietly strip nosniff and HSTS from every
+  # script and stylesheet the site serves.
+  #
+  # The CSPs are restated too. A CSP on a .js response does not govern the page that
+  # loaded it - the document's own policy does - so these are inert rather than
+  # load-bearing. They are here because "list every header that must be live" is easier to
+  # hold than "list the ones I judged to matter", and a judgement call in a header file is
+  # how the inert-amplify.yml problem started.
+  #
+  # The pattern is `/_next/static/**/*` and NOT `**/*.js`. Only files under
+  # /_next/static/ carry a content hash in the name; `/vendor/amplify-ui.css` and
+  # /sw.js do not, and an immutable year on a stable filename is a stale asset waiting
+  # for a visitor who does not hard-refresh.
+  - pattern: "/_next/static/**/*"
+    headers:
+      # THE NEW ONE. Hashed filename, so the bytes at this URL cannot change; `immutable`
+      # tells the browser not to spend a conditional request finding that out. See the
+      # long note at the top of this file for why HTML is deliberately NOT given one.
+      - key: Cache-Control
+        value: "public, max-age=31536000, immutable"
+      - key: X-Frame-Options
+        value: SAMEORIGIN
+      - key: X-Content-Type-Options
+        value: nosniff
+      - key: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - key: Permissions-Policy
+        value: "camera=(), microphone=(self), geolocation=()"
+      - key: Strict-Transport-Security
+        value: max-age=31536000
+      - key: Content-Security-Policy
+        value: "object-src 'none'; base-uri 'self'; frame-ancestors 'self'"

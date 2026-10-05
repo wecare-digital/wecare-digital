@@ -241,8 +241,60 @@ def check_permissions(value: str) -> list:
     return failures
 
 
+def resolve_pattern_probe(pattern: str, page_url: str) -> str | None:
+    """One live URL that matches `pattern`, found by reading the page's own markup.
+
+    Only `/_next/static/**/*` is handled, because it is the only non-sitewide pattern the
+    file declares and because it is the case a literal path cannot serve: every filename
+    under it is content-hashed by the build, so anything written down here is stale after
+    the next deploy and the check would report a 404 as a missing header.
+
+    Returns None rather than guessing. The caller prints SKIP and leaves the block
+    unverified, which is the honest outcome - an asset nobody could find is not an asset
+    that passed.
+    """
+    if not pattern.startswith("/_next/static/"):
+        return None
+    try:
+        with urllib.request.urlopen(page_url, timeout=20) as response:  # noqa: S310
+            body = response.read().decode("utf-8", "replace")
+    except Exception:  # noqa: BLE001
+        return None
+    # A stylesheet or a script; either one is served from the same prefix.
+    match = re.search(r'["\'](/_next/static/[^"\']+\.(?:css|js))["\']', body)
+    if not match:
+        return None
+    origin = page_url.split("/", 3)
+    return f"{origin[0]}//{origin[2]}{match.group(1)}"
+
+
+def declared_headers_by_pattern() -> dict:
+    """customHttp.yml as {pattern: {lowercased key: value}}.
+
+    WHY THIS IS SPLIT BY PATTERN NOW, AND WHY IT HAD TO BE.
+    -----------------------------------------------------
+    The parser used to flatten every block into one dict and the gate below compared all
+    of it against the apex HTML response. That was correct while the file had exactly one
+    `**/*` block and WOULD HAVE REPORTED A FALSE FAILURE the moment a second one appeared:
+    customHttp.yml now sets `Cache-Control: public, max-age=31536000, immutable` on
+    `/_next/static/**/*` only - deliberately not on HTML, for the reasons written at the
+    top of that file - so a flat comparison would have declared a correctly-configured
+    header "ABSENT from the response" and invited someone to delete it.
+
+    A gate that fails on correct configuration is worse than no gate: the obvious way to
+    make it green is to undo the thing it is complaining about.
+
+    Each pattern is now checked against a URL that MATCHES it. `main()` resolves one such
+    URL per pattern; where it cannot, that block is reported as unverified rather than
+    assumed good.
+    """
+    return _parse_custom_http()
+
+
 def declared_headers() -> dict:
-    """Every header declared in customHttp.yml, as {lowercased key: value}.
+    """Every header declared for the sitewide `**/*` pattern, as {lowercased key: value}.
+
+    Kept as the sitewide view because that is what the apex HTML response can be held to.
 
     Hand-parsed rather than handed to PyYAML on purpose: this script must run with
     no third-party dependency, since it is also useful in a bare CI shell. PyYAML is
@@ -260,15 +312,29 @@ def declared_headers() -> dict:
 
     Verified to agree with PyYAML's parse of this file on 2026-09-29.
     """
+    return _parse_custom_http().get(SITEWIDE_PATTERN, {})
+
+
+SITEWIDE_PATTERN = "**/*"
+
+
+def _parse_custom_http() -> dict:
+    """The shared parser. Returns {pattern: {lowercased key: value}}."""
     FOLD_DEFECTS.clear()
     path = ROOT / "customHttp.yml"
     if not path.exists():
         return {}
 
-    headers: dict = {}
+    # {pattern: {header: value}}. A pattern that appears twice ACCUMULATES rather than
+    # being overwritten, so a split block is read the way Amplify reads it.
+    blocks: dict = {}
+    # Defaulted to the sitewide pattern so a file that somehow omits `pattern:` is read as
+    # applying everywhere - the pessimistic reading, which is the one that gates.
+    pattern = SITEWIDE_PATTERN
     key = None
     folded: list | None = None
     fold_indent: int | None = None
+    headers = blocks.setdefault(pattern, {})
 
     for raw in path.read_text().splitlines():
         line = raw.strip()
@@ -291,6 +357,14 @@ def declared_headers() -> dict:
             key, folded, fold_indent = None, None, None
 
         if line.startswith("#") or not line:
+            continue
+
+        # A new `- pattern:` opens a block. Everything until the next one belongs to it.
+        match = re.match(r"-\s*pattern:\s*[\"']?(.+?)[\"']?\s*$", line)
+        if match:
+            pattern = match.group(1).strip()
+            headers = blocks.setdefault(pattern, {})
+            key = None
             continue
 
         match = re.match(r"-\s*key:\s*[\"']?(.+?)[\"']?\s*$", line)
@@ -316,7 +390,9 @@ def declared_headers() -> dict:
 
     if folded is not None and key:  # folded value ran to end of file
         headers[key.lower()] = " ".join(folded)
-    return headers
+    # Drop a pattern that collected nothing, so an empty block does not read as a
+    # configured surface with zero required headers.
+    return {p: h for p, h in blocks.items() if h}
 
 
 def main() -> int:
@@ -424,6 +500,50 @@ def main() -> int:
             failures.append(name)
         else:
             print(f"    ok    {name} matches ({len(got)} chars)")
+
+    # ── The non-sitewide patterns ────────────────────────────────────────────────────
+    #
+    # customHttp.yml sets `Cache-Control: public, max-age=31536000, immutable` on
+    # `/_next/static/**/*` and deliberately NOT on HTML, so the gate above - which reads
+    # the apex HTML response - cannot see it. Checked here against a URL that actually
+    # matches the pattern.
+    #
+    # THE URL IS DISCOVERED, NOT HARDCODED. Every filename under /_next/static/ carries a
+    # content hash that changes on each build, so a literal path in this file would be
+    # stale by the next deploy and the check would report a 404 as a header failure. The
+    # live page links at least one such asset, so the page under test names its own.
+    extra_patterns = {p: h for p, h in declared_headers_by_pattern().items()
+                      if p != SITEWIDE_PATTERN}
+    if extra_patterns:
+        print("\n  NON-SITEWIDE PATTERNS")
+    for pat, want_headers in extra_patterns.items():
+        probe = resolve_pattern_probe(pat, args.url)
+        if not probe:
+            # Reported, not passed. An unverifiable surface is not a verified one, and
+            # saying so is the difference between a gate and a decoration.
+            print(f"    SKIP  {pat}: no URL on {args.url} matches it; "
+                  f"{len(want_headers)} declared header(s) UNVERIFIED")
+            continue
+        print(f"    {pat} -> {probe}")
+        try:
+            probe_status, probe_headers = fetch_headers(probe)
+        except Exception as exc:  # noqa: BLE001
+            print(f"      REQUEST FAILED: {type(exc).__name__}: {exc}")
+            failures.append(f"{pat} unreachable")
+            continue
+        print(f"      HTTP {probe_status}")
+        for name in sorted(want_headers):
+            want, got = want_headers[name], probe_headers.get(name, "")
+            if not got:
+                print(f"      FAIL  {name} declared but ABSENT")
+                failures.append(f"{pat}:{name}")
+            elif " ".join(got.split()) != " ".join(want.split()):
+                print(f"      FAIL  {name} differs")
+                print(f"              declared: {want[:90]}")
+                print(f"              live:     {got[:90]}")
+                failures.append(f"{pat}:{name}")
+            else:
+                print(f"      ok    {name}={got[:70]}")
 
     if not args.no_assets:
         report_assets_distribution(args.assets_url)
