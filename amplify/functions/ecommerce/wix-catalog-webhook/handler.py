@@ -56,6 +56,8 @@ the entire filter in front of this route.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import os
 import time
@@ -160,6 +162,64 @@ def _inbound_shape(request: Mapping[str, Any]) -> Dict[str, Any]:
         shape["tail12"] = text[-12:]
         shape["dots"] = text.count(".")
     return shape
+
+
+#: The three claim names this diagnostic may report, and nothing else may be added to it.
+#: `iss` is the issuer string, `aud` is the receiving appId and `kid` is a PUBLIC key id. None is
+#: a credential and none is personal or business data. Every other claim is excluded on purpose:
+#: `data` carries the product entity, which is business data this function has no reason to log.
+_REPORTABLE_CLAIMS = ("iss", "aud")
+_REPORTABLE_HEADER = ("kid", "alg")
+
+
+def _claim_fields(request: Mapping[str, Any]) -> Dict[str, Any]:
+    """TEMPORARY. `iss`, `aud`, `kid` and `alg` off an UNVERIFIED body. NEVER raises.
+
+    Why it exists: on 2026-10-05 Wix began delivering genuinely signed tokens here - they pass
+    signature verification against the configured public key and are then refused one step later
+    with "the token issuer is not Wix", because `iss` is not the literal `wix.com` that
+    `wix_webhook.ISSUER` expects. Wix documents neither the issuer string nor the `aud` value for
+    these deliveries, so the delivered token is the only authority on both. `wix_webhook_shape`
+    reports twelve characters of each end, which is enough to recognise a JWT and not enough to
+    read a claim.
+
+    THE ALLOWLIST IS THE BOUNDARY, and it is positive rather than negative: the returned dict is
+    built from `_REPORTABLE_CLAIMS` and `_REPORTABLE_HEADER` only, so a future Wix envelope cannot
+    widen what is logged by adding a field. The signature segment is never decoded, the token is
+    never logged whole, and `data` - the product entity - is never read on this path.
+
+    IT DECIDES NOTHING. The caller logs the result and ignores it; `verify_signature` is the only
+    thing that grants a dispatch, and it is called first and unchanged. Remove this once the
+    issuer and audience have been observed once; `wix_webhook_verified` is the permanent line.
+    """
+    fields: Dict[str, Any] = {}
+    try:
+        jwt = wix_webhook.token_from_body(
+            request.get("body"),
+            is_base64_encoded=bool(request.get("isBase64Encoded")))
+    except Exception:  # noqa: BLE001 - a diagnostic that raises turns a 401 into a 500
+        return fields
+    if not wix_webhook.is_jwt_shaped(jwt):
+        return fields
+    header_segment, payload_segment, _ = jwt.split(".")
+    for segment, allowed in ((header_segment, _REPORTABLE_HEADER),
+                             (payload_segment, _REPORTABLE_CLAIMS)):
+        try:
+            decoded = json.loads(
+                base64.urlsafe_b64decode(segment + "=" * (-len(segment) % 4)).decode("utf-8"))
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            continue
+        if not isinstance(decoded, dict):
+            continue
+        for name in allowed:
+            value = decoded.get(name)
+            if isinstance(value, str):
+                fields[name] = value[:128]
+            elif value is not None:
+                # A list-valued `aud` is reported as its TYPE rather than joined, matching the
+                # verifier's refusal to treat "one of these apps" as an audience.
+                fields[name] = type(value).__name__
+    return fields
 
 
 def _unauthorized() -> Dict[str, Any]:
@@ -280,6 +340,13 @@ def handler(event, context):  # noqa: ARG001 - Lambda signature
             "event": "wix_webhook_shape",
             **_inbound_shape(event),
         }))
+        # TEMPORARY, same justification as the shape line and a narrower allowlist. See
+        # `_claim_fields`: Wix documents neither the issuer string nor the `aud` value for these
+        # deliveries, and a refused delivery is the only place either can be read from.
+        logger.warning(json.dumps({
+            "event": "wix_webhook_claims",
+            **_claim_fields(event),
+        }))
         return _unauthorized()
 
     # `eventType`, `slug` and `entityId` are Wix catalogue identifiers for PUBLIC products. None
@@ -298,6 +365,15 @@ def handler(event, context):  # noqa: ARG001 - Lambda signature
         "entityId": verified.entity_id,
         "instanceId": verified.instance_id,
         "audience": verified.audience,
+    }))
+
+    # TEMPORARY, and emitted on the SUCCESS path too so one grep answers the question whichever
+    # way the delivery went. It runs AFTER verification, so it is not work done for an
+    # unauthenticated caller, and `info` rather than `warning` keeps a working endpoint off the
+    # refusal channel. Remove with `_claim_fields`.
+    logger.info(json.dumps({
+        "event": "wix_webhook_claims",
+        **_claim_fields(event),
     }))
 
     accepted = _dispatch()

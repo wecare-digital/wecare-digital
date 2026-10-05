@@ -330,11 +330,76 @@ def test_the_algorithm_is_refused_before_the_key_is_read(keys):
 
 
 def test_a_non_wix_issuer_is_refused(keys):
-    for issuer in ["wix.co", "notwix.com", "", None, "WIX.COM"]:
+    """A token that DECLARES an issuer must name Wix. `None` is a declaration, not an absence.
+
+    `{"iss": null}` is the interesting member of this list: `payload.get("iss")` cannot tell it
+    from a token with no `iss` key at all, and the two must land on opposite sides. A token that
+    carried the field and failed to fill it in is refused; see the test below for the absent case.
+    """
+    for issuer in ["wix.co", "notwix.com", "", None, "WIX.COM", 123, ["wix.com"],
+                   {"iss": "wix.com"}, "https://wix.com"]:
         with pytest.raises(wix_webhook.WixWebhookUnauthorized):
             wix_webhook.verify_signature(
                 token(keys, claims(iss=issuer)), now=NOW,
                 reader=reader_for(keys["public_pem"]))
+
+
+def test_a_token_with_NO_iss_claim_verifies(keys):
+    """THE REGRESSION TEST. The real Wix webhook envelope carries no `iss` at all.
+
+    Measured 2026-10-05 against live deliveries to `wecare-wix-catalog-webhook`: Wix began
+    delivering genuinely signed events, every one passed signature verification against the
+    configured public key, and every one was then refused with "the token issuer is not Wix"
+    because this module required the exact string `wix.com` - a value taken from the legacy
+    app-instance token shape rather than from a delivery.
+
+    Wix's documented verification agrees: `webhooks.process` in the official JavaScript SDK, and
+    the documented manual equivalent `jwt.decode(body, public_key, algorithms=["RS256"])`, check
+    the signature and the expiry and assert no issuer at all.
+
+    The fixture is the real shape - `data`, `iat`, `exp` and nothing else - so this fails again if
+    anyone restores an unconditional issuer requirement.
+    """
+    payload = {"iat": NOW - 5, "exp": NOW + 300, "data": envelope()}
+    assert "iss" not in payload
+    verified = wix_webhook.verify_signature(
+        token(keys, payload), now=NOW, reader=reader_for(keys["public_pem"], app_id=None))
+    assert verified.event_type == "wix.stores.catalog.v3.product_created"
+    assert verified.slug == "a-new-product"
+    assert verified.instance_id == INSTANCE_ID
+
+
+def test_a_token_with_no_iss_still_has_to_be_signed_by_the_configured_key(keys):
+    """Accepting an absent issuer must not become a bypass of anything else.
+
+    `iss` was never the authenticity claim - Wix holds the private half of the configured public
+    key and nobody else does. So the checks that matter are asserted to still bite on a token
+    shaped exactly like a real Wix one.
+    """
+    real_shape = {"iat": NOW - 5, "exp": NOW + 300, "data": envelope()}
+    for payload, sign_with, app_id in [
+        (real_shape, "other", None),                                   # wrong key
+        ({**real_shape, "exp": NOW - 120}, "private", None),           # expired
+        ({**real_shape, "iat": NOW + 600}, "private", None),           # issued in the future
+        ({k: v for k, v in real_shape.items() if k != "exp"}, "private", None),   # no exp
+        ({k: v for k, v in real_shape.items() if k != "iat"}, "private", None),   # no iat
+        ({**real_shape, "aud": "another-app"}, "private", APP_ID),     # wrong audience
+    ]:
+        with pytest.raises(wix_webhook.WixWebhookUnauthorized):
+            wix_webhook.verify_signature(
+                token(keys, payload, sign_with=sign_with), now=NOW,
+                reader=reader_for(keys["public_pem"], app_id=app_id))
+
+
+def test_the_accepted_issuer_set_is_an_allowlist_and_not_a_wildcard(keys):
+    """The fix is "no declared issuer, or a Wix one" - never "any issuer".
+
+    Asserted on the constant as well as on behaviour, because the dangerous regression here is
+    someone replacing the check with `pass` and the behavioural tests above still passing for a
+    token that simply omits the claim.
+    """
+    assert wix_webhook.ACCEPTED_ISSUERS == frozenset({"wix.com"})
+    assert wix_webhook.ISSUER in wix_webhook.ACCEPTED_ISSUERS
 
 
 def test_an_expired_wix_webhook_token_is_refused(keys):
@@ -585,6 +650,81 @@ def test_a_refusal_records_the_body_SHAPE_and_never_the_body(keys, monkeypatch):
     assert shape["tail12"] == body[-12:]
     for line in lines:
         assert body not in line, "the diagnostic must report the shape, never the body"
+
+
+def test_the_claims_diagnostic_reports_only_iss_aud_kid_and_alg(keys, monkeypatch):
+    """TEMPORARY diagnostic, pinned so it cannot grow into a payload dump.
+
+    It exists because Wix documents neither the issuer string nor the `aud` value for these
+    deliveries, and `wix_webhook_shape` reports twelve characters of each end - enough to
+    recognise a JWT, not enough to read a claim. The assertion that matters is the second half:
+    `data` carries the product entity, which is business data this function has no reason to log,
+    and the signature segment must never be decoded at all.
+    """
+    lines = []
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
+
+    # A real-shaped token that is refused for a reason OTHER than its claims, so the diagnostic
+    # runs on the rejection path: the wrong signing key.
+    bad = token(keys, claims(iss="not-wix.example"), sign_with="other",
+                header_extra={"kid": "TEST-KEY-ID"})
+    answer = receiver.handler({"body": bad, "headers": {}}, None)
+
+    assert answer["statusCode"] == 401
+    assert sent.calls == []
+
+    reported = next(json.loads(line) for line in lines
+                    if json.loads(line).get("event") == "wix_webhook_claims")
+    assert reported == {
+        "event": "wix_webhook_claims",
+        "alg": "RS256",
+        "kid": "TEST-KEY-ID",
+        "iss": "not-wix.example",
+        "aud": APP_ID,
+    }
+    for line in lines:
+        assert bad.split(".")[2] not in line, "the signature segment must never be logged"
+        assert bad not in line, "the token must never be logged whole"
+        assert INSTANCE_ID not in line, "the envelope must not reach the claims diagnostic"
+        assert "a-new-product" not in line, "product data must not reach the claims diagnostic"
+
+
+def test_the_claims_diagnostic_reports_a_list_audience_as_its_type(keys, monkeypatch):
+    """Matching the verifier, which refuses a list-valued `aud` rather than searching it.
+
+    `str(["a", "b"])` in a log line would read like an audience this endpoint accepted.
+    """
+    lines = []
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", Dispatches())
+    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
+
+    receiver.handler({"body": token(keys, claims(aud=["a", "b"]), sign_with="other")}, None)
+
+    reported = next(json.loads(line) for line in lines
+                    if json.loads(line).get("event") == "wix_webhook_claims")
+    assert reported["aud"] == "list"
+
+
+def test_the_claims_diagnostic_survives_every_unparseable_body(keys, monkeypatch):
+    """A diagnostic that raises turns a 401 into a 500, which is the opposite of what it is for."""
+    lines = []
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
+
+    for body in [None, "", "not-a-jwt", {"wrapped": "a.b.c"}, 123, b"not-a-jwt",
+                 "a.b.c", "ey!.ey!.sig", f"{b64(b'[]')}.{b64(b'null')}.{b64(b'x')}"]:
+        answer = receiver.handler({"body": body, "headers": None}, None)
+        assert answer["statusCode"] == 401
+    reported = [json.loads(line) for line in lines
+                if json.loads(line).get("event") == "wix_webhook_claims"]
+    assert len(reported) == 9
+    assert sent.calls == []
 
 
 def test_a_verified_event_emits_no_shape_diagnostic(keys, monkeypatch):

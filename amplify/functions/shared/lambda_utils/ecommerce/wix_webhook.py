@@ -20,10 +20,12 @@ literal, because `"eyJ...sig"` with quotes is the single near-miss shape that re
 "the request body is not a three-segment JWT" and Wix's own JavaScript examples `JSON.parse` the
 body before verifying it. Nothing else is unwrapped - see `_unquote_json_token`.
 
-The envelope, as documented rather than as measured
----------------------------------------------------
+The envelope, now MEASURED rather than assumed
+----------------------------------------------
     <JWT payload>
-      iss   : "wix.com"
+      iss   : ABSENT. See `ACCEPTED_ISSUERS` - the `iss == "wix.com"` this file originally
+              required came from the legacy app-instance token shape, not from a delivery, and
+              refused every real Wix event on 2026-10-05.
       aud   : our appId
       iat   : int
       exp   : int
@@ -136,6 +138,38 @@ ALLOWED_ALGORITHMS: Dict[str, str] = {
 #: expiry is a replay token.
 CLOCK_SKEW_SECONDS = 60
 
+#: Wix's webhook envelope carries NO `iss` CLAIM, measured 2026-10-05 against real deliveries
+#: and corroborated by Wix's own verification guidance.
+#:
+#: This file originally required `iss == "wix.com"` exactly, taken from the legacy app-instance
+#: token shape rather than from a delivery. The cost of that assumption was measured: on
+#: 2026-10-05 Wix began delivering genuinely signed events here, every one of them passed
+#: signature verification against the configured public key, and every one was then refused one
+#: step later with "the token issuer is not Wix". A verifier that refuses the only caller it
+#: exists to accept is not fail-closed, it is broken closed.
+#:
+#: What Wix documents instead: `webhooks.process` in the official JavaScript SDK, and the
+#: documented manual alternative `jwt.decode(body, public_key, algorithms=["RS256"])`, both verify
+#: the RS256 signature and the expiry and assert NO issuer - there is no `issuer=` argument in the
+#: documented call. Wix is the sole holder of the private half of the app's public key, so the
+#: signature is the whole of the authenticity claim and `iss` adds nothing to it.
+#:
+#: SO THE RULE IS CONDITIONAL, NOT ABSENT, and the distinction is between a token that DECLARES an
+#: issuer and one that declares none:
+#:
+#:   - `iss` absent entirely      -> accepted. The documented and measured Wix shape.
+#:   - `iss` present              -> must be one of `ACCEPTED_ISSUERS`, exact string, so a token
+#:                                   that names an issuer cannot name a non-Wix one.
+#:
+#: `payload.get("iss")` cannot tell those apart - absent and `null` both read as `None` - so the
+#: check uses `"iss" in payload`. `{"iss": null}` is a token that declared an issuer and failed to
+#: name one, and it is refused.
+#:
+#: This widens nothing an attacker can reach: getting as far as this check already requires a
+#: signature from the private half of the configured public key.
+ACCEPTED_ISSUERS = frozenset({"wix.com"})
+
+#: Retained as the canonical issuer string for readers and for `ACCEPTED_ISSUERS`' single member.
 ISSUER = "wix.com"
 
 _SEGMENT = re.compile(r"^[A-Za-z0-9_-]+$")
@@ -326,7 +360,8 @@ def verify_signature(raw_body: Any, *, now: int, reader: SecretReader,
     2. refuse an `alg` outside the allowlist - which covers `none` and every HMAC in one check;
     3. read the public key by reference and LAZILY;
     4. verify the signature over `header.payload`;
-    5. `iss == "wix.com"`, exact string;
+    5. `iss`, IF THE TOKEN DECLARES ONE, is in `ACCEPTED_ISSUERS` as an exact string - an absent
+       `iss` is the documented and measured Wix shape and is accepted, `{"iss": null}` is not;
     6. `iat <= now + 60` and `exp > now - 60`, a missing claim refused and never defaulted;
     7. `aud == app_id`, but ONLY when an `app_id` is configured - see below;
     8. only then describe the event, which cannot fail.
@@ -387,8 +422,15 @@ def verify_signature(raw_body: Any, *, now: int, reader: SecretReader,
     if not isinstance(payload, dict):
         raise WixWebhookUnauthorized("the token payload is not an object")
 
-    if payload.get("iss") != ISSUER:
-        raise WixWebhookUnauthorized("the token issuer is not Wix")
+    # See `ACCEPTED_ISSUERS`: an ABSENT `iss` is the documented and measured Wix shape and is
+    # accepted; a DECLARED one must name Wix. `in payload` rather than `.get`, because
+    # `{"iss": null}` is a declaration that failed to name an issuer and must be refused.
+    if "iss" in payload:
+        issuer = payload["iss"]
+        # `isinstance` FIRST and not for tidiness: `["wix.com"] not in frozenset(...)` raises
+        # TypeError on the unhashable list, which would turn a refusal into a 500.
+        if not isinstance(issuer, str) or issuer not in ACCEPTED_ISSUERS:
+            raise WixWebhookUnauthorized("the token issuer is not Wix")
 
     issued_at = payload.get("iat")
     expires_at = payload.get("exp")
