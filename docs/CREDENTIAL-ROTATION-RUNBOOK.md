@@ -406,3 +406,46 @@ live, PEM). It **cannot** verify that a published key is referrer-restricted:
 matching a bundle fingerprint back to a GCP key would require reading key strings.
 That check is step 2 above, done in the console — treat it as part of the procedure,
 not something the gate will catch for you.
+
+---
+
+## Wix credentials — EXPOSED 2026-10-02, rotation DEFERRED to project completion
+
+Two Wix credentials were pasted into the Kiro chat on 2026-10-02 while wiring the
+catalogue-sync webhook, so both are exposed on local disk (session transcript +
+IDE logs), the same exposure class as the 2026-09-19 leak above. **Contains no
+values — only names, locations, and consumers.**
+
+Rotation is deferred to project completion by owner decision (recorded 2026-10-02),
+consistent with the deferral above. Trigger: rotate at PROJECT COMPLETE.
+
+### 1. Wix App Secret Key · HIGH
+
+| | |
+|---|---|
+| What | OAuth app secret for the `apiwx` Wix app (app id `6cbf8eaf-264d-495a-bde1-d63d016d58a9`) |
+| Secrets Manager | `wecare/wix/app-oauth` → fields `app_id`, `app_secret` (created 2026-10-02) |
+| Read by | no Lambda yet — stored for a future OAuth/token-exchange flow |
+| Exposure | pasted in chat 2026-10-02; local disk only |
+
+Rotate: Wix app dashboard → regenerate the App Secret Key, then update **only**
+the `app_secret` field in `wecare/wix/app-oauth`. No consumer to redeploy today;
+if one is added before rotation, add it here.
+
+### 2. Wix headless API key · HIGH (pre-existing, owner already flagged)
+
+| | |
+|---|---|
+| Secrets Manager | `wecare/wix/headless-api-key` → field `api_key` |
+| Read by | `wecare-checkout` (`wix_ecom.py` `_api_key()`), and other Wix REST callers |
+| Exposure | owner-noted earlier; owner will rotate later |
+
+Rotate: Wix dashboard → regenerate the API key → update `api_key` in
+`wecare/wix/headless-api-key` → then refresh warm consumers so the cached value is
+dropped: `python scripts/refresh_secret_consumers.py wecare/wix/headless-api-key`.
+
+### NOT a credential — do not rotate
+
+The Wix webhook `public_key` in `wecare/wix/catalog-webhook` is an RSA **public**
+key, not a secret. It only needs changing if the Wix app's webhook signing key is
+regenerated on the Wix side (which also forces a new app version release).
