@@ -175,13 +175,15 @@ _REPORTABLE_HEADER = ("kid", "alg")
 def _claim_fields(request: Mapping[str, Any]) -> Dict[str, Any]:
     """TEMPORARY. `iss`, `aud`, `kid` and `alg` off an UNVERIFIED body. NEVER raises.
 
-    Why it exists: on 2026-10-05 Wix began delivering genuinely signed tokens here - they pass
-    signature verification against the configured public key and are then refused one step later
-    with "the token issuer is not Wix", because `iss` is not the literal `wix.com` that
-    `wix_webhook.ISSUER` expects. Wix documents neither the issuer string nor the `aud` value for
-    these deliveries, so the delivered token is the only authority on both. `wix_webhook_shape`
-    reports twelve characters of each end, which is enough to recognise a JWT and not enough to
-    read a claim.
+    Why it exists: on 2026-10-05 Wix began delivering genuinely signed tokens here - they passed
+    signature verification against the configured public key and were then refused one step later
+    with "the token issuer is not Wix", because `wix_webhook` required the literal `wix.com`.
+    `wix_webhook.ACCEPTED_ISSUERS` now carries that fix, and this line is what confirms it against
+    a real delivery rather than against a fixture. Wix documents neither the issuer string nor the
+    `aud` value for these deliveries, so the delivered token is the only authority on both -
+    `aud` in particular is the value that goes into `app_id`, which arms step 7 of the verifier.
+    `wix_webhook_shape` reports twelve characters of each end, which is enough to recognise a JWT
+    and not enough to read a claim.
 
     THE ALLOWLIST IS THE BOUNDARY, and it is positive rather than negative: the returned dict is
     built from `_REPORTABLE_CLAIMS` and `_REPORTABLE_HEADER` only, so a future Wix envelope cannot
