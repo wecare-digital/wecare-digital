@@ -36,16 +36,18 @@ DEDUP_TABLE = "stack-wecare-digital-WebhookDedup"
 WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
 WIX_ACCOUNT_ID = "478bf907-96cc-4cab-9220-bb96f1d35cbb"
 WIX_CLIENT_ID = "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
-# THE STOREFRONT AND THE BLOG ARE ON DIFFERENT WIX SITES, so they get different clients.
-# WIX_CLIENT_ID above is the storefront (new site c993128b). The blog is still on the old
-# site, which is the only one with a Blog app installed: measured 2026-10-05, the old client
-# returns /blog/v3/posts/query 200 with total=1323 while the new one returns 401
-# "UNAUTHENTICATED: No blog instanceId found" - and both mint a valid anonymous token, which
-# is why the breakage presented as an API outage rather than a misconfiguration.
-# While the two shared one variable the public blog 503'd and three Amplify builds died at
-# /blog/page/[page]. Pinned by tests/test_wix_blog_client_separation.py; the full reasoning
-# and the migration path are at the declaration in operations/seo-tools/wix.py.
-WIX_BLOG_CLIENT_ID = "197cd718-e4ec-4e2e-b380-46c297eb18a2"
+# WHICH SITE THE BLOG IS READ FROM. Migration COMPLETE 2026-10-05: the Blog app
+# (14bcded7-0066-7c35-14d7-466cb3f09103) is now installed on the new site c993128b and
+# /blog/v3/posts/query measures 200 with total=1323 under the storefront client, so this
+# points at the new site and currently equals WIX_CLIENT_ID above.
+# It remains its own variable, because "where we sell" and "where we publish" are different
+# questions that only happen to share an answer. While they shared one variable the blog
+# 503'd and three Amplify builds died at /blog/page/[page] - the new site had no Blog app, Wix
+# returned 401 "UNAUTHENTICATED: No blog instanceId found", and both clients minted a valid
+# anonymous token throughout, which is why it presented as an outage rather than a
+# misconfiguration. Pinned by tests/test_wix_blog_client_separation.py; the full history is at
+# the declaration in operations/seo-tools/wix.py.
+WIX_BLOG_CLIENT_ID = "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
 ROLE_NAME = "wecare-digital-lambda-role"
 ROLE_ARN = f"arn:aws:iam::{ACCOUNT}:role/{ROLE_NAME}"
 

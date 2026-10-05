@@ -42,18 +42,20 @@ export function addSeoResources ( stack: Stack ) {
             WIX_SITE_ID: 'c993128b-26be-41cd-9fcd-904abe23462f',
             WIX_ACCOUNT_ID: '478bf907-96cc-4cab-9220-bb96f1d35cbb',
             WIX_CLIENT_ID: '42b3cdbf-d90e-4138-a06c-ddda4fb8da01',
-            /* THE BLOG IS ON THE OLD SITE. WIX_CLIENT_ID above is the STOREFRONT client and
-               moved to the new site with the 2026-10-05 migration; the blog's anonymous
-               visitor token was being minted from it, and the new site has no Blog app, so
-               all 1,323 posts became unreachable. Measured: the old client returns
-               posts/query 200 total=1323, the new one returns 401 "No blog instanceId
-               found" - while BOTH mint a valid token, which is why this presented as an
-               outage rather than a misconfiguration. The Lambda turned that 401 into a 503
-               and three Amplify builds died at /blog/page/[page].
-               Kept as its own variable so a future storefront move cannot silently take the
-               blog with it. Full reasoning and the migration path are at the declaration in
+            /* WHICH SITE WE READ THE BLOG FROM. Migration COMPLETE 2026-10-05: the Blog app
+               (14bcded7-0066-7c35-14d7-466cb3f09103) is installed on the new site c993128b
+               and posts/query measures total=1323 under the storefront client, so this now
+               points at the new site and matches WIX_CLIENT_ID above.
+               It stays a SEPARATE variable anyway. While the blog was still on the old site
+               these two diverged, and the only reason anyone found out is that three Amplify
+               builds died at /blog/page/[page]: the blog minted its visitor token from
+               WIX_CLIENT_ID, the new site had no Blog app, Wix answered 401 "No blog
+               instanceId found", and the Lambda turned that into a 503. Both clients minted a
+               VALID token throughout, which is why it looked like an outage rather than a
+               misconfiguration. Collapsing them back into one literal would let the next
+               storefront move do it again, silently. Full history at the declaration in
                amplify/functions/operations/seo-tools/wix.py. Both ids are public. */
-            WIX_BLOG_CLIENT_ID: '197cd718-e4ec-4e2e-b380-46c297eb18a2',
+            WIX_BLOG_CLIENT_ID: '42b3cdbf-d90e-4138-a06c-ddda4fb8da01',
             WIX_BLOG_AUTHOR_NAME: 'Anew by WECARE.DIGITAL',
             BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID || 'global.anthropic.claude-sonnet-4-6',
             // Derived-SEO cost/AI posture. FREE + AI off is the fail-safe default the brief

@@ -1,4 +1,18 @@
-"""The blog's Wix client and the storefront's Wix client must stay separate.
+"""The blog's Wix client and the storefront's Wix client must stay separate variables.
+
+MIGRATION COMPLETE 2026-10-05, AND THE INVARIANT SURVIVED IT
+------------------------------------------------------------
+The Blog app (`14bcded7-0066-7c35-14d7-466cb3f09103`) is now installed on the new site
+`c993128b` and the corpus moved with it: `/blog/v3/posts/query` measures 200 with
+total=1323 under the storefront client, the same total the old client returns. So
+`WIX_BLOG_CLIENT_ID` was repointed from the old client to the storefront one and the two
+literals are now EQUAL.
+
+That is why the "different values" assertion below became "separate declarations". Equal
+values were never the point - a shared variable was. These two ids were equal before
+2026-10-05 as well, right up until they weren't, and nothing warned. What this file pins is
+that the blog reads from its own variable with its own literal default, so the next
+storefront move cannot carry the blog along as a side effect.
 
 WHAT HAPPENED, BECAUSE THE INVARIANT ONLY MAKES SENSE WITH IT
 -------------------------------------------------------------
@@ -24,11 +38,12 @@ translated the 401 into a 503 ("The blog index is temporarily unavailable"),
 an unrelated fix for every authenticated /workspace/* route rendering blank. A blog on the
 wrong site was able to block deploying work that had nothing to do with the blog.
 
-WHAT THIS PINS. Not the literal ids - those change when the blog genuinely moves - but the
-SEPARATION: the blog token must come from its own variable, that variable must not default
-to the storefront's client, and the declared value must agree across the three places it is
-written. Collapsing them back into one variable is a one-line change that produces no error
-until a build happens to fail, which is exactly what happened.
+WHAT THIS PINS. Not the literal ids - those change when the blog genuinely moves, and one of
+them just did - but the SEPARATION: the blog token must come from its own variable, that
+variable must carry its own literal default rather than deriving one from the storefront's,
+and the declared value must agree across the places it is written. Collapsing them back into
+one variable is a one-line change that produces no error until a build happens to fail,
+which is exactly what happened.
 
 Neither id is a secret. Both are public identifiers that grant nothing on their own and are
 already committed in `src/config/wix.ts`; `src/config/wix.ts` says so at length.
@@ -111,34 +126,54 @@ def test_the_blog_token_is_minted_from_the_blog_client_not_the_storefront_one():
     )
 
 
-def test_the_two_clients_are_separate_variables_with_different_defaults():
+def test_the_two_clients_are_separate_declarations_each_with_its_own_default():
+    """Separate variables, not different values.
+
+    This assertion used to require `blog != storefront`, and that was right only while the
+    blog was on the other site. Since the 2026-10-05 migration completed they are the same
+    id, so an inequality check would now force the seam to be deleted - the opposite of what
+    it is for. The durable property is that each has its OWN literal default: a blog default
+    of `''`, or one spelled as a fallback onto the storefront variable, re-couples them the
+    moment the environment variable is unset, which is the silent direction.
+    """
     source = WIX_PY.read_text(encoding="utf-8")
     storefront = _env_default(source, STOREFRONT_VAR)
     blog = _env_default(source, BLOG_VAR)
     assert storefront and blog, "both clients need a default so an unset var still works"
-    assert blog != storefront, (
-        "WIX_BLOG_CLIENT_ID defaults to the storefront client, so the separation is "
-        "cosmetic - a storefront migration would take the blog with it again"
+    code = "\n".join(line.split("#", 1)[0] for line in source.splitlines())
+    declaration = re.search(
+        rf"^{BLOG_VAR}\s*=\s*os\.environ\.get\(\s*$", code, re.MULTILINE
+    )
+    assert declaration, (
+        f"{BLOG_VAR} must be its own os.environ.get declaration, not an alias of "
+        f"{STOREFRONT_VAR}"
     )
 
 
 def test_the_blog_client_default_is_the_site_that_has_the_blog():
     """The default must be the value that WORKS, so an unset variable degrades to working.
 
-    Pinned by identity against the pre-migration snapshot rather than by a literal typed
-    here, so there is one source for "which client could read the blog" and this test
-    cannot disagree with the record of what changed.
+    Pinned by identity against the migration snapshot rather than by a literal typed here,
+    so there is one source for "which client reads the blog" and this test cannot disagree
+    with the record of what changed.
+
+    It is the snapshot's NEW value now. Until 2026-10-05 this read `["old"]`, because the
+    old site was the only one with a Blog app and an unset variable had to degrade to a
+    working blog rather than to a failed build. The Blog app is now installed on the new
+    site and `/blog/v3/posts/query` measures total=1323 under the storefront client, so the
+    value that works is the new one. The condition was checked against Wix before the
+    default was flipped, not after.
     """
     snapshot = json.loads(
         (ROOT / "docs" / "execution" / "snapshots"
          / "lambda-env-wix-before-site-migration-20261005.json").read_text(encoding="utf-8")
     )
-    pre_migration = snapshot["old_to_new"][STOREFRONT_VAR]["old"]
+    post_migration = snapshot["old_to_new"][STOREFRONT_VAR]["new"]
     source = WIX_PY.read_text(encoding="utf-8")
-    assert _env_default(source, BLOG_VAR) == pre_migration, (
-        "the blog client default must be the client the blog was being read with before "
-        "the storefront migration - that is the one measured to return posts/query "
-        "total=1323. Anything else is a guess."
+    assert _env_default(source, BLOG_VAR) == post_migration, (
+        "the blog client default must be the client that can actually read the blog - "
+        "since the 2026-10-05 blog migration that is the new site's client, measured at "
+        "posts/query total=1323. Anything else is a guess."
     )
 
 
