@@ -34,12 +34,12 @@ logger.setLevel(logging.INFO)
 
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 GOOGLE_SECRET_NAME = os.environ.get(
-    "VAYULOK_GOOGLE_SECRET", "wecare/google-maps-server"
+    "VAYULOK_GOOGLE_SECRET", "wecare/google/cloud"
 )
 GOOGLE_SECRET_FIELDS: Tuple[str, ...] = tuple(
     part.strip()
     for part in os.environ.get(
-        "VAYULOK_GOOGLE_SECRET_FIELDS", "api_key,unified_google_api_key"
+        "VAYULOK_GOOGLE_SECRET_FIELD", "api_key,unified_google_api_key"
     ).split(",")
     if part.strip()
 )

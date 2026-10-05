@@ -31,10 +31,10 @@ Weather and Air Quality web-service requests belong behind
 `POST /vayulok/environment`, implemented by
 `amplify/functions/core/vayulok-environment/handler.py`.
 
-That Lambda reads `wecare/google-maps-server` from AWS Secrets Manager at request time and
+That Lambda reads `wecare/google/cloud` from AWS Secrets Manager at request time and
 sends the key to Google in `X-Goog-Api-Key`, never in a browser bundle or URL query string.
 The server key is provisioned by `scripts/provision_maps_server_key.py`; its API target list
-contains the existing server address-capture services plus:
+contains the existing server address-capture and Translate services plus:
 
 - `airquality.googleapis.com`
 - `weather.googleapis.com`
@@ -62,9 +62,10 @@ The repository change is intentionally staged so production does not lose enviro
 6. Then remove Weather/Air Quality from the browser key's API restrictions and redeploy
    `stack`.
 
-Do not perform step 5 before steps 1-4. The historical
-`wecare/google-maps-server` secret has previously held a deleted key; cutting the browser
-over to an unverified gateway would turn a credential hardening change into a VayuLok outage.
+Do not perform step 5 before steps 1-4. The canonical `wecare/google/cloud` secret currently holds the referrer-restricted browser
+key until the server-key provisioning step replaces only its key fields while preserving project
+metadata. Cutting the browser over before that key and gateway are verified would turn credential
+hardening into a VayuLok outage.
 
 ## Unsupported India calls
 

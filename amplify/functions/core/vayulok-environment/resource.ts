@@ -13,7 +13,7 @@
  *   python scripts/provision_vayulok_environment.py
  *
  * Server Google key:
- *   AWS Secrets Manager: wecare/google-maps-server
+ *   AWS Secrets Manager: wecare/google/cloud
  *   API targets: Air Quality API + Weather API (plus the existing server-side
  *   address-capture targets owned by scripts/provision_maps_server_key.py).
  */

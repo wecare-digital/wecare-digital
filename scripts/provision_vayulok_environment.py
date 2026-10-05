@@ -41,7 +41,7 @@ ROLE_NAME = "wecare-vayulok-environment-role"
 ALIAS_NAME = "live"
 ROUTE_KEY = "POST /vayulok/environment"
 OPTIONS_ROUTE_KEY = "OPTIONS /vayulok/environment"
-GOOGLE_SECRET_NAME = "wecare/google-maps-server"
+GOOGLE_SECRET_NAME = "wecare/google/cloud"
 HANDLER = (
     Path(__file__).resolve().parents[1]
     / "amplify/functions/core/vayulok-environment/handler.py"
@@ -167,7 +167,7 @@ def ensure_function(dry_run: bool) -> str:
     payload = _zip_handler()
     env = {
         "VAYULOK_GOOGLE_SECRET": GOOGLE_SECRET_NAME,
-        "VAYULOK_GOOGLE_SECRET_FIELDS": "api_key,unified_google_api_key",
+        "VAYULOK_GOOGLE_SECRET_FIELD": "api_key,unified_google_api_key",
         "VAYULOK_GOOGLE_TIMEOUT": "10",
         "VAYULOK_MAX_REQUEST_BYTES": "8192",
         "VAYULOK_MAX_UPSTREAM_BYTES": str(6 * 1024 * 1024),

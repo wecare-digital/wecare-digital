@@ -31,6 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SITE_LANGUAGE = ROOT / "amplify/functions/core/site-language/handler.py"
 WHATSAPP_TEMPLATES = ROOT / "amplify/functions/messaging/whatsapp-templates/handler.py"
+VAYULOK_ENVIRONMENT = ROOT / "amplify/functions/core/vayulok-environment/handler.py"
 
 #: The one id every consumer must read the Google API key from.
 #:
@@ -65,7 +66,7 @@ def _strip_comments(source: str) -> str:
 
 
 def test_both_consumers_default_to_the_canonical_secret():
-    for path in (SITE_LANGUAGE, WHATSAPP_TEMPLATES):
+    for path in (SITE_LANGUAGE, WHATSAPP_TEMPLATES, VAYULOK_ENVIRONMENT):
         code = _strip_comments(_source(path))
         match = re.search(r'GOOGLE_SECRET\W*,\s*[\'"]([^\'"]+)[\'"]', code)
         assert match, f"{path.name}: no default secret id found"
@@ -102,7 +103,7 @@ def test_the_two_consumers_agree_on_the_candidate_field_names():
     # first version of this collapsed the dict to a single entry and then raised IndexError
     # reaching for the second - a test that could never have compared anything.
     lists = {}
-    for path in (SITE_LANGUAGE, WHATSAPP_TEMPLATES):
+    for path in (SITE_LANGUAGE, WHATSAPP_TEMPLATES, VAYULOK_ENVIRONMENT):
         code = _strip_comments(_source(path))
         match = re.search(r'GOOGLE_SECRET_FIELD\W*,\s*[\'"]([^\'"]+)[\'"]', code)
         assert match, f"{path.relative_to(ROOT)}: no candidate field list found"
@@ -110,7 +111,7 @@ def test_the_two_consumers_agree_on_the_candidate_field_names():
             p.strip() for p in match.group(1).split(",") if p.strip()
         )
     names = sorted(lists)
-    assert len(names) == 2, f"expected two distinct consumers, got {names}"
+    assert len(names) == 3, f"expected three distinct consumers, got {names}"
     assert lists[names[0]] == lists[names[1]], f"candidate field lists have drifted: {lists}"
     # Both names must be present, because the repository contradicts itself about which is real:
     # store_provider_secret.py declares `api_key`, check_secrets_live.py probes
