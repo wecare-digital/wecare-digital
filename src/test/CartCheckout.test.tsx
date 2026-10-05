@@ -331,6 +331,78 @@ describe( 'the cart store', () => {
     expect( cart.readCart() ).toEqual( [] );
   } );
 
+  /*
+   * THE PRE-MIGRATION CART. `/shop/` moved to Wix site c993128b on 2026-10-05 and every product id
+   * was re-minted, so a returning visitor's localStorage can name a product that exists nowhere in
+   * the new catalogue. Carried into `toLineItems()` it reaches `GET /stores/v3/products/{id}`,
+   * 404s, and the customer is told "An item in your cart is no longer available" only after
+   * pressing Checkout. 15a80e88-... is the retired ₹1 test product; the live one is 121c9d57-...
+   */
+  const RETIRED_ID = '15a80e88-6a2e-4b1f-9a7c-1b2c3d4e5f60';
+
+  it( 'drops a pre-migration product id instead of carrying it into checkout', () => {
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      productId: RETIRED_ID,
+      ref: `${RETIRED_ID}:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee`,
+      slug: 'rupee-one-test',
+      name: '₹1 test product',
+      formattedPrice: '₹1.00',
+      quantity: 1,
+    } ] ) );
+
+    expect( cart.readCart() ).toEqual( [] );
+    expect( cart.toLineItems() ).toEqual( [] );
+    // Pruned in STORAGE too, so the next page view does not re-decide it.
+    expect( window.localStorage.getItem( 'wecare.cart.v1' ) ).toBe( '[]' );
+  } );
+
+  it( 'drops only the dead line and leaves the rest of the basket payable', () => {
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [
+      { productId: RETIRED_ID, ref: RETIRED_ID, slug: '', name: 'Gone', formattedPrice: '', quantity: 1 },
+      { ref: 'kiosk', slug: 'kiosk', name: 'Kiosk', formattedPrice: '₹24,999.00', quantity: 2 },
+    ] ) );
+
+    const items = cart.readCart();
+    expect( items ).toHaveLength( 1 );
+    expect( items[ 0 ].productId ).toBe( 'a12e9e74-e109-4136-a12e-ab49ea6f98c3' );
+    expect( cart.toLineItems().map( line => line.catalogReference.catalogItemId ) )
+      .toEqual( [ 'a12e9e74-e109-4136-a12e-ab49ea6f98c3' ] );
+  } );
+
+  it( 'keeps a contribution line, which /shop/ deliberately does not list', () => {
+    // The drop rule must not key on SHOP_PRODUCTS: the contribution vehicle and the twelve Wix
+    // template samples are excluded from it and are still real, purchasable catalogue rows.
+    // A contribution is recognised from src/config/contribution.ts, not from the snapshot.
+    cart.setContribution( LOW.variantId );
+    const items = cart.readCart();
+    expect( items ).toHaveLength( 1 );
+    expect( cart.contributionOf( items[ 0 ] ) ).not.toBeNull();
+  } );
+
+  it( 'keeps a Wix template sample id, which the catalogue has and /shop/ hides', () => {
+    // Baseball Cap: in src/content/wix-catalog.json, excluded from SHOP_PRODUCTS by owner
+    // decision, and still orderable by direct cart reference.
+    const sample = '618dcfe4-8d85-40a9-87c6-0dea57abe644';
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      productId: sample, ref: sample, slug: 'baseball-cap', name: 'Baseball Cap',
+      formattedPrice: '₹1,200.00', quantity: 1,
+    } ] ) );
+
+    expect( cart.readCart().map( item => item.productId ) ).toEqual( [ sample ] );
+  } );
+
+  it( 'leaves a legacy non-UUID reference alone rather than guessing it is dead', () => {
+    // Pre-2026-10 rows carry a slug or an opaque ref, and `currentProduct`'s slug fallback owns
+    // them. A row that fallback cannot place keeps exactly today's behaviour: the drop rule only
+    // fires on something that CLAIMS to be a Wix catalogue id.
+    window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
+      ref: 'legacy-opaque-ref', slug: 'no-such-slug', name: 'Something old',
+      formattedPrice: '₹10.00', quantity: 1,
+    } ] ) );
+
+    expect( cart.readCart().map( item => item.ref ) ).toEqual( [ 'legacy-opaque-ref' ] );
+  } );
+
 
   it( 'migrates a pre-productId single-variant row to the current Wix product and variant', () => {
     window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {

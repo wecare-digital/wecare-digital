@@ -50,7 +50,7 @@
  * accepts every line this function builds, and it is NOT the source of the live 502.
  */
 
-import { SHOP_PRODUCTS } from '../content/shop';
+import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
 import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
@@ -137,6 +137,41 @@ function currentVariant ( item: CartItem, product: ShopProduct ): ShopVariant | 
   return labelled.length === 1 ? labelled[ 0 ] : null;
 }
 
+/** A Wix catalogue id: a lowercase UUID. What a `productId` and a modern `ref` base both are. */
+const CATALOGUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * Should an UNRESOLVABLE stored line be thrown away rather than carried into checkout?
+ *
+ * Only ever consulted for a line `currentProduct` could not resolve, and the predicate is
+ * deliberately narrow: **the line names a Wix catalogue id (a UUID) that this snapshot has never
+ * heard of.** That is exactly the pre-migration row - `/shop/` moved to Wix site `c993128b` on
+ * 2026-10-05 and every product id was re-minted, so a browser holding the old ₹1 test product
+ * carries a well-formed id that exists nowhere in the new catalogue.
+ *
+ * Three things it is careful NOT to do:
+ *
+ *   * **It does not key on `SHOP_PRODUCTS`.** That list excludes thirteen real, purchasable rows -
+ *     the contribution vehicle and the twelve Wix template samples - so "absent from /shop/" is not
+ *     "absent from the catalogue". `KNOWN_CATALOGUE_PRODUCT_IDS` reads the raw snapshot for that
+ *     reason, and a contribution line is kept on CONFIG identity whether or not the snapshot has
+ *     been refreshed at all.
+ *   * **It does not touch a non-UUID `ref`.** Those are the pre-2026-10 rows that carry a slug or
+ *     an opaque reference, and the slug fallback in `currentProduct` is what repairs them; a row
+ *     that fallback cannot place keeps today's behaviour exactly rather than being deleted on a
+ *     guess about an id shape the catalogue never used.
+ *   * **It does not claim to be the authority.** The live Wix catalogue is, and the server still
+ *     refuses what it does not recognise. This only spares a customer learning it after pressing
+ *     Checkout.
+ */
+function droppableUnknown ( item: CartItem ): boolean {
+  if ( isContributionItem( item ) ) return false;
+  const claimed = [ item.productId, String( item.ref || '' ).split( ':' )[ 0 ] ]
+    .map( value => String( value || '' ).trim().toLowerCase() )
+    .filter( value => CATALOGUE_ID.test( value ) );
+  return claimed.length > 0 && !claimed.some( id => KNOWN_CATALOGUE_PRODUCT_IDS.has( id ) );
+}
+
 /**
  * Reconcile persisted rows against the catalogue bundled with THIS deployed storefront.
  *
@@ -144,11 +179,21 @@ function currentVariant ( item: CartItem, product: ShopProduct ): ShopVariant | 
  * strings; checkout still sends references + quantities and the backend still prices from live
  * Wix. A multi-variant legacy row with no recoverable choice is deliberately left WITHOUT a
  * variant so /cart/ can ask the customer to choose one instead of silently guessing a size.
+ *
+ * AN ID FROM THE PREVIOUS SITE IS NOW DROPPED RATHER THAN CARRIED. `/shop/` moved to Wix site
+ * `c993128b` on 2026-10-05 and every product id was re-minted, so a returning visitor's
+ * localStorage can hold a product id (e.g. the old ₹1 test product) that exists nowhere in the new
+ * catalogue. Carried into `toLineItems()` it reaches `GET /stores/v3/products/{id}`, 404s, and the
+ * customer is told "An item in your cart is no longer available" only AFTER pressing Checkout.
+ * Dropping it on read means they see the cart they can actually buy, and `readCart` persists the
+ * pruned list because `changed` moves with the length.
+ *
+ * Deliberately NOT a blanket "drop anything /shop/ does not list" - see `droppableUnknown`.
  */
 function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed: boolean } {
-  const reconciled = items.map( item => {
+  const reconciled = items.flatMap( item => {
     const product = currentProduct( item );
-    if ( !product ) return item;
+    if ( !product ) return droppableUnknown( item ) ? [] : [ item ];
 
     const variant = currentVariant( item, product );
     const hasMultiple = ( product.variants || [] ).length > 1;
@@ -163,7 +208,7 @@ function reconcileStoredCart ( items: CartItem[] ): { items: CartItem[]; changed
       formattedPrice: product.formattedPrice,
       quantity: item.quantity,
     };
-    return next;
+    return [ next ];
   } );
 
   // A legacy line and a newer line can reconcile to the same canonical ref. Merge only then, so

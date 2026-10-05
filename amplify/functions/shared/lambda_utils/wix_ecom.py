@@ -56,6 +56,25 @@ class AmountNotWhole(ValueError):
     """A Wix total was not a clean whole number of paise, so it cannot be trusted as an amount."""
 
 
+def http_error(method: str, endpoint: str, status: int) -> WixEcomError:
+    """The exception a non-2xx produces, with the status attached STRUCTURALLY as `.status`.
+
+    THE STATUS HAS TO BE READABLE WITHOUT PARSING THE MESSAGE, and that is the whole reason this
+    constructor exists. The message is still the same status-only string it always was -- no
+    response body, which can echo buyer detail -- but a 404 on a CART resource means something a
+    caller must act on differently from every other failure: the cart is gone and has to be
+    recreated, rather than an item being unavailable. Branching on an `in str(error)` substring
+    would make that decision depend on an exception's prose, which is not acceptable on a path
+    that ends in a charge.
+
+    One constructor rather than two, so `_request` and any fake transport in the tests produce
+    the identical shape; a fake that forgot `.status` would make the recovery untestable.
+    """
+    failure = WixEcomError(f"Wix eCom {method} {endpoint} returned HTTP {status}")
+    failure.status = int(status)
+    return failure
+
+
 def _api_key() -> str:
     """The Wix admin API key, read by reference and cached per environment.
 
@@ -105,8 +124,10 @@ def _request(endpoint: str, *, method: str = "POST",
         with urllib.request.urlopen(request, timeout=10) as response:
             payload = response.read().decode("utf-8")
     except urllib.error.HTTPError as error:
-        # Status only. The body can carry buyer detail and is not logged or surfaced.
-        raise WixEcomError(f"Wix eCom {method} {endpoint} returned HTTP {error.code}") from None
+        # Status only. The body can carry buyer detail and is not logged or surfaced. The message
+        # is unchanged; `http_error` additionally carries the status as `.status` so a caller can
+        # tell a 404 from the other fourteen refusals without reading the prose.
+        raise http_error(method, endpoint, error.code) from None
     except Exception as error:  # noqa: BLE001
         raise WixEcomError(
             f"Wix eCom {method} {endpoint} failed: {type(error).__name__}") from error

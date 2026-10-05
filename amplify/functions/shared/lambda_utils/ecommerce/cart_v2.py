@@ -101,6 +101,59 @@ class CartItemUnavailable(CartContractError):
         self.items = list(items or ())
 
 
+class CartGone(CartContractError):
+    """The CART RESOURCE itself is absent: Wix answered 404 on the cart id we are holding.
+
+    THIS IS NOT `CartItemUnavailable`, AND CONFLATING THE TWO WAS A LIVE DEAD END. On 2026-10-05
+    a customer could not pay: their browser's checkout resolved a Wix cart id persisted from
+    BEFORE the catalogue was migrated to the new site, `GET /ecom/v2/carts/{id}` answered 404 on
+    the new site, the transport raised, and the checkout handler's one WixEcomError arm reported
+    `CART_ITEM_UNAVAILABLE` -- "An item in your cart is no longer available. Remove it and try
+    again". The item was fine; the ₹1 test product was visible and in stock on the new site. The
+    CART was gone, and removing items from a cart that does not exist is not an action a customer
+    can take, so the answer was a dead end for every attempt.
+
+    The distinction is therefore load-bearing:
+
+    * **404 on the cart resource** -> the cart is gone (expired, deleted, or minted against a
+      different site). The pointer we hold is worthless, so DISCARD it and create a fresh cart
+      from the current line items. Recoverable without the customer doing anything.
+    * **a catalogue item/variant genuinely missing** -> `CartItemUnavailable`, or a
+      `WixEcomError` from the `GET /stores/v3/products/{id}` resolution. That is the only
+      condition that may surface as "no longer available", because removing the line is a real
+      action and it is the only one that works.
+
+    Derived from `CartContractError` deliberately. A caller that does NOT implement the recovery
+    (or whose recovery fails twice) answers its existing `409 CART_NOT_PAYABLE` rather than a 500
+    or a transient 503 that invites a retry which cannot help.
+
+    `.cart_id` carries the dead id so the recovery can log exactly which pointer was dropped. A
+    Wix cart id is a resource id, not PII, and it is the only correlation available here.
+    """
+
+    def __init__(self, message, cart_id=""):
+        super().__init__(message)
+        self.cart_id = str(cart_id or "")
+
+
+def is_not_found(error):
+    """Whether a transport failure is specifically HTTP 404.
+
+    Reads a STRUCTURED status and never a substring of the message: `wix_ecom.http_error` attaches
+    `.status` from `urllib.error.HTTPError.code`, and `.code` is checked too so a raw urllib error
+    from some other transport is understood as well. A money path must not branch on prose.
+
+    Anything without a readable status answers False, which fails CLOSED: an unknown failure keeps
+    today's behaviour (it propagates) rather than being optimistically treated as "the cart is
+    gone" and triggering a cart creation.
+    """
+    for attribute in ("status", "code"):
+        value = getattr(error, attribute, None)
+        if isinstance(value, int) and value == 404:
+            return True
+    return False
+
+
 class CartQuantityReduced(CartContractError):
     """Wix confirmed fewer units than were requested, so the cart no longer means what was asked.
 
@@ -276,8 +329,23 @@ class CartV2:
             "catalogItems": [catalog_item(item) for item in items]}))
 
     def get(self, cart_id):
+        """Read the cart. A 404 here is `CartGone`, never an item problem. See `CartGone`.
+
+        THIS IS THE ONLY CALL THAT NEEDS THE DISTINCTION, and that is measured rather than
+        assumed: every path that reuses a persisted cart id touches it through `get` FIRST -- the
+        stale-delivery check, the basket-equality backstop and the reconcile diff all start here --
+        so a cart Wix no longer has is discovered on this call and on no other. The add/remove/
+        calculate endpoints are only reached once this one has answered, i.e. once the cart has
+        been proven to exist a moment earlier.
+        """
         cart_id = identifier(cart_id)
-        return self._cart(self.request(f"{BASE}/{cart_id}"), cart_id)
+        try:
+            response = self.request(f"{BASE}/{cart_id}")
+        except Exception as error:          # noqa: BLE001 -- re-raised unless it is a 404
+            if is_not_found(error):
+                raise CartGone("the wix cart no longer exists", cart_id) from None
+            raise
+        return self._cart(response, cart_id)
 
     def add(self, cart_id, item):
         cart_id = identifier(cart_id)

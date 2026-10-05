@@ -252,6 +252,27 @@ export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 
+/**
+ * EVERY product id this deployed snapshot knows about, lowercased. Not just `SHOP_PRODUCTS`.
+ *
+ * Read from the raw rows rather than from the projection on purpose, because the projection
+ * EXCLUDES ids that are still perfectly real catalogue products: the contribution vehicle and the
+ * twelve Wix template samples are filtered out of `/shop/` and remain purchasable by direct cart
+ * reference. A "do I know this id?" test built on `SHOP_PRODUCTS` would answer no for thirteen
+ * live products and throw their cart lines away.
+ *
+ * What this exists for is the other direction: a `wecare.cart.v1` row written before the catalogue
+ * moved to site `c993128b` names a product id that does not exist anywhere on the new site. Sent
+ * to checkout it 404s at `GET /stores/v3/products/{id}` and the customer is told to remove an item
+ * — which they can at least do, but only after a failed payment attempt tells them to. Dropping it
+ * at read time is the cheaper failure. See `reconcileStoredCart` in src/lib/cart.ts.
+ */
+export const KNOWN_CATALOGUE_PRODUCT_IDS: ReadonlySet<string> = new Set(
+  ( ( catalog as { products?: RawProduct[] } ).products || [] )
+    .map( raw => String( raw.id || '' ).trim().toLowerCase() )
+    .filter( Boolean ),
+);
+
 /** The contribution product, projected the same way. Null until the snapshot is refreshed. */
 export const CONTRIBUTION_PRODUCT: ShopProduct | null =
   VISIBLE.filter( isContributionRow ).map( project )[ 0 ] || null;

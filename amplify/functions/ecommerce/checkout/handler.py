@@ -810,6 +810,15 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             "error": "CART_RESET_REQUIRED",
             "message": "Your saved cart has too many items to update. Start a new cart.",
         }, origin)
+    except cart_v2.CartGone:
+        # PERSISTENT only. `_v2_snapshot` already discarded the dead pointer and minted a fresh
+        # cart; reaching here means the NEW cart 404'd too, which is a Wix fault rather than a
+        # stale pointer, and `logger.error` is the level that says so. Deliberately NOT
+        # `CART_ITEM_UNAVAILABLE`: no item has been shown to be missing, and telling a customer to
+        # remove one would send them after a line that is fine. Must precede the parent arm below.
+        logger.error(json.dumps({"event": "website_checkout_cart_gone_unrecoverable"}))
+        return cors_response(409, {"error": "CART_NOT_PAYABLE",
+                                   "message": "Please review your cart and try again."}, origin)
     except cart_v2.CartContractError:
         # The parent of the five contribution arms above, the two item arms and CartResetRequired,
         # so it is LAST among them.
@@ -1483,6 +1492,45 @@ def _reconcile_saved_cart(carts, identity: customer_auth.CustomerIdentity,
     _require_same_basket(carts.adapter.get(cart_id), requested)
 
 
+def _settle_saved_cart(carts, adapter, identity: customer_auth.CustomerIdentity,
+                       cart_id: str, created: bool, requested: list, *,
+                       requires_delivery: bool, reconcile: bool) -> tuple:
+    """Make a REUSED Wix cart safe to price. Returns `(cart_id, created)`.
+
+    Extracted from `_v2_snapshot` unchanged, because it is exactly the set of calls that address
+    the saved cart BY ID -- the stale-delivery read, the reconcile diff and the basket-equality
+    backstop. That makes it the whole surface on which a cart Wix no longer has can answer 404,
+    so the caller can recover from `cart_v2.CartGone` in ONE place instead of three call sites
+    each needing their own recovery.
+
+    A freshly `created` cart was built from `requested` by definition, so there is nothing to
+    settle and this returns immediately.
+    """
+    if created:
+        return cart_id, created
+
+    # A NO-DELIVERY BASKET MUST NOT INHERIT A PLACE OF SUPPLY. `ensure` reuses one Wix cart per
+    # identity for 30 days, and every physical attempt writes `deliveryInfo.address` onto it.
+    # There is no Cart V2 call that clears that field and no `execute` command that could issue
+    # one, so the only way to get a clean cart is to stop using this one.
+    if not requires_delivery and (
+            ((adapter.get(cart_id).get("deliveryInfo") or {}).get("address")) or {}):
+        abandoned = cart_id
+        carts.abandon(identity)                 # refuses while `busy` is set
+        cart_id, created = carts.ensure(identity, requested)
+        # The DURABLE record of the abandon: the `abandonedCartId` written onto the row does not
+        # survive the next `ensure`'s full `put_item`. A Wix cart id is a resource id, not PII.
+        logger.info(json.dumps({"event": "checkout_cart_delivery_reset",
+                                "abandonedCartId": str(abandoned)}))
+
+    if not created:
+        if reconcile:
+            _reconcile_saved_cart(carts, identity, cart_id, requested)
+        else:
+            _require_same_basket(adapter.get(cart_id), requested)
+    return cart_id, created
+
+
 class DeliveryMethodUnavailable(purchase_intent.DeliveryDetailsRequired):
     """Wix priced nothing because it offered no delivery METHOD for a known-good address.
 
@@ -1815,25 +1863,38 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
 
     cart_id, created = carts.ensure(identity, requested)
 
-    # A NO-DELIVERY BASKET MUST NOT INHERIT A PLACE OF SUPPLY. `ensure` reuses one Wix cart per
-    # identity for 30 days, and every physical attempt writes `deliveryInfo.address` onto it.
-    # There is no Cart V2 call that clears that field and no `execute` command that could issue
-    # one, so the only way to get a clean cart is to stop using this one.
-    if not created and not requires_delivery and (
-            ((adapter.get(cart_id).get("deliveryInfo") or {}).get("address")) or {}):
-        abandoned = cart_id
+    # A CART WIX NO LONGER HAS IS DISCARDED AND REMINTED, NOT REPORTED AS AN ITEM PROBLEM.
+    #
+    # `ensure` keeps one Wix cart id per identity for thirty days, so a pointer written before the
+    # catalogue moved to site `c993128b` outlives the site it was minted against -- and
+    # `GET /ecom/v2/carts/{id}` answers 404 for it. On 2026-10-05 that reached a live customer as
+    # "An item in your cart is no longer available. Remove it and try again", on a basket whose
+    # only line (the ₹1 test product) was visible and in stock: the single `WixEcomError` arm in
+    # `_website_prepare` cannot tell a dead CART from a missing ITEM, and removing a line from a
+    # cart that does not exist is not an action anybody can take. Every attempt dead-ended.
+    #
+    # A 404 on the cart resource says the CART is gone and says nothing about the catalogue, so
+    # the pointer is abandoned and a fresh cart is minted from `requested` -- the same basket,
+    # re-priced from scratch by `calculate` below. Nothing about price authority moves: the new
+    # cart carries no total of ours, the amount still comes from Wix's own `summary.priceSummary`
+    # in integer paise, and `_assert_contribution_total`'s exact comparison still runs.
+    #
+    # EXACTLY ONCE. A cart created in this invocation that is itself 404 is a Wix outage, not a
+    # stale pointer, so the second `CartGone` propagates to the caller's refusal arm rather than
+    # looping -- `ensure` would otherwise create a cart per attempt, abandoning each on the live
+    # site with nothing to clean them up.
+    try:
+        cart_id, created = _settle_saved_cart(
+            carts, adapter, identity, cart_id, created, requested,
+            requires_delivery=requires_delivery, reconcile=reconcile)
+    except cart_v2.CartGone as gone:
+        logger.info(json.dumps({"event": "checkout_cart_gone_recreated",
+                                "goneCartId": str(gone.cart_id or cart_id)}))
         carts.abandon(identity)                 # refuses while `busy` is set
         cart_id, created = carts.ensure(identity, requested)
-        # The DURABLE record of the abandon: the `abandonedCartId` written onto the row does not
-        # survive the next `ensure`'s full `put_item`. A Wix cart id is a resource id, not PII.
-        logger.info(json.dumps({"event": "checkout_cart_delivery_reset",
-                                "abandonedCartId": str(abandoned)}))
-
-    if not created:
-        if reconcile:
-            _reconcile_saved_cart(carts, identity, cart_id, requested)
-        else:
-            _require_same_basket(adapter.get(cart_id), requested)
+        cart_id, created = _settle_saved_cart(
+            carts, adapter, identity, cart_id, created, requested,
+            requires_delivery=requires_delivery, reconcile=reconcile)
 
     # Initialised BEFORE the try, because neither branch below is guaranteed to assign and the
     # except arm logs the revision. A `NameError` inside an `except` arm would be swallowed by

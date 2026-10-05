@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "amplify/functions/shared"))
 
+from lambda_utils import wix_ecom  # noqa: E402
 from lambda_utils.ecommerce.blog_contribution import (  # noqa: E402
     CONTRIBUTION_CHOICES_PAISE, CONTRIBUTION_PRODUCT_IDS)
 
@@ -107,7 +108,17 @@ class ContributionWix:
                  in_stock: bool = True, confirmed_delta: int = 0,
                  line_status: str = "IN_STOCK", variant_count: int = 0,
                  require_delivery_on_calculate: bool = False,
-                 offered_delivery_options: Optional[List[Dict[str, Any]]] = None):
+                 offered_delivery_options: Optional[List[Dict[str, Any]]] = None,
+                 gone_cart_ids: Optional[List[str]] = None,
+                 gone_product_ids: Optional[List[str]] = None):
+        #: Cart ids Wix answers 404 for, as the migrated site does for a cart minted against the
+        #: old one. The failure is built by `wix_ecom.http_error`, the SAME constructor the real
+        #: transport uses, so `.status` is present exactly as it is in production -- a fake that
+        #: raised a bare `WixEcomError` would make the 404 recovery untestable by construction.
+        self.gone_cart_ids = {str(value).lower() for value in (gone_cart_ids or ())}
+        #: Product ids whose `GET /stores/v3/products/{id}` answers 404: a line whose item really
+        #: is off the catalogue, which must still surface as "no longer available".
+        self.gone_product_ids = {str(value).lower() for value in (gone_product_ids or ())}
         self.lines = [dict(line) for line in (lines or [])]
         self.delivery_address = copy.deepcopy(delivery_address) if delivery_address else None
         self.delivery_method: Optional[Dict[str, Any]] = (
@@ -283,8 +294,21 @@ class ContributionWix:
         self.calls.append((method, endpoint))
         self.requests.append((method, endpoint, copy.deepcopy(body)))
 
+        # A cart Wix no longer has. Checked before every other branch so it covers the GET the
+        # stale-delivery read, the basket backstop and the reconcile diff all share.
+        #
+        # Scoped to the GET, matching the live evidence (`GET /ecom/v2/carts/{id}` -> 404) and
+        # matching where `CartV2` draws the distinction. A fake that 404'd the whole cart
+        # namespace would be modelling "Wix carts are down", which is a different failure.
+        if method == "GET" and endpoint.startswith("/ecom/v2/carts/"):
+            addressed = endpoint[len("/ecom/v2/carts/"):].split("/")[0].split("?")[0]
+            if addressed.lower() in self.gone_cart_ids:
+                raise wix_ecom.http_error(method, endpoint, 404)
+
         if endpoint.startswith("/stores/v3/products/"):
             product_id = endpoint.rsplit("/", 1)[-1]
+            if product_id.lower() in self.gone_product_ids:
+                raise wix_ecom.http_error(method, endpoint, 404)
             variants = [{"id": variant_id, "visible": True,
                          "inventoryStatus": {"inStock": self.in_stock}}
                         for variant_id in self.variants.get(product_id, [OTHER_VARIANT])]
