@@ -29,7 +29,7 @@ fix is a separate key, which is what `docs/spec.md` ADR-4 already required.
 
 The new key carries **no** application restriction. That is deliberate and it is the
 standard pattern for Lambda, which has no stable egress IP to allowlist, so `--allowed-ips`
-is not available. The compensating control is a tight `apiTargets` list: four services
+is not available. The compensating control is a tight `apiTargets` list: six services
 instead of the unified key's forty-nine. A key with no application restriction is usable by
 anyone who holds it, which is exactly why it must be separate, narrow, and in Secrets
 Manager rather than shared with the browser.
@@ -62,7 +62,8 @@ SECRET_NAME = "wecare/google-maps-server"
 SECRET_FIELD = "api_key"
 DISPLAY_NAME = "WECARE Address Capture Server Key"
 
-# Least privilege for address capture. Deliberately NOT the unified key's 49 services.
+# Least privilege for the two server consumers: address capture + VayuLok environment.
+# Deliberately NOT the unified key's broad service list.
 #   places.googleapis.com          Places API (New) - autocomplete and place details
 #   addressvalidation.googleapis.com  address verification
 #   geocoding-backend.googleapis.com  geocoding, only where genuinely required
@@ -73,6 +74,10 @@ API_TARGETS = [
     "addressvalidation.googleapis.com",
     "geocoding-backend.googleapis.com",
     "places-backend.googleapis.com",
+    # VayuLok environmental web-service calls. Kept server-side by
+    # core/vayulok-environment; never add these to the public browser key.
+    "airquality.googleapis.com",
+    "weather.googleapis.com",
 ]
 
 TIMEOUT = 20

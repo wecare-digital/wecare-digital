@@ -99,9 +99,13 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # deploy-all run before that is legitimately awaiting provisioning. Note its absence costs
     # catalogue auto-sync NOTHING: .github/workflows/catalogue-sync.yml re-reads Wix on a
     # six-hourly cron with no credential, and this receiver only makes it near-instant.
+    # wecare-vayulok-environment added 2026-10-05: public VayuLok needs Weather/Air
+    # without publishing the web-service key. Its role, server-key grant, live alias,
+    # exact POST/OPTIONS routes and per-route throttle are first-created by
+    # scripts/provision_vayulok_environment.py.
     # Session infrastructure is owned by its CloudFormation template; an account
     # without that stack must provision it rather than report a code-update failure.
-    assert waiting == ["wecare-customer-session", "wecare-customer-whatsapp-auth", "wecare-email-verification",
+    assert waiting == ["wecare-customer-session", "wecare-vayulok-environment", "wecare-customer-whatsapp-auth", "wecare-email-verification",
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
                        "wecare-customer-orders",
                        "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi",

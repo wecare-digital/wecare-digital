@@ -226,6 +226,10 @@ class TestAuditMarkerPolicy:
             # Public by design, but unlike the generic /contacts API it can write only after
             # both server-side OTP proofs succeed. The paired allowlist edit is intentional.
             "POST /blog/subscribe",
+            # Anonymous public-product read. There is no customer identity to authenticate;
+            # the handler admits only WECARE HTTPS origins, India coordinates and a fixed
+            # Weather/Air operation set, and API Gateway imposes a separate spend throttle.
+            "POST /vayulok/environment",
             "GET /webhook/sinch-rcs",
             "POST /webhook/sinch-rcs",
             # The provider's browser callback has no AWS/staff identity. It is
