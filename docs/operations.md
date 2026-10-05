@@ -141,6 +141,17 @@ extend the existing unified key to cover server use — it is a browser key, and
 referrer-restricted keys for server-side calls whatever their `apiTargets` say. That was tried
 first and it does not work.
 
+**Where the server key goes now, corrected 2026-10-05.** `provision_maps_server_key.py` no
+longer writes `wecare/google-maps-server`. It writes the canonical **`wecare/google/cloud`**,
+replacing only that secret's `api_key` and `unified_google_api_key` fields through a
+read-merge-write so the project metadata siblings survive, and printing the preserved field
+names so the merge is checkable without reading the secret back. The canonical id is the one
+all three consumers (`site-language`, `whatsapp-templates`, `vayulok-environment`) already
+default to, and `tests/test_one_google_key.py` enforces that — which is what makes the
+owner's single deferred rotation reach every consumer instead of one. The row above and the
+BROKEN callout below remain accurate history for `wecare/google-maps-server`; they are not
+the current target.
+
 > **BROKEN 2026-09-30, and the break is invisible from the secret.** The key that secret holds
 > — Google Cloud API key `WECARE Address Capture Server Key`, uid `d936bd15-...`, created
 > 2026-09-26 — was **deleted on 2026-09-30**. `gcloud services api-keys list --show-deleted`

@@ -120,6 +120,26 @@ FORBIDDEN_FINGERPRINTS: dict[str, str] = {
     # Populate when a key is known to lack browser restrictions - e.g. the
     # IP-restricted server key that the Places proxy and Translate need, once it
     # exists. That one genuinely must never reach the export.
+    #
+    # PLACEHOLDER SLOT - WECARE Server Google API Key. TODO: paste the entry here
+    # the first time `python scripts/provision_maps_server_key.py --create` runs.
+    #
+    # That key is minted with NO application restriction, deliberately: Lambda has no
+    # stable egress IP to allowlist, so the compensating control is a narrow apiTargets
+    # list plus Secrets Manager. A key with no application restriction is usable by
+    # anyone who holds it, so unlike the referrer-restricted browser key it must never
+    # be inlined into a public JS chunk - which is exactly the case this dict exists to
+    # fail the build on, and exactly the key it has never yet been taught.
+    #
+    # NO VALUE IS INVENTED HERE. The key does not exist yet, so its fingerprint is
+    # unknowable; a made-up hex string would be a gate that can never match. --create,
+    # --verify, --status and --store-from-stdin each print the exact dict entry to
+    # paste, in the bare 12-hex form fingerprint() compares against.
+    #
+    #     "<12 hex>": (
+    #         "WECARE Server Google API Key - no application restriction, so it is"
+    #         " usable by anyone who holds it and must never reach the export."
+    #     ),
 }
 
 # Issuer-anchored and long-tailed, so prose and placeholders do not register.

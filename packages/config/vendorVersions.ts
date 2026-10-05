@@ -278,11 +278,23 @@ export const WIX_BLOG: VendorVersion = {
 /**
  * Google Places.
  *
- * `configured` is the LEGACY web service (`maps/api/place/autocomplete/json`), which Google
- * has deprecated. The migration target is Places API (New).
+ * Corrected 2026-10-05: the code migration LANDED, and two facts recorded here were false
+ * after it. `configured` read `legacy-web-service` and `upgradeBlockedReason` named
+ * `wecare/google-maps-server` as the server-key store. Both are now wrong:
  *
- * The credential blocker is CLOSED, and how it closed is worth recording because the first
- * diagnosis was wrong. The stated blocker was that the unified key's `apiTargets` omitted
+ *   1. `messaging/whatsapp-templates/handler.py` no longer touches a legacy endpoint. Both
+ *      server-side Places calls — Autocomplete and Place Details — go to
+ *      `places.googleapis.com/v1`, and the legacy keyless-GET helper was deleted rather
+ *      than left behind for a future call site to re-use. `maps.googleapis.com` appears in
+ *      no Python in the repo. The remaining browser uses of `maps/api/js` are the Maps
+ *      JavaScript API, a different product on the referrer-restricted browser key, and are
+ *      not this entry.
+ *   2. `wecare/google-maps-server` is RETIRED. The canonical store is `wecare/google/cloud`,
+ *      which is what `scripts/provision_maps_server_key.py` writes and what every consumer
+ *      reads. See `docs/security.md` and `docs/operations.md`.
+ *
+ * How the credential blocker closed is still worth keeping, because the first diagnosis was
+ * wrong. The stated blocker was that the unified key's `apiTargets` omitted
  * `places.googleapis.com`. That was true, and adding it was **necessary but not
  * sufficient** — after the target was added the call still failed, with
  * `API_KEY_HTTP_REFERRER_BLOCKED`. The real refusal was about the key *type*: the unified
@@ -290,25 +302,21 @@ export const WIX_BLOG: VendorVersion = {
  * referrer-restricted keys for server-side calls on both legacy Maps web services and
  * Places (New). No edit to a browser key can fix that.
  *
- * Fixed by minting a separate server key — `wecare/google-maps-server`, 4 apiTargets, no
- * application restriction because Lambda has no stable egress IP. Proven live: Places (New)
- * Autocomplete returns suggestions and legacy Geocoding returns `OK`.
- *
- * What remains is a **code** migration, not a credential one.
+ * So `configured` tracks the ENDPOINT this system calls, and that is now the new one. The
+ * open item is neither a version lag nor a credential design question: a server key with no
+ * application restriction has to be minted into `wecare/google/cloud` before these calls
+ * succeed in production, and until it is, Google answers `API_KEY_HTTP_REFERRER_BLOCKED`.
+ * `_google_status_problem` in that handler exists so that refusal is reported as a 502
+ * diagnosis rather than as an empty address list. Tracked in
+ * `docs/vayulok-live-deploy.md`, not here.
  */
 export const GOOGLE_PLACES: VendorVersion = {
   name: 'Google Places',
-  configured: 'legacy-web-service',
+  configured: 'places-api-new',
   verifiedLatest: 'places-api-new',
   verifiedOn: '2026-09-26',
   evidence: 'LIVE',
-  drift: 'lag-allowed-with-reason',
-  upgradeBlockedReason:
-    'Code migration pending, credential blocker CLOSED. The server key ' +
-    'wecare/google-maps-server answers on Places API (New), verified live. The remaining ' +
-    'work is porting whatsapp-templates/handler.py off the deprecated legacy endpoints and ' +
-    'building AddressService on the new ones. Legacy is deprecated, so this lag has an ' +
-    'expiry rather than an indefinite pass.',
+  drift: 'must-be-latest',
   rederive:
     '.venv/bin/python scripts/provision_maps_server_key.py --verify, and ' +
     'https://developers.google.com/maps/documentation/places/web-service/op-overview',

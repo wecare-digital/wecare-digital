@@ -5,10 +5,17 @@ This creates the Lambda, a least-privilege execution role, the single public API
 Gateway route, a live alias, per-route throttling, and invocation permission.
 
 It deliberately does NOT create or print a Google key. The function reads
-wecare/google-maps-server at runtime. That secret is owned by
+wecare/google/cloud at runtime - the canonical id, matching GOOGLE_SECRET_NAME
+below and the handler's own default. That secret is owned by
 scripts/provision_maps_server_key.py, which captures key material without putting
 it on argv/stdout and now scopes the server key to Places/Geocoding/Address
 Validation plus Weather and Air Quality.
+
+CORRECTED 2026-10-05. This paragraph previously named wecare/google-maps-server.
+That secret's key was deleted in Google Cloud on 2026-09-30 and now answers
+`REQUEST_DENIED: The provided API key is expired`, so an operator reading the old
+wording was pointed at a dead secret while the code read the live one. The code was
+always right; only this instruction was wrong.
 
 Usage:
     python scripts/provision_vayulok_environment.py --dry-run
@@ -79,6 +86,60 @@ def _zip_handler() -> bytes:
     return buf.getvalue()
 
 
+def _kms_statement(kms_key_id: str | None) -> dict:
+    """The second half of a GetSecretValue on a CMK-encrypted secret.
+
+    `GetSecretValue` is TWO authorizations, and only the first one is Secrets Manager.
+    The decrypt happens with THIS role's credentials, so without this statement the
+    secretsmanager allow above is decorative on a customer-managed key - the call is
+    refused with an AccessDeniedException whose message names Secrets Manager, which
+    is what made the 2026-09-28 `plivo-drift` incident read as a false CRITICAL for a
+    day. Both existing Google consumers carry a comment warning about exactly this.
+
+    `kms:Decrypt` only. `GenerateDataKey` is the write side of the same key - what
+    Secrets Manager needs when it STORES a value - and a reader must not have it.
+    `kms:ViaService` bounds the grant to decryption performed on Secrets Manager's
+    behalf, so it cannot be used to decrypt arbitrary ciphertext under that key.
+
+    Pure function on purpose: tests assert over this exact dict with no AWS call.
+    """
+    resource = (
+        kms_key_id
+        if kms_key_id and kms_key_id.startswith("arn:aws:kms:")
+        # DescribeSecret can hand back an alias or a bare key id, and an AWS-managed
+        # key may not be reported at all. The account-level, via-Secrets-Manager-only
+        # shape is what provision_ci_plivo_drift_role.py and
+        # provision_gift_cards_roles.py fall back to, and it is harmless on an
+        # AWS-managed key.
+        else f"arn:aws:kms:{REGION}:{ACCOUNT}:key/*"
+    )
+    return {
+        "Sid": "DecryptOnlyViaSecretsManager",
+        "Effect": "Allow",
+        "Action": "kms:Decrypt",
+        "Resource": resource,
+        "Condition": {
+            "StringEquals": {"kms:ViaService": f"secretsmanager.{REGION}.amazonaws.com"}
+        },
+    }
+
+
+def _resolve_secret_kms_key() -> str | None:
+    """The KMS key id on the canonical Google secret, or None.
+
+    `DescribeSecret` returns METADATA only - it is not `GetSecretValue` and reads no
+    credential. A lookup failure must never fail provisioning, so a ClientError
+    becomes None and `_kms_statement` falls back to the account-level shape.
+    """
+    try:
+        meta = boto3.client("secretsmanager", region_name=REGION).describe_secret(
+            SecretId=GOOGLE_SECRET_NAME
+        )
+    except ClientError:
+        return None
+    return meta.get("KmsKeyId") or None
+
+
 def ensure_role(dry_run: bool) -> str:
     try:
         iam().get_role(RoleName=ROLE_NAME)
@@ -116,15 +177,19 @@ def ensure_role(dry_run: bool) -> str:
     if not dry_run:
         policy = {
             "Version": "2012-10-17",
-            "Statement": [{
-                "Sid": "ReadVayuLokGoogleServerKey",
-                "Effect": "Allow",
-                "Action": ["secretsmanager:GetSecretValue"],
-                "Resource": (
-                    f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:"
-                    f"secret:{GOOGLE_SECRET_NAME}-*"
-                ),
-            }],
+            "Statement": [
+                {
+                    "Sid": "ReadVayuLokGoogleServerKey",
+                    "Effect": "Allow",
+                    "Action": ["secretsmanager:GetSecretValue"],
+                    "Resource": (
+                        f"arn:aws:secretsmanager:{REGION}:{ACCOUNT}:"
+                        f"secret:{GOOGLE_SECRET_NAME}-*"
+                    ),
+                },
+                # Only inside `not dry_run`, so a dry run makes no AWS call at all.
+                _kms_statement(_resolve_secret_kms_key()),
+            ],
         }
         iam().put_role_policy(
             RoleName=ROLE_NAME,

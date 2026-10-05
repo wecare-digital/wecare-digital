@@ -239,11 +239,27 @@ when the configuration reads as intended.
 
 **Controls.**
 
-- ✅ **A separate server key exists.** `wecare/google-maps-server`, minted by
-  `scripts/provision_maps_server_key.py --create`, 4 `apiTargets` against the unified key's
-  49. Proven live: Places (New) Autocomplete returns suggestions, legacy Geocoding returns
-  `OK`. The value never entered argv, a log, or an agent's context — the script captures it
-  from `gcloud` in memory and writes it straight to Secrets Manager.
+- ✅ **A separate server key exists**, and **as of 2026-10-05 it lands in the canonical
+  secret `wecare/google/cloud`**, not `wecare/google-maps-server`.
+  `scripts/provision_maps_server_key.py --create` replaces only that secret's key fields
+  (`api_key`, `unified_google_api_key`) through a read-merge-write, so the project metadata
+  siblings survive; it now prints the preserved field **names** so the merge is checkable
+  without reading the secret back. `apiTargets` is 7 services against the unified key's 49.
+  The value never enters argv, a log, or an agent's context — the script captures it from
+  `gcloud` in memory and writes it straight to Secrets Manager.
+
+  **Dated correction.** This bullet previously named `wecare/google-maps-server` as the
+  server-key store. That was true when the key was minted on 2026-09-26 and stopped being
+  true on 2026-09-30, when the Google Cloud key behind it was deleted — see the BROKEN
+  callout in `docs/operations.md`. The canonical id is the one every consumer already
+  defaults to, which is what makes the owner's single rotation reach all of them.
+- ✅ **Places calls are header-authenticated.** `whatsapp-templates/handler.py` calls Places
+  API (New) on `places.googleapis.com` with the key in `X-Goog-Api-Key`. It no longer builds
+  the key into a URL query string, which matters specifically because the server key carries
+  no application restriction: a URL-borne key reaches provider access logs, request tracing,
+  and — through the handler's own failure paths — a 502 body and a CloudWatch line.
+  `tests/test_places_new_server_transport.py` pins both the header and the absence of any
+  `key=` parameter.
 - **It deliberately carries no application restriction**, and that is a considered trade, not
   an oversight. Lambda has no stable egress IP, so `--allowed-ips` is unavailable. A key with
   no application restriction is usable by anyone who holds it, which is exactly why it is
@@ -252,8 +268,11 @@ when the configuration reads as intended.
   assumed away.
 - ⏳ Still owed on the browser half: drop the pseudo-referrer entries and cut `apiTargets`
   from 49 to what the frontend actually needs.
-- ⏳ Repoint `whatsapp-templates/handler.py` off `wecare/google-maps`. It reads the **browser**
-  key server-side, so that path cannot work. Latent rather than harmful — zero invocations of
+- ✅ `whatsapp-templates/handler.py` now reads the canonical `wecare/google/cloud` rather
+  than `wecare/google-maps`, and calls Places API (New) rather than the legacy
+  `maps/api/place/*` endpoints. It still resolves the **browser** key until the server key is
+  provisioned, so the path remains refused until then — but by the credential, not by the
+  endpoint or the transport. Latent rather than harmful: zero invocations of
   `places-autocomplete` or `place-details` in the retained log window.
 - Both keys are registered in `scripts/check_secrets_live.py`, so a browser key pointed at a
   server path says so on the next run instead of failing silently.

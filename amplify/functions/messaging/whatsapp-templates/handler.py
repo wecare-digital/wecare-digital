@@ -189,10 +189,83 @@ def _get_gmaps_key() -> str:
     return key
 
 
-def _http_get_json(url: str) -> dict:
-    req = urllib.request.Request(url, method='GET')
+def _places_new_json(url: str, *, method: str = 'GET', body: dict | None = None,
+                     field_mask: str = '') -> dict:
+    """Call Places API (New) with the credential in a HEADER, never in the URL.
+
+    REPLACES a keyless `_http_get_json(url)` that had exactly two callers, both of
+    which appended `&key={key}` to the URL they passed in. A URL-borne key reaches
+    Google's access logs, any request tracing, and - via the `except Exception as e`
+    paths below - a 502 response body and a CloudWatch log line. The key is now
+    unreachable from the URL by construction, so no caller can reintroduce that:
+    there is no keyless GET helper left to reuse.
+
+    `X-Goog-FieldMask` is sent only when asked for. Place Details (New) requires one;
+    Autocomplete (New) is the documented exception and must not carry it.
+    """
+    key = _get_gmaps_key()
+    headers = {'Accept': 'application/json', 'X-Goog-Api-Key': key}
+    data = None
+    if body is not None:
+        headers['Content-Type'] = 'application/json'
+        data = json.dumps(body).encode()
+    if field_mask:
+        headers['X-Goog-FieldMask'] = field_mask
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
     with urllib.request.urlopen(req, timeout=10) as resp:
         return json.loads(resp.read().decode())
+
+
+def _legacy_shape_from_http_error(exc: urllib.error.HTTPError) -> dict:
+    """Map a Places API (New) error body onto the legacy `status` vocabulary.
+
+    `_google_status_problem` below, and the test that pins it, both speak the legacy
+    `status`/`error_message` dialect. A refused credential has to keep arriving in
+    that dialect or the referrer-specific diagnosis stops firing and a refusal looks
+    like an empty result again - the exact regression that function exists to prevent.
+    """
+    try:
+        error = json.loads(exc.read() or b'{}').get('error', {})
+    except (json.JSONDecodeError, OSError, ValueError):
+        error = {}
+    message = str(error.get('message') or '')
+    reasons = [str(d.get('reason') or '') for d in (error.get('details') or [])]
+    if 'API_KEY_HTTP_REFERRER_BLOCKED' in reasons:
+        # Places API (New)'s spelling of the measured refusal. Carry the word
+        # "referer" so _google_status_problem's referrer branch still matches.
+        return {'status': 'REQUEST_DENIED',
+                'error_message': message or ('API keys with referer restrictions cannot be '
+                                             'used with this API')}
+    if exc.code in (401, 403):
+        return {'status': 'REQUEST_DENIED', 'error_message': message}
+    return {'status': 'UNKNOWN_ERROR', 'error_message': message}
+
+
+def _legacy_shape_from_autocomplete(data: dict) -> dict:
+    """Places API (New) `suggestions[]` -> the legacy `predictions[]` dict."""
+    predictions = []
+    for suggestion in data.get('suggestions') or []:
+        prediction = (suggestion or {}).get('placePrediction') or {}
+        predictions.append({
+            'description': ((prediction.get('text') or {}).get('text') or ''),
+            'place_id': prediction.get('placeId') or '',
+        })
+    return {'status': 'OK' if predictions else 'ZERO_RESULTS',
+            'predictions': predictions}
+
+
+def _legacy_shape_from_place_details(data: dict) -> dict:
+    """Places API (New) place resource -> the legacy `result` dict."""
+    location = data.get('location') or {}
+    return {
+        'status': 'OK',
+        'result': {
+            'geometry': {'location': {'lat': location.get('latitude'),
+                                      'lng': location.get('longitude')}},
+            'name': ((data.get('displayName') or {}).get('text') or ''),
+            'formatted_address': data.get('formattedAddress') or '',
+        },
+    }
 
 
 def _google_status_problem(data: dict) -> str:
@@ -229,11 +302,20 @@ def _places_autocomplete(q: str, session_token: str = ''):
     key = _get_gmaps_key()
     if not key:
         return _error_response(500, 'Maps key not configured')
-    url = f'https://maps.googleapis.com/maps/api/place/autocomplete/json?input={urllib.parse.quote(q)}&key={key}'
+    # Places API (New), POST, key in X-Goog-Api-Key only. Autocomplete (New) takes the
+    # session token in the request BODY, not a query parameter. No regionCode and no
+    # locationBias: the legacy call had neither, and adding one would change which
+    # suggestions a user sees.
+    url = 'https://places.googleapis.com/v1/places:autocomplete'
+    request_body = {'input': q}
     if session_token:
-        url += f'&sessiontoken={urllib.parse.quote(session_token)}'
+        request_body['sessionToken'] = session_token
     try:
-        data = _http_get_json(url)
+        try:
+            data = _legacy_shape_from_autocomplete(
+                _places_new_json(url, method='POST', body=request_body))
+        except urllib.error.HTTPError as http_exc:
+            data = _legacy_shape_from_http_error(http_exc)
         problem = _google_status_problem(data)
         if problem:
             logger.error(json.dumps({'event': 'places_autocomplete_denied',
@@ -256,12 +338,18 @@ def _place_details(place_id: str, session_token: str = ''):
     key = _get_gmaps_key()
     if not key:
         return _error_response(500, 'Maps key not configured')
-    url = (f'https://maps.googleapis.com/maps/api/place/details/json?place_id={urllib.parse.quote(place_id)}'
-           f'&fields=geometry,name,formatted_address&key={key}')
+    # Places API (New), GET, key in X-Goog-Api-Key only. A field mask IS required here,
+    # and the session token IS a query parameter on Place Details (New) - it is a
+    # billing-session identifier, not a credential, so it is safe in the URL.
+    url = f'https://places.googleapis.com/v1/places/{urllib.parse.quote(place_id)}'
     if session_token:
-        url += f'&sessiontoken={urllib.parse.quote(session_token)}'
+        url += f'?sessionToken={urllib.parse.quote(session_token)}'
     try:
-        data = _http_get_json(url)
+        try:
+            data = _legacy_shape_from_place_details(
+                _places_new_json(url, field_mask='location,displayName,formattedAddress'))
+        except urllib.error.HTTPError as http_exc:
+            data = _legacy_shape_from_http_error(http_exc)
         problem = _google_status_problem(data)
         if problem:
             logger.error(json.dumps({'event': 'place_details_denied',
@@ -275,6 +363,16 @@ def _place_details(place_id: str, session_token: str = ''):
             'name': r.get('name', ''),
             'address': r.get('formatted_address', ''),
         }
+        if place['latitude'] is None or place['longitude'] is None:
+            # A 200 with no `location` is degenerate rather than an error: Places API (New)
+            # answers HTTP 4xx for a place that does not exist, so this means the resource
+            # came back without the field the mask asked for. The response body keeps
+            # `status: OK` deliberately - it is part of the contract the caller already
+            # reads, and ZERO_RESULTS would not change the HTTP outcome anyway, because
+            # _google_status_problem treats it as success. Make it diagnosable in the log
+            # instead, so a silently coordinate-less location template can be traced.
+            logger.warning(json.dumps({'event': 'place_details_no_location',
+                                       'status': data.get('status')}))
         return {'statusCode': 200, 'headers': cors_headers(origin),
                 'body': json.dumps({'place': place, 'status': data.get('status')})}
     except Exception as e:

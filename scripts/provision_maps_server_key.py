@@ -38,13 +38,21 @@ Usage
 -----
     python scripts/provision_maps_server_key.py --create     # mint, store, verify
     python scripts/provision_maps_server_key.py --status      # report without changing
-    python scripts/provision_maps_server_key.py --verify      # re-run the live probe
+    python scripts/provision_maps_server_key.py --verify      # re-run the live probes
+    python scripts/provision_maps_server_key.py --store-from-stdin
+                                                              # store a key you already
+                                                              # hold, read from stdin
 
-Exit status is 1 if the key does not answer on Places API (New).
+Exit status is 1 unless the key answers on all three probed surfaces: Places API (New),
+Weather and Air Quality. Every run prints the one line that must be pasted into
+FORBIDDEN_FINGERPRINTS in scripts/verify_public_bundle_secrets.py - without it, the
+Amplify build gate that exists to stop an unrestricted server key reaching the public
+JS bundle does not recognise this key.
 """
 from __future__ import annotations
 
 import argparse
+import getpass
 import hashlib
 import json
 import os
@@ -61,14 +69,31 @@ REGION = "us-east-1"
 SECRET_NAME = "wecare/google/cloud"
 SECRET_FIELD = "api_key"
 DISPLAY_NAME = "WECARE Server Google API Key"
+# The one project this repository's Google resources live in. Pinned rather than
+# inherited: `api-keys create` against whatever `gcloud config get-value project`
+# happens to resolve to would mint a key in the wrong project and this script would
+# then store it as if it were correct.
+PROJECT = "wecaredigitalbw"
+
+# The file whose FORBIDDEN_FINGERPRINTS gate must learn this key's fingerprint.
+# Printed, never read, by print_fingerprint_handoff().
+BUNDLE_GATE = "scripts/verify_public_bundle_secrets.py"
+
+# One bounded India coordinate for the Weather/Air Quality probes: New Delhi.
+PROBE_LAT = 28.6139
+PROBE_LNG = 77.2090
 
 # Least privilege for the two server consumers: address capture + VayuLok environment.
 # Deliberately NOT the unified key's broad service list.
 #   places.googleapis.com          Places API (New) - autocomplete and place details
 #   addressvalidation.googleapis.com  address verification
 #   geocoding-backend.googleapis.com  geocoding, only where genuinely required
-#   places-backend.googleapis.com     legacy Places, retained only until the existing
-#                                     WhatsApp location-template proxy migrates off it
+#   places-backend.googleapis.com     legacy Places. NOTE 2026-10-05: no code needs this
+#                                     any more - the WhatsApp location-template proxy has
+#                                     migrated to places.googleapis.com. Kept because
+#                                     scripts/check_secrets_live.py diagnoses the unified
+#                                     key by this target; drop it in a change that also
+#                                     updates that diagnostic, not as a side effect here.
 API_TARGETS = [
     "places.googleapis.com",
     "addressvalidation.googleapis.com",
@@ -106,9 +131,15 @@ def gcloud_path() -> str:
 
 
 def run_gcloud(args: list[str]) -> dict:
-    """Run gcloud and parse JSON. Output is NEVER echoed - it may carry a key string."""
+    """Run gcloud and parse JSON. Output is NEVER echoed - it may carry a key string.
+
+    `--project` is injected centrally, next to `--format=json`, rather than at each
+    call site: a forgotten pin on `api-keys create` mints a key in whichever project
+    the ambient gcloud config names, and the only signal would be a resource name
+    printed after the fact.
+    """
     proc = subprocess.run(
-        [gcloud_path(), *args, "--format=json"],
+        [gcloud_path(), *args, f"--project={PROJECT}", "--format=json"],
         capture_output=True,
         text=True,
         timeout=180,
@@ -141,14 +172,34 @@ def store(value: str) -> str:
         raw = client.get_secret_value(SecretId=SECRET_NAME).get("SecretString") or "{}"
         current = json.loads(raw)
         if not isinstance(current, dict):
+            # Not a JSON object, so there are no siblings to merge. Say so rather than
+            # proceeding quietly: the docstring promises preservation, and this branch
+            # does the opposite of that promise.
+            print(f"  WARNING  {SECRET_NAME} did not hold a JSON object; "
+                  f"no sibling field can be preserved. The prior version remains "
+                  f"available as AWSPREVIOUS.")
             current = {}
         outcome = "new version"
     except client.exceptions.ResourceNotFoundException:
         current = {}
         outcome = "created"
     except (json.JSONDecodeError, TypeError):
+        print(f"  WARNING  {SECRET_NAME}'s SecretString did not parse as JSON; "
+              f"no sibling field can be preserved. The prior version remains "
+              f"available as AWSPREVIOUS.")
         current = {}
         outcome = "new version"
+
+    # Field NAMES only. A name is not a secret, and printing them is what makes
+    # "project metadata survived the write" checkable without reading the secret
+    # back - a count alone would not say WHICH fields survived.
+    preserved = sorted(
+        name for name in current if name not in (SECRET_FIELD, "unified_google_api_key")
+    )
+    if preserved:
+        print(f"  preserved fields   {len(preserved)}: {', '.join(preserved)}")
+    else:
+        print("  preserved fields   none (no sibling fields were present)")
 
     current[SECRET_FIELD] = value
     current["unified_google_api_key"] = value
@@ -212,6 +263,111 @@ def probe_places_new(key: str) -> tuple[bool, str]:
         return False, type(exc).__name__
 
 
+def probe_weather(key: str) -> tuple[bool, str]:
+    """Ask the Weather API whether it accepts this key. Returns (ok, detail).
+
+    One request, one bounded India coordinate. Exists because a green --create used to
+    prove only that Places answered, while Weather and Air Quality are the two services
+    this whole change exists for.
+    """
+    request = urllib.request.Request(
+        "https://weather.googleapis.com/v1/currentConditions:lookup"
+        f"?location.latitude={PROBE_LAT}&location.longitude={PROBE_LNG}",
+        method="GET",
+        headers={"Accept": "application/json", "X-Goog-Api-Key": key},
+    )
+    return _probe(request, lambda body: "current conditions returned")
+
+
+def probe_air_quality(key: str) -> tuple[bool, str]:
+    """Ask the Air Quality API whether it accepts this key. Returns (ok, detail)."""
+    request = urllib.request.Request(
+        "https://airquality.googleapis.com/v1/currentConditions:lookup",
+        method="POST",
+        data=json.dumps(
+            {"location": {"latitude": PROBE_LAT, "longitude": PROBE_LNG}}
+        ).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": key,
+        },
+    )
+    return _probe(
+        request,
+        lambda body: f"{len(body.get('indexes', []))} index(es)",
+    )
+
+
+def _probe(request: urllib.request.Request, describe) -> tuple[bool, str]:
+    """Shared probe transport. The key is only ever in the X-Goog-Api-Key header."""
+    try:
+        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
+            body = json.loads(response.read() or b"{}")
+        return True, describe(body)
+    except urllib.error.HTTPError as exc:
+        try:
+            error = json.loads(exc.read() or b"{}").get("error", {})
+        except json.JSONDecodeError:
+            error = {}
+        reason = ""
+        for detail in error.get("details") or []:
+            if detail.get("reason"):
+                reason = str(detail["reason"])
+                break
+        return False, f"HTTP {exc.code} {reason or str(error.get('message', ''))[:120]}"
+    except Exception as exc:  # noqa: BLE001
+        # Type only. An exception's text here could in principle echo the request.
+        return False, type(exc).__name__
+
+
+def run_probes(key: str) -> bool:
+    """All three live probes, one labelled line each. Returns the AND of them."""
+    results = [
+        ("Places API (New)", probe_places_new(key)),
+        ("Weather API", probe_weather(key)),
+        ("Air Quality API", probe_air_quality(key)),
+    ]
+    for label, (ok, detail) in results:
+        print(f"  {label:<18} {'ACCEPTED' if ok else 'REFUSED'} - {detail}")
+    if not all(ok for _, (ok, _) in results):
+        print("\n  A refusal here can mean the API is NOT ENABLED in the project rather")
+        print(f"  than the key being bad: an --api-target for a service that is not")
+        print(f"  enabled in {PROJECT} does not fail at create time. Check")
+        print(f"  `gcloud services list --enabled --project={PROJECT}` before")
+        print("  concluding the key is wrong. A new key can also take a minute to")
+        print("  propagate.")
+    return all(ok for _, (ok, _) in results)
+
+
+def print_fingerprint_handoff(value: str) -> None:
+    """Print the one line that has to be pasted into the public-bundle gate.
+
+    A fingerprint is one-way and safe to print; it is the only key-derived value that
+    may be. Without this paste, FORBIDDEN_FINGERPRINTS stays empty and the Amplify
+    build check written to stop an unrestricted server key being inlined into a public
+    JS chunk does not recognise the one key it exists for.
+
+    Deliberately the BARE 12-hex digest, not fp()'s `sha256:`-prefixed form:
+    verify_public_bundle_secrets.py:fingerprint() returns the digest with no prefix and
+    compares dict KEYS against that, so pasting the prefixed form would create an entry
+    that can never match.
+
+    The emitted block must stay VALID PYTHON, since the instruction above is to paste it
+    verbatim. The two description lines are separate quoted literals relying on implicit
+    concatenation; leaving the first one unterminated makes the gate script unimportable
+    at the exact moment --create has just minted an unrestricted key. Pinned by
+    tests/test_vayulok_server_key_provisioning.py, which ast.parses what this prints.
+    """
+    digest = fp(value).split(":", 1)[1]
+    print("\n  NEXT STEP - teach the public-bundle gate this key, in the same change.")
+    print(f"  Paste this entry into FORBIDDEN_FINGERPRINTS in {BUNDLE_GATE}:\n")
+    print(f'    "{digest}": (')
+    print('        "WECARE Server Google API Key - no application restriction, so it is"')
+    print('        " usable by anyone who holds it and must never reach the export."')
+    print("    ),")
+    print(f"\n  (human-readable form: {fp(value)})")
+
+
 def report_status() -> int:
     keys = run_gcloud(["services", "api-keys", "list"])
     mine = [k for k in keys if k.get("displayName") == DISPLAY_NAME]
@@ -234,8 +390,8 @@ def report_status() -> int:
     print(f"  holds a value      {'yes' if stored else 'NO'}")
     if stored:
         print(f"  fingerprint        {fp(stored)}")
-        ok, detail = probe_places_new(stored)
-        print(f"  Places API (New)   {'ACCEPTED' if ok else 'REFUSED'} - {detail}")
+        ok = run_probes(stored)
+        print_fingerprint_handoff(stored)
         return 0 if ok else 1
     return 1
 
@@ -277,10 +433,51 @@ def provision() -> int:
     print(f"  fingerprint      {fp(key_string)}")
     print(f"  stored           {SECRET_NAME} ({outcome})")
 
-    ok, detail = probe_places_new(key_string)
-    print(f"  Places API (New) {'ACCEPTED' if ok else 'REFUSED'} - {detail}")
+    ok = run_probes(key_string)
     if not ok:
-        print("\nA new key can take a minute to propagate. Re-run with --verify.")
+        # The store already succeeded, and --create's duplicate-name guard will refuse
+        # a second run. Saying so here is the difference between re-running --verify and
+        # trying to mint a second key.
+        print(f"\n  The key WAS created and WAS stored in {SECRET_NAME}. Do NOT re-run")
+        print("  --create: it refuses when a key with this display name exists. Re-run")
+        print("  --verify once the probe target is resolved.")
+    print_fingerprint_handoff(key_string)
+    return 0 if ok else 1
+
+
+def store_from_stdin() -> int:
+    """Store a key the operator already holds, without it touching argv or stdout.
+
+    The path `provision()` points at when gcloud created the key but did not return its
+    string. That is the exact moment an operator is holding a live credential with
+    nowhere safe to put it, which is how a value ends up pasted somewhere it must never
+    go - so the flag the message names has to exist.
+
+    getpass on a TTY so nothing is echoed; a bare readline otherwise so a password
+    manager can pipe it. Never argv: "Always allow" records a whole command string, and
+    that is precisely how four live credentials became permanent permission rules on
+    2026-09-19.
+    """
+    if sys.stdin.isatty():
+        value = getpass.getpass("Paste the key (not echoed): ")
+    else:
+        value = sys.stdin.readline()
+    value = (value or "").strip()
+    if not value:
+        raise SystemExit("No value supplied on stdin; nothing stored.")
+    # Shape only. Nothing about the value is printed, including on refusal.
+    if not value.startswith("AIza") or len(value) < 30:
+        raise SystemExit(
+            "That does not have the shape of a Google API key (expected an AIza "
+            "prefix and at least 30 characters). Nothing was stored, and the value "
+            "was not printed."
+        )
+
+    outcome = store(value)
+    print(f"  stored             {SECRET_NAME} ({outcome})")
+    print(f"  fingerprint        {fp(value)}")
+    ok = run_probes(value)
+    print_fingerprint_handoff(value)
     return 0 if ok else 1
 
 
@@ -292,19 +489,25 @@ def main() -> int:
     group.add_argument("--status", action="store_true",
                        help="report key and secret state without changing anything")
     group.add_argument("--verify", action="store_true",
-                       help="re-run the live Places API (New) probe")
+                       help="re-run the live Places/Weather/Air Quality probes")
+    group.add_argument("--store-from-stdin", action="store_true",
+                       help="store a key read from stdin or a hidden prompt "
+                            "(never from argv); use when gcloud created the key "
+                            "but did not return its string")
     args = parser.parse_args()
 
     if args.create:
         return provision()
+    if args.store_from_stdin:
+        return store_from_stdin()
     if args.verify:
         stored = load_stored()
         if not stored:
             print(f"{SECRET_NAME} holds no value; run --create first.")
             return 1
-        ok, detail = probe_places_new(stored)
-        print(f"{SECRET_NAME} {fp(stored)}: "
-              f"Places API (New) {'ACCEPTED' if ok else 'REFUSED'} - {detail}")
+        print(f"{SECRET_NAME} {fp(stored)}")
+        ok = run_probes(stored)
+        print_fingerprint_handoff(stored)
         return 0 if ok else 1
     return report_status()
 

@@ -248,7 +248,19 @@ def _google_key() -> str:
             )
         )
 
-    _key_cache.update({"loaded": True, "key": key})
+    # SUCCESS ONLY. Caching the failure path turned one transient GetSecretValue
+    # throttle - or a single AccessDeniedException during the provisioning window,
+    # before kms:Decrypt is in place - into a warm container that answers 503
+    # provider_unavailable for the rest of its life, with no retry. Leaving the
+    # cache untouched on failure costs one extra Secrets Manager read per request
+    # while the fault lasts and recovers on its own when it clears.
+    #
+    # The read-side check above stays `_key_cache["loaded"]` rather than a
+    # truthiness test on the key: test_missing_server_key_degrades_to_503_without_
+    # exposing_detail seeds {"loaded": True, "key": ""} to pin the 503 without a
+    # boto3 call, and a truthiness check would send that test to the network.
+    if key:
+        _key_cache.update({"loaded": True, "key": key})
     return key
 
 

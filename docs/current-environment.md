@@ -272,7 +272,7 @@ Absent from `docs/compatibility.md`. This is the most actionable finding in this
 | `places.googleapis.com` enabled on the project | **YES** | `LIVE` `services list --enabled` |
 | `addressvalidation.googleapis.com` enabled | **YES** | `LIVE` |
 | Key restriction type | `browserKeyRestrictions`, referrers `https://wecare.digital/*`, `https://*.wecare.digital/*`, **`places.googleapis.com`**, **`*.googleapis.com/*`** | `LIVE` |
-| Repo usage | server-side only, via `wecare/google-maps` → legacy `maps/api/place/autocomplete/json` and `.../place/details/json` | `REPO` `whatsapp-templates/handler.py:117-208` |
+| Repo usage | server-side only, via the canonical `wecare/google/cloud` → Places API (New) `places.googleapis.com/v1/places:autocomplete` and `/v1/places/{placeId}`, key in the `X-Goog-Api-Key` header (migrated off legacy `maps/api/place/*` and off URL-borne keys, 2026-10-05) | `REPO` `whatsapp-templates/handler.py` |
 | Legacy Places status | **deprecated**; Google directs migration to Autocomplete (New) / Places API (New) | `DOC` |
 
 Four distinct defects, each against a specific clause of the brief:

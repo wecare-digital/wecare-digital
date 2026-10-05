@@ -263,3 +263,30 @@ def test_secret_is_lazy_not_read_at_import(mod):
     # A module-level secret read would freeze credentials into a warm container
     # before the first actual request and makes rotation/debugging harder.
     assert mod._secret_client is None
+
+
+def test_a_failed_key_read_is_not_cached_forever(mod):
+    """One transient secret read failure must not poison the container for life.
+
+    The cache has no TTL, so writing it on the failure path made a single
+    GetSecretValue throttle - or an AccessDeniedException during the provisioning
+    window, before kms:Decrypt exists on the role - answer 503 for the whole
+    lifetime of that warm sandbox. The retry has to be possible.
+    """
+    mod._key_cache.update({"loaded": False, "key": ""})
+    client = MagicMock()
+    client.get_secret_value.side_effect = [
+        RuntimeError("throttled"),
+        {"SecretString": json.dumps({"api_key": "server-test-key"})},
+    ]
+
+    with patch.object(mod, "_secrets", return_value=client):
+        first = mod._google_key()
+        assert first == ""
+        assert mod._key_cache["loaded"] is False
+
+        second = mod._google_key()
+
+    assert second == "server-test-key"
+    assert mod._key_cache == {"loaded": True, "key": "server-test-key"}
+    assert client.get_secret_value.call_count == 2

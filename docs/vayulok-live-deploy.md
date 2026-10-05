@@ -52,17 +52,36 @@ The repository change is intentionally staged so production does not lose enviro
 1. Recreate/verify the server key without printing it:
    `python scripts/provision_maps_server_key.py --create`
    (or `--status` / `--verify` when it already exists).
-2. Provision the gateway:
+2. **Teach the public-bundle gate the new key, in the same change.** Step 1 prints a
+   copy-pasteable entry for `FORBIDDEN_FINGERPRINTS` in
+   `scripts/verify_public_bundle_secrets.py`, where a commented placeholder slot is
+   already waiting for it. Paste it **verbatim** — the printed block is a complete,
+   valid dict entry (two adjacent string literals relying on implicit concatenation),
+   and `tests/test_vayulok_server_key_provisioning.py` `ast.parse`s what the script
+   prints so a reflow that breaks the paste fails in CI rather than here. Then commit.
+
+   After pasting, confirm the gate sees it:
+   `python scripts/verify_public_bundle_secrets.py --list-fingerprints`
+   must report the new entry instead of none.
+
+   This is not bookkeeping. The key step 1 mints carries **no application restriction**
+   — deliberate, because Lambda has no stable egress IP to allowlist — so unlike the
+   referrer-restricted browser key it must never be inlined into a public JS chunk.
+   `output: 'export'` inlines every `NEXT_PUBLIC_*` value, and that gate is the only
+   automated thing that would notice. Until the fingerprint is pasted, the gate is blind
+   to the one key it was written for. The fingerprint is a one-way sha256 prefix and is
+   safe to commit; the value itself is never printed.
+3. Provision the gateway:
    `python scripts/provision_vayulok_environment.py`
-3. Read back the route/alias:
+4. Read back the route/alias:
    `python scripts/provision_vayulok_environment.py --verify`
-4. Smoke `POST /vayulok/environment` from an allowed deployed WECARE origin.
-5. Only after that evidence is green, change `VayuLokLive.tsx` from direct
+5. Smoke `POST /vayulok/environment` from an allowed deployed WECARE origin.
+6. Only after that evidence is green, change `VayuLokLive.tsx` from direct
    `weather.googleapis.com` / `airquality.googleapis.com` calls to this gateway.
-6. Then remove Weather/Air Quality from the browser key's API restrictions and redeploy
+7. Then remove Weather/Air Quality from the browser key's API restrictions and redeploy
    `stack`.
 
-Do not perform step 5 before steps 1-4. The canonical `wecare/google/cloud` secret currently holds the referrer-restricted browser
+Do not perform step 6 before steps 1-5. The canonical `wecare/google/cloud` secret currently holds the referrer-restricted browser
 key until the server-key provisioning step replaces only its key fields while preserving project
 metadata. Cutting the browser over before that key and gateway are verified would turn credential
 hardening into a VayuLok outage.
