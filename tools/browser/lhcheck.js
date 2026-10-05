@@ -56,7 +56,7 @@ const { target } = require( './lib/serve' );
 const { resolveChrome } = require( './lib/browser' );
 
 /** Public routes plus one blog post, which is a different template from the index. */
-const ROUTES = [
+const ALL_ROUTES = [
   '/', '/grahak-os/', '/vayulok/', '/contact/', '/get/', '/orders/', '/bharat-rx/',
   '/anew/', '/dastavez/', '/elsewhere/', '/expo-week/', '/niji-setu/', '/ritual-guru/',
   '/clear-closure/', '/terms/', '/privacy/', '/blog/',
@@ -98,6 +98,35 @@ const JUSTIFIED_CONTRAST = {
     + 'look available.',
 };
 
+/**
+ * The four metrics worth printing when LH_PERF is on, with the units Lighthouse reports them
+ * in. CLS is the one that is NOT egress-dependent — it is layout, measured in the same
+ * viewport whatever the link speed — so it is the one number from this category that a local
+ * run can be held to. The rest are printed to show movement, not to be believed absolutely.
+ */
+const METRICS = [
+  [ 'first-contentful-paint', 'FCP' ],
+  [ 'largest-contentful-paint', 'LCP' ],
+  [ 'total-blocking-time', 'TBT' ],
+  [ 'cumulative-layout-shift', 'CLS' ],
+];
+
+/**
+ * Performance audits are listed, never counted.
+ *
+ * WHY. The header of this file already says the millisecond totals measure the runner's
+ * egress rather than the site: `out/` is served from 127.0.0.1 while fonts.googleapis.com,
+ * the media CDN, GTM and connect.facebook.net come over whatever link the sandbox has. So a
+ * timing audit failing locally is not evidence of a defect, and `LH_PERF=1` counting them as
+ * unexplained made the flag unusable as a gate — it could only ever exit 1.
+ *
+ * It is still worth READING: `unused-javascript`, `unused-css-rules`,
+ * `unminified-javascript` and `legacy-javascript` report BYTES, which localhost does not
+ * distort at all. Those are the audits Phase 6 acted on.
+ */
+const isPerfAudit = ( lhr, id ) =>
+  ( lhr.categories.performance?.auditRefs || [] ).some( r => r.id === id );
+
 async function main () {
   const t = await target();
   const lighthouse = ( await import( 'lighthouse/core/index.js' ) ).default;
@@ -110,6 +139,14 @@ async function main () {
 
   const categories = [ 'accessibility', 'seo', 'best-practices' ];
   if ( process.env.LH_PERF ) categories.push( 'performance' );
+
+  // A full pass is 22 routes x ~30s and performance work is iterative: measure, change one
+  // thing, re-measure. LH_ROUTES narrows the sweep to a comma-separated subset so a single
+  // page can be re-run in half a minute. It does NOT replace the full pass — the gate is the
+  // whole list — it just makes the loop in between usable.
+  const ROUTES = process.env.LH_ROUTES
+    ? process.env.LH_ROUTES.split( ',' ).map( s => s.trim() ).filter( Boolean )
+    : ALL_ROUTES;
 
   console.log( `lhcheck - Lighthouse over ${ROUTES.length} routes on ${t.base}` );
   console.log( `  categories: ${categories.join( ', ' )}` );
@@ -144,6 +181,7 @@ async function main () {
     const surprising = failed.filter( a => {
       if ( EXPECTED[ a.id ] ) return false;
       if ( a.id === 'color-contrast' && JUSTIFIED_CONTRAST[ route ] ) return false;
+      if ( process.env.LH_PERF && isPerfAudit( lhr, a.id ) ) return false;
       return true;
     } );
 
@@ -155,14 +193,39 @@ async function main () {
 
     for ( const a of surprising ) {
       unexplained += 1;
-      for ( const item of ( a.details && a.details.items ) || [] ) {
+      // details.items is an array for the table/opportunity audits and ABSENT or a plain
+      // object for the newer "insight" audits (checklist, treemap-data). Iterating it blind
+      // threw `object is not iterable` and aborted the whole LH_PERF run on route one.
+      const items = a.details && a.details.items;
+      for ( const item of Array.isArray( items ) ? items : [] ) {
         const why = ( item.node && item.node.explanation ) || item.description;
         if ( why ) console.log( `        ${String( why ).replace( /\s+/g, ' ' ).slice( 0, 140 )}` );
+      }
+    }
+
+    if ( process.env.LH_PERF ) {
+      const m = METRICS
+        .map( ( [ id, label ] ) => `${label}=${( lhr.audits[ id ] || {} ).displayValue || 'na'}` )
+        .join( '  ' );
+      console.log( `        ${m}` );
+
+      // Byte-denominated opportunities only. These are the ones localhost cannot distort,
+      // so they are the actionable half of the performance category.
+      const bytes = [ 'unused-javascript', 'unused-css-rules', 'unminified-javascript',
+        'unminified-css', 'legacy-javascript', 'modern-image-formats', 'uses-text-compression' ];
+      for ( const id of bytes ) {
+        const a = lhr.audits[ id ];
+        const kb = a && a.details && a.details.overallSavingsBytes;
+        if ( kb ) console.log( `        ${id.padEnd( 24 )} ${Math.round( kb / 1024 )} kB wasted` );
       }
     }
   }
 
   console.log( '\n  red for a recorded reason, not counted:' );
+  if ( process.env.LH_PERF ) {
+    console.log( '    every performance audit - localhost egress, not the site. Read the bytes, '
+      + 'not the milliseconds; see the note at isPerfAudit.' );
+  }
   for ( const [ id, why ] of Object.entries( EXPECTED ) ) console.log( `    ${id} - ${why}` );
   for ( const [ route, why ] of Object.entries( JUSTIFIED_CONTRAST ) ) console.log( `    color-contrast on ${route} - ${why}` );
 

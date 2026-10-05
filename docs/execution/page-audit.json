@@ -1,5 +1,5 @@
 {
- "generated": "2026-09-30T10:02:28.810Z",
+ "generated": "2026-10-05T02:48:05.142Z",
  "routes": [
   {
    "route": "/",
@@ -21,7 +21,7 @@
     }
    },
    "status": 200,
-   "translated": 53,
+   "translated": 56,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 4,
@@ -36,12 +36,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 7,
+    "aria-label": 8,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 9,
+   "attrTotal": 10,
    "header": true,
    "footer": true,
    "widget": true,
@@ -72,7 +72,7 @@
     }
    },
    "status": 200,
-   "translated": 53,
+   "translated": 56,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 4,
@@ -89,18 +89,67 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 7,
+    "aria-label": 8,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 9,
+   "attrTotal": 10,
    "header": true,
    "footer": true,
    "widget": true,
    "main": true,
    "h1Count": 1,
    "h1Text": "Everyday AI, built forconsumers, enterprises, ",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/account/sign-in/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 37,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/accou"
+   },
+   "attrs": {
+    "placeholder": 2,
+    "aria-label": 9,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Sign in to check out",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -125,7 +174,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -138,12 +187,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -174,7 +223,7 @@
     }
    },
    "status": 200,
-   "translated": 44,
+   "translated": 47,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -187,12 +236,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -223,7 +272,7 @@
     }
    },
    "status": 200,
-   "translated": 116,
+   "translated": 119,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -238,12 +287,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -274,7 +323,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -287,12 +336,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -323,7 +372,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -336,12 +385,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -372,7 +421,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -385,12 +434,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -421,7 +470,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -434,12 +483,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -470,7 +519,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -483,12 +532,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -519,7 +568,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -532,12 +581,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -568,7 +617,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -581,12 +630,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -617,7 +666,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -630,12 +679,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -666,7 +715,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -679,12 +728,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -715,7 +764,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -728,12 +777,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -764,7 +813,7 @@
     }
    },
    "status": 200,
-   "translated": 119,
+   "translated": 122,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -777,12 +826,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -813,7 +862,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -826,12 +875,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -862,7 +911,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -875,12 +924,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -911,7 +960,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -924,12 +973,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -960,7 +1009,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -973,12 +1022,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1009,7 +1058,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1022,12 +1071,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1058,7 +1107,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1071,12 +1120,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1107,7 +1156,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1120,12 +1169,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1156,7 +1205,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1169,12 +1218,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1205,7 +1254,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1218,12 +1267,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1254,7 +1303,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1267,12 +1316,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1303,7 +1352,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1316,12 +1365,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1352,7 +1401,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1365,12 +1414,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1401,7 +1450,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1414,12 +1463,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1450,7 +1499,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1463,12 +1512,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1499,7 +1548,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1512,12 +1561,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1548,7 +1597,7 @@
     }
    },
    "status": 200,
-   "translated": 119,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1561,12 +1610,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1597,10 +1646,108 @@
     }
    },
    "status": 200,
-   "translated": 72,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 13,
+    "data-wc-no-translate": 28,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"posts\":[{\"slug\":"
+   },
+   "attrs": {
+    "placeholder": 2,
+    "aria-label": 12,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 15,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Notes onclarity, practice, meaning, changeclar",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/blog/page/36/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 122,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 28,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"posts\":[{\"slug\":"
+   },
+   "attrs": {
+    "placeholder": 2,
+    "aria-label": 12,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 15,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Notes onclarity, practice, meaning, changeclar",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/blog/page/37/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 63,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 9,
     "aria-hidden": 1,
     "tag:SCRIPT": 2
    },
@@ -1612,12 +1759,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1648,7 +1795,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1661,12 +1808,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1697,7 +1844,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1710,12 +1857,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1746,7 +1893,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1759,12 +1906,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1795,7 +1942,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1808,12 +1955,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1844,7 +1991,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1857,12 +2004,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1893,7 +2040,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1906,12 +2053,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1942,7 +2089,7 @@
     }
    },
    "status": 200,
-   "translated": 116,
+   "translated": 119,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -1957,12 +2104,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -1993,7 +2140,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2006,12 +2153,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2042,7 +2189,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2055,12 +2202,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2091,7 +2238,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2104,12 +2251,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2140,7 +2287,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2153,12 +2300,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2189,7 +2336,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2202,12 +2349,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2238,7 +2385,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2251,12 +2398,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2287,7 +2434,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2300,12 +2447,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2336,7 +2483,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2349,12 +2496,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2385,7 +2532,7 @@
     }
    },
    "status": 200,
-   "translated": 119,
+   "translated": 122,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2398,12 +2545,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2434,7 +2581,7 @@
     }
    },
    "status": 200,
-   "translated": 111,
+   "translated": 114,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 26,
@@ -2449,12 +2596,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2485,7 +2632,7 @@
     }
    },
    "status": 200,
-   "translated": 119,
+   "translated": 122,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2498,12 +2645,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2534,7 +2681,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2547,12 +2694,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2583,7 +2730,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2596,12 +2743,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2632,7 +2779,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2645,12 +2792,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2681,7 +2828,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2694,12 +2841,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2730,7 +2877,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2743,12 +2890,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2779,7 +2926,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2792,12 +2939,12 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2828,7 +2975,7 @@
     }
    },
    "status": 200,
-   "translated": 120,
+   "translated": 123,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 28,
@@ -2841,18 +2988,165 @@
    },
    "attrs": {
     "placeholder": 2,
-    "aria-label": 11,
+    "aria-label": 12,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 14,
+   "attrTotal": 15,
    "header": true,
    "footer": true,
    "widget": true,
    "main": true,
    "h1Count": 1,
    "h1Text": "Notes onclarity, practice, meaning, changeclar",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/cart/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 35,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/cart\""
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 8,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 10,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Your cart",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/checkout/status/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 34,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/check"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 8,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 10,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Nothing to show here",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/checkout/success/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 35,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/check"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 8,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 10,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Order confirmation unavailable",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -2877,7 +3171,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -2890,12 +3184,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2926,7 +3220,7 @@
     }
    },
    "status": 200,
-   "translated": 52,
+   "translated": 55,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 6,
@@ -2941,12 +3235,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 7,
+    "aria-label": 8,
     "title": 2,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -2977,7 +3271,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -2990,12 +3284,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3026,7 +3320,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3039,12 +3333,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3075,7 +3369,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3088,12 +3382,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3124,7 +3418,7 @@
     }
    },
    "status": 200,
-   "translated": 44,
+   "translated": 47,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3137,12 +3431,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3173,10 +3467,10 @@
     }
    },
    "status": 200,
-   "translated": 32,
+   "translated": 41,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
+    "data-wc-no-translate": 4,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -3185,19 +3479,19 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/get\","
    },
    "attrs": {
-    "placeholder": 1,
-    "aria-label": 7,
+    "placeholder": 2,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 9,
+   "attrTotal": 12,
    "header": true,
    "footer": true,
    "widget": true,
    "main": true,
    "h1Count": 1,
-   "h1Text": "Collect your files",
+   "h1Text": "Collect yourfiles, documents, records, papersf",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -3263,7 +3557,7 @@
     }
    },
    "status": 200,
-   "translated": 79,
+   "translated": 82,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 7,
@@ -3278,12 +3572,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 7,
+    "aria-label": 8,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 9,
+   "attrTotal": 10,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3314,7 +3608,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3327,18 +3621,18 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
    "main": true,
    "h1Count": 1,
-   "h1Text": "Sharpen yourrésumé, profile, pitch, storyrésum",
+   "h1Text": "Sharpen yourskills, résumé, profile, pitchskil",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -3363,7 +3657,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3376,12 +3670,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3412,7 +3706,7 @@
     }
    },
    "status": 200,
-   "translated": 44,
+   "translated": 47,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3425,12 +3719,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3502,10 +3796,10 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 35,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
+    "data-wc-no-translate": 4,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -3526,7 +3820,56 @@
    "widget": true,
    "main": true,
    "h1Count": 1,
-   "h1Text": "Track yourorder, delivery, request, bookingord",
+   "h1Text": "Your orders",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/perks/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 48,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 5,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/perks"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 9,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 11,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "A little extra, made forthanks, care, extra, y",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -3551,7 +3894,7 @@
     }
    },
    "status": 200,
-   "translated": 246,
+   "translated": 257,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3564,12 +3907,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3600,7 +3943,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3613,12 +3956,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3649,7 +3992,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3662,12 +4005,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3698,7 +4041,7 @@
     }
    },
    "status": 200,
-   "translated": 44,
+   "translated": 47,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3711,18 +4054,461 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
    "main": true,
    "h1Count": 1,
    "h1Text": "Puja kits forfestivals, vrats, new homes, dail",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shipments/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 76,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 5,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/shipm"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 11,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 13,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Everything about yourorder, request, delivery,",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/1-test-product/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 40,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "₹1 test product",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/file-assist/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 44,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "File Assist",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/guided-resolution/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 44,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Guided Resolution",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/kiosk/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 46,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Kiosk",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/merchandise/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 45,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:OPTION": 11,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:OPTION": "Choose your fit and size",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Merchandise",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/paperwork/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 43,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Paperwork",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/referral-partner/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 48,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Referral Partner",
+   "topSection": true,
+   "authShell": false,
+   "overflow": 0
+  },
+  {
+   "route": "/shop/viveka/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": true,
+     "obscured": false
+    }
+   },
+   "status": 200,
+   "translated": 44,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 4,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"product\":{\"varia"
+   },
+   "attrs": {
+    "placeholder": 1,
+    "aria-label": 10,
+    "title": 1,
+    "alt": 0
+   },
+   "obscured": false,
+   "attrTotal": 12,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": true,
+   "h1Count": 1,
+   "h1Text": "Viveka",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -3747,7 +4533,7 @@
     }
    },
    "status": 200,
-   "translated": 44,
+   "translated": 47,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3760,12 +4546,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3796,7 +4582,7 @@
     }
    },
    "status": 200,
-   "translated": 491,
+   "translated": 531,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3809,12 +4595,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3845,7 +4631,7 @@
     }
    },
    "status": 200,
-   "translated": 45,
+   "translated": 48,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3858,18 +4644,18 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 8,
+    "aria-label": 9,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 10,
+   "attrTotal": 11,
    "header": true,
    "footer": true,
    "widget": true,
    "main": true,
    "h1Count": 1,
-   "h1Text": "Get back yourcopies, letters, records, reports",
+   "h1Text": "Get back yourdocuments, copies, records, repor",
    "topSection": true,
    "authShell": false,
    "overflow": 0
@@ -3894,7 +4680,7 @@
     }
    },
    "status": 200,
-   "translated": 37,
+   "translated": 44,
    "skipped": {
     "tag:NOSCRIPT": 1,
     "data-wc-no-translate": 5,
@@ -3907,12 +4693,12 @@
    },
    "attrs": {
     "placeholder": 1,
-    "aria-label": 7,
+    "aria-label": 10,
     "title": 1,
     "alt": 0
    },
    "obscured": false,
-   "attrTotal": 9,
+   "attrTotal": 12,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3943,11 +4729,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -3957,13 +4743,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -3994,11 +4780,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4008,13 +4794,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4045,11 +4831,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4059,13 +4845,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4096,11 +4882,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4110,13 +4896,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4147,11 +4933,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4161,13 +4947,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4198,11 +4984,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4212,13 +4998,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4249,11 +5035,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4263,13 +5049,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4300,11 +5086,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4314,13 +5100,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4351,11 +5137,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4365,13 +5151,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4402,11 +5188,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4416,13 +5202,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4453,11 +5239,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4467,13 +5253,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4504,11 +5290,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4518,13 +5304,64 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
+   "header": true,
+   "footer": true,
+   "widget": true,
+   "main": false,
+   "h1Count": 0,
+   "h1Text": null,
+   "topSection": false,
+   "authShell": true,
+   "overflow": 0
+  },
+  {
+   "route": "/workspace/dashboard/mcp-connections/",
+   "vp": {
+    "phone": {
+     "overflow": 0,
+     "topSection": false,
+     "obscured": null
+    },
+    "fold": {
+     "overflow": 0,
+     "topSection": false,
+     "obscured": null
+    },
+    "desk": {
+     "overflow": 0,
+     "topSection": false,
+     "obscured": null
+    }
+   },
+   "status": 200,
+   "translated": 68,
+   "skipped": {
+    "tag:NOSCRIPT": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
+    "tag:SCRIPT": 2
+   },
+   "samples": {
+    "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
+    "data-wc-no-translate": "WECARE",
+    "tag:STYLE": "[data-amplify-theme=\"stack-crm-theme\"] {",
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
+   },
+   "attrs": {
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
+    "alt": 0
+   },
+   "obscured": null,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4555,11 +5392,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4569,13 +5406,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4606,11 +5443,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4620,13 +5457,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4657,11 +5494,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4671,13 +5508,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4708,11 +5545,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4722,13 +5559,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4759,11 +5596,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4773,13 +5610,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4810,11 +5647,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4824,13 +5661,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4861,11 +5698,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4875,13 +5712,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4912,11 +5749,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4926,13 +5763,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -4963,11 +5800,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -4977,13 +5814,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5014,11 +5851,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5028,13 +5865,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5065,11 +5902,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5079,13 +5916,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5116,11 +5953,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5130,13 +5967,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5167,11 +6004,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5181,13 +6018,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5218,11 +6055,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5232,13 +6069,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5269,11 +6106,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5283,13 +6120,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5320,11 +6157,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5334,13 +6171,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5371,11 +6208,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5385,13 +6222,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5422,11 +6259,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5436,13 +6273,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5473,11 +6310,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5487,13 +6324,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5524,11 +6361,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5538,13 +6375,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5575,11 +6412,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5589,13 +6426,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5626,11 +6463,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5640,13 +6477,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5677,11 +6514,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5691,13 +6528,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5728,11 +6565,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5742,13 +6579,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5779,11 +6616,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5793,13 +6630,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5830,11 +6667,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5844,13 +6681,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5881,11 +6718,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5895,13 +6732,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5932,11 +6769,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5946,13 +6783,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -5983,11 +6820,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -5997,13 +6834,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6034,11 +6871,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6048,13 +6885,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6085,11 +6922,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6099,13 +6936,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6136,11 +6973,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6150,13 +6987,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6187,11 +7024,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6201,13 +7038,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6238,11 +7075,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6252,13 +7089,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6289,11 +7126,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6303,13 +7140,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6340,11 +7177,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6354,13 +7191,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6391,11 +7228,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6405,13 +7242,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6442,11 +7279,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6456,13 +7293,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6493,11 +7330,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6507,13 +7344,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6544,11 +7381,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6558,13 +7395,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6595,11 +7432,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6609,13 +7446,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6646,11 +7483,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6660,13 +7497,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6697,11 +7534,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6711,13 +7548,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6748,11 +7585,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6762,13 +7599,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6799,11 +7636,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6813,13 +7650,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6850,11 +7687,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6864,13 +7701,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6901,11 +7738,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6915,13 +7752,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -6952,11 +7789,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -6966,13 +7803,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7003,11 +7840,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7017,13 +7854,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7054,11 +7891,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7068,13 +7905,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7105,11 +7942,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7119,13 +7956,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7156,11 +7993,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7170,13 +8007,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7207,11 +8044,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7221,13 +8058,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7258,11 +8095,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7272,13 +8109,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7309,11 +8146,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7323,13 +8160,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7360,11 +8197,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7374,13 +8211,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7411,11 +8248,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7425,13 +8262,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7462,11 +8299,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7476,13 +8313,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7513,11 +8350,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7527,13 +8364,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7564,11 +8401,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7578,13 +8415,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7615,11 +8452,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7629,13 +8466,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7666,11 +8503,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7680,13 +8517,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7717,11 +8554,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7731,13 +8568,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7768,11 +8605,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7782,13 +8619,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7819,11 +8656,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7833,13 +8670,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7870,11 +8707,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7884,13 +8721,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7921,11 +8758,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7935,13 +8772,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -7972,11 +8809,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -7986,13 +8823,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8023,11 +8860,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8037,13 +8874,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8074,11 +8911,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8088,13 +8925,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8106,7 +8943,7 @@
    "overflow": 0
   },
   {
-   "route": "/workspace/forms/customerservice/",
+   "route": "/workspace/forms/selfservice/",
    "vp": {
     "phone": {
      "overflow": 0,
@@ -8125,11 +8962,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8139,13 +8976,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8176,11 +9013,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8190,13 +9027,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8227,11 +9064,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8241,13 +9078,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8278,11 +9115,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8292,13 +9129,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8329,11 +9166,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8343,13 +9180,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8380,11 +9217,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8394,13 +9231,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8431,11 +9268,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8445,13 +9282,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8482,11 +9319,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8496,13 +9333,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8533,11 +9370,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8547,13 +9384,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8584,11 +9421,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8598,13 +9435,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8635,11 +9472,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8649,13 +9486,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8686,11 +9523,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8700,13 +9537,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8737,11 +9574,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8751,13 +9588,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8788,11 +9625,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8802,13 +9639,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8839,27 +9676,27 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
     "tag:NOSCRIPT": "<iframe src=\"https://www.googletagmanage",
     "data-wc-no-translate": "WECARE",
     "tag:STYLE": "[data-amplify-theme=\"stack-crm-theme\"] {",
-    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"ledger\":[],\"ledg"
+    "tag:SCRIPT": "{\"props\":{\"pageProps\":{\"ledgerPresent\":t"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8890,11 +9727,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8904,13 +9741,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8941,11 +9778,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -8955,13 +9792,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -8992,11 +9829,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9006,13 +9843,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9043,11 +9880,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9057,13 +9894,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9094,11 +9931,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9108,13 +9945,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9145,11 +9982,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9159,13 +9996,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9196,11 +10033,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9210,13 +10047,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9247,11 +10084,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9261,13 +10098,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9298,11 +10135,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9312,13 +10149,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9349,11 +10186,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9363,13 +10200,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9400,11 +10237,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9414,13 +10251,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9451,11 +10288,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9465,13 +10302,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9502,11 +10339,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9516,13 +10353,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9553,11 +10390,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9567,13 +10404,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
@@ -9604,11 +10441,11 @@
     }
    },
    "status": 200,
-   "translated": 34,
+   "translated": 68,
    "skipped": {
     "tag:NOSCRIPT": 1,
-    "data-wc-no-translate": 5,
-    "tag:STYLE": 1,
+    "data-wc-no-translate": 9,
+    "tag:STYLE": 2,
     "tag:SCRIPT": 2
    },
    "samples": {
@@ -9618,13 +10455,13 @@
     "tag:SCRIPT": "{\"props\":{\"pageProps\":{}},\"page\":\"/works"
    },
    "attrs": {
-    "placeholder": 3,
-    "aria-label": 7,
-    "title": 1,
+    "placeholder": 4,
+    "aria-label": 15,
+    "title": 2,
     "alt": 0
    },
    "obscured": null,
-   "attrTotal": 11,
+   "attrTotal": 21,
    "header": true,
    "footer": true,
    "widget": true,
