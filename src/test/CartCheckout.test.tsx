@@ -341,17 +341,22 @@ describe( 'the cart store', () => {
       quantity: 2,
     } ] ) );
 
+    // The CURRENT Kiosk product and its single variant, re-measured against the migrated site
+    // c993128b on 2026-10-05. The previous site's ids were 00d4c72b-f694-441a-a192-e16f4b192440
+    // and variant 2d072962-37c0-4821-9c02-2cc223448711; the migration re-minted both. The row in
+    // storage above has NO product id at all, which is the point - it migrates by slug, so a cart
+    // saved before the move resolves to whatever the catalogue holds now.
     const [ item ] = cart.readCart();
-    expect( item.productId ).toBe( '00d4c72b-f694-441a-a192-e16f4b192440' );
-    expect( item.variantId ).toBe( '2d072962-37c0-4821-9c02-2cc223448711' );
+    expect( item.productId ).toBe( 'a12e9e74-e109-4136-a12e-ab49ea6f98c3' );
+    expect( item.variantId ).toBe( '4d3e2b31-7888-4250-8f5a-0587344431db' );
     expect( item.ref ).toBe(
-      '00d4c72b-f694-441a-a192-e16f4b192440:2d072962-37c0-4821-9c02-2cc223448711',
+      'a12e9e74-e109-4136-a12e-ab49ea6f98c3:4d3e2b31-7888-4250-8f5a-0587344431db',
     );
     expect( cart.toLineItems() ).toEqual( [ {
       catalogReference: {
         appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e',
-        catalogItemId: '00d4c72b-f694-441a-a192-e16f4b192440',
-        options: { variantId: '2d072962-37c0-4821-9c02-2cc223448711' },
+        catalogItemId: 'a12e9e74-e109-4136-a12e-ab49ea6f98c3',
+        options: { variantId: '4d3e2b31-7888-4250-8f5a-0587344431db' },
       },
       quantity: 2,
     } ] );
@@ -366,8 +371,12 @@ describe( 'the cart store', () => {
       quantity: 1,
     } ] ) );
 
+    // The stored `ref` is the RETIRED site's Merchandise id, which is exactly the legacy shape
+    // this case exists for: the row is repaired to the current product (eca1540e..., re-minted by
+    // the 2026-10-05 site migration) by slug, and no variant is guessed because ten of them
+    // remain and only the customer can say which.
     const [ item ] = cart.readCart();
-    expect( item.productId ).toBe( 'f05c3a28-0d2f-4cae-ab6c-c0b68635b951' );
+    expect( item.productId ).toBe( 'eca1540e-0a0e-478d-9aa7-e366be277617' );
     expect( item.variantId ).toBeUndefined();
     expect( cart.needsVariantSelection( item ) ).toBe( true );
     expect( cart.availableVariantsForItem( item ) ).toHaveLength( 10 );
@@ -387,7 +396,7 @@ describe( 'the cart store', () => {
     const repaired = cart.setVariant( item.ref, target.id );
     expect( repaired[ 0 ].variantId ).toBe( target.id );
     expect( repaired[ 0 ].ref ).toBe(
-      `f05c3a28-0d2f-4cae-ab6c-c0b68635b951:${target.id}`,
+      `eca1540e-0a0e-478d-9aa7-e366be277617:${target.id}`,
     );
     expect( cart.needsVariantSelection( repaired[ 0 ] ) ).toBe( false );
   } );
@@ -491,15 +500,18 @@ describe( 'legacy cart option recovery', () => {
     ) ).toBeTruthy();
     expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
 
+    // A variant that exists in the CURRENT catalogue (Merchandise "Men's / XL" on site
+    // c993128b). The previous spelling, 00ebbae6-7025-4724-835e-37f4bffc2476, belonged to the
+    // retired site and the repair would correctly refuse it now.
     const select = await screen.findByRole( 'combobox', { name: /Choose option for Merchandise/ } );
     fireEvent.change( select, {
-      target: { value: '00ebbae6-7025-4724-835e-37f4bffc2476' },
+      target: { value: '3788a657-9af2-4ecf-8c9b-f218669d753c' },
     } );
     expect( await screen.findByText(
       'Product option updated. Continue to secure payment.',
     ) ).toBeTruthy();
     expect( cart.readCart()[ 0 ].variantId ).toBe(
-      '00ebbae6-7025-4724-835e-37f4bffc2476',
+      '3788a657-9af2-4ecf-8c9b-f218669d753c',
     );
   } );
 } );

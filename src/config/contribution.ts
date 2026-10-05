@@ -56,6 +56,14 @@ export const CONTRIBUTION_CURRENCY = 'INR' as const;
  * `PHYSICAL`, `visible: true`, one option named "Amount" rendered as text choices, three visible
  * in-stock variants at ₹100 / ₹250 / ₹500.
  *
+ * MOVED TO THE NEW WIX SITE, 2026-10-05. The catalogue was migrated to site
+ * `c993128b-26be-41cd-9fcd-904abe23462f`, which re-minted every product and variant id, so the
+ * product id and all three variant ids below changed together in one release exactly as the
+ * paragraph below requires. The amounts did NOT change: ₹100 / ₹250 / ₹500, 10000 / 25000 / 50000
+ * paise, before and after. The replacements were read live from the new site's query-variants
+ * response and cross-checked against the refreshed `src/content/wix-catalog.json`, whose
+ * "Amount" option labels confirm which variant carries which rupee figure.
+ *
  * THERE IS NO `NEXT_PUBLIC_*` OVERRIDE, and its removal is deliberate rather than an omission.
  * It was here as "a bridge for a window where the product id changes before this constant does",
  * and tracing that window shows the bridge cannot work and fails in the one direction that costs
@@ -80,7 +88,7 @@ export const CONTRIBUTION_CURRENCY = 'INR' as const;
  * `!!CONTRIBUTION_PRODUCT_ID` and the unconfigured-state tests stub it to `''`, both of which a
  * narrowed literal type would make nonsense of.
  */
-export const CONTRIBUTION_PRODUCT_ID: string = 'af326b8c-f373-45ea-ad0d-b7a38b8ce0cc';
+export const CONTRIBUTION_PRODUCT_ID: string = '8514c405-3971-4786-ad0d-15406ca23407';
 
 /** One choice: the variant that is added to the cart, and the amount it collects. */
 export interface ContributionChoice {
@@ -114,9 +122,9 @@ export interface ContributionChoice {
  * price edit refuses the contribution rather than charging a figure the button did not promise.
  */
 export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
-  { variantId: '166ba5b0-a0da-4ea2-b1d2-032af12e916d', rupees: 100, paise: 10000 },
-  { variantId: '81d2d73a-b4ab-43fb-8043-505971763bcc', rupees: 250, paise: 25000 },
-  { variantId: '8594562c-286e-48fc-b854-b09a863ba031', rupees: 500, paise: 50000 },
+  { variantId: 'ab4ee1a2-1568-4dc4-abe1-55e24fa51576', rupees: 100, paise: 10000 },
+  { variantId: '8ad6f376-a526-4631-b510-0e047b33a5b9', rupees: 250, paise: 25000 },
+  { variantId: '19283bd8-a61d-455e-a992-79eb10b9228f', rupees: 500, paise: 50000 },
 ] as const;
 
 /** One hundred paise to the rupee. Named so no magic 100 appears in the conversion helpers. */

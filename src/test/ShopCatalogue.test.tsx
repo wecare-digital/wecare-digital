@@ -12,6 +12,7 @@ import {
   toParagraphs, catalogReadOn, CATALOG_FETCHED_AT,
   CONTRIBUTION_CONFIGURED, CONTRIBUTION_PRODUCT, CONTRIBUTION_PRODUCT_ID, CONTRIBUTION_RAW,
   CONTRIBUTION_SLUG, projectForTest,
+  WIX_TEMPLATE_SAMPLE_PRODUCT_IDS, WIX_TEMPLATE_SAMPLE_SLUGS,
 } from '../content/shop';
 import { getStaticPaths } from '../pages/shop/[slug]';
 import type { ShopProduct } from '../content/shop';
@@ -112,6 +113,11 @@ describe( 'the Wix snapshot is read correctly', () => {
     const expected = rows
       .filter( r => r.visible !== false && !!r.slug && !!r.name )
       .filter( r => r.slug !== CONTRIBUTION_SLUG )
+      // The Wix template's twelve sample products, excluded by owner decision 2026-10-05. Derived
+      // from the exported list rather than named here, so this stays the prefix-based check the
+      // comment above argues for: a product the owner decides to sell is published by deleting one
+      // line in shop.ts, with no edit to this test.
+      .filter( r => !WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( r.slug ) ) )
       .map( r => r.slug as string )
       .sort();
     expect( SHOP_PRODUCTS.length ).toBeGreaterThanOrEqual( FLOOR );
@@ -633,5 +639,64 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
       && CONTRIBUTION_CHOICES.length > 0
       && CONTRIBUTION_CHOICES.every( choice => !!choice.variantId ) );
     expect( CONTRIBUTION_CONFIGURED ).toBe( true );
+  } );
+} );
+describe( "the Wix template's own sample products are not this storefront", () => {
+  /*
+   * Owner decision, 2026-10-05. The migrated site c993128b was created from a store template and
+   * came with twelve demo products already in its catalogue, so the refreshed snapshot carries 21
+   * rows where the previous one carried 9. They are excluded from `SHOP_PRODUCTS` rather than
+   * deleted from Wix or stripped from the snapshot, which is what makes the decision reversible:
+   * publishing one is deleting a line from the list in shop.ts.
+   *
+   * This matters on a SCHEDULE, not just once: .github/workflows/catalogue-sync.yml rewrites
+   * wix-catalog.json unattended, so an exclusion that lived in the snapshot would be undone by the
+   * next sync without anybody looking. It lives in code for that reason.
+   */
+  it( 'keeps all twelve out of the shop, and out of the built routes', async () => {
+    const result = await getStaticPaths( {} as never );
+    const paths = ( result as unknown as { paths: { params: { slug: string } }[] } ).paths
+      .map( entry => entry.params.slug );
+    for ( const slug of WIX_TEMPLATE_SAMPLE_SLUGS ) {
+      expect( SHOP_PRODUCTS.some( product => product.slug === slug ), slug ).toBe( false );
+      expect( paths.includes( slug ), `${slug} would get a /shop/ page` ).toBe( false );
+      expect( shopProductBySlug( slug ), slug ).toBeNull();
+    }
+    expect( WIX_TEMPLATE_SAMPLE_SLUGS ).toHaveLength( 12 );
+    expect( WIX_TEMPLATE_SAMPLE_PRODUCT_IDS ).toHaveLength( 12 );
+  } );
+  it( 'excludes them by PRODUCT ID as well as by slug', () => {
+    // Same reasoning as the contribution exclusion above: the slug is editable in the Wix
+    // dashboard and the id is not, so a slug-only list would publish a demo product the next time
+    // somebody renamed its URL.
+    for ( const id of WIX_TEMPLATE_SAMPLE_PRODUCT_IDS ) {
+      expect( SHOP_PRODUCTS.some( product => product.id.toLowerCase() === id ), id ).toBe( false );
+    }
+  } );
+  it( 'still carries every one of them in the committed snapshot', () => {
+    // The rows are NOT removed from wix-catalog.json. The snapshot stays a faithful read of the
+    // live catalogue -- `scripts/fetch-wix-catalog.js` would re-add them anyway -- and the shop is
+    // what filters. A test that passed by them being absent would pass for the wrong reason.
+    const rows = ( catalog as { products?: { id?: string; slug?: string }[] } ).products || [];
+    for ( const id of WIX_TEMPLATE_SAMPLE_PRODUCT_IDS ) {
+      expect( rows.some( row => String( row.id ).toLowerCase() === id ), id ).toBe( true );
+    }
+  } );
+  it( 'leaves the real listings and the contribution vehicle untouched', () => {
+    // The seven services are PRESENT, asserted as a lower bound rather than as a closed list, for
+    // the same reason the derived check above is derived: a closed list is a hand edit every time
+    // the owner adds a product. What this pins is that the exclusion took out the template's
+    // samples and nothing else.
+    for ( const slug of [ 'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
+      'referral-partner', 'viveka' ] ) {
+      expect( SHOP_PRODUCTS.some( product => product.slug === slug ), slug ).toBe( true );
+    }
+    // Exactly the visible rows, less the contribution vehicle, less the twelve samples.
+    const visible = ( ( catalog as { products?: { slug?: string; name?: string;
+      visible?: boolean }[] } ).products || [] )
+      .filter( row => row.visible !== false && !!row.slug && !!row.name );
+    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 1 - WIX_TEMPLATE_SAMPLE_SLUGS.length );
+    expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
+    expect( CONTRIBUTION_PRODUCT?.slug ).toBe( CONTRIBUTION_SLUG );
   } );
 } );

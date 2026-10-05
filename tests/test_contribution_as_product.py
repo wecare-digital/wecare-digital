@@ -442,13 +442,19 @@ def test_t4_the_three_committed_choices_are_the_owners_three(monkeypatch):
     `GET /stores/v3/products/{id}` for the `Contribute` product on 2026-10-04, not transcribed
     from an instruction. The matching TS declaration is pinned against this one by
     tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract.
+
+    RE-MEASURED 2026-10-05 against the migrated site `c993128b-26be-41cd-9fcd-904abe23462f`,
+    which re-minted every product and variant id. The ASSERTED AMOUNTS ARE UNCHANGED -- 10000 /
+    25000 / 50000 -- and that is the point of restating them here rather than deriving them: the
+    ids moved, what a contributor is charged did not. The ₹100/₹250/₹500 correspondence was
+    cross-checked against the "Amount" option labels in the refreshed `src/content/wix-catalog.json`.
     """
     from lambda_utils.ecommerce import blog_contribution as bc
-    assert bc.CONTRIBUTION_PRODUCT_IDS == frozenset({"af326b8c-f373-45ea-ad0d-b7a38b8ce0cc"})
+    assert bc.CONTRIBUTION_PRODUCT_IDS == frozenset({"8514c405-3971-4786-ad0d-15406ca23407"})
     assert dict(bc.CONTRIBUTION_CHOICES_PAISE) == {
-        "166ba5b0-a0da-4ea2-b1d2-032af12e916d": 10000,
-        "81d2d73a-b4ab-43fb-8043-505971763bcc": 25000,
-        "8594562c-286e-48fc-b854-b09a863ba031": 50000,
+        "ab4ee1a2-1568-4dc4-abe1-55e24fa51576": 10000,
+        "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,
+        "19283bd8-a61d-455e-a992-79eb10b9228f": 50000,
     }
     # Every amount an integer number of paise, and every id lowercase so `_is_contribution_id`'s
     # `.lower()` can never miss a member of its own set.
@@ -456,8 +462,9 @@ def test_t4_the_three_committed_choices_are_the_owners_three(monkeypatch):
         assert type(paise) is int and paise > 0
         assert variant == variant.lower()
     # The Rs.1 test product is a STANDALONE shop listing, not a contribution vehicle. Named here
-    # because it shares the "a one-rupee product" shape with the retired contribution model.
-    assert "15a80e88-97b5-4603-86bf-c4864082b328" not in bc.CONTRIBUTION_PRODUCT_IDS
+    # because it shares the "a one-rupee product" shape with the retired contribution model. Its
+    # id moved with the 2026-10-05 site migration too (was 15a80e88-97b5-4603-86bf-c4864082b328).
+    assert "121c9d57-2cc9-490b-8eed-66bf7b9c172a" not in bc.CONTRIBUTION_PRODUCT_IDS
 
 
 # ══ T5 — the total guard, and the five refusals it distinguishes ═════════════════

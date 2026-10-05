@@ -132,7 +132,7 @@ CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 #: COMMITTED rather than configured, because this set is what makes CONTRIBUTION_PRODUCT_ID a kill
 #: switch instead of a de-guard: unsetting the env key must REFUSE a contribution basket, and that
 #: is only possible if the server can still recognise one. Ids are catalogue references, not
-#: secrets. An id is added here, never removed -- a retired vehicle must stay recognisable.
+#: secrets.
 #:
 #: The one entry is the live `Contribute` product (slug ``contribute``), MEASURED against the live
 #: Wix catalogue on 2026-10-04 rather than transcribed: ``PHYSICAL``, ``visible: true``, one option
@@ -140,8 +140,19 @@ CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 #: Rs.500. Note the shape, because it is NOT what the owner's instruction said: the three GUIDs
 #: supplied are the three VARIANT ids of ONE product, not three product ids. A `catalogItemId` of a
 #: variant id would 404 at `GET /stores/v3/products/{id}`, so the distinction is load-bearing.
+#:
+#: SITE MIGRATION, 2026-10-05: THE SET IS REPLACED, NOT EXTENDED, and that is a correction to what
+#: this comment used to claim. It said "an id is added here, never removed -- a retired vehicle must
+#: stay recognisable", which the module could never honour: the mirror guard
+#: ``test_server_choices_mirror_the_frontend_contract`` holds this set EQUAL to the single id
+#: ``src/config/contribution.ts`` declares, so a second member fails the build. The old id
+#: ``af326b8c-f373-45ea-ad0d-b7a38b8ce0cc`` belonged to the retired Wix site and names a product
+#: that no longer exists, so keeping it recognisable buys nothing: a stale cart line carrying it
+#: cannot be priced at all -- ``cart_v2.calculate`` refuses an unknown ``catalogItemId`` -- so that
+#: basket fails closed at Wix rather than being mistaken for an ordinary purchase and charged the
+#: convenience fee and GST.
 CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
-    "af326b8c-f373-45ea-ad0d-b7a38b8ce0cc",
+    "8514c405-3971-4786-ad0d-15406ca23407",
 })
 
 #: The ONLY three contributions that can be made, as ``{variant id: integer paise}``.
@@ -163,10 +174,18 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: declaration so the browser cannot widen the trusted set.
 #: tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract is the guard
 #: that fails if the two drift.
+#:
+#: SITE MIGRATION, 2026-10-05: the three variant GUIDs moved and the three AMOUNTS DID NOT. The
+#: catalogue was re-created on site ``c993128b-26be-41cd-9fcd-904abe23462f``, which re-mints every
+#: variant id, so all three keys changed in one release while the values stayed 10000 / 25000 /
+#: 50000 -- the customer is charged exactly what they were charged before. Which new variant
+#: carries which rupee figure was read off the new site's query-variants response and confirmed
+#: independently by the "Amount" option label in ``src/content/wix-catalog.json``, because getting
+#: that correspondence wrong would collect the wrong amount silently rather than failing.
 CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
-    "166ba5b0-a0da-4ea2-b1d2-032af12e916d": 10000,     # Rs.100
-    "81d2d73a-b4ab-43fb-8043-505971763bcc": 25000,     # Rs.250
-    "8594562c-286e-48fc-b854-b09a863ba031": 50000,     # Rs.500
+    "ab4ee1a2-1568-4dc4-abe1-55e24fa51576": 10000,     # Rs.100
+    "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,     # Rs.250
+    "19283bd8-a61d-455e-a992-79eb10b9228f": 50000,     # Rs.500
 })
 
 #: The variant ids above as a set, for membership tests that do not need the amount.
