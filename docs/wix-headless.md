@@ -125,3 +125,17 @@ across as-is.
 Wix exposes an MCP server at `https://mcp.wix.com/mcp`. Not wired into this project — adding
 it means registering it in the Kiro MCP config, and it would need its own credential
 handling rather than reusing the admin key above.
+
+## New-site Wix Stores IDs (recorded 2026-10-05)
+
+After the full migration to the new storefront site `c993128b-26be-41cd-9fcd-904abe23462f`:
+
+| Value | ID | Where it is used |
+|---|---|---|
+| Stores app **definition** id | `215238eb-22a5-4c36-9e7b-e7c08025e04e` | Constant across every Wix site (Wix's built-in Stores app). Already in `cart_v2.py` as `STORES_APP_ID`, used in `catalogReference.appId`. **Unchanged by the migration.** |
+| Stores **instance** id (this site) | `0dc9e5f8-d16a-4dbc-b504-54d62ae93a81` | Site-specific. NOT consumed by any live storefront/cart/webhook code — those read `metadata.instanceId` from each event's JWT at request time. The ONLY configured consumer is the gift-card SPI (`gift_card_spi_auth.py`, `SECRET_ID = wecare/wix/giftcard-spi`, field `instance_id`), which is **not provisioned live** (no function, routes, or secret). |
+
+**Action required: none today.** Record only. When/if the gift-card Service Plugin is
+provisioned, set `instance_id` in the `wecare/wix/giftcard-spi` secret to
+`0dc9e5f8-d16a-4dbc-b504-54d62ae93a81`. Do not hardcode the instance id into storefront
+code — it is not needed there and the webhook/SPI paths receive it per-request in the JWT.
