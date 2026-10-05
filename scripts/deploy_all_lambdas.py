@@ -169,6 +169,8 @@ SPECS: List[Spec] = [
     Spec("wecare-messages-read", "core/messages-read"),
     Spec("wecare-service-api", "core/service-api"),
     Spec("wecare-site-language", "core/site-language", standalone=True),
+    Spec("wecare-vayulok-environment", "core/vayulok-environment", standalone=True,
+         provisioned_by="python scripts/provision_vayulok_environment.py"),
     # --- auth / customer ---
     # First creation is owned by scripts/provision_customer_whatsapp_auth.py.
     # After that, normal code updates use this deploy map.

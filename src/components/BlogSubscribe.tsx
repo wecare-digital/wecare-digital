@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import OtpResend from './OtpResend';
 import PhoneField from './PhoneField';
 import PillButton from './PillButton';
 import { DEFAULT_DIAL_CODE, isValidNationalLength, nationalLengthHint } from '../lib/dialCodes';
@@ -242,9 +243,18 @@ const BlogSubscribe: React.FC = () => {
                   <button type="button" onClick={ verifyPhone } disabled={ phoneStep === 'verifying' }>
                     { phoneStep === 'verifying' ? 'Checking…' : 'Confirm WhatsApp code' }
                   </button>
-                  <button type="button" onClick={ requestPhone } disabled={ phoneStep === 'verifying' || !phoneValid }>
-                    Resend OTP on WhatsApp
-                  </button>
+                  {/* THE RESEND IS THE DERIVED SECONDARY NOW, not a second lime fill.
+                      `.verify-row button` paints every button in this row lime, so the code step
+                      rendered "Confirm WhatsApp code" and the resend as two equal lime surfaces -
+                      four of them once the email pair below is counted - against the owner's one
+                      primary lime surface per page. It also had no cooldown, where
+                      CheckoutProfile's resend has one. OtpResend supplies both, and it is the
+                      same control /account/sign-in/ and /get/ use. */}
+                  <OtpResend
+                    onResend={ requestPhone }
+                    size="md"
+                    busy={ phoneStep === 'verifying' || !phoneValid }
+                  />
                 </>
               ) : phoneStep === 'verified' ? (
                 <span className="verified">✓ WhatsApp verified</span>
@@ -283,9 +293,17 @@ const BlogSubscribe: React.FC = () => {
                   <button type="button" onClick={ verifyEmail } disabled={ emailStep === 'verifying' }>
                     { emailStep === 'verifying' ? 'Checking…' : 'Confirm email code' }
                   </button>
-                  <button type="button" onClick={ requestEmail } disabled={ emailStep === 'verifying' || !emailValid }>
-                    Resend verification code by email
-                  </button>
+                  {/* channel="email" because this IS the one-time email verification, which is
+                      the only thing email is used for on this site - never a sign-in OTP. The
+                      control says "Resend email code" so it cannot read as an email OTP
+                      channel. "Resend verification code by email" was the old wording and was
+                      the longest string in a row that scrolls horizontally on a phone. */}
+                  <OtpResend
+                    onResend={ requestEmail }
+                    channel="email"
+                    size="md"
+                    busy={ emailStep === 'verifying' || !emailValid }
+                  />
                 </>
               ) : emailStep === 'verified' ? (
                 <span className="verified">✓ Email verified</span>
@@ -340,15 +358,25 @@ const BlogSubscribe: React.FC = () => {
         }
         .phone-cell :global(.pf){margin-bottom:0}
         .verify-row{display:flex;align-items:center;gap:8px;min-height:44px;flex-wrap:wrap}
+        /* 600, the home CTA's weight, not 700. CheckoutProfile's identical verify row now reads
+           14px/600 too; it was 12px/700 there and 14px/700 here, which is the same control
+           rendering at two type sizes and a weight the rest of the site does not use. */
         .verify-row button{
           min-height:44px;padding:0 16px;border:2px solid #1a3a2a;border-radius:999px;
-          background:#d1f470;color:#1a3a2a;font:inherit;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;
+          background:#d1f470;color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;
           transition:background-color .2s,transform .2s,box-shadow .2s
         }
         .verify-row button:hover:not(:disabled){background:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .verify-row button:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
         .verify-row button:disabled{opacity:.55;cursor:default;transform:none;box-shadow:none}
-        .verify-row .otp{min-height:44px;width:112px;font-size:15px;padding:0 14px}
+        /* 17px AND 120px WIDE. It was 15px, which only ever looked right because
+           Layout.css forced every input to 16px with !important - a rule this sweep removed,
+           because it was overriding four components' deliberate 17px. With the override gone
+           the declared size is what paints, so 15px would have become real: the one field on
+           this card smaller than every other field on the site, and under the 16px floor below
+           which iOS Safari zooms the viewport on focus. The box widens with the type so six
+           digits still fit. */
+        .verify-row .otp{min-height:44px;width:120px;font-size:17px;padding:0 14px}
         .verified{font-size:12px;font-weight:700;color:#1a3a2a;white-space:nowrap}
         .blog-subscribe-action{display:flex;align-items:center;min-height:91px}
         .blog-subscribe-status{min-height:22px;margin:12px 0 0;font-size:14px;line-height:1.45;color:rgba(0,0,0,.7)}

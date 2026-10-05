@@ -140,31 +140,57 @@ const normaliseDialSearch = ( raw: string ): string => {
   return digits ? `+${ digits }` : '';
 };
 
-interface DialCodeSearchProps {
-  value: string;
-  onChange: ( next: string ) => void;
-  disabled?: boolean;
-  invalid?: boolean;
-}
-
-const DialCodeSearch: React.FC<DialCodeSearchProps> = ( {
-  value, onChange, disabled, invalid,
+const PhoneField: React.FC<PhoneFieldProps> = ( {
+  id, dialCode, onDialCodeChange, number, onNumberChange,
+  disabled, invalid, describedBy, placeholder, verified, onInvalid,
 } ) => {
-  const [ query, setQuery ] = useState( value );
+  /*
+   * THE DIAL-CODE SEGMENT'S EDIT BUFFER LIVES HERE, IN THE SAME COMPONENT AS THE <style jsx>,
+   * AND THAT IS THE WHOLE POINT OF THIS SHAPE.
+   *
+   * It used to live in a `DialCodeSearch` child component declared just above, which read
+   * tidily and was SILENTLY BROKEN IN PRODUCTION. styled-jsx only stamps its scoping hash
+   * onto JSX that appears in the same return tree as the <style jsx> element, so the child's
+   * <input className="pf-code"> shipped as class="pf-code" with NO hash while every rule for
+   * it compiled to `.pf-code.jsx-972b1368ee20e676{...}` - a selector that can never match.
+   * Measured in the built export at out/account/sign-in/index.html, where .pf-num carried the
+   * hash and .pf-code did not.
+   *
+   * Everything the segment declares was therefore dead, and the browser fell through to the
+   * global `input` skin: 13px radius instead of the 999px leading pill, a 2px box on all four
+   * sides instead of `border:0` plus the one inline-end hairline, 50px instead of 52px, 16px
+   * type instead of 17px, no min-inline-size, and no `::-webkit-search-cancel-button{display:none}`
+   * so the native clear glyph showed inside the field. The "one field, divided" control the
+   * owner asked for rendered as TWO BOXES of different heights and different corner radii, on
+   * /account/sign-in/, /get/, /cart/ and the blog subscribe block. That is the reported
+   * "phone field does not match home design".
+   *
+   * THIS REPO HAD ALREADY PAID FOR THIS LESSON TWICE. PillButton's docblock records the same
+   * failure on its two segments and says in terms: "do not extract them into a helper or a
+   * child component: either reintroduces the bug". RotatingHero records it costing "a full
+   * debugging round on the mega menu, where a renderLink() helper left the rules behind".
+   * A child component is a helper. Do not split this input out again.
+   *
+   * src/test/PhoneFieldScoping.test.tsx asserts the property - .pf-code carries the SAME
+   * jsx- hash as .pf-num - rather than pinning today's hash, so it survives any edit to the
+   * CSS and fails only if the scoping is lost again.
+   */
+  const [ query, setQuery ] = useState( dialCode );
 
   useEffect( () => {
-    setQuery( value );
-  }, [ value ] );
+    setQuery( dialCode );
+  }, [ dialCode ] );
 
   const commitIfSupported = ( raw: string ) => {
     const candidate = normaliseDialSearch( raw );
     setQuery( candidate );
-    if ( findDialCode( candidate ) ) onChange( candidate );
+    if ( findDialCode( candidate ) ) onDialCodeChange( candidate );
   };
 
   const unresolved = Boolean( query ) && !findDialCode( query );
 
   return (
+  <div className={ `pf${ verified ? ' pf-verified' : '' }` }>
     <input
       className="pf-code"
       type="search"
@@ -182,7 +208,7 @@ const DialCodeSearch: React.FC<DialCodeSearchProps> = ( {
       onFocus={ event => event.currentTarget.select() }
       onChange={ event => commitIfSupported( event.target.value ) }
       onBlur={ () => {
-        if ( !findDialCode( query ) ) setQuery( value );
+        if ( !findDialCode( query ) ) setQuery( dialCode );
       } }
       onKeyDown={ event => {
         if ( event.key === 'Enter' ) {
@@ -190,20 +216,6 @@ const DialCodeSearch: React.FC<DialCodeSearchProps> = ( {
           if ( findDialCode( query ) ) event.currentTarget.blur();
         }
       } }
-    />
-  );
-};
-
-const PhoneField: React.FC<PhoneFieldProps> = ( {
-  id, dialCode, onDialCodeChange, number, onNumberChange,
-  disabled, invalid, describedBy, placeholder, verified, onInvalid,
-} ) => (
-  <div className={ `pf${ verified ? ' pf-verified' : '' }` }>
-    <DialCodeSearch
-      value={ dialCode }
-      onChange={ onDialCodeChange }
-      disabled={ disabled }
-      invalid={ invalid }
     />
 
     <input
@@ -420,6 +432,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ( {
       }
     `}</style>
   </div>
-);
+  );
+};
 
 export default PhoneField;

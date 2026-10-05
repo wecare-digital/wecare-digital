@@ -1478,72 +1478,14 @@
   height: 100%;
 }
 
-/* Themed Scrollbars — hide arrows, lime + dark green thumb */
-.whatsapp-inbox ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-
-.whatsapp-inbox ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.whatsapp-inbox ::-webkit-scrollbar-thumb {
-  background: rgba(26, 58, 42, 0.15) !important;
-  border-radius: 10px !important;
-}
-
-.whatsapp-inbox ::-webkit-scrollbar-thumb:hover {
-  background: #d1f470 !important;
-}
-
-.whatsapp-inbox ::-webkit-scrollbar-thumb:active {
-  background: #0f2a1d !important;
-}
-
-.whatsapp-inbox ::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.whatsapp-inbox ::-webkit-scrollbar-corner {
-  background: transparent;
-}
-
-/* Firefox scrollbar */
-.whatsapp-inbox * {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(26, 58, 42, 0.15) transparent;
-}
-
-/* Page-level scrollbar — match theme */
-.page-container ::-webkit-scrollbar {
-  width: 5px;
-}
-
-.page-container ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.page-container ::-webkit-scrollbar-thumb {
-  background: rgba(26, 58, 42, 0.15) !important;
-  border-radius: 10px !important;
-}
-
-.page-container ::-webkit-scrollbar-thumb:hover {
-  background: #d1f470 !important;
-}
-
-.page-container ::-webkit-scrollbar-thumb:active {
-  background: #0f2a1d !important;
-}
-
-.page-container ::-webkit-scrollbar-button {
-  display: none;
-  height: 0;
-  width: 0;
-}
+/* TWO MORE SCROLLBAR COPIES LIVED HERE AND ARE GONE: `.whatsapp-inbox ::-webkit-scrollbar*`
+   and `.page-container ::-webkit-scrollbar*`, both 5px with a rgba(26,58,42,.15) thumb on a
+   transparent track, both carrying !important on the thumb. They were two of the four
+   competing global declarations that made this site show one scrollbar in Firefox and a
+   different one in Chromium, Safari and every WebView. The single site-wide declaration now
+   lives in src/styles/inner-ux.css and is built from the --scrollbar-* tokens; it is written
+   against `*`, so it covers these containers too. A per-container scrollbar is not a feature
+   here - the owner asked for one scrollbar, consistent site-wide. */
 
 /* Mobile WhatsApp Inbox Styles */
 

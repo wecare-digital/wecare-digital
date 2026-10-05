@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import OtpResend from './OtpResend';
 
 import PillButton from './PillButton';
 import AddressFields, {
@@ -451,9 +452,22 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
                   <button type="button" onClick={ verifyCode } disabled={ step === 'verifying' }>
                     { step === 'verifying' ? 'Checking…' : 'Confirm email code' }
                   </button>
-                  <button type="button" onClick={ sendCode } disabled={ sendDisabled }>
-                    { cooldownSeconds > 0 ? `Resend email code ${ cooldownSeconds }s` : 'Resend email code' }
-                  </button>
+                  {/* THE SHARED RESEND CONTROL, so this row is not a fourth answer to the same
+                      question. `.verify-row button` below paints every button in the row lime,
+                      which made the confirm and the resend two equal lime surfaces; OtpResend is
+                      the derived secondary, so the row keeps one lime fill.
+                      cooldownUntil is passed because THIS surface's wait is the SERVER's - a 429
+                      carries retryAfterSeconds and the challenge store's own 60s window is
+                      longer than the component's 30s floor. OtpResend takes the later of the
+                      two, so a server throttle is never shortened by the client. */}
+                  <OtpResend
+                    onResend={ sendCode }
+                    channel="email"
+                    size="md"
+                    busy={ step === 'verifying' || !emailValid }
+                    blocked={ sendBlocked }
+                    cooldownUntil={ cooldownUntil }
+                  />
                 </>
               ) : (
                 <button type="button" onClick={ sendCode } disabled={ sendDisabled }>
@@ -522,21 +536,36 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
         .checkout-profile-grid label>span,.email-field>label{
           font-size:12px;font-weight:700;color:#1a3a2a;
         }
+        /* 999px, NOT 10px. Every other field a customer meets on this site is a full pill -
+           .si-input, .sf-input, PhoneField's .pf, BlogSubscribe's cells and the .otp box below -
+           and this grid was the only place that rounded its corners partway. Measured in the
+           built export before the change; nothing else about the field moves. */
         .checkout-profile-grid input{
-          min-height:52px;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;
-          padding:0 14px;background:#fff;color:#1a1a1a;font:inherit;font-size:16px;outline:none;
+          min-height:52px;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:999px;
+          padding:0 16px;background:#fff;color:#1a1a1a;font:inherit;font-size:16px;outline:none;
         }
         .checkout-profile-grid input:focus-visible{
           outline:3px solid #1a3a2a;outline-offset:2px;border-color:#1a3a2a;
         }
         .verify-row{display:flex;align-items:center;gap:8px;min-height:44px;flex-wrap:wrap}
+        /* 14px/600, matching BlogSubscribe's identical row. It was 12px/700 here and 14px/700
+           there - the same control, two type sizes, on two pages a customer can see in one
+           session. 12px is also the smallest type on this card, on a button. 600 is the weight
+           the home CTA uses; 700 was heavier than anything else it sits beside. */
         .verify-row button{
           min-height:44px;padding:0 16px;border:2px solid #1a3a2a;border-radius:999px;background:#d1f470;
-          color:#1a3a2a;font:inherit;font-size:12px;font-weight:700;cursor:pointer;
+          color:#1a3a2a;font:inherit;font-size:14px;font-weight:600;cursor:pointer;
         }
         .verify-row button:hover:not(:disabled){background:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .verify-row button:disabled{opacity:.55;cursor:default}
-        .verify-row .otp{width:112px;min-height:44px;padding:0 14px;font-size:15px;border-radius:999px}
+        /* 17px AND 120px WIDE. It was 15px, which only ever looked right because
+           Layout.css forced every input to 16px with !important - a rule this sweep removed,
+           because it was overriding four components' deliberate 17px. With the override gone
+           the declared size is what paints, so 15px would have become real: the one field on
+           this card smaller than every other field on the site, and under the 16px floor below
+           which iOS Safari zooms the viewport on focus. The box widens with the type so six
+           digits still fit. */
+        .verify-row .otp{width:120px;min-height:44px;padding:0 14px;font-size:17px;border-radius:999px}
         .resend-countdown{margin:6px 0 0;font-size:12px;line-height:1.4;color:rgba(0,0,0,.66)}
         .checkout-profile-note,.checkout-profile-status{
           margin:14px 0 0;font-size:14px;line-height:1.5;color:rgba(0,0,0,.66);

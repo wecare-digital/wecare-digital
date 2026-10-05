@@ -258,6 +258,25 @@
    * ======================================== */
   --max-width-wide: 1400px;
   --tap-target: 44px;
+
+  /* ========================================
+   * SCROLLBAR
+   * One palette, declared once, consumed by the single site-wide rule in inner-ux.css.
+   *
+   * These are aliases of existing tokens, not new colours. The thumb is --accent, which is
+   * also the home CTA's border and text colour; the track is the house lime state tint that
+   * .btn-ghost:hover, .co-btn-quiet:hover and .si-error already use.
+   *
+   * A LIME THUMB WAS MEASURED AND REJECTED. #d1f470 against a near-white track is 1.24:1,
+   * far under the 3:1 WCAG 1.4.11 asks of a control boundary, so the thumb would be the one
+   * part of the page a low-vision visitor cannot find. #1a3a2a is 12.48:1 on white. Lime is
+   * the affordance colour for actions; a scrollbar is not an action.
+   * ======================================== */
+  --scrollbar-thumb: var(--accent);
+  --scrollbar-thumb-hover: var(--accent-hover);
+  --scrollbar-track: rgba(209, 244, 112, 0.22);
+  --scrollbar-size: 10px;
+  --scrollbar-size-compact: 7px;
 }
 
 /* ========================================
@@ -282,7 +301,29 @@ body {
 
 /* ========================================
  * UNIFIED BUTTON SYSTEM
- * White bg, black border, 13px radius
+ *
+ * src/styles/button.css IS THE AUTHORITATIVE BUTTON LAYER. This block is the older, broader
+ * one, and it declares the same four class names - so the two fight, and today button.css
+ * wins only because `_app.tsx` imports it at line 25 while this file arrives via Layout.css's
+ * `@import` at line 8. Source order, at equal specificity, is the whole of the guarantee.
+ *
+ * It is NOT deleted, and the reason is honesty about what can be measured: `.btn` renders on
+ * authenticated dashboard routes only, and the static export ships auth shells, so no harness
+ * in tools/browser can load a page where these rules apply. Deleting a rule whose effect
+ * cannot be measured is how a dashboard button silently loses its height or its border.
+ *
+ * What IS fixed is the part that CONTRADICTED button.css, so the two layers now agree and the
+ * import order stops being load-bearing:
+ *   - the border was 1.5px here and 2px in button.css. Now 2px in both.
+ *   - the mobile override below hardcoded `border-radius:12px`, which is the one declaration
+ *     that bypassed the token entirely. It now reads var(--radius-btn), so a button cannot be
+ *     a pill on desktop and a rounded rectangle on a phone.
+ *
+ * NOTE --radius-btn RESOLVES TO 999px, NOT THE 13px DECLARED ABOVE. src/styles/inner-ux.css
+ * redeclares it on :root and is imported later, so every consumer of this token already gets
+ * the home CTA's full pill. The 13px above is therefore a dead default kept for the one case
+ * where inner-ux.css is not loaded. Do not "correct" the 13px by changing consumers to match
+ * it - measure first.
  * ======================================== */
 
 /* Base shared styles */
@@ -306,7 +347,7 @@ body {
   transition: all var(--transition-normal);
   background: #fff;
   color: #1a3a2a;
-  border: 1.5px solid #1a3a2a;
+  border: 2px solid #1a3a2a;
 }
 
 /* PRIMARY: Lime bg, dark text — matches test page */
@@ -328,7 +369,7 @@ body {
   transition: all var(--transition-normal);
   background: #d1f470;
   color: #1a3a2a;
-  border: 1.5px solid #1a3a2a;
+  border: 2px solid #1a3a2a;
 }
 
 .btn:hover,
@@ -437,7 +478,11 @@ textarea:focus {
   .btn-outline {
     padding: 10px 16px;
     font-size: var(--text-sm);
-    border-radius: 12px;
+    /* var(--radius-btn), NOT the literal 12px this read before. 12px was the only place in
+       the button system that bypassed the token, so a button was a full pill on a desktop
+       and a rounded rectangle on a phone - the same control, two shapes, decided by a
+       breakpoint. It lost to button.css's 999px today purely on import order. */
+    border-radius: var(--radius-btn);
   }
 }
 

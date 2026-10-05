@@ -2934,41 +2934,88 @@
   display: none !important;
 }
 
-/* ========================================
-   SITE-WIDE SCROLLBARS - HOME PALETTE
-   ======================================== */
+/* ==========================================================================
+   THE SITE-WIDE SCROLLBAR — ONE DECLARATION, BOTH ENGINES, TOKEN-SOURCED
+
+   THIS IS THE ONLY PLACE THE SCROLLBAR IS DECLARED. Four blocks used to declare it, and the
+   site showed two different scrollbars because of it. Measured on every public route before
+   this consolidation:
+
+     Firefox   scrollbar-color             rgb(209,244,112) rgb(250,250,250)   lime thumb
+     Chromium  ::-webkit-scrollbar-thumb   rgba(26,58,42,0.15) on transparent, 5px wide
+
+   The two engines read DIFFERENT PROPERTIES for the same thing, which is what made the
+   conflict invisible. Layout.css carried a ::-webkit-scrollbar block with !important on every
+   line, so it beat the WebKit half of the block below and Chromium, Safari and every WebView
+   got a 5px grey-green hairline; Firefox ignored that block entirely and took scrollbar-color
+   from here instead. Pages.css carried two further copies scoped to .whatsapp-inbox and
+   .page-container. All three are deleted, each with a note in place saying why.
+
+   THIS BLOCK ALSO REPLACES A SECOND COPY THAT SAT DIRECTLY BELOW IT - a lime #d1f470 thumb on
+   #fafafa, which is what Firefox was actually rendering. It is not restored, and the reason is
+   measured rather than aesthetic: #d1f470 against a near-white track is 1.24:1, nowhere near
+   the 3:1 WCAG 1.4.11 asks of a control boundary, so the thumb would be the one part of the
+   page a low-vision visitor cannot find. #1a3a2a on this track is 12.48:1. Lime is this
+   site's "actionable" colour and a scrollbar is not an action - so the brand shows in the
+   TRACK (the house lime state tint) and the thumb takes the home CTA's own border colour.
+
+   The colours are the --scrollbar-* tokens in src/styles/tokens.css, every one an alias of a
+   token that already existed. Do not hardcode a colour here, and do not add a second copy
+   anywhere: a competing declaration does not look like a CSS conflict, it looks like a
+   browser bug. tools/browser/designsweep.js asserts the two engines agree.
+   ========================================================================== */
 html {
-  scrollbar-color: #1a3a2a #f5fde0;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-width: thin;
 }
 
+/* `*` as well as `html`: Firefox resolves scrollbar-color per scrolling box, so a nested
+   scroller - a dashboard panel, a mobile tab strip - keeps the system default without it. */
 * {
-  scrollbar-color: #1a3a2a #f5fde0;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
 }
 
 *::-webkit-scrollbar-track {
-  background: #f5fde0;
+  background: var(--scrollbar-track);
 }
 
+/* The 2px transparent border is the track showing through, which insets the thumb so it reads
+   as a pill in a channel rather than a bar filling the gutter. background-clip:padding-box
+   keeps the fill out from under that border, which is what stops a semi-transparent track
+   darkening at the thumb's edges. */
 *::-webkit-scrollbar-thumb {
-  background: #1a3a2a;
-  border: 2px solid #f5fde0;
+  background: var(--scrollbar-thumb);
+  background-clip: padding-box;
+  border: 2px solid transparent;
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #0f2a1d;
+  background: var(--scrollbar-thumb-hover);
+  background-clip: padding-box;
+}
+
+/* No arrow buttons and no corner square: neither is chrome this site draws anywhere else, and
+   the corner is what leaves a grey box where two scrollbars meet. */
+*::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
 }
 
 @media (max-width: 767px) {
   *::-webkit-scrollbar {
-    width: 7px;
-    height: 7px;
+    width: var(--scrollbar-size-compact);
+    height: var(--scrollbar-size-compact);
   }
 }
 
@@ -2977,28 +3024,6 @@ html {
    HOME DESIGN NORMALIZATION — site-wide controls
    Home is the single visual source of truth for interactive actions.
    ========================================================================== */
-
-/* Site scrollbar: neutral track, Home lime thumb, dark-green hover/focus tone.
-   Firefox uses scrollbar-color; Chromium/Safari/WebViews use the WebKit pseudo-elements. */
-html {
-  scrollbar-color: #d1f470 #fafafa;
-  scrollbar-width: thin;
-}
-*::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-*::-webkit-scrollbar-track {
-  background: #fafafa;
-}
-*::-webkit-scrollbar-thumb {
-  background: #d1f470;
-  border: 2px solid #fafafa;
-  border-radius: 999px;
-}
-*::-webkit-scrollbar-thumb:hover {
-  background: #1a3a2a;
-}
 
 /* Inner-page primary actions inherit the Home CTA silhouette even where legacy page
    styles have higher specificity than button.css. Utility/icon/tab controls remain

@@ -96,10 +96,19 @@ const BlogSearch: React.FC<BlogSearchProps> = ( { value, onChange, resultCount, 
         /* 17px is the site's base body size - anything smaller in a form field triggers the
            zoom-on-focus behaviour iOS applies under 16px. 52px matches .home-close-cta so the
            two controls read as the same family. */
+        /* 999px AND A 1px #e5e7eb HAIRLINE - the site's field standard, which this control was
+           the only public field not using. Measured in the built export before the change:
+           border-radius 12px and a 2px rgba(26,58,42,.22) edge, against 999px and 1px #e5e7eb
+           on .si-input, .sf-input, PhoneField's .pf, BlogSubscribe's cells and
+           CheckoutProfile's grid. The button beside it is a 50px pill, so the old 12px box
+           read as a search box borrowed from somewhere else and bolted to a site button.
+           The focus rule below is unchanged and still supplies the indicator, so dropping the
+           resting border from 2px to 1px costs nothing: at rest this is a container edge, and
+           the thing that has to clear WCAG 1.4.11 is the focused state. */
         .bs-form input{
           flex:1;min-width:0;height:52px;padding:0 16px;
           font-size:17px;font-family:inherit;color:#1a1a1a;background:#fff;
-          border:2px solid rgba(26,58,42,.22);border-radius:12px;
+          border:1px solid #e5e7eb;border-radius:999px;
         }
         .bs-form input::placeholder{color:rgba(0,0,0,.44)}
         /* The focus treatment is a lime ring OUTSIDE a darkened border, not a removed outline:

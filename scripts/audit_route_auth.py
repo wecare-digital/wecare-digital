@@ -165,6 +165,7 @@ EXPECTED_PUBLIC_ROUTES = {
     "POST /auth/validate": "token validation endpoint; authenticating it would be circular",
     "POST /auth/email-verification": "public email-ownership OTP door; it returns only a short-lived email-bound proof and performs no customer or contact write",
     "POST /blog/subscribe": "public subscription front door; caller has no session yet and must prove phone plus email OTP before any contact write",
+    "POST /vayulok/environment": "anonymous public environmental read proxy; no customer session exists, and the handler restricts origin, India bounds, fixed operations and provider fan-out before any metered call",
     # Provider webhooks authenticate by signature over the raw body, which cannot
     # be expressed as an API Gateway authorizer. Verified in the handler.
     "GET /webhook/sinch-rcs": "Sinch health probe; POST carries the HMAC",

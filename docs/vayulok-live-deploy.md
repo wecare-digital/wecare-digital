@@ -1,96 +1,83 @@
-# VayuLok live page: deploy note
+# VayuLok live page: Google credential and deploy contract
 
-This note is for the owner. It explains exactly what has to be set, and where, for the live map
-and the Air Quality, Weather, Solar and Pollen panels on `/vayulok/` to render on a deployed
-environment. None of it lives in the repository, and none of it is a code change. The page is
-already wired; it only needs the one environment variable set on the branch you deploy.
+The approved v8 UI has two different Google trust boundaries. Do not put them back on one key.
 
-## 1. Set the environment variable on the target Amplify branch
+## Browser key: Maps UI only
 
-The page reads its Google key from a single build-time environment variable:
+`NEXT_PUBLIC_GOOGLE_MAPS_KEY` is a public browser key. With Next static export it is
+inlined into JavaScript by design, so its protection is restriction, not secrecy.
 
-```
-NEXT_PUBLIC_GOOGLE_MAPS_KEY
-```
+Use Google Cloud Website / HTTP referrer application restrictions:
 
-Set it in the **Amplify branch environment** for the branch you are deploying, in the Amplify
-console for app `d22dm4b0jn71jw`
-([AWS Amplify console](https://console.aws.amazon.com/amplify/)). Set it to the
-referrer-restricted Google **browser** key named **"WECARE Unified Google API Key"** in the Google
-Cloud console. The owner enters the value in the Amplify console; it is **never** committed to the
-repository, never printed to a log, and never passed on a command line. The value is not reproduced
-anywhere in this document on purpose. The page reads the key only inside a client effect, so with
-`output: 'export'` it is placed into a JavaScript chunk at build time and never into the
-pre-rendered HTML.
+- `https://wecare.digital/*`
+- `https://*.wecare.digital/*`
 
-## 2. The build has a credential gate, and a browser key passes it
+Do not put `*.googleapis.com/*`, `places.googleapis.com`, or other Google API hosts in
+the website allow-list. Those are destinations, not the referring WECARE website.
 
-The production build runs `scripts/verify_public_bundle_secrets.py` (wired into `amplify.yml`).
-That gate **fails the build** if a server-side key fingerprint is found inlined in the exported
-bundle. A genuine referrer-restricted browser key is public by design and **passes** the gate: it
-is meant to ship to the browser, and Google enforces it by HTTP referrer rather than by secrecy.
-Do not weaken or bypass the gate to get a key through. If the gate fails, the key you set is the
-wrong kind of key.
+Restrict this browser key to the APIs the approved browser UI needs:
 
-## 3. The key's referrer allow-list and API restrictions
+- Maps JavaScript API
+- Places API (New)
+- Geocoding API
+- Maps Elevation API
 
-The browser key is restricted two ways in the Google Cloud console, and both must be correct:
+Do not add Weather, Air Quality, Pollen, Solar, Translate, Vision, YouTube, Business Profile,
+Routes, or unrelated APIs simply because they are enabled in the project.
 
-- **Allowed referrers** must include `https://wecare.digital/*` and `https://*.wecare.digital/*`.
-  These are already set per [docs/CREDENTIAL-ROTATION-RUNBOOK.md](./CREDENTIAL-ROTATION-RUNBOOK.md).
-- **API restrictions** must enable all of: **Maps JavaScript API**, **Air Quality API**,
-  **Weather API**, **Solar API**, **Pollen API**, and **Places API / Geocoding API**. The owner
-  confirms these are enabled on the key in the
-  [Google Cloud console](https://console.cloud.google.com/google/maps-apis/credentials). A missing
-  API restriction shows as that one panel silently not rendering while the rest of the page works.
+## Server key: Weather + Air Quality
 
-## 4. Which branch to deploy for a preview
+Weather and Air Quality web-service requests belong behind
+`POST /vayulok/environment`, implemented by
+`amplify/functions/core/vayulok-environment/handler.py`.
 
-Point Amplify at the branch you want to preview and make sure **that branch carries the
-`NEXT_PUBLIC_GOOGLE_MAPS_KEY` variable** (Amplify branch environments are per branch; a variable
-set on one branch is not inherited by another). The production branch for app `d22dm4b0jn71jw` is
-`stack`. For a preview of this work, deploy the feature branch `feat/vayulok-live-page` (or merge
-it to `stack`) and set the variable on whichever branch Amplify builds. The deployed URL must be a
-`*.wecare.digital` origin for the key to be accepted (see the next section).
+That Lambda reads `wecare/google/cloud` from AWS Secrets Manager at request time and
+sends the key to Google in `X-Goog-Api-Key`, never in a browser bundle or URL query string.
+The server key is provisioned by `scripts/provision_maps_server_key.py`; its API target list
+contains the existing server address-capture and Translate services plus:
 
-## 5. Live panels only render on a `*.wecare.digital` origin
+- `airquality.googleapis.com`
+- `weather.googleapis.com`
 
-Because the key is referrer-restricted, Google only honours requests from `https://wecare.digital`
-and its subdomains. This means:
+The public gateway is deliberately narrow: WECARE HTTPS Origin check before the secret read,
+India coordinate bounds, fixed operation names, fixed Weather/Air request shapes, bounded
+history ranges, a server-generated 3x3/5x5 AQ grid capped at 25 samples, and an API Gateway
+per-route throttle. Origin is cost-friction, not authentication; provider quotas and budgets
+remain necessary.
 
-- The map, the AQI/PM2.5 heatmap, Weather, Solar and Pollen render **only** on a deployed
-  `*.wecare.digital` Amplify origin.
-- A local `htmlpreview`, `localhost`, or CI run will **not** show the map, and that is **expected,
-  not a bug**. There is no key in CI, the origin is not `*.wecare.digital`, and the referrer
-  restriction would reject the calls even if there were. CI verifies degradation and wiring, not a
-  live map; the owner verifies the live map on a deployed `*.wecare.digital` preview.
+## Safe rollout order
 
-## 6. Honest degradation when the variable is unset
+The repository change is intentionally staged so production does not lose environmental data.
 
-If `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is unset, the page renders the rotating-word hero and the content
-shell (Subscribe, Contribute, Share) **without** the map and without the live panels, and makes
-**zero** Google network calls. There is no spinner and no `--` placeholder: a value only appears
-once it has actually arrived from the API, and absent data simply omits its field. This is what
-lets the production build pass with the variable unset, which is how the build proves no key is
-inlined.
+1. Recreate/verify the server key without printing it:
+   `python scripts/provision_maps_server_key.py --create`
+   (or `--status` / `--verify` when it already exists).
+2. Provision the gateway:
+   `python scripts/provision_vayulok_environment.py`
+3. Read back the route/alias:
+   `python scripts/provision_vayulok_environment.py --verify`
+4. Smoke `POST /vayulok/environment` from an allowed deployed WECARE origin.
+5. Only after that evidence is green, change `VayuLokLive.tsx` from direct
+   `weather.googleapis.com` / `airquality.googleapis.com` calls to this gateway.
+6. Then remove Weather/Air Quality from the browser key's API restrictions and redeploy
+   `stack`.
 
-## 7. India SKUs in use, and the cost note
+Do not perform step 5 before steps 1-4. The canonical `wecare/google/cloud` secret currently holds the referrer-restricted browser
+key until the server-key provisioning step replaces only its key fields while preserving project
+metadata. Cutting the browser over before that key and gateway are verified would turn credential
+hardening into a VayuLok outage.
 
-The page is scoped to India for pricing. The India-SKU Google services it calls are:
+## Unsupported India calls
 
-- **Maps JavaScript API** - the base map, scoped to an India `latLngBounds` restriction so it
-  cannot be panned off the product's area, with Places/Geocoding search restricted to
-  `country: in` / `region: in`.
-- **Air Quality API** - current conditions (India CPCB local AQI preferred), and the heatmap tiles.
-- **Weather API** - current conditions.
-- **Solar API** - Building Insights for the selected address.
-- **Pollen API** - the one-day forecast.
+The approved v8 implementation does not call Google Pollen for India and does not request
+Google Weather public alerts for India. Do not enable those APIs on either key to compensate
+for absent UI data.
 
-Cost controls built into the page:
+## Validation
 
-- **The AQI/PM2.5 heatmap loads on user action only.** The tile overlay is created and its tiles
-  requested **only** when the reader presses an AQI or PM2.5 layer button. It is never requested on
-  page load, so a visitor who never touches the control is never billed for heatmap tiles.
-- **Calls are debounced and cached.** Place search is debounced (~300 ms) so typing does not fire a
-  request per keystroke, and the Air/Weather/Solar/Pollen results are cached per location, so
-  re-selecting a place already viewed costs nothing.
+- `tests/test_vayulok_environment.py` pins the server boundary.
+- `src/test/VayuLokLive.test.tsx` pins the approved v8 browser DOM/data behavior.
+- `.github/workflows/build-test.yml` runs build, TypeScript, Vitest, browser harness and lint.
+
+The final acceptance step remains a live rendered comparison of `/vayulok/` against
+`vayulok-local-prototype-wecare-v8(1).html` on a `*.wecare.digital` origin.

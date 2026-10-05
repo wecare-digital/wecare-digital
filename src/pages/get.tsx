@@ -35,6 +35,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import SEO from '../components/SEO';
+import OtpResend from '../components/OtpResend';
 import PhoneField from '../components/PhoneField';
 import PillButton from '../components/PillButton';
 import RotatingHero from '../components/RotatingHero';
@@ -427,6 +428,21 @@ export default function FilesPage () {
                                 busy={ busy }
                                 describedBy={ error ? 'sf-error' : undefined }
                             />
+                            {/* THE WAY OUT OF A CODE THAT NEVER ARRIVED, which this stage did
+                                not have: "Use a different number" below is a way to start over,
+                                not a way to try the same number again. Same shared control as
+                                /account/sign-in/, so the two sign-in surfaces cannot drift
+                                apart on the resend the way they did on the send.
+                                handleRequestOtp is reused verbatim - it already re-issues the
+                                challenge and re-enters this stage, so a resend is the same call
+                                the first send made, not a second code path to keep in step. */}
+                            <div className="sf-resend">
+                                <OtpResend
+                                    onResend={ () => { void handleRequestOtp(); } }
+                                    busy={ busy }
+                                    block
+                                />
+                            </div>
                             <button
                                 className="sf-quiet"
                                 onClick={ () => { setStage( 'mobile' ); setCode( '' ); setMessage( '' ); } }
@@ -592,10 +608,20 @@ export default function FilesPage () {
                         + mint pill on the login CTA. This page kept the old treatment and was the
                         last surface still showing it. */
 
+                /* The resend stacks under the verify button rather than sitting beside it: at
+                   280px two 52px pills cannot share a row without wrapping mid-label, and a
+                   wrapped button row reads as a layout fault. Stacked is the same at every
+                   width, and it matches /account/sign-in/. */
+                .sf-resend{margin-top:12px}
+                /* min-height:44px, NOT padding alone. padding:10px on a 15px line measured 38px
+                   tall in the built export - under the 44px floor this site holds everything
+                   else to, and only passing on mobile because tokens.css forces 44px on every
+                   button below 768px. A tap target should not depend on a breakpoint. */
                 .sf-quiet{
-                  display:block;width:100%;margin-top:12px;padding:10px;
+                  display:flex;align-items:center;justify-content:center;
+                  width:100%;min-height:44px;margin-top:12px;padding:10px;
                   border:0;background:transparent;color:rgba(26,58,42,.72);
-                  font-size:15px;cursor:pointer;
+                  font-family:inherit;font-size:15px;cursor:pointer;
                 }
                 .sf-quiet:hover{color:#1a3a2a;text-decoration:underline}
                 .sf-quiet:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}

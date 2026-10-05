@@ -29,7 +29,7 @@ fix is a separate key, which is what `docs/spec.md` ADR-4 already required.
 
 The new key carries **no** application restriction. That is deliberate and it is the
 standard pattern for Lambda, which has no stable egress IP to allowlist, so `--allowed-ips`
-is not available. The compensating control is a tight `apiTargets` list: four services
+is not available. The compensating control is a tight `apiTargets` list: six services
 instead of the unified key's forty-nine. A key with no application restriction is usable by
 anyone who holds it, which is exactly why it must be separate, narrow, and in Secrets
 Manager rather than shared with the browser.
@@ -58,11 +58,12 @@ import boto3
 from botocore.exceptions import ClientError
 
 REGION = "us-east-1"
-SECRET_NAME = "wecare/google-maps-server"
+SECRET_NAME = "wecare/google/cloud"
 SECRET_FIELD = "api_key"
-DISPLAY_NAME = "WECARE Address Capture Server Key"
+DISPLAY_NAME = "WECARE Server Google API Key"
 
-# Least privilege for address capture. Deliberately NOT the unified key's 49 services.
+# Least privilege for the two server consumers: address capture + VayuLok environment.
+# Deliberately NOT the unified key's broad service list.
 #   places.googleapis.com          Places API (New) - autocomplete and place details
 #   addressvalidation.googleapis.com  address verification
 #   geocoding-backend.googleapis.com  geocoding, only where genuinely required
@@ -73,6 +74,12 @@ API_TARGETS = [
     "addressvalidation.googleapis.com",
     "geocoding-backend.googleapis.com",
     "places-backend.googleapis.com",
+    # VayuLok environmental web-service calls. Kept server-side by
+    # core/vayulok-environment; never add these to the public browser key.
+    "airquality.googleapis.com",
+    "weather.googleapis.com",
+    # Existing canonical-secret consumer: core/site-language.
+    "translate.googleapis.com",
 ]
 
 TIMEOUT = 20
@@ -121,25 +128,43 @@ def secrets_client():
 
 
 def store(value: str) -> str:
-    """Put the value in Secrets Manager, creating the container if needed.
+    """Replace only the key fields in the canonical Google secret.
 
-    Never logs the value and never places it on a command line - boto3 carries it in the
-    request body over TLS.
+    wecare/google/cloud also holds project metadata. Replacing SecretString with
+    {"api_key": ...} would delete those siblings, so read/merge/write is required.
+    Both candidate key fields are set to the same server value because existing
+    consumers deliberately try both while the historical field-name ambiguity is
+    being retired.
     """
     client = secrets_client()
-    payload = json.dumps({SECRET_FIELD: value})
     try:
+        raw = client.get_secret_value(SecretId=SECRET_NAME).get("SecretString") or "{}"
+        current = json.loads(raw)
+        if not isinstance(current, dict):
+            current = {}
+        outcome = "new version"
+    except client.exceptions.ResourceNotFoundException:
+        current = {}
+        outcome = "created"
+    except (json.JSONDecodeError, TypeError):
+        current = {}
+        outcome = "new version"
+
+    current[SECRET_FIELD] = value
+    current["unified_google_api_key"] = value
+    payload = json.dumps(current)
+    if outcome == "created":
         client.create_secret(
             Name=SECRET_NAME,
-            Description="Server-restricted Google Maps key for address capture. "
-                        "No application restriction by design; Lambda has no stable "
-                        "egress IP. Scoped by apiTargets instead.",
+            Description=(
+                "Canonical server-side Google credential and project metadata. "
+                "Key value is not browser-safe; browser Maps key lives in Amplify."
+            ),
             SecretString=payload,
         )
-        return "created"
-    except client.exceptions.ResourceExistsException:
+    else:
         client.put_secret_value(SecretId=SECRET_NAME, SecretString=payload)
-        return "new version"
+    return outcome
 
 
 def load_stored() -> str | None:
@@ -149,7 +174,8 @@ def load_stored() -> str | None:
     except ClientError:
         return None
     try:
-        return json.loads(raw).get(SECRET_FIELD)
+        data = json.loads(raw)
+        return data.get(SECRET_FIELD) or data.get("unified_google_api_key")
     except json.JSONDecodeError:
         return raw.strip() or None
 
