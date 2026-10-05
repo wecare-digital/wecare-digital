@@ -1034,3 +1034,48 @@ and the new site has no Blog app installed.
   `/blog/v3/posts/query` returns the full count under the storefront client, then collapse
   `WIX_BLOG_CLIENT_ID` back into `WIX_CLIENT_ID` and delete the seam. Check the total **before**
   switching - a 401 costs a deploy, an empty 200 costs the corpus.
+
+## 2026-10-05 - The Wix catalog webhook diagnostic removed after one real delivery proved the fix
+
+`wecare-wix-catalog-webhook` carried a TEMPORARY diagnostic added while the receiver was refusing
+every genuine Wix delivery. It has done its job and is gone.
+
+**What the diagnostic was for, and what it measured.** The access log showed every invocation the
+function had ever had came from `curl/8.7.1`, so nothing on record said what a real delivery looked
+like. Two lines were added: `wix_webhook_shape` (content type, base64 flag, body type, length, 12
+characters of each end, dot count) and `wix_webhook_claims` (an allowlisted `iss`/`aud`/`kid`/`alg`
+extractor off the UNVERIFIED body, on both the refusal and success paths). They established that
+Wix signs correctly against the configured public key and that the refusal came one step later from
+`iss == "wix.com"` being required when Wix's envelope carries no `iss` at all.
+
+**The verified delivery that closed it:** 2026-10-05T15:33:22, `wix_webhook_verified`, eventType
+`wix.categories.v1.category_item_added_to_category`, `kid FaP4Iay5`, `alg RS256`, audience empty.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | `ecommerce/wix-catalog-webhook/handler.py`, `tests/test_wix_catalog_webhook.py` | 213 tests pass across the webhook, public-webhook-auth, route-auth-enforcement, wix-guard and package-completeness suites | revert the commit |
+| `A3_PRODUCTION` | `wecare-wix-catalog-webhook` v8, `live` alias moved v7 -> v8 | `GetAlias` reports `FunctionVersion 8`; v8 `CodeSha256 BaYrsjlhAMqTonVu+WpTdJPpMiF/VX6CAg3Dwi/MbLY=` matches `$LATEST`, `State Active`, layer `cryptography-python312:1` attached | `aws lambda update-alias --function-name wecare-wix-catalog-webhook --name live --function-version 7` (v7 sha `aFfExK76rWXutQmnrTuMgiQDFZtQePtezbh/9ZWsaJ8=`) |
+
+**Verification logic is untouched.** The secret, the omitted `app_id`, `ACCEPTED_ISSUERS` and the
+public key are all exactly as deployed in v7. The only behavioural difference is which log lines
+are emitted.
+
+**One production log field also went: `audience`.** It was on the `wix_webhook_verified` line to
+discover which appId Wix addressed deliveries to, so the correct `app_id` could be written into
+`wecare/wix/catalog-webhook` rather than guessed between two candidates. The verified delivery
+answered it - Wix's webhook tokens carry **no `aud` claim**, which is why omitting `app_id` is
+correct rather than an unfinished floor. A permanently empty field is noise, so the handler stopped
+logging it. `WixEvent.audience` is **retained** in `wix_webhook.py`: nothing on the rebuild path
+reads it, the verifier's step 7 still compares `aud` when an `app_id` IS configured, and removing
+the dataclass field would have churned call sites and tests for no gain.
+
+**It rejoins normal deploys.** This function was deliberately excluded from the earlier fleet
+deploy specifically to preserve the diagnostic in production while Wix was still being debugged.
+That reason is spent, and `scripts/deploy_all_lambdas.py --list` already maps it, so no exclusion
+remains to remove.
+
+**Not re-probed, deliberately.** No `curl` was sent after the deploy. The endpoint's 401-to-an-
+unsigned-request behaviour is already measured and is pinned by tests, and the owner is watching
+the log for real Wix events - a probe would have put another `curl` refusal in the channel the
+diagnostic was removed to clean. The next real Wix product edit will log a single clean
+`wix_webhook_verified` with no `wix_webhook_shape` and no `wix_webhook_claims` beside it.

@@ -565,12 +565,16 @@ def test_the_handler_dispatches_exactly_once_on_a_verified_event(keys, monkeypat
     assert call["timeout"] == receiver.DISPATCH_TIMEOUT_SECONDS
 
 
-def test_the_verified_log_line_carries_the_audience(keys, monkeypatch):
-    """`audience` is the field a reader greps for in /aws/lambda/wecare-wix-catalog-webhook.
+def test_the_verified_log_line_carries_the_catalogue_correlation_fields(keys, monkeypatch):
+    """`wix_webhook_verified` is the ONE permanent log line, so its fields are pinned.
 
-    It exists so the correct `app_id` can be written into `wecare/wix/catalog-webhook` from a real
-    delivery rather than guessed between two candidates. Asserted on the emitted line, because a
-    field present on the dataclass and absent from the log would be invisible where it is needed.
+    They are what a reader greps in /aws/lambda/wecare-wix-catalog-webhook to tie a Wix edit to a
+    workflow run to an Amplify build. All four are public catalogue or installation identifiers.
+
+    `audience` is asserted ABSENT. It was logged during the 2026-10-05 debugging to discover which
+    appId Wix addressed deliveries to; the first real delivery (15:33:22) answered it by carrying
+    no `aud` at all, so the field would now be permanently empty. `WixEvent.audience` still
+    exists - this asserts the handler stopped logging it, not that the verifier stopped reading it.
     """
     lines = []
     sent = Dispatches()
@@ -583,8 +587,9 @@ def test_the_verified_log_line_carries_the_audience(keys, monkeypatch):
 
     verified = next(json.loads(line) for line in lines
                     if json.loads(line).get("event") == "wix_webhook_verified")
-    assert verified["audience"] == APP_ID
+    assert verified["eventType"] == "wix.stores.catalog.v3.product_created"
     assert verified["instanceId"] == INSTANCE_ID
+    assert "audience" not in verified
 
 
 @pytest.mark.parametrize("event", [
@@ -614,14 +619,17 @@ def test_an_unsigned_post_gets_401_and_triggers_NO_rebuild(keys, monkeypatch, ev
     assert sent.calls == []
 
 
-def test_a_refusal_records_the_body_SHAPE_and_never_the_body(keys, monkeypatch):
-    """TEMPORARY diagnostic, asserted so it cannot quietly grow into a body dump.
+def test_a_refusal_logs_THE_REASON_AND_NOTHING_ELSE(keys, monkeypatch):
+    """`wix_webhook_rejected` is the whole of the refusal log, and that is pinned on purpose.
 
-    It exists because the access log showed that every invocation this function has ever had came
-    from `curl`: Wix has never delivered, so when a real delivery finally arrives this line is the
-    only thing that will say what arrived. The assertion that matters is the second one - the
-    whole body must not be reconstructible from the log, so only 12 characters of each end may
-    appear and the full token must not.
+    During the 2026-10-05 debugging this path also carried two TEMPORARY diagnostics - a body
+    `wix_webhook_shape` line and a `wix_webhook_claims` claim extractor - because Wix had never
+    delivered here and nothing on record said what a real delivery looked like. A verified
+    delivery at 15:33:22 discharged both and they were removed.
+
+    The assertion that matters is the second half: the refused body must not be reconstructible
+    from the log at all. `reason` is assembled in `wix_webhook.py` from known-safe literal parts,
+    so it is the one field that may be emitted.
     """
     lines = []
     sent = Dispatches()
@@ -629,9 +637,10 @@ def test_a_refusal_records_the_body_SHAPE_and_never_the_body(keys, monkeypatch):
     monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
     monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
 
-    body = json.dumps({"eventType": "product_created"})
+    bad = token(keys, claims(iss="not-wix.example"), sign_with="other",
+                header_extra={"kid": "TEST-KEY-ID"})
     answer = receiver.handler({
-        "body": body,
+        "body": bad,
         "headers": {"Content-Type": "application/json", "User-Agent": "whatever"},
         "isBase64Encoded": False,
     }, None)
@@ -639,96 +648,40 @@ def test_a_refusal_records_the_body_SHAPE_and_never_the_body(keys, monkeypatch):
     assert answer["statusCode"] == 401
     assert sent.calls == []
 
-    shape = next(json.loads(line) for line in lines
-                 if json.loads(line).get("event") == "wix_webhook_shape")
-    assert shape["contentType"] == "application/json"
-    assert shape["isBase64Encoded"] is False
-    assert shape["bodyType"] == "str"
-    assert shape["bodyLength"] == len(body)
-    assert shape["dots"] == body.count(".")
-    assert shape["head12"] == body[:12]
-    assert shape["tail12"] == body[-12:]
+    assert [json.loads(line)["event"] for line in lines] == ["wix_webhook_rejected"]
+    rejected = json.loads(lines[0])
+    assert set(rejected) == {"event", "reason"}
+    assert rejected["reason"] == "the token signature does not verify"
     for line in lines:
-        assert body not in line, "the diagnostic must report the shape, never the body"
-
-
-def test_the_claims_diagnostic_reports_only_iss_aud_kid_and_alg(keys, monkeypatch):
-    """TEMPORARY diagnostic, pinned so it cannot grow into a payload dump.
-
-    It exists because Wix documents neither the issuer string nor the `aud` value for these
-    deliveries, and `wix_webhook_shape` reports twelve characters of each end - enough to
-    recognise a JWT, not enough to read a claim. The assertion that matters is the second half:
-    `data` carries the product entity, which is business data this function has no reason to log,
-    and the signature segment must never be decoded at all.
-    """
-    lines = []
-    sent = Dispatches()
-    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
-    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
-    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
-
-    # A real-shaped token that is refused for a reason OTHER than its claims, so the diagnostic
-    # runs on the rejection path: the wrong signing key.
-    bad = token(keys, claims(iss="not-wix.example"), sign_with="other",
-                header_extra={"kid": "TEST-KEY-ID"})
-    answer = receiver.handler({"body": bad, "headers": {}}, None)
-
-    assert answer["statusCode"] == 401
-    assert sent.calls == []
-
-    reported = next(json.loads(line) for line in lines
-                    if json.loads(line).get("event") == "wix_webhook_claims")
-    assert reported == {
-        "event": "wix_webhook_claims",
-        "alg": "RS256",
-        "kid": "TEST-KEY-ID",
-        "iss": "not-wix.example",
-        "aud": APP_ID,
-    }
-    for line in lines:
-        assert bad.split(".")[2] not in line, "the signature segment must never be logged"
         assert bad not in line, "the token must never be logged whole"
-        assert INSTANCE_ID not in line, "the envelope must not reach the claims diagnostic"
-        assert "a-new-product" not in line, "product data must not reach the claims diagnostic"
+        assert bad.split(".")[2] not in line, "the signature segment must never be logged"
+        assert bad.split(".")[1] not in line, "the payload segment must never be logged"
+        assert INSTANCE_ID not in line, "the envelope must not reach the refusal log"
+        assert "a-new-product" not in line, "product data must not reach the refusal log"
+        assert APP_ID not in line, "no claim value may reach the refusal log"
 
 
-def test_the_claims_diagnostic_reports_a_list_audience_as_its_type(keys, monkeypatch):
-    """Matching the verifier, which refuses a list-valued `aud` rather than searching it.
+def test_a_body_of_any_awkward_type_gets_401_rather_than_500(keys, monkeypatch):
+    """A refusal that raises becomes a 500, and a 500 makes Wix retry a body it cannot fix.
 
-    `str(["a", "b"])` in a log line would read like an audience this endpoint accepted.
+    Measured against the live endpoint rather than predicted: a JWT-SHAPED body once reached the
+    key read and escaped as a 500, which is how `_read_secret`'s "`{}` on any failure" rule was
+    found. These are the shapes that get nowhere near a key and must still land on 401.
     """
-    lines = []
-    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
-    monkeypatch.setattr(receiver.urllib.request, "urlopen", Dispatches())
-    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
-
-    receiver.handler({"body": token(keys, claims(aud=["a", "b"]), sign_with="other")}, None)
-
-    reported = next(json.loads(line) for line in lines
-                    if json.loads(line).get("event") == "wix_webhook_claims")
-    assert reported["aud"] == "list"
-
-
-def test_the_claims_diagnostic_survives_every_unparseable_body(keys, monkeypatch):
-    """A diagnostic that raises turns a 401 into a 500, which is the opposite of what it is for."""
-    lines = []
     sent = Dispatches()
     monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
     monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
-    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
 
     for body in [None, "", "not-a-jwt", {"wrapped": "a.b.c"}, 123, b"not-a-jwt",
                  "a.b.c", "ey!.ey!.sig", f"{b64(b'[]')}.{b64(b'null')}.{b64(b'x')}"]:
         answer = receiver.handler({"body": body, "headers": None}, None)
-        assert answer["statusCode"] == 401
-    reported = [json.loads(line) for line in lines
-                if json.loads(line).get("event") == "wix_webhook_claims"]
-    assert len(reported) == 9
+        assert answer["statusCode"] == 401, f"{type(body).__name__} body did not refuse cleanly"
+        assert answer["body"] == ""
     assert sent.calls == []
 
 
-def test_a_verified_event_emits_no_shape_diagnostic(keys, monkeypatch):
-    """The diagnostic is a refusal-path line only, so a working endpoint stays quiet.
+def test_a_verified_event_logs_NO_WARNING_AT_ALL(keys, monkeypatch):
+    """A working endpoint stays off the refusal channel entirely.
 
     Which is also what keeps `test_verification_precedes_every_other_statement_in_the_handler`
     honest: nothing is logged about a caller before that caller has been refused.
@@ -744,26 +697,6 @@ def test_a_verified_event_emits_no_shape_diagnostic(keys, monkeypatch):
 
     assert answer["statusCode"] == 200
     assert lines == []
-
-
-def test_the_shape_diagnostic_survives_a_body_that_is_not_a_string(keys, monkeypatch):
-    """A dict body is refused at `token_from_body`, and the diagnostic must not then raise.
-
-    A diagnostic that throws turns a 401 into a 500, which is the opposite of what it is for.
-    """
-    sent = Dispatches()
-    lines = []
-    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
-    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
-    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
-
-    for body in [None, {"wrapped": "a.b.c"}, 123, b"not-a-jwt"]:
-        answer = receiver.handler({"body": body, "headers": None}, None)
-        assert answer["statusCode"] == 401
-    shapes = [json.loads(line) for line in lines
-              if json.loads(line).get("event") == "wix_webhook_shape"]
-    assert [s["bodyType"] for s in shapes] == ["NoneType", "dict", "int", "bytes"]
-    assert sent.calls == []
 
 
 def test_a_wrong_key_signature_gets_401_and_triggers_NO_rebuild(keys, monkeypatch):
