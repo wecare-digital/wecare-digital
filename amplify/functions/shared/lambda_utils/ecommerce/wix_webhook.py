@@ -12,6 +12,14 @@ private key and is verified with the PUBLIC key from the Webhooks page of the Wi
 The key is PER APP; Wix publishes no JWKS endpoint, so there is nothing to fetch and the key has
 to be configured.
 
+The BODY SHAPE, measured 2026-10-05 rather than assumed: a bare JWT body reaches signature
+verification end to end, both through `https://wecare.digital/api/wix-catalog-webhook` (the
+Amplify `/api/<*>` rewrite into the `prod` stage, which passes a POST body through intact) and
+through the execute-api host directly. `token_from_body` additionally unwraps ONE JSON string
+literal, because `"eyJ...sig"` with quotes is the single near-miss shape that reproduces
+"the request body is not a three-segment JWT" and Wix's own JavaScript examples `JSON.parse` the
+body before verifying it. Nothing else is unwrapped - see `_unquote_json_token`.
+
 The envelope, as documented rather than as measured
 ---------------------------------------------------
     <JWT payload>
@@ -191,11 +199,44 @@ def _json_segment(raw: bytes) -> Any:
         raise WixWebhookUnauthorized("a token segment is not JSON") from error
 
 
+def _unquote_json_token(text: str) -> str:
+    """A JWT out of a body that is a JSON **string literal**, i.e. `"eyJ...sig"` with the quotes.
+
+    NARROW ON PURPOSE, and the narrowness is the security argument. This does not parse the body
+    as JSON and then go hunting for a token-shaped field: it accepts exactly one wrapping, and
+    only when what comes out is already three base64url segments. Anything else is returned
+    UNCHANGED, so the caller's existing refusal fires with its existing reason.
+
+    Why it exists: Wix documents the body as the JWT, and a bare JWT body is what the deployed
+    endpoint already accepts end to end (measured 2026-10-05 through both
+    `wecare.digital/api/wix-catalog-webhook` and the execute-api host - both reached signature
+    verification). A JSON-quoted body is the one near-miss shape that reproduces
+    "the request body is not a three-segment JWT" exactly, and Wix's own JavaScript examples
+    `JSON.parse` the body before verifying it, so a quoted delivery is a realistic shape rather
+    than an invented one.
+
+    Accepting it costs nothing: the token still has to be signed by the private half of the
+    configured public key, so this widens what is PARSED and not what is TRUSTED.
+    """
+    if not (text.startswith('"') and text.endswith('"') and len(text) > 2):
+        return text
+    try:
+        unwrapped = json.loads(text)
+    except ValueError:
+        return text
+    if isinstance(unwrapped, str) and is_jwt_shaped(unwrapped.strip()):
+        return unwrapped.strip()
+    return text
+
+
 def token_from_body(raw_body: Any, *, is_base64_encoded: bool = False) -> str:
     """The JWT, from the raw request body. `isBase64Encoded` is honoured FIRST.
 
     Before any JWT parsing, because an API Gateway binary-media-type route would otherwise present
     a double-encoded token and the three-segment check would refuse a perfectly good call.
+
+    Then, and only if the body is not already JWT-shaped, one JSON string literal is unwrapped -
+    see `_unquote_json_token` for why that single extra shape is accepted and nothing else is.
     """
     if isinstance(raw_body, bytes):
         text = raw_body.decode("utf-8", errors="replace")
@@ -208,7 +249,10 @@ def token_from_body(raw_body: Any, *, is_base64_encoded: bool = False) -> str:
             text = base64.b64decode(text, validate=True).decode("utf-8")
         except (binascii.Error, UnicodeDecodeError, ValueError) as error:
             raise WixWebhookUnauthorized("the body is flagged base64 and is not") from error
-    return text.strip()
+    text = text.strip()
+    if is_jwt_shaped(text):
+        return text
+    return _unquote_json_token(text)
 
 
 def is_jwt_shaped(token: Any) -> bool:

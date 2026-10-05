@@ -200,6 +200,64 @@ def test_a_base64_encoded_body_is_decoded_before_the_shape_check(keys):
     assert verified.slug == "a-new-product"
 
 
+# ── 1a. the body shapes a JWT can arrive in ──────────────────────────────────
+#
+# Measured against the deployed endpoint on 2026-10-05, not assumed. A BARE JWT body already
+# reached signature verification through both `https://wecare.digital/api/wix-catalog-webhook`
+# (the Amplify `/api/<*>` rewrite) and the execute-api host - so the Amplify proxy passes a POST
+# body through intact and there was nothing to fix there. A JSON-QUOTED body was the one shape
+# that reproduced the live symptom, `"the request body is not a three-segment JWT"`, exactly.
+
+
+def test_a_bare_jwt_body_is_the_shape_that_already_worked(keys):
+    """The control for the case below. The deployed endpoint accepts this today."""
+    assert wix_webhook.token_from_body(token(keys)) == token(keys)
+
+
+def test_a_json_quoted_jwt_body_verifies(keys):
+    """`"eyJ...sig"`, quotes included - the shape Wix's own JS examples `JSON.parse` first.
+
+    Signature verification is untouched by the unwrapping: the token still has to be signed by the
+    private half of the configured public key, which is why accepting one more wrapping widens
+    what is parsed and not what is trusted.
+    """
+    verified = wix_webhook.verify_signature(
+        json.dumps(token(keys)), now=NOW, reader=reader_for(keys["public_pem"]))
+    assert verified.event_type == "wix.stores.catalog.v3.product_created"
+    assert verified.slug == "a-new-product"
+
+
+def test_a_json_quoted_body_is_unwrapped_only_when_what_comes_out_is_a_jwt(keys):
+    """The narrowness IS the security property.
+
+    `_unquote_json_token` accepts exactly one wrapping and only when the result is already three
+    base64url segments. It does not parse arbitrary JSON and hunt for a token-shaped field, so a
+    quoted non-token, an object and an array are all returned unchanged and refused with the
+    existing reason.
+    """
+    for body in ['"not-a-jwt"', '{"jwt": "a.b.c"}', '["a.b.c"]', '"a.b"', '""', '"a.b.c.d"']:
+        with pytest.raises(wix_webhook.WixWebhookUnauthorized):
+            wix_webhook.verify_signature(
+                body, now=NOW, reader=reader_for(keys["public_pem"]))
+
+
+def test_a_quoted_jwt_that_is_also_base64_encoded_verifies(keys):
+    """Both unwrappings compose, in the documented order: base64 first, then the quotes."""
+    quoted = json.dumps(token(keys))
+    raw = base64.b64encode(quoted.encode("ascii")).decode("ascii")
+    verified = wix_webhook.verify_signature(
+        raw, now=NOW, reader=reader_for(keys["public_pem"]), is_base64_encoded=True)
+    assert verified.slug == "a-new-product"
+
+
+def test_a_quoted_but_wrongly_signed_token_is_still_refused(keys):
+    """Unwrapping must not become a bypass: the signature check runs on the unwrapped token."""
+    with pytest.raises(wix_webhook.WixWebhookUnauthorized):
+        wix_webhook.verify_signature(
+            json.dumps(token(keys, sign_with="other")), now=NOW,
+            reader=reader_for(keys["public_pem"]))
+
+
 # ── 2. the refusals ───────────────────────────────────────────────────────────
 
 
@@ -488,6 +546,83 @@ def test_an_unsigned_post_gets_401_and_triggers_NO_rebuild(keys, monkeypatch, ev
 
     assert answer["statusCode"] == 401
     assert answer["body"] == ""
+    assert sent.calls == []
+
+
+def test_a_refusal_records_the_body_SHAPE_and_never_the_body(keys, monkeypatch):
+    """TEMPORARY diagnostic, asserted so it cannot quietly grow into a body dump.
+
+    It exists because the access log showed that every invocation this function has ever had came
+    from `curl`: Wix has never delivered, so when a real delivery finally arrives this line is the
+    only thing that will say what arrived. The assertion that matters is the second one - the
+    whole body must not be reconstructible from the log, so only 12 characters of each end may
+    appear and the full token must not.
+    """
+    lines = []
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
+
+    body = json.dumps({"eventType": "product_created"})
+    answer = receiver.handler({
+        "body": body,
+        "headers": {"Content-Type": "application/json", "User-Agent": "whatever"},
+        "isBase64Encoded": False,
+    }, None)
+
+    assert answer["statusCode"] == 401
+    assert sent.calls == []
+
+    shape = next(json.loads(line) for line in lines
+                 if json.loads(line).get("event") == "wix_webhook_shape")
+    assert shape["contentType"] == "application/json"
+    assert shape["isBase64Encoded"] is False
+    assert shape["bodyType"] == "str"
+    assert shape["bodyLength"] == len(body)
+    assert shape["dots"] == body.count(".")
+    assert shape["head12"] == body[:12]
+    assert shape["tail12"] == body[-12:]
+    for line in lines:
+        assert body not in line, "the diagnostic must report the shape, never the body"
+
+
+def test_a_verified_event_emits_no_shape_diagnostic(keys, monkeypatch):
+    """The diagnostic is a refusal-path line only, so a working endpoint stays quiet.
+
+    Which is also what keeps `test_verification_precedes_every_other_statement_in_the_handler`
+    honest: nothing is logged about a caller before that caller has been refused.
+    """
+    lines = []
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.time, "time", lambda: NOW)
+    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
+
+    answer = receiver.handler({"body": token(keys)}, None)
+
+    assert answer["statusCode"] == 200
+    assert lines == []
+
+
+def test_the_shape_diagnostic_survives_a_body_that_is_not_a_string(keys, monkeypatch):
+    """A dict body is refused at `token_from_body`, and the diagnostic must not then raise.
+
+    A diagnostic that throws turns a 401 into a 500, which is the opposite of what it is for.
+    """
+    sent = Dispatches()
+    lines = []
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.logger, "warning", lambda line: lines.append(line))
+
+    for body in [None, {"wrapped": "a.b.c"}, 123, b"not-a-jwt"]:
+        answer = receiver.handler({"body": body, "headers": None}, None)
+        assert answer["statusCode"] == 401
+    shapes = [json.loads(line) for line in lines
+              if json.loads(line).get("event") == "wix_webhook_shape"]
+    assert [s["bodyType"] for s in shapes] == ["NoneType", "dict", "int", "bytes"]
     assert sent.calls == []
 
 

@@ -120,6 +120,48 @@ def _read_secret(secret_id: str) -> Mapping[str, Any]:
         return {}
 
 
+def _inbound_shape(request: Mapping[str, Any]) -> Dict[str, Any]:
+    """TEMPORARY. Non-secret SHAPE facts about a request that was just REFUSED.
+
+    Why it exists, and why it is temporary: as of 2026-10-05 the access log for
+    `POST /wix-catalog-webhook` shows that every invocation this function has ever had came from
+    `curl/8.7.1` - Wix has never delivered here. So the only `wix_webhook_rejected` lines on
+    record are our own probes, and when a real delivery finally arrives this line is what says
+    what arrived without anyone having to guess. Remove it once one real delivery has been
+    observed; `wix_webhook_verified` is the permanent log line.
+
+    WHAT IT MAY REPORT, and the boundary is deliberate: the declared content type, the API
+    Gateway base64 flag, the body's TYPE, its LENGTH, its first and last 12 characters, and how
+    many dots it contains. Twelve characters of a JWT header is `{"alg":` in base64 and twelve of
+    the tail cannot reconstruct a 2048-bit signature. The body is never logged whole, the key is
+    never read on this path at all, and nothing a secret could taint enters the expression - which
+    is the standard `py/clear-text-logging-sensitive-data` applies.
+
+    It is emitted ONLY from the rejection branch, so verification still precedes every other
+    statement in `handler` and a refused caller buys one log line rather than any work.
+    """
+    body = request.get("body")
+    headers = request.get("headers") or {}
+    content_type = ""
+    if isinstance(headers, Mapping):
+        for name, value in headers.items():
+            if isinstance(name, str) and name.lower() == "content-type":
+                content_type = str(value)[:64]
+                break
+    shape: Dict[str, Any] = {
+        "contentType": content_type,
+        "isBase64Encoded": bool(request.get("isBase64Encoded")),
+        "bodyType": type(body).__name__,
+    }
+    if isinstance(body, (str, bytes)):
+        text = body.decode("utf-8", errors="replace") if isinstance(body, bytes) else body
+        shape["bodyLength"] = len(text)
+        shape["head12"] = text[:12]
+        shape["tail12"] = text[-12:]
+        shape["dots"] = text.count(".")
+    return shape
+
+
 def _unauthorized() -> Dict[str, Any]:
     """401 with an EMPTY body.
 
@@ -230,6 +272,13 @@ def handler(event, context):  # noqa: ARG001 - Lambda signature
         logger.warning(json.dumps({
             "event": "wix_webhook_rejected",
             "reason": str(error),
+        }))
+        # TEMPORARY, and only on the refusal path. See `_inbound_shape`: Wix has never actually
+        # delivered to this endpoint, so a refusal is the moment the shape of what arrived is
+        # worth recording. Remove once one real delivery has been observed.
+        logger.warning(json.dumps({
+            "event": "wix_webhook_shape",
+            **_inbound_shape(event),
         }))
         return _unauthorized()
 
