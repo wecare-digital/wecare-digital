@@ -17,9 +17,15 @@ says it was fixed, and believes they are safe.
 
 The other half of the contract matters just as much. `_load_visitor_access_token` serves the
 PUBLIC BLOG anonymously using a public client id, not a credential. If the switch covered
-that too, setting it would take 1,140 live posts and the sitemap offline - and an incident
+that too, setting it would take 1,323 live posts and the sitemap offline - and an incident
 control whose side effect is a site outage will not be used during an incident, which is the
 only time it exists for.
+
+That client id is `WIX_BLOG_CLIENT_ID` since 2026-10-05, not `WIX_CLIENT_ID`: the storefront
+migrated to a new Wix site that has no Blog app, and while the two shared one variable the
+blog read 401 and failed the static build. The separation is pinned by
+tests/test_wix_blog_client_separation.py. Nothing about the kill switch changed - the
+anonymous path is still deliberately unguarded, for the reason above.
 """
 from __future__ import annotations
 

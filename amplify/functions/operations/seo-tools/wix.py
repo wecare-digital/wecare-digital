@@ -19,6 +19,49 @@ ACCOUNT_ID = os.environ.get('WIX_ACCOUNT_ID', '').strip()
 WIX_CLIENT_ID = os.environ.get(
     'WIX_CLIENT_ID', '42b3cdbf-d90e-4138-a06c-ddda4fb8da01'
 ).strip()
+# THE BLOG LIVES ON A DIFFERENT WIX SITE FROM THE STOREFRONT, AND THIS IS THAT SEAM.
+#
+# `WIX_CLIENT_ID` above is the STOREFRONT client: catalog, cart, checkout, webhooks. The
+# 2026-10-05 migration moved all of that to the new site/account/headless app and repointed
+# that variable with it, which was correct. It also silently repointed the BLOG, because the
+# blog's anonymous visitor token was minted from the same variable - and the new site has no
+# Blog app, so the 1,323 published posts are not reachable through it.
+#
+# MEASURED, both clients, same anonymous mint, same two Blog calls:
+#
+#   197cd718-… (old site fcd82f0c)   token OK   categories 200   posts 200, total=1323
+#   42b3cdbf-… (new site c993128b)   token OK   categories 401   posts 401
+#                                    401 body: "UNAUTHENTICATED: No blog instanceId found"
+#
+# NOTE WHAT IS NOT WRONG: the token mint SUCCEEDS for both. `grantType: anonymous` with a
+# valid client id always yields a usable visitor token, so nothing here is a credential
+# failure and no rotation can fix it - the token is simply scoped to a site that has no blog.
+# That is why the upstream error names a missing instanceId rather than bad auth, and why
+# this looked like an outage: the Lambda turns the 401 into a 503 ("The blog index is
+# temporarily unavailable"), and `src/lib/public-blog.ts` retries a 503 four times and then
+# fails the build at /blog/page/[page]. Three consecutive Amplify builds died that way,
+# including one carrying an unrelated fix for every authenticated route rendering blank.
+#
+# IT IS A SEPARATE VARIABLE ON PURPOSE, not a corrected literal in the line above. The two
+# ids answer different questions - "where do we sell" and "where do we publish" - and the
+# migration proved that collapsing them into one means the next storefront move breaks the
+# blog again, with no error until a build happens to fail. Declared alongside WIX_CLIENT_ID
+# in amplify/seo-resources.ts and config/lambda-env-manifest.json so it is configuration
+# rather than a live-patched surprise.
+#
+# The default is the OLD client deliberately: it is the only value that can read the blog
+# today, so an unset variable degrades to working rather than to a failed build. Both ids are
+# public identifiers - they grant nothing on their own and are already committed in
+# src/config/wix.ts - so neither is a secret. See docs/wix-headless.md.
+#
+# WHEN THE BLOG MOVES: install the Blog app on the new site, migrate the posts, confirm
+# `posts/query` returns the full count under the new client, then set this to the storefront
+# client and delete this seam. Re-run `.venv/bin/python` against /blog/v3/posts/query to
+# check the total BEFORE switching - a 401 here costs a deploy, and an empty 200 costs the
+# whole corpus.
+WIX_BLOG_CLIENT_ID = os.environ.get(
+    'WIX_BLOG_CLIENT_ID', '197cd718-e4ec-4e2e-b380-46c297eb18a2'
+).strip()
 _api_key = None
 _visitor_access_token = None
 _visitor_access_token_expires_at = 0.0
@@ -169,10 +212,13 @@ def _load_visitor_access_token() -> str:
         and now < _visitor_access_token_expires_at - 60
     ):
         return _visitor_access_token
-    if not WIX_CLIENT_ID:
-        raise RuntimeError('Wix Headless client ID is not configured')
+    # WIX_BLOG_CLIENT_ID, not WIX_CLIENT_ID. This token reads the BLOG, which is on the old
+    # site; the storefront client cannot see it at all. The full measurement and the
+    # migration path are at that variable's declaration.
+    if not WIX_BLOG_CLIENT_ID:
+        raise RuntimeError('Wix blog client ID is not configured')
     payload = json.dumps({
-        'clientId': WIX_CLIENT_ID,
+        'clientId': WIX_BLOG_CLIENT_ID,
         'grantType': 'anonymous',
     }).encode('utf-8')
     req = urllib.request.Request(
