@@ -1,11 +1,11 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-04T14:49:13.404Z",
-  "productCount": 9,
+  "fetchedAt": "2026-10-05T15:04:40.911Z",
+  "productCount": 21,
   "products": [
     {
-      "id": "15a80e88-97b5-4603-86bf-c4864082b328",
+      "id": "121c9d57-2cc9-490b-8eed-66bf7b9c172a",
       "name": "₹1 test product",
       "slug": "1-test-product",
       "productType": "PHYSICAL",
@@ -19,9 +19,9 @@
       "inStock": true,
       "descriptionHtml": "",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -30,14 +30,84 @@
       "productUrl": "https://wecare.digital/shop/1-test-product/",
       "variants": [
         {
-          "id": "f6015a21-0427-4055-9f5a-e208d9fbb1e8",
+          "id": "c2edc783-c8fa-4b3e-a922-f7800889e56a",
           "label": "Standard",
           "inStock": true
         }
       ]
     },
     {
-      "id": "af326b8c-f373-45ea-ad0d-b7a38b8ce0cc",
+      "id": "618dcfe4-8d85-40a9-87c6-0dea57abe644",
+      "name": "Baseball Cap",
+      "slug": "baseball-cap",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": {
+        "id": "5d536f20-dbf0-4254-928e-8c9d911c34b0",
+        "name": "Sale"
+      },
+      "price": "68.00",
+      "priceMax": "68.00",
+      "currency": "INR",
+      "formattedPrice": "₹68.00",
+      "compareAtPrice": "129.00",
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/baseball-cap/",
+      "variants": [
+        {
+          "id": "9b10eb5c-96fd-4601-9aa8-7c2adc1fca30",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "af654225-662f-42e5-ac51-fbebc88f63ed",
+      "name": "Ceramic Flower Vase",
+      "slug": "ceramic-flower-vase",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": {
+        "id": "6b64ba2b-aa72-4c41-9a82-62e6816fc42b",
+        "name": "Best Seller"
+      },
+      "price": "270.00",
+      "priceMax": "270.00",
+      "currency": "INR",
+      "formattedPrice": "₹270.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/ceramic-flower-vase/",
+      "variants": [
+        {
+          "id": "e5547ac4-8461-48fd-9b46-6d08b27aae0b",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "8514c405-3971-4786-ad0d-15406ca23407",
       "name": "Contribute",
       "slug": "contribute",
       "productType": "PHYSICAL",
@@ -51,9 +121,9 @@
       "inStock": true,
       "descriptionHtml": "",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 1,
       "modifierCount": 0,
       "variantCount": 3,
@@ -62,24 +132,103 @@
       "productUrl": "https://wecare.digital/shop/contribute/",
       "variants": [
         {
-          "id": "166ba5b0-a0da-4ea2-b1d2-032af12e916d",
-          "label": "₹100",
+          "id": "19283bd8-a61d-455e-a992-79eb10b9228f",
+          "label": "₹500",
           "inStock": true
         },
         {
-          "id": "81d2d73a-b4ab-43fb-8043-505971763bcc",
+          "id": "8ad6f376-a526-4631-b510-0e047b33a5b9",
           "label": "₹250",
           "inStock": true
         },
         {
-          "id": "8594562c-286e-48fc-b854-b09a863ba031",
-          "label": "₹500",
+          "id": "ab4ee1a2-1568-4dc4-abe1-55e24fa51576",
+          "label": "₹100",
           "inStock": true
         }
       ]
     },
     {
-      "id": "8c4d4a7d-18c8-44f4-8eb0-78b9844a2365",
+      "id": "df8ae122-9a06-4fa2-96bb-4b058db5959f",
+      "name": "Crew T-Shirt",
+      "slug": "crew-t-shirt",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "120.00",
+      "priceMax": "120.00",
+      "currency": "INR",
+      "formattedPrice": "₹120.00",
+      "compareAtPrice": null,
+      "inStock": false,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 1,
+      "modifierCount": 0,
+      "variantCount": 4,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/crew-t-shirt/",
+      "variants": [
+        {
+          "id": "572e9206-6d33-4c92-bcb2-b72570f6fe80",
+          "label": "X-Large",
+          "inStock": true
+        },
+        {
+          "id": "9b165c78-3c0a-4d36-818c-6ca9b1be771b",
+          "label": "Medium",
+          "inStock": false
+        },
+        {
+          "id": "a7d5c30e-6656-4c93-bec7-1fc4110bb8fd",
+          "label": "Large",
+          "inStock": true
+        },
+        {
+          "id": "fef4869a-62bf-46bb-b7af-501d42d2ff36",
+          "label": "Small",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "f68519fb-2095-4dfc-8684-ec55d60c2adc",
+      "name": "Essential Oil Diffuser",
+      "slug": "essential-oil-diffuser",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "119.00",
+      "priceMax": "119.00",
+      "currency": "INR",
+      "formattedPrice": "₹119.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/essential-oil-diffuser/",
+      "variants": [
+        {
+          "id": "149119f2-7d5d-4efa-a3a3-393df631eb02",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "518f58d4-f365-4cad-83ea-215a862f84f5",
       "name": "File Assist",
       "slug": "file-assist",
       "productType": "PHYSICAL",
@@ -93,9 +242,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Documents prepared. Next steps coordinated.</span></p><p>You’ve already agreed on the important terms.</p><p>File Assist helps turn those decisions into organised documents — and gives you a dedicated coordinator to help keep the next steps moving.</p><p>Complete the guided questionnaire and tell us what both of you have agreed. CLEAR CLOSURE prepares the applicable documents for your review.</p><p>Your case coordinator then helps keep the practical side organised — from missing information and signatures to filing preparation and administrative follow-up.</p><p><span style=\"font-weight: 700\">File Assist helps coordinate what comes next, so you do not have to manage every practical step alone.</span></p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -104,14 +253,61 @@
       "productUrl": "https://wecare.digital/shop/file-assist/",
       "variants": [
         {
-          "id": "69e90199-0a98-4d63-b743-05f5dbfbde2a",
+          "id": "1960aa09-7585-4813-91b5-13b30e64d342",
           "label": "Standard",
           "inStock": true
         }
       ]
     },
     {
-      "id": "73976258-93e4-4048-88d3-541bdc29e81e",
+      "id": "96ff5295-1660-40d1-89e4-d1f1a34309be",
+      "name": "Foaming Facial Cleanser",
+      "slug": "foaming-facial-cleanser",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "85.00",
+      "priceMax": "85.00",
+      "currency": "INR",
+      "formattedPrice": "₹85.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 1,
+      "modifierCount": 0,
+      "variantCount": 4,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/foaming-facial-cleanser/",
+      "variants": [
+        {
+          "id": "776c3f2b-c036-46ea-8710-93be1da707d2",
+          "label": "100ml",
+          "inStock": true
+        },
+        {
+          "id": "9b75cd22-bcb6-4f56-88cd-204b9a6cdc70",
+          "label": "250ml",
+          "inStock": true
+        },
+        {
+          "id": "a2d4a224-150d-4f0b-875b-21449f1c0d89",
+          "label": "150ml",
+          "inStock": true
+        },
+        {
+          "id": "dff2a4eb-9cc5-4c71-89e4-2b14f36f9d34",
+          "label": "500ml",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "74f6771a-1ea8-429c-9a8b-0318dca67d25",
       "name": "Guided Resolution",
       "slug": "guided-resolution",
       "productType": "PHYSICAL",
@@ -125,9 +321,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Work through what is unresolved. Document what you agree.</span></p><p>You both want to move forward peacefully, but there are still a few important things to work through.</p><p>Guided Resolution gives you a structured way to discuss those issues, find common ground, and turn what you agree into clear documentation.</p><p>You receive the documentation and coordination included with File Assist, together with <span style=\"font-weight: 700\">up to 4 guided-resolution sessions</span> to help both of you work through unresolved terms.</p><p>If agreement is reached, CLEAR CLOSURE helps carry those agreed decisions forward into document preparation, review, signatures, and filing coordination.</p><p><span style=\"font-weight: 700\">The goal is to help you find a workable path forward — not to force either person to accept a settlement.</span></p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -136,14 +332,46 @@
       "productUrl": "https://wecare.digital/shop/guided-resolution/",
       "variants": [
         {
-          "id": "7529f30d-8dc6-447e-a032-4168c1a8972a",
+          "id": "9a108efe-e3b9-42f2-b465-0e8470a293e4",
           "label": "Standard",
           "inStock": true
         }
       ]
     },
     {
-      "id": "00d4c72b-f694-441a-a192-e16f4b192440",
+      "id": "ca71fee6-1fc9-4a57-8fa7-967c8edcaabb",
+      "name": "Hydrating Eye Serum - Pre Order",
+      "slug": "hydrating-eye-serum",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "56.00",
+      "priceMax": "56.00",
+      "currency": "INR",
+      "formattedPrice": "₹56.00",
+      "compareAtPrice": null,
+      "inStock": false,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/hydrating-eye-serum/",
+      "variants": [
+        {
+          "id": "f978920c-b09d-4659-bf1d-387cf91954c1",
+          "label": "Standard",
+          "inStock": false
+        }
+      ]
+    },
+    {
+      "id": "a12e9e74-e109-4136-a12e-ab49ea6f98c3",
       "name": "Kiosk",
       "slug": "kiosk",
       "productType": "PHYSICAL",
@@ -157,9 +385,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Put your location to work.</span></p><p>You already have the place.</p><p>A shop. An office. A store. A reception. Somewhere people already walk in, wait, ask questions, or look for something useful.</p><p>Kiosk turns that location into a WECARE.DIGITAL digital touchpoint.</p><p>Install the Android kiosk where visitors can comfortably use it to explore available WECARE.DIGITAL products and services.</p><p>When genuine eligible business is generated through your Kiosk and qualifies under the applicable Kiosk terms, you can earn commission.</p><p><span style=\"font-weight: 700\">You do not need to personally make every introduction.</span></p><p>Your location stays there. Your Kiosk can too.</p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -168,14 +396,101 @@
       "productUrl": "https://wecare.digital/shop/kiosk/",
       "variants": [
         {
-          "id": "2d072962-37c0-4821-9c02-2cc223448711",
+          "id": "4d3e2b31-7888-4250-8f5a-0587344431db",
           "label": "Standard",
           "inStock": true
         }
       ]
     },
     {
-      "id": "f05c3a28-0d2f-4cae-ab6c-c0b68635b951",
+      "id": "99684dfe-d36a-4869-858a-dba67af9b993",
+      "name": "Knitted Golf Sweater",
+      "slug": "knitted-golf-sweater",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "275.00",
+      "priceMax": "275.00",
+      "currency": "INR",
+      "formattedPrice": "₹275.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 2,
+      "modifierCount": 0,
+      "variantCount": 12,
+      "mediaCount": 4,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/knitted-golf-sweater/",
+      "variants": [
+        {
+          "id": "2034da09-f052-4942-ac91-b44366cd019d",
+          "label": "Medium / Dark Green",
+          "inStock": true
+        },
+        {
+          "id": "35ce2200-5e88-4e7f-985e-36d422913fe1",
+          "label": "X-Large / Dark Blue",
+          "inStock": true
+        },
+        {
+          "id": "449e9087-a290-4ba9-8289-98f756409ef1",
+          "label": "X-Large / White",
+          "inStock": true
+        },
+        {
+          "id": "4f905739-5c78-407f-8f56-49aa8b3f586c",
+          "label": "X-Large / Dark Green",
+          "inStock": true
+        },
+        {
+          "id": "66c683d6-622c-4f87-b67e-48e88db9e7d7",
+          "label": "Small / Dark Green",
+          "inStock": true
+        },
+        {
+          "id": "6faf50a4-2dc5-4986-96a4-2a328118ffbf",
+          "label": "Medium / White",
+          "inStock": true
+        },
+        {
+          "id": "9bbf7977-245f-4dc4-a500-ebd3297e0ecf",
+          "label": "Large / Dark Green",
+          "inStock": true
+        },
+        {
+          "id": "bb33d12b-a954-421d-ab0d-1ce18e2d8b61",
+          "label": "Large / White",
+          "inStock": true
+        },
+        {
+          "id": "c1df7354-ed67-45c7-8701-2a14557cd8a5",
+          "label": "Medium / Dark Blue",
+          "inStock": true
+        },
+        {
+          "id": "dd8e116e-3e9c-4853-b09e-c1229dcf4bfe",
+          "label": "Large / Dark Blue",
+          "inStock": true
+        },
+        {
+          "id": "e722833d-5f30-4e3e-8694-f27ca3a1b1a3",
+          "label": "Small / Dark Blue",
+          "inStock": true
+        },
+        {
+          "id": "f0348d42-7307-4825-bcd9-44997dd93e98",
+          "label": "Small / White",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "eca1540e-0a0e-478d-9aa7-e366be277617",
       "name": "Merchandise",
       "slug": "merchandise",
       "productType": "PHYSICAL",
@@ -189,9 +504,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Show up. Stay remembered.</span></p><p>Some connections begin online. The good ones often continue in the real world.</p><p>At work, at a meeting, at an event, or during a conversation with someone who wants to know more about WECARE.DIGITAL, this essentials set gives you practical things you can actually use.</p><p>You receive a <span style=\"font-weight: 700\">WECARE.DIGITAL branded T-shirt, branded pen, and 50 standard company business cards</span>.</p><p>Wear the brand. Keep the pen close. Leave the right company details behind when a conversation should continue.</p><p><span style=\"font-weight: 700\">Simple, practical, and made to be used.</span></p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 2,
       "modifierCount": 0,
       "variantCount": 10,
@@ -200,59 +515,96 @@
       "productUrl": "https://wecare.digital/shop/merchandise/",
       "variants": [
         {
-          "id": "00ebbae6-7025-4724-835e-37f4bffc2476",
+          "id": "3788a657-9af2-4ecf-8c9b-f218669d753c",
+          "label": "Men’s / XL",
+          "inStock": true
+        },
+        {
+          "id": "3879304e-f924-430e-991a-bd9592c1d8f7",
           "label": "Men’s / S",
           "inStock": true
         },
         {
-          "id": "2771864b-e525-4cb3-b8e4-c4e32101dc95",
-          "label": "Men’s / M",
-          "inStock": true
-        },
-        {
-          "id": "3c59ba29-3358-465f-aa7c-9623ce755ae2",
-          "label": "Women’s / L",
-          "inStock": true
-        },
-        {
-          "id": "6c1f4b25-f94e-4af3-a5a4-a5bb3d39b606",
-          "label": "Women’s / XL",
-          "inStock": true
-        },
-        {
-          "id": "710875e9-5977-4cdc-bac9-633bea09108e",
-          "label": "Women’s / 2XL",
-          "inStock": true
-        },
-        {
-          "id": "7416519c-eab3-4da0-a447-1d24a4debce8",
-          "label": "Women’s / S",
-          "inStock": true
-        },
-        {
-          "id": "8f73ad9b-9fc8-46f7-a0ee-fbcbc9eba8cc",
-          "label": "Women’s / M",
-          "inStock": true
-        },
-        {
-          "id": "a2c806fa-a462-4c51-ba68-e885069c79ff",
-          "label": "Men’s / 2XL",
-          "inStock": true
-        },
-        {
-          "id": "a464d20e-804a-4109-af5d-ab50af71c1d3",
+          "id": "4a691fd4-549d-4698-bff6-2df7c094ccf9",
           "label": "Men’s / L",
           "inStock": true
         },
         {
-          "id": "b1f68d51-4eda-4945-8324-eaaece4bc4cc",
-          "label": "Men’s / XL",
+          "id": "973e32ca-6272-43d9-b9ea-9dc1dd9ac2af",
+          "label": "Men’s / M",
+          "inStock": true
+        },
+        {
+          "id": "997508d6-1f2a-4d33-80df-83e992b4910a",
+          "label": "Women’s / 2XL",
+          "inStock": true
+        },
+        {
+          "id": "9a3ac454-45b6-44ed-9d4a-7b4106e45556",
+          "label": "Men’s / 2XL",
+          "inStock": true
+        },
+        {
+          "id": "a3559cf9-ced8-47d4-be89-ba6267af0b83",
+          "label": "Women’s / M",
+          "inStock": true
+        },
+        {
+          "id": "b2dc278c-1653-4012-acd8-feb0cf871899",
+          "label": "Women’s / S",
+          "inStock": true
+        },
+        {
+          "id": "b6aeb636-d3d8-4765-a63c-751c440d9a32",
+          "label": "Women’s / L",
+          "inStock": true
+        },
+        {
+          "id": "da9a27b8-d781-49c2-954a-66d8020861df",
+          "label": "Women’s / XL",
           "inStock": true
         }
       ]
     },
     {
-      "id": "5dc936ba-2f6a-4f44-afb0-4ddc345e5ff8",
+      "id": "fedfcb20-1ad2-405b-950b-e65112bb6222",
+      "name": "Minimalist Tote Bag",
+      "slug": "minimalist-tote-bag",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "20.00",
+      "priceMax": "20.00",
+      "currency": "INR",
+      "formattedPrice": "₹20.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 1,
+      "modifierCount": 0,
+      "variantCount": 2,
+      "mediaCount": 3,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/minimalist-tote-bag/",
+      "variants": [
+        {
+          "id": "0c660cc7-fe77-4394-b6cd-9c779338776c",
+          "label": "Purple",
+          "inStock": true
+        },
+        {
+          "id": "69ca8646-cc1f-4fbd-960d-5d754a7fb518",
+          "label": "White",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "31ac32e7-9571-41c0-8fbf-32d2ae886da5",
       "name": "Paperwork",
       "slug": "paperwork",
       "productType": "PHYSICAL",
@@ -266,9 +618,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Turn what you’ve agreed into clear, organised documentation.</span></p><p>When the important decisions are already substantially agreed, Paperwork helps you turn those decisions into clear, organised divorce documentation — one step at a time.</p><p>Answer a guided set of questions and tell us what both of you have agreed.</p><p>CLEAR CLOSURE prepares the applicable documents for your review. You check the details carefully, complete the required signatures, and then manage filing yourself or through an independent advocate.</p><p><span style=\"font-weight: 700\">Paperwork helps with documentation. It does not negotiate disagreements or represent you in court.</span></p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -277,14 +629,14 @@
       "productUrl": "https://wecare.digital/shop/paperwork/",
       "variants": [
         {
-          "id": "5347a1b1-e5fa-4bdf-bd75-4bb33ab952cb",
+          "id": "ac5cee5d-0dd1-4a1e-ac13-c3767d3fd8dd",
           "label": "Standard",
           "inStock": true
         }
       ]
     },
     {
-      "id": "bdd1a107-90ad-42cd-9f8f-516e14dda7dc",
+      "id": "7f3bbc75-02a4-4e4e-a023-e7074e87585f",
       "name": "Referral Partner",
       "slug": "referral-partner",
       "productType": "PHYSICAL",
@@ -298,9 +650,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Make the introductions you already make count.</span></p><p>Someone asks you:</p><p><span style=\"font-weight: 700\">“Do you know someone who can help with this?”</span></p><p>You probably already have these conversations with clients, customers, businesses, friends, or people in your network.</p><p>Usually, you make the introduction and your part ends there.</p><p>Referral Partner gives the right introductions a way to create value for you too.</p><p>Join for a one-time <span style=\"font-weight: 700\">₹999 enrollment</span>. We activate your Referral Partner account and send your unique referral code and getting-started details to you on WhatsApp.</p><p>When you meet someone who could genuinely benefit from a WECARE.DIGITAL product or service, introduce them to us.</p><p>If that referral becomes qualifying business, you earn according to the applicable Referral Partner terms.</p><p><span style=\"font-weight: 700\">You bring the customer. WECARE.DIGITAL takes it from there.</span></p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -309,14 +661,145 @@
       "productUrl": "https://wecare.digital/shop/referral-partner/",
       "variants": [
         {
-          "id": "488d1ea3-a511-4e0e-a08f-f2dc59108ded",
+          "id": "081aa95d-82e4-451c-80f2-bc076d1cdb4d",
           "label": "Standard",
           "inStock": true
         }
       ]
     },
     {
-      "id": "21dbe8bf-4c43-4f3d-9f13-b421215ebf07",
+      "id": "d86d7bea-fe19-4654-a597-bfe8dd449407",
+      "name": "Round Eyeglasses",
+      "slug": "round-eyeglasses",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": {
+        "id": "3fa3213f-63ae-4397-9657-bc88b1bfaf1e",
+        "name": "New"
+      },
+      "price": "80.00",
+      "priceMax": "80.00",
+      "currency": "INR",
+      "formattedPrice": "₹80.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/round-eyeglasses/",
+      "variants": [
+        {
+          "id": "6a4b6309-92ee-49bd-a74b-552d91e5fa08",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "42941ee7-1707-4b5d-a7d7-41e12da6ab9e",
+      "name": "Solid Wood Chair",
+      "slug": "solid-wood-chair",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "690.00",
+      "priceMax": "690.00",
+      "currency": "INR",
+      "formattedPrice": "₹690.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/solid-wood-chair/",
+      "variants": [
+        {
+          "id": "8a5a94af-5c77-4488-b8cc-89661ea49d17",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "1190303d-1fb5-40ca-bb60-2d5c1af3ae97",
+      "name": "Stainless Steel Water Bottle",
+      "slug": "stainless-steel-water-bottle",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "199.00",
+      "priceMax": "199.00",
+      "currency": "INR",
+      "formattedPrice": "₹199.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/stainless-steel-water-bottle/",
+      "variants": [
+        {
+          "id": "79040a57-27ad-4496-bc1d-402c5e678a47",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "d2dc8bef-0a26-414a-b1dc-7bbba867bc6a",
+      "name": "Textured Loop Earrings",
+      "slug": "textured-loop-earrings",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "269.00",
+      "priceMax": "269.00",
+      "currency": "INR",
+      "formattedPrice": "₹269.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 2,
+      "infoSectionCount": 3,
+      "productUrl": "https://wecare.digital/shop/textured-loop-earrings/",
+      "variants": [
+        {
+          "id": "aebd3261-d48a-42e4-b0ed-63555cf56229",
+          "label": "Standard",
+          "inStock": true
+        }
+      ]
+    },
+    {
+      "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
       "name": "Viveka",
       "slug": "viveka",
       "productType": "PHYSICAL",
@@ -330,9 +813,9 @@
       "inStock": true,
       "descriptionHtml": "<p><span style=\"font-weight: 700\">Think it through before you decide.</span></p><p>You’ve already thought about it.</p><p>You may have compared the options, spoken to people you trust, and gone over the same possibilities more than once. Yet something still feels unsettled.</p><p>Viveka gives you a thoughtful written reflection on a decision that matters to you.</p><p>Share what is happening in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension may be, and what could deserve another look before you act.</p><p><span style=\"font-weight: 700\">No calls. No meetings. Just a considered written reflection you can read in your own time and return to whenever you need another look.</span></p>",
       "categoryIds": [
-        "30c68f9b-685f-40ab-825f-a9858c1932bd"
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
-      "mainCategoryId": "30c68f9b-685f-40ab-825f-a9858c1932bd",
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
@@ -341,12 +824,12 @@
       "productUrl": "https://wecare.digital/shop/viveka/",
       "variants": [
         {
-          "id": "aa545d86-ffad-41fa-bd28-0f9797756b76",
+          "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
           "label": "Standard",
           "inStock": true
         }
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-04T14:49:13.391Z"
+  "variantVerifiedAt": "2026-10-05T15:04:40.903Z"
 }
