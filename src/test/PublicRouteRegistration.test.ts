@@ -49,6 +49,10 @@ const INTENTIONALLY_NOT_PUBLIC_DIRS: Record<string, string> = {
 };
 
 const appSource = fs.readFileSync( APP_PATH, 'utf8' );
+/* The sign-in screen's chrome. AuthGate moved out of _app.tsx when @aws-amplify/ui-react was
+   split out of the shared bundle - see the note at the `authGate` slice below. */
+const authShellSource = fs.readFileSync(
+  path.join( process.cwd(), 'src', 'components', 'AuthShell.tsx' ), 'utf8' );
 
 /**
  * The routes _app.tsx treats as public, assembled the same two ways the component does:
@@ -323,11 +327,23 @@ describe( 'common chrome on every public surface', () => {
     return appSource.slice( start, end );
   } )();
 
+  /**
+   * AuthGate LIVES IN components/AuthShell.tsx, NOT IN _app.tsx, since 2026-10-05.
+   *
+   * It moved because it calls `useAuthenticator`, so while it sat in _app.tsx the whole
+   * `@aws-amplify/ui-react` library - a 450 kB client chunk - stayed in the shared bundle and
+   * therefore on every public page, for a sign-in card no marketing page renders. _app.tsx
+   * now pulls AuthShell in through next/dynamic.
+   *
+   * The assertion below is unchanged in substance: the sign-in screen must still carry
+   * Header, Footer and the support widget. Only the file it is read from moved, which is why
+   * this slice follows it rather than the guard being relaxed.
+   */
   const authGate = ( (): string => {
-    const start = appSource.indexOf( 'const AuthGate' );
-    const end = appSource.indexOf( '\nexport default function App', start );
-    expect( start, 'AuthGate was not found in _app.tsx - this guard needs updating' ).toBeGreaterThan( -1 );
-    return appSource.slice( start, end === -1 ? undefined : end );
+    const start = authShellSource.indexOf( 'const AuthGate' );
+    const end = authShellSource.indexOf( '\nconst AuthShell', start );
+    expect( start, 'AuthGate was not found in components/AuthShell.tsx - this guard needs updating' ).toBeGreaterThan( -1 );
+    return authShellSource.slice( start, end === -1 ? undefined : end );
   } )();
 
   it( 'renders header, footer and widget inside the public branch', () => {

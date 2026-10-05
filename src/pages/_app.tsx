@@ -6,16 +6,36 @@
 import type { AppProps } from 'next/app';
 import Head from 'next/head';
 import Script from 'next/script';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
 import { Amplify } from 'aws-amplify';
 // I18n lives in aws-amplify/utils in v6, not on the root export.
 import { I18n } from 'aws-amplify/utils';
-import { Authenticator, ThemeProvider, Theme, useAuthenticator } from '@aws-amplify/ui-react';
-// Brand line above the sign-in form. Lives in its own file and styles itself,
-// because styled-jsx cannot scope a composite component from here.
-import AuthBrandHeader from '../components/AuthBrand';
-import '@aws-amplify/ui-react/styles.css';
+/* THE AUTHENTICATED SHELL IS LAZY, AND @aws-amplify/ui-react IS NO LONGER IMPORTED HERE.
+   `Authenticator`, `ThemeProvider`, `Theme` and `useAuthenticator` used to be imported at
+   this line, which put the library's 450 kB client chunk in the shared bundle and therefore
+   on every public page. AuthShell owns them now; the file's header records the measurement.
+   SSR IS DELIBERATELY NOT DISABLED. `next/dynamic` defaults to `ssr: true` and it stays
+   there: this is a static export, so SSR means "rendered to HTML at build time", and
+   `ssr: false` would have emptied 113 exported workspace pages of their sign-in shell.
+   Splitting still works - Next emits the chunk's preload only for a page whose export
+   actually rendered the dynamic module, and the public branch never does.
+   `aws-amplify` itself (Amplify.configure, I18n, fetchAuthSession) stays a static import:
+   the configuration must be in place before any route runs, `src/pages/get.tsx` is a public
+   route that calls the API client, and the auth core is a fraction of the UI library's size. */
+const AuthShell = dynamic( () => import( '../components/AuthShell' ) );
+/* `@aws-amplify/ui-react/styles.css` WAS IMPORTED HERE AND IS NOT ANY MORE.
+   A global CSS import in the pages router is unconditional - it joins the `data-n-g` bundle
+   on every route - and the built file is 310 kB minified, which made it the largest single
+   asset on the home page, larger than any JavaScript chunk. Chrome's rule-usage tracker says
+   a public page applies SEVEN of its rules; the rest styles Authenticator, Accordion,
+   AIConversation and the other components that only exist behind the sign-in.
+   Those seven are now `../styles/amplify-base.css`, imported first so it keeps the cascade
+   position the Amplify sheet held. The component stylesheet is copied to
+   `public/vendor/amplify-ui.css` by `scripts/generate-vendor-css.js` and linked from the
+   authenticated branch's <Head> below - see AMPLIFY_UI_STYLESHEET. */
+import '../styles/amplify-base.css';
 import '../styles/Pages.css';
 import '../styles/Layout.css';
 import '../styles/Dashboard.css';
@@ -190,124 +210,30 @@ const SOCIAL_CARD_H = '1080';
 // var stays documented and so anything that needs the id for a dataLayer push has it.
 export const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
 
-// Custom Amplify UI Theme - Lime + Dark Green matching site design
-const authTheme: Theme = {
-  name: 'stack-crm-theme',
-  tokens: {
-    colors: {
-      brand: {
-        primary: {
-          10: { value: '#f9fafb' },
-          20: { value: '#f3f4f6' },
-          40: { value: '#d1f470' },
-          60: { value: '#d1f470' },
-          80: { value: '#1a3a2a' },
-          90: { value: '#0f2a1d' },
-          100: { value: '#0a1f15' },
-        },
-      },
-      font: {
-        interactive: { value: '#1a3a2a' },
-      },
-      background: {
-        primary: { value: '#ffffff' },
-        secondary: { value: '#f9fafb' },
-      },
-    },
-    components: {
-      authenticator: {
-        router: {
-          borderWidth: { value: '0' },
-          boxShadow: { value: '0 4px 24px rgba(0, 0, 0, 0.08)' },
-        },
-      },
-      button: {
-        primary: {
-          backgroundColor: { value: '#d1f470' },
-          color: { value: '#1a3a2a' },
-          _hover: {
-            backgroundColor: { value: '#c5e866' },
-          },
-          _active: {
-            backgroundColor: { value: '#b8dc5a' },
-          },
-        },
-        link: {
-          color: { value: '#1a3a2a' },
-          _hover: {
-            color: { value: '#0f2a1d' },
-            backgroundColor: { value: 'transparent' },
-          },
-        },
-      },
-      fieldcontrol: {
-        borderRadius: { value: '13px' },
-        // #e5e7eb at rest, NOT lime. The design contract's hairline rule is that
-        // the colour is always #e5e7eb and lime marks an interactive state; a lime
-        // resting border made every idle input on the sign-in card read as focused,
-        // and spent the page's one accent on three inert outlines. Lime returns
-        // below, in the focus ring, which is where the contract puts it.
-        borderColor: { value: '#e5e7eb' },
-        _focus: {
-          borderColor: { value: '#1a3a2a' },
-          boxShadow: { value: '0 0 0 3px rgba(209, 244, 112, 0.3)' },
-        },
-      },
-      // INERT while the Authenticator is mounted with hideSignUp - with sign-up
-      // hidden, Amplify renders no tab list at all, so nothing below is visible on
-      // [retired public path] today (measured in a browser: zero elements match [role="tab"]).
-      // Kept and corrected rather than deleted so that flipping hideSignUp cannot
-      // ship off-palette tabs: the idle colour was #6b7280, which is the legacy
-      // --color-muted from Pages.css and not a palette value at all.
-      //
-      // The active state is the palette's own tab treatment - #d1f470 fill with
-      // #1a3a2a type, the pair used by .pp-tab.active, .msg.sent and BrandBadge -
-      // rather than the underline-only version this had before.
-      tabs: {
-        item: {
-          color: { value: 'rgba(0, 0, 0, 0.54)' },
-          _active: {
-            color: { value: '#1a3a2a' },
-            backgroundColor: { value: '#d1f470' },
-            borderColor: { value: '#d1f470' },
-          },
-          _hover: {
-            color: { value: '#1a3a2a' },
-          },
-        },
-      },
-    },
-    radii: {
-      small: { value: '10px' },
-      medium: { value: '13px' },
-      large: { value: '16px' },
-    },
-    space: {
-      small: { value: '0.75rem' },
-      medium: { value: '1rem' },
-      large: { value: '1.5rem' },
-    },
-    fontSizes: {
-      small: { value: '0.875rem' },
-      medium: { value: '1rem' },
-      large: { value: '1.125rem' },
-    },
-    // Amplify ships its own stack - 'InterVariable','Inter var','Inter',… - which
-    // resolves to the same face the rest of the site uses, so this was never a
-    // visible bug. It is pinned to the site stack anyway so the sign-in card cannot
-    // drift onto a different font than .page declares: InterVariable is a
-    // *different file* from the Inter that _app loads from Google Fonts at
-    // 400;500;600;700;800, and if a variable build ever resolves locally on a
-    // visitor's machine the card would render in it while every other surface did
-    // not. Same list, same order as grahak-os/index.tsx .page.
-    fonts: {
-      default: {
-        variable: { value: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
-        static: { value: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
-      },
-    },
-  },
-};
+/**
+ * `@aws-amplify/ui-react`'s component stylesheet, served as a file rather than bundled.
+ *
+ * Written by `scripts/generate-vendor-css.js` on every build, which is why the path is a
+ * literal here and not an import: Next refuses a global CSS import from anywhere but this
+ * file, so there is no way to scope one to a branch. A <link> is the export-mode equivalent.
+ *
+ * The URL carries no content hash on purpose. `public/` is copied verbatim into `out/`, and
+ * an Amplify deploy invalidates the distribution, so a version bump reaches visitors without
+ * one. A hash would mean a generated filename and a generated module to hold it.
+ */
+const AMPLIFY_UI_STYLESHEET = '/vendor/amplify-ui.css';
+
+/* `authTheme` MOVED TO src/components/AuthShell.tsx, together with AuthGate and the
+   Authenticator tree, and the move is a performance fix rather than tidying.
+   `@aws-amplify/ui-react` builds to a 450 kB client chunk. Imported at the top of this file
+   it sat in the shared bundle, so every visitor to every PUBLIC page downloaded it - 41% of
+   the home page's 1,098 kB of JavaScript, for a sign-in card no marketing page renders.
+   Measured in the export before the split: `2crp25xr6p9wh.js`, 450.7 kB, carrying
+   amplify-authenticator, amplify-field and amplify-radio.
+   This file has always had exactly two branches, so the dependency was shared only in the
+   sense that an import is unconditional. AuthShell is loaded through next/dynamic below, with
+   SSR left ON so the authenticated routes still export the same HTML. The Theme type import
+   went with it. */
 
 // Structured data for the organization
 /**
@@ -735,161 +661,14 @@ const getBreadcrumbSchema = ( pageName: string, pageUrl: string ) => ( {
   ]
 } );
 
-/**
- * AuthGate — the public chrome around the sign-in card.
- *
- * This is the THIRD place chrome is mounted, and it is easy to forget because it is not
- * a route: any visitor who opens a staff URL without a session lands here, including
- * every mistyped path that does not match the allowlist. So it is a page the public
- * genuinely sees, and it gets the same three pieces as a public page - Header, Footer and
- * SupportWidget.
- *
- * SupportWidget was missing here until now, and the gap mattered in exactly the situation
- * this screen exists for: someone who cannot get in had no way to reach us from the screen
- * telling them they cannot get in. It is mounted below, outside .ag-shell, because the
- * widget is position:fixed and does not belong in a flex column.
- *
- * Once authenticated this returns children directly. Header and Footer are deliberately
- * NOT carried into the dashboard: Layout.tsx has its own top bar and sidebar and no footer
- * at all, and adding a second fixed header would collide with both.
- */
-const AuthGate: React.FC<{ children: React.ReactNode }> = ( { children } ) => {
-  const { authStatus } = useAuthenticator( ( ctx ) => [ ctx.authStatus ] );
-  const isAuthed = authStatus === 'authenticated';
-
-  if ( isAuthed ) return <>{ children }</>;
-
-  return (
-    <>
-      <Header />
-      <div className="ag-shell">
-        <div className="ag-centre">
-          { children }
-        </div>
-        <Footer />
-      </div>
-      <SupportWidget />
-      <style jsx>{`
-        /* 108px, not the flat 96px this used to inline.
-           The public header is position:fixed and 108px tall, dropping to 96px only
-           below 768px - so a single 96px value pulled the whole centred block 12px
-           up UNDER the header on every desktop, which is exactly where the new brand
-           badge above the form sits. Matched to both of the header's heights rather
-           than to one of them.
-           Moved out of inline styles for that reason: a style attribute cannot carry
-           a media query, so the two-height fix is not expressible inline. */
-        .ag-shell{display:flex;flex-direction:column;min-height:100vh;padding-top:108px}
-        .ag-centre{flex:1;display:flex;align-items:center;justify-content:center}
-        @media(max-width:767px){.ag-shell{padding-top:96px}}
-      `}</style>
-      {/* GLOBAL, deliberately: this styles the Amplify Authenticator's own card,
-          which is rendered inside a composite component that styled-jsx cannot
-          scope into. Targeted via data-amplify-router, a documented Amplify data
-          attribute, rather than the amplify-* class names, which are internal.
-          Scoped under .ag-shell so it can only ever apply to the unauthenticated
-          sign-in chrome and not to anything in the dashboard.
-
-          A 4px lime TOP EDGE, not a lime outline on all four sides. The owner asked
-          for a lime border, and a full lime outline is the one thing that should not
-          go here: the contract reserves lime for interactive state and #e5e7eb for
-          static edges, and a lime ring around a resting card is precisely what made
-          the input fields read as permanently focused - the defect fixed one commit
-          ago. A single heavy top edge reads as brand, cannot be mistaken for focus,
-          and still uses full-strength #d1f470, which is correct here because this
-          card IS one of our own surfaces. The other three sides take the static
-          hairline. */}
-      <style jsx global>{`
-        /* AMPLIFY'S ThemeProvider HARDCODES dir="ltr" ON ITS WRAPPER, AND IT MADE THE
-           DASHBOARD HALF-MIRROR.
-           The rendered element is <div data-amplify-theme="stack-crm-theme" dir="ltr">, and
-           everything on an authenticated route sits inside it. So when a visitor picked
-           Arabic, <html dir="rtl"> set the document direction and this wrapper immediately
-           overrode it for the entire subtree: text and flex axes stayed left-to-right, while
-           the [dir='rtl'] rules in Header.tsx and SupportWidget.tsx still matched, because
-           those select on the html attribute rather than on computed direction. The nav panel
-           then anchored to its rtl edge inside an unmirrored header and landed at
-           left:-504px - off screen on 105 of 125 routes, measured by rtlcheck.js. Public
-           routes were unaffected: they render no Amplify wrapper at all.
-           An author declaration beats the dir attribute's presentational hint, so one rule
-           puts the subtree back in step with the document. Fixing it here rather than by
-           passing a direction prop to ThemeProvider keeps it out of React state: direction
-           changes at runtime when the language changes, and a prop would need the document
-           attribute mirrored into state and kept in sync.
-           unicode-bidi is set with it. The dir attribute implies unicode-bidi:isolate in the
-           UA stylesheet, and overriding direction alone leaves the isolation behaving as
-           though the wrapper were still a left-to-right island.
-           NO BACKTICKS IN THIS COMMENT - it is inside a styled-jsx template literal and one
-           closes it, failing the build far below with an unrelated-looking parse error. */
-        [dir='rtl'] [data-amplify-theme]{
-          direction:rtl;
-          unicode-bidi:isolate;
-        }
-
-        .ag-shell [data-amplify-router]{
-          border:1px solid #e5e7eb;
-          border-top:4px solid #d1f470;
-          border-radius:16px;
-          overflow:hidden;
-        }
-
-        /* ===== The MFA chooser =====
-           Appears because the user's preferred factor is unset, so Cognito
-           returns a selection challenge. Amplify renders it as a radio group
-           inside [data-amplify-authenticator-select-mfa-type] - a documented
-           data attribute, unlike the amplify-* class names, which are internal
-           and would be a private API to depend on.
-
-           Unstyled, the options are bare radios with no hit area, which on a
-           phone means three small circles and no obvious way to pick. Each one
-           becomes a card the whole row of which is tappable.
-
-           Values are the public contract's: 2px #e5e7eb because each row HAS a
-           hover, swapping to lime; rgba(0,0,0,.898) label; #1a3a2a on the
-           checked mark, which is the palette's active-state green. */
-        .ag-shell [data-amplify-authenticator-select-mfa-type] fieldset{
-          gap:10px;
-        }
-        .ag-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio{
-          display:flex;
-          align-items:center;
-          gap:12px;
-          padding:14px 18px;
-          border:2px solid #e5e7eb;
-          border-radius:13px;
-          background:#fff;
-          cursor:pointer;
-          transition:all .25s;
-        }
-        .ag-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio:hover{
-          border-color:#d1f470;
-        }
-        /* :focus-within, not :focus - the focus lands on the input inside the
-           label, so a rule on the row itself would never match. */
-        .ag-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio:focus-within{
-          border-color:#d1f470;
-          box-shadow:0 0 0 3px rgba(26,58,42,.3);
-        }
-        .ag-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio__label{
-          font-size:17px;
-          font-weight:500;
-          line-height:1.4;
-          letter-spacing:-.125px;
-          color:rgba(0,0,0,.898);
-          cursor:pointer;
-        }
-        .ag-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio__button{
-          --amplify-components-radio-button-color:#1a3a2a;
-          --amplify-components-radio-button-border-color:#e5e7eb;
-        }
-        @media(prefers-reduced-motion:reduce){
-          .ag-shell [data-amplify-authenticator-select-mfa-type] .amplify-radio{
-            transition:none;
-          }
-        }
-      `}</style>
-    </>
-  );
-};
+/* `AuthGate` MOVED TO src/components/AuthShell.tsx. See the note where authTheme used to be
+   declared, above: it uses `useAuthenticator`, so leaving it here would have kept
+   @aws-amplify/ui-react in the shared bundle and defeated the split.
+   Its documentation - why the sign-in screen is the third place site chrome is mounted, why
+   SupportWidget belongs on it, why .ag-shell pads 108px rather than 96px, and why the
+   Amplify ThemeProvider's hardcoded dir="ltr" had to be overridden - travelled with the code
+   and is unchanged there. src/test/PublicWidgets.test.tsx now counts the three SupportWidget
+   mounts across both files. */
 
 export default function App ( { Component, pageProps }: AppProps ) {
   const router = useRouter();
@@ -1380,6 +1159,19 @@ export default function App ( { Component, pageProps }: AppProps ) {
     <ErrorBoundary>
       <Head>
         <title>WECARE.DIGITAL</title>
+        {/* THE AMPLIFY UI COMPONENT STYLESHEET, AND THIS IS THE ONLY BRANCH THAT LOADS IT.
+            It used to be a global import at the top of this file, which the pages router
+            puts on every route: 310 kB on a marketing page for a sign-in card it never
+            renders. Chrome's rule-usage tracker measured seven applied rules on `/`, and
+            those seven are now `src/styles/amplify-base.css`.
+            POSITION MATTERS AND next/head GIVES US THE RIGHT ONE. As an import the sheet was
+            FIRST in the cascade, so `src/styles/*.css` overrode it - the five
+            `.amplify-button--primary` rules in `inner-ux.css` need to win that tie. In the
+            exported head, `data-next-head` tags precede the `data-n-g` bundle links, so this
+            stays ahead of our stylesheets exactly as the import was.
+            The file is written by `scripts/generate-vendor-css.js` during `npm run build`;
+            it is gitignored so it cannot drift from the installed package. */}
+        <link rel="stylesheet" href={ AMPLIFY_UI_STYLESHEET } key="amplify-ui-css" />
         {/* Inter comes from _document.tsx, which renders on every route. See the note on the
             public branch above: declaring it here too put the stylesheet in the built head
             twice, render-blocking both times. */}
@@ -1424,41 +1216,39 @@ export default function App ( { Component, pageProps }: AppProps ) {
         `}
       </Script>
       <Script src="https://connect.facebook.net/en_US/sdk.js" strategy="afterInteractive" id="facebook-jssdk" />
-      <ThemeProvider theme={ authTheme }>
-        <Authenticator.Provider>
-          <AuthGate>
-            <Authenticator hideSignUp={ true } components={ { Header: AuthBrandHeader } }>
-              { ( { signOut, user } ) => {
-                if ( typeof window !== 'undefined' && ( window as any ).FB )
-                {
-                  ( window as any ).FB.AppEvents.logEvent( 'CompletedRegistration' );
-                }
-                return (
-                  <ToastProvider>
-                    <ConfirmProvider>
-                      <Component { ...pageProps } signOut={ () => { signOut?.(); router.push( '/' ); } } user={ user } />
-                      <FloatingAgent />
-                      {/* THE SAME COMBINED WIDGET AS THE PUBLIC PAGES, so contact and
-                          language are in one place on every route in the product rather
-                          than only on the marketing side.
-                          IT IS SAFE HERE BECAUSE OF ONE ATTRIBUTE. SupportWidget starts
-                          its translation walk at `.layout`, and Layout.tsx marks
-                          `.main-content` with data-wc-no-translate - so the sidebar's
-                          navigation translates while every page's CONTENT (customer
-                          names, numbers, message bodies) is exempt. Without that
-                          attribute this mount would let an operator machine-translate
-                          live customer data, which is why it was previously excluded.
-                          FloatingAgent above is a different thing and stays: it is the
-                          internal AI task assistant, not customer contact. */}
-                      <SupportWidget />
-                    </ConfirmProvider>
-                  </ToastProvider>
-                );
-              } }
-            </Authenticator>
-          </AuthGate>
-        </Authenticator.Provider>
-      </ThemeProvider>
+      {/* The Amplify UI tree - ThemeProvider, Authenticator.Provider, AuthGate and the
+          Authenticator itself - now lives in AuthShell and arrives as a dynamic chunk. The
+          render function below is unchanged: the page, its signOut wiring and the two widget
+          mounts stay here, because this file is where every other route decision is made. */}
+      <AuthShell>
+        { ( { signOut, user } ) => {
+          if ( typeof window !== 'undefined' && ( window as any ).FB )
+          {
+            ( window as any ).FB.AppEvents.logEvent( 'CompletedRegistration' );
+          }
+          return (
+            <ToastProvider>
+              <ConfirmProvider>
+                <Component { ...pageProps } signOut={ () => { signOut?.(); router.push( '/' ); } } user={ user as any } />
+                <FloatingAgent />
+                {/* THE SAME COMBINED WIDGET AS THE PUBLIC PAGES, so contact and
+                    language are in one place on every route in the product rather
+                    than only on the marketing side.
+                    IT IS SAFE HERE BECAUSE OF ONE ATTRIBUTE. SupportWidget starts
+                    its translation walk at `.layout`, and Layout.tsx marks
+                    `.main-content` with data-wc-no-translate - so the sidebar's
+                    navigation translates while every page's CONTENT (customer
+                    names, numbers, message bodies) is exempt. Without that
+                    attribute this mount would let an operator machine-translate
+                    live customer data, which is why it was previously excluded.
+                    FloatingAgent above is a different thing and stays: it is the
+                    internal AI task assistant, not customer contact. */}
+                <SupportWidget />
+              </ConfirmProvider>
+            </ToastProvider>
+          );
+        } }
+      </AuthShell>
     </ErrorBoundary>
   );
 }

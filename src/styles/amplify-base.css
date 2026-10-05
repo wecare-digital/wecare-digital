@@ -1,0 +1,84 @@
+/**
+ * The base declarations that `@aws-amplify/ui-react/styles.css` was contributing to the
+ * PUBLIC pages, and nothing else.
+ *
+ * WHY THIS FILE EXISTS. That stylesheet was imported globally in `_app.tsx`, which in the
+ * pages router means it shipped on every route: 310 kB of minified CSS, the single largest
+ * asset on the home page. Chrome's rule-usage tracker says a public page applies seven
+ * rules of it. The other ~303 kB styles Authenticator, Accordion, AIConversation,
+ * Autocomplete, FileUploader and the rest of the component library, none of which render
+ * outside the sign-in. `scripts/generate-vendor-css.js` now puts the component stylesheet
+ * under `public/vendor/` and `_app.tsx` links it only in the authenticated branch.
+ *
+ * THIS FILE IS IMPORTED FIRST, and the position is load-bearing: the Amplify stylesheet used
+ * to be the first import, so every rule in `src/styles/*.css` won ties against it. Anything
+ * here must lose the same ties, which is why these are all element and universal selectors.
+ *
+ * WHAT WAS DROPPED RATHER THAN COPIED, each measured on the built export rather than assumed:
+ *
+ *   html{font-family:var(--amplify-fonts-default-static)}
+ *     Inert. `Layout.css:116` sets `body`'s font-family to the site's own Inter stack, and
+ *     every rendered element descends from body, so the html-level family could never be
+ *     the one that applied. Comments in `_app.tsx`, `RotatingHero.tsx`, `PageTopBand.tsx`
+ *     and `pages/index.tsx` all still claim the page renders in Inter "only because
+ *     @aws-amplify/ui-react's styles.css sets a font-family on body" - that was true once
+ *     and is not now. Measured computed value of body's font-family with the stylesheet
+ *     present: `Inter, ui-sans-serif, system-ui, …`, which is Layout.css's stack and not
+ *     Amplify's `Inter, -apple-system, BlinkMacSystemFont, …`.
+ *
+ *   body{line-height:var(--amplify-line-heights-medium)}   i.e. 1.5
+ *     Overridden. Measured body line-height is 26.35px against a 17px font size, which is
+ *     1.55 - our own value, not Amplify's 1.5.
+ *
+ *   input,button,textarea,select{font:inherit}
+ *     Overridden on every control the public pages render; measured button font-family is
+ *     `Inter, -apple-system, "system-ui", …`, which comes from `button.css`. Kept anyway,
+ *     below, because it is three lines and it is the rule that stops a browser default
+ *     face appearing on a control nobody has styled yet.
+ *
+ *   :root{--amplify-…}
+ *     ~2,000 custom properties for components that no longer load here. The three that the
+ *     rules above referenced are gone with the rules that referenced them.
+ */
+
+/* The universal border-box reset. THE ONE RULE WITH NOWHERE ELSE TO COME FROM: the site's
+   own stylesheets set box-sizing on about eight specific selectors and never universally,
+   so removing the Amplify sheet without this would hand every unlisted element
+   content-box and change the width of anything carrying both a width and a padding. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* The root element's face. NOT a copy of Amplify's stack - this is the one from
+   `Layout.css:116`, so html and body now agree instead of html carrying a second,
+   slightly different Inter list.
+   WHY DECLARE IT AT ALL, given the note above that it is inert. Measured after removing the
+   Amplify sheet, `getComputedStyle(document.documentElement).fontFamily` became `Times`: the
+   user-agent default, because nothing else in the site sets a family on html. No rendered
+   element inherits it today, since every one of them descends from body - but a `Times` root
+   is a trap for the next element that ends up outside body or that reads the computed value
+   off documentElement, and one line costs nothing. */
+html {
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Carried over. `min-height` is also declared by `Layout.css`, with a comment explaining why
+   it is min-height and not height; it is repeated here because the Amplify sheet declared it
+   too and this file's job is to leave the computed values untouched, not to tidy them.
+   `text-rendering` has no other source - it is Amplify's choice, kept so that removing a
+   stylesheet stays a bundle change rather than a typography change. */
+body {
+  min-height: 100vh;
+  text-rendering: optimizespeed;
+}
+
+/* Form controls inherit the page's face rather than the user agent's. Element selectors, so
+   `button.css` and the component stylesheets still win. */
+input,
+button,
+textarea,
+select {
+  font: inherit;
+}

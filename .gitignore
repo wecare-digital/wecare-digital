@@ -159,3 +159,9 @@ docs/execution/snapshots/*.zip
 # under .agents/tasks by workflow/agent runs. They are transient scratch, never built or
 # deployed, and should not clutter source control or the repo history.
 .agents/
+# Vendored third-party stylesheet, written by scripts/generate-vendor-css.js at the start of
+# every build. `@aws-amplify/ui-react`'s component CSS is served from here by a <link> on the
+# authenticated routes instead of being bundled into the global CSS every public page loads.
+# Deliberately NOT committed: a checked-in vendor copy drifts from the installed version
+# silently, and this one is regenerated before `next build` runs.
+public/vendor/amplify-ui.css

@@ -985,14 +985,17 @@ const HomePage: React.FC = () => {
           .home-flow-copy{order:-1}
         }
 
-        /* The font stack is declared here, not inherited. Measured in a browser, this
-           page already rendered in Inter - but only because @aws-amplify/ui-react's
-           styles.css sets a font-family on body that happens to start with Inter. The
-           public pages' typeface was therefore a side effect of an auth library's
-           stylesheet, and would have changed silently if that import moved or the
-           package bumped. This is the same stack .page declares on /grahak-os/.
-           Note --font-sans in Pages.css contains no Inter at all, so that is not a
-           fallback that would have caught it. */
+        /* The font stack is declared here, not inherited. This is the same stack .page
+           declares on /grahak-os/, and the declaration is unchanged.
+           THE REASON RECORDED HERE WAS WRONG AND IS CORRECTED, not deleted - it claimed a
+           dependency that would have made removing an import look dangerous. It said the
+           page rendered in Inter "only because @aws-amplify/ui-react's styles.css sets a
+           font-family on body", and that Pages.css's --font-sans "contains no Inter at
+           all". Measured in a browser: body's computed family is
+           'Inter', ui-sans-serif, system-ui, … which is Layout.css:116's value, NOT
+           Amplify's ('Inter', -apple-system, BlinkMacSystemFont, …), and Pages.css:60
+           begins with 'Inter'. The Amplify stylesheet is no longer a global import;
+           src/styles/amplify-base.css holds the handful of rules it was contributing. */
         /* MIN-HEIGHT: the intent is "at least a screenful", and it was written as
            calc(100vh - 69px) with a second value of calc(100vh - 85px) under 768px. Both
            were wrong in the same two ways.

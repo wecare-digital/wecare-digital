@@ -192,11 +192,13 @@ const VayuLokPage: React.FC = () => {
         /* Header is fixed at 108px, 96px under 767px - the same offsets the home
            page uses, so the two public shells start at the same place.
            The font stack is declared rather than inherited, matching .page on
-           /grahak-os/ and .home-shell. This page did already render in Inter, but
-           only via the body rule in @aws-amplify/ui-react's styles.css - so the
-           typeface of a public marketing page depended on an auth library's CSS
-           import order. Pages.css's --font-sans has no Inter in it, so nothing here
-           would have fallen back to the right face. */
+           /grahak-os/ and .home-shell. The declaration stays; the reason beside it was
+           wrong and is corrected. It said the typeface came "only via the body rule in
+           @aws-amplify/ui-react's styles.css" and that Pages.css's --font-sans "has no
+           Inter in it". Measured: body's computed family is Layout.css:116's
+           'Inter', ui-sans-serif, system-ui, … and Pages.css:60 starts with 'Inter'.
+           The Amplify stylesheet is not a global import any more - see
+           src/styles/amplify-base.css. */
         /* No min-height: the hero used to fill the viewport when it was the whole
            page, but the live VayuLok section now renders directly below it, so a
            forced 100vh left a ~240px empty band between the hero content and the

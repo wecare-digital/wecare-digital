@@ -232,11 +232,14 @@ const RotatingHero: React.FC<RotatingHeroProps> = ( { badgeLabel, frame, words, 
       </div>
 
       <style jsx>{`
-        /* Font stack declared, not inherited. Measured: these pages render in Inter
-           only because @aws-amplify/ui-react's styles.css sets a font-family on body
-           that happens to start with Inter - the public pages' typeface was a side
-           effect of an auth library's stylesheet. --font-sans in Pages.css has no
-           Inter in it, so nothing would have fallen back correctly. */
+        /* Font stack declared, not inherited. The declaration stays; the reason this
+           comment used to give was wrong. It said the pages rendered in Inter only
+           because @aws-amplify/ui-react's styles.css set a family on body, and that
+           Pages.css's --font-sans had no Inter in it. Neither is true: Layout.css:116
+           sets body to 'Inter', ui-sans-serif, system-ui, … - the value measured in a
+           browser on these pages - and Pages.css:60 starts with 'Inter' as well. The
+           Amplify stylesheet is not imported globally any more; src/styles/
+           amplify-base.css records the seven rules it was really contributing. */
         .rh-shell{
           min-height:calc(100vh - 69px);
           padding-top:108px;

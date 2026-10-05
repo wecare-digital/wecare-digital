@@ -26,10 +26,16 @@ import React, { useEffect, useState } from 'react';
  * consumer therefore owns nothing but the props - and its own children, which it styles in its own
  * block. RotatingHero, BrandLockup and BrandBadge are all arranged the same way.
  *
- * THE FONT STACK IS DECLARED, NOT INHERITED. The public pages render in Inter only because
- * @aws-amplify/ui-react's stylesheet happens to set a family on body that starts with Inter;
- * --font-sans in Pages.css has no Inter in it. A band that inherited would fall to a serif the day
- * that import moves.
+ * THE FONT STACK IS DECLARED, NOT INHERITED, and the declaration stays - but the reason given
+ * here was wrong and is corrected rather than deleted, because the wrong reason is the kind that
+ * gets acted on. It read: "the public pages render in Inter only because @aws-amplify/ui-react's
+ * stylesheet happens to set a family on body that starts with Inter; --font-sans in Pages.css has
+ * no Inter in it." Both halves are false. `Layout.css:116` sets body's family to
+ * 'Inter', ui-sans-serif, system-ui, … - which is the value a browser actually computes on these
+ * pages, measured - and `Pages.css:60`'s --font-sans begins with 'Inter' too. The Amplify
+ * stylesheet is no longer imported globally at all (see src/styles/amplify-base.css for what it
+ * was really contributing). Declaring the stack is still right: a band that inherited would follow
+ * whatever body happens to say, and this component is used on pages that set their own shell font.
  *
  * THE ENTRANCE IS OPT-IN. The CSS ships the readable, settled state - opacity 1, no transform - and
  * JavaScript adds .is-armed to put the start state back, then .show to play it. No JavaScript, a

@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 describe( 'support widget wiring', () => {
   const app = readFileSync( resolve( process.cwd(), 'src/pages/_app.tsx' ), 'utf8' );
   const widget = readFileSync( resolve( process.cwd(), 'src/components/SupportWidget.tsx' ), 'utf8' );
+  /* AuthGate - the sign-in screen, and the third surface the mount count below is about -
+     lives here rather than in _app.tsx since @aws-amplify/ui-react was split out of the
+     shared bundle. See the note at that assertion. */
+  const authShell = readFileSync( resolve( process.cwd(), 'src/components/AuthShell.tsx' ), 'utf8' );
 
   /**
    * The same source with comments removed, for NEGATIVE assertions only.
@@ -287,11 +291,22 @@ describe( 'support widget wiring', () => {
     // Counted on the JSX tag. The comments in _app.tsx deliberately refer to "the
     // SupportWidget component" in prose rather than writing the tag, precisely so this
     // count measures mounts and not explanatory text.
-    const mounts = app.split( '<SupportWidget />' ).length - 1;
+    //
+    // COUNTED ACROSS TWO FILES NOW, and the reason matters more than the arithmetic.
+    // `AuthGate` moved out of _app.tsx into components/AuthShell.tsx, because it calls
+    // `useAuthenticator` and keeping it in _app kept @aws-amplify/ui-react's 450 kB chunk in
+    // the shared bundle - i.e. on every public page, for a sign-in card they never render.
+    // The invariant this test protects is unchanged: three SURFACES, not three occurrences
+    // in one file. Summing the two files keeps it measuring surfaces, where pinning it to
+    // _app.tsx alone would have turned a bundle split into a test failure and invited
+    // someone to "fix" it by deleting a mount.
+    const mounts = ( app.split( '<SupportWidget />' ).length - 1 )
+      + ( authShell.split( '<SupportWidget />' ).length - 1 );
     expect(
       mounts,
       'SupportWidget must be mounted in all three places a visitor can land: the public '
-      + 'branch, the authenticated branch, and AuthGate (the sign-in screen)'
+      + 'branch and the authenticated branch (_app.tsx), and AuthGate, the sign-in screen '
+      + '(components/AuthShell.tsx)'
     ).toBe( 3 );
   } );
 
