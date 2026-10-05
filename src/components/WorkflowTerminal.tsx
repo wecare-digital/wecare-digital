@@ -86,24 +86,24 @@ const STEPS: Step[] = [
   {
     service: 'gateway', name: 'Request accepted', time: '12ms',
     description: 'One HTTPS request arrives and is routed to the handler for this account.',
-    infra: 'api gateway · lambda · tls terminated at the edge',
+    infra: 'your request is accepted securely',
   },
   {
     service: 'auth', name: 'Account resolved', time: '31ms',
     description: 'The caller is verified and scoped, so every later step is limited to their data.',
-    infra: 'cognito · iam · per-account isolation',
+    infra: 'your account is verified and isolated',
     results: [ { label: 'verified', kind: 'ok' }, { label: 'scope: account_2841' } ],
   },
   {
     service: 'contacts', name: 'Customer looked up', time: '18ms',
     description: 'A single-key read returns the customer and the channels they agreed to.',
-    infra: 'dynamodb · single-table · on-demand capacity',
+    infra: 'your record is read in one step',
     command: <><span className="wt-sh">$</span><span className="wt-fn">contacts.get</span>(<span className="wt-str">&quot;cust_2841&quot;</span>) <span className="wt-cm">— 1 read unit</span></>,
   },
   {
     service: 'messaging', name: 'Four services pick it up at once', time: '46ms',
     description: 'Independent workers run in parallel. None of them waits for another to finish.',
-    infra: 'sqs · lambda · one queue per channel, shared retry policy',
+    infra: 'four channels are queued, each independent',
     lanes: [
       { name: 'whatsapp', detail: 'template delivered' },
       { name: 'sms', detail: 'queued with operator' },
@@ -114,24 +114,24 @@ const STEPS: Step[] = [
   {
     service: 'commerce', name: 'Order and catalog updated', time: '54ms',
     description: 'Stock and order state change together, so the two cannot disagree.',
-    infra: 'dynamodb transaction · eventbridge',
+    infra: 'the order and stock update together',
     results: [ { label: 'order confirmed', kind: 'ok' }, { label: 'stock −1' } ],
   },
   {
     service: 'billing', name: 'Usage metered', time: '9ms',
     description: 'What was actually sent is recorded against this account for the period.',
-    infra: 'same event stream · no separate meter to reconcile',
+    infra: 'usage is metered from the same stream',
   },
   {
     service: 'queue', name: 'A provider failed, nobody noticed', time: '1.2s',
     description: 'One carrier returned an error. The message went back on the queue and left on the next attempt.',
-    infra: 'sqs redrive · exponential backoff · dead-letter queue watched',
+    infra: 'a failed send retries and is watched',
     results: [ { label: 'attempt 2 of 5', kind: 'warn' }, { label: 'delivered', kind: 'ok' }, { label: 'dead-letter empty', kind: 'ok' } ],
   },
   {
     service: 'platform', name: 'All services healthy', time: '2.1s', complete: true,
     description: 'Every service above reported success, on the same logs, metrics and traces.',
-    infra: 'cloudwatch · one dashboard for all of it',
+    infra: 'every service reports to one place',
     checks: [ 'eight services, one deployment', 'one identity, one audit trail', 'one bill' ],
   },
 ];
@@ -521,11 +521,11 @@ const WorkflowTerminal: React.FC = () => {
       {/* One static sentence for assistive tech. The stream below is aria-hidden: a
           screen reader should not receive eight nodes appearing on timers. */}
       <p className="wt-sr">
-        An illustration of one customer request moving through our backend: the gateway
-        accepts it, the account is verified, the customer record is read, four messaging
-        services run in parallel, the order and catalog update together, usage is metered,
-        the queue absorbs a failed carrier attempt, and all eight services report healthy —
-        every one of them on the same shared infrastructure.
+        An illustration of one customer request moving through our services: the request is
+        accepted, the account is verified, the customer record is read, four channels deliver
+        at once, the order and stock are written together, usage is metered, a failed send is
+        retried and watched, and all eight services report healthy — every one of them on the
+        same shared foundation.
       </p>
 
       {/* dir="ltr" LOCKS THE TERMINAL, and it is a correctness fix rather than a preference.
