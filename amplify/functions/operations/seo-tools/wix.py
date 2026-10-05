@@ -17,7 +17,7 @@ SECRET_NAME = os.environ.get('WIX_API_KEY_SECRET', '').strip()
 SITE_ID = os.environ.get('WIX_SITE_ID', '').strip()
 ACCOUNT_ID = os.environ.get('WIX_ACCOUNT_ID', '').strip()
 WIX_CLIENT_ID = os.environ.get(
-    'WIX_CLIENT_ID', '197cd718-e4ec-4e2e-b380-46c297eb18a2'
+    'WIX_CLIENT_ID', '42b3cdbf-d90e-4138-a06c-ddda4fb8da01'
 ).strip()
 _api_key = None
 _visitor_access_token = None

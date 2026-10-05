@@ -105,7 +105,7 @@
       "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
       "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
       "WIX_CART_V2_ENABLED": "true",
-      "WIX_SITE_ID": "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+      "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f"
     },
     "wecare-cognito-custom-message": {
       "BRAND_NAME": "sha256:d185a0daa945",
@@ -305,9 +305,9 @@
     },
     "wecare-product-image-gen": {
       "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z",
-      "WIX_ACCOUNT_ID": "sha256:9139bb2fe801",
+      "WIX_ACCOUNT_ID": "sha256:19b6772e0eba",
       "WIX_CREDENTIALS_DISABLED": "true",
-      "WIX_SITE_ID": "sha256:0bfb241a3e34"
+      "WIX_SITE_ID": "sha256:e86fbb159ac6"
     },
     "wecare-pstn-softphone": {
       "PLIVO_API_SECRET_ID": "wecare/plivo/api",
@@ -381,11 +381,11 @@
       "LOG_LEVEL": "INFO",
       "SEO_TOOLS_TABLE": "stack-wecare-digital-SeoToolsTable",
       "WEBHOOK_DEDUP_TABLE": "stack-wecare-digital-WebhookDedup",
-      "WIX_ACCOUNT_ID": "sha256:9139bb2fe801",
+      "WIX_ACCOUNT_ID": "sha256:19b6772e0eba",
       "WIX_BLOG_AUTHOR_NAME": "Anew by WECARE.DIGITAL",
-      "WIX_CLIENT_ID": "sha256:a85b79091ed2",
+      "WIX_CLIENT_ID": "sha256:0574aa89fc37",
       "WIX_CREDENTIALS_DISABLED": "true",
-      "WIX_SITE_ID": "sha256:0bfb241a3e34"
+      "WIX_SITE_ID": "sha256:e86fbb159ac6"
     },
     "wecare-service-api": {
       "DOCS_S3_BUCKET": "wecare-digital-get",
@@ -527,14 +527,14 @@
       "ADMIN_MFA_REQUIRED": "true",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "LOG_LEVEL": "INFO",
-      "WIX_ACCOUNT_ID": "sha256:9139bb2fe801",
+      "WIX_ACCOUNT_ID": "sha256:19b6772e0eba",
       "WIX_API_BASE_URL": "https://www.wixapis.com",
       "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
       "WIX_CART_V2_ENABLED": "true",
       "WIX_ORDERS_CACHE_TABLE": "stack-wecare-digital-WixOrdersCache",
       "WIX_ORDER_IDS_TABLE": "stack-wecare-digital-WixOrderIds",
       "WIX_PRODUCTS_CACHE_TABLE": "stack-wecare-digital-WixProductsCache",
-      "WIX_SITE_ID": "sha256:0bfb241a3e34"
+      "WIX_SITE_ID": "sha256:e86fbb159ac6"
     }
   }
 }

@@ -39,9 +39,9 @@ export function addSeoResources ( stack: Stack ) {
             LOG_LEVEL: 'INFO',
             SEO_TOOLS_TABLE: SEO_TOOLS_TABLE_NAME,
             WEBHOOK_DEDUP_TABLE: 'stack-wecare-digital-WebhookDedup',
-            WIX_SITE_ID: 'fcd82f0c-9572-49c7-acfb-88fb05042ece',
-            WIX_ACCOUNT_ID: '15f02319-40ff-4288-b8e6-69c791adae5e',
-            WIX_CLIENT_ID: '197cd718-e4ec-4e2e-b380-46c297eb18a2',
+            WIX_SITE_ID: 'c993128b-26be-41cd-9fcd-904abe23462f',
+            WIX_ACCOUNT_ID: '478bf907-96cc-4cab-9220-bb96f1d35cbb',
+            WIX_CLIENT_ID: '42b3cdbf-d90e-4138-a06c-ddda4fb8da01',
             WIX_BLOG_AUTHOR_NAME: 'Anew by WECARE.DIGITAL',
             BEDROCK_MODEL_ID: process.env.BEDROCK_MODEL_ID || 'global.anthropic.claude-sonnet-4-6',
             // Derived-SEO cost/AI posture. FREE + AI off is the fail-safe default the brief

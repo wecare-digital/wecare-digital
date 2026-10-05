@@ -1,0 +1,100 @@
+{
+  "captured_at": "2026-10-05T04:28:34Z",
+  "why": "Pre-change snapshot for the full Wix site migration. The owner moved to a new Wix site, account and headless app, so WIX_SITE_ID / WIX_ACCOUNT_ID / WIX_CLIENT_ID had to be repointed on every live function that carries them. Captured before any UpdateFunctionConfiguration so a rollback can restore the exact prior map rather than a remembered one.",
+  "account": "775261844268",
+  "region": "us-east-1",
+  "old_to_new": {
+    "WIX_SITE_ID": {
+      "old": "fcd82f0c-9572-49c7-acfb-88fb05042ece",
+      "new": "c993128b-26be-41cd-9fcd-904abe23462f"
+    },
+    "WIX_ACCOUNT_ID": {
+      "old": "15f02319-40ff-4288-b8e6-69c791adae5e",
+      "new": "478bf907-96cc-4cab-9220-bb96f1d35cbb"
+    },
+    "WIX_CLIENT_ID": {
+      "old": "197cd718-e4ec-4e2e-b380-46c297eb18a2",
+      "new": "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
+    }
+  },
+  "note_on_contents": "Values below are resource names, feature flags and non-secret identifiers only. No credential value appears here; WIX_API_KEY_SECRET and RAZORPAY_SECRET_ID are Secrets Manager NAMES, not values.",
+  "functions": {
+    "wecare-checkout": {
+      "live_alias_version_before": "20",
+      "revision_id_before": "7be06573-5fdb-4fa5-9708-a5b6cbe99749",
+      "environment_variables_before": {
+        "CHECKOUT_INITIATION_ENABLED": "true",
+        "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
+        "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
+        "CONTRIBUTION_PRODUCT_ID": "af326b8c-f373-45ea-ad0d-b7a38b8ce0cc",
+        "EXPECTED_CONFIGURATION_NAME": "2094615664435155",
+        "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
+        "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
+        "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
+        "PAYMENT_WABA_ID": "2094615664435155",
+        "RAZORPAY_SECRET_ID": "wecare/razorpay/api",
+        "SECRETS_REFRESHED_AT": "2026-10-04T13:43:41Z",
+        "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
+        "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
+        "WIX_CART_V2_ENABLED": "true",
+        "WIX_SITE_ID": "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+      }
+    },
+    "wecare-seo-tools": {
+      "live_alias_version_before": "NO_LIVE_ALIAS",
+      "revision_id_before": "cf65c55e-3409-4b16-807e-a19ca036a5c1",
+      "environment_variables_before": {
+        "ADMIN_MFA_REQUIRED": "true",
+        "AI_ENABLED": "false",
+        "BEDROCK_MODEL_ID": "global.anthropic.claude-sonnet-4-6",
+        "BLOG_INGEST_QUEUE_NAME": "wecare-blog-ingest",
+        "BLOG_INGEST_QUEUE_URL": "https://sqs.us-east-1.amazonaws.com/775261844268/wecare-blog-ingest",
+        "BLOG_SOURCE_BUCKET": "wecare-digital-get",
+        "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
+        "COST_MODE": "FREE",
+        "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z",
+        "ENABLE_BEDROCK_ASSIST": "true",
+        "FAQ_AI_GENERATION": "false",
+        "LOG_LEVEL": "INFO",
+        "SEO_TOOLS_TABLE": "stack-wecare-digital-SeoToolsTable",
+        "WEBHOOK_DEDUP_TABLE": "stack-wecare-digital-WebhookDedup",
+        "WIX_ACCOUNT_ID": "15f02319-40ff-4288-b8e6-69c791adae5e",
+        "WIX_BLOG_AUTHOR_NAME": "Anew by WECARE.DIGITAL",
+        "WIX_CLIENT_ID": "197cd718-e4ec-4e2e-b380-46c297eb18a2",
+        "WIX_CREDENTIALS_DISABLED": "true",
+        "WIX_SITE_ID": "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+      }
+    },
+    "wecare-product-image-gen": {
+      "live_alias_version_before": "27",
+      "revision_id_before": "cf5decb8-24d2-4e5b-b005-5b8e6751146d",
+      "environment_variables_before": {
+        "CREDENTIAL_PURGE_EPOCH": "2026-09-23T03:05:00Z",
+        "WIX_ACCOUNT_ID": "15f02319-40ff-4288-b8e6-69c791adae5e",
+        "WIX_CREDENTIALS_DISABLED": "true",
+        "WIX_SITE_ID": "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+      }
+    },
+    "wecare-wix-store": {
+      "live_alias_version_before": "35",
+      "revision_id_before": "01f4a806-2c6e-4e3d-ba94-b2a2c604ee95",
+      "environment_variables_before": {
+        "ADMIN_MFA_REQUIRED": "true",
+        "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
+        "LOG_LEVEL": "INFO",
+        "WIX_ACCOUNT_ID": "15f02319-40ff-4288-b8e6-69c791adae5e",
+        "WIX_API_BASE_URL": "https://www.wixapis.com",
+        "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
+        "WIX_CART_V2_ENABLED": "true",
+        "WIX_ORDERS_CACHE_TABLE": "stack-wecare-digital-WixOrdersCache",
+        "WIX_ORDER_IDS_TABLE": "stack-wecare-digital-WixOrderIds",
+        "WIX_PRODUCTS_CACHE_TABLE": "stack-wecare-digital-WixProductsCache",
+        "WIX_SITE_ID": "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+      }
+    }
+  },
+  "not_changed": {
+    "wecare-whatsapp-business-api": "carries WIX_SITE_URL / WIX_ORDERS_CACHE_TABLE / WIX_ORDER_IDS_TABLE only - no site, account or client id, so it was left alone."
+  },
+  "rollback": "For each function: GetFunctionConfiguration, replace the WIX_* keys above with the 'before' values, UpdateFunctionConfiguration with the FULL variable map, then publish a version and move the 'live' alias back (wecare-seo-tools has no live alias, so $LATEST is production for it)."
+}

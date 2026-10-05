@@ -25,7 +25,7 @@
  */
 
 /** Wix account that owns the site and the API key. */
-export const WIX_ACCOUNT_ID = '15f02319-40ff-4288-b8e6-69c791adae5e';
+export const WIX_ACCOUNT_ID = '478bf907-96cc-4cab-9220-bb96f1d35cbb';
 
 /**
  * The only Wix site this repo talks to.
@@ -33,7 +33,7 @@ export const WIX_ACCOUNT_ID = '15f02319-40ff-4288-b8e6-69c791adae5e';
  * Retired Wix Editor site identifiers are intentionally not retained here. Keeping a
  * superseded ID beside the live one makes accidental reuse more likely.
  */
-export const WIX_SITE_ID = 'fcd82f0c-9572-49c7-acfb-88fb05042ece';
+export const WIX_SITE_ID = 'c993128b-26be-41cd-9fcd-904abe23462f';
 
 /**
  * OAuth app / client id for Wix Headless visitor sessions.
@@ -42,13 +42,13 @@ export const WIX_SITE_ID = 'fcd82f0c-9572-49c7-acfb-88fb05042ece';
  * bundle - it is what identifies the app when minting a visitor token. It is not the API
  * key and confers no admin access.
  */
-export const WIX_CLIENT_ID = '197cd718-e4ec-4e2e-b380-46c297eb18a2';
+export const WIX_CLIENT_ID = '42b3cdbf-d90e-4138-a06c-ddda4fb8da01';
 
 /**
  * The application identity the API key acts as, from the key's own payload. Recorded for
  * audit - useful when reading Wix activity logs - and not used to authenticate.
  */
-export const WIX_APP_ID = '35d5f45b-ccc3-433b-886e-ca73a9379935';
+export const WIX_APP_ID = '5d23ddbd-72f9-4fc9-9b92-95d77f09655d';
 
 /** Base URL for every Wix REST call. */
 export const WIX_API_BASE = 'https://www.wixapis.com';

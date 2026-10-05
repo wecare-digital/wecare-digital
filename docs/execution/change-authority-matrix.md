@@ -1,5 +1,51 @@
 # Change authority matrix
 
+## 2026-10-05 Full Wix site migration: old site/account/app ids repointed to the new ones
+- Scope: the owner moved to a NEW Wix site, account and headless app. Three identifiers
+  changed together — site `fcd82f0c-…` -> `c993128b-…`, account `15f02319-…` ->
+  `478bf907-…`, OAuth client/app `197cd718-…` -> `42b3cdbf-…`. The retired WECARE.DIGITAL
+  app `6cbf8eaf-…` appears only in a test and was left there by design.
+- A0_READ: enumerated every occurrence of the four old ids across the tree, and read the
+  live environment of all 73 Lambda functions to find which ones actually carry a WIX id
+  (4 do; `wecare-whatsapp-business-api` carries only WIX_SITE_URL and two table names, so
+  it was left alone).
+- A1_LOCAL: 18 files repointed — `src/config/wix.ts`,
+  `amplify/functions/shared/lambda_utils/ecommerce/wix_writeback.py` (the
+  `CONFIRMED_SITE_ID` safety guard), `lambda_utils/wix_ecom.py`, `amplify/infra/checkout.json`,
+  `amplify/seo-resources.ts`, `product-image-gen/resource.ts`, `operations/seo-tools/wix.py`,
+  `config/lambda-env-manifest.json`, five `scripts/*.py`, two GitHub workflows,
+  `.env.local.example` and the dashboard display row. `WRITE_CONTRACT` unchanged. The
+  manifest's three stale sha256 fingerprints were recomputed from the new ids rather than
+  regenerated, so no `get-secret-value` was needed.
+- A3_PRODUCTION: read-modify-write of the FULL `Environment.Variables` map on four
+  functions, variable counts preserved (15/19/4/11 before and after), with `RevisionId`
+  passed so a concurrent edit would have been refused rather than overwritten. Published
+  and moved `live`: `wecare-checkout` 20 -> **21**, `wecare-product-image-gen` 27 -> **28**,
+  `wecare-wix-store` 35 -> **36**. `wecare-seo-tools` has no `live` alias and invokes
+  `$LATEST`, so its change was already live. Pre-change state in
+  `docs/execution/snapshots/lambda-env-wix-before-site-migration-20261005.json`.
+- Evidence: `GetFunctionConfiguration` on `:live` for all four reports the NEW site,
+  account and client ids, zero old ids, `State=Active`,
+  `LastUpdateStatus=Successful`. `npx tsc --noEmit` clean on the changed TS;
+  `npm run build` SUCCEEDS (1411-URL sitemap emitted); pytest **7811 passed / 5 failed**,
+  the 5 pre-existing and unrelated (one FAQ `ctaPath` /shop row owned by another
+  workstream, four live-header-probe rows). Grep proves zero old ids remain outside
+  tests, docs, `.kiro`, `.agents`, `migration/`, `.scratch` and `__pycache__`.
+- Rollback: `aws lambda update-alias --function-name <fn> --name live --function-version
+  20 / 27 / 35`, plus the env maps in the snapshot above. Code is byte-identical in those
+  versions; only configuration moved.
+- Refusals and open risks: no secret touched (`wecare/wix/headless-api-key`,
+  `wecare/wix/app-oauth` and `wecare/wix/catalog-webhook` were the orchestrator's);
+  no payment, capture, refund or payment-configuration mutation; no flag enabled. TWO
+  DATA RISKS CARRIED FORWARD RATHER THAN FIXED: `src/content/wix-catalog.json` holds nine
+  product/variant ids fetched from the OLD site on 2026-10-04, and
+  `wecare-checkout`'s `CONTRIBUTION_PRODUCT_ID=af326b8c-…` is one of them — both must be
+  re-derived against the new site before checkout is exercised. Also,
+  `wecare-checkout`'s deployed code still carries the OLD `CONFIRMED_SITE_ID`, so Wix
+  write-back cannot enable until that function is code-deployed; harmless today because
+  `WIX_WRITEBACK_ENABLED`, `WIX_ECOM_WRITE_CONFIRMED` and
+  `WIX_CART_V2_WRITE_CONTRACT` are all absent from its environment.
+
 ## 2026-10-04 Phase 2 contribution-as-cart-product merge and deploy
 - A0_READ: re-fetched origin/stack (branch was 49 behind with all work uncommitted),
   read the pass-4 APPROVED review and plan section F, measured which functions consume

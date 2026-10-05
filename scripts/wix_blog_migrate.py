@@ -25,10 +25,10 @@ import boto3
 
 WIX_API = "https://www.wixapis.com"
 WIX_ACCOUNT_ID = os.environ.get(
-    "WIX_ACCOUNT_ID", "15f02319-40ff-4288-b8e6-69c791adae5e"
+    "WIX_ACCOUNT_ID", "478bf907-96cc-4cab-9220-bb96f1d35cbb"
 )
 TARGET_SITE_ID = os.environ.get(
-    "WIX_SITE_ID", "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+    "WIX_SITE_ID", "c993128b-26be-41cd-9fcd-904abe23462f"
 )
 # The retired Wix Editor source is no longer addressable by this repository.
 # Export and apply operate only against the current Headless site.

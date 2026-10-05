@@ -69,7 +69,7 @@ jobs:
     env:
       AWS_REGION: us-east-1
       WIX_API_KEY_SECRET: wecare/wix/headless-api-key
-      WIX_SITE_ID: fcd82f0c-9572-49c7-acfb-88fb05042ece
+      WIX_SITE_ID: c993128b-26be-41cd-9fcd-904abe23462f
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7

@@ -137,7 +137,7 @@ CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 #: `finalization.accept_paid` is what writes it. Granted GetItem/PutItem/UpdateItem and
 #: explicitly NOT DeleteItem or Scan: an order record is evidence that money moved.
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
-WIX_SITE_ID = "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
 PAYMENT_WABA_ID = "2094615664435155"
 

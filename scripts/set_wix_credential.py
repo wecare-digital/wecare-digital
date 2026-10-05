@@ -76,9 +76,9 @@ WIX_TOKEN_URL = "https://www.wixapis.com/oauth2/token"
 # Non-secret identifiers. Safe to hold in source: they name resources, they do not
 # grant access to them. Confirmed against the live function config on 2026-09-23,
 # where WIX_ACCOUNT_ID and WIX_SITE_ID already carried exactly these values.
-WIX_ACCOUNT_ID = "15f02319-40ff-4288-b8e6-69c791adae5e"
-WIX_SITE_ID = "fcd82f0c-9572-49c7-acfb-88fb05042ece"
-WIX_CLIENT_ID = "197cd718-e4ec-4e2e-b380-46c297eb18a2"
+WIX_ACCOUNT_ID = "478bf907-96cc-4cab-9220-bb96f1d35cbb"
+WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
+WIX_CLIENT_ID = "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
 WIX_CLIENT_NAME = "apiwx"
 
 WIX_API_BASE = "https://www.wixapis.com"

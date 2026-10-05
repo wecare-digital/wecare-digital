@@ -397,7 +397,7 @@ const ENV_VARS: EnvVar[] = [
   { key: 'Razorpay UPI VPA (env RAZORPAY_UPI_ID)', value: 'wecaredigitalbh511413.rzp@rxairtel', sensitive: false, category: 'Payments — Identifier', risk: 'Non-secret UPI payee address (public in deep links/QR)' },
   { key: 'Airtel API Key (in comment)', value: '(visible in c2c/handler.py comment)', sensitive: true, category: 'Voice — Hardcoded', risk: 'CRITICAL: Airtel HMAC key in code comment' },
   { key: 'Airtel App ID (hardcoded)', value: '(in c2c handler + data schema)', sensitive: true, category: 'Voice — Hardcoded', risk: 'Airtel App ID in multiple files' },
-  { key: 'WIX_ACCOUNT_ID (current Headless account)', value: '15f02319-40ff-4288-b8e6-69c791adae5e', sensitive: false, category: 'Ecommerce — Identifier', risk: 'Current non-secret Wix Headless account identifier' },
+  { key: 'WIX_ACCOUNT_ID (current Headless account)', value: '478bf907-96cc-4cab-9220-bb96f1d35cbb', sensitive: false, category: 'Ecommerce — Identifier', risk: 'Current non-secret Wix Headless account identifier' },
   // Secrets Manager entries (server-side, properly stored)
   { key: 'wecare/meta-system-user-token', value: '(Secrets Manager — 7 keys)', sensitive: true, category: 'Secrets Manager ✓' },
   { key: 'wecare/flow-private-key', value: '(Secrets Manager — 1 key)', sensitive: true, category: 'Secrets Manager ✓' },

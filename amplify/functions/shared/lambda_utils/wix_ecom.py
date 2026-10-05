@@ -40,7 +40,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, List, Optional
 
 WIX_API_BASE = os.environ.get("WIX_API_BASE", "https://www.wixapis.com")
-WIX_SITE_ID = os.environ.get("WIX_SITE_ID", "fcd82f0c-9572-49c7-acfb-88fb05042ece")
+WIX_SITE_ID = os.environ.get("WIX_SITE_ID", "c993128b-26be-41cd-9fcd-904abe23462f")
 WIX_API_KEY_SECRET = os.environ.get("WIX_API_KEY_SECRET", "wecare/wix/headless-api-key")
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 

@@ -79,7 +79,7 @@ MARK_CART_COMPLETED = ("POST", "/ecom/v2/carts/{cartId}/mark-as-completed")
 
 #: The ONLY endpoints reachable from this module. Enumerated so R7.4's test can assert the set.
 ALLOWED_ENDPOINTS = frozenset({CREATE_ORDER, ADD_PAYMENT, MARK_CART_COMPLETED})
-CONFIRMED_SITE_ID = "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+CONFIRMED_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
 WRITE_CONTRACT = "cart-v2-external-v1"
 
 #: Substrings that identify a charging/collecting endpoint. A call whose path contains any of

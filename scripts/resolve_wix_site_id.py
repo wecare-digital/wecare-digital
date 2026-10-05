@@ -10,7 +10,12 @@ mistake: the order exists, the customer has paid, and it is invisible in the das
 is looking at.
 
     c17b0e20-d96d-4fa1-b05c-bc97c04b4ac5   named "WECARE.DIGITAL", published=false
-    fcd82f0c-9572-49c7-acfb-88fb05042ece   the committed WIX_SITE_ID
+    c993128b-26be-41cd-9fcd-904abe23462f   the committed WIX_SITE_ID
+
+The committed id changed on 2026-10-03: the owner migrated to a new Wix site, account and
+headless client, so `COMMITTED_SITE_ID` and `CLIENT_ID` below are the NEW identities and the
+previously-committed site id is retired. Retired ids are deliberately not retained here --
+keeping a superseded id beside the live one is how one gets reused by accident.
 
 Meanwhile the docs disagreed with each other: `docs/compatibility.md` called it
 "single site, no ambiguity ✅" while `docs/current-environment.md` still carried
@@ -48,9 +53,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-COMMITTED_SITE_ID = "fcd82f0c-9572-49c7-acfb-88fb05042ece"
+COMMITTED_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
 LEGACY_SITE_ID = "c17b0e20-d96d-4fa1-b05c-bc97c04b4ac5"
-CLIENT_ID = "197cd718-e4ec-4e2e-b380-46c297eb18a2"
+CLIENT_ID = "42b3cdbf-d90e-4138-a06c-ddda4fb8da01"
 
 TOKEN_URL = "https://www.wixapis.com/oauth2/token"
 #: **V3, not V1.** The site runs Catalog V3 - `probe_wix_capabilities.py` establishes this from
