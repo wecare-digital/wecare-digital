@@ -97,7 +97,7 @@
     "wecare-catalog-management": {},
     "wecare-checkout": {
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
-      "CONTRIBUTION_PRODUCT_ID": "",
+      "CONTRIBUTION_PRODUCT_ID": "8514c405-3971-4786-ad0d-15406ca23407",
       "EXPECTED_CONFIGURATION_NAME": "",
       "EXPECTED_PROVIDER_MID": "",
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
