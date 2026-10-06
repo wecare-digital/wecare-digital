@@ -1,8 +1,8 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-05T15:04:40.911Z",
-  "productCount": 21,
+  "fetchedAt": "2026-10-06T04:43:35.265Z",
+  "productCount": 22,
   "products": [
     {
       "id": "121c9d57-2cc9-490b-8eed-66bf7b9c172a",
@@ -829,7 +829,54 @@
           "inStock": true
         }
       ]
+    },
+    {
+      "id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "name": "WECARE.DIGITAL Services",
+      "slug": "wecaredigital-services",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "49.00",
+      "priceMax": "350.00",
+      "currency": "INR",
+      "formattedPrice": "₹49.00",
+      "compareAtPrice": null,
+      "inStock": false,
+      "descriptionHtml": "<p>Select the WECARE.DIGITAL service you need.</p><p><span style=\"font-weight: 700\">Submit Request</span> — Customer pays ₹99, verifies via WhatsApp OTP, and receives a request/order ID.</p><p><span style=\"font-weight: 700\">Request Amendment</span> — Same ₹99 flow; amendments are trackable in the orders page under the profile.</p><p><span style=\"font-weight: 700\">Drop Docs</span> — Upload a document and verify using order ID + WhatsApp OTP.</p><p><span style=\"font-weight: 700\">Vault</span> — Download a document and verify using order ID + WhatsApp OTP; CRM contact may be updated when required.</p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 1,
+      "modifierCount": 0,
+      "variantCount": 4,
+      "mediaCount": 0,
+      "infoSectionCount": 0,
+      "productUrl": "https://wecare.digital/shop/wecaredigital-services/",
+      "variants": [
+        {
+          "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
+          "label": "Request Amendment",
+          "inStock": false
+        },
+        {
+          "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
+          "label": "Drop Docs",
+          "inStock": false
+        },
+        {
+          "id": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
+          "label": "Vault",
+          "inStock": false
+        },
+        {
+          "id": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+          "label": "Submit Request",
+          "inStock": false
+        }
+      ]
     }
   ],
-  "variantVerifiedAt": "2026-10-05T15:04:40.903Z"
+  "variantVerifiedAt": "2026-10-06T04:43:35.257Z"
 }
