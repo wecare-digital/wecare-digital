@@ -393,8 +393,17 @@ def test_google_rejects_wrong_runtime_client_before_token_exchange(module, memor
 
 def test_old_business_app_token_is_not_used_for_meta_mcp(module, memory, monkeypatch):
     module.POLICY['connections']['whatsapp']['registrationEndpoint'] = 'https://mcp.facebook.com/.well-known/register/whatsapp_business_tools'
-    module.save_tokens('owner', 'whatsapp', {'access_token': 'fixture-graph', 'expires_in': 3600})
     monkeypatch.setattr(module, 'http', lambda *a, **kw: pytest.fail('must not forward an ordinary Graph token'))
+    # Two independent bindings refuse an ordinary Graph token, and the clientMode one
+    # comes first. A token carrying no client id at all predates the static-client
+    # model, so it is rejected before the registration check is ever consulted.
+    module.save_tokens('owner', 'whatsapp', {'access_token': 'fixture-graph', 'expires_in': 3600})
+    with pytest.raises(module.Refusal, match='Reconnect Meta'):
+        module.provider_call('owner', 'whatsapp', 'whatsapp_biz_businesses', {'action': 'list'})
+    # Being bound to the configured app is necessary but not sufficient: without an
+    # approved MCP client registration the token is still not an MCP credential.
+    module.save_tokens('owner', 'whatsapp', {'access_token': 'fixture-graph', 'expires_in': 3600,
+        '_oauth_client_id': module.POLICY['connections']['whatsapp']['clientId']})
     with pytest.raises(module.Refusal, match='Prior business-app authorization'):
         module.provider_call('owner', 'whatsapp', 'whatsapp_biz_businesses', {'action': 'list'})
 
@@ -562,7 +571,11 @@ def test_missing_cloud_config_has_safe_error(module, monkeypatch):
 def test_refresh_rereads_after_acquiring_lease(module, memory, monkeypatch):
     owner = "a" * 64
     key = "connection:" + owner + ":whatsapp"
-    memory.rows[key] = {"expiresAt": 1, "cipher": json.dumps({"access_token": "fixture-old", "refresh_token": "fixture-refresh"}).encode()}
+    # The stored credential is bound to the configured static client, as a real one
+    # authorized through oauth_callback is, so the clientMode check lets it through
+    # and the refresh-lease behaviour under test is actually reached.
+    client = module.POLICY["connections"]["whatsapp"]["clientId"]
+    memory.rows[key] = {"expiresAt": 1, "cipher": json.dumps({"access_token": "fixture-old", "refresh_token": "fixture-refresh", "_oauth_client_id": client}).encode()}
     updates = []
     def update(**kwargs):
         updates.append(kwargs)
@@ -570,7 +583,7 @@ def test_refresh_rereads_after_acquiring_lease(module, memory, monkeypatch):
             # A preceding refresher completed between this reader's first read
             # and successful acquisition of its own lease.
             memory.rows[key] = {"expiresAt": int(time.time()) + 3600,
-                "cipher": json.dumps({"access_token": "fixture-new", "refresh_token": "fixture-refresh-new"}).encode()}
+                "cipher": json.dumps({"access_token": "fixture-new", "refresh_token": "fixture-refresh-new", "_oauth_client_id": client}).encode()}
     memory.update_item = update
     monkeypatch.setattr(module, "http", lambda *a, **kw: pytest.fail("already refreshed credential must not be refreshed again"))
     assert module.token(owner, "whatsapp") == "fixture-new"

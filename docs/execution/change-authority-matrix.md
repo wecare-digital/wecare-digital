@@ -1712,3 +1712,179 @@ React component test. Left to its owning session per the parallel-sessions rule.
 `batch-get-secret-value`; no Meta OAuth completed and no Meta Graph or OAuth call made with
 a token; no credential rotated; no provider mutation; no flag enabled; no other function,
 route, table, IAM policy or alarm touched.**
+
+## 2026-10-06 — Drop the invalid Meta devtools OAuth scope and pin `existing-meta-app` client binding
+
+Owner-authorized deploy of an already-committed config change. Two separate effects, and
+they should not be conflated:
+
+1. **`meta-social.scopes` loses `developer_tools_mcp_app_read`**, leaving
+   `["business_management"]`. That permission is **not grantable as a raw OAuth scope** —
+   Meta rejects the dialog outright with `Invalid Scopes` — it is only obtainable through a
+   Facebook Login for Business configuration, the way `meta-ads` uses `loginConfigId`. With
+   `loginConfigId` empty the handler emits `scope=` (`handler.py:296-299`), so the dialog
+   now requests `business_management` alone and is no longer malformed.
+2. **`clientMode: "existing-meta-app"` is added to `meta-social` and `whatsapp`**, matching
+   what `meta-ads` already carried. This is **not cosmetic**: it is read at
+   `handler.py:366-367` inside `token()`, the function that yields the access token for
+   *every* provider tool call, and it refuses any stored token whose `_oauth_client_id`
+   is not the configured `clientId`.
+
+Policy `version` bumped **5 → 6**.
+
+### The clientMode addition restores a check that was genuinely absent
+
+Verified rather than assumed. In the **deployed v8 policy (version 5)** both `meta-social`
+and `whatsapp` had *neither* `clientMode` *nor* `registrationEndpoint`, so `token()`
+performed **no client binding whatsoever** on them. `registrationEndpoint` — the dynamic
+client registration branch at `handler.py:368-371` — was removed from the config by
+`98589c67` on 2026-10-06 04:37 PDT, and nothing replaced it. History on
+`config/workspace-mcp.json`:
+
+| commit | registrationEndpoint lines | whatsapp clientMode |
+|---|---:|---|
+| `eda219a1` (2026-10-03) | 2 | absent |
+| `98589c67` (2026-10-06 04:37 PDT) | **0** | absent |
+| `aa722666` | 0 | absent |
+| `0854a564` | 0 | absent |
+| `a75bf96d` (this change) | 0 | **existing-meta-app** |
+
+**No handler code changed.** `handler.py`, `patch_policy.py` and `provider_adapters.py` are
+untouched; only the bundled policy decides which branch runs. The ZIP has 2202 members,
+identical to the v8 bundle.
+
+### CONSEQUENCE: one owner must re-consent WhatsApp once
+
+Stated plainly because it is user-visible and was explicitly accepted by the owner before
+this shipped. A read-only DynamoDB scan of `wecare-workspace-mcp` (keys and `expiresAt`
+only; `cipher` deliberately not projected and never decrypted) found:
+
+- **`meta-social` has no `connection:` row at all** for either owner, only
+  `pending:102df4cb...:meta-social`. Enabling the binding there invalidates nothing.
+- **`whatsapp` has two ACTIVE, unexpired connections.** Working back from `expiresAt` minus
+  Meta's ~60-day long-lived token lifetime, `connection:102df4cb...:whatsapp` was issued
+  within hours of the deploy (after the static-client v8 cutover) and should carry
+  `_oauth_client_id = 2238810740192680`, so it passes. `connection:7d97cec3...:whatsapp`
+  was issued **~2026-10-02, before `98589c67` removed dynamic client registration**, so its
+  `_oauth_client_id` is a Meta-issued DCR client id and **will not match**.
+
+That owner's WhatsApp MCP connection therefore starts refusing with
+`Reconnect Meta Ads with the configured Ads MCP app` until they run
+`connection_authorize{whatsapp}` once. **This is the intended outcome, not a regression** —
+the unbound state was the pre-existing defect. It could not be confirmed exactly because
+`_oauth_client_id` lives inside the KMS-encrypted `cipher`; decrypting it was deliberately
+not attempted.
+
+Follow-up, not done here: that refusal message is hardcoded `'Reconnect Meta Ads with the
+configured Ads MCP app'` and is now reachable for `meta-social` and `whatsapp`, so it names
+the wrong connection. Cosmetic only, and a handler change was out of scope for this run.
+
+### Change record
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A3_PRODUCTION` | `wecare-workspace-mcp` v9 published, `live` moved **8 → 9**; CloudFormation stack `wecare-workspace-mcp` `UPDATE_COMPLETE` at `2026-10-06T12:33:52Z` | Change set `workspace-mcp-286f7a94f179c12f3acadebb` reviewed before execution and contained **exactly 3 changes**: `Function` (Modify, `Replacement: False`), `Version` (`Replacement: True` / `RequiresRecreation: Always`, so a new version is published), `Alias` (Modify, `Replacement: False`). **No IAM, DynamoDB, KMS, API Gateway route, authorizer, log group or alarm change.** After execution: `GetAlias` reports `FunctionVersion 9`; v9 `State Active`, `LastUpdateStatus Successful`, `CodeSha256 KG96lPF5wS86yt67KysaSvbH29UGDgGnE2caLIwunxs=` which **matches `$LATEST`** and matches the built manifest. Deployed artifact `286f7a94f179c12f3acadebb2b2b1a4af6c7dbd5060e01a713671a2c8c2e9f1b.zip` re-downloaded from S3 after deploy, checksum re-derived to the same value, and confirmed to carry policy **version 6** with `meta-social.scopes == ["business_management"]`, `clientMode existing-meta-app` on both Meta MCP connections, `registrationEndpoint` absent and `clientId 2238810740192680`. One inert live probe of the alias (empty authorizer context) reports `ExecutedVersion 9`, `FunctionError null`, **401 `Administrative authentication required`** — proving the new bundle boots and the module-scope policy parse succeeded, without touching Meta | `aws lambda update-alias --function-name wecare-workspace-mcp --name live --function-version 8` — v8 `CodeSha256 3l5BQeibpt/sjJPwBwTnCUSHxohKW48ex8spLbx/q5k=`, captured live **before** publishing and **confirmed still retained after** the deploy. Durable path: re-create the change set with the captured `CodeKey` `workspace-mcp/releases/de5e4141e89ba6dfec8c93f00704e7094487c6884a5b8f1ec7cb292dbc7fab99.zip` + that `CodeSha256`, then `--execute`. Config revert if wanted: `git revert a75bf96d`. **Rolling back re-opens the WhatsApp binding gap** and does not un-refuse the DCR-era token |
+| `A1_LOCAL` | `config/workspace-mcp.json` (committed at `a75bf96d`, pushed); `tests/test_workspace_mcp.py`; this document; `.agents/tasks/workspace-mcp-scope-fix-20261006/{rollback,verification,report}.md` (gitignored) | `.venv/bin/python -m pytest tests -q` → **8086 passed, 5 failed, 5 skipped, 3 xfailed**. `tests/test_workspace_mcp.py` alone: **66 passed**, 0 failed. The 5 failures are pre-existing and listed below | `git revert` the test/doc commit; `git revert a75bf96d` for the config |
+
+### Read-only authorize proof, against the DEPLOYED artifact
+
+`.scratch/workspace-mcp/verify_authorize_branch.py` (gitignored scratch harness) loads
+`handler.py` with the policy extracted from **the ZIP downloaded back out of S3 after the
+deploy** — not from `config/`, and deliberately not through
+`tests/test_workspace_mcp.py`'s fixture, which overrides `clientId` to `fixture-client` and
+would pass whether or not the shipped config changed. It stubs `module.http` to **raise**,
+so any dynamic-registration attempt fails the run loudly. **18 assertions for
+`meta-social`, 17 for `whatsapp`, `ALL CHECKS PASSED`, exit 0**, including the four added
+for this change: no `developer_tools_mcp_app_read` anywhere in the URL, no
+`developer_tools_mcp_app_management` anywhere in the URL, no `developer_tools_*` permission
+in the scope string, and `meta-social`'s scope is **exactly** `business_management`. PKCE
+was recomputed independently: `code_challenge == BASE64URL(SHA256(stored verifier))` read
+back from the row the handler itself wrote.
+
+The emitted `meta-social` dialog, state and challenge redacted:
+
+```
+https://www.facebook.com/v26.0/dialog/oauth?response_type=code&client_id=2238810740192680
+  &redirect_uri=https%3A%2F%2Fwecare.digital%2Fapi%2Fworkspace%2Fmcp%2Foauth%2Fcallback
+  &state=<state>&code_challenge=<challenge>&code_challenge_method=S256
+  &scope=business_management&resource=https%3A%2F%2Fmcp.facebook.com%2Fdevtools
+```
+
+One honest caveat on a naive grep: `developer_tools_mcp_app_read` **does** still appear in
+the deployed `workspace-mcp.json` — inside the `_note` field, which is explanatory prose
+recording why the scope was removed. It is not in `scopes` and not in any emitted URL. A
+byte search of the artifact is therefore the wrong test; the scope string is the right one.
+
+### Test changes, and why they are not a weakening
+
+Two `tests/test_workspace_mcp.py` cases failed on the new binding. Both were fixture
+staleness, and the binding check was left fully intact:
+
+- `test_refresh_rereads_after_acquiring_lease` wrote a `connection:` row directly, so its
+  cipher had no `_oauth_client_id` and the new check refused before the refresh-lease logic
+  under test was ever reached. The fixture now carries the configured client id, as a real
+  token authorized through `oauth_callback` does (`handler.py:354`).
+- `test_old_business_app_token_is_not_used_for_meta_mcp` asserted the refusal *message*
+  `'Prior business-app authorization'` from the DCR branch. The earlier `clientMode` check
+  now fires first with a different message, so the test was pinning one spelling of a
+  property that still held. Rather than loosen the match and lose DCR coverage, the test now
+  asserts **both** layers in sequence: a token with no client id is refused by the
+  `clientMode` binding, and a token that *is* bound to the configured app but has no
+  approved MCP client registration is still refused by the registration check. Net +1
+  assertion pair, no coverage lost.
+
+### Pre-existing and left alone
+
+5 pytest failures, none of which reads the MCP policy, all owned by other workstreams:
+
+- `tests/test_checkout_faq_sources.py::test_public_faq_buttons_target_current_public_pages`
+- `tests/test_deployed_headers_target.py::test_the_assets_report_cannot_change_the_verdict`
+- `tests/test_deployed_headers_target.py::test_a_broken_assets_request_does_not_fail_the_gate`
+- `tests/test_deployed_headers_target.py::test_the_parser_agrees_with_pyyaml_exactly`
+- `tests/test_deployed_headers_target.py::test_whitespace_folding_differences_are_not_failures`
+
+### Shared-index note, per the parallel-sessions rule
+
+`config/workspace-mcp.json` was committed by **another session** as `a75bf96d` while this
+one was running its gates, and pushed. Audited rather than assumed: `git show --stat`
+reports **one file, 3 insertions, 1 deletion**, byte-identical to the diff this session had
+already reviewed, under an accurate subject. Nothing was swept, so there is nothing to
+repair — and a history rewrite is prohibited regardless. This session therefore committed
+only `tests/test_workspace_mcp.py` and this document, with `git commit --only`.
+
+### What "deployed" does NOT mean here, stated plainly
+
+**This does not mean the Meta MCP connection works.** What shipped is narrower: the dialog
+is no longer malformed. The `Invalid Scopes` rejection was caused by requesting a
+permission Meta does not accept as a raw scope, and that request is gone.
+
+Whether Meta then **admits the grant** is a separate, Meta-side gate. The prior read-only
+investigation (`.agents/tasks/workspace-mcp-meta-oauth-20261006/findings.md`) recorded that
+Meta also **refused this app's token as a bearer** at `mcp.facebook.com`, and that the MCP
+server offering is Beta and rolling out gradually with this app not admitted. So the
+expected effect is again to **move the failure later** — from a pre-login scope rejection to
+a post-login admission or bearer rejection. The owner must click **Authorize** at
+`https://wecare.digital/workspace/dashboard/mcp-connections/` and report Meta's response;
+no OAuth was completed and no Meta call with a token was made.
+
+Full devtools tool access additionally requires a Login for Business configuration on app
+`2238810740192680` carrying `developer_tools_mcp_app_read` /
+`developer_tools_mcp_app_management`, with its id placed in `meta-social.loginConfigId`.
+That configuration does not exist yet; the field ships empty on purpose rather than
+inventing an id.
+
+### Owner action required outside the agent's reach
+
+The **local** MCP client still requests the invalid permissions and must be brought into
+line, or it will keep failing where the cloud path now succeeds:
+
+> Remove `developer_tools_mcp_app_read` and `developer_tools_mcp_app_management` from
+> `.kiro/settings/mcp.json`.
+
+A deny rule blocks the agent from that file, so this is owner-only.
+
+**No secret read, placed on a command line, or logged; no `get-secret-value` /
+`batch-get-secret-value`; no Meta OAuth completed and no Meta Graph or OAuth call made with
+a token; no credential rotated; no provider mutation; no flag enabled; no payment, WABA,
+phone number or S3 bucket touched; no other function, route, table, IAM policy or alarm
+changed; `.kiro/settings/mcp.json` not edited.**
