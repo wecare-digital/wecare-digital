@@ -40,6 +40,7 @@ from lambda_utils import contact_key  # `id` is the physical key; `contactId` is
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 from lambda_utils import live_smoke  # the WA_LIVE_SMOKE_TEST lockdown applies to direct sends too
+from lambda_utils import thread_ownership  # Conversation Routing: derive ownership, never query it
 from botocore.exceptions import ClientError
 try:
     from lambda_utils import partner_billing  # per-tenant prepaid metering (optional)
@@ -861,6 +862,34 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         _store_system_event(_wh_field, value, request_id)
                     except Exception:
                         pass
+                    # Structured parse, NO decision taken from it. The ring buffer above
+                    # keeps only the last 10 events per type, which is an audit sample
+                    # rather than a trail — the ten real handovers from Jul-Aug 2026 are
+                    # all that survived of a period when routing was live on both WABAs.
+                    # A named log line is queryable and alarmable; a buffer is neither.
+                    #
+                    # `wa_id` is a phone number, so it is masked. `bsuid` is
+                    # business-scoped and is logged in full — that pairing is what makes
+                    # a routing event traceable without disclosing a customer's number.
+                    try:
+                        _ho = thread_ownership.parse_handover(value)
+                        logger.info(json.dumps({
+                            'event': 'thread_control_changed',
+                            'control': _ho['control'],
+                            'previousOwnerRole': _ho['previous_owner_role'],
+                            'newOwnerRole': _ho['new_owner_role'],
+                            'reason': _ho['reason'],
+                            'shape': _ho['shape'],
+                            'hasConversationContext': _ho['conversation_context'] is not None,
+                            'phoneNumberId': _ho['phone_number_id'],
+                            'bsuid': _ho['bsuid'],
+                            'waId': mask_phone(_ho['wa_id'] or ''),
+                            'requestId': request_id,
+                        }))
+                    except Exception as _hoe:
+                        logger.warning(json.dumps({
+                            'event': 'thread_control_parse_error',
+                            'error': type(_hoe).__name__, 'requestId': request_id}))
                     continue
                 if _wh_field == 'standby':
                     # AI holds control. In the handover payload the message + contacts are

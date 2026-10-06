@@ -580,7 +580,25 @@ META_MESSAGE_ERRORS = {
     131021: {'msg': 'Recipient cannot be sender', 'action': 'Cannot send message to yourself', 'retry': False},
     131037: {'msg': 'Display name approval needed', 'action': 'Approve display name before sending', 'retry': False},
     131050: {'msg': 'User stopped marketing messages', 'action': 'Do not retry — user opted out of marketing', 'retry': False},
+    # ── Conversation Routing ──
+    # Neither code appeared anywhere in this repo until now, so a routing refusal was
+    # indistinguishable from a generic send failure — which is how a silent dead end
+    # stays invisible for days. Both are ownership refusals, not transient faults:
+    # retrying cannot succeed, because the thing that is wrong is WHO is sending, not
+    # the request. Templates are unaffected by ownership and never produce these.
+    2494191: {'msg': 'Thread take not permitted — not the designated escalation partner',
+              'action': 'Conversation Routing: only the designated escalation partner may take a '
+                        'thread. Check the routing configuration in Meta Business Suite; do not retry.',
+              'retry': False},
+    138038: {'msg': 'Not the Call primary for this entry point',
+             'action': 'Conversation Routing: the Call entry point is mapped to another responder. '
+                       'Owner must remap it in Meta Business Suite; retrying will not help.',
+             'retry': False},
 }
+
+#: Codes that mean "you do not own this thread", as opposed to "this send was bad".
+#: Kept as a named set so the alarm filter and the table cannot drift apart.
+ROUTING_OWNERSHIP_ERRORS = (2494191, 138038)
 
 # Module-level origin for CORS (set per-invocation in handler)
 origin = ''
@@ -2255,6 +2273,20 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             'metaDetails': meta_details,
             'requestId': request_id,
         }))
+        # A distinct event name, emitted ALONGSIDE the generic one above rather than
+        # instead of it. An ownership refusal has a different remedy from every other
+        # send failure — it is fixed in the Meta Business Suite routing configuration,
+        # not in the payload — so it needs a metric filter that cannot be diluted by
+        # the general failure stream.
+        if meta_code in ROUTING_OWNERSHIP_ERRORS:
+            logger.error(json.dumps({
+                'event': 'routing_ownership_rejected',
+                'metaCode': meta_code,
+                'metaSubcode': error_subcode,
+                'fbtraceId': fbtrace_id,
+                'messageId': message_id,
+                'requestId': request_id,
+            }))
 
         _store_message_record(
             message_id=message_id,

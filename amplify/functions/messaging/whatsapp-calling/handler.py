@@ -81,7 +81,19 @@ META_CALLING_ERRORS = {
     138021: {'msg': 'Media receive timeout', 'action': 'Check media pipeline — no audio received from caller'},
     138022: {'msg': 'Media transmit timeout', 'action': 'Check media pipeline — no audio sent to caller'},
     138023: {'msg': 'Call accepted but no media signals', 'action': 'SDP answer may be invalid or media path broken'},
+    # ── Conversation Routing ──
+    # Only the Call primary may use the Calling API; every other responder gets 138038.
+    # If the owner maps the Call entry point to a different responder, every call
+    # action starts failing with a code this 19-entry table did not contain, so the
+    # failure would have read as a generic Meta error. Note the Call primary never
+    # becomes a thread owner, so this is the one routing concern calling has.
+    138038: {'msg': 'Not the Call primary — Conversation Routing',
+             'action': 'The Call entry point is mapped to another responder. Owner must remap it '
+                       'in Meta Business Suite; retrying will not help.'},
 }
+
+#: Routing refusals, named so the alarm filter and the table cannot drift apart.
+ROUTING_OWNERSHIP_ERRORS = (138038,)
 
 # Dual WABA token support
 WABA1_ID = '2094615664435155'
@@ -201,6 +213,16 @@ def _meta_api_call(endpoint: str, method: str = 'POST', payload: Dict = None, ph
             logger.error(f"Meta API error {e.code} — Code {error_code}: {meta_err['msg']} | Action: {meta_err['action']} | Detail: {error_msg}")
         else:
             logger.error(f"Meta API error {e.code}: {error_body}")
+        # Emitted in addition to the line above, never instead of it: a routing refusal
+        # is remedied in the Meta Business Suite rather than in the request, so it needs
+        # its own alarmable event name.
+        if error_code in ROUTING_OWNERSHIP_ERRORS:
+            logger.error(json.dumps({
+                'event': 'routing_ownership_rejected',
+                'metaCode': error_code,
+                'httpCode': e.code,
+                'surface': 'calling_api',
+            }))
         return {'error': True, 'status': e.code, 'detail': error_body, 'errorCode': error_code, 'errorMessage': error_msg}
     except Exception as e:
         logger.error(f"Meta API call failed: {e}")
@@ -607,6 +629,24 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                 # Forward all non-call webhook fields to inbound handler for processing
                 # The inbound handler has full logic for template status, account updates, etc.
                 _forward_to_inbound_handler(entry, waba_id, request_id)
+            elif field in ('standby', 'messaging_handovers'):
+                # ── Conversation Routing ──
+                # These two forwarded identically to the tuple above via the catch-all
+                # `else` below, so the ONLY change here is which log line is emitted.
+                # They kept landing in "Unhandled webhook field", which reads as a defect
+                # during triage and, worse, made this branch list the wrong answer to
+                # "do we receive routing webhooks?" — we do, and a named event is what
+                # lets a metric filter see one arrive. Routing is dormant (0 of either
+                # field in 30 days) but WAS live on both WABAs in Jul-Aug 2026, so the
+                # first arrival after an owner flips the console toggle is exactly the
+                # moment somebody needs to know.
+                logger.info(json.dumps({
+                    'event': 'conversation_routing_webhook',
+                    'field': field,
+                    'wabaId': waba_id,
+                    'requestId': request_id,
+                }))
+                _forward_to_inbound_handler(entry, waba_id, request_id)
             else:
                 logger.info(f"Unhandled webhook field: {field} — forwarding to inbound handler")
                 _forward_to_inbound_handler(entry, waba_id, request_id)
@@ -781,6 +821,14 @@ def _handle_call_event(waba_id: str, call: Dict, metadata: Dict, contacts: list,
             meta_err = META_CALLING_ERRORS[int(error_code)]
             logger.warning(f"Call {call_id} terminated with Meta error {error_code}: "
                            f"{meta_err['msg']} | Action: {meta_err['action']}")
+            if int(error_code) in ROUTING_OWNERSHIP_ERRORS:
+                logger.error(json.dumps({
+                    'event': 'routing_ownership_rejected',
+                    'metaCode': int(error_code),
+                    'callId': call_id,
+                    'surface': 'calling_terminate',
+                    'requestId': request_id,
+                }))
         _store_call_log({
             'callId': call_id,
             'wabaId': waba_id,

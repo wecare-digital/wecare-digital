@@ -1,5 +1,106 @@
 # Change authority matrix
 
+## 2026-10-06 Conversation Routing phase 1 — make a routing event visible before it matters
+
+- Scope: Phase 1 of `.agents/tasks/conversation-routing-20261006/plan.md` (design in
+  `findings.md`). **Nothing here changes behaviour.** C9, C2 (log-only), C7, and three
+  CloudWatch alarms. Conversation Routing is **dormant** — 0 `standby` and 0
+  `messaging_handovers` webhooks in the 30 days to 2026-10-06 — but it **was live on both
+  WABAs between 2026-07-21 and 2026-08-01**, driven by Meta Business Agent app
+  `1143680903703001`, and the only surviving record is a 10-deep DynamoDB ring buffer.
+  The thing that turns it back on is a console toggle by the owner, not a deploy by us.
+- A0_READ: `GetAlias` / `GetFunctionConfiguration` on all three functions (rollback
+  capture), `DescribeAlarms`. No `secretsmanager get-secret-value` in any spelling.
+- A1_LOCAL:
+  - `amplify/functions/messaging/whatsapp-calling/handler.py` — C9 + C7 (calling half).
+  - `amplify/functions/messaging/outbound-whatsapp/handler.py` — C7 (sender half).
+  - `amplify/functions/messaging/inbound-whatsapp-handler/handler.py` — C2 log-only.
+  - `amplify/functions/shared/lambda_utils/thread_ownership.py` — new, parser only.
+  - `tests/test_thread_ownership.py` (26 tests), `tests/test_routing_error_codes.py` (16).
+- **C9 — the ingress named both routing fields.** `whatsapp-calling/handler.py` gained an
+  `elif field in ('standby', 'messaging_handovers')` between the forwarded-fields tuple and
+  the catch-all `else`. Both fields **already forwarded** via that `else`, so delivery is
+  unchanged and nothing was added to or removed from the existing tuple; the only change is
+  that they emit `conversation_routing_webhook` instead of `Unhandled webhook field`. The
+  catch-all is still there and still forwards, asserted by a test — the named branch is not
+  allowed to become a filter.
+- **C2 (log-only) — `messaging_handovers` is now parsed.** The audit arm still calls
+  `_store_system_event` and still `continue`s; a `thread_control_changed` log was added
+  between them. **No ownership is derived and no decision is taken from it in this phase.**
+  The parse is wrapped in its own `try/except` logging `type(exc).__name__`, so a malformed
+  handover cannot change the arm's outcome. `wa_id` is masked (it is a phone number);
+  `bsuid` is logged in full (business-scoped, not a phone number) — that pairing is what
+  makes a routing event traceable without a disclosure.
+- **New `lambda_utils/thread_ownership.py`, parser only in this group.** Written from
+  Meta's documented `previous_owner_role` / `new_owner_role` shape and tolerating the two
+  legacy shapes actually found in the ring buffer: a bare JSON-**string** `metadata`
+  carrying a `reason`, and `previous_owner_app_id` / `previous_owner_app_role`. Records
+  which arm matched in `shape`, so retiring a legacy arm later is a measurement rather than
+  a guess. `conversation_context` defaults to `None` — the docs call it conditional and no
+  stored sample carries one. Parsing never raises.
+- **C7 — the two routing refusal codes are mapped and separately alarmable.** `2494191`
+  (thread take not permitted) and `138038` (not the Call primary) appeared **nowhere in this
+  repo** before, so a routing refusal surfaced as a generic send failure. Added to
+  `META_MESSAGE_ERRORS` with `retry: False` (a retry cannot succeed — the remedy is the
+  console) and `138038` to `META_CALLING_ERRORS`. A distinct `routing_ownership_rejected`
+  event is emitted **alongside** the existing `send_meta_error` / `Meta API error` lines,
+  never instead of them, at one outbound site and both calling consumers. Both tables are
+  lookup-only and both additions are new keys, so no existing path changed: these codes were
+  hitting the same `else` arm every other unmapped code still hits.
+- A3_PRODUCTION — three CloudWatch metric filters + alarms, additive, namespace
+  `WECARE.DIGITAL`, all routing to
+  `arn:aws:sns:us-east-1:775261844268:wecare-alarm-notifications` (1 confirmed subscription):
+  | alarm | filter pattern | log group(s) |
+  |---|---|---|
+  | `wecare-standby-webhook-received` | `"standby_webhook"` | `wecare-inbound-whatsapp` |
+  | `wecare-thread-control-changed` | `"thread_control_changed"` | `wecare-inbound-whatsapp` |
+  | `wecare-routing-ownership-rejected` | `"routing_ownership_rejected"` | `wecare-outbound-whatsapp`, `wecare-whatsapp-calling` |
+  `Threshold=0.0` / `GreaterThanThreshold` / `TreatMissingData=notBreaching`, because each
+  occurrence is individually actionable and no-data is the expected steady state today.
+  `"standby_webhook"` is a substring pattern and so also matches `standby_webhook_error` —
+  wanted, because that variant means standby traffic arrived *and* we could not parse it.
+  Evidence: `provision_conversation_routing_alarms.py` run twice (idempotent);
+  `describe-alarms` reports all three present with 1 alarm action each, state
+  `INSUFFICIENT_DATA` as expected immediately after creation.
+  Rollback: `aws cloudwatch delete-alarms` + `logs delete-metric-filter`. Nothing reads
+  these alarms, so deleting them cannot affect message delivery.
+- A3_PRODUCTION — `scripts/deploy_all_lambdas.py wecare-inbound-whatsapp
+  wecare-whatsapp-calling wecare-outbound-whatsapp`, `updated=3 unchanged=0 failed=0`:
+  | function | live before | live after | live sha == $LATEST |
+  |---|---|---|---|
+  | `wecare-inbound-whatsapp` | **v73** | **v74** | YES |
+  | `wecare-whatsapp-calling` | **v41** | **v42** | YES |
+  | `wecare-outbound-whatsapp` | **v48** | **v49** | YES |
+  Pre-deploy `$LATEST` CodeSha256, for a real rollback: inbound
+  `DsrOjGfaBiJomChiTUpU7AJUfw2agak90L3sIEVQPcg=`, calling
+  `9ARH11+DDGB70IBJJSnAvEUJzQXfUUZMKqgiKKWBKHE=`, outbound
+  `rH26HSDatv8GFptFCu5du0buj6udlj87vdPUSOJpBhk=`.
+  **Rollback is asymmetric and that belongs here, not in an incident.** For calling and
+  outbound, `aws lambda update-alias --name live --function-version <prev>` is a real
+  rollback. For **inbound it is not**: the ingress invokes `wecare-inbound-whatsapp`
+  **unqualified**, so `$LATEST` is production and inbound code was live the instant
+  `update-function-code` returned, before any alias move. A real inbound rollback is
+  `update-function-code` back to the sha above.
+  Outbound is in this deploy deliberately: it is not in the brief's two-function command,
+  but the HTTP API invokes `wecare-outbound-whatsapp:live`, so without it the sender half of
+  C7 never reaches production and `wecare-routing-ownership-rejected` could never fire on
+  the sender.
+- Gates: `.venv/bin/python -m pytest tests -q` → **5 failed, 8130 passed, 5 skipped,
+  3 xfailed**. The 5 are pre-existing and unrelated (`test_checkout_faq_sources`,
+  4 in `test_deployed_headers_target`), identical to the pre-change baseline of
+  **5 failed, 8086 passed** at `3bd88d53`. +44 tests, 0 new failures.
+- `python scripts/env_manifest.py` could **not** return an in-sync verdict: it refuses to
+  write because `wecare-seo-tools` holds a real credential value in `WIX_CLIENT_ID` /
+  `WIX_BLOG_CLIENT_ID`. **Pre-existing, on a function not touched here, and not caused by
+  this change.** The claim that actually matters was verified directly instead:
+  `STANDBY_REPLY_ENABLED` is **absent** from all three functions and from
+  `config/lambda-env-manifest.json`, so there is no env drift to report — the flag's default
+  lives in code (phase 3).
+- **No secret read, placed on a command line, or logged; no `get-secret-value` /
+  `batch-get-secret-value`; no credential rotated; no routing enabled (console-only and
+  owner-only); no flag enabled; no payment capture, refund or payment-configuration change;
+  no WABA, phone number, Cognito pool, IAM policy, table or route touched; no message sent.**
+
 ## 2026-10-06 Reply on the conversation's own WABA, and report the receipt Meta refused
 - Scope: two defects from `.agents/tasks/incoming-otp-both-waba-20261006/findings.md`, fixed
   per the plan in `fix-plan.md` §2. **Nothing here is an OTP fix.** That investigation
