@@ -6200,7 +6200,13 @@ export async function getThroughput ( phoneId: string ): Promise<ThroughputInfo>
 
 export interface DirectSendButton { type: 'reply' | 'url'; text: string; id?: string; url?: string; }
 
-export interface DirectSendResult { success: boolean; error?: string; directSendHint?: string; betaGated?: boolean; result?: any; }
+// `betaGated` and `restricted` are DIFFERENT conditions and must stay separate.
+// betaGated  = Graph code 100 whose error_data.details says the category requires
+//              Direct Send, i.e. this WABA is not onboarded yet.
+// restricted = 139200 / 131064, i.e. access existed and Meta enforcement blocked or
+//              capped it. Conflating the two is what made the not-onboarded case
+//              impossible to explain in the UI.
+export interface DirectSendResult { success: boolean; error?: string; directSendHint?: string; betaGated?: boolean; restricted?: boolean; result?: any; }
 
 export async function directSend (
   phoneId: string,
@@ -6213,26 +6219,14 @@ export async function directSend (
   if ( data?.error )
   {
     const msg = typeof data.error === 'string' ? data.error : ( data.error?.message || data.error?.error?.message || JSON.stringify( data.error ) );
-    return { success: false, error: msg, directSendHint: data.directSendHint, betaGated: data.betaGated };
+    return { success: false, error: msg, directSendHint: data.directSendHint, betaGated: data.betaGated, restricted: data.restricted };
   }
   return { success: true, result: data?.result };
 }
 
-export async function directSendUploadSample (
-  wabaId: string,
-  sample: { text?: string; sample?: any }
-): Promise<{ success: boolean; category?: string; error?: string; directSendHint?: string }> {
-  const data = await apiCall<any>( `${WA_BIZ_BASE}/direct-send/samples`, {
-    method: 'POST',
-    body: JSON.stringify( { wabaId, ...sample } ),
-  } );
-  if ( data?.error )
-  {
-    const msg = typeof data.error === 'string' ? data.error : ( data.error?.message || JSON.stringify( data.error ) );
-    return { success: false, error: msg, directSendHint: data.directSendHint };
-  }
-  return { success: true, category: data?.category };
-}
+// `directSendUploadSample` was removed on 2026-10-06. It POSTed to
+// /{waba_id}/message_samples, which appears in none of Meta's Direct Send
+// documentation and could not be corroborated. The backend route now answers 410.
 
 export interface GeneratedTemplate { name: string; status: string; category: string; correct_category?: string; source: string; language: string; }
 

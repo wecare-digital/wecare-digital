@@ -378,9 +378,10 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
     const [ sending, setSending ] = useState( false );
     const [ resultMsg, setResultMsg ] = useState<{ ok: boolean; text: string; hint?: string } | null>( null );
 
-    // Onboarding: sample upload + generated templates + MM Lite status
-    const [ sampleText, setSampleText ] = useState( '' );
-    const [ sampleBusy, setSampleBusy ] = useState( false );
+    // Onboarding: generated templates + MM Lite status.
+    // The sample-upload panel was removed on 2026-10-06 — /{waba_id}/message_samples
+    // is not a documented Meta endpoint. Meta performs Direct Send onboarding itself
+    // and adds the fallback templates; there is no self-serve sample upload.
     const [ gen, setGen ] = useState<api.GeneratedTemplate[]>( [] );
     const [ genBusy, setGenBusy ] = useState( false );
     const [ mm, setMm ] = useState<{ onboardingStatus: string; time: string } | null>( null );
@@ -396,17 +397,6 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
     }, [ wabaId ] );
     useEffect( () => { loadMm(); }, [ loadMm ] );
 
-    const uploadSample = async () => {
-        if ( !sampleText.trim() ) { toast.error( 'Enter a sample message' ); return; }
-        setSampleBusy( true );
-        try
-        {
-            const r = await api.directSendUploadSample( wabaId, { text: sampleText.trim() } );
-            if ( r.success ) toast.success( `Sample accepted · classified ${r.category || '—'}` );
-            else toast.error( r.directSendHint || r.error || 'Failed' );
-        } finally { setSampleBusy( false ); }
-    };
-
     const send = async () => {
         if ( !to ) { toast.error( 'Recipient phone required' ); return; }
         if ( !text ) { toast.error( 'Message body required' ); return; }
@@ -419,7 +409,16 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
                 ttlSeconds: ttl ? Number( ttl ) : undefined,
             } );
             if ( r.success ) { setResultMsg( { ok: true, text: 'Sent ✓' } ); toast.success( 'Direct Send accepted' ); }
-            else { setResultMsg( { ok: false, text: r.error || 'Failed', hint: r.directSendHint } ); toast.error( r.betaGated ? 'Direct Send not enabled for this WABA' : ( r.error || 'Failed' ) ); }
+            else
+            {
+                setResultMsg( { ok: false, text: r.error || 'Failed', hint: r.directSendHint } );
+                // Three distinct outcomes, because the fix differs for each: not
+                // onboarded is an eligibility request, restricted is an enforcement
+                // problem, anything else is a request defect.
+                if ( r.betaGated ) toast.error( 'Direct Send is not enabled for this WABA yet' );
+                else if ( r.restricted ) toast.error( 'Direct Send access is restricted or capped by Meta enforcement' );
+                else toast.error( r.error || 'Failed' );
+            }
         } catch ( e: any ) { setResultMsg( { ok: false, text: e.message } ); toast.error( e.message ); }
         finally { setSending( false ); }
     };
@@ -428,7 +427,7 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
         <div style={ card }>
             <h3 style={ { margin: 0 } }>Direct Send <span style={ { fontSize: 'var(--text-xs)', color: '#92400e', background: '#fef3c7', padding: '2px 8px', borderRadius: 6, marginLeft: 8 } }>BETA</span></h3>
             <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 6 } }>
-                Send a utility/authentication message without pre-creating a template — Meta auto-generates the template. Requires this WABA to be onboarded to the Direct Send beta by your Meta representative; until then sends return a beta-gate error (139200 / 131064).
+                Send a utility/authentication message without pre-creating a template — Meta auto-generates the template. Requires this WABA to be onboarded to Direct Send by Meta (check the eligibility banner in WhatsApp Manager). Until then a send returns Graph <b>code 100</b>, with <code>error_data.details</code> saying the category requires Direct Send and to use an approved template instead. Codes <b>139200 / 131064</b> mean something different: access was granted and has been <b>restricted or capped by enforcement</b>.
             </p>
             <label style={ label }>Recipient phone (digits or +E.164)</label>
             <input style={ input } placeholder="918100640044" value={ to } onChange={ e => setTo( e.target.value ) } />
@@ -441,7 +440,7 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
             <textarea style={ { ...input, minHeight: 80 } } maxLength={ 1024 } value={ text } onChange={ e => setText( e.target.value ) } />
             <label style={ { ...label, marginTop: 12 } }>Business template name (optional, utility only — lowercase a-z 0-9 _)</label>
             <input style={ input } placeholder="order_shipment_update" value={ templateName } onChange={ e => setTemplateName( e.target.value ) } />
-            <label style={ { ...label, marginTop: 12 } }>TTL seconds (optional, 30–43200)</label>
+            <label style={ { ...label, marginTop: 12 } }>TTL seconds (optional — utility 30–2592000, authentication 30–900)</label>
             <input style={ input } type="number" placeholder="3600" value={ ttl } onChange={ e => setTtl( e.target.value ) } />
             <div style={ { marginTop: 12 } }>
                 <Button variant="primary" onClick={ send } loading={ sending }>Send</Button>
@@ -452,18 +451,6 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
                     { resultMsg.hint && <p style={ { color: '#92400e', marginTop: 4 } }>{ resultMsg.hint }</p> }
                 </div>
             ) }
-
-            {/* Onboarding: sample upload */ }
-            <div style={ { marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' } }>
-                <h4 style={ { margin: 0 } }>Onboarding — upload sample</h4>
-                <p style={ { fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 } }>
-                    Upload 3–4 sample messages you plan to send so Meta classifies the use case (returns UTILITY / MARKETING / AUTHENTICATION) and auto-generates templates.
-                </p>
-                <textarea style={ { ...input, minHeight: 60 } } placeholder="e.g. Hi {{1}}, your order #{{2}} has shipped." value={ sampleText } onChange={ e => setSampleText( e.target.value ) } />
-                <div style={ { marginTop: 8 } }>
-                    <Button variant="secondary" size="sm" onClick={ uploadSample } loading={ sampleBusy }>Upload sample</Button>
-                </div>
-            </div>
 
             {/* Generated templates */ }
             <div style={ { marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border-light)' } }>
