@@ -701,8 +701,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
   } );
 } );
 
-describe( 'VayuLokLive v8 honest no-key degradation', () => {
-  it( 'does not inject Maps or issue environmental calls when no browser key exists', async () => {
+describe( 'VayuLokLive v8 no-key map fallback', () => {
+  it( 'shows the keyless map without injecting Maps JS or issuing environmental calls', async () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
     const fetchSpy = vi.fn();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -713,7 +713,12 @@ describe( 'VayuLokLive v8 honest no-key degradation', () => {
 
     expect( document.getElementById( 'gmaps-js' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-canvas' ) ).toBeNull();
+    const frame = container.querySelector( '.vl-live-map-embed' ) as HTMLIFrameElement | null;
+    expect( frame ).not.toBeNull();
+    expect( frame?.getAttribute( 'src' ) ).toContain( 'maps.google.com/maps?q=' );
     expect( fetchSpy ).not.toHaveBeenCalled();
-    expect( container.textContent ).toContain( 'Search India to see live weather and air.' );
+    expect( container.textContent ).not.toContain( 'Live air quality and weather' );
+    expect( container.textContent ).not.toContain( 'Selected place' );
+    expect( container.textContent ).not.toContain( 'Search India to see live weather and air.' );
   } );
 } );
