@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../../../components/Layout';
 import SEO from '../../../../../components/SEO';
+import { usePromptDialog } from '../../../../../contexts/ConfirmContext';
 import * as seoApi from '../../../../../api/seo';
 import type {
   BlogQaReport, BlogQaResponse, BlogSourceView,
@@ -54,6 +55,7 @@ const VERDICT_COLOUR: Record<string, string> = {
 
 const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
   const router = useRouter();
+  const prompt = usePromptDialog();
   const sourceId = typeof router.query.source === 'string' ? router.query.source : '';
   const batchId = typeof router.query.batch === 'string' ? router.query.batch : '';
 
@@ -164,7 +166,18 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
   }
 
   async function revoke ( signoffId: string ) {
-    const reason = window.prompt( 'Why is this signature being withdrawn?' ) || '';
+    const reason = await prompt( {
+      title: 'Withdraw this signature',
+      label: 'Why is this signature being withdrawn?',
+      required: true,
+      minLength: 10,
+      multiline: true,
+      helper: 'At least 10 characters',
+    } );
+    if ( reason === null ) return;
+    // Kept as a post-condition. The 10-character floor is enforced in three places on
+    // purpose: minLength disables the confirm button, helper says why, and this line is
+    // the one the backend's own refusal is mirrored by.
     if ( reason.trim().length < 10 ) return;
     setBusy( 'revoke' );
     setError( '' );

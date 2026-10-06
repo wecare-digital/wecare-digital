@@ -7,6 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import * as api from '../api/client';
 import { WHATSAPP_PHONES } from '../config/constants';
+import { useConfirm } from '../contexts/ConfirmContext';
 
 interface TemplateSenderProps {
   contactId?: string;
@@ -37,6 +38,7 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   onSent,
   onError,
 } ) => {
+  const confirm = useConfirm();
   const [ loading, setLoading ] = useState( true );
   const [ sending, setSending ] = useState( false );
   const [ manualPhone, setManualPhone ] = useState( '' );
@@ -312,8 +314,20 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
   };
 
   const deleteLibraryItem = async ( item: any ) => {
-    const ok = typeof window !== 'undefined'
-      && window.confirm( `Permanently delete "${item.filename}"?\n\nThis removes the file from storage for everyone. This cannot be undone.` );
+    // The `typeof window !== 'undefined'` guard went with the call: it existed because
+    // window.confirm is undefined during a build-time render, and a context hook has no
+    // such hazard.
+    const ok = await confirm( {
+      title: `Permanently delete "${item.filename}"?`,
+      message: (
+        <>
+          <p style={ { margin: '0 0 8px' } }>This removes the file from storage for everyone.</p>
+          <p style={ { margin: 0 } }>This cannot be undone.</p>
+        </>
+      ),
+      confirmText: 'Delete',
+      danger: true,
+    } );
     if ( !ok ) return;
     setLibraryDeleting( item.s3Key );
     try

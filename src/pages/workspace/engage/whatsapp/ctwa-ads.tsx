@@ -16,6 +16,7 @@ import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
 import { useToastContext } from '../../../../contexts/ToastContext';
+import { useConfirmDanger } from '../../../../components/wa';
 import {
     marketingAdsApi,
     type AdAccount, type FbPage, type AdEntity, type MarketingAdInput, type WabaKey,
@@ -34,6 +35,7 @@ const WABAS: { key: WabaKey; label: string }[] = [
 
 const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
+    const confirmDanger = useConfirmDanger();
 
     const [ accounts, setAccounts ] = useState<AdAccount[]>( [] );
     const [ pages, setPages ] = useState<FbPage[]>( [] );
@@ -116,7 +118,19 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     };
 
     const doPublish = async ( adId: string ) => {
-        if ( !confirm( 'Publish this ad? It goes to Meta review and, once approved, will start spending your daily budget.' ) ) return;
+        // DELIBERATE, OWNER-APPROVED BEHAVIOUR CHANGE, and the only one in this batch.
+        // useConfirmDanger sets confirmInput from VERB.publish, so the operator now TYPES
+        // PUBLISH where they previously clicked OK. That friction is the point: publishing
+        // commits ad spend, and activating ad spend is one of the actions that must never be
+        // casual. Do not "simplify" this back to a 1:1 confirm({ ... danger: true }) — the
+        // alternative was offered and the typing requirement was chosen. It stays on
+        // useConfirmDanger rather than useConfirm so the next spend-committing action
+        // inherits the same friction from one place.
+        if ( !( await confirmDanger(
+            'publish',
+            'It goes to Meta review and, once approved, will start spending your daily budget.',
+            { title: 'Publish this ad?' },
+        ) ) ) return;
         setBusy( 'pub' + adId );
         try
         {

@@ -122,4 +122,42 @@ export default [
       'react-hooks/set-state-in-effect': 'warn',
     },
   },
+  // ── No native browser dialogs ─────────────────────────────────────────────────────
+  //
+  // THESE TWO OBJECTS MUST STAY THE LAST TWO ENTRIES OF THIS ARRAY, and they are
+  // deliberately NOT part of the 'wecare/react-compiler-advisory' block above: that block's
+  // own comment ends "this block should be deleted rather than extended", so a gate living
+  // inside it would silently disappear the day React Compiler is enabled.
+  //
+  // WHY A LINT RULE AND NOT A GREP. `confirm` means three different things in this codebase
+  // - the DOM global, the useConfirm hook, and a local useCallback at
+  // src/components/security/TotpSetup.tsx:221 that completes TOTP enrolment.
+  // `no-restricted-globals` is scope-aware: it flags only references that resolve to global
+  // scope, so every `const confirm = useConfirm()` and that local function pass untouched.
+  // A grep would need forty exceptions and would still break MFA setup the first time
+  // someone ran a sed over its hits.
+  //
+  // Flat config resolves by order, so the src/test/** exemption MUST come second. It keeps
+  // the XSS fixtures asserting `javascript:alert(1)` working.
+  {
+    name: 'wecare/no-native-dialogs',
+    rules: {
+      'no-restricted-globals': [ 'error',
+        { name: 'alert', message: 'Use useToastContext() - src/contexts/ToastContext.tsx.' },
+        { name: 'confirm', message: 'Use useConfirm() - src/contexts/ConfirmContext.tsx.' },
+        { name: 'prompt', message: 'Use usePromptDialog() - src/contexts/ConfirmContext.tsx.' },
+      ],
+      'no-restricted-properties': [ 'error',
+        { object: 'window', property: 'alert', message: 'Use useToastContext().' },
+        { object: 'window', property: 'confirm', message: 'Use useConfirm().' },
+        { object: 'window', property: 'prompt', message: 'Use usePromptDialog().' },
+      ],
+    },
+  },
+  { name: 'zz-tail', files: [ 'x' ], rules: {} },
+  {
+    name: 'wecare/no-native-dialogs-test-exempt',
+    files: [ 'src/test/**' ],
+    rules: { 'no-restricted-globals': 'off', 'no-restricted-properties': 'off' },
+  },
 ];
