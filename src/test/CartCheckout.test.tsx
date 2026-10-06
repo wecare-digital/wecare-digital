@@ -2279,3 +2279,47 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
     } );
 } );
 
+
+
+/*
+ * ── the focus ring is paired with the focus outline ───────────────────────────
+ *
+ * ONE SOURCE ASSERTION, added with batch 1.3a. Everything above it is behavioural and none of it
+ * was touched.
+ *
+ * WHY IT IS A SOURCE ASSERTION. `form-controls.css` gives `.cart-option` and
+ * `.cart-amount-select` a `box-shadow: var(--focus-ring) !important` on `:focus`. It CANNOT give
+ * it to `.cart-qty`, which is `type="number"` and deliberately outside that file's selector - so
+ * the ring for the quantity input has to be declared at the call site, beside the box it matches.
+ * `cart.tsx:1963` says in eleven lines that `.cart-amount-select` is "deliberately the SAME box
+ * as `.cart-qty`", and dropping that one declaration would leave the two halves of one row
+ * matching on border, radius and height and disagreeing on focus. jsdom computes no styled-jsx,
+ * so the text of the rule is what can be held - and `controlprobe.js --cart` measures the
+ * computed value in Chromium, which is the half a browser can settle.
+ *
+ * SCOPED TO THE THREE MONEY-ROW CONTROLS, deliberately. The file has nine `:focus-visible` rules;
+ * the other six are on links, a redeem field and two buttons, which `form-controls.css` does not
+ * reach and which have no select to pair with. Widening this to the whole file would mean adding
+ * lime rings to six public checkout controls - a visible change to surfaces this batch has no
+ * business touching.
+ *
+ * THE PROPERTY, NOT ONE SPELLING OF IT, so it survives a reorder or a colour change.
+ */
+describe( 'the money-row controls pair their focus ring with their focus outline', () => {
+  it( 'declares a box-shadow wherever a money-row :focus-visible rule sets an outline', () => {
+    const source = fs.readFileSync(
+      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    const CONTROLS = [ 'cart-option', 'cart-qty', 'cart-amount-select' ];
+    const rules = [ ...source.matchAll( /([^{}\n]*:focus-visible[^{]*)\{([^}]*)\}/g ) ];
+    const checked: string[] = [];
+    for ( const [ , selector, body ] of rules ) {
+      if ( !CONTROLS.some( c => selector.includes( `.${c}:` ) ) ) continue;
+      if ( !/outline\s*:/.test( body ) ) continue;
+      checked.push( selector.trim() );
+      expect( body, `${selector.trim()} sets an outline, so it must set a box-shadow too` )
+        .toMatch( /box-shadow\s*:/ );
+    }
+    // All three, or the scan found fewer rules than exist and the assertion passed vacuously.
+    expect( checked ).toHaveLength( 3 );
+  } );
+} );

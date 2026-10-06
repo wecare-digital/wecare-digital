@@ -305,6 +305,62 @@
   --scrollbar-track: var(--lime-tint);
   --scrollbar-size: 10px;
   --scrollbar-size-compact: 7px;
+
+  /* ========================================
+   * FORM CONTROLS
+   * EVERY VALUE HERE RECORDS WHAT THE APP ALREADY RENDERS. It is not a new look.
+   * The numbers are the dominant measured idiom from the 85 rule sets in 28 files in 1.14:
+   *   inner-pages.css:250-267   .layout .main-content select - 2px #e5e7eb, 13px radius,
+   *                             lime :hover, lime :focus. !important on all nine lines, so
+   *                             these are what ~140 of the 162 selects render TODAY.
+   *   inner-pages.css:1920-1941, :1999-2030, :1031-1041   2px #e5e7eb, 13px, again
+   *   tokens.css:420-446, inner-ux.css:550-607            2px #e5e7eb, the same lime
+   * A 1px border and a grey hover were proposed and REJECTED: thinning every control in the
+   * app and spending the lime hover is a redesign, and this task is a mechanism change.
+   *
+   * CONSUMED BY src/styles/form-controls.css, which is imported LAST in _app.tsx.
+   * ======================================== */
+  --control-h: var(--tap-target);           /* 44px - the floor tokens.css:465 ALREADY applies */
+  /* 13px AT RUNTIME, and that is the whole point of writing the token rather than the number.
+   * src/styles/inner-ux.css:92 redeclares --radius-md: 13px on :root and _app.tsx:73 imports it
+   * AFTER tokens.css (which arrives via Layout.css:8's @import at _app.tsx:70), so the 8px
+   * declared at tokens.css:140 is an authored default that never renders. Same hazard as
+   * --radius-btn, tokens.css:322-326 - except that one resolves AWAY from the value you want
+   * and this one resolves TO it. Do not "simplify" this to the literal 13px: that would make
+   * form-controls.css the one consumer that stops following the scale, so a future correction
+   * to --radius-md would move every control in the app except these four. */
+  --control-radius: var(--radius-md);
+  /* NOT var(--radius-btn): that resolves to 999px, a full pill (tokens.css:322-326). */
+  --control-border-w: 2px;                  /* as five existing rule sets declare */
+  --control-border: var(--border);          /* #e5e7eb, as five existing rule sets declare */
+  --control-border-hover: var(--lime);      /* #d1f470 - tokens.css:59. Was hardcoded twice */
+  --control-border-focus: var(--lime);      /* #d1f470 - ditto */
+  --control-bg: var(--surface);             /* #ffffff */
+  --control-fg: var(--text);                /* #1a1a1a */
+  --control-fg-muted: var(--text-muted);    /* #6b7280 - placeholder / empty option */
+  --control-px: var(--space-3);             /* 12px */
+  --control-arrow-inset: 11px;              /* unchanged from the rule this replaces */
+  --control-arrow-size: 14px;               /* unchanged */
+  --control-arrow-pad: 32px;                /* padding-inline-end. 32px EXACTLY, copied from
+                                               inner-ux.css:2928. Not calc(inset*2+size)=36px:
+                                               that is a 4px change nobody asked for. */
+  --control-box: 18px;                      /* checkbox / radio drawn box, desktop */
+  --control-indicator-size: 12px;           /* the tick/dot INSIDE that box, fixed at every box size */
+  --control-disabled-opacity: 0.5;          /* EXACTLY inner-ux.css:590's value, not 0.55 - see 4.3 */
+  --control-tint: var(--lime-tint);         /* the date-field's focused segment; see --lime-tint */
+  /* The disclosure chevron, byte-identical to the block being deleted from inner-ux.css.
+     #1a3a2a is --accent; a data URI cannot read a custom property, so this is the one
+     hardcoded hue in the block and FormControlsCss.test.ts pins it. */
+  /* 1.3a */
+  --control-arrow: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231a3a2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  /* The checkbox tick. White on --accent, drawn at --control-indicator-size and CENTRED, so it
+     is the same tick in an 18px box and in the 44px box the <=768px floor block restores. */
+  /* 1.3a */
+  --control-tick: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+  /* --control-dot (the radio's checked disc) and --control-dash (the indeterminate dash) are
+     the other two of this block's four assets. They are NOT declared yet: their only consumers
+     are the checkbox and radio rules, which land in batch 1.3c, and a token whose consumer does
+     not exist is surface area a test cannot see. They arrive here marked 1.3c. */
 }
 
 /* ========================================
@@ -445,8 +501,17 @@ body {
  * UNIFIED FORM INPUTS
  * ======================================== */
 
+/* `select` LEFT THESE THREE SELECTOR LISTS. It is now skinned by src/styles/form-controls.css,
+   which is imported last in _app.tsx and declares this exact geometry - 2px #e5e7eb, 13px
+   radius, the lime hover and focus border - plus the drawn chevron these rules never had. This
+   one was a pure duplicate of that element-level base, which is why it is the only retirement
+   1.3a makes here; the other 26 files that skin a select are left alone (design 4.1).
+   The `transition` on the base rule below went with it: form-controls.css re-declares it on
+   `border-color` and `box-shadow` so a select still eases where it eased before.
+   NOTE for batch 1.3c: the base rule is a BARE `input` selector, so its `padding: 10px 12px`
+   lands on every checkbox and radio in the app. An appearance:none box honours that padding,
+   which is why the checkbox rule must declare `padding: 0`. */
 input,
-select,
 textarea {
   font-family: var(--font-sans);
   font-size: var(--text-md);
@@ -460,13 +525,11 @@ textarea {
 }
 
 input:hover,
-select:hover,
 textarea:hover {
   border-color: #d1f470;
 }
 
 input:focus,
-select:focus,
 textarea:focus {
   outline: none;
   border-color: #d1f470;

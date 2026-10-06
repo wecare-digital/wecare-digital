@@ -135,7 +135,23 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              clearance has to restate it at both header heights, and getting that wrong paints the
              first line under the header. This div only sets its own reading measure. */
           .shopd-options{display:flex;flex-direction:column;gap:8px;color:#1a3a2a;margin:20px 0;font-weight:700}
-          .shopd-options select{font:inherit;padding:14px;border:1px solid #c7d3b4;border-radius:14px;background:#f5f7eb;color:#1a3a2a}
+          /* The variant chooser, on the shared control tokens. It was 1px #c7d3b4 / 14px radius /
+             14px padding / #f5f7eb fill - the one public select whose resting colours actually
+             rendered, because this page has no .layout wrapper for the workspace rules to reach.
+             form-controls.css now owns the geometry site-wide, so this rule states the same
+             tokens rather than a private set four files disagree with, and the select gains
+             appearance:none, the drawn chevron and the 32px end inset for the first time.
+             The end inset is what reserves room for the arrow: the longest option text here is
+             the "Choose your fit and size" placeholder, and .shopd-options is a flex column, so
+             the select stretches and nothing truncates. */
+          .shopd-options select{
+            font:inherit;min-height:var(--control-h);
+            padding-block:0;padding-inline-start:var(--control-px);
+            padding-inline-end:var(--control-arrow-pad);
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            background-color:var(--control-bg);color:var(--control-fg);
+          }
           .shopd-cta-btn:disabled{opacity:.5;cursor:not-allowed}
           .shopd-in{width:100%;max-width:700px;margin:0}
 

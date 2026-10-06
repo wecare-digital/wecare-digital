@@ -1946,34 +1946,95 @@ export default function Cart (): React.ReactElement {
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
           .cart-option-label{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:14px;font-weight:700;color:#1a3a2a}
+          /* The variant chooser, on the shared control tokens. It was 1px #cbd5e1 / 8px radius;
+             form-controls.css now owns that geometry for every select in the app, so this rule
+             states the tokens rather than a private set. max-width stays here: form-controls.css
+             declares no width at all, because layout belongs to the call site.
+             The end inset moves 12px -> 32px, which is the biggest visible change on this row -
+             it reserves room for the drawn chevron this select never had, since neither /cart/
+             nor /shop/<slug>/ renders the .layout wrapper the old chevron block was scoped to.
+             Measured: the longest string here is the Select-fit-slash-size placeholder, and the
+             merchandise variant labels top out at 13 characters, so nothing truncates inside
+             260px - and controlprobe.js --cart asserts scrollWidth <= clientWidth so that stays
+             a measurement rather than a judgement.
+             NO APOSTROPHE OR STRAY QUOTE IN A CSS COMMENT HERE, deliberately: the census
+             scanner blanks comments with a scanner that treats a quote as a string opener, so a
+             lone apostrophe swallows the rules that follow and the census silently UNDER-counts.
+             That is the one direction a gate must never fail in. */
           .cart-option{
-            min-height:44px;max-width:260px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;
-            background:#fff;color:#1a1a1a;font:inherit;
+            min-height:var(--control-h);max-width:260px;
+            padding-block:0;padding-inline-start:var(--control-px);
+            padding-inline-end:var(--control-arrow-pad);
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            background-color:var(--control-bg);color:var(--control-fg);font:inherit;
           }
-          .cart-option:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          /* The outline KEEPS !important and that is not noise: the :focus rule in
+             form-controls.css is (0,5,1) and declares outline none, so importance is the only
+             axis on which this (0,2,0) rule can keep a 3px 11.85:1 dark-green outline on the
+             checkout page. form-controls.css paints the ring on :focus; it is restated here so
+             the one assertion in CartCheckout.test.tsx can hold the property for all three
+             money-row controls - the value is identical, and the important declaration in the
+             shared file wins either way. */
+          .cart-option:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
           .cart-row-controls{display:flex;align-items:center;gap:12px}
           .cart-qty-label{font-size:14px;font-weight:700;color:#1a3a2a}
           /* 44px is the tap-target floor. The site's CTA is 52px; a secondary field is not
              required to match it, only to clear 44. */
           .cart-qty{
-            width:72px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
-            font-family:inherit;font-size:16px;text-align:center;color:#1a1a1a;
+            width:72px;min-height:var(--control-h);padding:0 10px;
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            font-family:inherit;font-size:16px;text-align:center;color:var(--control-fg);
           }
-          .cart-qty:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-          /* The contribution row's amount chooser. Deliberately the SAME box as .cart-qty - the
-             1px #e5e7eb hairline, the 8px radius, the 44px tap floor and the 16px type - because
-             it occupies the same slot in the row and a second control idiom there would read as a
-             different kind of thing. Wider, because "₹250" plus the native disclosure arrow does
-             not fit 72px. The leading rupee mark that used to sit beside the old free-text field
-             went with it: each option already carries its own ₹.
+          /* box-shadow:var(--focus-ring) IS THE PAIRING FIX, not decoration. form-controls.css
+             gives .cart-amount-select that ring with !important, and it CANNOT give it to this
+             control: .cart-qty is a number input and deliberately outside the selector in the
+             shared file, which covers select and the date family only. Without this line the
+             two halves of one row would match on border, radius and height and disagree on focus.
+             :focus-visible rather than :focus, so the ring and the outline appear and disappear
+             together - a ring with no outline on a mouse click would be a third appearance
+             rather than a matched pair. */
+          .cart-qty:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
+          /* The amount chooser on the contribution row. Deliberately the SAME box as .cart-qty -
+             --control-border-w / --control-border, --control-radius, the 44px tap floor and the
+             16px type - because it occupies the same slot in the row and a second control idiom
+             there would read as a different kind of thing. Wider, because a three-digit rupee
+             amount plus the disclosure arrow does not fit 72px. The leading rupee mark that used
+             to sit beside the old free-text field went with it: each option already carries one.
 
-             #1a3a2a is --accent / colors.primary and #e5e7eb is the shared hairline; no new hue is
-             introduced by this phase. */
+             THE PAIR NOW MATCHES ON TOKENS, NOT ON TWO COPIES OF A NUMBER. This rule and
+             .cart-qty above both read --control-border-w / --control-border / --control-radius /
+             --control-h, so the shared skin cannot move one and leave the other behind - which
+             is what would have happened here, since form-controls.css reaches a select and
+             cannot reach a number input.
+
+             TWO PROPERTIES THE PAIR NO LONGER SHARES, both forced by the chevron and both
+             unavoidable: the end inset (32px here from form-controls.css, 10px on .cart-qty) and
+             the appearance reset. A select has an arrow to make room for; a number field has not.
+
+             --accent is #1a3a2a and --control-border is #e5e7eb; no new hue is introduced. */
           .cart-amount-select{
-            min-width:96px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
-            font-family:inherit;font-size:16px;color:#1a1a1a;background:#fff;
+            min-width:96px;min-height:var(--control-h);
+            padding-block:0;padding-inline-start:var(--control-px);
+            padding-inline-end:var(--control-arrow-pad);
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            font-family:inherit;font-size:16px;color:var(--control-fg);
+            background-color:var(--control-bg);
           }
-          .cart-amount-select:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          /* Outline kept with !important for the reason the .cart-option focus rule records; the
+             ring restated so the focus appearance of the pair is declared where the pair is. */
+          .cart-amount-select:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
           /* A 44px target, not a 27px one. This was padding:6px around a 15px line, which
              computed to about 27px tall - under the floor devicecheck enforces elsewhere on the
              site and the smallest control on the page. */

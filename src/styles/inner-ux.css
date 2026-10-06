@@ -552,8 +552,20 @@
 .inner-page input[type="tel"],
 .inner-page input[type="number"],
 .inner-page input[type="search"],
+/* `select` LEFT THE BASE, :hover AND :focus LISTS BELOW. Those three were a duplicate of the
+   element-level base that src/styles/form-controls.css now provides - 2px #e5e7eb, a 13px
+   radius, the lime hover and focus border - and form-controls.css is imported last, so it
+   carries them for every select in the app rather than only for .inner-page ones.
+   It KEEPS select in :disabled, .error and .error:focus below. Not because those rules win
+   anything: inner-pages.css:252's `background: #ffffff !important` and :254's
+   `border: 2px solid #e5e7eb !important` already kill the disabled fill and the .error danger
+   border for every select in the tree. They stay on risk budget - retiring select from all 85
+   rule sets is a separate consolidation with its own sign-off - and what they still contribute
+   (opacity 0.5, cursor not-allowed) form-controls.css re-declares at the same values anyway.
+   Two things the base rule carried had to be replaced rather than dropped: `width: 100%`, which
+   is LAYOUT and therefore stays in this file (see the rule immediately after this block), and
+   the `transition`, which is appearance and moved into form-controls.css. */
 .inner-page input[type="password"],
-.inner-page select,
 .inner-page textarea {
   width: 100%;
   height: 44px;
@@ -574,14 +586,20 @@
   resize: vertical;
 }
 
+/* LAYOUT, AND NOT OPTIONAL. form-controls.css declares no `width` at all - layout belongs to
+   the call site, which is the rule that keeps a shared skin from fighting 50 page grids - so
+   the base rule's `width: 100%` has to be re-declared here or every workspace select shrinks
+   to its intrinsic content width across ~50 pages. That would be a bigger visible change than
+   anything else in Layer 1, arrived at by deleting a line nobody was looking at.
+   src/test/FormControlsCss.test.ts asserts this rule EXISTS. */
+.inner-page select { width: 100% }
+
 .inner-page input:hover:not(:disabled),
-.inner-page select:hover:not(:disabled),
 .inner-page textarea:hover:not(:disabled) {
   border-color: #d1f470;
 }
 
 .inner-page input:focus,
-.inner-page select:focus,
 .inner-page textarea:focus {
   border-color: #d1f470;
   box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3);
@@ -2909,30 +2927,22 @@
 }
 
 /* ========================================
-   THEMED DROPDOWN CHEVRON
-   Replaces the default (off-theme) native browser arrow on every <select>
-   with a lime+forest-green chevron. Scoped to app surfaces only.
-   ======================================== */
-.layout .main-content select,
-.inner-page select,
-.ui-filter,
-.ui-wa-waba,
-.ui-meta-status {
-  -webkit-appearance: none !important;
-  -moz-appearance: none !important;
-  appearance: none !important;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231a3a2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: right 11px center !important;
-  background-size: 14px 14px !important;
-  padding-inline-end: 32px !important;
-}
+   THE THEMED DROPDOWN CHEVRON MOVED TO src/styles/form-controls.css
 
-/* Hide the legacy arrow in old Edge/IE */
-.layout .main-content select::-ms-expand,
-.inner-page select::-ms-expand {
-  display: none !important;
-}
+   It used to be declared here, on `.layout .main-content select`, `.inner-page select`,
+   `.ui-filter`, `.ui-wa-waba` and `.ui-meta-status`, together with the ::-ms-expand hider.
+   Every one of those five selectors is covered by the new element-level rule, and the block
+   reached NONE of the public pages - /cart/ and /shop/<slug>/ render no Layout wrapper - so the
+   authenticated routes had our arrow and the public ones had the OS arrow. Leaving the block
+   where it was would have meant two sources for one arrow, which is precisely the condition
+   that produced six competing scrollbar declarations.
+
+   form-controls.css holds the same values, token-sourced: --control-arrow (the identical data
+   URI), --control-arrow-inset 11px, --control-arrow-size 14px, --control-arrow-pad 32px, plus
+   the [dir="rtl"] mirror this block never had. Do not restore it here.
+   src/test/FormControlsCss.test.ts fails if either the chevron data URI or an important
+   appearance reset comes back to this file.
+   ======================================== */
 
 /* ==========================================================================
    THE SITE-WIDE SCROLLBAR — ONE DECLARATION, BOTH ENGINES, TOKEN-SOURCED

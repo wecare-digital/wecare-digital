@@ -1,0 +1,248 @@
+/* ==========================================================================
+   FORM CONTROLS - ONE SHARED SKIN FOR THE NATIVE CONTROLS
+
+   Batch 1.3a: <select> and the date family (date, time, datetime-local).
+   Batch 1.3b adds color, range and the file button; batch 1.3c adds checkbox and radio.
+
+   IMPORTED LAST in src/pages/_app.tsx, on the line after button.css. That is deliberate and
+   measured: _app.tsx imports the eight global stylesheets in the order amplify-base, Pages,
+   Layout (whose own :8 @imports tokens.css), Dashboard, inner-pages, inner-ux, flex-layout,
+   button - so a ninth import arrives after every rule in the 85-rule-set inventory. Do not
+   move this import up.
+
+   WHAT THIS FILE IS NOT. It is not a redesign. Every number it declares is a token in
+   tokens.css's FORM CONTROLS block, and every one of those records what the app already
+   renders: 2px #e5e7eb, a 13px radius, a lime hover and focus border, a 44px floor. The
+   change is the MECHANISM - one element-level declaration instead of 85 rule sets in 28
+   files - plus the one thing no cascade could add, a drawn chevron on the public pages.
+
+   WHAT ACTUALLY MOVES, so a reviewer meets it here and not in a screenshot:
+     - the focus ring's alpha, 0.3 -> 0.45, on ~140 workspace selects and the public ones,
+       because this file uses the house --focus-ring token rather than a seventh copy of a
+       hardcoded rgba();
+     - the three PUBLIC selects (/cart/ x2, /shop/<slug>/) gain appearance:none, the drawn
+       chevron and a 32px end inset for the first time - they sit outside every selector the
+       old inner-ux.css chevron block named, because neither page renders a Layout wrapper;
+     - those same public selects move 8px/14px radius -> 13px and 1px border -> 2px.
+   ========================================================================== */
+
+/* The controls this file owns. ELEMENT-LEVEL AND THEREFORE GLOBAL, deliberately: the public
+   branch of _app.tsx renders no wrapper element, so a `.layout`-scoped rule reaches nothing on
+   /cart/, /shop/<slug>/ or /account/sign-in/ - which is how 162 selects came to carry 101
+   private inline styles in the first place.
+
+   THE FOUR :not()s ARE LOAD-BEARING, and not only as opt-outs:
+     [data-ui-raw]       the opt-out for a control that must stay OS-drawn. Nothing sets it
+                         today; it exists so a future exception is declared at the call site
+                         instead of in a competing stylesheet - the mechanism that produced
+                         six scrollbar declarations.
+     [data-public-ui]    an opt-out that ALREADY exists (inner-pages.css:46-63, honoured by 15
+                         selectors): "the public design contract styles this element".
+     .amplify-*          Amplify UI's own classes, served to the authenticated branch from
+                         /vendor/amplify-ui.css. Half-overriding third-party UI produces a
+                         control that is neither ours nor theirs.
+   Including all four lifts this selector to (0,4,1), which out-specifies inner-pages.css:250
+   (0,3,1) outright and ties rather than loses to `.pay-page select` and `.form-group select`.
+   That is what makes the cascade outcome stop mattering: wherever a surviving rule ties us,
+   it declares the same two numbers anyway.
+
+   month and week are NOT here: there are zero of either in the tree, and a selector for a
+   control that does not exist is untested surface area.
+   select[multiple] and select[size] need no exclusion - measured, there are none. */
+
+/* THE !important POLICY, in one place, because it is the thing most likely to be "tidied".
+   101 of the 162 select elements carry an inline `style`, and an inline declaration beats any
+   external rule that is not !important. The brief forbids editing those call sites, so this
+   file marks the properties it OWNS and leaves alone the properties a call site legitimately
+   varies. Three carve-outs are deliberate:
+
+     border-color      NOT important. engage/appointments/index.tsx:177 sets
+                       borderColor: error ? '#dc2626' : '#e5e7eb' inline on a date input for
+                       its past-date error, and its non-error branch IS --control-border, so
+                       the carve-out costs nothing normally and buys the error state. THIS IS
+                       WHY THE BORDER IS WRITTEN AS LONGHANDS: an !important `border`
+                       shorthand would set the colour too and erase that error silently.
+     background-color  NOT important. 12 call sites set a `background` shorthand for a state
+                       tint; ours is the fallback.
+     font-size         NOT DECLARED AT ALL. Layout.css:132-154 is a 23-line comment recording
+                       the incident this would re-create: an !important font-size is a floor
+                       that cannot be exceeded, and it painted four components' deliberate
+                       17px at 16px. The floor already holds without us - tokens.css's two
+                       <=768px `font-size: 16px !important` blocks beat even an inline
+                       fontSize, and inner-pages.css:397-402 pins every workspace select at
+                       16px at every viewport. A fourth claimant would argue with a settled
+                       question.
+
+   And one non-carve-out that is just as deliberate: `outline: none` is declared WITHOUT
+   !important. See the focus rule.
+
+   width / max-width / min-width / flex / margin are NEVER declared here: layout belongs to
+   the call site. That is why `.inner-page select { width: 100% }` stays in inner-ux.css. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control),
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  border-width: var(--control-border-w) !important;
+  border-style: solid !important;
+  /* non-important on purpose - see the policy note above */
+  border-color: var(--control-border);
+  border-radius: var(--control-radius) !important;
+  padding-block: 0 !important;
+  padding-inline-start: var(--control-px) !important;
+  /* 32px, reserving room for the chevron. The text runs under the arrow without it. */
+  padding-inline-end: var(--control-arrow-pad) !important;
+  min-height: var(--control-h) !important;
+  color: var(--control-fg) !important;
+  /* non-important on purpose - see the policy note above */
+  background-color: var(--control-bg);
+  font-family: inherit;
+  /* The eased hover/focus border, carried over from the two rules this file retires `select`
+   * from: tokens.css:431 (`all var(--transition-normal)`, which is `all 0.15s ease`) and
+   * inner-ux.css:567 (`all 0.15s ease`). DELETING THIS LINE IS NOT NEUTRAL - it leaves
+   * .form-group selects eased from Pages.css:881 and every other select in the app instant,
+   * and it makes a date input ease while the select beside it snaps, because the retirement
+   * removes only `select` from tokens.css:420 and the inputs keep that rule's `all`.
+   * NOT `all`: that would animate the background-image chevron swap and the appearance change.
+   * The timing is the token, not a 0.15s literal, for the same reason --control-radius is a
+   * token - and --transition-normal IS 0.15s at runtime: Pages.css:29-30 redeclares
+   * --transition-fast: 0.15s / --transition-normal: 0.2s on its own :root, but tokens.css
+   * arrives AFTER it (_app.tsx:69 Pages.css, :70 Layout.css, whose :8 @imports tokens.css),
+   * so tokens.css:160-161's 0.1s / 0.15s win. */
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+/* THE DISCLOSURE CHEVRON. This is the only chevron declaration in the tree: the block at
+   inner-ux.css:2916-2935 was deleted with this change, because two sources for one arrow is
+   exactly the condition that produced six scrollbar declarations - and because that block
+   reached only `.layout .main-content select`, `.inner-page select`, `.ui-filter`,
+   `.ui-wa-waba` and `.ui-meta-status`, so the authenticated routes had an arrow and the
+   public pages had the OS one.
+
+   SELECT ONLY, not the date family: a date input's arrow is drawn on its
+   ::-webkit-calendar-picker-indicator below, and declaring both would paint two chevrons.
+   `background-position: right ... center` uses `right` as a VALUE, which is what
+   LogicalDirectionCss.test.tsx permits; the RTL mirror is the one override at the end. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) {
+  background-image: var(--control-arrow) !important;
+  background-repeat: no-repeat !important;
+  background-position: right var(--control-arrow-inset) center !important;
+  background-size: var(--control-arrow-size) var(--control-arrow-size) !important;
+  cursor: pointer;
+}
+
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):hover,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover {
+  border-color: var(--control-border-hover);
+}
+
+/* :focus, NOT :focus-visible, and that is measured rather than preferred. Every existing
+   focus rule on a select in this tree targets :focus - eleven in global CSS, nine in
+   styled-jsx and injected CSS - and the only three exceptions are the public call-site
+   outlines this batch rewrites by hand anyway. A rule on :focus-visible does not suppress a
+   rule on :focus, so mixing the two shows a different ring depending on whether the control
+   was clicked or tabbed to: a per-input-device split no test here can see and no single
+   screenshot can reveal.
+
+   box-shadow IS !important. Six existing rules declare the 0.3-alpha ring, four of them with
+   !important, and an !important declaration beats a non-important one at ANY specificity - so
+   without it the ~140 workspace selects would keep 0.3 while only the public ones took
+   --focus-ring's 0.45. Two ring values in one app, split by whether the page has a .layout
+   wrapper. With it, one value holds everywhere.
+
+   outline: none IS DELIBERATELY NOT !important, and this is the one place in the file where
+   dropping an !important is the correct act rather than a mistake. This rule is (0,5,1);
+   cart.tsx's and AddressFields.tsx's call-site `outline: 3px solid var(--accent) !important`
+   are (0,2,0) and (0,0,1). Importance is the ONLY axis on which they can beat us, so making
+   this important would silently replace a 3px 11.85:1 dark-green outline on the checkout page
+   with a lime ring. Non-important still beats every non-important call-site rule, so the UA
+   ring is still suppressed everywhere else. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):focus,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+/* opacity and cursor are re-declared at inner-ux.css:593-594's exact values. Those two
+   declarations are the only thing `.inner-page select:disabled` still contributes - its
+   background is already dead under inner-pages.css:252's `background: #ffffff !important` -
+   so restating them here is what lets the retirement be safe either way. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):disabled,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* The placeholder row. A `<option value="">Select fit / size</option>` is a prompt, not a
+   value, so it reads at the muted rung - the same distinction a text input's ::placeholder
+   makes. The OPEN menu is still OS-drawn in Layer 1; this reaches the closed state. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) option[value=""] {
+  color: var(--control-fg-muted);
+}
+
+/* Retained from the deleted inner-ux.css block: old Edge/IE draw their own arrow on top. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control)::-ms-expand {
+  display: none !important;
+}
+
+/* THE DATE FAMILY'S INTERNALS. Blink/WebKit only, and prefixed by nature: Chromium is the
+   engine this repo verifies (tools/browser/lib/browser.js resolves Google Chrome by path and
+   the playwright cache holds no WebKit build), so no claim is made about Gecko or WebKit here.
+   Firefox and Safari take the border, radius, height and focus ring from the rules above and
+   keep their own internals, which is a smaller and honest outcome.
+
+   The picker indicator is where a date input's chevron goes - the element-level
+   background-image above is select-only, so there is exactly one arrow per control.
+   The focused-segment rule replaces the OS blue selection block with the house lime tint. */
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-calendar-picker-indicator,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-calendar-picker-indicator {
+  background-image: var(--control-arrow);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: var(--control-arrow-size) var(--control-arrow-size);
+  opacity: 1;
+  cursor: pointer;
+}
+
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-fields-wrapper,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-text,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-text,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-text {
+  color: var(--control-fg);
+}
+
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-day-field:focus,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-month-field:focus,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-year-field:focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-hour-field:focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-minute-field:focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-ampm-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-day-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-month-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-year-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-hour-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-minute-field:focus {
+  background: var(--control-tint);
+  color: var(--control-fg);
+}
+
+/* RTL. Padding is logical already, so it mirrors for free. The chevron does not:
+   background-position-x is not a logical property, so the physical edge needs one override.
+   [dir="rtl"] rather than :dir(rtl) because `dir` is declared on <html> in the exported HTML
+   and rtlcheck.js:337 fails the build if it is absent - so the attribute is guaranteed and no
+   engine-support question needs answering. */
+[dir="rtl"] select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) {
+  background-position: left var(--control-arrow-inset) center !important;
+}

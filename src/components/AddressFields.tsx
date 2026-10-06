@@ -242,12 +242,33 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         .span-2{grid-column:1 / -1}
         label{display:flex;flex-direction:column;gap:7px;min-inline-size:0}
         label>span{font-size:12px;font-weight:700;color:#1a3a2a}
+        /* ONE RULE FOR SIX CONTROLS - the India state select and five inputs (address line 1 and
+           2, city, PIN code and the read-only country field) - which is exactly why it is
+           rewritten onto the control tokens rather than left to be overridden. This component
+           renders outside .layout .main-content, so none of the workspace important rules
+           reaches it and these values are what actually paint. form-controls.css reaches the
+           select and cannot reach the five inputs, so skinning only the select would leave the
+           state field a different height, radius and border weight from the five fields beside
+           it in the same grid. It was 52px / 1px / 10px; it is now the shared 44px / 2px / 13px.
+           src/test/AddressFieldsTokens.test.tsx pins this rule, because cart.tsx:1790 gates this
+           component on showProfile && checkoutAccessToken and /orders/ is behind the same
+           sign-in - so no browser harness in this repo can reach it. */
         input,select{
-          min-height:52px;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;
-          padding:0 14px;background:#fff;color:#1a1a1a;font:inherit;font-size:16px;outline:none;
+          min-height:var(--control-h);box-sizing:border-box;
+          border:var(--control-border-w) solid var(--control-border);
+          border-radius:var(--control-radius);
+          padding-block:0;padding-inline:var(--control-px);
+          background-color:var(--control-bg);color:var(--control-fg);
+          font:inherit;font-size:16px;outline:none;
         }
+        /* The outline KEEPS !important: the :focus rule in form-controls.css is (0,5,1) and
+           declares a non-important outline none, and importance is the only axis on which this
+           rule can beat it. box-shadow is the pairing fix - the select takes --focus-ring from
+           the shared file and the five inputs are outside that selector, so the ring has to be
+           declared here for the whole grid or one control in six would ring and five would not. */
         input:focus-visible,select:focus-visible{
-          outline:3px solid #1a3a2a;outline-offset:2px;border-color:#1a3a2a;
+          outline:3px solid var(--accent) !important;outline-offset:2px;
+          border-color:var(--accent);box-shadow:var(--focus-ring);
         }
         input[aria-invalid='true'],select[aria-invalid='true']{border-color:#8c1d18}
         .fixed{background:#f6f7f6;color:rgba(0,0,0,.66)}
