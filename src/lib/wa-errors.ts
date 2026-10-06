@@ -59,6 +59,7 @@ export const WA_ERROR_CODES: Record<number, WaErrorInfo> = {
     131047: { title: 'Re-engagement required', reason: 'More than 24h since the user last messaged — no open session.', action: 'Send an approved template instead of a free-form message.', category: 'delivery', retriable: false },
     131049: { title: 'Per-user marketing limit', reason: 'Meta throttled a marketing message to protect the recipient.', action: 'Reduce marketing frequency; utility/transactional templates are unaffected.', category: 'delivery', retriable: false },
     131051: { title: 'Unsupported message type', reason: 'The message type is not supported for this recipient/device.', action: 'Use a supported message type.', category: 'delivery', retriable: false },
+    131060: { title: 'Message no longer available', reason: 'The sender deleted or expired the message before WhatsApp could hand it over.', action: 'Ask the sender to resend it; nothing can be recovered from this webhook.', category: 'delivery', retriable: false },
 
     // ── Media ──
     131052: { title: 'Media download error', reason: 'The media the user sent could not be fetched.', action: 'Ask the user to resend the file.', category: 'media', retriable: true },

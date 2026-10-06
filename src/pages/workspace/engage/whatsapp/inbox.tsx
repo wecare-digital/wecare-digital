@@ -15,6 +15,8 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import SEO, { PAGE_SEO } from '../../../../components/SEO';
 import * as api from '../../../../api/client';
+import type { WaContactCard } from '../../../../api/client';
+import ContactCardBubble from '../../../../components/ContactCardBubble';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
 import { inferMimeFromName, validateWaMediaSize, formatBytes } from '../../../../lib/wa-media';
 import { describeWaError } from '../../../../lib/wa-errors';
@@ -46,6 +48,7 @@ interface Message {
   errorCode?: number | null;
   transcription?: string | null;       // English transcription of voice notes
   detectedLanguage?: string | null;    // Detected language of voice note
+  contactsPayload?: WaContactCard[] | null;  // shared contact card(s), messageType=contacts
 }
 
 interface Contact {
@@ -405,8 +408,17 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
             else if ( msgType === 'location' ) lastMsgPreview = '[Location] ';
             else if ( msgType === 'contacts' ) lastMsgPreview = '[Contact] ';
 
-            // Add content preview
-            const content = msg.content || '';
+            // Add content preview. A contacts row already carries a `[Contact] `
+            // prefix above, so strip the stored `[Contact Card]` label or the
+            // preview reads "[Contact] Contact Card Punit Kumar · +91…".
+            let content = msg.content || '';
+            if ( msgType === 'contacts' && content.startsWith( '[Contact Card]' ) )
+            {
+              // Keep the bare label when nothing follows it — that is the one
+              // pre-change row, and an empty preview says less than the label.
+              const stripped = content.slice( '[Contact Card]'.length ).trim();
+              if ( stripped ) content = stripped;
+            }
             if ( content.startsWith( '[' ) && content.endsWith( ']' ) )
             {
               // Special message type - show type name
@@ -457,6 +469,9 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
         errorCode: m.errorCode,
         transcription: m.transcription,
         detectedLanguage: m.detectedLanguage,
+        // Enumerated mapping — an omitted field is silently dropped, so the
+        // contact card needs this line as much as it needs the one in client.ts.
+        contactsPayload: m.contactsPayload,
       } ) ) );
     } catch ( err )
     {
@@ -1121,9 +1136,19 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
       }
     }
 
-    // Contact card
-    if ( content === '[Contact Card]' )
+    // Contact card. Prefix match, not equality: the stored content now carries the
+    // shared name and number after the label. The component returns null when no
+    // payload was stored, which is the path the one pre-change row keeps using.
+    if ( content.startsWith( '[Contact Card]' ) )
     {
+      // The emptiness test lives here rather than relying on the component
+      // returning null — a JSX element is an object and so always truthy, which
+      // makes `<Component/> || fallback` a fallback that can never fire.
+      const cards = msg.contactsPayload;
+      if ( Array.isArray( cards ) && cards.length > 0 )
+      {
+        return <ContactCardBubble contacts={ cards } fallbackLabel="Contact Card" />;
+      }
       return <span className="special-msg">Contact Card</span>;
     }
 

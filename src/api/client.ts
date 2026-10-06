@@ -644,6 +644,14 @@ function normalizeTimestamp ( value: any ): string | undefined {
 // MESSAGES API
 // ============================================================================
 
+// A shared WhatsApp contact card, as sanitised at ingest by the inbound handler.
+// Every field is optional because the extractor emits only what Meta actually sent.
+export interface WaContactCard {
+  name?: { formatted_name?: string; first_name?: string; last_name?: string };
+  phones?: { phone?: string; type?: string; wa_id?: string }[];
+  emails?: { email?: string; type?: string }[];
+  org?: { company?: string; title?: string };
+}
 export interface Message {
   id: string;
   messageId: string;
@@ -672,6 +680,7 @@ export interface Message {
   awsPhoneNumberId?: string;
   transcription?: string;       // English transcription of voice notes
   detectedLanguage?: string;    // Detected language of voice note (e.g. "hi-IN")
+  contactsPayload?: WaContactCard[] | null;  // shared contact card(s), messageType=contacts
   // Call breadcrumb fields (channel=voice, messageType=call)
   callId?: string;
   callType?: string;            // plivo | aws | whatsapp; legacy rows may read 'airtel'
@@ -750,6 +759,9 @@ function normalizeMessage ( item: any ): Message {
     awsPhoneNumberId: item.awsPhoneNumberId,
     transcription: item.transcription,
     detectedLanguage: item.detectedLanguage,
+    // This object is built by enumeration, so an omitted field is dropped before
+    // any UI sees it — the contact card cannot render without this line.
+    contactsPayload: Array.isArray( item.contactsPayload ) ? item.contactsPayload : undefined,
     callId: item.callId,
     callType: item.callType,
     duration: typeof item.duration === 'number' ? item.duration : ( item.duration ? Number( item.duration ) : undefined ),

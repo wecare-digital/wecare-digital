@@ -15,6 +15,7 @@ import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import InteractiveMessageComposer from '../../../../components/InteractiveMessageComposer';
 import ContactMessageComposer from '../../../../components/ContactMessageComposer';
+import ContactCardBubble from '../../../../components/ContactCardBubble';
 import LocationSendComposer from '../../../../components/LocationSendComposer';
 import TemplateSender from '../../../../components/TemplateSender';
 import { useToastContext } from '../../../../contexts/ToastContext';
@@ -68,6 +69,9 @@ const REACT_EMOJIS = [ '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥',
 
 // Friendly label for a message — avoids showing bare "[unknown]" / "[whatsapp]".
 const TYPE_LABELS: Record<string, string> = {
+    // `text`, `call`, `template` and `interactive_list` are here so an empty-content
+    // row stops falling through to a bare "Message" — 234 outbound rows did.
+    text: 'Message', call: 'Call', template: 'Template message', interactive_list: 'List reply',
     image: 'Photo', video: 'Video', audio: 'Voice message', voice: 'Voice message',
     document: 'Document', sticker: 'Sticker', location: 'Location', contacts: 'Contact card',
     order: 'Order', poll: 'Poll', reaction: 'Reaction', button: 'Button reply',
@@ -77,6 +81,16 @@ const TYPE_LABELS: Record<string, string> = {
 const prettyMsg = ( content?: string, messageType?: string ): string => {
     const raw = ( content || '' ).trim();
     const mt = ( messageType || '' ).toLowerCase();
+    // Never show Meta's own error text to an agent. The two full-string checks below
+    // covered one string the extractor never produced while missing the one it always
+    // did, so match the `[Unsupported: ` PREFIX as well. This also catches rows stored
+    // before the extractor started emitting a stable sentinel.
+    if ( raw.toLowerCase().startsWith( '[unsupported: ' ) )
+        return TYPE_LABELS[ 'unsupported' ];
+    // A shared contact card stores `[Contact Card] <name> · <phone>`. Drop the
+    // bracket label and show who was shared; show the label when that is all there is.
+    if ( raw.startsWith( '[Contact Card]' ) )
+        return raw.slice( '[Contact Card]'.length ).trim() || TYPE_LABELS[ 'contacts' ];
     // Real text/caption → show as-is (unless it's just the auto bracket placeholder).
     if ( raw && raw.toLowerCase() !== '[unknown]' && raw.toLowerCase() !== `[${mt}]` && raw.toLowerCase() !== '[message type not supported by whatsapp business api]' )
         return raw;
@@ -112,6 +126,9 @@ interface Conversation {
     name: string;
     channels: Set<string>;
     lastContent: string;
+    // Carried so the preview can call prettyMsg instead of keeping a second copy of
+    // its logic — a duplicate is how the unsupported label stayed wrong in one place.
+    lastType: string;
     lastTs: number;
     lastChannel: string;
 }
@@ -378,6 +395,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                     name: contactNames[ cid ] || m.senderName || m.senderPhone || m.receivingPhone || cid,
                     channels: new Set( [ ch ] ),
                     lastContent: m.content || `[${m.messageType || ch}]`,
+                    lastType: m.messageType || '',
                     lastTs: ts,
                     lastChannel: ch,
                 } );
@@ -388,6 +406,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                 {
                     existing.lastTs = ts;
                     existing.lastContent = m.content || `[${m.messageType || ch}]`;
+                    existing.lastType = m.messageType || '';
                     existing.lastChannel = ch;
                 }
             }
@@ -863,7 +882,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                         <span className="ui-conv-time">{ fmtTime( c.lastTs ) }</span>
                                     </div>
                                     <div className="ui-conv-bottom">
-                                        <span className="ui-conv-preview">{ c.lastContent.slice( 0, 48 ) }</span>
+                                        <span className="ui-conv-preview">{ prettyMsg( c.lastContent, c.lastType ).slice( 0, 48 ) }</span>
                                         <span className="ui-badges">
                                             { Array.from( c.channels ).map( ch => {
                                                 const cm = chMeta( ch );
@@ -951,7 +970,19 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                         if ( url && mt === 'document' ) return <a className="ui-msg-doc" href={ url } target="_blank" rel="noopener noreferrer">📄 { ( m as any ).displayFilename || 'Document' }</a>;
                                                         return null;
                                                     } )() }
-                                                    { ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && <span className="ui-msg-text">{ prettyMsg( m.content, m.messageType ) }</span> }
+                                                    { ( () => {
+                                                        // A shared contact card renders as a real card with a tel: link and a
+                                                        // copy button. The emptiness test is here rather than in the component
+                                                        // because a JSX element is always truthy, so `<C/> || fallback` could
+                                                        // never fall back. No payload → the prettyMsg span below, which is the
+                                                        // path rows stored before ingest captured the payload keep using.
+                                                        if ( ( m.messageType || '' ).toLowerCase() !== 'contacts' ) return null;
+                                                        const cards = ( m as any ).contactsPayload;
+                                                        if ( !Array.isArray( cards ) || cards.length === 0 ) return null;
+                                                        return <ContactCardBubble contacts={ cards } fallbackLabel="Contact card" />;
+                                                    } )() }
+                                                    { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
+                                                        && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && <span className="ui-msg-text">{ prettyMsg( m.content, m.messageType ) }</span> }
                                                     { m.transcription ? <span className="ui-msg-transcript">📝 { m.transcription }</span> :
                                                         ( ch === 'whatsapp' && [ 'audio', 'voice' ].includes( ( m.messageType || '' ).toLowerCase() ) && (
                                                             <button className="ui-transcribe-btn" disabled={ transcribingId === m.messageId } onClick={ () => handleTranscribe( m ) }>
