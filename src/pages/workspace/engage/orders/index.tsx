@@ -11,6 +11,7 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 
@@ -19,6 +20,38 @@ const ORDER_STATUSES = [ 'active', 'fulfilled', 'cancelled' ];
 const PAYMENT_STATUSES = [ 'pending', 'captured', 'failed', 'refunded' ];
 const SOURCES = [ 'wix', 'manual', 'shopify', 'flow' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
+
+/*
+ * The option lists, hoisted so they are not rebuilt per render. Each holds exactly the
+ * <option> rows it replaced, in the same order, with the same values and the same visible
+ * text - including the three '' placeholder rows the filters read as "no filter".
+ */
+const SOURCE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Sources' },
+  ...SOURCES.map( s => ( { value: s, label: s } ) ),
+];
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...ORDER_STATUSES.map( s => ( { value: s, label: s } ) ),
+];
+const PAYMENT_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Payments' },
+  ...PAYMENT_STATUSES.map( s => ( { value: s, label: s } ) ),
+];
+const SOURCE_OPTIONS: SelectOption[] = SOURCES.map( s => ( { value: s, label: s } ) );
+const ORDER_STATUS_OPTIONS: SelectOption[] = ORDER_STATUSES.map( s => ( { value: s, label: s } ) );
+const SUBMISSION_STATUS_OPTIONS: SelectOption[] = SUBMISSION_STATUSES.map(
+  s => ( { value: s, label: s.replace( /_/g, ' ' ) } )
+);
+
+/*
+ * LAYOUT ONLY - the box is drawn by .ui-select-trigger. A width is needed wherever the
+ * control is a flex child, because a native select sized itself to its WIDEST option while
+ * the trigger shows the SELECTED one: without it the row re-flows every time it is used.
+ */
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
+const ROW_SELECT_STYLE: React.CSSProperties = { flex: '0 0 170px' };
+const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: '0 0 200px' };
 
 // ── Helpers ──
 
@@ -281,18 +314,15 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             value={ search } onChange={ e => { setSearch( e.target.value ); setPage( 1 ); } }
             style={ { flex: 1, minWidth: 220, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 } }
           />
-          <select value={ sourceFilter } onChange={ e => { setSourceFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Sources</option>
-            { SOURCES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { ORDER_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ paymentFilter } onChange={ e => { setPaymentFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Payments</option>
-            { PAYMENT_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
+          <Select ariaLabel="Source" value={ sourceFilter }
+            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+            options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          <Select ariaLabel="Order status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          <Select ariaLabel="Payment status" value={ paymentFilter }
+            onChange={ v => { setPaymentFilter( v ); setPage( 1 ); } }
+            options={ PAYMENT_FILTER_OPTIONS } style={ FILTER_STYLE } />
         </div>
 
         {/* ── Table ── */ }
@@ -360,11 +390,13 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
           <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
             <label style={ labelStyle }>Customer Name<input type="text" value={ createForm.customerName } onChange={ e => setCreateForm( f => ( { ...f, customerName: e.target.value } ) ) } style={ inputStyle } /></label>
             <label style={ labelStyle }>Phone *<input type="text" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91..." style={ inputStyle } /></label>
-            <label style={ labelStyle }>Source
-              <select value={ createForm.source } onChange={ e => setCreateForm( f => ( { ...f, source: e.target.value } ) ) } style={ inputStyle }>
-                { SOURCES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-              </select>
-            </label>
+            { /* SHAPE (a), design 5.2: the wrapping <label> is gone and Select owns the pair.
+                 A <button> is a labelable element too, so leaving the wrapper would have
+                 computed the name by walking its subtree - "Source wix" - and a label
+                 forwards clicks to its control, which can double-activate a button. */ }
+            <Select label="Source" value={ createForm.source }
+              onChange={ v => setCreateForm( f => ( { ...f, source: v } ) ) }
+              options={ SOURCE_OPTIONS } />
             <label style={ labelStyle }>Items Summary<input type="text" value={ createForm.itemsSummary } onChange={ e => setCreateForm( f => ( { ...f, itemsSummary: e.target.value } ) ) } placeholder="e.g. Black Tee × 1, White Cap × 2" style={ inputStyle } /></label>
             <label style={ labelStyle }>Total Amount (₹)<input type="number" value={ createForm.totalAmount } onChange={ e => setCreateForm( f => ( { ...f, totalAmount: e.target.value } ) ) } style={ inputStyle } /></label>
             <label style={ labelStyle }>Admin Notes<textarea value={ createForm.notes } onChange={ e => setCreateForm( f => ( { ...f, notes: e.target.value } ) ) } rows={ 2 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
@@ -411,12 +443,10 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
 
         {/* Status controls */ }
         <div style={ { display: 'flex', gap: 12, padding: 12, background: '#f9fafb', borderRadius: 8 } }>
-          <label style={ { fontSize: 13 } }>
-            Order Status
-            <select value={ order.status } onChange={ e => onStatusUpdate( order.orderId, e.target.value ) } style={ { ...selectStyle, marginLeft: 8 } }>
-              { ORDER_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-            </select>
-          </label>
+          { /* SHAPE (a) - wrapping <label> deleted, label passed. */ }
+          <Select label="Order Status" value={ order.status }
+            onChange={ v => onStatusUpdate( order.orderId, v ) }
+            options={ ORDER_STATUS_OPTIONS } style={ DETAIL_SELECT_STYLE } />
         </div>
       </div>
 
@@ -450,13 +480,13 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
                     { sub.paymentAmount ? ` · ₹${( sub.paymentAmount / 100 ).toFixed( 0 )}` : '' }
                   </div>
                 </div>
-                <select
+                <Select
+                  ariaLabel="Request status"
                   value={ sub.status || 'open' }
-                  onChange={ e => onSubmissionStatusUpdate( sub.submissionId, e.target.value ) }
-                  style={ { fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', flexShrink: 0 } }
-                >
-                  { SUBMISSION_STATUSES.map( s => <option key={ s } value={ s }>{ s.replace( /_/g, ' ' ) }</option> ) }
-                </select>
+                  onChange={ v => onSubmissionStatusUpdate( sub.submissionId, v ) }
+                  options={ SUBMISSION_STATUS_OPTIONS }
+                  style={ ROW_SELECT_STYLE }
+                />
               </div>
             ) ) }
           </div>
@@ -524,7 +554,7 @@ const thStyle: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 const tdStyle: React.CSSProperties = { padding: '12px 14px', fontSize: 14 };
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/* `selectStyle` went with the last native select in this file - it only ever skinned one. */
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
 const labelStyle: React.CSSProperties = { fontSize: 14, display: 'block' };
 const metaLabel: React.CSSProperties = { fontSize: 11, color: '#6b7280', textTransform: 'uppercase', fontWeight: 600, display: 'block', marginBottom: 2 };

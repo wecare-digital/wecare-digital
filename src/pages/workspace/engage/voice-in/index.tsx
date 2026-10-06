@@ -11,11 +11,21 @@ import Pagination from '../../../../components/ui/Pagination';
 import Tabs, { TabItem } from '../../../../components/ui/Tabs';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import * as api from '../../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 interface Contact { contactId: string; name: string; phone: string; }
 interface C2CCall { callId: string; fromNumber: string; toNumber: string; callerId: string; status: string; duration: number; recordingUrl?: string; correlationId?: string; createdAt: number; }
+
+/* The OBD text-to-speech voice rows, hoisted. Same order, same values, same visible text. */
+const OBD_TTS_VOICE_OPTIONS: SelectOption[] = [
+  { value: 'Kajal', label: 'Kajal (English-IN, Neural)' },
+  { value: 'Aditi', label: 'Aditi (Hindi, Standard)' },
+];
+
+/* LAYOUT ONLY - what the inline `flex: 1` carried; the box is the trigger's. */
+const OBD_VOICE_SELECT_STYLE: React.CSSProperties = { flex: 1 };
 interface OBDCampaign { id: string; airtelCampaignId: string; campaignName: string; status: string; audioUrl: string; contactCount?: number; createdAt: number; }
 interface CDRRecord {
   id: string; vmSessionId: string; clientCorrelationId: string;
@@ -685,10 +695,11 @@ const VoiceInPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                 <textarea value={ obdTtsText } onChange={ e => setObdTtsText( e.target.value ) } placeholder="Type your message here... (max 3000 chars)" rows={ 3 } maxLength={ 3000 } />
                 <small>{ obdTtsText.length }/3000 chars</small>
                 <div style={ { display: 'flex', gap: '8px', marginTop: '6px' } }>
-                  <select value={ obdTtsVoice } onChange={ e => { setObdTtsVoice( e.target.value ); setObdTtsLang( e.target.value === 'Aditi' ? 'hi-IN' : 'en-IN' ); } } style={ { flex: 1, padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '12px' } }>
-                    <option value="Kajal">Kajal (English-IN, Neural)</option>
-                    <option value="Aditi">Aditi (Hindi, Standard)</option>
-                  </select>
+                  { /* Both statements and their order are preserved: choosing the voice also
+                       sets the language it speaks. */ }
+                  <Select ariaLabel="Voice" value={ obdTtsVoice }
+                    onChange={ v => { setObdTtsVoice( v ); setObdTtsLang( v === 'Aditi' ? 'hi-IN' : 'en-IN' ); } }
+                    options={ OBD_TTS_VOICE_OPTIONS } style={ OBD_VOICE_SELECT_STYLE } />
                 </div>
               </div>
             ) }

@@ -10,11 +10,25 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'available', 'booked', 'blocked', 'completed' ];
+
+/* Hoisted option rows. Same order, same values, same visible text, with the filter's ''
+   placeholder row kept first. */
+const STATUS_SELECT_OPTIONS: SelectOption[] = STATUS_OPTIONS.map( s => ( { value: s, label: s } ) );
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_SELECT_OPTIONS,
+];
+
+/* LAYOUT ONLY. The in-table control fills its 120px column; the filter is a flex child
+   beside a date input, and a native select sized itself to its widest option. */
+const CELL_SELECT_STYLE: React.CSSProperties = { width: '100%' };
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
 
 function statusBadge ( status: string ) {
   const colors: Record<string, { bg: string; fg: string }> = {
@@ -90,9 +104,9 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     },
     {
       key: 'status', header: 'Status', width: '120px', render: ( s: api.RxSlot ) => (
-        <select value={ s.status } onChange={ e => handleStatusUpdate( s.slotId, e.target.value ) } style={ { fontSize: 12, padding: '2px 4px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff' } }>
-          { STATUS_OPTIONS.map( st => <option key={ st } value={ st }>{ st }</option> ) }
-        </select>
+        <Select ariaLabel="Slot status" value={ s.status }
+          onChange={ v => handleStatusUpdate( s.slotId, v ) }
+          options={ STATUS_SELECT_OPTIONS } style={ CELL_SELECT_STYLE } />
       )
     },
   ];
@@ -113,10 +127,9 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
         </div>
 
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
+          <Select ariaLabel="Slot status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
           <input type="date" value={ dateFilter } onChange={ e => { setDateFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle } />
         </div>
 

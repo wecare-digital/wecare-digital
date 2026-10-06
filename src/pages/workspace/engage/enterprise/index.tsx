@@ -10,6 +10,7 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { isValidPhone, isValidEmail, normalizePhone } from '../../../../utils/validation';
 import * as api from '../../../../api/client';
@@ -17,6 +18,27 @@ import * as api from '../../../../api/client';
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'open', 'in_progress', 'waiting', 'resolved', 'closed' ];
 const PRIORITY_OPTIONS = [ 'low', 'medium', 'high', 'critical' ];
+
+/* The option lists, hoisted. Same order, same values, same visible text as the rows they
+   replaced - including the two '' placeholder rows the filters read as "no filter". */
+const STATUS_SELECT_OPTIONS: SelectOption[] = STATUS_OPTIONS.map(
+  s => ( { value: s, label: s.replace( /_/g, ' ' ) } )
+);
+const PRIORITY_SELECT_OPTIONS: SelectOption[] = PRIORITY_OPTIONS.map( p => ( { value: p, label: p } ) );
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_SELECT_OPTIONS,
+];
+const PRIORITY_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Priorities' },
+  ...PRIORITY_SELECT_OPTIONS,
+];
+
+/* LAYOUT ONLY. The two in-table controls fill their 100px/130px column; the two filters are
+   flex children and need a width, because the trigger shows the selected label while a
+   native select sized itself to its widest option. */
+const CELL_SELECT_STYLE: React.CSSProperties = { width: '100%' };
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
 
 function formatDate ( ts?: number ): string {
   if ( !ts ) return '—';
@@ -104,17 +126,17 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
     { key: 'category', header: 'Category', width: '100px', render: ( c: api.EnterpriseCase ) => c.category || '—' },
     {
       key: 'priority', header: 'Priority', width: '100px', render: ( c: api.EnterpriseCase ) => (
-        <select value={ c.priority } onChange={ e => handlePriorityUpdate( c.caseId, e.target.value ) } style={ { fontSize: 12, padding: '2px 4px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff' } }>
-          { PRIORITY_OPTIONS.map( p => <option key={ p } value={ p }>{ p }</option> ) }
-        </select>
+        <Select ariaLabel="Priority" value={ c.priority }
+          onChange={ v => handlePriorityUpdate( c.caseId, v ) }
+          options={ PRIORITY_SELECT_OPTIONS } style={ CELL_SELECT_STYLE } />
       )
     },
     { key: 'assignedTo', header: 'Assigned', width: '100px', render: ( c: api.EnterpriseCase ) => c.assignedTo || '—' },
     {
       key: 'status', header: 'Status', width: '130px', render: ( c: api.EnterpriseCase ) => (
-        <select value={ c.status } onChange={ e => handleStatusUpdate( c.caseId, e.target.value ) } style={ { fontSize: 12, padding: '2px 4px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff' } }>
-          { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s.replace( /_/g, ' ' ) }</option> ) }
-        </select>
+        <Select ariaLabel="Case status" value={ c.status }
+          onChange={ v => handleStatusUpdate( c.caseId, v ) }
+          options={ STATUS_SELECT_OPTIONS } style={ CELL_SELECT_STYLE } />
       )
     },
     { key: 'createdAt', header: 'Created', width: '120px', render: ( c: api.EnterpriseCase ) => formatDate( c.createdAt ) },
@@ -136,14 +158,12 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
         </div>
 
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s.replace( /_/g, ' ' ) }</option> ) }
-          </select>
-          <select value={ priorityFilter } onChange={ e => { setPriorityFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Priorities</option>
-            { PRIORITY_OPTIONS.map( p => <option key={ p } value={ p }>{ p }</option> ) }
-          </select>
+          <Select ariaLabel="Case status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          <Select ariaLabel="Priority" value={ priorityFilter }
+            onChange={ v => { setPriorityFilter( v ); setPage( 1 ); } }
+            options={ PRIORITY_FILTER_OPTIONS } style={ FILTER_STYLE } />
         </div>
 
         { cases.length === 0 && !loading ? (
@@ -200,14 +220,17 @@ const EnterprisePage: React.FC<PageProps> = ( { signOut, user, embedded = false 
           </div>
           <label style={ { fontSize: 14 } }>Subject *<input type="text" value={ createForm.subject } onChange={ e => setCreateForm( f => ( { ...f, subject: e.target.value } ) ) } style={ inputStyle } maxLength={ 200 } /></label>
           <label style={ { fontSize: 14 } }>Description<textarea value={ createForm.description } onChange={ e => setCreateForm( f => ( { ...f, description: e.target.value } ) ) } rows={ 3 } style={ { ...inputStyle, resize: 'vertical' } } maxLength={ 2000 } /></label>
-          <label style={ { fontSize: 14 } }>Priority<select value={ createForm.priority } onChange={ e => setCreateForm( f => ( { ...f, priority: e.target.value } ) ) } style={ inputStyle }>{ PRIORITY_OPTIONS.map( p => <option key={ p } value={ p }>{ p }</option> ) }</select></label>
+          { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
+          <Select label="Priority" value={ createForm.priority }
+            onChange={ v => setCreateForm( f => ( { ...f, priority: v } ) ) }
+            options={ PRIORITY_SELECT_OPTIONS } />
         </div>
       </Modal>
     </MaybeLayout>
   );
 };
 
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/* `selectStyle` went with the last native select in this file - it only ever skinned those. */
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
 

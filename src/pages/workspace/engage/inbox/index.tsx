@@ -78,6 +78,23 @@ const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
     { value: 'voice', label: 'Voice' },
 ];
 
+/*
+ * The reply bar's two choosers: which WABA sends an outbound WhatsApp message, and the India
+ * TRANSACTIONAL/PROMOTIONAL DLT classification on an outbound SMS. Same order, same values
+ * and the same visible text as the <option> rows they replaced.
+ */
+const WABA_OPTIONS: SelectOption[] = WABAS.map(
+    w => ( { value: w.id, label: `${ w.name } (${ w.display })` } )
+);
+const SMS_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'TRANSACTIONAL', label: 'Transactional' },
+    { value: 'PROMOTIONAL', label: 'Promotional' },
+];
+
+/* LAYOUT ONLY - both sit in `.ui-wa-bar`, a flex row, and the box is the trigger's. */
+const WABA_SELECT_STYLE: React.CSSProperties = { flex: '0 1 240px' };
+const SMS_TYPE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 160px' };
+
 // Reaction quick-set for the per-message react popover.
 const REACT_EMOJIS = [ '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅' ];
 
@@ -795,12 +812,12 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
 
                 <div className="ui-toolbar">
                     <input className="ui-search" placeholder="Search conversations…" value={ search } onChange={ e => setSearch( e.target.value ) } />
-                    { /* The ONLY control migrated in this file. The six that remain native are
-                         later batches by deliberate classification: the WABA chooser and the
-                         India TRANSACTIONAL/PROMOTIONAL SMS class decide what an OUTBOUND
-                         message is, and the send-from number and GST rate in the "Request
-                         payment" panel are money controls on an India payment path. A
-                         read-only channel filter is none of those. */ }
+                    { /* The first control migrated in this file, in batch 2b. Five of the six
+                         Four of the six that remained have since followed in 2c - the WABA chooser, the India
+                         TRANSACTIONAL/PROMOTIONAL SMS class, and the two voice pickers. The
+                         LAST TWO are still native on purpose: the send-from number and the GST
+                         rate in the "Request payment" panel are money controls on an India
+                         payment path and belong to the payment batch, which is ordered last. */ }
                     <Select ariaLabel="Channel" value={ channelFilter }
                         onChange={ v => setChannelFilter( v ) }
                         options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
@@ -1031,9 +1048,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             { replyChannel === 'whatsapp' && (
                                                 <div className="ui-wa-bar">
                                                     <span className="ui-wa-from">Send from:</span>
-                                                    <select className="ui-wa-waba" value={ selectedWaba } onChange={ e => setSelectedWaba( e.target.value ) }>
-                                                        { WABAS.map( w => <option key={ w.id } value={ w.id }>{ w.name } ({ w.display })</option> ) }
-                                                    </select>
+                                                    { /* `.ui-wa-waba` SKINNED the native control, so it is dropped rather
+                                                         than forwarded - className on a Select lands on the wrapper and
+                                                         would paint a box around the whole field. Only its width survives,
+                                                         as layout, because `.ui-wa-bar` is a flex row. */ }
+                                                    <Select ariaLabel="Send from" value={ selectedWaba }
+                                                        onChange={ v => setSelectedWaba( v ) }
+                                                        options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
                                                     <button className="ui-tpl-btn" onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
                                                 </div>
                                             ) }
@@ -1057,10 +1078,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             { replyChannel === 'sms' && (
                                                 <div className="ui-wa-bar">
                                                     <span className="ui-wa-from" style={ { color: chMeta( 'sms' ).fg } }>SMS · { replyTarget.phone || '—' }</span>
-                                                    <select className="ui-wa-waba" value={ smsType } onChange={ e => setSmsType( e.target.value as 'TRANSACTIONAL' | 'PROMOTIONAL' ) }>
-                                                        <option value="TRANSACTIONAL">Transactional</option>
-                                                        <option value="PROMOTIONAL">Promotional</option>
-                                                    </select>
+                                                    { /* The cast is preserved verbatim, and the two option values are
+                                                         exactly the two members of that union - this is the India
+                                                         TRANSACTIONAL/PROMOTIONAL DLT classification on an outbound SMS,
+                                                         so the value contract may not be loosened. */ }
+                                                    <Select ariaLabel="SMS type" value={ smsType }
+                                                        onChange={ v => setSmsType( v as 'TRANSACTIONAL' | 'PROMOTIONAL' ) }
+                                                        options={ SMS_TYPE_OPTIONS } style={ SMS_TYPE_SELECT_STYLE } />
                                                 </div>
                                             ) }
                                             { replyChannel === 'email' && (
@@ -1233,22 +1257,37 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             const voicesMap = Object.keys( pollyVoices ).length ? pollyVoices : fallbackLangs;
                             const langs = Object.keys( voicesMap );
                             const voices = voicesMap[ ttsLang ] || voicesMap[ langs[ 0 ] ] || [];
+                            /*
+                             * Built here rather than memoised: this block is an IIFE inside JSX, so no hook is
+                             * available to it, and both lists are already derived per render from `pollyVoices`.
+                             * Same order, same values, same visible text as the <option> rows they replaced.
+                             */
+                            const langOptions: SelectOption[] = langs.map( l => ( { value: l, label: l } ) );
+                            const voiceOptions: SelectOption[] = voices.map(
+                                v => ( { value: v.id, label: `${ v.id } (${ v.gender }, ${ v.engine })` } )
+                            );
                             return (
                                 <div className="ui-pay">
                                     <div className="ui-pay-title">Send voice note (text-to-speech)</div>
                                     <textarea className="ui-pay-in" rows={ 3 } placeholder="Text to speak…" value={ ttsText } onChange={ e => setTtsText( e.target.value ) } />
                                     <div className="ui-pay-row">
                                         <div style={ { flex: 1 } }>
+                                            { /* The `.ui-pay-label` captions are UNASSOCIATED labels - no `for`, no
+                                                 wrapped control - so they were never a name source and these two had
+                                                 no accessible name at all. They stay where they are, keeping their own
+                                                 type and spacing, and the controls take `ariaLabel`. Both handlers keep
+                                                 every statement and their order: the language change also resets the
+                                                 voice and engine to the first voice of the new language. */ }
                                             <label className="ui-pay-label">Language</label>
-                                            <select className="ui-pay-in" value={ ttsLang } onChange={ e => { const l = e.target.value; setTtsLang( l ); const v = ( voicesMap[ l ] || [] )[ 0 ]; if ( v ) { setTtsVoice( v.id ); setTtsEngine( v.engine ); } } }>
-                                                { langs.map( l => <option key={ l } value={ l }>{ l }</option> ) }
-                                            </select>
+                                            <Select ariaLabel="Voice language" value={ ttsLang }
+                                                onChange={ value => { setTtsLang( value ); const v = ( voicesMap[ value ] || [] )[ 0 ]; if ( v ) { setTtsVoice( v.id ); setTtsEngine( v.engine ); } } }
+                                                options={ langOptions } />
                                         </div>
                                         <div style={ { flex: 1 } }>
                                             <label className="ui-pay-label">Voice</label>
-                                            <select className="ui-pay-in" value={ ttsVoice } onChange={ e => { setTtsVoice( e.target.value ); const v = voices.find( x => x.id === e.target.value ); if ( v ) setTtsEngine( v.engine ); } }>
-                                                { voices.map( v => <option key={ v.id } value={ v.id }>{ v.id } ({ v.gender }, { v.engine })</option> ) }
-                                            </select>
+                                            <Select ariaLabel="Voice" value={ ttsVoice }
+                                                onChange={ value => { setTtsVoice( value ); const v = voices.find( x => x.id === value ); if ( v ) setTtsEngine( v.engine ); } }
+                                                options={ voiceOptions } />
                                         </div>
                                     </div>
                                     <div className="ui-pay-actions">
