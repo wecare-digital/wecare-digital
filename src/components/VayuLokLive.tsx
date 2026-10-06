@@ -2240,7 +2240,8 @@ const VayuLokLive: React.FC = () => {
         .vl-live,.vl-live *{box-sizing:border-box}
         .vl-live button,.vl-live input{font:inherit}
         .vl-live button{cursor:pointer}
-        .vl-live button:focus-visible,.vl-live input:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live input:focus-visible{outline:none}
         .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-live-shell{max-width:1320px;margin:0 auto;padding:22px 24px 72px}
         .vl-live-workspace{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:32px;align-items:stretch}
@@ -2352,6 +2353,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
         .vl-live-search{position:relative}
         .vl-live-search-field{height:50px;display:flex;align-items:center;gap:10px;padding:0 17px;border:1px solid rgba(26,58,42,.28);border-radius:var(--pill-r);background:#fff;box-shadow:0 5px 18px rgba(26,58,42,.08)}
+        .vl-live-search-field:focus-within{border-color:rgba(26,58,42,.48);box-shadow:0 0 0 3px rgba(26,58,42,.12),0 5px 18px rgba(26,58,42,.08)}
         .vl-live-search-field svg{width:19px;height:19px;stroke:var(--green);fill:none;stroke-width:2;flex:0 0 auto}
         .vl-live-search-field input{width:100%;border:0;outline:0;background:transparent;color:var(--heading);font-size:14px}
         .vl-live-search-results{position:absolute;top:56px;left:0;right:0;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
