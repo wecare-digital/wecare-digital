@@ -5,6 +5,20 @@
  */
 import React, { useState } from 'react';
 import * as api from '../api/client';
+import Select, { type SelectOption } from './ui/Select';
+
+/* The five countries, hoisted. Same order, same values, same visible text. */
+const COUNTRY_OPTIONS: SelectOption[] = [
+  { value: 'IN', label: 'India' },
+  { value: 'US', label: 'United States' },
+  { value: 'AE', label: 'UAE' },
+  { value: 'GB', label: 'United Kingdom' },
+  { value: 'SG', label: 'Singapore' },
+];
+
+/* LAYOUT ONLY. The native control sized itself to "United Kingdom"; the trigger shows the
+   selected label, so without a width the field would be the full column. */
+const COUNTRY_SELECT_STYLE: React.CSSProperties = { width: 200 };
 
 interface AddressMessageComposerProps {
   contactId: string;
@@ -52,15 +66,15 @@ const AddressMessageComposer: React.FC<AddressMessageComposerProps> = ({
       <textarea placeholder="Message body *" value={bodyText} onChange={e => setBodyText(e.target.value)}
         className="border rounded px-2 py-1.5 text-sm w-full" rows={2} />
       <div>
-        <label className="text-xs text-gray-500 block mb-1" htmlFor="country-select">Country</label>
-        <select id="country-select" value={country} onChange={e => setCountry(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm">
-          <option value="IN">India</option>
-          <option value="US">United States</option>
-          <option value="AE">UAE</option>
-          <option value="GB">United Kingdom</option>
-          <option value="SG">Singapore</option>
-        </select>
+        {/* SHAPE (b), design 5.2 and 1.7(b). The external label bound by id KEEPS its own
+            utility classes - `text-xs text-gray-500 block mb-1` is a size and colour
+            .ui-field-label does not render - so it stays, gains an id, loses its `for`
+            attribute, and is named by labelledBy. Keeping the old wiring would have left this
+            control announcing only "India": the trigger is a <button>, and per HTML-AAM a
+            button takes its accessible name from its CONTENTS. */}
+        <label className="text-xs text-gray-500 block mb-1" id="country-select-label">Country</label>
+        <Select labelledBy="country-select-label" value={country} onChange={v => setCountry(v)}
+          options={COUNTRY_OPTIONS} style={COUNTRY_SELECT_STYLE} />
       </div>
       <button onClick={handleSend} disabled={sending}
         className="w-full bg-green-600 text-white rounded py-2 text-sm hover:bg-green-700 disabled:opacity-50">

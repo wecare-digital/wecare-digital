@@ -11,6 +11,7 @@ import Button from '../../../components/ui/Button';
 import Spinner from '../../../components/ui/Spinner';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 import { WHATSAPP_PHONES } from '../../../config/constants';
 
@@ -31,6 +32,19 @@ const card: React.CSSProperties = { border: '1px solid var(--border)', borderRad
 const input: React.CSSProperties = { width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 'var(--text-md)', marginTop: 4 };
 const label: React.CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--text-muted)', display: 'block' };
 
+/* Hoisted option rows. The account list is derived from PHONES so the two cannot drift, and
+   its value is the INDEX as a string, which is what `phoneIdx` holds as a number. */
+const PHONE_OPTIONS: SelectOption[] = PHONES.map( ( p, i ) => ( { value: String( i ), label: p.label } ) );
+const DIRECT_SEND_CATEGORY_OPTIONS: SelectOption[] = [
+    { value: 'utility', label: 'utility' },
+    { value: 'authentication', label: 'authentication' },
+];
+
+/* LAYOUT ONLY - the 320px the account control carried as a flex child, and the `marginTop: 4`
+   the `input` object gave the field controls. */
+const ACCOUNT_SELECT_STYLE: React.CSSProperties = { flex: '0 0 320px' };
+const FIELD_SELECT_STYLE: React.CSSProperties = { marginTop: 4 };
+
 export default function WAGraphTools ( { signOut, user }: PageProps ) {
     const toast = useToastContext();
     const confirm = useConfirm();
@@ -49,10 +63,16 @@ export default function WAGraphTools ( { signOut, user }: PageProps ) {
 
                 {/* Account selector */ }
                 <div style={ { ...card, display: 'flex', gap: 16, alignItems: 'center' } }>
+                    { /* The `label` caption is UNASSOCIATED - no `for`, no wrapped control - so it
+                         was never a name source. It stays and the control takes `ariaLabel`.
+                         `phoneIdx` is a NUMBER in state, so the option value is that index as a
+                         string and `Number( v )` does the conversion the native handler already
+                         did: `value` is always a string in this contract and the state shape is
+                         unchanged. */ }
                     <label style={ label }>Account</label>
-                    <select value={ phoneIdx } onChange={ e => setPhoneIdx( Number( e.target.value ) ) } style={ { ...input, width: 320, marginTop: 0 } }>
-                        { PHONES.map( ( p, i ) => <option key={ p.phoneId } value={ i }>{ p.label }</option> ) }
-                    </select>
+                    <Select ariaLabel="Account" value={ String( phoneIdx ) }
+                        onChange={ v => setPhoneIdx( Number( v ) ) }
+                        options={ PHONE_OPTIONS } style={ ACCOUNT_SELECT_STYLE } />
                     <span style={ { color: 'var(--text-muted)', fontSize: 'var(--text-sm)' } }>
                         phoneId { phone.phoneId } · wabaId { phone.wabaId }
                     </span>
@@ -433,10 +453,9 @@ function DirectSendTab ( { phoneId, wabaId, toast }: { phoneId: string; wabaId: 
             <label style={ label }>Recipient phone (digits or +E.164)</label>
             <input style={ input } placeholder="918100640044" value={ to } onChange={ e => setTo( e.target.value ) } />
             <label style={ { ...label, marginTop: 12 } }>Category</label>
-            <select style={ input } value={ category } onChange={ e => setCategory( e.target.value as any ) }>
-                <option value="utility">utility</option>
-                <option value="authentication">authentication</option>
-            </select>
+            <Select ariaLabel="Category" value={ category }
+                onChange={ v => setCategory( v as any ) }
+                options={ DIRECT_SEND_CATEGORY_OPTIONS } style={ FIELD_SELECT_STYLE } />
             <label style={ { ...label, marginTop: 12 } }>Message body (max 1024 chars)</label>
             <textarea style={ { ...input, minHeight: 80 } } maxLength={ 1024 } value={ text } onChange={ e => setText( e.target.value ) } />
             <label style={ { ...label, marginTop: 12 } }>Business template name (optional, utility only — lowercase a-z 0-9 _)</label>

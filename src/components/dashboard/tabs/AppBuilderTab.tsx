@@ -6,8 +6,35 @@
  */
 import React, { useState } from 'react';
 import { DashboardData } from '../../../types/dashboard';
+import Select, { type SelectOption } from '../../ui/Select';
 
 interface Props { data: DashboardData; }
+
+/*
+ * The three option lists, hoisted. Same order, same values, same visible text, and every
+ * cast preserved verbatim at the call sites.
+ *
+ * THIS FILE'S FOUR input[type="color"] CONTROLS ARE DELIBERATELY NOT TOUCHED HERE. They
+ * belong to the picker batch, and the split is recorded because an earlier revision had this
+ * file in that batch for its colour inputs ONLY and lost these three selects entirely - they
+ * appeared in no batch at all, which is the failure the per-file reconciliation exists to
+ * catch.
+ */
+const PLAY_TRACK_OPTIONS: SelectOption[] = [
+  { value: 'internal', label: 'Internal Testing' },
+  { value: 'alpha', label: 'Closed Testing (Alpha)' },
+  { value: 'beta', label: 'Open Testing (Beta)' },
+  { value: 'production', label: 'Production' },
+];
+const STATUS_BAR_STYLE_OPTIONS: SelectOption[] = [
+  { value: 'dark-content', label: 'Dark Content' },
+  { value: 'light-content', label: 'Light Content' },
+];
+const ORIENTATION_OPTIONS: SelectOption[] = [
+  { value: 'portrait', label: 'Portrait' },
+  { value: 'landscape', label: 'Landscape' },
+  { value: 'both', label: 'Both' },
+];
 
 /* ── SVG Icons (inline, no emoji) ── */
 const AppleIcon = () => (
@@ -313,12 +340,9 @@ const AppBuilderTab: React.FC<Props> = ( { data } ) => {
               </div>
               <div className="ab-form-field">
                 <label>Release Track</label>
-                <select value={ storeConfig.googlePlayTrack } onChange={ e => setStoreConfig( { ...storeConfig, googlePlayTrack: e.target.value as any } ) }>
-                  <option value="internal">Internal Testing</option>
-                  <option value="alpha">Closed Testing (Alpha)</option>
-                  <option value="beta">Open Testing (Beta)</option>
-                  <option value="production">Production</option>
-                </select>
+                <Select ariaLabel="Release track" value={ storeConfig.googlePlayTrack }
+                  onChange={ v => setStoreConfig( { ...storeConfig, googlePlayTrack: v as any } ) }
+                  options={ PLAY_TRACK_OPTIONS } />
               </div>
               <div className="ab-form-field full">
                 <label>Google Play Credentials</label>
@@ -451,18 +475,15 @@ const AppBuilderTab: React.FC<Props> = ( { data } ) => {
               </div>
               <div className="ab-form-field">
                 <label>Status Bar Style</label>
-                <select value={ appConfig.statusBarStyle } onChange={ e => setAppConfig( { ...appConfig, statusBarStyle: e.target.value as any } ) }>
-                  <option value="dark-content">Dark Content</option>
-                  <option value="light-content">Light Content</option>
-                </select>
+                <Select ariaLabel="Status bar style" value={ appConfig.statusBarStyle }
+                  onChange={ v => setAppConfig( { ...appConfig, statusBarStyle: v as any } ) }
+                  options={ STATUS_BAR_STYLE_OPTIONS } />
               </div>
               <div className="ab-form-field">
                 <label>Orientation</label>
-                <select value={ appConfig.orientation } onChange={ e => setAppConfig( { ...appConfig, orientation: e.target.value as any } ) }>
-                  <option value="portrait">Portrait</option>
-                  <option value="landscape">Landscape</option>
-                  <option value="both">Both</option>
-                </select>
+                <Select ariaLabel="Orientation" value={ appConfig.orientation }
+                  onChange={ v => setAppConfig( { ...appConfig, orientation: v as any } ) }
+                  options={ ORIENTATION_OPTIONS } />
               </div>
               <div className="ab-form-field">
                 <label>Deep Link Scheme</label>

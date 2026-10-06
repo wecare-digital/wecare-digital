@@ -8,6 +8,19 @@ import React, { useState, useEffect } from 'react';
 import * as api from '../api/client';
 import { WHATSAPP_PHONES } from '../config/constants';
 import { useConfirm } from '../contexts/ConfirmContext';
+import Select, { type SelectOption } from './ui/Select';
+
+/* The template category filter's rows, hoisted. 'all' is the filter's own sentinel and was
+   its first <option>, so it stays first and keeps its value and its text. */
+const CATEGORY_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All Categories' },
+  { value: 'UTILITY', label: 'Utility' },
+  { value: 'MARKETING', label: 'Marketing' },
+  { value: 'AUTHENTICATION', label: 'Authentication' },
+];
+
+/* LAYOUT ONLY - what `.category-filter` carried inside the flex `.search-filters` row. */
+const CATEGORY_FILTER_STYLE: React.CSSProperties = { flex: '0 0 180px' };
 
 interface TemplateSenderProps {
   contactId?: string;
@@ -794,16 +807,18 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                 onChange={ ( e ) => setSearchQuery( e.target.value ) }
                 className="search-input"
               />
-              <select
+              { /* `.category-filter` is dropped rather than forwarded: it SKINNED the native
+                   control, a styled-jsx scope hash never reaches a child component's DOM, and
+                   className on a Select lands on the wrapper. Only its width survives, as
+                   layout, because `.search-filters` is a flex row. The rule itself is left in
+                   the stylesheet below, dead and harmless. */ }
+              <Select
+                ariaLabel="Template category"
                 value={ filterCategory }
-                onChange={ ( e ) => setFilterCategory( e.target.value ) }
-                className="category-filter"
-              >
-                <option value="all">All Categories</option>
-                <option value="UTILITY">Utility</option>
-                <option value="MARKETING">Marketing</option>
-                <option value="AUTHENTICATION">Authentication</option>
-              </select>
+                onChange={ v => setFilterCategory( v ) }
+                options={ CATEGORY_FILTER_OPTIONS }
+                style={ CATEGORY_FILTER_STYLE }
+              />
             </div>
 
             { loading ? (
