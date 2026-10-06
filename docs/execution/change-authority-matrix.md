@@ -72,7 +72,19 @@
   warnings; the plan's 85 errors are in another session's `.worktrees/`).
   Both fixes were proved to be regressions, not guesses: run against the HEAD versions of the
   two files, the new tests fail **7/13** (Python) and **2/5** (UI) and pass on the fixed tree.
+- Commits on `stack`: **`28a8bafb`** (Lambda: FIX-2 + FIX-4 + 11 tests + this entry) and
+  **`e918a62b`** (UI: FIX-1 + 5 tests). Both made with `git commit --only` and explicit
+  paths. The push was rejected non-fast-forward because another session pushed first, so these
+  are the post-`pull --rebase` ids; `git diff` confirms the rebase left
+  `inbound-whatsapp-handler/handler.py` byte-identical to the tree that was deployed.
 - A3_PRODUCTION: `wecare-inbound-whatsapp` — `update-function-code`, publish, `live` **72 → 73**.
+  New sha `DsrOjGfaBiJomChiTUpU7AJUfw2agak90L3sIEVQPcg=`, v73 `State: Active`, and v73's sha
+  **matches `$LATEST`**. Post-deploy read of the log group: 2 invocations, **0** ImportError /
+  NameError / AttributeError / Traceback, **0** `phone_number_mapping_not_found`, and **0**
+  lines matching `Bearer`, `appsecret_proof` or `graph.facebook.com`.
+  **FIX-2's effect is not yet observable**: no real inbound message arrived in the window
+  (`message_stored` 0), so no `read_receipt_failed` has been emitted yet. Nothing about the
+  receipt behaviour has been live-verified — only that the new code loads and runs.
   **`wecare-whatsapp-calling` invokes this function UNQUALIFIED** (`INBOUND_HANDLER_FUNCTION`
   has no `:live`), so `update-function-code` was live on the Meta webhook path the moment it
   returned — **before** the version was published and before the alias moved. There is no
