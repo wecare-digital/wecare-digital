@@ -238,6 +238,213 @@ input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.ampli
   color: var(--control-fg);
 }
 
+/* ==========================================================================
+   BATCH 1.3b - COLOUR, RANGE AND THE FILE BUTTON
+
+   SCOPE, counted rather than estimated:
+     input[type="color"]  4, every one of them in src/components/dashboard/tabs/AppBuilderTab.tsx
+     input[type="range"]  3 - two in src/components/dashboard/tabs/InternalChatTab.tsx and one
+                          in src/pages/workspace/settings/internal-agent.tsx
+     input[type="file"]   12 in 10 files. There are THIRTEEN textual matches for type="file" in
+                          src/: the thirteenth is prose in src/lib/wa-media.ts:53 and is not a
+                          control, so the count is 12 and must not be "corrected" to 13.
+
+   EVERY ONE OF THESE SURFACES IS A WORKSPACE PAGE. AuthShell is dynamic with ssr:false, so
+   all 113 workspace routes ship an empty #__next in the static export and NO browser harness
+   in this repo can see any of them. There is therefore no browser evidence for how this batch
+   looks; the appearance evidence is the owner's signed-in pass, and nothing here should be read
+   as having been screenshotted.
+
+   MEASURED BASELINE, which is why this batch resets nothing. On a synthetic Chromium page
+   carrying tokens.css:420's bare `input` declarations, a colour, range and file input ALL
+   compute padding 10px 12px, border 2px and radius 13px TODAY, with and without
+   appearance: none - Blink's style adjuster zeroes an author padding and border only for a
+   checkbox and a radio, which is why 1.3c needs `padding: 0` and this batch does not.
+   ========================================================================== */
+
+/* input[type="color"]. NON-IMPORTANT throughout, and that is a measured choice rather than a
+   relaxation of the policy: the only four colour inputs in the tree sit inside
+   AppBuilderTab.tsx:608's `.ab-color-row input[type="color"]` at (0,2,1), none of them carries
+   an inline style, and this selector is (0,4,1) - so specificity alone decides and there is no
+   inline layer to beat. What the call-site rule keeps is the half this file never declares:
+   its 44x44 box and its 2px element padding, which hold the swatch inside our border. What it
+   loses is 1px -> 2px and an 8px radius -> 13px, which is the unification this batch is for.
+
+   The OS colour PANEL is still OS-drawn. Layer 1 reaches the closed control; section 5.5 is
+   what replaces the picker, and saying otherwise here would be a promise this file cannot keep. */
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  cursor: pointer;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover {
+  border-color: var(--control-border-hover);
+}
+
+/* :focus, not :focus-visible - one convention for the whole file. box-shadow IS !important for
+   the same reason it is on the select: inner-pages.css:282 paints a 0.3-alpha ring on a focused
+   bare `input` with !important on every authenticated page, and an !important declaration beats
+   a non-important one at any specificity, so without it these four controls would keep 0.3
+   while everything else moved to --focus-ring's 0.45. outline: none stays non-important, so a
+   call site can still re-assert a stronger outline. */
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* The swatch itself. Blink/WebKit internals, in their own rule sets because a selector list is
+   discarded WHOLE when it contains one unknown pseudo-element - grouping these with a standard
+   selector would silently drop the standard half in Firefox. */
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-color-swatch {
+  border: var(--control-border-w) solid var(--control-border);
+  /* 8px AT RUNTIME, not the 6px tokens.css:139 declares: inner-ux.css:91 redeclares
+     --radius-sm on :root and _app.tsx imports it later. Same import-order fact as
+     --control-radius. A tighter radius than the element's 13px on purpose - the swatch is
+     inside it. */
+  border-radius: var(--radius-sm);
+}
+
+/* input[type="range"]. appearance: none IS !important here, as it is on the select: it is the
+   whole point of the rule and zero call sites set it. The three range inputs each carry an
+   inline `style` with `width: 100%` and `accentColor: '#1a3a2a'` - the width is layout and this
+   file never touches it, and accent-color becomes inert the moment appearance: none lands,
+   which is why the track and thumb below have to draw the control themselves.
+
+   NOTHING IS RESET HERE. A range input already computes tokens.css:420's 2px border, 13px
+   radius, 10px 12px padding and 44px min-height today, measured, with appearance: auto - so
+   appearance: none changes the track and the thumb and not the box around them. */
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* THE TRACK AND THE THUMB, declared twice because the two engines name them differently and
+   neither understands the other's pseudo-element. Blink first.
+
+   THE THUMB IS LIME, and that is not a contradiction of the lime rule. grahak-os-design.md
+   assigns lime to our own surfaces at full voice and reserves it for the ACTIONABLE thing; a
+   slider thumb is the thing you drag, unlike a scrollbar thumb, which is why the scrollbar got
+   a green that is not lime and this gets lime. The 2px --accent border is what supplies the
+   3:1 boundary contrast lime alone cannot - it is 1.24:1 on white. */
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-slider-runnable-track {
+  height: 4px;
+  background-color: var(--control-border);
+  border-radius: var(--radius-full);
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  background-color: var(--lime);
+  border: var(--control-border-w) solid var(--accent);
+  border-radius: var(--radius-full);
+  /* Blink lays the thumb out from the top of the 4px track, so a 20px thumb needs lifting by
+     (20 - 4) / 2 to sit on the centre line. Logical, because LogicalDirectionCss.test.tsx holds
+     src/styles/*.css to zero physical direction properties and margin-block-start is the
+     logical name for the top edge in this writing mode. Gecko centres its own thumb, which is
+     why the -moz rule below carries no equivalent. */
+  margin-block-start: -8px;
+  cursor: pointer;
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-moz-range-track {
+  height: 4px;
+  background-color: var(--control-border);
+  border-radius: var(--radius-full);
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  background-color: var(--lime);
+  border: var(--control-border-w) solid var(--accent);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+/* input[type="file"] - THE BUTTON ONLY, and the boundary is worth stating plainly: the OS file
+   chooser dialog is not replaceable from a web page and no layer of this task removes it.
+   Styling the button is the whole of what is available here.
+
+   Two rule sets for one appearance, and they must NOT be merged. ::file-selector-button is the
+   standard name and the only one Gecko implements; ::-webkit-file-upload-button is the legacy
+   alias. A selector list containing an unknown pseudo-element is discarded whole, so grouping
+   them would drop the standard half in Firefox and the legacy half nowhere - the cost of
+   writing it twice is two blocks, and the cost of writing it once is a browser.
+
+   A QUIET button: the control's own border and radius, --accent text, and the house tint on
+   hover. Not lime, because this is a secondary affordance inside a form field rather than the
+   primary action on the surface. */
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::file-selector-button {
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  padding-block: var(--space-2);
+  padding-inline: var(--control-px);
+  margin-inline-end: var(--space-3);
+  background-color: var(--control-bg);
+  color: var(--accent);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), background-color var(--transition-normal);
+}
+
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::file-selector-button:hover {
+  border-color: var(--control-border-hover);
+  background-color: var(--control-tint);
+}
+
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-file-upload-button {
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  padding-block: var(--space-2);
+  padding-inline: var(--control-px);
+  margin-inline-end: var(--space-3);
+  background-color: var(--control-bg);
+  color: var(--accent);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), background-color var(--transition-normal);
+}
+
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-file-upload-button:hover {
+  border-color: var(--control-border-hover);
+  background-color: var(--control-tint);
+}
+
 /* RTL. Padding is logical already, so it mirrors for free. The chevron does not:
    background-position-x is not a logical property, so the physical edge needs one override.
    [dir="rtl"] rather than :dir(rtl) because `dir` is declared on <html> in the exported HTML
