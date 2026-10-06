@@ -199,12 +199,13 @@ interface SearchResult {
 }
 
 const DEFAULT_PLACE: PlaceState = {
-  // Camera-only neutral India starting point. This is never rendered as a selected
-  // destination; hasSelection stays false until search or an explicit valid map click.
-  name: 'India',
-  addr: '',
-  lat: 22.9734,
-  lng: 78.6569,
+  // Default local view: Lumpyngngad, Shillong. This is the Meghalaya PCB monitoring
+  // area the owner selected as the initial VayuLok destination. Search/map clicks can
+  // still replace it immediately; live Weather/Air requests use these coordinates.
+  name: 'Lumpyngngad',
+  addr: 'Shillong, Meghalaya',
+  lat: 25.5586,
+  lng: 91.8985,
   photos: [],
 };
 
@@ -571,10 +572,10 @@ function rememberPlace( place: PlaceState ) {
 }
 
 const VayuLokLive: React.FC = () => {
-  // `place` always contains map coordinates, but it is not a visitor-selected
-  // destination until hasSelection becomes true. This keeps the initial India camera neutral.
+  // Load the owner-selected local destination immediately so the map and live panels
+  // are useful on first paint; search and map clicks continue to replace this selection.
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
-  const [ hasSelection, setHasSelection ] = useState( false );
+  const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
@@ -747,7 +748,7 @@ const VayuLokLive: React.FC = () => {
 
       const map = new maps.Map( host, {
         center: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-        zoom: 5,
+        zoom: 13,
         mapTypeId: 'roadmap',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
@@ -1982,12 +1983,7 @@ const VayuLokLive: React.FC = () => {
                   ) }
                 </div>
               </div>
-            ) : (
-              <div className="vl-live-empty">
-                <span>Choose a place</span>
-                <strong>Search India to see live weather and air.</strong>
-              </div>
-            ) }
+            ) : null }
 
             { hasSelection && ( weather || air ) && (
               <section className="vl-live-section">
