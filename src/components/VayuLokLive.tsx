@@ -1875,20 +1875,6 @@ const VayuLokLive: React.FC = () => {
   const displayPhotos = Array.from(
     new Map( [ ...exactPhotos, ...nearbyPhotos ].map( photo => [ photo.url, photo ] ) ).values(),
   ).slice( 0, 8 );
-  const photoPages = displayPhotos.map( photo => [ photo ] );
-
-  useEffect( () => {
-    if ( displayPhotos.length < 2 ) return undefined;
-    if ( typeof window.matchMedia === 'function' && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) return undefined;
-    const id = window.setTimeout( () => {
-      const rail = photoRailRef.current;
-      if ( !rail || !rail.clientWidth ) return;
-      const next = ( photoIndex + 1 ) % displayPhotos.length;
-      rail.scrollTo( { left: rail.clientWidth * next, behavior: 'smooth' } );
-      setPhotoIndex( next );
-    }, 4600 );
-    return () => window.clearTimeout( id );
-  }, [ displayPhotos.length, photoIndex ] );
 
   const dotClass = ( sev: Sev ) => `vl-live-dot vl-live-dot-${sev}`;
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
@@ -1896,6 +1882,7 @@ const VayuLokLive: React.FC = () => {
     ? pm25Severity( currentPm25.value )
     : null;
   const mapActive = Boolean( MAPS_KEY );
+  const fallbackMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent( `${previewPlace.lat},${previewPlace.lng}` )}&z=13&output=embed`;
   const liveActive = Boolean( MAPS_KEY && hasSelection );
   const bestOutside = bestOutsideWindow( weatherHourly, airForecast );
   const combinedHours = weatherHourly.slice( 0, 24 ).map( ( w, i ) => ( {
@@ -1942,9 +1929,7 @@ const VayuLokLive: React.FC = () => {
   } );
 
   return (
-    <section className="vl-live" aria-labelledby="vl-live-title">
-      <span className="vl-live-sr" id="vl-live-title">Live air quality and weather</span>
-
+    <section className="vl-live" aria-label="VayuLok conditions">
       <main className="vl-live-shell">
         <div className="vl-live-workspace">
           <section className="vl-live-left" aria-label="Place and environmental details">
@@ -2161,15 +2146,26 @@ const VayuLokLive: React.FC = () => {
 
           <section className="vl-live-right" aria-label="Map">
             <div className="vl-live-map-shell">
-              { !mapReady && (
-                <div className="vl-live-map-fallback" role="status">
-                  <span>{ mapFailed ? 'Map temporarily unavailable.' : 'Loading live map…' }</span>
-                  { mapFailed && <button type="button" onClick={ () => window.location.reload() }>Retry map</button> }
-                </div>
+              { ( !mapActive || mapFailed ) ? (
+                <iframe
+                  className="vl-live-map-embed"
+                  src={ fallbackMapUrl }
+                  title={ `Map of ${previewPlace.name || 'Lumpyngngad'}` }
+                  loading="eager"
+                  allowFullScreen
+                />
+              ) : (
+                <>
+                  { !mapReady && (
+                    <div className="vl-live-map-fallback" role="status">
+                      <span>Loading map…</span>
+                    </div>
+                  ) }
+                  <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Map of India' } />
+                </>
               ) }
-              { mapActive && <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Map of India' } /> }
 
-              { mapActive && (
+              { mapReady && (
                 <div className="vl-live-map-search">
                   <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
                   <div className="vl-live-search">
@@ -2346,8 +2342,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-day small{display:block;margin-top:3px;color:var(--green);font-size:10px;font-weight:700}
 
         .vl-live-map-shell{position:relative;height:100%;min-height:748px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
-        .vl-live-map-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0}
+        .vl-live-map-canvas,.vl-live-map-embed{position:absolute;inset:0;width:100%;height:100%}
+        .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
+        .vl-live-map-embed{border:0;background:#eef1ed}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
