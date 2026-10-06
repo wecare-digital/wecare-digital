@@ -7,7 +7,7 @@ wecare-whatsapp-business-api:live Lambda only for Meta template delivery.
 Security invariants:
 - never log the OTP or the complete destination phone number
 - never read/store Meta credentials here
-- fail closed if the user's tenant WABA does not match the configured WABA
+- fail closed if the user's tenant WABA is not a member of the configured WABA map
 - customer users are provisioned administratively; public self-sign-up stays off
 """
 
@@ -37,12 +37,128 @@ def _lambda_client():
 SENDER_FUNCTION = os.environ.get(
     "SENDER_FUNCTION", "wecare-whatsapp-business-api:live"
 )
-META_WABA_ID = os.environ["META_WABA_ID"]
-META_PHONE_NUMBER_ID = os.environ["META_PHONE_NUMBER_ID"]
+# Legacy single-WABA pinning. Kept as the fallback source for the map below and as the
+# documented env contract, but it is no longer what the gate compares against - see
+# `_load_waba_map`. `os.environ.get` rather than `os.environ[...]` because an absent key
+# must not turn a missed env apply into an import-time crash of every sign-in.
+META_WABA_ID = os.environ.get("META_WABA_ID", "")
+META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", "")
 TEMPLATE_NAME = os.environ.get("OTP_TEMPLATE_NAME", "wecare_otp")
 TEMPLATE_LANGUAGE = os.environ.get("OTP_TEMPLATE_LANGUAGE", "en")
 OTP_TTL_SECONDS = int(os.environ.get("OTP_TTL_SECONDS", "600"))
 MAX_ATTEMPTS = int(os.environ.get("MAX_ATTEMPTS", "3"))
+
+# The WABA -> sender map, and the only thing the isolation gate consults.
+#
+# This replaced a single pinned (META_WABA_ID, META_PHONE_NUMBER_ID) pair. That pair made
+# the OTP physically unable to leave from any number but WABA1's, and made a WABA2-scoped
+# customer unable to sign in at all - the gate raised before any send. The gate is still a
+# gate: it became a MEMBERSHIP test against this map instead of equality against one id.
+#
+# There is deliberately NO default entry and no `or <first waba>` anywhere in the lookup.
+# An unknown or missing `custom:partner_waba_id` sends nothing, because the alternative is
+# delivering a customer's sign-in code from a business number they have never messaged, on
+# a WABA their tenant does not belong to.
+#
+# Shape, as the env value (compact JSON, non-secret Meta ids only):
+#
+#   {"<waba_id>": {"phone_number_id": "...",
+#                  "template_name": "...",       # optional -> TEMPLATE_NAME
+#                  "template_language": "..."}}  # optional -> TEMPLATE_LANGUAGE
+#
+# Sourced from the environment rather than literals at the send site for two reasons: this
+# function is packaged `standalone=True` (`scripts/deploy_all_lambdas.py`, handler.py only,
+# live `Layers: null`) so no shared config module is importable; and the env is already
+# drift-checked by `scripts/provision_customer_whatsapp_auth.py --verify`, which reads it
+# off the `live` alias version rather than $LATEST.
+WABA_MAP_ENV = "OTP_WABA_MAP"
+
+
+def _loggable_waba(value) -> str:
+    """Return a WABA id that is safe to print, or `"invalid"`.
+
+    A WABA id is not sensitive and an operator who mistyped one needs to see what they
+    typed. A phone number IS sensitive here, and even its masked suffix is ambiguous in
+    this account (`+918100640044` the QA number vs `+919903300044` a business sender), so
+    a suffix must never be printed either.
+
+    The guard is structural rather than best-effort: E.164 permits at most 15 digits, so
+    an all-ASCII-digit value of 16 or more characters cannot be a phone number. Both
+    observed WABA ids are 16 digits (`2094615664435155`, `2513394156072604`). Anything
+    shorter, or carrying a non-digit, is reported as `"invalid"` and never echoed.
+
+    `ch in "0123456789"` rather than `str.isdigit()`, for the same reason
+    `_normalise_phone` uses it: `isdigit()` is true for 128 non-ASCII codepoints, and a
+    digit-shaped lookalike must not be treated as a safe-to-print id.
+    """
+    text = str(value or "")
+    if len(text) >= 16 and all(ch in "0123456789" for ch in text):
+        return text
+    return "invalid"
+
+
+def _load_waba_map() -> dict:
+    """Parse `OTP_WABA_MAP` into normalised routes keyed by WABA id.
+
+    Entries are normalised to one shape - `waba_id`, `phone_number_id`, `template_name`,
+    `template_language` - so the send path reads exactly one thing. An entry missing a
+    `phone_number_id`, or whose key is empty, is dropped rather than half-used: a route
+    with no sender cannot send, and keeping it would make the membership test pass for a
+    WABA that then fails at Meta.
+
+    Falls back to a SINGLE-entry map built from the legacy env pair when the variable is
+    absent or unusable. That is today's exact behaviour, which matters: a strict read would
+    turn one missed env apply into a total OTP outage for WABA1, while the fallback still
+    fails closed for every other WABA. The fallback is only built when both legacy values
+    are non-empty, so an empty string can never become a map key.
+    """
+    raw = os.environ.get(WABA_MAP_ENV, "").strip()
+    routes: dict = {}
+    if raw:
+        parsed = None
+        try:
+            parsed = json.loads(raw)
+        except ValueError as exc:
+            print(json.dumps({"event": "waba_map_unparseable",
+                              "error": type(exc).__name__}))
+        if isinstance(parsed, dict):
+            for waba_id, entry in parsed.items():
+                if not isinstance(entry, dict):
+                    continue
+                key = str(waba_id or "")
+                phone_number_id = str(entry.get("phone_number_id") or "")
+                if not key or not phone_number_id:
+                    continue
+                routes[key] = {
+                    "waba_id": key,
+                    "phone_number_id": phone_number_id,
+                    "template_name": str(entry.get("template_name") or TEMPLATE_NAME),
+                    "template_language": str(
+                        entry.get("template_language") or TEMPLATE_LANGUAGE),
+                }
+
+    if routes:
+        return routes
+
+    if META_WABA_ID and META_PHONE_NUMBER_ID:
+        print(json.dumps({"event": "waba_map_fallback_to_legacy_env",
+                          "wabaId": _loggable_waba(META_WABA_ID)}))
+        return {
+            META_WABA_ID: {
+                "waba_id": META_WABA_ID,
+                "phone_number_id": META_PHONE_NUMBER_ID,
+                "template_name": TEMPLATE_NAME,
+                "template_language": TEMPLATE_LANGUAGE,
+            }
+        }
+
+    # No map and no legacy pair: every sign-in now fails closed at the gate. Loud at
+    # import so the cause is visible before the first denial.
+    print(json.dumps({"event": "waba_map_empty"}))
+    return {}
+
+
+WABA_ROUTES = _load_waba_map()
 
 # Probe limiting for the unregistered-number reveal.
 #
@@ -245,13 +361,22 @@ def _mask_phone(phone: str) -> str:
     return ("*" * max(0, len(digits) - 4)) + digits[-4:]
 
 
-def _send_otp(phone: str, otp: str) -> None:
-    """Invoke the existing Meta Graph sender through its internal Lambda path."""
+def _send_otp(phone: str, otp: str, route: dict) -> None:
+    """Invoke the existing Meta Graph sender through its internal Lambda path.
+
+    `route` is a resolved entry from `WABA_ROUTES` and is required, not optional. Making
+    it a parameter rather than a module lookup is what stops this function from ever
+    sending from "the configured number" again: the caller has to have resolved the
+    customer's own WABA first, and there is no value it can pass that means "default".
+
+    The sender (`wecare-whatsapp-business-api:live`) picks the right Meta token from the
+    `phoneId` it is given, so routing per WABA needs nothing more than the mapped id.
+    """
     body = {
         "to": _normalise_phone(phone),
-        "phoneId": META_PHONE_NUMBER_ID,
-        "templateName": TEMPLATE_NAME,
-        "language": TEMPLATE_LANGUAGE,
+        "phoneId": route["phone_number_id"],
+        "templateName": route["template_name"],
+        "language": route["template_language"],
         "components": [
             {
                 "type": "body",
@@ -292,12 +417,56 @@ def _send_otp(phone: str, otp: str) -> None:
     result = json.loads(raw.decode("utf-8")) if raw else {}
 
     if response.get("FunctionError"):
+        _log_send_failure(route, "function_error", result)
         raise RuntimeError("internal WhatsApp sender Lambda failed")
     status = int(result.get("statusCode") or 500)
     if status >= 300:
+        _log_send_failure(route, status, result)
         raise RuntimeError(
             f"internal WhatsApp sender returned HTTP {status}"
         )
+
+
+def _meta_error_code(result: dict):
+    """The integer Meta error code out of the sender's response body, or None.
+
+    The sender json-dumps Meta's `{"error": {...}}` straight into `body`, so the code is
+    recoverable without a second Graph call. Only the integer is taken. The accompanying
+    Meta `message` is free-form provider text and is deliberately not read, let alone
+    logged.
+    """
+    body = result.get("body")
+    if not isinstance(body, str):
+        return None
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    error = parsed.get("error")
+    code = error.get("code") if isinstance(error, dict) else None
+    return code if isinstance(code, int) else None
+
+
+def _log_send_failure(route: dict, sender_status, result: dict) -> None:
+    """Metadata-only record of a refused send, so the WABA and the Meta code are visible.
+
+    The one that matters operationally is `132001` - "template does not exist in <lang>".
+    An AUTHENTICATION template is approved per WABA and approval does NOT cross WABAs, so
+    a correct map plus an unapproved `wecare_otp` on that WABA produces exactly this, and
+    before this log it surfaced only as "sender returned HTTP 400" with nothing naming the
+    WABA. The send still raises afterwards: failing closed is the point, and the Lambda
+    error metric stays the alarm signal rather than issuing a challenge for a code that
+    will never arrive.
+    """
+    print(json.dumps({
+        "event": "customer_whatsapp_otp_send_failed",
+        "wabaId": _loggable_waba(route.get("waba_id")),
+        "template": str(route.get("template_name") or ""),
+        "senderStatus": sender_status,
+        "metaCode": _meta_error_code(result),
+    }))
 
 
 def _define_auth_challenge(event: dict) -> dict:
@@ -360,6 +529,13 @@ def _create_auth_challenge(event: dict) -> dict:
     # is a rate limit on this trigger keyed on source IP, not re-hiding the flag -
     # going back to silence would restore the dead end.
     if bool(request.get("userNotFound")):
+        # RC-5: this branch used to return in total silence, so "the code never arrived"
+        # for an unprovisioned number left no trace anywhere and could not be told apart
+        # from a delivery failure. One metadata-only line fixes that. No phone number and
+        # no masked suffix - the suffix is ambiguous in this account and the number is the
+        # one thing this event must not carry.
+        print(json.dumps({"event": "customer_whatsapp_otp_skipped",
+                          "reason": "user_not_found"}))
         event["response"]["publicChallengeParameters"]["destination"] = "********"
         # Rate-limited, so the reveal cannot be used to sweep a list of numbers. Past
         # the budget the answer becomes indistinguishable from a registered number,
@@ -378,9 +554,24 @@ def _create_auth_challenge(event: dict) -> dict:
             event["response"]["publicChallengeParameters"]["registered"] = "false"
         return event
 
+    # The cross-WABA isolation gate, as a membership test against WABA_ROUTES.
+    #
+    # It was equality against one pinned id, which refused every WABA2-scoped customer.
+    # It is now "is this customer's WABA one we are configured to send from", which is the
+    # same guarantee generalised rather than relaxed: a missing attribute, an empty one, a
+    # typo, or a WABA that is simply not in the map all land here and send nothing. The
+    # lookup has no default, so there is no path by which an unknown tenant's code leaves
+    # from an arbitrary number.
     user_waba = attributes.get("custom:partner_waba_id")
-    if user_waba != META_WABA_ID:
-        raise PermissionError("customer user is not scoped to configured WABA")
+    route = WABA_ROUTES.get(str(user_waba or ""))
+    if route is None:
+        print(json.dumps({
+            "event": "customer_whatsapp_otp_denied",
+            "reason": "unknown_waba",
+            "wabaId": _loggable_waba(user_waba),
+            "supportedWabaCount": len(WABA_ROUTES),
+        }))
+        raise PermissionError("customer user is not scoped to a supported WABA")
 
     phone = attributes.get("phone_number")
     if not phone:
@@ -405,18 +596,19 @@ def _create_auth_challenge(event: dict) -> dict:
         # to probe the limit. The private challenge answer is still set, so a code the
         # customer already holds continues to verify.
         print(json.dumps({"event": "customer_whatsapp_otp_send_suppressed",
-                          "reason": "send_budget"}))
+                          "reason": "rate_limited"}))
         return event
 
-    _send_otp(phone, otp)
+    _send_otp(phone, otp, route)
 
     # Metadata only. Do not log the OTP or unmasked number.
     print(
         json.dumps(
             {
                 "event": "customer_whatsapp_otp_sent",
-                "wabaId": META_WABA_ID,
-                "template": TEMPLATE_NAME,
+                "wabaId": route["waba_id"],
+                "template": route["template_name"],
+                "senderPhoneId": route["phone_number_id"],
             }
         )
     )

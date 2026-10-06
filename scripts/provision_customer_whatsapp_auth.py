@@ -43,6 +43,15 @@ GROUP_NAME = "Partner"
 # Live Meta values verified through the production backend on 2026-09-23.
 WABA_ID = "2094615664435155"
 PHONE_NUMBER_ID = "1016149501586345"
+# The second WABA. Customer OTP used to be pinned to WABA1 alone, which meant a
+# WABA2-scoped customer was refused at the isolation gate and could never sign in.
+#
+# PRECONDITION, not verified here: `wecare_otp` must be APPROVED in WABA2's OWN template
+# list. Meta approves an AUTHENTICATION template per WABA and approval does not cross
+# WABAs, so a correct map plus a missing approval answers 132001 and nothing is delivered.
+# Checking it needs a Graph call with a token, which this repo does not make.
+WABA2_ID = "2513394156072604"
+WABA2_PHONE_NUMBER_ID = "1055232054343117"
 OTP_TEMPLATE_NAME = "wecare_otp"
 OTP_TEMPLATE_LANGUAGE = "en"
 OTP_TTL_SECONDS = "600"
@@ -65,6 +74,31 @@ OTP_SEND_MAX_PER_WINDOW = "5"
 OTP_SEND_WINDOW_SECONDS = "3600"
 
 EXPECTED_ADMIN_POOL_ID = "us-east-1_cSx0RHCIR"
+
+
+def otp_waba_map() -> str:
+    """The WABA -> sender map as the handler's `OTP_WABA_MAP` env value.
+
+    `sort_keys` + compact separators so the string is byte-stable: `reconcile_environment`
+    and `--verify` both compare it literally against what is on the `live` alias, and a
+    reordered dict would read as drift forever.
+    """
+    return json.dumps(
+        {
+            WABA_ID: {
+                "phone_number_id": PHONE_NUMBER_ID,
+                "template_language": OTP_TEMPLATE_LANGUAGE,
+                "template_name": OTP_TEMPLATE_NAME,
+            },
+            WABA2_ID: {
+                "phone_number_id": WABA2_PHONE_NUMBER_ID,
+                "template_language": OTP_TEMPLATE_LANGUAGE,
+                "template_name": OTP_TEMPLATE_NAME,
+            },
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
 
 
 _account_id_cache = None
@@ -231,8 +265,13 @@ def expected_environment() -> dict:
     verify, so the three cannot drift apart."""
     return {
         "SENDER_FUNCTION": SENDER_FUNCTION,
+        # Legacy single-WABA pair. Kept because the handler falls back to it when
+        # OTP_WABA_MAP is absent, which keeps a missed env apply a WABA1-only
+        # degradation rather than a total OTP outage.
         "META_WABA_ID": WABA_ID,
         "META_PHONE_NUMBER_ID": PHONE_NUMBER_ID,
+        # The map the isolation gate tests membership against. Both WABAs, no default.
+        "OTP_WABA_MAP": otp_waba_map(),
         "OTP_TEMPLATE_NAME": OTP_TEMPLATE_NAME,
         "OTP_TEMPLATE_LANGUAGE": OTP_TEMPLATE_LANGUAGE,
         "OTP_TTL_SECONDS": OTP_TTL_SECONDS,

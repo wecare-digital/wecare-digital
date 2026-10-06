@@ -1,0 +1,18 @@
+{
+  "wecare-customer-whatsapp-auth": {
+    "env": {
+      "OTP_PROBE_MAX_PER_WINDOW": "5",
+      "META_WABA_ID": "2094615664435155",
+      "OTP_PROBE_WINDOW_SECONDS": "3600",
+      "MAX_ATTEMPTS": "3",
+      "OTP_SEND_WINDOW_SECONDS": "3600",
+      "OTP_SEND_MAX_PER_WINDOW": "5",
+      "OTP_TEMPLATE_LANGUAGE": "en",
+      "OTP_TEMPLATE_NAME": "wecare_otp",
+      "META_PHONE_NUMBER_ID": "1016149501586345",
+      "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
+      "OTP_TTL_SECONDS": "600"
+    },
+    "live": "12"
+  }
+}

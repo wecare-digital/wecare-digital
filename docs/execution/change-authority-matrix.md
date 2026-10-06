@@ -1219,3 +1219,70 @@ unsigned-request behaviour is already measured and is pinned by tests, and the o
 the log for real Wix events - a probe would have put another `curl` refusal in the channel the
 diagnostic was removed to clean. The next real Wix product edit will log a single clean
 `wix_webhook_verified` with no `wix_webhook_shape` and no `wix_webhook_claims` beside it.
+
+## 2026-10-06 - The customer OTP now leaves from the WABA the customer belongs to
+
+**This is a deliberate behaviour change to a cross-WABA isolation gate, and it is recorded as such
+rather than as a bug fix.** `customer-whatsapp-auth` pinned every OTP to WABA1's phone-number id
+(`1016149501586345`) and compared `custom:partner_waba_id` for **equality** against a single
+`META_WABA_ID`. Measured consequence: a WABA2-scoped customer could not sign in at all - the
+trigger raised `PermissionError` before any send, and Cognito returned a generic failure with no
+log line naming the cause. 17 OTP sends in the preceding 30 days were all WABA1.
+
+The gate was **generalised, not relaxed**. Equality against one id became a MEMBERSHIP test
+against `OTP_WABA_MAP`. There is no default entry and no `or <first waba>` in the lookup, so an
+unknown, empty or missing `custom:partner_waba_id` still sends nothing and still raises - it just
+now says why. Four parametrised cases pin that, including the `None` row, which is the one an
+operator actually hits.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | `auth/customer-whatsapp-auth/handler.py`, `tests/test_customer_whatsapp_auth.py`, `scripts/provision_customer_whatsapp_auth.py`, `config/lambda-env-manifest.json`, `docs/customer-whatsapp-cognito-auth.md` | 223 pass across the customer-auth, secure-files, deploy-map and phone-country-code suites (209 before, +14 new cases); full suite 7817 pass with 6 failures all proven pre-existing or owned by a concurrent session | revert the commit |
+| `A3_PRODUCTION` | `wecare-customer-whatsapp-auth` env `OTP_WABA_MAP` added, `live` v12 -> v13 | `set_lambda_env_flag.py --apply` reported `12 var(s) kept, live 12 -> 13`, `updated=1 failed=0`; prior env snapshotted to `docs/execution/snapshots/lambda-env-before-otp_waba_map-20261006T072147Z.json` | `aws lambda update-alias --function-name wecare-customer-whatsapp-auth --name live --function-version 12` |
+| `A3_PRODUCTION` | `wecare-customer-whatsapp-auth` v14 published, `live` moved v13 -> v14 | `GetAlias` reports `FunctionVersion 14`; v14 `CodeSha256 ErTcQC5dVt/kQzMzD3yLS+sijKBc5r4xFXFsFo9dOYw=` matches `$LATEST`; 12 env vars with `OTP_WABA_MAP` present; `provision_customer_whatsapp_auth.py --verify` green against the `live` version; 0 log events in the following 15 min | `aws lambda update-alias --function-name wecare-customer-whatsapp-auth --name live --function-version 12` (v12 sha `+R71q9HBmHL/nmwIzEIdvVSQE7eBizkLTCi6tWfnYlc=`) |
+
+**Rollback is 12, not 13.** v13 is the env-only intermediate: it carries the map but the old
+single-WABA code, which ignores it. Publishing the env before the code was deliberate for exactly
+that reason - the intermediate version is inert, so the two steps could not half-apply.
+
+**The alias move is mandatory here, not routine hygiene.** All three Cognito triggers invoke
+`wecare-customer-whatsapp-auth:live`, so a `$LATEST` update reaches nothing. The same is true of
+the env: a published version freezes its configuration, which is why
+`provision_customer_whatsapp_auth.py --verify` reads the env off the alias version and why
+`OTP_WABA_MAP` was added to its `expected_environment()` - a stale alias now fails that check
+instead of passing it.
+
+**No live send, no Cognito write.** WABA1's path is a no-op by construction (its map entry
+reproduces the previous pinned pair exactly) and is proven by tests rather than by messaging a
+handset. WABA2 has no user in the pool to exercise. No user was created, no `admin-initiate-auth`
+or `CUSTOM_AUTH` was triggered, no pool/trigger/app-client was touched, no Meta Graph call was
+made, no live-send flag moved.
+
+**One precondition is documented and deliberately unverified: `wecare_otp` must be APPROVED in
+WABA2's own template list.** Meta approves AUTHENTICATION templates per WABA and approval does not
+cross WABAs, so WABA1's APPROVED status says nothing about `2513394156072604`. Confirming it needs
+a Graph call with a token, which is prohibited. The code is built so a missing approval is a clean
+logged fail-closed - `customer_whatsapp_otp_send_failed` with `metaCode: 132001` - rather than an
+unexplained HTTP 400 or a crash.
+
+**Observability, metadata only.** Three events were added or corrected to close the gap that made
+"no OTP arrived" unanswerable from logs: `customer_whatsapp_otp_skipped`/`user_not_found` on the
+`userNotFound` branch (which previously returned in total silence),
+`customer_whatsapp_otp_send_suppressed` reason changed `send_budget` -> `rate_limited`, and
+`customer_whatsapp_otp_denied`/`unknown_waba` on the new fail-closed path. **No phone number and
+no masked suffix in any of them** - `...0044` is ambiguous in this account between the QA
+recipient and a business sender. The denial log does echo the offending WABA id, because that is
+the field an operator mistyped, but only through `_loggable_waba`, which prints a value solely
+when it is all ASCII digits and **at least 16 characters**. E.164 permits at most 15, so that
+field structurally cannot carry a phone number.
+
+**Unchanged on purpose:** the per-phone send budget arithmetic (5/3600s, fail-closed), the
+`url`-not-`copy_code` button shape, `PreventUserExistenceErrors` behaviour, the `registered`
+values the browser reads (`src/lib/customerAuth.ts` needed no change), and the legacy
+`META_WABA_ID`/`META_PHONE_NUMBER_ID` pair - kept as a single-entry fallback so a missed env apply
+degrades to WABA1-only rather than taking customer sign-in down entirely.
+
+**Pre-existing drift found and left alone:** `config/lambda-env-manifest.json` records 9 keys for
+this function while the live function carries 11 - `OTP_SEND_MAX_PER_WINDOW` and
+`OTP_SEND_WINDOW_SECONDS` were never recorded. Flagged rather than silently corrected, since
+fixing it means re-deriving `_variables` for keys this change did not add.

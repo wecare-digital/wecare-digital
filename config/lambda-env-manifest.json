@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 68,
-  "_variables": 403,
+  "_variables": 404,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -147,6 +147,7 @@
       "OTP_TEMPLATE_LANGUAGE": "en",
       "OTP_TEMPLATE_NAME": "wecare_otp",
       "OTP_TTL_SECONDS": "600",
+      "OTP_WABA_MAP": "{\"2094615664435155\":{\"phone_number_id\":\"1016149501586345\",\"template_language\":\"en\",\"template_name\":\"wecare_otp\"},\"2513394156072604\":{\"phone_number_id\":\"1055232054343117\",\"template_language\":\"en\",\"template_name\":\"wecare_otp\"}}",
       "SENDER_FUNCTION": "wecare-whatsapp-business-api:live"
     },
     "wecare-dlq-replay": {
