@@ -16,6 +16,20 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
  * page-independent.
  */
 
+/**
+ * THE FLAG SEAM. `vi.mock` is hoisted above the imports, so the factory has to close over a
+ * `vi.hoisted()` object - a plain `const` would still be in TDZ when the factory runs.
+ *
+ * It deliberately does NOT spread the real module: the point is to control the value, and a
+ * spread of a `const` object re-introduces the real flag. It is also never reset with
+ * `vi.resetModules` mid-file, because the page is imported once at the top, as it is today.
+ *
+ * Default `false`, which is the SHIPPED state. Each invoice-facing describe sets what it needs
+ * in its own `beforeEach`.
+ */
+const flags = vi.hoisted( () => ( { invoiceDownload: false } ) );
+vi.mock( '../config/featureFlags', () => ( { featureFlags: flags } ) );
+
 // The page reads getSession/restoreSession/clearSession and nothing else from customerAuth. The
 // module is mocked rather than the storage behind it, because this suite is about what the page
 // does with a session, not about how a session is persisted.

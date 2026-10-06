@@ -9,6 +9,11 @@ import CheckoutProfile, {
   type CheckoutProfileValue,
 } from '../components/CheckoutProfile';
 import { type StoredAddress } from '../components/AddressFields';
+// The MODULE is the mockable seam, and the boolean is read as a property access INSIDE the
+// render body - never captured in a module-scope const. An ESM const cannot be spied and
+// vi.stubEnv runs strictly after module evaluation, which is exactly why API_BASE below is not
+// overridable today. There is deliberately no local alias either: two names for one fact.
+import { featureFlags } from '../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../lib/customerAuth';
 import { formatPaiseINR } from '../lib/money';
 

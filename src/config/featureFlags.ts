@@ -48,6 +48,28 @@ export const featureFlags = {
    * be opened deliberately rather than by deploying.
    */
   commerceModule: flag( process.env.NEXT_PUBLIC_ENABLE_COMMERCE_MODULE ),
+
+  /**
+   * Per-order invoice download on /orders/. OFF until `POST /ecommerce/my-invoice` is
+   * deployed and its `live` alias moved. While it is OFF every Invoice cell renders the
+   * terminal "No invoice yet" text — no button, and **no request is issued at all**.
+   *
+   * That last part is the reason the gate exists rather than being a nicety. The page
+   * would otherwise depend on what an unmatched `/api/*` path returns through the Amplify
+   * rewrite; that rewrite is console-side configuration, it is not in this repo, and
+   * nobody has measured it. If it answered 200 with an HTML SPA body, `response.ok` would
+   * be true, `response.json()` would throw, and every paid order would show a failure with
+   * a retry that can never succeed. A flag is cheaper than a measurement we cannot take.
+   *
+   * Enabling it is an env change plus a REBUILD, not a code edit: NEXT_PUBLIC_ values are
+   * inlined at build time, so setting the variable alone changes nothing.
+   *
+   * The name is `invoiceDownload` and not `myInvoiceRouteLive` because
+   * `src/test/FeatureFlags.test.tsx` sweeps flag names for `send`/`live`/`smoke`/`apply`/
+   * `routing` — and correctly so: a reader scanning flag names should not have to decide
+   * whether "…Live" means "the route is live" or "live sending".
+   */
+  invoiceDownload: flag( process.env.NEXT_PUBLIC_ENABLE_INVOICE_DOWNLOAD ),
 } as const;
 
 export type FeatureFlagName = keyof typeof featureFlags;
