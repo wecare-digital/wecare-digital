@@ -97,7 +97,7 @@ import type { CustomerSession } from '../lib/customerAuth';
 import {
   readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
-  basketFingerprint, cartMixesContribution, cartRequiresDelivery,
+  basketFingerprint, cartRequiresDelivery,
   isContributionItem, setContribution,
 } from '../lib/cart';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
@@ -142,15 +142,25 @@ const CHECKOUT_REQUEST_BASKET = 'wc_checkout_request_basket';
 const CONTRIBUTION_HELP = `Choose one of the offered contribution amounts: ${
   CONTRIBUTION_CHOICES.map( choice => `\u20B9${ choice.rupees }` ).join( ', ' ) }.`;
 /**
- * A contribution is paid on its own.
+ * One contribution at a time.
  *
- * ONE constant, used by both the browser-side notice and the server's `CONTRIBUTION_NOT_ALONE`
- * outcome arm, so the two refusals read identically whichever side produced them. A customer who
- * meets the local one and then the remote one must not be told two different things.
+ * IT USED TO SAY "a contribution is paid on its own", AND THAT RULE IS GONE. Owner decision,
+ * 2026-10-06: a product and a contribution check out together, priced the way any single order is
+ * priced -- Wix prices every line and `checkout_pricing` adds the 2.5% convenience fee plus 18%
+ * GST on that fee over the whole collection. So there is no longer a browser-side mixed-basket
+ * refusal, no notice and no disabled CTA for one.
+ *
+ * What remains is the server's narrowed `CONTRIBUTION_NOT_ALONE`: TWO contribution lines, which
+ * is two contributions in one payment and has no single expected collection. Still ONE constant
+ * shared with that outcome arm, so the sentence the customer reads is word for word the server's
+ * own message.
+ *
+ * REACHABLE ONLY FROM A CRAFTED REQUEST, because `setContribution` replaces the contribution line
+ * rather than adding to it. Kept for the same reason `CONTRIBUTION_HELP` is: the server can
+ * answer it, and a dead end is worse than a sentence.
  */
 const CONTRIBUTION_ALONE_MESSAGE =
-  'A contribution is paid on its own. Remove the contribution, or remove the other items, '
-  + 'then check out.';
+  'Only one contribution can be paid at a time. Remove the extra contribution, then check out.';
 /** The same words the blog block uses when the product is not configured. */
 const CONTRIBUTION_UNAVAILABLE_MESSAGE = 'Contributions are not available right now.';
 /**
@@ -881,29 +891,15 @@ export default function Cart (): React.ReactElement {
     setItems( removeItem( ref ) );
   }, [] );
 
-  /**
-   * The one action offered beside the mixed-basket notice: leave the contribution on its own.
+  /*
+   * `keepOnlyContribution` WAS HERE, and it went with the rule it served.
    *
-   * IT IS THE INTENT THAT ARRIVED HERE. The only way into a mixed basket is choosing an amount on
-   * a blog post, which navigates straight to this page, so the thing the customer is trying to do
-   * is pay the contribution. This performs the half of `CONTRIBUTION_ALONE_MESSAGE` that gets them
-   * there in one press; the per-row Remove buttons still do the other half, and nothing here is
-   * lost that the shop cannot re-add.
-   *
-   * `removeItem` RATHER THAN a bulk write, so there is still exactly one place that rewrites the
-   * cart. Each call re-reads storage and returns the new list, so the last return is the final
-   * state and no intermediate list is rendered.
+   * It emptied every non-contribution line in one press, as the offered exit from the
+   * mixed-basket refusal. With a mix now payable there is nothing to exit from, and a button that
+   * silently discards a customer's products to "fix" a basket that is not broken would be a
+   * destructive write nobody asked for. The per-row Remove buttons are unchanged and remain the
+   * only way a line leaves the cart.
    */
-  const keepOnlyContribution = useCallback( (): void => {
-    let next = readCart();
-    for ( const other of next.filter( item => !isContributionItem( item ) ) )
-    {
-      next = removeItem( other.ref );
-    }
-    setItems( next );
-    setPaymentBlocked( false );
-    setNotice( { kind: 'none' } );
-  }, [] );
 
   const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
     if ( !variantId ) return;
@@ -1271,7 +1267,10 @@ export default function Cart (): React.ReactElement {
     }
     if ( outcome.kind === 'CONTRIBUTION_NOT_ALONE' )
     {
-      // Word for word the browser-side notice, so the two refusals read identically.
+      // NOW THE ONLY PLACE THIS SENTENCE APPEARS. There is no browser-side mixed-basket refusal
+      // to agree with any more -- the server narrowed this code to two contribution lines, which
+      // only a crafted request builds -- so this arm is both the sole call site and the sole way
+      // the customer ever sees it. Still word for word the server's own message.
       setNotice( { kind: 'quiet', message: CONTRIBUTION_ALONE_MESSAGE } );
       return;
     }
@@ -1456,27 +1455,18 @@ export default function Cart (): React.ReactElement {
     const resetCart = resetCartRef.current;
     resetCartRef.current = false;
 
-    // A MIXED BASKET IS REFUSED HERE, BEFORE THE AUTH GATE, and that ordering is the point.
+    // THE MIXED-BASKET REFUSAL THAT USED TO SIT HERE IS GONE, and nothing replaced it.
     //
-    // It is a purely LOCAL fact -- the browser can see both kinds of line without asking anyone --
-    // so it must not cost a sign-in redirect first. Sending an unauthenticated customer to
-    // /account/sign-in/ and back only to then tell them their basket is wrong is two steps too
-    // many for something knowable in one.
+    // Owner decision, 2026-10-06: a product and a contribution are paid together. There is no
+    // longer a local fact to refuse on, so the basket goes to the server and is priced like any
+    // other order. The server's `_contribution_request` returns `None` for a mix, which puts it
+    // on the ordinary path -- fee-bearing quote, ordinary delivery handling -- rather than on the
+    // fee-exempt contribution path.
     //
-    // NO ARGUMENT, deliberately: `cartMixesContribution()` reads STORAGE. `proceed` is
-    // `useCallback(..., [profile, profileStatus])` and `items` is component state that is NOT a
-    // dependency, so passing `items` here would read a value captured at the last render -- stale
-    // after a row is removed with no intervening profile change. `proceed` re-reads storage via
-    // `toLineItems()` below for exactly this reason.
-    //
-    // Both exits are the per-row Remove buttons that already exist, so this adds a notice and a
-    // disabled CTA and no new affordance. The server refuses the same basket with
-    // `CONTRIBUTION_NOT_ALONE` in the same words, so a crafted request gets the same answer.
-    if ( cartMixesContribution() )
-    {
-      setNotice( { kind: 'quiet', message: CONTRIBUTION_ALONE_MESSAGE } );
-      return;
-    }
+    // ONE-SHOT NOTE, since the consume above was positioned partly because of this return: the
+    // early returns it defends against are still there (`restoreSession()` throwing, an empty
+    // basket, an unresolved variant, the `status === 'required'` address arm), so its placement
+    // is unchanged and still load-bearing.
 
     // AUTH GATE. No session -> sign-in first, cart preserved in localStorage. No create call.
     let session;
@@ -1704,15 +1694,6 @@ export default function Cart (): React.ReactElement {
   }, [ runCheckout ] );
 
   /**
-   * A mixed basket, derived from `items` at RENDER time.
-   *
-   * Reading state is correct here -- unlike inside `proceed`, where `items` is captured by the
-   * `useCallback` and the storage read is the one that cannot be stale. Both answers come from the
-   * same helper, so the disabled CTA and the refusal inside `proceed` cannot disagree.
-   */
-  const mixedBasket = cartMixesContribution( items );
-
-  /**
    * Re-post the SAME prepare with `resetCart: true`, the answer to `CART_RESET_REQUIRED`.
    *
    * It goes through `proceed` rather than calling `postPrepare` directly, so the auth gate, the
@@ -1897,27 +1878,13 @@ export default function Cart (): React.ReactElement {
                 <p className="cart-status cart-status-firm" role="alert">{ notice.message }</p>
               )}
 
-              {/* WHY THE CHECKOUT BUTTON BELOW IS DIMMED, SAID AT RENDER TIME.
-                  `mixedBasket` used to drive the `disabled` term and NOTHING ELSE, and both of
-                  `CONTRIBUTION_ALONE_MESSAGE`'s other call sites are downstream of the press: one
-                  inside `runCheckout`, one on the server's `CONTRIBUTION_NOT_ALONE` reply. A
-                  native disabled button fires no onClick, so neither could ever be reached from
-                  this state - the customer got a dead control, no sentence, no error and no
-                  request, which is exactly why the checkout Lambda saw no contribution traffic.
-                  The button SHOULD be disabled; it must not be disabled silently.
-                  Independent of `notice`, because this is a property of the basket rather than of
-                  the last thing that happened, and the same words whichever side refuses. */}
-              { mixedBasket && !railTerminal && (
-                <>
-                  <p className="cart-status" role="status">{ CONTRIBUTION_ALONE_MESSAGE }</p>
-                  <p className="cart-back">
-                    <button className="cart-remove" type="button" disabled={ busy }
-                            onClick={ keepOnlyContribution }>
-                      Keep only the contribution
-                    </button>
-                  </p>
-                </>
-              ) }
+              {/* THE MIXED-BASKET NOTICE AND ITS "Keep only the contribution" BUTTON WERE HERE.
+                  Both are gone with the rule: a product and a contribution check out together as
+                  of 2026-10-06, so there is no basket state to explain at render time and no
+                  reason to dim the CTA for one. `CONTRIBUTION_ALONE_MESSAGE` survives for the one
+                  refusal that is left -- two contribution lines, which only a crafted request can
+                  build -- and is shown by `applyOutcome` when the server answers it, which is a
+                  press away rather than at render, because nothing local can predict it. */}
 
               {/* THE ONE REFUSAL THAT CARRIES AN ACTION. The excess lines are on the SERVER cart,
                   which nothing on this page can touch, so words alone would name an action the
@@ -1965,10 +1932,10 @@ export default function Cart (): React.ReactElement {
                          disabled term is what keeps it dead. `busy` is left alone: the spinner
                          means "a request is in flight", and a latched page is not busy, it is
                          finished. */
-                      /* ...plus the mixed basket, derived from `items` at RENDER time, which is
-                         where reading state is correct. The server refuses the same basket; this
-                         stops the request being made at all. */
-                      disabled={ busy || railTerminal || mixedBasket }
+                      /* NO BASKET TERM HERE ANY MORE. `mixedBasket` used to be the third term and
+                         is gone: a mix is payable, so the only things that dim this control are a
+                         request in flight and a finished rail. */
+                      disabled={ busy || railTerminal }
                       busy={ busy }
                     /> }
               </div>

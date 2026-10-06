@@ -9,9 +9,24 @@ import {
   addItem, basketFingerprint, cartCount, clearCart, readCart, setContribution, toLineItems,
 } from '../lib/cart';
 
-/** A kiosk to stand beside a contribution, so the mixed-basket cases have something to mix. */
+/**
+ * A kiosk to stand beside a contribution, so the mixed-basket cases have something to mix.
+ *
+ * THE ID IS DELIBERATELY NOT UUID-SHAPED, and that is a repair rather than a style choice. It
+ * used to be `00d4c72b-f694-441a-a192-e16f4b192440`, a well-formed catalogue id that
+ * `KNOWN_CATALOGUE_PRODUCT_IDS` does not contain -- so `droppableUnknown` pruned this line on
+ * every `readCart()` and the kiosk was never in the cart at all. Two cases in this file were
+ * failing on it before this change (`counts a contribution plus a kiosk at quantity 2 as THREE`
+ * returned 1), and three more were passing VACUOUSLY: the fingerprint and mixed-cart cases were
+ * measuring a basket holding only the contribution.
+ *
+ * `droppableUnknown` only drops a line whose claimed id is UUID-shaped, which is the pre-migration
+ * row it exists for. A non-UUID id therefore survives reconciliation for the same reason
+ * CartCheckout.test.tsx's `wix-abc-123` does, and will keep surviving the next re-mint -- which a
+ * real id copied out of today's snapshot would not.
+ */
 const KIOSK: ShopProduct = {
-  id: '00d4c72b-f694-441a-a192-e16f4b192440',
+  id: 'wix-kiosk-001',
   name: 'Kiosk',
   slug: 'kiosk',
   formattedPrice: '\u20B924,999.00',
@@ -209,17 +224,28 @@ describe( 'the second payment implementation is GONE, not disabled', () => {
     expect( text ).not.toMatch( /GST/ );
   } );
 
-  it( 'warns once when the cart already holds other items, and still navigates', () => {
+  it( 'does NOT warn when the cart already holds other items, and still navigates', () => {
+    /*
+     * THE INVERSION OF WHAT THIS CASE ASSERTED. It used to require the sentence "a contribution
+     * is paid on its own" whenever the cart held anything else. Owner decision, 2026-10-06: a
+     * product and a contribution are paid together, so the warning described a refusal the server
+     * no longer makes -- which is worse than silence, because it sends the customer to edit a
+     * basket that is already payable.
+     *
+     * The behaviour under test is unchanged: the chosen contribution lands in the cart beside
+     * whatever was there and the block navigates to /cart/.
+     */
     const assign = vi.fn();
     vi.stubGlobal( 'location', { ...window.location, assign } );
     addItem( KIOSK, 1 );
-    renderBlock();
-    expect( screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument();
+    const { container } = renderBlock();
+    expect( container.textContent || '' ).not.toMatch( /paid on its own/ );
+    expect( container.querySelector( '[data-phase="mixed"]' ) ).toBeNull();
 
     fireEvent.click( screen.getByRole( 'button', { name: /^Contribute / } ) );
-    // The submit still goes to /cart/, where the notice and BOTH one-click exits live. Deciding
-    // for the customer which lines to drop would be worse than telling them.
     expect( assign ).toHaveBeenCalledWith( '/cart/' );
+    // Both lines survive: nothing drops the kiosk to make room for the contribution.
+    expect( readCart() ).toHaveLength( 2 );
   } );
 
   it( 'keeps its accessibility furniture and its h2 rung', () => {

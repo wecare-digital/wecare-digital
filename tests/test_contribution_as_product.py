@@ -11,16 +11,27 @@ What this file pins, and why each one is a property rather than a shape
   live `Contribute` product is PHYSICAL, so a `productType`-keyed skip inverts every no-delivery
   branch -- and the browser keys on identity, so the two sides would disagree about one basket.
   Driven under BOTH product types, asserting the same answer.
-* **A contribution basket is contribution-only**, refused server-side before any Wix call -- and
-  that includes two contribution lines, which is two contributions rather than one bigger one.
+* **A MIXED BASKET IS PAYABLE, and is priced as an ordinary order.** Owner decision 2026-10-06,
+  replacing the rule that a contribution is paid on its own. A product beside a contribution is
+  not a contribution basket: `_contribution_request` returns `None` for it, so the fee-bearing
+  `compute_quote`, the ordinary delivery handling and no exact-total assertion all apply -- which
+  is what "the same way as a single order" means. `checkout_pricing` is untouched; it operates on
+  one total and has never known what kind of lines produced it.
+* **What the mix did NOT relax**, all pinned separately: the `CONTRIBUTION_PRODUCT_ID` kill
+  switch, the variant allow-list and the quantity-exactly-1 rule all run above the point where a
+  mix returns, so a mixed basket's contribution line is still one of three choices at quantity 1.
+* **Two contribution lines and nothing else is still refused**, because it is two contributions
+  rather than one bigger one and `_contribution_request` returns ONE expected collection. That is
+  the whole of what the alone rule became.
 * **`CONTRIBUTION_PRODUCT_ID` unset is a KILL SWITCH, not a de-guard.** A recognised contribution
   product with the env key empty is REFUSED -- never priced as an ordinary product with the alone
   check and the total guard both sitting out. That only works because the recognition set is
   committed to git rather than configured.
-* **Contributions are FEE-EXEMPT.** The customer pays exactly the amount they chose, to the paise,
-  through `checkout_pricing.exempt_quote` substituted at `build_intent_with_calculation`'s existing
-  `quote_fn` seam. An ordinary basket still gets `compute_quote` with the fee, so the substitution
-  is proven per-basket rather than global.
+* **A contribution ON ITS OWN is FEE-EXEMPT.** The customer pays exactly the amount they chose, to
+  the paise, through `checkout_pricing.exempt_quote` substituted at
+  `build_intent_with_calculation`'s existing `quote_fn` seam. An ordinary basket -- and, since
+  2026-10-06, a mixed one -- still gets `compute_quote` with the fee, so the substitution is
+  proven per-basket rather than global, and the exemption cannot leak onto a basket holding goods.
 * **A no-delivery basket never inherits a place of supply.** `ensure` reuses one Wix cart per
   identity for 30 days and every physical attempt writes `deliveryInfo.address` onto it, and
   nothing in Cart V2 can clear that field -- so the pointer is abandoned and re-`ensure`d.
@@ -208,27 +219,72 @@ def test_t1_iv_reset_against_a_busy_pointer_refuses_and_changes_nothing(monkeypa
     assert wix.created_carts == [], "no `ensure` may run after a refused reset"
 
 
-# ══ T2 — a contribution checks out on its own ════════════════════════════════════
+# ══ T2 — a contribution checks out beside a product, and two of them do not ══════
 
-@pytest.mark.parametrize("basket", [
-    [contribution_line(), kiosk_line(1)],
-    [kiosk_line(1), contribution_line()],
-    [contribution_line(CONTRIBUTION_VARIANTS[1]), other_line(2)],
-    [contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[2]), kiosk_line(1)],
+@pytest.mark.parametrize("basket,collection", [
+    ([contribution_line(), kiosk_line(1)], 2499900 + DEFAULT_PAISE),
+    ([kiosk_line(1), contribution_line()], 2499900 + DEFAULT_PAISE),
+    ([contribution_line(CONTRIBUTION_VARIANTS[1]), other_line(2)],
+     15000 * 2 + contribution_paise(CONTRIBUTION_VARIANTS[1])),
+    ([contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[2]), kiosk_line(1)],
+     2499900 + DEFAULT_PAISE + contribution_paise(CONTRIBUTION_VARIANTS[2])),
 ])
-def test_t2_a_contribution_beside_anything_else_is_refused_before_any_wix_call(monkeypatch, basket):
-    """The alone rule is per BASKET, not per line, and it is decided from the request alone.
+def test_t2_a_mixed_basket_is_accepted_and_priced_like_any_other_order(monkeypatch, basket,
+                                                                      collection):
+    """THIS REPLACED THE ASSERTION THAT A MIX IS REFUSED, by owner decision on 2026-10-06.
 
-    `_contribution_request` is pure, so the refusal costs no Wix call, no DynamoDB write and no
-    cart -- which is what keeps the leave-nothing-behind invariant true for a refused mix.
+    A product and a contribution are paid together, and the total is built "the same way as a
+    single order": Wix prices every line, then `checkout_pricing.compute_quote` adds 2.5%
+    convenience plus 18% GST on that fee over the whole collection. Nothing in `checkout_pricing`
+    changed to make this work -- it has always operated on one total and never known what kind of
+    lines produced it -- so this asserts the ARITHMETIC rather than a branch: a fee of zero would
+    mean the fee-exempt contribution calculator leaked onto a basket that is not a contribution.
+
+    The fourth row is the one that pins the ordering: two contribution lines are refused when they
+    are the WHOLE basket and accepted beside a product, because a mix is not a contribution basket
+    at all and never reaches the one-expected-collection rule.
+
+    Driven with the contribution first and last, because `_contribution_request` walks the list
+    and an order-sensitive `others` count would pass one row and fail the other.
     """
-    h, fake, wix = make_env(monkeypatch)
+    wix = ContributionWix(delivery_address=dict(WIX_ADDRESS))
+    h, fake, wix = make_env(monkeypatch, wix=wix)
     response = h.handler(prepare_event(basket), None)
 
+    assert response["statusCode"] == 200, body_of(response)
+    fee = cp.round_half_up(collection, cp.CONVENIENCE_FEE_BPS)
+    gst = cp.round_half_up(fee, cp.CONVENIENCE_GST_BPS)
+    assert fee > 0 and gst > 0, "a mixed basket is NOT fee-exempt"
+    attempt = fake.all_rows(ATTEMPTS_TABLE)[0]
+    assert int(attempt["amountPaise"]) == collection + fee + gst
+    # Integer paise throughout, which R6.1 requires of the whole payment path.
+    assert type(attempt["amountPaise"]) is not float
+
+
+def test_t2_a_mixed_basket_still_obeys_the_variant_allow_list_and_the_quantity_rule(monkeypatch):
+    """ALLOWING THE MIX RELAXED NOTHING ELSE, and this is where that is pinned.
+
+    The variant allow-list and the quantity-exactly-1 rule run inside `_contribution_request`'s
+    loop, ABOVE the point where a mixed basket returns `None`. So a contribution line beside a
+    product is still refused unless it names one of the three committed choices at quantity 1 --
+    it is not laundered into an ordinary product line by the presence of a kiosk.
+
+    Both refusals cost no Wix call, because that loop is pure.
+    """
+    h, _fake, wix = make_env(monkeypatch)
+    bad_variant = contribution_line()
+    bad_variant["catalogReference"]["options"]["variantId"] = \
+        "00000000-0000-4000-8000-000000000000"
+    response = h.handler(prepare_event([bad_variant, kiosk_line(1)]), None)
     assert response["statusCode"] == 409
-    assert body_of(response)["error"] == "CONTRIBUTION_NOT_ALONE"
-    assert wix.calls == [], "the alone check must precede every Wix call"
-    assert fake.all_rows(ATTEMPTS_TABLE) == []
+    assert body_of(response)["error"] == "CONTRIBUTION_AMOUNT_INVALID"
+    assert wix.calls == []
+
+    h, _fake, wix = make_env(monkeypatch)
+    response = h.handler(prepare_event([contribution_line(quantity=2), kiosk_line(1)]), None)
+    assert response["statusCode"] == 409
+    assert body_of(response)["error"] == "CONTRIBUTION_AMOUNT_INVALID"
+    assert wix.calls == []
 
 
 @pytest.mark.parametrize("basket", [
@@ -237,14 +293,19 @@ def test_t2_a_contribution_beside_anything_else_is_refused_before_any_wix_call(m
     [contribution_line(CONTRIBUTION_VARIANTS[2])] * 3,
 ])
 def test_t2_two_contribution_lines_are_refused_rather_than_added_together(monkeypatch, basket):
-    """TWO CONTRIBUTIONS IS NOT ONE BIGGER ONE, and this replaced the opposite assertion.
+    """TWO CONTRIBUTIONS IS NOT ONE BIGGER ONE, and this is the ONLY refusal the alone rule kept.
 
     Under the retired amount-as-quantity model two contribution lines were SUMMED -- Rs.150 plus
     Rs.250 was one Rs.400 collection -- because the amount was a quantity and quantities add.
     With three fixed prices there is nothing to add: `_contribution_request` returns ONE expected
     collection, and no single figure describes a basket holding a Rs.100 and a Rs.250 line. So the
-    basket is refused in the same vocabulary as a mixed one, which is honest about what happened
-    rather than silently charging one of the two.
+    basket is refused rather than silently charging one of the two.
+
+    NOTE WHAT THIS IS NOT, since 2026-10-06. It is not "a contribution is paid on its own": a mix
+    is payable, and the case above proves it. These baskets are refused because they are
+    contribution-only AND hold more than one contribution, so they reach the fee-exempt,
+    exact-total path and no exact total exists for them. The wire code is still
+    `CONTRIBUTION_NOT_ALONE`; the message now names the real rule.
 
     Reachable only from a crafted request: `setContribution` replaces the line rather than adding
     to it, so the browser cannot build this.
@@ -254,7 +315,8 @@ def test_t2_two_contribution_lines_are_refused_rather_than_added_together(monkey
 
     assert response["statusCode"] == 409
     assert body_of(response)["error"] == "CONTRIBUTION_NOT_ALONE"
-    assert wix.calls == []
+    assert "one contribution" in body_of(response)["message"].lower()
+    assert wix.calls == [], "the refusal must precede every Wix call"
     assert fake.all_rows(ATTEMPTS_TABLE) == []
 
 
@@ -359,12 +421,29 @@ def test_t3_the_delivery_decision_never_reads_productType_for_a_contribution_lin
     assert "contribution" not in catalogue.lower()
 
 
-def test_t3_a_mixed_basket_cannot_reach_the_delivery_question_at_all(monkeypatch):
-    """`any(requiresDelivery)` is never consulted for a mix, because the mix is refused first."""
-    h, _fake, wix = make_env(monkeypatch, address=None)
+def test_t3_a_mixed_basket_does_need_an_address_because_the_product_in_it_does(monkeypatch):
+    """THE INVERSE OF WHAT THIS CASE USED TO ASSERT, and the inversion is the correct answer.
+
+    It used to read "a mixed basket cannot reach the delivery question at all", which was true
+    only because the mix was refused before the question was asked. With the mix payable the
+    question IS asked, and `_v2_catalog_items`' per-LINE override gives the only defensible
+    answer: the contribution line contributes no delivery requirement, the kiosk does, so
+    `any(...)` is true and a basket with no stored address is refused for want of one.
+
+    That per-line shape was written for exactly this day -- its docstring says "so a real physical
+    product still needs an address even if a contribution is ever allowed beside one" -- so
+    nothing in it changed. The browser agrees: `cartRequiresDelivery` is true unless the basket is
+    provably contribution-only.
+
+    Still before any Wix WRITE. `_v2_catalog_items` performs product GETs only, and the refusal
+    lands before `CustomerCart.ensure`, so no cart is created for a basket that cannot be priced.
+    """
+    h, fake, wix = make_env(monkeypatch, address=None)
     response = h.handler(prepare_event([contribution_line(), kiosk_line(1)]), None)
-    assert body_of(response)["error"] == "CONTRIBUTION_NOT_ALONE"
-    assert wix.calls == []
+    assert response["statusCode"] == 409
+    assert body_of(response)["error"] == "DELIVERY_DETAILS_REQUIRED", body_of(response)
+    assert wix.wrote() == [], "no cart may be created for a basket refused on the address"
+    assert fake.all_rows(ATTEMPTS_TABLE) == []
 
 
 # ══ T4 — the choice is one of three, and a bad one costs no Wix call ════════════
@@ -719,14 +798,21 @@ def test_t5b_two_request_lines_for_the_same_choice_are_refused_before_any_merge(
     assert wix.calls == []
 
 
-def test_t5b_a_contribution_beside_a_kiosk_would_project_separately_but_is_refused_first(
-        monkeypatch):
-    """The mixed projection is unreachable, and this records WHY rather than leaving a gap:
-    `_contribution_request`'s alone rule refuses before any cart exists to project from."""
-    h, _fake, wix = make_env(monkeypatch)
-    with pytest.raises(h.ContributionNotAlone):
-        h._v2_snapshot(_Identity(), [contribution_line(), kiosk_line(1)], profile=None)
-    assert wix.calls == []
+def test_t5b_a_contribution_beside_a_kiosk_projects_both_lines_separately(monkeypatch):
+    """THE MIXED PROJECTION IS REACHABLE NOW, so it is asserted rather than recorded as a gap.
+
+    This case used to say the mix was refused before any cart existed to project from. With the
+    mix payable (owner decision, 2026-10-06) the projection is what a customer reads on their
+    receipt, and the point is that it needs NO special case: each line carries the name Wix
+    supplies and its own honest count, so the contribution's amount travels in its name and the
+    kiosk's 2 is a count of kiosks.
+    """
+    wix = ContributionWix(delivery_address=dict(WIX_ADDRESS))
+    h, _fake, wix = make_env(monkeypatch, wix=wix)
+    _snapshot, items, _calc = h._v2_snapshot(
+        _Identity(), [contribution_line(), kiosk_line(2)], profile=None)
+    assert sorted((item["name"], item["quantity"]) for item in items) == [
+        ("Contribute \u20b9100", 1), ("Kiosk", 2)]
 
 
 # ══ T6 — the product invariants, as the failures they produce ═══════════════════
@@ -994,16 +1080,26 @@ def test_t7_with_the_env_key_unset_an_ordinary_basket_is_unaffected(monkeypatch)
     assert fake.all_rows(ATTEMPTS_TABLE)
 
 
-def test_t7_a_stale_committed_id_is_still_recognised_and_still_gated(monkeypatch):
-    """An id is added to the committed set and never removed: a RETIRED vehicle must stay
-    recognisable, so a line carrying it refuses rather than being priced as an ordinary product."""
+def test_t7_a_stale_committed_id_is_still_recognised(monkeypatch):
+    """An id is added to the committed set and never removed, so a RETIRED vehicle stays
+    recognisable as a contribution rather than passing as an unrelated catalogue product.
+
+    PROVEN THROUGH A GUARD THAT STILL BITES ON A MIX. This case used to assert the retired id was
+    refused as `CONTRIBUTION_NOT_ALONE` beside a kiosk, and a mix is payable now -- so recognition
+    is asserted through the variant allow-list instead, which runs for every recognised line
+    whatever else is in the basket. An UNRECOGNISED id would be handed to `resolved_catalog_lines`
+    as an ordinary product and never consult the allow-list at all; this one does, so the
+    committed set is doing its job.
+    """
     retired = "deadbeef-0000-4000-8000-000000000001"
     h, _fake, wix = make_env(monkeypatch, contribution_env=CONTRIBUTION_ID,
                              committed=(CONTRIBUTION_ID, retired))
     line = contribution_line()
     line["catalogReference"]["catalogItemId"] = retired
+    line["catalogReference"]["options"]["variantId"] = "00000000-0000-4000-8000-000000000000"
     response = h.handler(prepare_event([line, kiosk_line(1)]), None)
-    assert body_of(response)["error"] == "CONTRIBUTION_NOT_ALONE"
+    assert response["statusCode"] == 409
+    assert body_of(response)["error"] == "CONTRIBUTION_AMOUNT_INVALID"
     assert wix.calls == []
 
 
@@ -1039,8 +1135,10 @@ def test_t7_a_malformed_line_items_is_not_recognised_as_a_contribution(monkeypat
     ([contribution_line("ffffffff-0000-4000-8000-000000000999")], "AMOUNT_NOT_SETTLED"),
     ([contribution_line(quantity=2)], "AMOUNT_NOT_SETTLED"),
     ([contribution_line(quantity=True)], "AMOUNT_NOT_SETTLED"),
-    # The three `CartContractError` subclasses land in the existing `CART_NOT_PAYABLE` arm.
-    ([contribution_line(), kiosk_line(1)], "CART_NOT_PAYABLE"),
+    # The `CartContractError` subclasses land in the existing `CART_NOT_PAYABLE` arm. The mixed
+    # basket used to be a row here and is not any more -- it is payable, so it answers 200 on the
+    # website route and the in-WhatsApp route prices it like any other basket. Two contribution
+    # lines is the `ContributionNotAlone` row that remains.
     ([contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[1])], "CART_NOT_PAYABLE"),
 ])
 def test_t7b_the_create_route_refuses_a_contribution_in_its_own_vocabulary(monkeypatch, basket,
@@ -1072,7 +1170,9 @@ def test_t7b_an_unrecognised_action_routes_to_create_and_still_answers_409(monke
     """`_action` returns `"create"` for any unrecognised action or path, so the dispatch default
     is part of the matrix rather than an edge case."""
     h, _fake, _wix = make_env(monkeypatch)
-    event = create_event([contribution_line(), kiosk_line(1)])
+    # Two contribution lines rather than the mix this used to send: a mix is payable now, so it
+    # would answer 200 and prove nothing about the dispatch default's refusal arm.
+    event = create_event([contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[1])])
     body = json.loads(event["body"])
     body["action"] = "not-an-action"
     event["body"] = json.dumps(body)

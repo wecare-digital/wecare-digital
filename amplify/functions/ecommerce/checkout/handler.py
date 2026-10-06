@@ -737,10 +737,15 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                        + ".",
         }, origin)
     except ContributionNotAlone:
+        # THE COPY MOVED WITH THE RULE. It used to read "a contribution is paid on its own",
+        # which stopped being true when a contribution beside a product became payable; this
+        # exception now names only the basket holding TWO contributions. Word for word the
+        # browser's `CONTRIBUTION_ALONE_MESSAGE`, so the two refusals still read identically
+        # whichever side produced them.
         return cors_response(409, {
             "error": "CONTRIBUTION_NOT_ALONE",
-            "message": "A contribution is paid on its own. Remove the contribution, or remove "
-                       "the other items, then check out.",
+            "message": "Only one contribution can be paid at a time. Remove the extra "
+                       "contribution, then check out.",
         }, origin)
     except ContributionUnavailable:
         return cors_response(409, {
@@ -1553,14 +1558,28 @@ class ContributionUnavailable(cart_v2.CartContractError):
 
 
 class ContributionNotAlone(cart_v2.CartContractError):
-    """A contribution line beside any other line, or beside a second contribution line.
+    """TWO contribution lines in one basket. No longer "a contribution beside a product".
 
-    A contribution is paid on its own: in a mixed basket `componentsPaise` carries one tax, one
+    NARROWED BY OWNER DECISION, 2026-10-06. A contribution beside an ordinary product used to
+    raise this and now does not: a mixed basket is priced as an ordinary basket, fee and all. What
+    survives is the case no single figure can describe -- two contribution lines, which is two
+    contributions in one payment, while `_contribution_request` returns ONE expected collection.
+    A Rs.100 line and a Rs.250 line have no sum that either of them promised.
+
+    The REASON the mix was refused is still true and is why the mixed path deliberately does not
+    assert a contribution total: in a mixed basket `componentsPaise` carries one tax, one
     delivery, one fee and one discount figure across every line and there is no per-line tax
-    field, so there is no exact formulation of "the contribution's share of the total". Two
-    contribution lines is the same problem in a different dress -- the basket is
-    contribution-only, but it is two contributions, and `_contribution_request` returns ONE
-    expected collection. Base class is load-bearing, as above.
+    field, so "the contribution's share of the total" has no exact formulation. The mix is now
+    allowed BECAUSE it stops being a contribution basket at all, not because that problem was
+    solved. See `_contribution_request`.
+
+    THE WIRE CODE IS STILL `CONTRIBUTION_NOT_ALONE`, deliberately. The copy says what it now
+    means; the code is a client/server contract that the browser and this function do not deploy
+    atomically (Amplify on push, Lambda on alias move), so renaming it would make one of them
+    answer `UNRECOGNISED` for the length of the gap. Reachable only from a crafted request:
+    `setContribution` replaces the line rather than adding to it, so the browser cannot build it.
+
+    Base class is load-bearing, as above.
     """
 
 
@@ -1681,6 +1700,12 @@ def _contribution_request(line_items: Any) -> Optional[int]:
     closed on any disagreement, so a Wix price edit refuses the contribution rather than charging a
     figure the browser's button did not promise.
 
+    `None` THEREFORE MEANS "PRICE THIS AS AN ORDINARY BASKET", and since 2026-10-06 that includes
+    a basket holding a contribution BESIDE a product. Every caller keys the whole contribution
+    treatment -- the fee exemption, the address-free delivery handling, the exact-total assertion
+    -- on `is not None`, so one return value switches a mixed basket onto the path every other
+    order takes. See the mixed-basket block below.
+
     Deliberately tolerant of a malformed `line_items`: anything whose shape it cannot read is
     simply not recognised as a contribution and falls through to `resolved_catalog_lines`, which
     already owns the strict shape refusals and must stay the single place they live.
@@ -1721,12 +1746,38 @@ def _contribution_request(line_items: Any) -> Optional[int]:
     if not CONTRIBUTION_PRODUCT_ID:
         logger.warning(json.dumps({"event": "contribution_unavailable"}))
         raise ContributionUnavailable("contribution is not configured on this version")
-    # Two contribution lines is "contribution-only" and still refused: it is two contributions in
-    # one payment, and the ONE expected collection this function returns could not describe it.
-    if others or len(chosen) != 1:
+    # A MIXED BASKET IS NOT A CONTRIBUTION BASKET, AND IT IS NO LONGER REFUSED.
+    #
+    # OWNER DECISION, 2026-10-06: a product and a contribution may be paid together, and the mixed
+    # total is priced "the same way as a single order" -- Wix prices every line, then
+    # `checkout_pricing.compute_quote` adds 2.5% convenience plus 18% GST on that fee over the
+    # whole collection. `checkout_pricing` needed no change for this: it operates on one total and
+    # has never known what kind of lines produced it.
+    #
+    # RETURNING `None` IS THE WHOLE MECHANISM, and it is a redirection rather than a de-guard.
+    # `None` means "this is not a contribution basket", so the ORDINARY path runs end to end: the
+    # fee-bearing `compute_quote` instead of `exempt_quote`, `prepare_delivery` with the owned
+    # address instead of the address-free method selection, and no `_assert_contribution_total`.
+    # That last one is deliberate and unavoidable rather than overlooked -- `componentsPaise`
+    # carries ONE tax, delivery, fee and discount figure across the whole basket and there is no
+    # per-line tax field, so "the contribution's share of the mixed total" has no exact
+    # formulation to fail closed against. See `ContributionNotAlone`, which still holds that
+    # reasoning for the basket it still refuses.
+    #
+    # WHAT THE MIX DOES *NOT* RELAX, because all three run earlier in this function: the kill
+    # switch above (an unconfigured contribution is still refused rather than priced as an
+    # ordinary product), the quantity-exactly-1 check and the variant allow-list. A mixed basket's
+    # contribution line must still be one of the three committed choices at quantity 1.
+    if others:
+        logger.info(json.dumps({"event": "contribution_in_mixed_basket",
+                                "otherLines": others, "contributionLines": len(chosen)}))
+        return None
+    # Two contribution lines and nothing else is STILL refused: it is two contributions in one
+    # payment, and the ONE expected collection this function returns could not describe it.
+    if len(chosen) != 1:
         logger.info(json.dumps({"event": "contribution_not_alone",
                                 "otherLines": others, "contributionLines": len(chosen)}))
-        raise ContributionNotAlone("a contribution is paid on its own")
+        raise ContributionNotAlone("one contribution at a time")
     return CONTRIBUTION_CHOICES_PAISE[chosen[0]]
 
 

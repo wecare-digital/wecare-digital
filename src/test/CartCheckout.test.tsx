@@ -1820,70 +1820,83 @@ describe( 'a contribution basket skips the address gate, on the FIRST click', ()
   } );
 } );
 
-describe( 'a mixed basket is refused in the browser, before the auth gate', () => {
-  it( 'shows the notice, disables Checkout and calls no prepare', async () => {
-    /*
-     * THIS TEST'S TITLE WAS TRUE OF THE PAGE IT DESCRIBED AND FALSE OF THE PAGE IT TESTED.
-     *
-     * It asserted the disabled button and the absent prepare and NOTHING about a notice, and it
-     * passed for as long as `mixedBasket` drove the `disabled` term and nothing else. Both of
-     * `CONTRIBUTION_ALONE_MESSAGE`'s other call sites sit downstream of the press -- one inside
-     * `runCheckout`, one on the server's `CONTRIBUTION_NOT_ALONE` reply -- and a native disabled
-     * button fires no `onClick`, so neither was reachable. The customer got a dead control with
-     * no sentence, no error and no request. A green test over a dead end is why it shipped.
-     *
-     * The notice is asserted WITHOUT a click, because render time is the whole of the fix.
-     */
+describe( 'a mixed basket checks out, and the browser refuses nothing locally', () => {
+  /*
+   * THIS BLOCK USED TO ASSERT THE OPPOSITE, and the rule it asserted is gone.
+   *
+   * Owner decision, 2026-10-06: a product and a contribution are paid together, priced the way
+   * any single order is priced -- Wix prices every line, then the 2.5% convenience fee plus 18%
+   * GST on that fee apply to the whole collection. So there is no mixed-basket notice, no
+   * "Keep only the contribution" button and no `mixedBasket` term on the CTA's `disabled`.
+   *
+   * What the deleted cases pinned is still worth pinning, inverted: the CTA must be LIVE for a
+   * mix, and the prepare POST must actually leave the browser carrying both lines.
+   */
+  it( 'enables Checkout for a product plus a contribution and posts both lines', async () => {
     signedIn();
-    const fetchMock = stubFetch( { profile: { body: PROFILE_READY } } );
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-mix-1' } },
+    } );
     cart.setContribution( MID.variantId );
     cart.addItem( PRODUCT, 1 );
 
     render( <Cart /> );
-    const button = await screen.findByRole(
-      'button', { name: CTA } );
-    expect( button ).toBeDisabled();
-    expect( screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument();
-    // Polite, not an interruption: the basket is in a state the shopper can simply edit.
-    expect( screen.getByText( /A contribution is paid on its own/ ) )
-      .toHaveAttribute( 'role', 'status' );
-    // And the reason carries an ACTION, not only words.
-    expect( screen.getByRole( 'button', { name: 'Keep only the contribution' } ) )
-      .toBeInTheDocument();
-    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
+    const button = await screen.findByRole( 'button', { name: CTA } );
+    expect( button ).not.toBeDisabled();
+    // No notice at render time: there is no longer a local fact about this basket to report.
+    expect( screen.queryByText( /paid on its own/ ) ).toBeNull();
+    expect( screen.queryByText( /Only one contribution can be paid at a time/ ) ).toBeNull();
+    expect( screen.queryByRole( 'button', { name: 'Keep only the contribution' } ) ).toBeNull();
+
+    fireEvent.click( button );
+    await waitFor( () => expect(
+      callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+
+    // BOTH lines travel, and no money travels with them. The server prices the basket; the
+    // browser names a product and a contribution variant and nothing else.
+    const [ prepare ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+    expect( prepare.body.lineItems ).toHaveLength( 2 );
+    // `options` is present only on a line that HAS a variant, which the contribution always does
+    // and this single-variant-less kiosk fixture does not -- so the read is optional and the
+    // assertion is that the contribution's chosen variant is one of the two lines.
+    expect( prepare.body.lineItems.map(
+      ( line: { catalogReference: { catalogItemId: string;
+                                    options?: { variantId?: string } } } ) =>
+        line.catalogReference.options?.variantId ) ).toContain( MID.variantId );
+    expect( prepare.body.lineItems.map(
+      ( line: { catalogReference: { catalogItemId: string } } ) =>
+        line.catalogReference.catalogItemId ) ).toContain( PRODUCT.id );
+    expect( prepare.init.body as string ).not.toMatch( /price|amount|currency|formattedPrice/i );
   } );
 
-  it( 'the offered action leaves the contribution alone, re-enables Checkout and posts prepare',
-    async () => {
-      /*
-       * The stuck basket, cleared the way the customer who arrived from a blog post means it.
-       *
-       * One press removes every non-contribution line -- `removeItem` per line, so there is still
-       * exactly one writer of the cart -- and the CTA becomes live in the same render, because
-       * `mixedBasket` is derived from `items` at render time.
-       */
-      signedIn();
-      const fetchMock = stubFetch( {
-        profile: { body: PROFILE_READY },
-        prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-mix-1' } },
-      } );
-      cart.setContribution( MID.variantId );
-      cart.addItem( PRODUCT, 1 );
-      cart.addItem( OTHER, 2 );
-
-      render( <Cart /> );
-      fireEvent.click( await screen.findByRole(
-        'button', { name: 'Keep only the contribution' } ) );
-
-      expect( cart.readCart().map( item => item.variantId ) ).toEqual( [ MID.variantId ] );
-      const button = await screen.findByRole( 'button', { name: CTA } );
-      expect( button ).not.toBeDisabled();
-      expect( screen.queryByText( /A contribution is paid on its own/ ) ).toBeNull();
-
-      fireEvent.click( button );
-      await waitFor( () => expect(
-        callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+  it( 'still shows the server refusal when it answers CONTRIBUTION_NOT_ALONE', async () => {
+    /*
+     * THE REMAINING REFUSAL, AND IT IS NOW SERVER-ONLY. The code narrowed to "two contribution
+     * lines", which `setContribution` cannot build -- it replaces the line rather than adding to
+     * it -- so only a crafted request reaches it. The arm is kept because the server can still
+     * answer it, and a dead end is worse than a sentence: driven here through a stubbed reply,
+     * which is the only way the browser can produce it.
+     */
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { ok: false, status: 409, body: { error: 'CONTRIBUTION_NOT_ALONE' } },
     } );
+    cart.setContribution( MID.variantId );
+    cart.addItem( PRODUCT, 1 );
+
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+
+    await waitFor( () => expect(
+      screen.getByText( /Only one contribution can be paid at a time/ ) ).toBeInTheDocument() );
+    // Polite, not an interruption: the basket is in a state the shopper can simply edit.
+    expect( screen.getByText( /Only one contribution can be paid at a time/ ) )
+      .toHaveAttribute( 'role', 'status' );
+    // The request was MADE -- which is the whole difference from the rule this replaced.
+    expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
+  } );
 
   it( 'a contribution-only basket is never disabled and reaches wecare-checkout', async () => {
     /*
@@ -1902,7 +1915,7 @@ describe( 'a mixed basket is refused in the browser, before the auth gate', () =
     render( <Cart /> );
     const button = await screen.findByRole( 'button', { name: CTA } );
     expect( button ).not.toBeDisabled();
-    expect( screen.queryByText( /A contribution is paid on its own/ ) ).toBeNull();
+    expect( screen.queryByText( /Only one contribution can be paid at a time/ ) ).toBeNull();
 
     fireEvent.click( button );
     await waitFor( () => expect(
@@ -1915,15 +1928,17 @@ describe( 'a mixed basket is refused in the browser, before the auth gate', () =
     expect( prepare.init.body as string ).not.toMatch( /price|amount|currency|formattedPrice/i );
   } );
 
-  it( 'removing the kiosk lets the SAME click through, with no re-render in between', async () => {
+  it( 'removing the kiosk leaves the contribution alone and the SAME click still posts', async () => {
     /*
-     * The stale-closure case, driven as the sequence that produces it.
+     * KEPT, WITH ITS REASON REWRITTEN. This used to be the stale-closure case for the
+     * mixed-basket check: `proceed` is `useCallback(..., [profile, profileStatus])` and `items`
+     * is NOT a dependency, so a check reading `items` would have seen a value captured at the
+     * last render and refused a basket the customer had just fixed.
      *
-     * `proceed` is `useCallback(..., [profile, profileStatus])` and `items` is NOT a dependency,
-     * so a mixed-basket check reading `items` would see the value captured at the last render --
-     * stale after a row is removed with no intervening profile change. The helper is called with
-     * NO ARGUMENT so it reads storage, which is the same thing `toLineItems()` does one line
-     * below for the same reason.
+     * There is no mixed-basket check to go stale any more. What the sequence still proves is that
+     * `proceed` reads STORAGE for the lines it posts -- `toLineItems( readCart() )`, with no
+     * intervening profile change to refresh the closure -- so the post carries the one line that
+     * is actually in the cart rather than the two that were there at the last render.
      */
     signedIn();
     const fetchMock = stubFetch( {
@@ -1938,23 +1953,29 @@ describe( 'a mixed basket is refused in the browser, before the auth gate', () =
     fireEvent.click( await screen.findByRole(
       'button', { name: CTA } ) );
     await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+    const [ prepare ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+    expect( prepare.body.lineItems ).toHaveLength( 1 );
+    expect( prepare.body.lineItems[ 0 ].catalogReference.options )
+      .toEqual( { variantId: MID.variantId } );
   } );
 
-  it( 'the mirror: a kiosk added AFTER the render is still refused, because proceed reads storage',
+  it( 'the mirror: a kiosk added AFTER the render still posts, because proceed reads storage',
     async () => {
       /*
-       * This page does not subscribe to cart-changed events -- it reads `readCart()` on mount and
-       * after its own mutations -- so a line added from elsewhere leaves the render stale and the
-       * CTA enabled. That is exactly the case the no-argument storage read exists for, and
-       * asserting it here is stronger than asserting the disabled button: it proves the guard
-       * holds when the render has NOT caught up.
+       * THE INVERSION OF THIS CASE IS THE POINT, so it is kept rather than deleted.
        *
-       * In a real browser the kiosk is added on the shop page and the customer then navigates to
-       * /cart/, which is a fresh mount and the case above. This is the same refusal reached the
-       * other way.
+       * This page does not subscribe to cart-changed events -- it reads `readCart()` on mount and
+       * after its own mutations -- so a line added from elsewhere leaves the render stale. It used
+       * to prove that the mixed-basket refusal still bit in that state. Now it proves the
+       * opposite half of the same mechanism: the storage read means the LATE line is included in
+       * the post, so the customer pays for what is in their cart rather than for what the page
+       * last rendered.
        */
       signedIn();
-      const fetchMock = stubFetch( { profile: { body: PROFILE_READY } } );
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-c4' } },
+      } );
       cart.setContribution( MID.variantId );
       render( <Cart /> );
       const button = await screen.findByRole( 'button', { name: CTA } );
@@ -1965,8 +1986,9 @@ describe( 'a mixed basket is refused in the browser, before the auth gate', () =
       fireEvent.click( button );
 
       await waitFor( () => expect(
-        screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument() );
-      expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
+        callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+      const [ prepare ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+      expect( prepare.body.lineItems ).toHaveLength( 2 );
     } );
 } );
 
@@ -2297,11 +2319,15 @@ describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
        * first post omits `resetCart`, second sends `true`. Nothing stopped the reset click short
        * of the post.
        *
-       * Here it is stopped. The reset is offered, a /shop/ line arrives (the second tab, or a
-       * `/shop/` add, that the mixed-basket refusal exists for), and "Start a new cart" is clicked
-       * - which arms the flag and calls `proceed`, where the mixed-basket check refuses BEFORE the
-       * auth gate and returns having posted nothing. The customer then removes the stray line and
-       * checks out normally.
+       * Here it is stopped. DRIVEN THROUGH THE ADDRESS GATE RATHER THAN THE MIXED-BASKET CHECK,
+       * because the mixed-basket check is gone -- a product beside a contribution is payable as
+       * of 2026-10-06. The one-shot's docstring names this arm explicitly as one of the returns
+       * it defends against, so this is the same property through a surviving path: the profile is
+       * PROFILE_READY with no usable address, a /shop/ line arrives (the second tab, or a
+       * `/shop/` add), and "Start a new cart" is clicked - which arms the flag and calls
+       * `proceed`, where `status === 'required' && needsDelivery` opens the address editor and
+       * returns having posted nothing. The customer then removes the stray line and checks out
+       * normally.
        *
        * That second post must NOT carry `resetCart`. The customer asked to discard a saved cart
        * once, was refused, and fixed their basket; discarding the server pointer on the ordinary
@@ -2312,7 +2338,10 @@ describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
        */
       signedIn();
       const fetchMock = stubFetch( {
-        profile: { body: PROFILE_READY },
+        // PROFILE_READY with no usable address derives `'required'`, which is what makes the
+        // delivery gate below bite for a basket that needs delivery. A contribution-only basket
+        // does not, so the FIRST click still posts.
+        profile: { body: { ...PROFILE_READY, addressComplete: false, address: null } },
         prepare: [
           { ok: false, status: 409, body: { error: 'CART_RESET_REQUIRED' } },
           { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-r3' } },
@@ -2325,13 +2354,14 @@ describe( 'CART_RESET_REQUIRED carries an action, not only words', () => {
       const control = await screen.findByRole( 'button', { name: 'Start a new cart' } );
       await waitFor( () => expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
 
-      // The basket turns mixed between the offer and the click.
+      // A physical line arrives between the offer and the click, so the basket now needs an
+      // address it does not have.
       await act( async () => { cart.addItem( PRODUCT, 1 ); } );
       fireEvent.click( control );
 
-      // Refused locally: still one post, and the refusal is the shared wording.
+      // Stopped before posting: still one post, and the editor is what the customer gets.
       await waitFor( () => expect(
-        screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument() );
+        screen.getByText( /Add your delivery address to continue/ ) ).toBeInTheDocument() );
       expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 );
 
       // Fix the basket, then check out the ordinary way.

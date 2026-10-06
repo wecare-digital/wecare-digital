@@ -513,12 +513,20 @@ export function setContribution ( variantId: string ): CartItem[] {
 export const cartRequiresDelivery = ( items: CartItem[] = readCart() ): boolean =>
   !( items.length > 0 && items.every( isContributionItem ) );
 
-/**
- * A basket the server will refuse: a contribution is paid on its own. Drives the cart page's
- * notice and its disabled Checkout. Same no-argument rule as above.
+/*
+ * `cartMixesContribution` WAS HERE AND IS DELETED RATHER THAN LEFT DEAD.
+ *
+ * It answered "is this a basket the server will refuse", and as of the owner decision on
+ * 2026-10-06 the answer is no for every basket it could identify: a product and a contribution
+ * are paid together, priced the way any single order is priced. Leaving the export in place would
+ * leave a helper whose name reads as a rule and whose docstring asserted a refusal that no longer
+ * exists -- the next reader would reinstate the gate from it. There were no other importers: the
+ * cart page's notice, its "Keep only the contribution" button and its disabled CTA all went in
+ * the same change, and `BlogContribution` deliberately never used it.
+ *
+ * `cartRequiresDelivery` above is NOT the same question and stays: a mixed basket genuinely does
+ * need an address, because the product in it does.
  */
-export const cartMixesContribution = ( items: CartItem[] = readCart() ): boolean =>
-  items.some( isContributionItem ) && items.some( item => !isContributionItem( item ) );
 
 /**
  * A stable identifier for WHAT IS IN the basket, for scoping the checkout request key.

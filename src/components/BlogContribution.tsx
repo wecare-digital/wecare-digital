@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import PillButton from './PillButton';
 import { CONTRIBUTION_CHOICES } from '../config/contribution';
 import { CONTRIBUTION_CONFIGURED } from '../content/shop';
-import { isContributionItem, readCart, setContribution } from '../lib/cart';
+import { setContribution } from '../lib/cart';
 
 /**
  * "SUPPORT THIS WORK" - the Section 5 voluntary-contribution block that sits on every blog post,
@@ -121,18 +121,6 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
     );
   }
 
-  /**
-   * Does the cart ALREADY hold something that is not a contribution?
-   *
-   * NOT `cartMixesContribution()`, which answers "is the basket already mixed" and is therefore
-   * false at the moment this warning is needed: the contribution has not been added yet. The
-   * question here is whether adding one WOULD mix it.
-   *
-   * Reads storage rather than taking an argument, because the cart may have been edited in
-   * another tab since this page rendered.
-   */
-  const mixes = readCart().some( item => !isContributionItem( item ) );
-
   return (
     <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
       {/* h2, never h1: the post page already owns the single h1, and htmlcheck guards H1-MANY. */}
@@ -174,21 +162,15 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
           />
         </div>
 
-        {/* A contribution is paid on its own, so warn at the ENTRY POINT rather than letting the
-            customer discover it at the cart. The submit still navigates to /cart/, where the
-            notice and the per-row Remove controls live - deciding for them which lines to drop
-            would be worse than telling them.
+        {/* THE MIXED-CART WARNING WAS HERE, AND THERE IS NOTHING LEFT TO WARN ABOUT.
+            It told the customer that a contribution is paid on its own and that they would have
+            to drop either it or their other items at the cart. Owner decision, 2026-10-06: a
+            product and a contribution check out together, priced the way any single order is
+            priced. The submit behaviour is unchanged -- it adds the chosen contribution and
+            navigates to /cart/ -- so removing the sentence removes a warning, not a step.
 
-            The copy DESCRIBES WHAT THE CART DOES rather than promising a prompt. It used to read
-            "the cart will ask which to keep"; the cart does not ask - it shows a notice, disables
-            Checkout and leaves every row's Remove button in place. Naming an interaction that
-            does not exist sends the customer looking for it. */}
-        { mixes && (
-          <p className="bc-note" data-phase="mixed">
-            Your cart has other items. A contribution is paid on its own, so remove either the
-            contribution or the other items at the cart before checking out.
-          </p>
-        ) }
+            A notice that describes a refusal the server no longer makes is worse than silence:
+            it sends the customer to edit a basket that is already payable. */}
 
         {/* NO LIVE REGION ON THE FORM ANY MORE. It existed to announce a rejected custom amount,
             and with three fixed choices there is no amount to reject. The unavailable branch above
