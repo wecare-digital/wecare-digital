@@ -10,12 +10,31 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
 import ProductMessageComposer from '../../../../components/ProductMessageComposer';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const PHONES = [
     { key: 'primary', ...WHATSAPP_PHONES.primary },
     { key: 'secondary', ...WHATSAPP_PHONES.secondary },
+];
+
+/** The index is the state, so the option value is the index as a string. */
+const PHONE_OPTIONS: SelectOption[] = PHONES.map( ( p, i ) => ( {
+    value: String( i ),
+    label: `${ p.name } — ${ p.display }`,
+} ) );
+const MEDIA_TYPE_OPTIONS: SelectOption[] = [ 'image', 'video', 'document', 'audio', 'sticker' ]
+    .map( t => ( { value: t, label: t } ) );
+const FLOW_MODE_OPTIONS: SelectOption[] = [
+    { value: 'published', label: 'published' },
+    { value: 'draft', label: 'draft' },
+];
+const TTL_CATEGORY_OPTIONS: SelectOption[] = [ 'AUTHENTICATION', 'UTILITY', 'MARKETING' ]
+    .map( c => ( { value: c, label: c } ) );
+const RESUME_TARGET_OPTIONS: SelectOption[] = [
+    { value: 'handle', label: 'header handle (for template headers)' },
+    { value: 'media', label: 'media id (for sending)' },
 ];
 
 type SendTab = 'text' | 'template' | 'media' | 'flow' | 'tools' | 'mediamgmt' | 'flowadmin' | 'product';
@@ -25,6 +44,8 @@ const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border:
 const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
 const btn: React.CSSProperties = { padding: '9px 16px', background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
 const tabBtn = ( active: boolean ): React.CSSProperties => ( { padding: '8px 14px', border: 'none', borderBottom: active ? '2px solid #1a1a1a' : '2px solid transparent', background: 'none', cursor: 'pointer', fontWeight: active ? 700 : 500, color: active ? '#1a1a1a' : '#777' } );
+/** Layout only: the two margins the shared `input` object carried. */
+const selectLayout: React.CSSProperties = { marginTop: 4, marginBottom: 10 };
 
 const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
@@ -233,9 +254,9 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                 <div style={ { display: 'flex', gap: 16, flexWrap: 'wrap' } }>
                     <div style={ { flex: 1, minWidth: 220 } }>
                         <div style={ label }>From (phone)</div>
-                        <select style={ input } value={ phoneIdx } onChange={ e => setPhoneIdx( Number( e.target.value ) ) }>
-                            { PHONES.map( ( p, i ) => <option key={ p.key } value={ i }>{ p.name } — { p.display }</option> ) }
-                        </select>
+                        <Select ariaLabel="From (phone)" value={ String( phoneIdx ) }
+                            onChange={ v => setPhoneIdx( Number( v ) ) }
+                            options={ PHONE_OPTIONS } style={ selectLayout } />
                     </div>
                     <div style={ { flex: 1, minWidth: 220 } }>
                         <div style={ label }>To (E.164, no +)</div>
@@ -271,9 +292,9 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
             { tab === 'media' && (
                 <div style={ card }>
                     <div style={ label }>Media type</div>
-                    <select style={ input } value={ mediaType } onChange={ e => setMediaType( e.target.value as any ) }>
-                        { [ 'image', 'video', 'document', 'audio', 'sticker' ].map( t => <option key={ t } value={ t }>{ t }</option> ) }
-                    </select>
+                    <Select ariaLabel="Media type" value={ mediaType }
+                        onChange={ v => setMediaType( v as any ) }
+                        options={ MEDIA_TYPE_OPTIONS } style={ selectLayout } />
                     <div style={ label }>Media URL (public)</div>
                     <input style={ input } value={ mediaUrl } onChange={ e => setMediaUrl( e.target.value ) } placeholder="https://wecare.digital/get/o/stream/media/..." />
                     <div style={ label }>Caption (image/video/document)</div>
@@ -302,10 +323,9 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         </div>
                         <div style={ { flex: 1 } }>
                             <div style={ label }>Mode</div>
-                            <select style={ input } value={ flowMode } onChange={ e => setFlowMode( e.target.value as any ) }>
-                                <option value="published">published</option>
-                                <option value="draft">draft</option>
-                            </select>
+                            <Select ariaLabel="Mode" value={ flowMode }
+                                onChange={ v => setFlowMode( v as any ) }
+                                options={ FLOW_MODE_OPTIONS } style={ selectLayout } />
                         </div>
                     </div>
                     <div style={ label }>CTA label</div>
@@ -328,9 +348,9 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <div style={ { display: 'flex', gap: 12 } }>
                             <div style={ { flex: 1 } }>
                                 <div style={ label }>Category</div>
-                                <select style={ input } value={ ttlCategory } onChange={ e => setTtlCategory( e.target.value ) }>
-                                    { [ 'AUTHENTICATION', 'UTILITY', 'MARKETING' ].map( c => <option key={ c } value={ c }>{ c }</option> ) }
-                                </select>
+                                <Select ariaLabel="Category" value={ ttlCategory }
+                                    onChange={ v => setTtlCategory( v ) }
+                                    options={ TTL_CATEGORY_OPTIONS } style={ selectLayout } />
                             </div>
                             <div style={ { flex: 1 } }>
                                 <div style={ label }>TTL seconds (-1 = 30 days)</div>
@@ -380,10 +400,9 @@ const SendTestConsole: React.FC<PageProps> = ( { signOut, user, embedded = false
                         <h3 style={ { marginTop: 0, fontSize: 15 } }>Resumable upload (chunked)</h3>
                         <p style={ { fontSize: 12, color: '#777', marginTop: 0 } }>Uses the same file picked above. Sends 256KB chunks then finishes.</p>
                         <div style={ label }>Finish as</div>
-                        <select style={ input } value={ mmResumeTarget } onChange={ e => setMmResumeTarget( e.target.value as any ) }>
-                            <option value="handle">header handle (for template headers)</option>
-                            <option value="media">media id (for sending)</option>
-                        </select>
+                        <Select ariaLabel="Finish as" value={ mmResumeTarget }
+                            onChange={ v => setMmResumeTarget( v as any ) }
+                            options={ RESUME_TARGET_OPTIONS } style={ selectLayout } />
                         <button style={ btn } disabled={ busy } onClick={ resumableUpload }>Start resumable upload</button>
                         { mmProgress && <div style={ { marginTop: 8, fontSize: 12, color: '#444' } }>{ mmProgress }</div> }
                     </div>

@@ -11,6 +11,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
 import { CDN_DOMAIN } from '../../../../lib/media-paths';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -22,6 +23,22 @@ const ACCOUNTS = [
 
 const FLOW_CATEGORIES = [ 'SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GENERATION',
     'CONTACT_US', 'CUSTOMER_SUPPORT', 'SURVEY', 'OTHER' ];
+
+/** The index is the state, so the value is the index as a string. */
+const ACCOUNT_OPTIONS: SelectOption[] = ACCOUNTS.map( ( a, i ) => ( { value: String( i ), label: a.label } ) );
+const AVAILABILITY_OPTIONS: SelectOption[] = [
+    { value: 'in stock', label: 'in stock' },
+    { value: 'out of stock', label: 'out of stock' },
+];
+const FLOW_CATEGORY_OPTIONS: SelectOption[] = FLOW_CATEGORIES.map( c => ( { value: c, label: c } ) );
+/* Layout only, and `inline-block` is not cosmetics: the native control was inline-level, and
+   the "catalog … · waba …" caption sits BESIDE it. .ui-field is display:block, so without this
+   the caption drops to its own line. */
+const ACCOUNT_SELECT_STYLE: React.CSSProperties = {
+    display: 'inline-block', width: 360, maxWidth: '100%', marginBottom: 0, verticalAlign: 'middle',
+};
+/** The marginBottom `S.input` carried, so the grid rows keep their rhythm. */
+const FIELD_SELECT_STYLE: React.CSSProperties = { marginBottom: 12 };
 
 const S = {
     tab: ( active: boolean ): React.CSSProperties => ( {
@@ -55,9 +72,9 @@ export default function CatalogBuilderPage ( { signOut, user }: PageProps ) {
 
                 <div style={ S.card }>
                     <label style={ S.label }>Account</label>
-                    <select value={ acctIdx } onChange={ e => setAcctIdx( Number( e.target.value ) ) } style={ { ...S.input, maxWidth: 360, marginBottom: 0 } }>
-                        { ACCOUNTS.map( ( a, i ) => <option key={ a.key } value={ i }>{ a.label }</option> ) }
-                    </select>
+                    <Select ariaLabel="Account" value={ String( acctIdx ) }
+                        onChange={ v => setAcctIdx( Number( v ) ) }
+                        options={ ACCOUNT_OPTIONS } style={ ACCOUNT_SELECT_STYLE } />
                     <span style={ { marginLeft: 12, fontSize: 11, color: '#9ca3af' } }>
                         catalog { acct.catalogId } · waba { acct.wabaId }
                     </span>
@@ -248,9 +265,9 @@ function ProductTab ( { acct, toast, confirm }: { acct: typeof ACCOUNTS[ number 
                     { !editId && <div><label style={ S.label }>Sale price (₹)</label><input style={ S.input } type="number" value={ form.salePrice } onChange={ e => set( 'salePrice', e.target.value ) } placeholder="4599" /></div> }
                     { !editId && <div><label style={ S.label }>Brand</label><input style={ S.input } value={ form.brand } onChange={ e => set( 'brand', e.target.value ) } /></div> }
                     <div><label style={ S.label }>Availability</label>
-                        <select style={ S.input } value={ form.availability } onChange={ e => set( 'availability', e.target.value ) }>
-                            <option value="in stock">in stock</option><option value="out of stock">out of stock</option>
-                        </select>
+                        <Select ariaLabel="Availability" value={ form.availability }
+                            onChange={ v => set( 'availability', v ) }
+                            options={ AVAILABILITY_OPTIONS } style={ FIELD_SELECT_STYLE } />
                     </div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Image URL (public https)</label><input style={ S.input } value={ form.imageUrl } onChange={ e => set( 'imageUrl', e.target.value ) } placeholder="https://wecare.digital/get/o/stream/media/m/wecare-digital.png" /></div>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Product link</label><input style={ S.input } value={ form.url } onChange={ e => set( 'url', e.target.value ) } placeholder="https://wecare.digital/shop/referral-partner/" /></div>
@@ -339,9 +356,8 @@ function FlowTab ( { acct, toast }: { acct: typeof ACCOUNTS[ number ]; toast: an
                 <div style={ S.grid }>
                     <div style={ { gridColumn: '1 / -1' } }><label style={ S.label }>Flow name *</label><input style={ S.input } value={ name } onChange={ e => setName( e.target.value ) } placeholder="03.WD_POSTPAY_REQUEST" /></div>
                     <div><label style={ S.label }>Category</label>
-                        <select style={ S.input } value={ category } onChange={ e => setCategory( e.target.value ) }>
-                            { FLOW_CATEGORIES.map( c => <option key={ c } value={ c }>{ c }</option> ) }
-                        </select>
+                        <Select ariaLabel="Flow category" value={ category } onChange={ v => setCategory( v ) }
+                            options={ FLOW_CATEGORY_OPTIONS } style={ FIELD_SELECT_STYLE } />
                     </div>
                 </div>
                 <Button variant="primary" onClick={ handleCreate } loading={ creating }>Create flow</Button>
