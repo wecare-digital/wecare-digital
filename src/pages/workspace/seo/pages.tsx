@@ -5,10 +5,17 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as seoApi from '../../../api/seo';
 import { useToastContext } from '../../../contexts/ToastContext';
 
 interface PageProps { signOut?: () => void; user?: any; }
+
+const DOMAIN_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All domains' },
+  { value: 'wecare.digital', label: 'wecare.digital' },
+  { value: 'www.wecare.digital', label: 'www.wecare.digital (legacy)' },
+];
 
 const SEOPages: React.FC<PageProps> = ( { signOut, user } ) => {
   const router = useRouter();
@@ -59,6 +66,13 @@ const SEOPages: React.FC<PageProps> = ( { signOut, user } ) => {
     'app_download', 'stack', 'unknown'
   ];
 
+  /* The '' row is the "all" choice and a real selectable option, not a placeholder: both
+     filters go back to unset by picking it, and loadPages() omits the param when it is ''. */
+  const pageTypeOptions: SelectOption[] = [
+    { value: '', label: 'All types' },
+    ...PAGE_TYPES.map( t => ( { value: t, label: t } ) ),
+  ];
+
   return (
     <Layout user={ user } onSignOut={ signOut }>
       <SEO title="SEO Pages" description="Page inventory for wecare.digital" />
@@ -71,15 +85,14 @@ const SEOPages: React.FC<PageProps> = ( { signOut, user } ) => {
         </div>
 
         <div style={ { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' } }>
-          <select value={ domain } onChange={ e => setDomain( e.target.value ) } className="input" style={ { width: 200 } }>
-            <option value="">All domains</option>
-            <option value="wecare.digital">wecare.digital</option>
-            <option value="www.wecare.digital">www.wecare.digital (legacy)</option>
-          </select>
-          <select value={ pageType } onChange={ e => setPageType( e.target.value ) } className="input" style={ { width: 200 } }>
-            <option value="">All types</option>
-            { PAGE_TYPES.map( t => <option key={ t } value={ t }>{ t }</option> ) }
-          </select>
+          { /* `className="input"` is dropped rather than forwarded: it skinned the native
+               control, and on a Select it would land on the wrapper div, painting an input box
+               around the whole field. The appearance comes from .ui-select-trigger now. The
+               width is layout and stays, which is exactly what `style` on a Select is for. */ }
+          <Select ariaLabel="Domain" value={ domain } onChange={ v => setDomain( v ) }
+            options={ DOMAIN_OPTIONS } style={ { width: 200 } } />
+          <Select ariaLabel="Page type" value={ pageType } onChange={ v => setPageType( v ) }
+            options={ pageTypeOptions } style={ { width: 200 } } />
           <input placeholder="Search URL or title..." value={ search } onChange={ e => setSearch( e.target.value ) }
             className="input" style={ { flex: 1, minWidth: 200 } } />
           <button className="btn btn-secondary" onClick={ loadPages }>Search</button>

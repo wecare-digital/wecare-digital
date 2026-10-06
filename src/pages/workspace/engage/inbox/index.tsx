@@ -17,6 +17,7 @@ import InteractiveMessageComposer from '../../../../components/InteractiveMessag
 import ContactMessageComposer from '../../../../components/ContactMessageComposer';
 import LocationSendComposer from '../../../../components/LocationSendComposer';
 import TemplateSender from '../../../../components/TemplateSender';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
@@ -62,6 +63,20 @@ const CHANNEL: Record<string, { label: string; fg: string; bg: string; reply: st
 };
 
 const chMeta = ( c?: string ) => CHANNEL[ ( c || 'whatsapp' ).toLowerCase() ] || { label: c || '?', fg: colors.textMuted, bg: colors.bgSecondary, reply: '/workspace/engage' };
+
+/*
+ * The toolbar channel filter's rows. 'ALL' is uppercase here and nowhere else in this file,
+ * which is deliberate - `channelFilter` is compared against the API's uppercase `channel`
+ * after lowercasing, and `?channel=` resolves to 'ALL' when it names nothing known.
+ */
+const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'ALL', label: 'All channels' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'sms', label: 'SMS' },
+    { value: 'email', label: 'Email' },
+    { value: 'rcs', label: 'RCS' },
+    { value: 'voice', label: 'Voice' },
+];
 
 // Reaction quick-set for the per-message react popover.
 const REACT_EMOJIS = [ '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅' ];
@@ -780,14 +795,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
 
                 <div className="ui-toolbar">
                     <input className="ui-search" placeholder="Search conversations…" value={ search } onChange={ e => setSearch( e.target.value ) } />
-                    <select className="ui-filter" value={ channelFilter } onChange={ e => setChannelFilter( e.target.value ) }>
-                        <option value="ALL">All channels</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="sms">SMS</option>
-                        <option value="email">Email</option>
-                        <option value="rcs">RCS</option>
-                        <option value="voice">Voice</option>
-                    </select>
+                    { /* The ONLY control migrated in this file. The six that remain native are
+                         later batches by deliberate classification: the WABA chooser and the
+                         India TRANSACTIONAL/PROMOTIONAL SMS class decide what an OUTBOUND
+                         message is, and the send-from number and GST rate in the "Request
+                         payment" panel are money controls on an India payment path. A
+                         read-only channel filter is none of those. */ }
+                    <Select ariaLabel="Channel" value={ channelFilter }
+                        onChange={ v => setChannelFilter( v ) }
+                        options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
                 </div>
 
                 <div className={ `ui-panes ${selected ? 'has-selection' : ''}` }>
