@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -9,6 +9,7 @@
     "meta-social": {
       "kind": "remote-mcp",
       "endpoint": "https://mcp.facebook.com/devtools",
+      "clientMode": "existing-meta-app",
       "_note": "The devtools permissions (developer_tools_mcp_app_read / _app_management) are NOT valid as raw OAuth scopes - Meta rejects them with 'Invalid Scopes'. They are only grantable through a Facebook Login for Business configuration, like the meta-ads connection's loginConfigId. To restore full devtools access: create a Login-for-Business config on app 2238810740192680 that includes those devtools permissions, then set loginConfigId below to its id (the handler sends config_id instead of scope). Until then this connection authenticates with business_management only, which covers the app-read tools.",
       "loginConfigId": "",
       "scopes": [
@@ -35,6 +36,7 @@
     "whatsapp": {
       "kind": "remote-mcp",
       "endpoint": "https://mcp.facebook.com/whatsapp_business_tools",
+      "clientMode": "existing-meta-app",
       "scopes": [
         "business_management",
         "whatsapp_business_management"
