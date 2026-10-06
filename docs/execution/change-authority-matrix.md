@@ -1,5 +1,134 @@
 # Change authority matrix
 
+## 2026-10-06 Reply on the conversation's own WABA, and report the receipt Meta refused
+- Scope: two defects from `.agents/tasks/incoming-otp-both-waba-20261006/findings.md`, fixed
+  per the plan in `fix-plan.md` §2. **Nothing here is an OTP fix.** That investigation
+  disproved its own premise: there was zero inbound authentication traffic on either WABA in
+  30 days, and the 938 `phone_number_mapping_not_found` warnings turned out to be `flows`
+  endpoint-availability alerts with `processedCount: 0`. Inbound routing was never broken.
+  State that plainly, or the next reader will assume it was.
+- A0_READ: `GetAlias` / `GetFunctionConfiguration` on `wecare-inbound-whatsapp` (rollback
+  capture, via the AWS MCP server). No `secretsmanager get-secret-value` in any spelling —
+  `wecare/meta-system-user-token` is named only, never read, and the handler still loads it
+  lazily at request time.
+- A1_LOCAL:
+  - `amplify/functions/messaging/inbound-whatsapp-handler/handler.py` — FIX-2 and FIX-4.
+  - `src/pages/workspace/engage/inbox/index.tsx` — FIX-1.
+  - `tests/test_inbound_whatsapp.py` (+11 tests), `src/test/InboxReplyWaba.test.tsx` (new, 5
+    tests).
+- **FIX-1 (customer-visible, Amplify only).** `selectedWaba` was seeded to `WABAS[0]` and
+  never synced to the open thread, and the two send sites read `selectedWaba || waba`, so the
+  correct value — derived from the thread's `awsPhoneNumberId` — was unreachable. Every reply
+  to a WABA2 thread went out from WABA1 unless the agent changed the dropdown by hand, which
+  opens a conversation on a number the customer never wrote to. Confirmed intact at HEAD
+  `71723af2`; the contacts/unsupported work did **not** fix it. Fix mirrors
+  `whatsapp/inbox.tsx:496-503` including its membership guard: an effect keyed on `selected`
+  only (keying it on the derived waba would stamp on a manual choice every 15 s poll), plus a
+  `sendWaba` precedence of thread-WABA-first. The "Send from" dropdown stays a working
+  per-conversation override, tracked in `wabaOverridden` state and reset on thread change.
+  The typing indicator uses the thread's WABA **unconditionally** — the wamid only exists on
+  that WABA, which is the code-100 error itself.
+  - Deviation from the plan, recorded deliberately: the plan's Edit B (a bare
+    `waba || selectedWaba`) contradicts its own test case 3 and the instruction to keep the
+    dropdown working, because the thread WABA would then always win and silently discard the
+    agent's choice. The tracked-override form satisfies both and closes the same first-render
+    gap. `wabaOverridden` is state, not a ref: `react-hooks/refs` correctly rejects reading a
+    ref during render.
+- **FIX-2 (observability, Lambda).** `_send_direct_api_read_receipt` returned a dict rather
+  than raising, so every caller's `except` was dead and the success event was emitted
+  unconditionally — **250 `read_receipt_sent_direct_api` against 61 real failures in 14 days**.
+  The callee now splits `urllib.error.HTTPError` out and reads `e.read()` for Meta's error
+  body; a new `_graph_error_code` helper extracts just the numeric code. Three call sites now
+  branch on the returned dict: the webhook path (`read_receipt_failed` / `auto_reaction_failed`,
+  carrying `messageType` so FIX-3 becomes decidable from the log), `_send_read_receipt`, and
+  `_send_typing_indicator` (`typing_indicator_failed`). Success event **names are unchanged**,
+  because the 250-count baseline is keyed on them.
+  - Secret safety: `url`, `req` and `headers` never enter a log expression — the URL carries
+    `appsecret_proof` and the headers the bearer token. The generic branch logs
+    `type(exc).__name__`, not `str(e)`, because a `URLError`'s text embeds the request URL.
+    A test asserts no captured line contains `appsecret_proof`, `Bearer` or
+    `graph.facebook.com`.
+  - Behaviour note: `auto_reaction_triggered_direct_api` is no longer emitted when the
+    `_auto_thumb_enabled()` toggle is off. It previously claimed a reaction that was never
+    attempted.
+- **FIX-3 — NOT IMPLEMENTED, deliberately.** See "Pending" below.
+- **FIX-4 (log hygiene, Lambda).** 938 `phone_number_mapping_not_found` WARNINGs in 14 days,
+  all on `flows` endpoint-availability webhooks that carry no `metadata`, no `messages` and no
+  `statuses`. `aws_phone_number_id` is now resolved only when the change carries `messages` —
+  verified to be its sole consumer (`_process_status` takes no such parameter). Resolution
+  behaviour for real messages and statuses is unchanged, and `_get_aws_phone_number_id` gained
+  an optional third fallback onto the entry's own `phone_number_ids` so it stops inventing
+  WABA1 when the entry names the phone. The `PHONE_NUMBER_ID_1` default and the warning both
+  **stay**: after this change the warning means something real — a message arrived and we
+  could not place it.
+- **FIX-5 — NOT IMPLEMENTED.** See "Pending" below.
+- Evidence (gates, all before upload): `tests/test_inbound_whatsapp.py` **48 passed** (was 37).
+  Full pytest **7997 passed, 5 failed** — the same 5 pre-existing failures
+  (`test_checkout_faq_sources.py`, `test_deployed_headers_target.py`), untouched here.
+  `deploy_all_lambdas.py --dry-run` clean, 8 pre-existing guarded-import warnings.
+  Vitest **1127 passed, 2 failed** — the same 2 pre-existing `BlogContribution.test.tsx`
+  failures, against a baseline of 1122/2 captured before editing. `tsc --noEmit` clean,
+  `npm run build` clean, eslint on the two touched files **0 errors** (9 pre-existing
+  warnings; the plan's 85 errors are in another session's `.worktrees/`).
+  Both fixes were proved to be regressions, not guesses: run against the HEAD versions of the
+  two files, the new tests fail **7/13** (Python) and **2/5** (UI) and pass on the fixed tree.
+- A3_PRODUCTION: `wecare-inbound-whatsapp` — `update-function-code`, publish, `live` **72 → 73**.
+  **`wecare-whatsapp-calling` invokes this function UNQUALIFIED** (`INBOUND_HANDLER_FUNCTION`
+  has no `:live`), so `update-function-code` was live on the Meta webhook path the moment it
+  returned — **before** the version was published and before the alias moved. There is no
+  staging step on this function. That asymmetry is the single most important operational fact
+  in this entry.
+- Rollback, stated plainly: **both halves are required here.**
+  (a) `aws lambda update-alias --function-name wecare-inbound-whatsapp --name live
+  --function-version 72` (sha `6QSD9xh32Y28MW3c8ffsWIefJ2AHk04826f0Uu2hoKI=`, re-confirmed at
+  deploy time, and `$LATEST` matched it, so no other session had deployed).
+  (b) `git revert` the Lambda commit and re-run `deploy_all_lambdas.py` to restore `$LATEST`.
+  **(a) alone does NOT restore the webhook path**, because of the unqualified invoke.
+  FIX-1 rolls back by reverting the UI commit; Amplify rebuilds.
+- Pending, not forgotten:
+  - **FIX-3** — ⏳ **DEFERRED**, not skipped. The findings forbid shipping it before FIX-2:
+    skipping the receipt on `unsupported` deletes the Graph response that is the only evidence
+    of *why* 126/126 of them fail, which is precisely what FIX-2 was built to collect. The
+    reaction half is **withdrawn outright**: 0 `Direct API send failed` in 14 days against 250
+    `auto_reaction_triggered_direct_api`, so the reaction on an `unsupported` message succeeds
+    and skipping it would delete working behaviour on the strength of a sentence in a report.
+    Gate, query and the exact three-line edit are in `fix-plan.md` §5. Open it after ≥48 h of
+    FIX-2 being live, and only if a single `graphError` code covers ≥95 % of
+    `messageType: "unsupported"`. If the code is not stable, FIX-3 is wrong as specified and
+    should be closed rather than forced.
+  - **FIX-5** — ➖ **NOT REQUIRED.** `WABA2_IDS = set()` is hardcoded empty in both reference
+    implementations (`whatsapp-business-api/handler.py:101-102`,
+    `whatsapp-calling/handler.py:92`), so the branch being recommended is unreachable by
+    design; `WABA2_IDS` is absent from this function's 7 environment keys and from
+    `config/lambda-env-manifest.json`; WABA2 migrated to the single WECARE.DIGITAL app
+    (`docs/current-communications-architecture.md:227`, and
+    `docs/provider-inventory.md:190` marks the branch DELETE); and two tests pin the current
+    behaviour (`tests/test_calling.py:242`, `tests/test_business_api.py:63`). Decisive point:
+    no upside, a plausible downside — a stale `access_token_waba2` from the retired app would
+    silently break WABA2 Graph calls — and, until FIX-2, no instrumentation to see it. If the
+    apps ever diverge, the migration target is `lambda_utils/meta_client.py`, which already
+    does WABA2 credential selection properly, **not** a fourth hand-rolled copy.
+  - **FIX-6** — ➖ out of scope (findings §5; `modules/content.py`, owned elsewhere).
+  - **Flow endpoints at 0 % availability on both WABAs since ~2026-09-27**, ~96 alerts/day
+    (findings §3.3): `ENDPOINT_AVAILABILITY`, `alert_state: ACTIVATED`, flow ids
+    `959273520451230` (WABA2), `1262971692700761` and `1529800232178121` (WABA1). "Users are
+    unable to open or use the flow." ⏳ **PENDING, needs its own investigation.** This is a
+    live customer-facing outage, unrelated to this work, and it is the source of the 938
+    warnings FIX-4 silences. **Silencing the log must not be allowed to close the outage.**
+  - `config/lambda-env-manifest.json` — ➖ no env key added or changed, so G-A does not block.
+  - **Not live-verified.** No WhatsApp, SMS or RCS message was sent, no QA send to
+    `+918100640044`, no live-send flag read or changed, no Graph call. The FIX-1 watch metrics
+    (`typing_indicator_error` 17/30 d and code-100 "does not exist" 12/30 d on
+    `wecare-outbound-whatsapp`) are agent-activity driven, so they need a comparable-volume
+    7-day window to mean anything, not an instant post-deploy check. For FIX-4, watch
+    `phone_number_mapping_not_found` falling toward 0 **while `message_stored` holds** at
+    253/14 d — that pairing is the check, not the warning count alone.
+  - The **7 failing `text` read receipts** (findings §3.5) remain unexplained. FIX-2 makes them
+    diagnosable; it does not fix them.
+- Constraints honoured: no payment path touched; no credential on a command line, in argv or
+  in a log expression; no secret value read; no force push, history rewrite or broad staging;
+  single branch `stack`; both commits made with `git commit --only` and explicit paths.
+
 ## 2026-10-06 CORS on the media bucket, so the dashboard can upload to S3 again (R1)
 - Scope: S3 bucket `wecare-digital-get` (us-east-1) had **no CORS configuration** —
   `get_bucket_cors` returned `NoSuchCORSConfiguration`. The dashboard does not proxy

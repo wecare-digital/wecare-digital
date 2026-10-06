@@ -519,3 +519,233 @@ class TestContactsPayloadAndRevokeStorage:
         assert item['messageType'] == 'unsupported'
         assert item['content'] == '[Unsupported: WhatsApp did not say what this message was]'
         assert 'Message type unknown' not in item['content']
+
+def _load_inbound_handler(module_name: str):
+    """Load THIS handler by path, under a name nothing else uses.
+
+    `import handler` is ambiguous across the full suite — every Lambda in this
+    repo has a `handler.py` and the first import wins `sys.modules['handler']`.
+    """
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / \
+        'amplify/functions/messaging/inbound-whatsapp-handler/handler.py'
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    module = importlib.util.module_from_spec(spec)
+    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1'}):
+        with patch('boto3.resource'), patch('boto3.client'):
+            spec.loader.exec_module(module)
+    return module
+
+
+class TestReadReceiptReportsWhatActuallyHappened:
+    """A read receipt Meta refused must not be logged as one it accepted.
+
+    `_send_direct_api_read_receipt` returns a dict rather than raising, so the
+    caller's `except` block was dead and `read_receipt_sent_direct_api` was
+    emitted unconditionally — 250 of them against 61 real failures in 14 days.
+    Anyone counting that event believed receipts worked.
+    """
+
+    @pytest.fixture
+    def h(self):
+        return _load_inbound_handler('inbound_whatsapp_handler_receipts')
+
+    def _http_error(self, body: str, code: int = 400):
+        import io
+        import urllib.error
+        return urllib.error.HTTPError(
+            'https://graph.facebook.com/vX/1/messages', code, 'Bad Request', {},
+            io.BytesIO(body.encode('utf-8')))
+
+    def _receipt(self, h, side_effect):
+        """Call the receipt helper with urlopen stubbed; return (result, logs)."""
+        logs = []
+        with patch.object(h, '_load_direct_api_token', return_value='tok'), \
+                patch.object(h.logger, 'warning', side_effect=lambda m, *a: logs.append(str(m))), \
+                patch('urllib.request.urlopen', side_effect=side_effect):
+            h._direct_api_token_cache['app_secret'] = ''
+            result = h._send_direct_api_read_receipt('wamid.RR1', show_typing=True)
+        return result, logs
+
+    def test_an_http_error_returns_the_graph_body_and_code(self, h):
+        body = '{"error":{"code":131051,"message":"Message type unknown"}}'
+        result, logs = self._receipt(h, self._http_error(body))
+        assert result == {'error': True, 'status': 400, 'detail': body}
+        # The body is what makes the failure diagnosable at all.
+        assert any('131051' in line for line in logs)
+
+    def test_success_returns_success(self, h):
+        def ok(req, timeout=15):
+            ctx = MagicMock()
+            ctx.__enter__.return_value = MagicMock()
+            ctx.__exit__.return_value = False
+            return ctx
+        result, _ = self._receipt(h, ok)
+        assert result == {'success': True}
+
+    def test_a_non_http_exception_logs_the_class_name_not_the_url(self, h):
+        import urllib.error
+        err = urllib.error.URLError('failed reaching https://graph.facebook.com/vX/1/messages')
+        result, logs = self._receipt(h, err)
+        assert result.get('error') is True
+        assert any('URLError' in line for line in logs)
+        # A URLError's text embeds the request URL, which carries appsecret_proof.
+        assert not any('graph.facebook.com' in line for line in logs)
+
+    def test_no_log_line_can_carry_a_credential(self, h):
+        """This fix adds logging to a function that holds a bearer token."""
+        body = '{"error":{"code":131051}}'
+        _, logs = self._receipt(h, self._http_error(body))
+        joined = ' '.join(logs)
+        for forbidden in ('appsecret_proof', 'Bearer', 'graph.facebook.com', 'tok'):
+            assert forbidden not in joined
+
+    def test_graph_error_code_never_raises_inside_a_logging_path(self, h):
+        assert h._graph_error_code('{"error":{"code":131051}}') == '131051'
+        assert h._graph_error_code(None) == ''
+        assert h._graph_error_code('') == ''
+        assert h._graph_error_code('not json at all') == ''
+        assert h._graph_error_code('{"error":null}') == ''
+
+    # ── the caller site ──
+
+    def _process(self, h, message, receipt_result):
+        """Run _process_message on a Direct API phone; return captured events."""
+        events = []
+
+        def _capture(msg, *a):
+            events.append(str(msg))
+
+        tables = {}
+        with patch('lambda_utils.webhook_dedup.claim_event', return_value=True), \
+                patch.object(h.dynamodb, 'Table', side_effect=lambda n: tables.setdefault(n, MagicMock())), \
+                patch.object(h, '_message_exists', return_value=False), \
+                patch.object(h, '_get_or_create_contact',
+                             return_value={'contactId': 'c-1', 'welcomeSent': True}), \
+                patch.object(h, '_update_contact_timestamp'), \
+                patch.object(h, 'put_message'), \
+                patch.object(h, '_auto_thumb_enabled', return_value=False), \
+                patch.object(h, '_send_direct_api_read_receipt',
+                             return_value=receipt_result) as receipt, \
+                patch.object(h.logger, 'info', side_effect=_capture), \
+                patch.object(h.logger, 'warning', side_effect=_capture):
+            h._process_message(
+                message,
+                {'display_phone_number': '919330994400',
+                 'phone_number_id': '1016149501586345'},
+                'req-1',
+                '919330994400',
+                h.PHONE_NUMBER_ID_1,
+                ['2094615664435155'],
+            )
+        return events, receipt
+
+    def _text(self):
+        return {'id': 'wamid.T1', 'from': '918100640044',
+                'timestamp': '1760000000', 'type': 'text', 'text': {'body': 'hi'}}
+
+    def test_a_refused_receipt_is_reported_as_a_failure(self, h):
+        events, _ = self._process(h, self._text(), {
+            'error': True, 'status': 400,
+            'detail': '{"error":{"code":131051,"message":"Message type unknown"}}'})
+        failed = [e for e in events if 'read_receipt_failed' in e]
+        assert len(failed) == 1
+        payload = json.loads(failed[0])
+        assert payload['graphError'] == '131051'
+        assert payload['status'] == 400
+        assert payload['messageType'] == 'text'
+        assert not any('read_receipt_sent_direct_api' in e for e in events)
+
+    def test_an_accepted_receipt_still_emits_the_existing_success_event(self, h):
+        """The event NAME must not change: the 250-count baseline is keyed on it."""
+        events, _ = self._process(h, self._text(), {'success': True})
+        assert any('read_receipt_sent_direct_api' in e for e in events)
+        assert not any('read_receipt_failed' in e for e in events)
+
+
+class TestWabaLevelWebhooksDoNotWarn:
+    """A webhook that carries nothing to route must not warn about routing it.
+
+    938 `phone_number_mapping_not_found` WARNINGs in 14 days, all on `flows`
+    endpoint-availability alerts that have no `metadata`, no `messages` and no
+    `statuses` — resolving a phone id whose only consumer is the message loop.
+    """
+
+    @pytest.fixture
+    def h(self):
+        return _load_inbound_handler('inbound_whatsapp_handler_flows')
+
+    def _flows_entry(self):
+        """Verbatim shape from a live `webhook_received` (findings §3.3)."""
+        return {
+            'id': '2513394156072604',
+            'time': 1791271473,
+            'changes': [{
+                'value': {
+                    'event': 'ENDPOINT_AVAILABILITY',
+                    'message': 'Flow endpoint availability was below 90% threshold',
+                    'flow_id': '959273520451230',
+                    'availability': 0,
+                    'threshold': 90,
+                    'alert_state': 'ACTIVATED',
+                },
+                'field': 'flows',
+            }],
+        }
+
+    def _run(self, h, entry, **patches):
+        logs = []
+
+        def _capture(msg, *a):
+            logs.append(str(msg))
+
+        import contextlib
+        ctx = MagicMock()
+        ctx.aws_request_id = 'req-1'
+        ctx.get_remaining_time_in_millis.return_value = 120000
+        extra = patch.multiple(h, **patches) if patches else contextlib.nullcontext()
+        with patch('lambda_utils.webhook_dedup.claim_event', return_value=True), \
+                patch.object(h.dynamodb, 'Table', side_effect=lambda n: MagicMock()), \
+                patch.object(h.logger, 'info', side_effect=_capture), \
+                patch.object(h.logger, 'warning', side_effect=_capture), \
+                patch.object(h.logger, 'error', side_effect=_capture), \
+                extra:
+            resp = h.handler(_make_sns_event(entry), ctx)
+        return resp, logs
+
+    def test_a_flows_alert_warns_about_nothing(self, h):
+        resp, logs = self._run(h, self._flows_entry())
+        assert resp['statusCode'] == 200
+        assert json.loads(resp['body'])['processed'] == 0
+        assert not any('phone_number_mapping_not_found' in line for line in logs)
+
+    def test_statuses_without_messages_still_reach_process_status(self, h):
+        """Proves the lazy resolution did not break status handling."""
+        entry = _make_status_webhook()
+        resp, logs = self._run(h, entry, _process_status=MagicMock())
+        assert resp['statusCode'] == 200
+        assert not any('phone_number_mapping_not_found' in line for line in logs)
+
+    def test_a_real_message_still_resolves_its_waba(self, h):
+        assert h._get_aws_phone_number_id('919330994400', '1016149501586345') == \
+            h.PHONE_NUMBER_ID_1
+
+    def test_a_waba2_message_still_resolves_to_waba2(self, h):
+        """Guards against an over-correction that defaults WABA2 traffic."""
+        assert h._get_aws_phone_number_id('919903300044', '1055232054343117') == \
+            h.PHONE_NUMBER_ID_2
+
+    def test_the_entry_phone_ids_are_preferred_over_the_default(self, h):
+        logs = []
+        with patch.object(h.logger, 'warning', side_effect=lambda m, *a: logs.append(str(m))):
+            assert h._get_aws_phone_number_id('', '', ['1055232054343117']) == \
+                h.PHONE_NUMBER_ID_2
+        assert not any('phone_number_mapping_not_found' in line for line in logs)
+
+    def test_an_unresolvable_message_still_warns_and_still_defaults(self, h):
+        """The warning must survive: it now means a message we could not place."""
+        logs = []
+        with patch.object(h.logger, 'warning', side_effect=lambda m, *a: logs.append(str(m))):
+            assert h._get_aws_phone_number_id('', '', ['999']) == h.PHONE_NUMBER_ID_1
+        assert any('phone_number_mapping_not_found' in line for line in logs)

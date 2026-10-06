@@ -677,9 +677,26 @@ def _send_direct_api_read_receipt(whatsapp_message_id: str, meta_phone_id: str =
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             return {'success': True}
+    except urllib.error.HTTPError as e:
+        # Meta's own response body, so it carries no credential of ours. `url`,
+        # `req` and `headers` must never be logged: the URL carries
+        # appsecret_proof and the headers carry the bearer token.
+        error_body = e.read().decode('utf-8') if e.fp else ''
+        logger.warning(f"Direct API read receipt failed {e.code}: {error_body}")
+        return {'error': True, 'status': e.code, 'detail': error_body}
     except Exception as e:
-        logger.warning(f"Direct API read receipt failed: {e}")
+        # Only the class name: a URLError's text embeds the request URL.
+        logger.warning(f"Direct API read receipt failed: {type(e).__name__}")
         return {'error': True, 'detail': str(e)}
+
+
+def _graph_error_code(detail) -> str:
+    """Meta's numeric error code from a Graph error body, or '' if unparseable.
+    Returns the code only — the body can echo request parameters."""
+    try:
+        return str((json.loads(detail or '{}').get('error') or {}).get('code') or '')
+    except Exception:
+        return ''
 
 
 def _send_direct_api_typing(whatsapp_message_id: str, meta_phone_id: str = None) -> Dict:
@@ -879,8 +896,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 display_phone_number = metadata.get('display_phone_number', '')
                 phone_number_id = metadata.get('phone_number_id', '')
                 
-                # Determine AWS phone number ID for this WABA
-                aws_phone_number_id = _get_aws_phone_number_id(display_phone_number, phone_number_id)
+                # Determine AWS phone number ID for this WABA. Only meaningful when
+                # the change carries messages — the _process_message call below is
+                # the sole consumer, and _process_status takes no such parameter.
+                # WABA-level notifications (`flows` endpoint-availability alerts: 938
+                # in 14 days) carry no `metadata`, so resolving here produced ~96
+                # WARNING lines a day about a value that was then discarded.
+                aws_phone_number_id = (
+                    _get_aws_phone_number_id(display_phone_number, phone_number_id,
+                                             meta_phone_number_ids)
+                    if value.get('messages') else ''
+                )
                 
                 # Extract contacts info (contains profile names, BSUIDs, usernames)
                 # WhatsApp webhook format: contacts array has wa_id, user_id, profile.name, profile.username
@@ -1167,11 +1193,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     }
 
 
-def _get_aws_phone_number_id(display_phone: str, meta_phone_id: str) -> str:
+def _get_aws_phone_number_id(display_phone: str, meta_phone_id: str,
+                             entry_phone_ids: Optional[list] = None) -> str:
     """
     Map display phone number or Meta phone ID to phone number ID.
     Returns the appropriate AWS phone number ID for sending reactions.
     For Direct API phones, returns a synthetic ID for tracking purposes.
+    `entry_phone_ids` is the webhook entry's own phone-id list, used when
+    `value.metadata` is absent.
     """
     # Clean display phone number (remove + and spaces)
     clean_phone = display_phone.replace('+', '').replace(' ', '').replace('-', '')
@@ -1183,7 +1212,13 @@ def _get_aws_phone_number_id(display_phone: str, meta_phone_id: str) -> str:
     # Check Meta phone number ID mapping (for Direct API WABAs)
     if meta_phone_id in META_PHONE_ID_MAP:
         return META_PHONE_ID_MAP[meta_phone_id]
-    
+
+    # The entry names the phone even when `value.metadata` does not. Prefer a real
+    # id over a default; only then fall back.
+    for pid in (entry_phone_ids or []):
+        if pid in META_PHONE_ID_MAP:
+            return META_PHONE_ID_MAP[pid]
+
     # Default to first phone number ID if no mapping found
     logger.warning(json.dumps({
         'event': 'phone_number_mapping_not_found',
@@ -1724,26 +1759,53 @@ def _process_message(
         
         if _is_direct_api_phone(aws_phone_number_id):
             # Send reaction and read receipt via Meta Graph API
+            # Both callees return a dict rather than raising, so the `except` blocks
+            # below were dead and the success events were emitted unconditionally —
+            # 250 `read_receipt_sent_direct_api` against 61 real failures in 14 days.
+            # Branch on the returned dict so a refusal is reported as one.
             try:
                 if _auto_thumb_enabled():
-                    _send_direct_api_reaction(sender_phone, whatsapp_message_id, emoji=AUTO_THUMB_EMOJI)
-                logger.info(json.dumps({
-                    'event': 'auto_reaction_triggered_direct_api',
-                    'contactId': mask_contact_id(contact_id),
-                    'whatsappMessageId': whatsapp_message_id,
-                    'requestId': request_id
-                }))
+                    _rx = _send_direct_api_reaction(sender_phone, whatsapp_message_id, emoji=AUTO_THUMB_EMOJI)
+                    if _rx.get('error'):
+                        logger.warning(json.dumps({
+                            'event': 'auto_reaction_failed',
+                            'contactId': mask_contact_id(contact_id),
+                            'whatsappMessageId': whatsapp_message_id,
+                            'messageType': msg_type,
+                            'status': _rx.get('status'),
+                            'graphError': _graph_error_code(_rx.get('detail')),
+                            'requestId': request_id
+                        }))
+                    else:
+                        logger.info(json.dumps({
+                            'event': 'auto_reaction_triggered_direct_api',
+                            'contactId': mask_contact_id(contact_id),
+                            'whatsappMessageId': whatsapp_message_id,
+                            'requestId': request_id
+                        }))
             except Exception as e:
-                logger.warning(f"Direct API auto-reaction failed: {e}")
+                logger.warning(f"Direct API auto-reaction failed: {type(e).__name__}")
             try:
-                _send_direct_api_read_receipt(whatsapp_message_id, show_typing=True)
-                logger.info(json.dumps({
-                    'event': 'read_receipt_sent_direct_api',
-                    'whatsappMessageId': whatsapp_message_id,
-                    'requestId': request_id
-                }))
+                _rr = _send_direct_api_read_receipt(whatsapp_message_id, show_typing=True)
+                if _rr.get('error'):
+                    # `messageType` is what makes the deferred unsupported-skip
+                    # (FIX-3) decidable from the log alone.
+                    logger.warning(json.dumps({
+                        'event': 'read_receipt_failed',
+                        'whatsappMessageId': whatsapp_message_id,
+                        'messageType': msg_type,
+                        'status': _rr.get('status'),
+                        'graphError': _graph_error_code(_rr.get('detail')),
+                        'requestId': request_id
+                    }))
+                else:
+                    logger.info(json.dumps({
+                        'event': 'read_receipt_sent_direct_api',
+                        'whatsappMessageId': whatsapp_message_id,
+                        'requestId': request_id
+                    }))
             except Exception as e:
-                logger.warning(f"Direct API read receipt failed: {e}")
+                logger.warning(f"Direct API read receipt failed: {type(e).__name__}")
         else:
             _send_auto_reaction(
                 contact_id=contact_id,
@@ -6786,20 +6848,30 @@ def _send_read_receipt(whatsapp_message_id: str, phone_number_id: str, request_i
         # Send read receipt via Direct API
         if _is_direct_api_phone(phone_number_id):
             meta_pid = _get_meta_phone_id_for_direct_api(phone_number_id)
-            _send_direct_api_read_receipt(whatsapp_message_id, meta_phone_id=meta_pid)
-            response = {'StatusCode': 200}
+            _rr = _send_direct_api_read_receipt(whatsapp_message_id, meta_phone_id=meta_pid)
         else:
             # Fallback: try Direct API with default phone
-            _send_direct_api_read_receipt(whatsapp_message_id)
-            response = {'StatusCode': 200}
-        
-        logger.info(json.dumps({
-            'event': 'read_receipt_sent',
-            'messageId': whatsapp_message_id,
-            'phoneNumberId': phone_number_id,
-            'statusCode': response.get('StatusCode', 200),
-            'requestId': request_id
-        }))
+            _rr = _send_direct_api_read_receipt(whatsapp_message_id)
+
+        # The callee returns a dict rather than raising, so `read_receipt_sent` used
+        # to be emitted even when Meta refused the receipt.
+        if _rr.get('error'):
+            logger.warning(json.dumps({
+                'event': 'read_receipt_failed',
+                'messageId': whatsapp_message_id,
+                'phoneNumberId': phone_number_id,
+                'status': _rr.get('status'),
+                'graphError': _graph_error_code(_rr.get('detail')),
+                'requestId': request_id
+            }))
+        else:
+            logger.info(json.dumps({
+                'event': 'read_receipt_sent',
+                'messageId': whatsapp_message_id,
+                'phoneNumberId': phone_number_id,
+                'statusCode': 200,
+                'requestId': request_id
+            }))
         
     except Exception as e:
         logger.warning(json.dumps({
@@ -7050,18 +7122,30 @@ def _send_typing_indicator(sender_phone: str, phone_number_id: str, request_id: 
 
         if _is_direct_api_phone(phone_number_id):
             meta_pid = _get_meta_phone_id_for_direct_api(phone_number_id)
-            _send_direct_api_read_receipt(whatsapp_message_id if 'whatsapp_message_id' in dir() else '', meta_phone_id=meta_pid)
+            _rr = _send_direct_api_read_receipt(whatsapp_message_id if 'whatsapp_message_id' in dir() else '', meta_phone_id=meta_pid)
         else:
             # Fallback: try Direct API with default phone
-            _send_direct_api_read_receipt('', meta_phone_id=_current_direct_api_phone or PHONE1_META_ID)
+            _rr = _send_direct_api_read_receipt('', meta_phone_id=_current_direct_api_phone or PHONE1_META_ID)
 
-        logger.info(json.dumps({
-            'event': 'typing_indicator_sent',
-            'senderPhone': mask_phone(sender_phone),
-            'phoneNumberId': phone_number_id,
-            'note': 'Sent read receipt as typing proxy',
-            'requestId': request_id
-        }))
+        # The callee returns a dict rather than raising, so `typing_indicator_sent`
+        # used to be emitted even when Meta refused the receipt.
+        if _rr.get('error'):
+            logger.warning(json.dumps({
+                'event': 'typing_indicator_failed',
+                'senderPhone': mask_phone(sender_phone),
+                'phoneNumberId': phone_number_id,
+                'status': _rr.get('status'),
+                'graphError': _graph_error_code(_rr.get('detail')),
+                'requestId': request_id
+            }))
+        else:
+            logger.info(json.dumps({
+                'event': 'typing_indicator_sent',
+                'senderPhone': mask_phone(sender_phone),
+                'phoneNumberId': phone_number_id,
+                'note': 'Sent read receipt as typing proxy',
+                'requestId': request_id
+            }))
 
     except Exception as e:
         # Non-critical  -  don't fail the AI flow for typing indicator
