@@ -1,8 +1,8 @@
 {
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 68,
-  "_variables": 405,
+  "_functions": 69,
+  "_variables": 412,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -227,6 +227,15 @@
     },
     "wecare-meta-analytics": {},
     "wecare-meta-business-agent": {},
+    "wecare-meta-catalog-sync": {
+      "LOG_LEVEL": "INFO",
+      "META_CATALOG_ID": "1607047307067517",
+      "META_CATALOG_SYNC_DRY_RUN": "true",
+      "META_TOKEN_FIELD": "access_token",
+      "META_TOKEN_SECRET": "wecare/meta-system-user-token",
+      "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
+      "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f"
+    },
     "wecare-notification-worker": {
       "NOTIF_SWEEP_LIMIT": "25"
     },
