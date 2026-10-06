@@ -121,3 +121,74 @@ def test_the_hardcoded_default_is_not_in_the_resolver_source():
     body = code.split('"""')[-1]  # everything after the docstring
     assert WABA2_META not in body, (
         "a hardcoded WABA2 phone id is back in the resolver body")
+
+
+# --------------------------------------------------------------------------
+# Direct Send rides on the same resolution, so it inherits the same refusal
+# --------------------------------------------------------------------------
+#
+# Direct Send eligibility is granted by Meta per WABA, so deciding whether to add
+# `category: 'utility'` means knowing WHICH WABA this send leaves from. That is
+# the same question `_resolve_meta_phone_id` already answers, and `_waba_for_sender`
+# deliberately reuses it rather than re-deriving: one place decides which phone a
+# send leaves from, and a sender it cannot resolve is not eligible for anything.
+#
+# Getting this wrong would be worse than the original bypass. A cross-WABA guess
+# here does not merely answer from the wrong number, it bills the wrong WABA at
+# utility rates and accrues any category-misclassification strike against an
+# account that never opted in.
+
+import os
+from unittest.mock import patch
+
+WABA1 = "2094615664435155"   # owns PHONE1
+WABA2 = "2513394156072604"   # owns PHONE2
+FLAG = "DIRECT_SEND_ENABLED_WABAS"
+
+
+def test_each_sender_resolves_to_its_own_waba():
+    assert ow._waba_for_sender(PHONE1) == WABA1
+    assert ow._waba_for_sender(PHONE2) == WABA2
+
+
+@pytest.mark.parametrize("bad", [
+    "",
+    "unknown-phone",
+    "phone-number-id-waba1",
+    "phone-number-id-waba1-direct-notanumber",
+    "some-other-system-id",
+])
+def test_an_unresolvable_sender_yields_no_waba_rather_than_a_guess(bad):
+    """`''`, never a default. The caller logs `direct_send_waba_unresolved` and
+    keeps today's behaviour, because "we do not know which WABA" and "not
+    enabled" must have the same answer."""
+    assert ow._waba_for_sender(bad) == ""
+
+
+def test_a_resolvable_but_unmapped_sender_yields_no_waba():
+    """`_resolve_meta_phone_id` derives a Meta phone id from the `-direct-`
+    suffix exactly, so a ninth WABA's phone resolves fine — but it is not in the
+    WABA map, so Direct Send stays off for it until someone adds it."""
+    assert ow._resolve_meta_phone_id(
+        "phone-number-id-waba9-direct-1234567890") == "1234567890"
+    assert ow._waba_for_sender("phone-number-id-waba9-direct-1234567890") == ""
+
+
+def test_enabling_one_waba_cannot_enable_a_sender_on_the_other():
+    """The cross-WABA assertion for Direct Send. With only WABA1 in the
+    allowlist, a send leaving from PHONE2 must not be eligible."""
+    with patch.dict(os.environ, {FLAG: WABA1}):
+        assert ow.direct_send.enabled_for_waba(ow._waba_for_sender(PHONE1)) is True
+        assert ow.direct_send.enabled_for_waba(ow._waba_for_sender(PHONE2)) is False
+
+
+def test_an_unresolvable_sender_is_never_eligible_even_with_both_wabas_enabled():
+    with patch.dict(os.environ, {FLAG: f"{WABA1},{WABA2}"}):
+        for bad in ("", "nope", "phone-number-id-waba1", "garbage"):
+            assert ow.direct_send.enabled_for_waba(ow._waba_for_sender(bad)) is False
+
+
+def test_the_waba_map_is_the_shared_one_not_a_local_copy():
+    """A second copy of this mapping is a second thing to get wrong, so the
+    handler binds the shared module's dict rather than restating it."""
+    assert ow.META_PHONE_TO_WABA is ow.direct_send.META_PHONE_TO_WABA

@@ -32,6 +32,7 @@ from lambda_utils.middleware import require_auth
 from lambda_utils.message_store import put_message  # unified MessagesTable dual-write
 from lambda_utils import graph_errors  # Meta error subcode + transient classification
 from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
+from lambda_utils import direct_send  # Direct Send flag + WABA map, fails closed
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 # One source for Meta's reference_id contract, so the send path and the minter cannot disagree.
@@ -79,6 +80,11 @@ DIRECT_API_META_PHONE_MAP = {
     'phone-number-id-waba1-direct-1016149501586345': '1016149501586345',  # +91 93309 94400 (WABA1)
     'phone-number-id-waba-t-direct-1055232054343117': '1055232054343117',  # +91 99033 00044 (WABA-T)
 }
+# Meta phone-number id -> WABA id. Bound to the shared module rather than copied,
+# because Direct Send eligibility is granted per WABA and a second copy of this
+# mapping is a second thing to get wrong. The data lives in
+# lambda_utils/direct_send.py; this is the briefed name at the briefed place.
+META_PHONE_TO_WABA = direct_send.META_PHONE_TO_WABA
 
 # Secrets Manager for Direct API tokens
 secrets_client = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
@@ -313,6 +319,25 @@ def _resolve_meta_phone_id(phone_number_id: str) -> str:
             'refusing to send rather than fall back to another WABA'
         )
     return meta_phone_id
+
+
+def _waba_for_sender(phone_number_id: str) -> str:
+    """Our phone id -> the WABA id that owns it, or `''` when it cannot be resolved.
+
+    Reuses `_resolve_meta_phone_id` rather than re-deriving, so there is exactly
+    one place that decides which Meta phone a send leaves from. That function
+    already fails closed by raising, and this one converts the refusal to `''`
+    because the caller's question is "is Direct Send enabled here", for which
+    "we do not know" and "no" must have the same answer.
+
+    Never guesses. An empty result means the caller logs
+    `direct_send_waba_unresolved` and keeps today's behaviour.
+    """
+    try:
+        meta_phone_id = _resolve_meta_phone_id(phone_number_id)
+    except UnresolvedSenderPhone:
+        return ''
+    return direct_send.waba_for_meta_phone(meta_phone_id)
 
 def _block_users_api(phone_number_id: str, users: list, action: str) -> Dict:
     """Block / unblock / list blocked users via the Meta block_users endpoint.
@@ -590,6 +615,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if auth_result is not None:
         return auth_result
 
+    # Bound before the try, so every path that reaches `_handle_live_send` passes
+    # a defined value. Only the outside-window plain-text branch below ever sets
+    # the category; everything else sends with it None, which is today's request
+    # byte for byte.
+    direct_send_category = None
+    direct_send_waba = ''
+
     try:
 
         # ── Presigned media upload (Issue 2 fix): large media must NOT be sent as base64
@@ -777,14 +809,54 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # on a missing `lastInboundMessageAt`, so the honest default is False and
         # the absence of a contact is simply another way of having no open window.
         within_window = _is_within_service_window(contact) if contact else False
+
+        # ── Direct Send: the outside-window utility fallback ────────────────
+        #
+        # `direct_send_category` is None in every case except one: the window is
+        # closed, the send would be plain text, and Direct Send is explicitly
+        # enabled for the WABA this sender belongs to. When it is set, the 403
+        # below is skipped and the message goes out as `category: 'utility'`
+        # instead of being refused.
+        #
+        # Window OPEN deliberately stays None. Today's free-form service message
+        # is correct inside the window and cheaper than a utility message, so
+        # there is nothing to gain and a billing category to lose.
+        #
+        # This pre-check is COARSE on purpose. It cannot see that a `content`
+        # string beginning with `{` will be parsed into a contacts or location
+        # message, so `_build_message_payload` re-decides on the built payload
+        # and the handler re-checks afterwards. A disagreement falls back to the
+        # 403 rather than sending a non-text message out of the window.
         if not within_window and not is_template:
-            logger.info(json.dumps({
-                'event': 'send_blocked_outside_window',
-                'contactId': mask_contact_id(contact_id),
-                'hasContactRecord': bool(contact),
-                'requestId': request_id,
-            }))
-            return _error_response(403, 'Outside 24h service window — only template messages allowed')
+            looks_plain_text = not any((
+                is_reaction, media_type, media_file, is_interactive,
+                is_payment_template, is_interactive_payment,
+                is_checkout_template, is_order_status,
+            )) and bool(content) and bool(recipient_phone)
+            if looks_plain_text:
+                direct_send_waba = _waba_for_sender(phone_number_id)
+                if not direct_send_waba:
+                    # Never guess a WABA. Unresolvable means not enabled.
+                    logger.info(json.dumps({
+                        'event': 'direct_send_waba_unresolved',
+                        'phoneNumberId': phone_number_id,
+                        'requestId': request_id,
+                    }))
+                elif direct_send.enabled_for_waba(direct_send_waba):
+                    direct_send_category = 'utility'
+
+        if not within_window and not is_template:
+            if direct_send_category:
+                # A WABA id is not a secret and already appears in committed source.
+                logger.info(json.dumps({
+                    'event': 'direct_send_attempt',
+                    'category': direct_send_category,
+                    'wabaId': direct_send_waba,
+                    'contactId': mask_contact_id(contact_id),
+                    'requestId': request_id,
+                }))
+            else:
+                return _outside_window_refusal(contact_id, bool(contact), request_id)
         
         # Requirement 5.4: Validate text length (skip for reactions)
         if not is_reaction and content and len(content) > MAX_TEXT_LENGTH:
@@ -878,7 +950,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             template_header_filename=template_header_filename,
             template_header_location=template_header_location,
             template_flow_button=template_flow_button,
-            context_message_id=context_message_id
+            context_message_id=context_message_id,
+            direct_send_category=direct_send_category,
+            direct_send_waba=direct_send_waba,
+            has_contact_record=bool(contact)
         )
         
     except json.JSONDecodeError:
@@ -1729,10 +1804,21 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                       template_header_filename: Optional[str] = None,
                       template_header_location: Optional[Dict] = None,
                       template_flow_button: Optional[Dict] = None,
-                      context_message_id: Optional[str] = None) -> Dict[str, Any]:
+                      context_message_id: Optional[str] = None,
+                      direct_send_category: Optional[str] = None,
+                      direct_send_waba: str = '',
+                      has_contact_record: bool = False) -> Dict[str, Any]:
     """
     Handle LIVE mode - call Meta Graph API (Direct API).
     Requirements: 5.2, 5.5, 5.6, 5.7, 5.8, 5.10, 5.11
+
+    `direct_send_category` is set only when the caller decided this send is a
+    Direct Send candidate: the service window is closed, the payload looks like
+    plain text, and Direct Send is enabled for `direct_send_waba`. It defaults to
+    None, so every other path through this function is unchanged.
+
+    `has_contact_record` exists only so a fallback can reproduce the caller's
+    refusal log exactly; it is not in the response body.
     """
     try:
         whatsapp_media_id = None
@@ -1788,9 +1874,27 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             template_header_filename=template_header_filename,
             template_header_location=template_header_location,
             template_flow_button=template_flow_button,
-            context_message_id=context_message_id
+            context_message_id=context_message_id,
+            direct_send_category=direct_send_category
         )
-        
+
+        # The builder is the arbiter, so believe it over the pre-check.
+        #
+        # If a Direct Send was requested and the built payload carries no
+        # `category`, the request was not actually plain text — the likely cause
+        # is a JSON `content` string that routed into contacts/location. Falling
+        # back here means that send gets today's 403 instead of leaving the
+        # service window as a free-form non-text message and collecting a 131047.
+        # Fail closed to today's behaviour, every time the two disagree.
+        if direct_send_category and 'category' not in message_payload:
+            logger.info(json.dumps({
+                'event': 'direct_send_not_eligible',
+                'payloadType': message_payload.get('type'),
+                'wabaId': direct_send_waba,
+                'requestId': request_id,
+            }))
+            return _outside_window_refusal(contact_id, has_contact_record, request_id)
+
         logger.info(json.dumps({
             'event': 'message_payload_built',
             'messageId': message_id,
@@ -1918,6 +2022,7 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             # Template header media (public link) → shows the attachment in the inbox
             media_url=(resolved_header_media if (is_template and template_header_media
                        and str(resolved_header_media or '').startswith('http')) else None),
+            is_direct_send=bool(direct_send_category),
         )
         
         # Store payment_request record for invoice generator lookup
@@ -2059,6 +2164,61 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             meta_details = (err_obj.get('error_data', {}) or {}).get('details', '') or ''
         except (json.JSONDecodeError, AttributeError):
             pass
+
+        # ── Direct Send fallback: never lose a message to a Direct Send error ──
+        #
+        # Returning HERE, before `_store_message_record(status='failed')` and
+        # `_emit_delivery_metric('failed', ...)` below, is what makes the fallback
+        # identical to flag-off in DynamoDB and in metrics, not merely on the wire.
+        # No row is written before the send on this path, so an early return leaves
+        # exactly the state a flag-off refusal leaves.
+        #
+        # NEVER auto-retry as a template. Choosing one would mean guessing which
+        # template matches this body, and a wrong guess sends the customer a
+        # different message. The 403 is what the caller already handles today.
+        if direct_send_category:
+            _ds_kind = direct_send.classify_error(meta_code, meta_details)
+            _ds_log = {
+                'wabaId': direct_send_waba,
+                'metaCode': meta_code,
+                # Meta's description of OUR request. It carries no customer data, and
+                # logging it in full is how the classifier gets tightened once a real
+                # 100 has been seen — the details wording is documented, not verified.
+                'metaDetails': meta_details,
+                'requestId': request_id,
+            }
+            if _ds_kind == direct_send.NOT_ONBOARDED:
+                logger.warning(json.dumps({
+                    'event': 'direct_send_not_onboarded',
+                    'note': 'WABA is not onboarded to Direct Send — clear it from '
+                            'DIRECT_SEND_ENABLED_WABAS',
+                    **_ds_log,
+                }))
+                return _outside_window_refusal(contact_id, has_contact_record, request_id)
+            if _ds_kind == direct_send.RESTRICTED:
+                # ERROR, and alarm-worthy. Meta's enforcement ladder escalates on a
+                # timer, so an unmonitored first strike is how an account reaches a
+                # 7-day restriction.
+                logger.error(json.dumps({
+                    'event': 'direct_send_restricted',
+                    'note': 'Direct Send access restricted or capped by Meta '
+                            'enforcement — investigate category misclassification',
+                    **_ds_log,
+                }))
+                return _outside_window_refusal(contact_id, has_contact_record, request_id)
+            if _ds_kind == direct_send.OTHER_100:
+                # A 100 we did not predict is our bug, not Meta's gate.
+                logger.error(json.dumps({
+                    'event': 'direct_send_rejected',
+                    'note': 'Direct Send request rejected for an unclassified reason '
+                            '— treat as our defect',
+                    'metaMessage': meta_message,
+                    'errorBody': error_body[:1000],
+                    **_ds_log,
+                }))
+                return _outside_window_refusal(contact_id, has_contact_record, request_id)
+            # Any non-Direct-Send error falls through to the existing handling,
+            # untouched.
 
         is_throttled = http_code == 429 or meta_code in (4, 80007, 130429, 131056) or 'throttl' in error_body.lower()
 
@@ -2850,8 +3010,17 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                            template_header_filename: Optional[str] = None,
                            template_header_location: Optional[Dict] = None,
                            template_flow_button: Optional[Dict] = None,
-                           context_message_id: Optional[str] = None) -> Dict[str, Any]:
-    """Build WhatsApp Cloud API message payload. Supports BSUID recipient."""
+                           context_message_id: Optional[str] = None,
+                           *,
+                           direct_send_category: Optional[str] = None) -> Dict[str, Any]:
+    """Build WhatsApp Cloud API message payload. Supports BSUID recipient.
+
+    `direct_send_category` is keyword-only and defaults to None, so every existing
+    caller and test is unaffected. When set, this function is the **single arbiter**
+    of whether a Direct Send `category` is actually injected — see the comment at the
+    injection point. The handler's own pre-check is a coarse optimisation; this is
+    the decision.
+    """
     # Normalize phone number - WhatsApp API expects digits only without + prefix
     formatted_phone = _normalize_phone_number(recipient_phone) if recipient_phone else ''
     
@@ -3480,7 +3649,34 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
     # Applies to text/media/interactive/contacts/location — set last so it covers all.
     if context_message_id:
         payload['context'] = {'message_id': context_message_id}
-    
+
+    # ── Direct Send category injection ──────────────────────────────────────
+    #
+    # An ALLOWLIST OF ONE BRANCH, not a denylist, and the difference is the whole
+    # safety argument. Three reasons:
+    #
+    #  1. Direct Send supports a narrow set of message types. Address, audio,
+    #     contacts, location, sticker and reaction are documented as unsupported,
+    #     so a `category` on any of those is a request Meta refuses — and the
+    #     refusal would replace a message we deliver today.
+    #  2. The type is not decidable at the call site. Above, a `content` string
+    #     starting with `{` is parsed as JSON and `_type` can route a
+    #     text-looking request into contacts / location / location_request /
+    #     address. The handler cannot see that; this function can, because by
+    #     here `payload['type']` is settled. Checking the BUILT type is the only
+    #     check that cannot be fooled.
+    #  3. `authentication` may not address a business-scoped user id, and
+    #     utility-via-BSUID is untested here. A BSUID-only send has no `to`, so
+    #     requiring `to` excludes it by the same condition.
+    #
+    # `category` is a TOP-LEVEL sibling of `type` — never nested inside `text`.
+    # `preview_url` goes with it: Direct Send renders no URL preview, so sending
+    # the key is sending an unsupported parameter.
+    if direct_send_category and payload.get('type') == 'text' and payload.get('to'):
+        payload['category'] = direct_send_category
+        if isinstance(payload.get('text'), dict):
+            payload['text'].pop('preview_url', None)
+
     return payload
 
 
@@ -3623,6 +3819,26 @@ def _enrich_contact_identity(contact_id: str, wa_id: str) -> None:
         logger.warning(f'contact wa_id enrich failed (non-blocking): {e}')
 
 
+def _outside_window_refusal(contact_id: str, has_contact_record: bool,
+                            request_id: str) -> Dict[str, Any]:
+    """Today's outside-window refusal, byte for byte.
+
+    ONE function, called from two places: the decision site in `handler`, and
+    every Direct Send fallback path in `_handle_live_send`. That is the point.
+    Enabling the Direct Send flag must never be able to make a failure look
+    different from today's, so the fallback returns the exact same response this
+    produces rather than a re-typed approximation of it. Two copies of this
+    string would be two things to drift.
+    """
+    logger.info(json.dumps({
+        'event': 'send_blocked_outside_window',
+        'contactId': mask_contact_id(contact_id),
+        'hasContactRecord': has_contact_record,
+        'requestId': request_id,
+    }))
+    return _error_response(403, 'Outside 24h service window — only template messages allowed')
+
+
 def _is_within_service_window(contact: Dict[str, Any]) -> bool:
     """
     Check if within 24-hour customer service window.
@@ -3757,8 +3973,24 @@ def _store_message_record(message_id: str, contact_id: str, content: str, status
                           error_details: Dict = None, phone_number_id: str = None,
                           payment_reference_id: str = None, payment_amount: float = None,
                           recipient_bsuid: str = None, media_url: str = None,
-                          error_code: int = None) -> None:
-    """Store message record in DynamoDB with WABA tracking."""
+                          error_code: int = None, is_direct_send: bool = False) -> None:
+    """Store message record in DynamoDB with WABA tracking.
+
+    Named `is_direct_send`, not `direct_send`, because this module imports the
+    shared `direct_send` module at the top and a parameter of that name would
+    shadow it inside this function — a trap for the next edit that needs
+    `direct_send.classify_error` here.
+
+    `is_direct_send` marks a row that went out with a Direct Send `category`. It
+    writes `directSend: True` or nothing at all — `put_item` already strips None
+    values, so a flag-off row is byte-identical to today's and no new attribute
+    appears on existing traffic.
+
+    The status webhook's `template_id` (naming the template Direct Send actually
+    matched or generated) lands on this row through the existing webhook path when
+    it arrives. It is deliberately not written here, because at send time we do
+    not know it.
+    """
     now = int(time.time())
     expires_at = now + MESSAGE_TTL_SECONDS
     
@@ -3830,6 +4062,10 @@ def _store_message_record(message_id: str, contact_id: str, content: str, status
         'paymentOffset': Decimal('100') if payment_amount else None,
         # BSUID recipient tracking (for BSUID-only sends)
         'recipientBsuid': recipient_bsuid or None,
+        # True only when the send carried a Direct Send `category`. None (and so
+        # absent from the row entirely) on every other send, which is what keeps a
+        # flag-off row byte-identical to today's.
+        'directSend': True if is_direct_send else None,
     }
     
     try:
