@@ -489,7 +489,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec = installGoogleMaps();
   } );
 
-  it( 'starts neutral, India-scoped, with no geolocation or zoom control', async () => {
+  it( 'loads Lumpyngngad as the default local destination while keeping the map India-scoped', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -497,15 +497,25 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     expect( rec.mapOpts?.restriction ).toEqual( { latLngBounds: { north: 37.6, south: 6.4, west: 68.1, east: 97.4 }, strictBounds: true } );
+    expect( rec.mapOpts?.center ).toEqual( { lat: 25.5586, lng: 91.8985 } );
+    expect( rec.mapOpts?.zoom ).toBe( 13 );
     expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
-    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
-    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).toBeDisabled();
-    expect( screen.getByRole( 'button', { name: 'PM2.5' } ) ).toBeDisabled();
-    expect( fetchSpy ).not.toHaveBeenCalled();
+
+    const card = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-place-card' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( card.textContent ).toContain( 'Lumpyngngad' );
+    expect( card.textContent ).toContain( 'Shillong, Meghalaya' );
+    expect( screen.queryByText( 'Search India to see live weather and air.' ) ).toBeNull();
+    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
+    expect( screen.getByRole( 'button', { name: 'PM2.5' } ) ).not.toBeDisabled();
+    await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
   } );
 
-  it( 'renders the approved selected-place card and branded marker after a valid India selection', async () => {
+  it( 'renders the place card without internal selected-place wording and keeps the branded marker', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -519,6 +529,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       return el as HTMLElement;
     } );
     expect( card.textContent ).toContain( 'Mumbai' );
+    expect( card.textContent ).not.toContain( 'Selected place' );
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
 
@@ -532,7 +543,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
   } );
 
-  it( 'keeps Place Photo attribution and a visible number-only photo count', async () => {
+  it( 'renders the place photo rail with lime progress while preserving required author attribution', async () => {
     rec = installGoogleMaps( {
       photoAttributions: [ { displayName: 'Example Contributor', uri: 'https://example.com/contributor' } ],
     } );
@@ -543,13 +554,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    const pill = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-photo-count' );
+    const rail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-photo-rail' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( ( pill.textContent || '' ).trim() ).toMatch( /^\d+$/ );
-    expect( pill.querySelector( 'svg' ) ).toBeNull();
+    expect( rail.getAttribute( 'aria-label' ) ).toBe( 'Place photos' );
+    expect( container.querySelector( '.vl-live-photo-count' ) ).toBeNull();
 
     const credit = container.querySelector( '.vl-live-photo-credit' );
     expect( credit?.textContent ).toContain( 'Example Contributor' );
