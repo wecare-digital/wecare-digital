@@ -515,7 +515,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
   } );
 
-  it( 'renders the approved selected-place card and branded marker after a valid India selection', async () => {
+  it( 'renders the place card without internal selected-place wording and keeps the branded marker', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -529,6 +529,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       return el as HTMLElement;
     } );
     expect( card.textContent ).toContain( 'Mumbai' );
+    expect( card.textContent ).not.toContain( 'Selected place' );
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
 
@@ -542,7 +543,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
   } );
 
-  it( 'keeps Place Photo attribution and a visible number-only photo count', async () => {
+  it( 'renders the place photo rail with lime progress while preserving required author attribution', async () => {
     rec = installGoogleMaps( {
       photoAttributions: [ { displayName: 'Example Contributor', uri: 'https://example.com/contributor' } ],
     } );
@@ -553,13 +554,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    const pill = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-photo-count' );
+    const rail = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-photo-rail' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( ( pill.textContent || '' ).trim() ).toMatch( /^\d+$/ );
-    expect( pill.querySelector( 'svg' ) ).toBeNull();
+    expect( rail.getAttribute( 'aria-label' ) ).toBe( 'Place photos' );
+    expect( container.querySelector( '.vl-live-photo-count' ) ).toBeNull();
 
     const credit = container.querySelector( '.vl-live-photo-credit' );
     expect( credit?.textContent ).toContain( 'Example Contributor' );
