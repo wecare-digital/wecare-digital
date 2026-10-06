@@ -403,14 +403,21 @@ describe( '/orders/ — the signed-out gate', () => {
 
 describe( '/orders/ — the order list', () => {
   it( 'renders number, date, amount and status for a row', async () => {
-    await renderSignedIn( answer( 200, { orders: [ row() ], profile: profile() } ) );
+    const view = await renderSignedIn(
+      answer( 200, { orders: [ row() ], profile: profile() } ) );
     await screen.findByText( 'WD-1042' );
     expect( screen.getByText( '₹1,214.81' ) ).toBeInTheDocument();
     expect( screen.getByText( 'Paid' ) ).toBeInTheDocument();
     // DERIVED, not pinned to a literal. The epoch is formatted in the BROWSER's zone so an IST
     // reader sees their own day, which is the behaviour being asserted - a hardcoded "28 Sept"
     // would pass or fail on the machine the suite happens to run in rather than on the page.
-    expect( screen.getByText( EXPECTED_DATE ) ).toBeInTheDocument();
+    //
+    // MIGRATED to a cell query rather than loosened: the date is now in its own column AND, for
+    // the CSS-only fold, in an always-present .ord-subdate sub-line, so a bare getByText finds
+    // two nodes. Both are asserted, which is strictly more than the one this used to check.
+    const { container } = view;
+    expect( container.querySelector( 'td.ord-col-date' )!.textContent ).toBe( EXPECTED_DATE );
+    expect( container.querySelector( '.ord-subdate' )!.textContent ).toBe( EXPECTED_DATE );
   } );
 
   it( 'formats integer paise exactly, with Indian grouping', async () => {
@@ -453,7 +460,10 @@ describe( '/orders/ — the order list', () => {
     } ) );
     await screen.findByText( 'WD-1042' );
     expect( container.textContent ).not.toContain( 'Invalid Date' );
-    expect( container.querySelector( '.ord-date' ) ).toBeNull();
+    // MIGRATED: the Date column's cell is still rendered, it is EMPTY. An absent cell would
+    // misalign the column indices against a five-column header.
+    expect( container.querySelector( 'td.ord-col-date' )!.textContent ).toBe( '' );
+    expect( container.querySelector( '.ord-subdate' )!.textContent ).toBe( '' );
   } );
 
   it( 'flags the identifier and the amount against translation, but not the date', async () => {
@@ -463,9 +473,14 @@ describe( '/orders/ — the order list', () => {
       orders: [ row() ], profile: profile(),
     } ) );
     await screen.findByText( 'WD-1042' );
-    expect( container.querySelector( '.ord-itemh' ) ).toHaveAttribute( 'data-wc-no-translate' );
+    // MIGRATED from .ord-itemh / .ord-date, which were the card shell's classes.
+    expect( container.querySelector( '.ord-ordno' ) ).toHaveAttribute( 'data-wc-no-translate' );
+    expect( container.querySelector( '.ord-ref' ) ).toHaveAttribute( 'data-wc-no-translate' );
     expect( container.querySelector( '.ord-amount' ) ).toHaveAttribute( 'data-wc-no-translate' );
-    expect( container.querySelector( '.ord-date' ) ).not.toHaveAttribute( 'data-wc-no-translate' );
+    expect( container.querySelector( 'td.ord-col-date' ) )
+      .not.toHaveAttribute( 'data-wc-no-translate' );
+    expect( container.querySelector( '.ord-subdate' ) )
+      .not.toHaveAttribute( 'data-wc-no-translate' );
   } );
 
   it( 'leaves "Amount unavailable" translatable, because it is prose', async () => {
@@ -485,10 +500,14 @@ describe( '/orders/ — the order list', () => {
       ],
       profile: profile(),
     } ) );
-    await waitFor( () => expect( container.querySelectorAll( 'h3' ) ).toHaveLength( 2 ) );
-    const headings = Array.from( container.querySelectorAll( 'h3' ) ).map( h => h.textContent );
-    expect( headings[ 0 ] ).toBe( 'REF-9' );
-    expect( headings[ 1 ] ).toBe( EXPECTED_DATE );
+    // MIGRATED from the <h3> card heading to the identifier span inside the <th scope="row">.
+    // Same ladder, same two expected values; the element it lives in changed.
+    await waitFor( () => expect(
+      container.querySelectorAll( '.ord-ordno' ) ).toHaveLength( 2 ) );
+    const ids = Array.from( container.querySelectorAll( '.ord-ordno' ) )
+      .map( node => node.textContent );
+    expect( ids[ 0 ] ).toBe( 'REF-9' );
+    expect( ids[ 1 ] ).toBe( EXPECTED_DATE );
   } );
 
   it( 'renders only the two expected h2 rungs', async () => {
@@ -878,5 +897,995 @@ describe( '/orders/ — keyboard reachability', () => {
     fireEvent.click( more );
     const busy = await screen.findByRole( 'button', { name: 'Loading…' } );
     expect( busy ).toBeDisabled();
+  } );
+} );
+
+/**
+ * The clipboard state, installed with `defineProperty` ON THE REAL navigator and restored from
+ * descriptors. Both halves are measured decisions rather than style:
+ *
+ *   `{ ...navigator }` copies NOTHING - Navigator's members are accessors on
+ *   Navigator.prototype, so against this jsdom `Object.keys({ ...navigator })` has length 0. A
+ *   spread stub happens to work for `navigator.clipboard` while silently replacing every other
+ *   navigator property with undefined for the rest of the block.
+ *
+ *   `Object.create( navigator, { clipboard: … } )` is fragile differently: jsdom's generated
+ *   getters brand-check the receiver, so any inherited read throws "called on an object that is
+ *   not a valid instance of Navigator".
+ *
+ * The restore is not optional. The file-level afterEach is `vi.unstubAllGlobals();
+ * vi.useRealTimers();`, which reverses a `vi.stubGlobal` and reverses NO `defineProperty` at
+ * all - so without this, `isSecureContext: true` leaks into every describe that runs afterwards.
+ * `realClipboard` is captured as a DESCRIPTOR rather than a value because jsdom may not define
+ * `clipboard` at all; the restore then `delete`s the property instead of writing `undefined`
+ * over it, which is the difference between "absent" and "present and falsy" for canCopy's
+ * `!!navigator.clipboard` read.
+ */
+function withClipboard () {
+  const realClipboard = Object.getOwnPropertyDescriptor( navigator, 'clipboard' );
+  const realSecure = Object.getOwnPropertyDescriptor( window, 'isSecureContext' );
+
+  beforeEach( () => {
+    Object.defineProperty( navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue( undefined ) }, configurable: true,
+    } );
+    Object.defineProperty( window, 'isSecureContext', { value: true, configurable: true } );
+  } );
+
+  afterEach( () => {
+    if ( realClipboard ) Object.defineProperty( navigator, 'clipboard', realClipboard );
+    else delete ( navigator as unknown as Record<string, unknown> ).clipboard;
+    if ( realSecure ) Object.defineProperty( window, 'isSecureContext', realSecure );
+    else delete ( window as unknown as Record<string, unknown> ).isSecureContext;
+  } );
+}
+
+/** `writeText`, typed, so a test can assert its argument. */
+function writeText () {
+  return ( navigator.clipboard as unknown as { writeText: ReturnType<typeof vi.fn> } ).writeText;
+}
+
+describe( '/orders/ — the order history table', () => {
+  it( 'renders one real table with column headers and a row header', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( container.querySelectorAll( 'table' ) ).toHaveLength( 1 );
+    expect( container.querySelectorAll( 'thead' ) ).toHaveLength( 1 );
+    expect( container.querySelectorAll( 'tbody' ) ).toHaveLength( 1 );
+    expect( container.querySelectorAll( 'th[scope="row"]' ) ).toHaveLength( 1 );
+    // No display:block re-flow anywhere: that strips table semantics in several screen readers.
+    expect( CODE ).not.toMatch( /\.ord-(?:table|tr|td|th)[^{]*\{[^}]*display\s*:\s*block/ );
+  } );
+
+  it( 'wraps the table in a keyboard-scrollable labelled region', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const wrap = container.querySelector( '.ord-tablewrap' )!;
+    expect( wrap ).toHaveAttribute( 'role', 'region' );
+    expect( wrap ).toHaveAttribute( 'aria-labelledby', 'ord-history' );
+    expect( wrap ).toHaveAttribute( 'tabindex', '0' );
+    // overflow-x:auto, which the gate permits; overflow:hidden, which it forbids, is absent.
+    expect( CODE ).toContain( '.ord-tablewrap{overflow-x:auto' );
+  } );
+
+  it( 'puts the number, the reference, the date, the amount and the status on one row',
+    async () => {
+      const { container } = await renderSignedIn( answer( 200, {
+        orders: [ row() ], profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      const cells = Array.from(
+        container.querySelectorAll( 'tr.ord-tr > th, tr.ord-tr > td' ) );
+      expect( cells ).toHaveLength( 5 );
+      expect( cells[ 0 ].textContent ).toContain( 'WD-1042' );
+      // WhatsApp sends this as `Ref:`, so it is on the ROW rather than hidden in the panel.
+      expect( cells[ 0 ].textContent ).toContain( 'Ref ref-1' );
+      expect( cells[ 1 ].textContent ).toBe( EXPECTED_DATE );
+      expect( cells[ 2 ].textContent ).toBe( '₹1,214.81' );
+      expect( cells[ 3 ].textContent ).toContain( 'Paid' );
+    } );
+
+  it( 'keeps formatPaiseINR exact and Indian through the move into a cell', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [
+        row( { amountPaise: 100, referenceId: 'a' } ),
+        row( { amountPaise: 10_000_000, orderNumber: 'WD-2', referenceId: 'b' } ),
+      ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const amounts = Array.from( container.querySelectorAll( 'td.ord-td-num' ) )
+      .map( node => node.textContent );
+    // Lakh grouping, and exact: formatPaiseINR slices strings, it never divides.
+    expect( amounts ).toEqual( [ '₹1.00', '₹1,00,000.00' ] );
+    expect( CODE ).toContain( 'font-variant-numeric:tabular-nums' );
+  } );
+
+  it( 'does not blank the table when one row is unreadable', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [
+        row( { referenceId: 'a' } ),
+        row( { referenceId: 'b', orderNumber: 'WD-BAD', amountPaise: null, status: '',
+          createdAt: null } ),
+        row( { referenceId: 'c', orderNumber: 'WD-3' } ),
+      ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    // Counted BY CLASS. An expanded row contributes a second tr.ord-detailrow, so a bare <tr>
+    // count would silently become a test of how many panels are open.
+    expect( container.querySelectorAll( 'tbody tr.ord-tr' ) ).toHaveLength( 3 );
+    expect( screen.getByText( 'Amount unavailable' ) ).toBeInTheDocument();
+    expect( screen.getByText( 'Status unavailable' ) ).toBeInTheDocument();
+    expect( container.textContent ).not.toContain( 'Invalid Date' );
+  } );
+
+  it( 'has exactly five column headers, and they are these five', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    // EQUALITY, so a sixth column cannot be added without a deliberate test edit.
+    const headers = Array.from( container.querySelectorAll( 'th[scope="col"]' ) )
+      .map( node => node.textContent );
+    expect( headers ).toEqual( [ 'Order #', 'Date', 'Amount', 'Status', 'Invoice' ] );
+  } );
+
+  it( 'renders the date exactly once at every width', async () => {
+    // Three assertions, because "appears outside any media query" is not expressible as one
+    // toMatch - and CODE has comments stripped, so no regex may rely on them.
+    expect( CODE.slice( 0, CODE.indexOf( '@media' ) ) )
+      .toContain( '.ord-subdate{display:none' );
+    expect( CODE ).toMatch(
+      /@media\(max-width:767px\)\{[\s\S]*?\.ord-col-date\{display:none\}[\s\S]*?\.ord-subdate\{display:block\}[\s\S]*?\}/ );
+    // And on the rendered tree: display:none hides ONE element, while the fold hides a COLUMN,
+    // so the class is on the header AND every cell or the data outlives its header.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { referenceId: 'a' } ), row( { referenceId: 'b', orderNumber: 'WD-2' } ) ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( container.querySelectorAll( 'th.ord-col-date' ) ).toHaveLength( 1 );
+    expect( container.querySelectorAll( 'td.ord-col-date' ).length )
+      .toBe( container.querySelectorAll( 'tr.ord-tr' ).length );
+  } );
+
+  it( 'leaves the row inert: it is a reading aid, not an affordance', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const tr = container.querySelector( 'tr.ord-tr' )!;
+    expect( tr.getAttribute( 'onclick' ) ).toBeNull();
+    expect( tr.getAttribute( 'role' ) ).toBeNull();
+    expect( tr.getAttribute( 'tabindex' ) ).toBeNull();
+    // SCOPED to the .ord-tr{…} block: .ord-ordbtn and .ord-copy legitimately declare
+    // cursor:pointer, so a substring search over the whole stylesheet would fail on correct code.
+    const block = CODE.match( /(?:^|[;}\s])\.ord-tr\{([^}]*)\}/ )!;
+    expect( block[ 1 ] ).not.toMatch( /cursor\s*:\s*pointer/ );
+    // The tint is a background only, and there is no :active equivalent - a tap on a row must do
+    // nothing and look like it did nothing.
+    expect( CODE ).toContain( '.ord-tr:hover{background:rgba(209,244,112,.22)}' );
+    expect( CODE ).not.toContain( '.ord-tr:active' );
+  } );
+
+  it( 'removes the dead card CSS and keeps the definition list the panel now uses', () => {
+    for ( const gone of [ '.ord-items', '.ord-item', '.ord-itemh' ] )
+    {
+      expect( CODE, `${ gone } is dead CSS and must not ship` ).not.toContain( gone );
+    }
+    expect( CODE ).toContain( '.ord-facts dt' );
+    expect( CODE ).toContain( '.ord-facts dd' );
+    // visibility:hidden is the ONE permitted hide mechanism on this page, and it must not
+    // spread: .ord-tip is the only element entitled to it.
+    expect( CODE.match( /visibility\s*:\s*hidden/g ) ).toHaveLength( 1 );
+  } );
+
+  it( 'adds the two controls as selectors on the shared quiet block, not as copies of it', () => {
+    expect( CODE ).toContain( '.ord-quiet,.ord-inv,.ord-copy{' );
+    for ( const cls of [ '.ord-inv', '.ord-copy' ] )
+    {
+      // The override blocks only, i.e. `.ord-copy{…}` with no other selector in front of it.
+      const own = CODE.match( new RegExp( `(^|[;}\\s])\\${ cls }\\{([^}]*)\\}`, 'g' ) ) ?? [];
+      expect( own.length, `${ cls } has no override block` ).toBeGreaterThan( 0 );
+      for ( const block of own )
+      {
+        expect( block, `${ cls } must not redeclare the shared body` ).not.toMatch( /border\s*:/ );
+        expect( block ).not.toMatch( /min-height\s*:/ );
+      }
+    }
+    // All three state rules carry all three selectors, so a later edit cannot extend the body
+    // and forget :disabled - which is the opacity:.55 the invoice table relies on.
+    for ( const state of [ ':hover:not(:disabled)', ':focus-visible', ':disabled' ] )
+    {
+      for ( const cls of [ '.ord-quiet', '.ord-inv', '.ord-copy' ] )
+      {
+        expect( CODE, `${ cls }${ state } is missing` ).toContain( `${ cls }${ state }` );
+      }
+    }
+  } );
+
+  it( 'writes the table header as the page label rung, not as small caps', () => {
+    expect( CODE ).not.toMatch( /text-transform\s*:\s*uppercase/ );
+    const th = CODE.match( /(?:^|[;}\s])\.ord-th\{([^}]*)\}/ )![ 1 ];
+    expect( th ).toContain( 'font-size:12px' );
+    expect( th ).toContain( 'font-weight:700' );
+    expect( th ).toContain( 'letter-spacing:0' );
+    expect( th ).toContain( 'color:#1a3a2a' );
+    // Logical, never physical: the gate matches text-align:left.
+    expect( th ).toContain( 'text-align:start' );
+  } );
+
+  it( 'resets the row header cell, which the UA stylesheet centres and bolds', () => {
+    // .ord-td is ALSO carried by the <th scope="row">, where the UA default is
+    // font-weight:bold;text-align:center, and .ord-th's start alignment does not reach it.
+    // Without these two the widest cell on the page renders centred and bold.
+    const td = CODE.match( /(?:^|[;}\s])\.ord-td\{([^}]*)\}/ )![ 1 ];
+    expect( td ).toContain( 'text-align:start' );
+    expect( td ).toContain( 'font-weight:400' );
+  } );
+} );
+
+describe( '/orders/ — WhatsApp parity', () => {
+  it( 'compares no status field against any string literal at all', () => {
+    // The existing sweep bans four named spellings and the comparisons against them. This one
+    // names none, so it catches a sixth spelling nobody has thought of yet.
+    expect( CODE ).not.toMatch( /\.(?:status|paymentStatus)\s*===?\s*['"]/ );
+  } );
+
+  it( 'reads the canonical word through a lookup, and renders it as "Paid"', async () => {
+    await renderSignedIn( answer( 200, { orders: [ row() ], profile: profile() } ) );
+    expect( await screen.findByText( 'Paid' ) ).toBeInTheDocument();
+    // A lookup object, not a conditional chain. WhatsApp sends Meta's own order_status enum
+    // ('completed'); the mapping onto one vocabulary happened on the server, in payment_status.
+    expect( CODE ).toContain( 'const STATUS_LABEL: Record<string, string> = {' );
+    expect( CODE ).not.toMatch( /if\s*\(\s*order\.status/ );
+  } );
+
+  it( 'aliases invoice eligibility to the firm-status set rather than declaring a second one',
+    () => {
+      // The states that are financially settled are exactly the states an invoice can exist
+      // for, so this is the same fact twice. If a later phase legitimately splits them - a rank
+      // that is firm but not invoiceable - THIS is the test to replace rather than delete.
+      expect( CODE ).toContain( 'const INVOICE_ELIGIBLE = STATUS_FIRM;' );
+      expect( CODE.match( /new Set\(/g ) ).toHaveLength( 1 );
+    } );
+
+  it( 'shows the reference id WhatsApp sends as Ref, on the row', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { referenceId: 'WD-REF-0012' } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const ref = container.querySelector( '.ord-ref' )!;
+    expect( ref.textContent ).toBe( 'Ref WD-REF-0012' );
+    expect( ref ).toHaveAttribute( 'data-wc-no-translate' );
+  } );
+
+  it( 'agrees with WhatsApp on the digits, and diverges only on the separators', async () => {
+    // ACCEPTED DIVERGENCE, recorded rather than fixed. formatPaiseINR uses en-IN lakh/crore
+    // grouping, so 10,000,000 paise renders ₹1,00,000.00; Python's f'{total:,.2f}' renders
+    // 100,000.00 and f'{amount:.2f}' renders 100000.00 with no grouping at all. THE DIGITS
+    // ALWAYS AGREE; the separators diverge at five figures and above. Changing the WhatsApp
+    // side means editing a float format string on the payment path, which is out of scope.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { amountPaise: 10_000_000 } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const rendered = container.querySelector( 'td.ord-td-num' )!.textContent!;
+    const digits = ( value: string ) => value.replace( /[^0-9]/g, '' );
+    expect( digits( rendered ) ).toBe( digits( '100000.00' ) );
+  } );
+} );
+
+describe( '/orders/ — the order-id trigger and the detail row', () => {
+  withClipboard();
+
+  it( 'renders the order number as a collapsed disclosure trigger', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const trigger = container.querySelector( 'th[scope="row"] button[aria-expanded]' )!;
+    expect( trigger.tagName ).toBe( 'BUTTON' );
+    // A real button, so Enter and Space both activate it and aria-expanded announces the state.
+    // Not a div with a handler, and not the <tr>.
+    expect( trigger ).toHaveAttribute( 'type', 'button' );
+    expect( trigger ).toHaveAttribute( 'aria-expanded', 'false' );
+    expect( trigger.getAttribute( 'aria-controls' ) ).toBeTruthy();
+  } );
+
+  it( 'gives a row with neither identifier a working trigger anyway', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { orderNumber: '', referenceId: '' } ) ], profile: profile(),
+    } ) );
+    await waitFor( () => expect( screen.getAllByText( EXPECTED_DATE ).length )
+      .toBeGreaterThan( 0 ) );
+    // rowKey falls back to row-<index> and detailId is derived from the index, so aria-controls
+    // is never empty even with nothing to key on.
+    const trigger = container.querySelector( 'th[scope="row"] button[aria-expanded]' )!;
+    expect( trigger.getAttribute( 'aria-controls' ) ).toBe( 'ord-detail-0' );
+    fireEvent.click( trigger );
+    expect( container.querySelectorAll( 'tr.ord-detailrow' ) ).toHaveLength( 1 );
+  } );
+
+  it( 'announces the identifier only from the row header', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { referenceId: 'WD-REF-0012' } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    // Resolved through the ACCESSIBILITY TREE, so this fails if the aria-label is dropped and
+    // the name falls back to the cell's concatenated text content - which would otherwise
+    // announce "WD-1042 Copy Copy order ID Ref WD-REF-0012 <date>" before every data cell.
+    const header = screen.getByRole( 'rowheader', { name: 'WD-1042' } );
+    expect( header.getAttribute( 'aria-label' ) ).toBe( 'WD-1042' );
+    expect( header.getAttribute( 'aria-label' ) ).not.toMatch( /Ref/ );
+    expect( header.getAttribute( 'aria-label' ) ).not.toContain( EXPECTED_DATE );
+    // The label RENAMES the cell; it does not hide what is in it.
+    expect( header.querySelector( 'button[aria-expanded]' ) ).toBeTruthy();
+    expect( header.querySelector( 'button.ord-copy' ) ).toBeTruthy();
+    expect( container.querySelector( '.ord-ref' )!.textContent ).toBe( 'Ref WD-REF-0012' );
+  } );
+
+  it( 'announces the date as the name on a degraded row, the same ladder', async () => {
+    await renderSignedIn( answer( 200, {
+      orders: [ row( { orderNumber: '', referenceId: '' } ) ], profile: profile(),
+    } ) );
+    await waitFor( () => expect( screen.getAllByText( EXPECTED_DATE ).length )
+      .toBeGreaterThan( 0 ) );
+    expect( screen.getByRole( 'rowheader', { name: EXPECTED_DATE } ) ).toBeTruthy();
+  } );
+
+  it( 'opens one full-width detail row and leaves the header equality intact', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    const trigger = container.querySelector( 'th[scope="row"] button[aria-expanded]' )!;
+    expect( trigger ).toHaveAttribute( 'aria-expanded', 'true' );
+    const panels = container.querySelectorAll( 'tr.ord-detailrow' );
+    expect( panels ).toHaveLength( 1 );
+    const cell = panels[ 0 ].querySelector( 'td' )!;
+    expect( cell.getAttribute( 'colspan' ) ).toBe( '5' );
+    // A <td>, never a <th>, so the five-column equality is unaffected by an open panel.
+    expect( panels[ 0 ].querySelectorAll( 'th' ) ).toHaveLength( 0 );
+    expect( Array.from( container.querySelectorAll( 'th[scope="col"]' ) )
+      .map( node => node.textContent ) )
+      .toEqual( [ 'Order #', 'Date', 'Amount', 'Status', 'Invoice' ] );
+  } );
+
+  it( 'shows every fact on the wire in the panel, and no second formatter', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const amountCell = container.querySelector( 'td.ord-td-num' )!.textContent;
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    const panel = container.querySelector( 'tr.ord-detailrow' )!;
+    const rung = ( name: string ) => Array.from( panel.querySelectorAll( 'dt' ) )
+      .find( node => node.textContent === name )!.nextElementSibling!.textContent;
+    expect( rung( 'Order number' ) ).toBe( 'WD-1042' );
+    expect( rung( 'Reference' ) ).toBe( 'ref-1' );
+    // The panel is where the TIME belongs; the column shows a short date.
+    expect( rung( 'Placed' ) ).toContain( EXPECTED_DATE.split( ' ' )[ 0 ] );
+    expect( rung( 'Placed' ) ).toMatch( /\d{1,2}[:.]\d{2}/ );
+    // Asserted EQUAL to the cell's text, so the panel cannot grow a second formatter.
+    expect( rung( 'Amount' ) ).toBe( amountCell );
+    expect( rung( 'Status' ) ).toBe( 'Paid' );
+    // Stated rather than omitted: the owner asked for items and a silent absence reads as a bug.
+    expect( rung( 'Items' ) ).toBe( 'Item details are not available for this order.' );
+    // R7-F2: with the flag OFF, row 1 of the panel's first-match-wins ladder matches on its
+    // FLAG TERM - the same gate the column's first row uses, so the two cannot drift.
+    expect( panel.textContent ).toContain(
+      'No invoice for this order. Some paid orders never get one — '
+      + 'contact us and we will check.' );
+    expect( panel.querySelectorAll( 'button' ) ).toHaveLength( 0 );
+  } );
+
+  it( 'reads "Not assigned" and "Not available" when the identifiers are absent', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { orderNumber: '', referenceId: '' } ) ], profile: profile(),
+    } ) );
+    await waitFor( () => expect( screen.getAllByText( EXPECTED_DATE ).length )
+      .toBeGreaterThan( 0 ) );
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    const panel = container.querySelector( 'tr.ord-detailrow' )!;
+    expect( panel.textContent ).toContain( 'Not assigned' );
+    expect( panel.textContent ).toContain( 'Not available' );
+  } );
+
+  it( 'collapses again on a second click', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const open = () => container.querySelector( 'th[scope="row"] button[aria-expanded]' )!;
+    fireEvent.click( open() );
+    expect( container.querySelectorAll( 'tr.ord-detailrow' ) ).toHaveLength( 1 );
+    fireEvent.click( open() );
+    expect( open() ).toHaveAttribute( 'aria-expanded', 'false' );
+    expect( container.querySelectorAll( 'tr.ord-detailrow' ) ).toHaveLength( 0 );
+  } );
+
+  it( 'opens two rows at once, because comparing two orders is the obvious reason to',
+    async () => {
+      const { container } = await renderSignedIn( answer( 200, {
+        orders: [ row( { referenceId: 'a' } ),
+          row( { referenceId: 'b', orderNumber: 'WD-2' } ) ],
+        profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      const triggers = () => Array.from(
+        container.querySelectorAll( 'th[scope="row"] button[aria-expanded]' ) );
+      fireEvent.click( triggers()[ 0 ] );
+      fireEvent.click( triggers()[ 1 ] );
+      // A single-open accordion was rejected: collapsing the one being read in order to open
+      // another is a worse default than a longer page.
+      expect( container.querySelectorAll( 'tr.ord-detailrow' ) ).toHaveLength( 2 );
+      expect( triggers().map( node => node.getAttribute( 'aria-expanded' ) ) )
+        .toEqual( [ 'true', 'true' ] );
+    } );
+
+  it( 'tints both rows of an expanded pair, so the state reads as one unit', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    expect( container.querySelector( 'tr.ord-tr' )!.className ).toBe( 'ord-tr ord-tr-open' );
+    expect( container.querySelector( 'tr.ord-detailrow' )!.className )
+      .toContain( 'ord-tr-open' );
+  } );
+} );
+
+describe( '/orders/ — the copy control', () => {
+  withClipboard();
+
+  it( 'names the control by the id it copies, and shows only the word Copy', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const copy = container.querySelector( 'button.ord-copy' )!;
+    expect( copy ).toHaveAttribute( 'aria-label', 'Copy order ID WD-1042' );
+    expect( copy.textContent ).toBe( 'Copy' );
+  } );
+
+  it( 'copies the order number, falling back to the reference', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { referenceId: 'a' } ),
+        row( { orderNumber: '', referenceId: 'REF-9' } ) ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const buttons = Array.from( container.querySelectorAll( 'button.ord-copy' ) );
+    fireEvent.click( buttons[ 0 ] );
+    // Asserted on the ARGUMENT, not on the DOM: what is copied comes from React state, because
+    // SupportWidget rewrites text nodes and a DOM read could copy a translated string.
+    await waitFor( () => expect( writeText() ).toHaveBeenCalledWith( 'WD-1042' ) );
+    fireEvent.click( buttons[ 1 ] );
+    await waitFor( () => expect( writeText() ).toHaveBeenCalledWith( 'REF-9' ) );
+    expect( writeText() ).toHaveBeenCalledTimes( 2 );
+  } );
+
+  it( 'confirms a copy in the hint and in one page-level live region', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fireEvent.click( container.querySelector( 'button.ord-copy' )! );
+    await waitFor( () => expect(
+      container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Copied' ) );
+    expect( container.querySelector( '.ord-tip' )!.className ).toContain( 'ord-tip-on' );
+    // REACHED BY CLASS, then asserted ON. getByRole('status') would be ambiguous: this page
+    // already has five role="status" sites and .ord-live is a sixth, so it would start failing
+    // with "found multiple elements" in a copy test the moment moreFailed were also true.
+    const live = container.querySelector( '.ord-live' )!;
+    expect( live ).toHaveAttribute( 'role', 'status' );
+    expect( live ).toHaveAttribute( 'aria-live', 'polite' );
+    expect( live.textContent ).toBe( 'Order ID copied' );
+    expect( live.textContent ).not.toContain( 'WD-1042' );
+  } );
+
+  it( 'clears the copied state after the timer, and on unmount sets no state', async () => {
+    vi.useFakeTimers( { shouldAdvanceTime: true } );
+    const { container, unmount } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fireEvent.click( container.querySelector( 'button.ord-copy' )! );
+    await waitFor( () => expect(
+      container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Copied' ) );
+    await act( async () => { vi.advanceTimersByTime( 2_100 ); } );
+    expect( container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Copy order ID' );
+    expect( container.querySelector( '.ord-live' )!.textContent ).toBe( '' );
+    // Unmounting mid-window must not leave a pending timeout calling setState on a dead tree.
+    fireEvent.click( container.querySelector( 'button.ord-copy' )! );
+    unmount();
+    await act( async () => { vi.advanceTimersByTime( 5_000 ); } );
+  } );
+
+  it( 'selects the id instead when the clipboard refuses, and stays usable', async () => {
+    writeText().mockRejectedValueOnce( new Error( 'denied' ) );
+    // Installed and RESTORED in the same test: vitest.config.ts sets no restoreMocks and the
+    // file-level afterEach reverses globals only, so an un-restored createRange spy would keep
+    // throwing for every later test in this file.
+    const spy = vi.spyOn( document, 'createRange' ).mockImplementation( () => {
+      throw new Error( 'no Range' );
+    } );
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const copy = container.querySelector( 'button.ord-copy' )! as HTMLButtonElement;
+    fireEvent.click( copy );
+    // The OBSERVABLE OUTCOME, never the Selection object: jsdom's createRange/getSelection
+    // support is partial, so asserting on it would be a test of jsdom. What IS asserted about
+    // selectText is that it cannot throw - it runs inside copyId's catch arm.
+    await waitFor( () => expect(
+      container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Press your copy key' ) );
+    expect( container.querySelector( '.ord-live' )!.textContent )
+      .toBe( 'Order ID selected. Copy it with your keyboard.' );
+    expect( copy.disabled ).toBe( false );
+    spy.mockRestore();
+  } );
+
+  it( 'does not let the failure hint come back after a later success', async () => {
+    vi.useFakeTimers( { shouldAdvanceTime: true } );
+    writeText().mockRejectedValueOnce( new Error( 'denied' ) );
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const copy = container.querySelector( 'button.ord-copy' )!;
+    fireEvent.click( copy );
+    await waitFor( () => expect(
+      container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Press your copy key' ) );
+    // The failure hint has NO TIMER of its own: it is an instruction about a selection that is
+    // still on screen, so it must last as long as that selection does.
+    await act( async () => { vi.advanceTimersByTime( 10_000 ); } );
+    expect( container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Press your copy key' );
+    // Then succeed. Both arms clear the other key, so the ternary cannot fall back through to
+    // the failure wording when the 2s "Copied" expires - which is the compounding bug.
+    fireEvent.click( copy );
+    await waitFor( () => expect(
+      container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Copied' ) );
+    await act( async () => { vi.advanceTimersByTime( 2_100 ); } );
+    expect( container.querySelector( '.ord-tip' )!.textContent ).toBe( 'Copy order ID' );
+    expect( container.querySelector( '.ord-tip' )!.textContent )
+      .not.toBe( 'Press your copy key' );
+  } );
+
+  it( 'renders a row with neither identifier without a control OR a hint', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [
+        row( { orderNumber: '', referenceId: '' } ),
+        row( { orderNumber: 'WD-2', referenceId: 'b' } ),
+      ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-2' );
+    // ONE render with a mixed table, so the condition is shown to be PER ROW. The hint is
+    // asserted too, not just the button: visibility:hidden keeps the box, so an unconditional
+    // hint would ship a permanently invisible 14px line on a row that can never reveal it.
+    const rows = Array.from( container.querySelectorAll( 'tr.ord-tr' ) );
+    expect( rows[ 0 ].querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 0 );
+    expect( rows[ 0 ].querySelectorAll( '.ord-tip' ) ).toHaveLength( 0 );
+    expect( rows[ 1 ].querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 1 );
+    expect( rows[ 1 ].querySelectorAll( '.ord-tip' ) ).toHaveLength( 1 );
+    // Neither row loses its trigger.
+    expect( container.querySelectorAll( 'button[aria-expanded]' ) ).toHaveLength( 2 );
+  } );
+
+  it( 'keeps the hint redundant and reveals it with visibility, never opacity or display',
+    () => {
+      expect( CODE ).toContain( 'aria-hidden="true"' );
+      // Declared hidden BEFORE any rule that makes it visible, and the reveals are the two
+      // sibling selectors plus the state class - a conditional render would reintroduce the
+      // layout shift visibility exists to avoid.
+      const hidden = CODE.indexOf( '.ord-tip{' );
+      const shown = CODE.indexOf( '.ord-tip-on{visibility:visible}' );
+      expect( hidden ).toBeGreaterThan( -1 );
+      expect( shown ).toBeGreaterThan( hidden );
+      expect( CODE ).toContain(
+        '.ord-copy:hover ~ .ord-tip,.ord-copy:focus-visible ~ .ord-tip,'
+        + '.ord-tip-on{visibility:visible}' );
+      expect( CODE ).not.toMatch( /\.ord-tip[^{]*\{[^}]*display\s*:\s*none/ );
+    } );
+} );
+
+describe( '/orders/ — the copy control with no clipboard', () => {
+  it( 'renders no control and no hint on any row, and keeps every trigger', async () => {
+    // The single test that removes the clipboard, and it does so in its own body. This is also
+    // the state of the static export, where nothing is signed in anyway.
+    const realClipboard = Object.getOwnPropertyDescriptor( navigator, 'clipboard' );
+    const realSecure = Object.getOwnPropertyDescriptor( window, 'isSecureContext' );
+    delete ( navigator as unknown as Record<string, unknown> ).clipboard;
+    Object.defineProperty( window, 'isSecureContext', { value: false, configurable: true } );
+    try
+    {
+      const { container } = await renderSignedIn( answer( 200, {
+        orders: [ row( { referenceId: 'a' } ),
+          row( { referenceId: 'b', orderNumber: 'WD-2' } ) ],
+        profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      expect( container.querySelectorAll( 'button.ord-copy' ) ).toHaveLength( 0 );
+      // The table is UNIFORM in this state: every row loses the line together.
+      expect( container.querySelectorAll( '.ord-tip' ) ).toHaveLength( 0 );
+      expect( container.querySelectorAll( 'button[aria-expanded]' ) ).toHaveLength( 2 );
+    }
+    finally
+    {
+      if ( realClipboard ) Object.defineProperty( navigator, 'clipboard', realClipboard );
+      if ( realSecure ) Object.defineProperty( window, 'isSecureContext', realSecure );
+      else delete ( window as unknown as Record<string, unknown> ).isSecureContext;
+    }
+  } );
+} );
+
+describe( '/orders/ — the invoice control, with the flag off', () => {
+  it( 'is silent in the shipped state: no control, and not one request', async () => {
+    // flags.invoiceDownload is false here, which IS the shipped state. This is the test that
+    // makes "the page is correct and shippable without the route" true as written.
+    expect( flags.invoiceDownload ).toBe( false );
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const cells = Array.from( container.querySelectorAll( 'tr.ord-tr > td' ) );
+    const invoice = cells[ cells.length - 1 ];
+    expect( invoice.textContent ).toBe( 'No invoice yet' );
+    expect( invoice.querySelectorAll( 'button' ) ).toHaveLength( 0 );
+    // Clicking anywhere in the row issues nothing either.
+    fireEvent.click( container.querySelector( 'tr.ord-tr' )! );
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    const invoiceCalls = fetchMock.mock.calls
+      .filter( ( [ url ] ) => String( url ).includes( '/ecommerce/my-invoice' ) );
+    expect( invoiceCalls ).toHaveLength( 0 );
+  } );
+} );
+
+describe( '/orders/ — the invoice control', () => {
+  beforeEach( () => { flags.invoiceDownload = true; } );
+  afterEach( () => { flags.invoiceDownload = false; } );
+
+  const SIGNED = 'https://wecare-digital-get.s3.amazonaws.com/secure/stack/invoices/x.png'
+    + '?X-Amz-Signature=abc123&X-Amz-Credential=cred';
+
+  function invoiceButton ( container: HTMLElement ) {
+    return container.querySelector( 'button.ord-inv' ) as HTMLButtonElement;
+  }
+
+  it( 'offers an enabled download on a settled order', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( invoiceButton( container ).textContent ).toBe( 'Download invoice' );
+    expect( invoiceButton( container ).disabled ).toBe( false );
+  } );
+
+  it( 'disables it on every unsettled status', async () => {
+    for ( const status of [ 'pending', 'failed', 'created', 'authorized' ] )
+    {
+      const { container, unmount } = await renderSignedIn( answer( 200, {
+        orders: [ row( { status } ) ], profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      expect( invoiceButton( container ).disabled, `${ status } must not offer an invoice` )
+        .toBe( true );
+      unmount();
+    }
+  } );
+
+  it( 'disables it with no reference to ask about', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { referenceId: '' } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( invoiceButton( container ).disabled ).toBe( true );
+  } );
+
+  it( 'posts exactly the three allowlisted fields with the bearer token', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockResolvedValueOnce( answer( 200, { available: false } ) );
+    fireEvent.click( invoiceButton( container ) );
+    await waitFor( () => expect( fetchMock ).toHaveBeenCalledTimes( 2 ) );
+    const [ url, init ] = fetchMock.mock.calls[ 1 ];
+    expect( String( url ) ).toContain( '/ecommerce/my-invoice' );
+    expect( init.method ).toBe( 'POST' );
+    expect( init.headers.authorization ).toBe( 'Bearer tok' );
+    // The server's allowlist is these three keys and nothing else; a fourth is a 400.
+    expect( JSON.parse( init.body ) ).toEqual( {
+      referenceId: 'ref-1', createdAt: 1759000000, format: 'png',
+    } );
+  } );
+
+  it( 'disables THIS control while it is in flight and says it is preparing', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockImplementationOnce( () => new Promise( () => undefined ) );
+    fireEvent.click( invoiceButton( container ) );
+    await waitFor( () => expect( invoiceButton( container ).textContent ).toBe( 'Preparing…' ) );
+    expect( invoiceButton( container ).disabled ).toBe( true );
+    expect( invoiceButton( container ) ).toHaveAttribute( 'aria-busy', 'true' );
+  } );
+
+  it( 'clicks exactly one synthetic anchor carrying the signed URL', async () => {
+    const click = vi.spyOn( HTMLAnchorElement.prototype, 'click' )
+      .mockImplementation( () => undefined );
+    try
+    {
+      const { container } = await renderSignedIn( answer( 200, {
+        orders: [ row() ], profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      fetchMock.mockResolvedValueOnce( answer( 200, { available: true, url: SIGNED } ) );
+      fireEvent.click( invoiceButton( container ) );
+      await waitFor( () => expect( click ).toHaveBeenCalledTimes( 1 ) );
+      // Spied, not navigated. The href is read off the element the spy was called on.
+      expect( ( click.mock.instances[ 0 ] as HTMLAnchorElement ).href ).toBe( SIGNED );
+      expect( ( click.mock.instances[ 0 ] as HTMLAnchorElement ).rel ).toBe( 'noopener' );
+      // NO `download` attribute: receipt_links bakes attachment;filename into the SIGNATURE,
+      // and `download` is same-origin-only so a cross-origin S3 response ignores it anyway.
+      expect( ( click.mock.instances[ 0 ] as HTMLAnchorElement )
+        .hasAttribute( 'download' ) ).toBe( false );
+      expect( CODE ).not.toMatch( /\.download\s*=/ );
+      // The row returns to idle rather than sticking on busy.
+      await waitFor( () => expect(
+        invoiceButton( container ).textContent ).toBe( 'Download invoice' ) );
+    }
+    finally { click.mockRestore(); }
+  } );
+
+  it( 'treats available:false as terminal and does not re-ask', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockResolvedValueOnce( answer( 200, { available: false } ) );
+    fireEvent.click( invoiceButton( container ) );
+    const cells = () => Array.from( container.querySelectorAll( 'tr.ord-tr > td' ) );
+    await waitFor( () => expect(
+      cells()[ cells().length - 1 ].textContent ).toBe( 'No invoice yet' ) );
+    expect( container.querySelectorAll( 'button.ord-inv' ) ).toHaveLength( 0 );
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    expect( fetchMock ).toHaveBeenCalledTimes( 2 );
+  } );
+
+  it( 'runs the list expiry path on a 401 rather than showing an error', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockResolvedValueOnce( answer( 401, {} ) );
+    fireEvent.click( invoiceButton( container ) );
+    expect( await screen.findByText( /sign-in has expired/ ) ).toBeInTheDocument();
+    expect( clearSession ).toHaveBeenCalledTimes( 1 );
+    expect( screen.getByRole( 'link', { name: /Sign in on WhatsApp/ } ) ).toBeInTheDocument();
+  } );
+
+  it( 'names the rate limit and keeps the original label', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockResolvedValueOnce( answer( 429, {} ) );
+    fireEvent.click( invoiceButton( container ) );
+    await waitFor( () => expect(
+      screen.getByText( 'Too many requests. Wait a moment.' ) ).toBeInTheDocument() );
+    // BOTH HALVES. This row was refused the CADENCE, not the invoice, so the action is
+    // unchanged and the message carries the news. Relabelling it "Try again" would invite the
+    // immediate second click the limiter just declined.
+    expect( invoiceButton( container ).textContent ).toBe( 'Download invoice' );
+    expect( invoiceButton( container ) ).not.toBeDisabled();
+  } );
+
+  it( 'offers a retry on a 5xx, and the retry re-issues the request', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockResolvedValueOnce( answer( 503, {} ) );
+    fireEvent.click( invoiceButton( container ) );
+    await waitFor( () => expect( invoiceButton( container ).textContent ).toBe( 'Try again' ) );
+    expect( screen.getByText( 'Could not fetch the invoice' ) ).toBeInTheDocument();
+    fetchMock.mockResolvedValueOnce( answer( 200, { available: false } ) );
+    fireEvent.click( invoiceButton( container ) );
+    await waitFor( () => expect( fetchMock ).toHaveBeenCalledTimes( 3 ) );
+  } );
+
+  it( 'treats a network rejection as recoverable', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockRejectedValueOnce( new Error( 'offline' ) );
+    fireEvent.click( invoiceButton( container ) );
+    await waitFor( () => expect( invoiceButton( container ).textContent ).toBe( 'Try again' ) );
+  } );
+
+  it( 'refuses four url shapes rather than navigating to any of them', async () => {
+    const refused: unknown[] = [
+      // A bare CDN URL with no marker - a permanent public link that works forever.
+      'https://wecare.digital/get/o/stack/invoices/x.png',
+      // CARRIES A MARKER AND MUST STILL BE REFUSED. This is the one the server's
+      // assert_not_permanent lets through: is_permanent_public_url returns False for anything
+      // not starting with 'http', so a non-http string is passed through as "not permanent".
+      // The value reaches a.href and is clicked, so it is an execution surface in this origin.
+      'javascript:void(0)/*Expires=1700000000*/',
+      // Signed but plaintext: the grant is handed to any observer.
+      'http://wecare.digital/x.png?X-Amz-Signature=abc',
+      // Not a string at all.
+      null,
+    ];
+    const click = vi.spyOn( HTMLAnchorElement.prototype, 'click' )
+      .mockImplementation( () => undefined );
+    const created = vi.spyOn( document, 'createElement' );
+    try
+    {
+      for ( const url of refused )
+      {
+        const { container, unmount } = await renderSignedIn( answer( 200, {
+          orders: [ row() ], profile: profile(),
+        } ) );
+        await screen.findByText( 'WD-1042' );
+        created.mockClear();
+        fetchMock.mockResolvedValueOnce( answer( 200, { available: true, url } ) );
+        fireEvent.click( invoiceButton( container ) );
+        await waitFor( () => expect(
+          invoiceButton( container ).textContent, `${ String( url ) } was accepted` )
+          .toBe( 'Try again' ) );
+        expect( click ).not.toHaveBeenCalled();
+        // The guard runs BEFORE createElement, so no anchor ever exists carrying the value.
+        expect( created.mock.calls.filter( ( [ tag ] ) => tag === 'a' ) ).toHaveLength( 0 );
+        unmount();
+      }
+    }
+    finally { click.mockRestore(); created.mockRestore(); }
+  } );
+
+  it( 'mirrors the signer own marker set exactly', () => {
+    // The Python tuple is FUNCTION-LOCAL, not a module constant, so it is extracted rather than
+    // imported. Reading a non-TS source from a vitest file is established practice here.
+    const py = readFileSync(
+      resolve( process.cwd(), 'amplify/functions/shared/lambda_utils/receipt_links.py' ),
+      'utf8' );
+    const markers = ( py.match( /signed_markers\s*=\s*\(([^)]*)\)/ )?.[ 1 ] ?? '' )
+      .split( ',' ).map( part => part.trim().replace( /^["']|["']$/g, '' ) ).filter( Boolean );
+    expect( markers.length ).toBe( 4 );
+    const page = ( CODE.match( /const SIGNED_MARKERS = \[([^\]]*)\]/ )?.[ 1 ] ?? '' )
+      .split( ',' ).map( part => part.trim().replace( /^["']|["']$/g, '' ) ).filter( Boolean );
+    expect( page ).toEqual( markers );
+  } );
+
+  it( 'resolves two rows independently', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { referenceId: 'a' } ),
+        row( { referenceId: 'b', orderNumber: 'WD-2' } ) ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const buttons = () => Array.from(
+      container.querySelectorAll( 'button.ord-inv' ) ) as HTMLButtonElement[];
+    fetchMock.mockImplementationOnce( () => new Promise( () => undefined ) );
+    fireEvent.click( buttons()[ 0 ] );
+    await waitFor( () => expect( buttons()[ 0 ].textContent ).toBe( 'Preparing…' ) );
+    // Each resolves into its own map entry, keyed on its own referenceId.
+    expect( buttons()[ 1 ].textContent ).toBe( 'Download invoice' );
+    expect( buttons()[ 1 ].disabled ).toBe( false );
+  } );
+
+  it( 'never hands the signed URL to a log', () => {
+    // The URL is a bearer grant, so nothing on this path logs at all.
+    expect( CODE ).not.toMatch( /console\s*\./ );
+    expect( CODE ).not.toMatch( /logger/i );
+    expect( CODE ).not.toMatch( /JSON\.stringify\([^)]*\burl\b/ );
+  } );
+
+  it( 'disables it on every unreadable createdAt, and issues no request', async () => {
+    // A real wire value, not a hypothetical: customer-orders emits null when int(createdAt)
+    // raises, and createdAt is an EXACT key condition on the ownership query - so leaving the
+    // control enabled would POST createdAt:null for a deterministic 400 on every click.
+    for ( const createdAt of [ null, 0, 1759000000.5 ] )
+    {
+      const { container, unmount } = await renderSignedIn( answer( 200, {
+        orders: [ row( { createdAt } ) ], profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      const button = invoiceButton( container );
+      expect( button.disabled, `createdAt ${ String( createdAt ) }` ).toBe( true );
+      fireEvent.click( button );
+      expect( fetchMock.mock.calls
+        .filter( ( [ url ] ) => String( url ).includes( '/ecommerce/my-invoice' ) ) )
+        .toHaveLength( 0 );
+      unmount();
+    }
+  } );
+
+  it( 'treats 400, 403 and 404 as terminal, with no retry and no second request', async () => {
+    for ( const status of [ 400, 403, 404 ] )
+    {
+      const { container, unmount } = await renderSignedIn( answer( 200, {
+        orders: [ row() ], profile: profile(),
+      } ) );
+      await screen.findByText( 'WD-1042' );
+      fetchMock.mockResolvedValueOnce( answer( status, { error: 'X' } ) );
+      fireEvent.click( invoiceButton( container ) );
+      const cells = () => Array.from( container.querySelectorAll( 'tr.ord-tr > td' ) );
+      await waitFor( () => expect(
+        cells()[ cells().length - 1 ].textContent, `${ status } must be terminal` )
+        .toBe( 'No invoice yet' ) );
+      expect( screen.queryByRole( 'button', { name: 'Try again' } ) ).toBeNull();
+      const before = fetchMock.mock.calls.length;
+      fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+      expect( fetchMock.mock.calls.length ).toBe( before );
+      unmount();
+    }
+  } );
+
+  it( 'treats a 200 whose body is not JSON as terminal too', async () => {
+    // NOT expressible as a status case, which is why it is written out separately: this is the
+    // response.json() throw. A 200 with an HTML SPA body is exactly what an unmatched Amplify
+    // /api/* rewrite could return, and re-asking cannot change that.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fetchMock.mockResolvedValueOnce( {
+      status: 200, ok: true,
+      json: async () => { throw new Error( 'Unexpected token <' ); },
+    } );
+    fireEvent.click( invoiceButton( container ) );
+    const cells = () => Array.from( container.querySelectorAll( 'tr.ord-tr > td' ) );
+    await waitFor( () => expect(
+      cells()[ cells().length - 1 ].textContent ).toBe( 'No invoice yet' ) );
+    expect( screen.queryByRole( 'button', { name: 'Try again' } ) ).toBeNull();
+    const before = fetchMock.mock.calls.length;
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    expect( fetchMock.mock.calls.length ).toBe( before );
+  } );
+
+  it( 'never duplicates the invoice control into the detail panel', async () => {
+    // Run with the column LIVE, because "not duplicated" is a claim about a control that
+    // exists - asserting it in the state where the thing it guards against is possible is the
+    // point. A row's controls stay: the trigger, the copy control, and the one in column 5.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( invoiceButton( container ) ).toBeTruthy();
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    const panel = container.querySelector( 'tr.ord-detailrow' )!;
+    expect( panel.querySelectorAll( 'button' ) ).toHaveLength( 0 );
+    expect( container.querySelectorAll( 'button.ord-inv' ) ).toHaveLength( 1 );
+  } );
+
+  it( 'shows one null createdAt in four places and Invalid Date in none', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { createdAt: null } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    fireEvent.click( container.querySelector( 'th[scope="row"] button[aria-expanded]' )! );
+    expect( container.querySelector( 'td.ord-col-date' )!.textContent ).toBe( '' );
+    expect( container.querySelector( '.ord-subdate' )!.textContent ).toBe( '' );
+    const panel = container.querySelector( 'tr.ord-detailrow' )!;
+    const placed = Array.from( panel.querySelectorAll( 'dt' ) )
+      .find( node => node.textContent === 'Placed' )!.nextElementSibling!;
+    expect( placed.textContent ).toBe( '' );
+    // The disabled half is only expressible with the column live, which is why this test is in
+    // the flag-on block.
+    expect( invoiceButton( container ).disabled ).toBe( true );
+    expect( container.textContent ).not.toContain( 'Invalid Date' );
   } );
 } );

