@@ -541,7 +541,7 @@ function ContributionAmount (
 
   return (
     <>
-      <label className="cart-qty-label" htmlFor={ inputId }>Contribution amount</label>
+      <label className="cart-qty-label" htmlFor={ inputId }>Contribute amount</label>
       <select
         id={ inputId }
         className="cart-amount-select"

@@ -166,7 +166,7 @@ describe( 'the second payment implementation is GONE, not disabled', () => {
     expect( cart[ 0 ].productId ).toBe( CONTRIBUTION_PRODUCT_ID );
     expect( cart[ 0 ].variantId ).toBe( MID.variantId );
     // The amount is in the name and in the price, because the quantity no longer says it.
-    expect( cart[ 0 ].name ).toBe( `Contribution \u20B9${ MID.rupees }` );
+    expect( cart[ 0 ].name ).toBe( `Contribute \u20B9${ MID.rupees }` );
     expect( cart[ 0 ].formattedPrice ).toBe( `\u20B9${ MID.rupees }.00` );
     // Empty slug, so the cart row does NOT link to a /shop/contribute/ page that SHOP_PRODUCTS
     // deliberately excludes.

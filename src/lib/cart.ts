@@ -483,7 +483,7 @@ export function setContribution ( variantId: string ): CartItem[] {
     slug: '',
     // The amount is IN THE NAME, because a contribution has no other distinguishing feature and
     // "Contribute" alone beside a price would read as a product.
-    name: `Contribution \u20B9${ choice.rupees }`,
+    name: `Contribute \u20B9${ choice.rupees }`,
     // A REAL PRICE NOW, and it is honest: the variant is priced at exactly this figure in Wix and
     // the quantity is 1, so the row total is the row price. Under the retired model this had to be
     // blank, because a per-unit "Rs.1.00" beside a Rs.400 contribution was a lie.

@@ -2158,7 +2158,7 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     cart.setContribution( MID.variantId );
     render( <Cart /> );
 
-    const chooser = await screen.findByLabelText( 'Contribution amount' );
+    const chooser = await screen.findByLabelText( 'Contribute amount' );
     expect( chooser ).toBeInTheDocument();
     // A stepper is the wrong control: two copies of a ₹250 contribution is not a ₹500
     // contribution, it is a basket the server refuses as two contributions.
@@ -2175,14 +2175,14 @@ describe( 'the contribution row CHOOSES an amount, it does not count copies', ()
     cart.setContribution( MID.variantId );
     render( <Cart /> );
 
-    const chooser = await screen.findByLabelText( 'Contribution amount' );
+    const chooser = await screen.findByLabelText( 'Contribute amount' );
     fireEvent.change( chooser, { target: { value: LOW.variantId } } );
 
     expect( cart.readCart() ).toHaveLength( 1 );
     expect( cart.readCart()[ 0 ].variantId ).toBe( LOW.variantId );
     expect( cart.readCart()[ 0 ].quantity ).toBe( 1 );
     // And the row re-renders from the cart rather than from its own state.
-    expect( ( await screen.findByLabelText( 'Contribution amount' ) as HTMLSelectElement ).value )
+    expect( ( await screen.findByLabelText( 'Contribute amount' ) as HTMLSelectElement ).value )
       .toBe( LOW.variantId );
   } );
 
