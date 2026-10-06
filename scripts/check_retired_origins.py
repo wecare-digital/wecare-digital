@@ -81,6 +81,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 REGION = "us-east-1"
 
+# The one origin that MUST be allowed, and on which bucket. Imported from the
+# generator rather than re-declared, so the gate and the thing it gates cannot
+# disagree - the whole reason the missing CORS went unnoticed is that the setting
+# had no generator to diff against.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from provision_media_bucket_cors import (  # noqa: E402
+    BUCKET as MEDIA_BUCKET,
+    REQUIRED_ORIGIN as MEDIA_REQUIRED_ORIGIN,
+    rules_allow_required_origin as media_cors_ok,
+)
+
 # Hostnames that must never appear in a CORS allow-list, with the reason. Keyed on
 # the bare host so both the scheme-qualified origin and a stray bare reference are
 # caught.
@@ -225,15 +236,27 @@ def _client(service):
     return boto3.client(service, region_name=REGION)
 
 
-def scan_live() -> tuple[list[str], list[str], int]:
-    """Retired hosts allowed by a live CORS surface.
+def scan_live() -> tuple[list[str], list[str], int, list[str]]:
+    """Retired hosts allowed by a live CORS surface, plus the one positive assertion.
 
-    Returns (violations, surfaces_checked, error_count). A non-zero error count
-    means the sweep is PARTIAL and its silence must not be read as a pass.
+    Returns (violations, surfaces_checked, error_count, missing). A non-zero error
+    count means the sweep is PARTIAL and its silence must not be read as a pass.
+
+    `missing` is the inverse check added on 2026-10-06. This gate was written to
+    catch an origin that should NOT be allowed, and it did its job - but the media
+    bucket then failed the opposite way: `wecare-digital-get` carried **no CORS
+    configuration at all**, so the dashboard's presigned browser upload died at the
+    preflight with `403 CORSResponse: CORS is not enabled for this bucket` and every
+    outbound WhatsApp attachment on both WABAs failed before Meta was called. An
+    absent allow-list is invisible to a scan that only looks for wrong entries, which
+    is how it survived from the 2026-09-25 bucket cutover to 2026-10-06. So the one
+    origin that MUST be allowed is now asserted here too.
     """
     from botocore.exceptions import ClientError
 
-    violations, checked, errors = [], [], 0
+    violations, checked, errors, missing = [], [], 0, []
+    media_bucket_rules: list[dict] | None = None
+    media_bucket_seen = False
 
     def flag(where, blob):
         for host in RETIRED_HOSTS:
@@ -245,6 +268,8 @@ def scan_live() -> tuple[list[str], list[str], int]:
         s3 = _client("s3")
         for b in s3.list_buckets().get("Buckets", []):
             name = b["Name"]
+            if name == MEDIA_BUCKET:
+                media_bucket_seen = True
             try:
                 rules = s3.get_bucket_cors(Bucket=name).get("CORSRules", [])
             except ClientError as exc:
@@ -255,9 +280,26 @@ def scan_live() -> tuple[list[str], list[str], int]:
                 continue
             checked.append(f"s3://{name} cors")
             flag(f"s3://{name} cors", rules)
+            if name == MEDIA_BUCKET:
+                media_bucket_rules = rules
     except Exception as exc:  # noqa: BLE001
         errors += 1
         print(f"  ! s3 sweep failed: {type(exc)}")
+
+    # The positive assertion. Only meaningful if the bucket was actually enumerated -
+    # if the sweep errored before reaching it, that is a PARTIAL read, not a failure,
+    # and `errors` already carries that.
+    if media_bucket_seen and not errors:
+        checked.append(f"s3://{MEDIA_BUCKET} cors allows {MEDIA_REQUIRED_ORIGIN}")
+        if not media_cors_ok(media_bucket_rules):
+            missing.append(
+                f"s3://{MEDIA_BUCKET} cors does NOT allow {MEDIA_REQUIRED_ORIGIN} "
+                f"for PUT"
+                + ("  (no CORS configuration at all)" if not media_bucket_rules else "")
+                + " - the browser preflight for every presigned media upload will be "
+                  "refused. Fix with: "
+                  "python scripts/provision_media_bucket_cors.py --apply"
+            )
 
     # API Gateway HTTP API CORS.
     try:
@@ -302,7 +344,7 @@ def scan_live() -> tuple[list[str], list[str], int]:
         errors += 1
         print(f"  ! cloudfront sweep failed: {type(exc)}")
 
-    return violations, checked, errors
+    return violations, checked, errors, missing
 
 
 def main() -> int:
@@ -323,11 +365,11 @@ def main() -> int:
     print(f"repository     : {len(repo_v)} violation(s) in an origin allow-list, "
           f"{len(repo_mentions)} other mention(s) (comments stripped)")
 
-    live_v, checked, errors = ([], [], 0)
+    live_v, checked, errors, missing = ([], [], 0, [])
     if not args.repo:
-        live_v, checked, errors = scan_live()
+        live_v, checked, errors, missing = scan_live()
         print(f"live surfaces  : {len(checked)} checked, {len(live_v)} violation(s), "
-              f"{errors} collector error(s)")
+              f"{len(missing)} missing allowance(s), {errors} collector error(s)")
 
     if args.mentions and repo_mentions:
         print()
@@ -337,14 +379,21 @@ def main() -> int:
               "documentation of the retirement or a detector that must name the host to "
               "detect it. Review them for stale claims, not for removal.")
 
-    if repo_v or live_v:
+    if repo_v or live_v or missing:
         print()
         for v in repo_v:
             print(f"  REPO  {v}")
         for v in live_v:
             print(f"  LIVE  {v}")
-        print("\nRETIRED ORIGIN CHECK FAILED - a hostname that no longer resolves is "
-              "still allowed as an origin. Remove it; do not allowlist it here.")
+        for m in missing:
+            print(f"  GONE  {m}")
+        if repo_v or live_v:
+            print("\nRETIRED ORIGIN CHECK FAILED - a hostname that no longer resolves "
+                  "is still allowed as an origin. Remove it; do not allowlist it here.")
+        if missing:
+            print("\nREQUIRED ORIGIN CHECK FAILED - an origin this app is served from "
+                  "is NOT allowed where it must be. This is the opposite defect and it "
+                  "breaks uploads rather than widening access.")
         return 1
 
     if errors:

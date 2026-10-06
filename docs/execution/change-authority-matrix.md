@@ -1,5 +1,72 @@
 # Change authority matrix
 
+## 2026-10-06 CORS on the media bucket, so the dashboard can upload to S3 again (R1)
+- Scope: S3 bucket `wecare-digital-get` (us-east-1) had **no CORS configuration** —
+  `get_bucket_cors` returned `NoSuchCORSConfiguration`. The dashboard does not proxy
+  media through the API: `getMediaUploadUrl` returns a presigned URL and the **browser**
+  writes straight to S3 (`src/api/client.ts` `uploadFileToS3` / `uploadFileViaPresignedPost`).
+  That is cross-origin, so it needs a preflight, and S3 answers a preflight from the
+  bucket CORS config — a presigned URL authorizes the write but says nothing about the
+  preflight. Result: every outbound WhatsApp attachment and every new template/reusable
+  header upload failed on BOTH WABAs before Meta was ever called. Measured 2026-10-06:
+  26 `media_upload_url_generated`, **0** objects under `o/stack/whatsapp-media/outgoing/`,
+  **0** `media_upload_complete`. Last success was 2026-09-24, i.e. the bucket cutover.
+  Inbound was never affected, because the Lambda writes server-side where no preflight
+  exists. The retired bucket `app.wecare.digital` did have CORS (`PutBucketCors`
+  2026-09-26); CloudTrail shows `PutBucketCors` was **never** called on
+  `wecare-digital-get` (created 2026-09-25), so the setting was simply not carried over.
+- A0_READ: `get_bucket_cors` (NoSuchCORSConfiguration), an `OPTIONS` preflight probe
+  against the regional endpoint, and the three candidate app origins resolved by `curl`.
+- A1_LOCAL: new generator `scripts/provision_media_bucket_cors.py` (dry run by default,
+  `--apply` to write, `--check` to assert) so this setting now HAS a generator and
+  therefore a diff — the reason it went unnoticed is that it had neither.
+  `scripts/check_retired_origins.py` extended with the **inverse** assertion: it was
+  built to catch an origin that must not be allowed, and the media bucket failed the
+  opposite way, which a wrong-entry scan cannot see. It now also fails when
+  `wecare-digital-get` does not allow `https://wecare.digital` for PUT, importing
+  `BUCKET` / `REQUIRED_ORIGIN` / `rules_allow_required_origin` from the generator so the
+  gate and the thing it gates cannot disagree.
+- A3_PRODUCTION (additive, no Lambda deploy or alias move needed): `put_bucket_cors` on
+  `wecare-digital-get` with one rule — `AllowedOrigins` `https://wecare.digital`,
+  `capacitor://localhost`, `https://localhost`, `http://localhost`,
+  `http://localhost:3000`; `AllowedMethods` `PUT, POST, GET, HEAD`; `AllowedHeaders` `*`;
+  `ExposeHeaders` `ETag`; `MaxAgeSeconds` 3000. **No wildcard origin**: the bucket also
+  holds third-party blog source documents under `o/blog-production/`, so `'*'` would
+  offer them to any page on the internet. Three origins were deliberately excluded and
+  each was measured, not assumed: `https://www.wecare.digital` **302s to the apex** and a
+  browser compares `Access-Control-Allow-Origin` to the literal request origin and never
+  follows a redirect; `https://d22dm4b0jn71jw.amplifyapp.com` returns **404** at the root,
+  so the app is not served there; and the retired `app.` / legacy frontend hosts are
+  NXDOMAIN and refused by `check_retired_origins.py`.
+- Evidence: BEFORE `OPTIONS` (Origin `https://wecare.digital`,
+  `Access-Control-Request-Method: PUT`, `Access-Control-Request-Headers: content-type`)
+  = **403 `AccessForbidden` "CORSResponse: CORS is not enabled for this bucket."**
+  (request id `SBVX2TPGW37TFFRY`). AFTER the same probe = **200** with
+  `Access-Control-Allow-Origin: https://wecare.digital`,
+  `Access-Control-Allow-Methods: PUT, POST, GET, HEAD`,
+  `Access-Control-Allow-Headers: content-type`, `Access-Control-Expose-Headers: ETag`,
+  `Access-Control-Max-Age: 3000` (request id `F18WMVM45A588YVV`). The POST/reuse path on
+  `o/public/wa-tpl/` also returns 200. **Negative control: Origin `https://evil.example`
+  still returns 403**, so the allow-list is real rather than open.
+  `check_retired_origins.py` now reports `9 checked, 0 violation(s), 0 missing
+  allowance(s), 0 collector error(s)` and exits 0. Snapshots:
+  `docs/execution/snapshots/s3-wecare-digital-get-cors-before-20261006.json`
+  (`corsPresent: false`) and `-after-20261006.json` (read back from the live bucket, not
+  echoed from the request).
+- Rollback: `aws s3api delete-bucket-cors --bucket wecare-digital-get` — that restores
+  the exact prior state, which was **no configuration at all**. Doing so re-breaks every
+  browser upload, which is the point: there is nothing to preserve from before.
+- Refusals and open risks: no secret read or printed; no bucket created (the project
+  specification's `wecare-difital-get` is a known typo and that bucket does not exist);
+  no WABA, token or phone-map change; no live-send flag; **no QA media send attempted** —
+  verification deliberately stops at the preflight, so outbound media registration on the
+  new bucket is still UNVERIFIED end-to-end and needs one dashboard attachment per WABA to
+  the owner QA recipient when that is authorized. **R2 is NOT addressed and is left for
+  the owner**: the 2026-10-03 01:42 UTC factory reset (`totalDeleted: 13462`) is
+  unrecoverable for 14 of 16 media objects because bucket versioning is Suspended, and
+  `wecare-system-cleanup` still logs no caller identity. Enabling versioning is a storage
+  cost decision and was not taken here.
+
 ## 2026-10-05 Full Wix site migration: old site/account/app ids repointed to the new ones
 - Scope: the owner moved to a NEW Wix site, account and headless app. Three identifiers
   changed together — site `fcd82f0c-…` -> `c993128b-…`, account `15f02319-…` ->

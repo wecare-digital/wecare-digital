@@ -1,0 +1,31 @@
+{
+  "bucket": "wecare-digital-get",
+  "region": "us-east-1",
+  "stage": "after",
+  "capturedAt": "2026-10-06T05:53:07.810205+00:00",
+  "corsPresent": true,
+  "CORSRules": [
+    {
+      "AllowedHeaders": [
+        "*"
+      ],
+      "AllowedMethods": [
+        "PUT",
+        "POST",
+        "GET",
+        "HEAD"
+      ],
+      "AllowedOrigins": [
+        "https://wecare.digital",
+        "capacitor://localhost",
+        "https://localhost",
+        "http://localhost",
+        "http://localhost:3000"
+      ],
+      "ExposeHeaders": [
+        "ETag"
+      ],
+      "MaxAgeSeconds": 3000
+    }
+  ]
+}
