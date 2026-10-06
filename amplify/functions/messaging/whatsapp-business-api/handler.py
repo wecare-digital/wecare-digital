@@ -72,6 +72,13 @@ from lambda_utils import payment_status as pay_status
 from lambda_utils.middleware import require_auth
 from lambda_utils import meta_signature  # X-Hub-Signature-256, fails closed
 from lambda_utils.privacy import mask_flow_token  # a Flow token ends in the customer's number
+from lambda_utils.privacy import mask_phone  # never log a recipient in cleartext
+from lambda_utils import live_smoke  # WA_LIVE_SMOKE_TEST recipient lockdown
+# Direct Send facts (flag, WABA map, ttl_seconds bounds, error classification) live in one
+# shared module so this admin surface and the production sender cannot disagree. Module-scope
+# import is correct: it reads no secret and touches no AWS resource, so the lazy-secret rule
+# in lambda-snapstart-deploy does not apply.
+from lambda_utils import direct_send as direct_send_util
 
 logger = get_logger(__name__)
 
@@ -966,19 +973,26 @@ def _get_throughput(phone_id: str) -> Dict:
 # pre-creating a template. Meta auto-generates/matches a template from the
 # message body. POST /{phone_id}/messages with a top-level `category` field.
 #
-# BETA GATE: the WABA must be onboarded to the Direct Send beta by a Meta rep
-# (submit WABA id + sample use cases + contacts). Until then Meta returns
-# 139200 (access blocked) or 131064 (limit / misclassification). This scaffold
-# builds the correct payload and surfaces those gate errors clearly.
+# THE BETA GATE IS CODE 100, NOT 139200. This comment used to say the opposite,
+# and it is where the defect came from, so the correction is recorded here
+# rather than quietly applied:
+#
+#   * NOT ONBOARDED -> synchronous **100** (OAuthException) whose
+#     `error_data.details` explains that `category` requires Direct Send and to
+#     use an approved template instead. This is the error an eligible-but-not-
+#     yet-onboarded WABA actually returns, and the one this whole surface exists
+#     to explain.
+#   * 139200 / 131064 -> access was granted and then **restricted or capped** by
+#     Meta's category-misclassification enforcement. A different condition, with
+#     a different fix, so it is reported as a separate `restricted` signal.
+#
+# Eligibility is per WABA and is granted by Meta in WhatsApp Manager; there is
+# no documented Graph call that onboards a WABA from code.
 # ============================================================================
 _DIRECT_SEND_CATEGORIES = {'utility', 'authentication'}
-_DIRECT_SEND_ERROR_HINTS = {
-    '139200': 'Direct Send is not enabled for this WABA. Ask your Meta representative to onboard this WABA to the Direct Send beta (submit WABA id, sample use cases, and contacts).',
-    '131064': 'Direct Send messaging limit reached for this 24h window due to category-misclassification enforcement. Wait for the next window.',
-    '132021': 'A template with this template_name already exists and was not created by Direct Send. Choose a different name.',
-    '131000': 'Direct Send could not create the named template after retries (infrastructure failure). Try again or drop template_name.',
-    '132015': 'The matched template is paused due to low quality.',
-}
+# One table, in the shared module, so this surface and outbound-whatsapp cannot
+# describe the same Meta code two different ways.
+_DIRECT_SEND_ERROR_HINTS = direct_send_util.ERROR_HINTS
 
 
 def _direct_send(phone_id: str, body: Dict) -> Dict:
@@ -998,8 +1012,14 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
         return _resp(400, {'error': "category must be 'utility' or 'authentication'"})
     if not text:
         return _resp(400, {'error': 'text (message body) is required'})
+    # 1024 is OURS, not a verified Meta limit. The docs say Direct Send matches the
+    # limits for business-initiated template messages, but that table does not render
+    # in text extraction, so the specific number is unverified. The documented 1024s
+    # are the voice-call body and the CTA/reply interactive body — plausible here and
+    # deliberately conservative. Kept rather than raised, because refusing locally is
+    # a clear error and Meta's refusal would not be.
     if len(text) > 1024:
-        return _resp(400, {'error': 'Body text exceeds 1024 characters (Direct Send limit)'})
+        return _resp(400, {'error': 'Body text exceeds 1024 characters (our conservative cap; Meta\'s documented limit for plain text is unverified)'})
 
     payload = {
         'messaging_product': 'whatsapp',
@@ -1049,53 +1069,82 @@ def _direct_send(phone_id: str, body: Dict) -> Dict:
         payload['direct_send_config'] = {'template_name': template_name}
 
     if ttl_seconds is not None and ttl_seconds != '':
-        try:
-            ttl = int(ttl_seconds)
-        except (TypeError, ValueError):
-            return _resp(400, {'error': 'ttlSeconds must be an integer'})
-        if not (30 <= ttl <= 43200):
-            return _resp(400, {'error': 'ttlSeconds must be between 30 and 43200 (30s to 12h)'})
-        payload['ttl'] = ttl
+        # The field is `ttl_seconds`, not `ttl` — phase 1 sent `ttl` and every TTL
+        # send therefore failed with an unexplained 100 (an unsupported parameter is
+        # itself a 100). Bounds are PER CATEGORY: authentication caps at 900, so the
+        # old single 30..43200 check accepted values Meta refuses. Both live in
+        # lambda_utils.direct_send, which also explains why they are not
+        # template_ttl's numbers.
+        ttl_error = direct_send_util.validate_ttl_seconds(category, ttl_seconds)
+        if ttl_error:
+            return _resp(400, {'error': ttl_error})
+        payload['ttl_seconds'] = int(ttl_seconds)
+
+    # Smoke-test lockdown, at the wire and unconditional.
+    #
+    # This is the LAST thing before the Graph call, after every validation, so no
+    # branch added later can reach a recipient while WA_LIVE_SMOKE_TEST is on. It is
+    # the same guard outbound-whatsapp enforces in _send_direct_api; this surface had
+    # none, which left a hole in a guarantee stated as absolute. A latent hole in a
+    # lockdown is still a hole: the guarantee is "no branch reaches a customer", and
+    # one did.
+    #
+    # The QA number is never hard-coded here — live_smoke reads WA_QA_RECIPIENT.
+    _allowed, _reason = live_smoke.check_recipient(to)
+    if not _allowed:
+        logger.error(json.dumps({
+            'event': 'smoke_mode_send_blocked',
+            'where': 'direct_send',
+            'reason': _reason,
+            'to': mask_phone(to),
+            **live_smoke.describe(),
+        }))
+        return _resp(403, {
+            'error': 'Live smoke-test mode is active — sends are limited to the QA recipient',
+            'reason': _reason,
+        })
 
     result = _graph_api(f'{phone_id}/messages', method='POST', payload=payload, phone_id=phone_id)
     if 'error' in result:
         err = result.get('error', {})
-        code = err.get('code') if isinstance(err, dict) else None
-        if code is None and isinstance(err, dict):
-            code = (err.get('error') or {}).get('code')
+        # Meta errors can arrive nested ({'error': {'error': {...}}}), so read the
+        # inner envelope when there is one before pulling code/details out.
+        inner = err.get('error') if isinstance(err, dict) and isinstance(err.get('error'), dict) else err
+        code = inner.get('code') if isinstance(inner, dict) else None
+        details = ''
+        if isinstance(inner, dict):
+            details = (inner.get('error_data', {}) or {}).get('details', '') or ''
+        kind = direct_send_util.classify_error(code, details)
         hint = _DIRECT_SEND_ERROR_HINTS.get(str(code))
-        return _resp(400, {'error': err, 'directSendHint': hint,
-                          'betaGated': str(code) in ('139200', '131064')})
+        return _resp(400, {
+            'error': err,
+            'directSendHint': hint,
+            # Not onboarded: the account is not (yet) in the programme. Code 100 with
+            # category/Direct-Send details.
+            'betaGated': kind == direct_send_util.NOT_ONBOARDED,
+            # Restricted/capped: access existed and Meta enforcement took it away or
+            # limited it. A SEPARATE signal — conflating the two is what made the
+            # not-onboarded case unexplainable.
+            'restricted': kind == direct_send_util.RESTRICTED,
+        })
     return _resp(200, {'success': True, 'category': category,
                       'templateName': template_name or None, 'result': result})
 
 
-def _direct_send_upload_sample(waba_id: str, body: Dict) -> Dict:
-    """Direct Send onboarding — upload a sample message payload so Meta can
-    classify the use case and auto-generate a template.
-    POST /{waba_id}/message_samples  → {success, category}.
-    Accepts either a full Meta sample object in body['sample'] OR a simple
-    {type:'text', text:'...'} shorthand."""
-    sample = body.get('sample')
-    if not sample:
-        text = body.get('text') or body.get('content') or ''
-        if not text:
-            return _resp(400, {'error': 'Provide a sample object or text'})
-        sample = {'type': 'text', 'text': {'body': text}}
-    result = _graph_api(f'{waba_id}/message_samples', method='POST', payload=sample, waba_id=waba_id)
-    if 'error' in result:
-        err = result.get('error', {})
-        # Meta errors can be nested ({'error': {'error': {...}}}) — dig for code/subcode.
-        inner = err.get('error') if isinstance(err, dict) and isinstance(err.get('error'), dict) else err
-        code = inner.get('code') if isinstance(inner, dict) else None
-        subcode = inner.get('error_subcode') if isinstance(inner, dict) else None
-        hint = (_DIRECT_SEND_ERROR_HINTS.get(str(code))
-                or _DIRECT_SEND_ERROR_HINTS.get(str(subcode))
-                or ('Samples API access is restricted for this WABA — ask your Meta rep to enable Direct Send beta (139200 / 2388341).'
-                    if str(code) == '139200' or str(subcode) == '2388341' else None))
-        return _resp(400, {'error': err, 'directSendHint': hint})
-    return _resp(200, {'success': result.get('success', True),
-                      'category': result.get('category', '')})
+# REMOVED 2026-10-06: `_direct_send_upload_sample`, which POSTed to
+# `/{waba_id}/message_samples` as a Direct Send onboarding step.
+#
+# That endpoint appears in NONE of the ten Direct Send documentation pages read for
+# the phase-2 design, and a targeted search produced no Meta corroboration. It was
+# either a private-beta affordance that has since gone, or it was inferred. Meta
+# performs Direct Send onboarding itself and adds the fallback templates; there is no
+# documented self-serve sample-upload call.
+#
+# Phase 2 must not be built on an endpoint we cannot evidence, so the function, its
+# API client wrapper and its dashboard panel are gone. The live API Gateway route is
+# retained (its integration is shared with two routes that are still wanted) and now
+# answers an explicit 410 — see the dispatch branch and
+# docs/execution/snapshots/apigw-direct-send-samples-route-before-delete-20261006.json.
 
 
 def _list_generated_templates(waba_id: str) -> Dict:
@@ -5980,12 +6029,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return _get_throughput(phone_id)
 
         elif '/direct-send/samples' in path:
-            waba_id = params.get('wabaId') or body.get('wabaId')
-            if not waba_id:
-                return _resp(400, {'error': 'wabaId required'})
-            if method == 'POST':
-                return _direct_send_upload_sample(waba_id, body)
-            return _resp(405, {'error': 'POST only'})
+            # 410, not a deleted branch. Dispatch matches on `'/direct-send' in path`,
+            # so removing this branch would let the path fall through to `_direct_send`
+            # and answer `400 phoneId required` — a silent misroute that looks like a
+            # caller bug. An explicit gone-with-a-reason is correct whether or not the
+            # API Gateway route is ever deleted.
+            return _resp(410, {
+                'error': ('Direct Send sample upload was removed — '
+                          '/{waba_id}/message_samples is not a documented Meta endpoint'),
+                'removed': '2026-10-06',
+            })
 
         elif '/direct-send/templates' in path:
             waba_id = params.get('wabaId') or body.get('wabaId')
