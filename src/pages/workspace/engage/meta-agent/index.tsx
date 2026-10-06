@@ -10,6 +10,7 @@ import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -22,6 +23,39 @@ const WABAS = [
     { label: 'WABA-T (+91 99033 00044)', id: '1055232054343117' },
 ];
 const INTERVALS = [ 0, 300, 900, 1800, 3600, 7200, 28800, 86400 ];
+
+const AUDIENCE_OPTIONS: SelectOption[] = [
+    { value: 'EVERYONE', label: 'Everyone' },
+    { value: 'ALLOWLISTED_ONLY', label: 'Allowlisted numbers only (controlled rollout)' },
+];
+
+/**
+ * The Audience control, and why it owns a piece of state rather than reading `settings`.
+ *
+ * It was UNCONTROLLED - React's uncontrolled default attribute, seeded from
+ * `settings.ai_audience`, with an onChange that called `save` and nothing else. One of the four
+ * sites design section 5.2 lists as supplying neither `value` nor `onChange`, or only one of
+ * the two. The native element kept the operator's choice across a
+ * parent re-render on its own, with no variable behind it. A controlled Select has nothing to
+ * keep it, and `save` is followed immediately by `loadSettings()` - so pointing `value` at
+ * `settings.ai_audience` would make the control snap back to the server's answer, including
+ * while the request is still in flight and including when it fails.
+ *
+ * So the choice lives here, `setAudience` runs BEFORE `onSave`, and `initial` is read once at
+ * mount - which is exactly what the uncontrolled attribute did, since this control mounts when
+ * `settings` first arrives and is not remounted afterwards.
+ */
+const AudienceSelect: React.FC<{ initial: string; onSave: ( value: string ) => void }> = ( { initial, onSave } ) => {
+    const [ audience, setAudience ] = useState( initial );
+    return (
+        <Select
+            ariaLabel="Audience"
+            value={ audience }
+            onChange={ value => { setAudience( value ); onSave( value ); } }
+            options={ AUDIENCE_OPTIONS }
+        />
+    );
+};
 
 interface Settings {
     agent_id?: string; channel?: string;
@@ -200,11 +234,10 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                 { settings && (
                     <div style={ card }>
                         <h2 style={ h2 }>Audience</h2>
-                        <select defaultValue={ settings.ai_audience || 'EVERYONE' }
-                            onChange={ e => save( { aiAudience: e.target.value } ) } style={ { width: '100%' } }>
-                            <option value="EVERYONE">Everyone</option>
-                            <option value="ALLOWLISTED_ONLY">Allowlisted numbers only (controlled rollout)</option>
-                        </select>
+                        <AudienceSelect
+                            initial={ settings.ai_audience || 'EVERYONE' }
+                            onSave={ value => save( { aiAudience: value } ) }
+                        />
                     </div>
                 ) }
 

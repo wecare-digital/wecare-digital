@@ -40,6 +40,55 @@ const REQUEST_STATUS_FILTER_OPTIONS: SelectOption[] = [
 /** Layout only: the filter rows are flex, and the trigger shows the SELECTED label. */
 const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 0 };
 
+/** The per-row Update control. `cancelled` is in this list and in no filter list. */
+const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+const ROW_SELECT_STYLE: React.CSSProperties = { width: 150 };
+
+/**
+ * The per-row status control, and why it owns a piece of state rather than reading the row.
+ *
+ * It was UNCONTROLLED - React's uncontrolled default attribute, seeded from `s.status`, with an
+ * async onChange and no variable behind it. The native element kept the operator's choice
+ * across a parent re-render
+ * on its own. A controlled Select has nothing to keep it, and the save is followed immediately
+ * by `loadSubmissions()` - so pointing `value` at `s.status` would make the cell snap back to
+ * whatever the list now says, including while the request is in flight and including when it
+ * fails. That is the regression FlowResponseStatus.test.tsx pins.
+ *
+ * `setStatus` therefore runs BEFORE the save, and the row key is the submissionId, so this
+ * state survives the re-render the refresh causes.
+ */
+const SubmissionStatusSelect: React.FC<{
+  submissionId: string;
+  initial: string;
+  onSaved: () => void;
+}> = ( { submissionId, initial, onSaved } ) => {
+  const toast = useToastContext();
+  const [ status, setStatus ] = useState( initial );
+  const change = async ( next: string ) => {
+    setStatus( next );
+    try
+    {
+      await api.updateSubmissionStatus( submissionId, next );
+      toast.success( `Status → ${next.replace( '_', ' ' )}` );
+      onSaved();
+    } catch ( err: any )
+    {
+      toast.error( err?.message || 'Update failed' );
+    }
+  };
+  return (
+    <Select ariaLabel="Update status" value={ status } onChange={ change }
+      options={ SUBMISSION_STATUS_UPDATE_OPTIONS } style={ ROW_SELECT_STYLE } />
+  );
+};
+
 const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
   const [ activeSection, setActiveSection ] = useState<'requests' | 'submissions' | 'logs'>( 'submissions' );
@@ -220,28 +269,11 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         <td style={ { padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ s.subject || s.requestType || '-' }</td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( s.status ) }</td>
                         <td style={ { padding: '8px 10px' } }>
-                          <select
-                            defaultValue={ s.status || 'open' }
-                            onChange={ async ( e ) => {
-                              const newStatus = e.target.value;
-                              try
-                              {
-                                await api.updateSubmissionStatus( s.submissionId, newStatus );
-                                toast.success( `Status → ${newStatus.replace( '_', ' ' )}` );
-                                loadSubmissions();
-                              } catch ( err: any )
-                              {
-                                toast.error( err?.message || 'Update failed' );
-                              }
-                            } }
-                            style={ { padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 11, cursor: 'pointer' } }
-                          >
-                            <option value="open">Open</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
+                          <SubmissionStatusSelect
+                            submissionId={ s.submissionId }
+                            initial={ s.status || 'open' }
+                            onSaved={ loadSubmissions }
+                          />
                         </td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( s.paymentStatus ) }</td>
                         <td style={ { padding: '8px 10px' } }>{ formatPaise( s.paymentAmount || 0 ) }</td>
