@@ -403,6 +403,31 @@ def _is_deterministic_trigger(message: dict) -> bool:
     return False
 
 
+def _thread_identity(value: Dict, message: Optional[Dict] = None) -> Tuple[str, str, str]:
+    """`(phone_number_id, bsuid, wa_id)` for a webhook `value`, optionally narrowed to
+    one message.
+
+    One helper rather than four copies, because the three identifiers are spelled
+    differently depending on where they are read from and getting one of them wrong is
+    silent: `from_user_id` on a message, `user_id` on a contact, both meaning BSUID.
+
+    BSUID is preferred over `wa_id` by `thread_ownership.thread_key`, not here — this
+    returns both and lets the key contract decide, so there is one place that rule lives.
+    """
+    message = message or {}
+    phone_number_id = str((value.get('metadata') or {}).get('phone_number_id') or '')
+    contacts = value.get('contacts')
+    if not isinstance(contacts, list):
+        contacts = (value.get('standby') or {}).get('contacts') \
+            if isinstance(value.get('standby'), dict) else None
+    contact = contacts[0] if isinstance(contacts, list) and contacts \
+        and isinstance(contacts[0], dict) else {}
+    bsuid = str(message.get('from_user_id') or contact.get('user_id')
+                or contact.get('from_user_id') or '')
+    wa_id = str(message.get('from') or contact.get('wa_id') or '')
+    return phone_number_id, bsuid, wa_id
+
+
 # ── Decorative-edge stripping for menu keyword matching ────────────────────
 # Every keyword set in this file is EXACT-MATCH, which is why two of our own QR
 # prefills reached production matching nothing at all:
@@ -886,6 +911,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'waId': mask_phone(_ho['wa_id'] or ''),
                             'requestId': request_id,
                         }))
+                        # Fold the control change into derived ownership state. WRITE AND
+                        # LOG ONLY — nothing in this function gates a send on it. Meta has
+                        # no ownership API, so this state is the only possible answer to
+                        # "may I send?", and derived state has to be observed to be right
+                        # before it is allowed to refuse a customer a reply.
+                        _sig = thread_ownership.signal_for_control(_ho)
+                        if _sig:
+                            _st = thread_ownership.record_signal(
+                                _ho['phone_number_id'],
+                                bsuid=_ho['bsuid'], wa_id=_ho['wa_id'],
+                                signal=_sig,
+                                # Persisted only when present. It carries the previous
+                                # responder's summary of the conversation and arrives only
+                                # on control_passed, and only sometimes; passing None
+                                # through would overwrite a stored one with nothing.
+                                conversation_context=_ho['conversation_context'],
+                                detail=_ho['reason'])
+                            logger.info(json.dumps({
+                                'event': 'thread_ownership_signal',
+                                'signal': _sig,
+                                'tracked': _st.get('tracked'),
+                                'owned': _st.get('owned'),
+                                'idle': _st.get('idle'),
+                                'bsuid': _ho['bsuid'],
+                                'waId': mask_phone(_ho['wa_id'] or ''),
+                                'requestId': request_id,
+                            }))
                     except Exception as _hoe:
                         logger.warning(json.dumps({
                             'event': 'thread_control_parse_error',
@@ -906,8 +958,25 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         else:
                             _msgs = value.get('messages', []) or []; _contacts = None
                         _det = [m for m in _msgs if _is_deterministic_trigger(m)]
+                        # A standby copy means SOMEBODY ELSE owns this thread. Recorded as
+                        # an ownership signal; nothing here reads it back, and the arm's
+                        # control flow is untouched.
+                        _pid, _bsuid, _waid = _thread_identity(
+                            value, _msgs[0] if _msgs else None)
+                        _sb_state = thread_ownership.record_signal(
+                            _pid, bsuid=_bsuid, wa_id=_waid,
+                            signal=thread_ownership.SIGNAL_STANDBY_OBSERVED)
                         logger.info(json.dumps({'event': 'standby_webhook', 'total': len(_msgs),
                                                 'deterministic': len(_det), 'requestId': request_id}))
+                        logger.info(json.dumps({
+                            'event': 'thread_ownership_signal',
+                            'signal': thread_ownership.SIGNAL_STANDBY_OBSERVED,
+                            'tracked': _sb_state.get('tracked'),
+                            'owned': _sb_state.get('owned'),
+                            'bsuid': _bsuid,
+                            'waId': mask_phone(_waid or ''),
+                            'requestId': request_id,
+                        }))
                         if not _det:
                             continue  # free-form → let the Meta AI agent respond
                         # Unwrap so normal processing (below) handles the deterministic
@@ -1606,6 +1675,33 @@ def _process_message(
         contacts_payload=_contacts_payload,
         timestamp=timestamp,
     )
+
+    # ── Thread ownership signal: we received this message ──
+    # Meta's docs are explicit that RECEIVING is what claims a thread — "you do not have
+    # to reply to claim the thread". So an arrival on the `messages` field (as opposed to
+    # `standby`) is the strongest of the four signals.
+    #
+    # Placed AFTER both stores on purpose: an ownership-write failure must not be able to
+    # cost us the message itself. WRITE AND LOG ONLY — nothing gates on this yet.
+    try:
+        _own_state = thread_ownership.record_signal(
+            str((metadata or {}).get('phone_number_id') or ''),
+            bsuid=msg_bsuid, wa_id=sender_phone,
+            signal=thread_ownership.SIGNAL_MESSAGE_RECEIVED,
+            detail=msg_type)
+        logger.info(json.dumps({
+            'event': 'thread_ownership_signal',
+            'signal': thread_ownership.SIGNAL_MESSAGE_RECEIVED,
+            'tracked': _own_state.get('tracked'),
+            'owned': _own_state.get('owned'),
+            'idle': _own_state.get('idle'),
+            'bsuid': msg_bsuid,
+            'waId': mask_phone(sender_phone or ''),
+            'requestId': request_id,
+        }))
+    except Exception as _oe:
+        logger.warning(json.dumps({'event': 'thread_ownership_signal_error',
+                                   'error': type(_oe).__name__, 'requestId': request_id}))
 
     # Automation rules — auto-reply if an enabled rule matches (guarded, fire-and-forget
     # via async outbound invoke so it can never block/break inbound processing).

@@ -1,5 +1,89 @@
 # Change authority matrix
 
+## 2026-10-06 Conversation Routing phase 2 — derive thread ownership, gate nothing on it
+
+- Scope: Phase 2 of `.agents/tasks/conversation-routing-20261006/plan.md` — C1 and C2
+  (full). **Write-and-log only. Nothing in the fleet gates a send on this state**, and a
+  test asserts that (`test_nothing_gates_a_send_on_may_send_yet`). Meta has no ownership
+  API — the docs require deriving ownership locally from four signals — so every answer
+  this state gives is a *belief*, and a belief does not get to refuse a customer a reply
+  until it has been observed against real delivery.
+- A0_READ: `DescribeTable` / `DescribeTimeToLive` / `DescribeContinuousBackups`,
+  `GetAlias`, `GetFunctionConfiguration`. No `secretsmanager get-secret-value`.
+- A3_PRODUCTION (additive) — new table `stack-wecare-digital-ThreadOwnershipTable`,
+  provisioned by the new `scripts/provision_thread_ownership_table.py`:
+  HASH `threadKey` (S) + RANGE `recordType` (S), no GSI, `PAY_PER_REQUEST`, TTL **ENABLED**
+  on `expiresAt` (7 days), PITR **ENABLED**. Read back by `--verify`: status ACTIVE,
+  0 items.
+  - `threadKey` = `{phone_number_id}#{bsuid or wa_id}` — **BSUID-preferred, `wa_id`
+    fallback**, per Meta's guidance to index standby events by business-scoped user ID,
+    and because a `wa_id` changes when a customer changes number (a `user_changed_user_id`
+    system message this handler already processes).
+  - **Why a table and not attributes on `ContactsTable`:** one contact can hold **two
+    independent threads** — the same `wa_id` talks to both WABA numbers, and those threads
+    can have different owners at the same moment. A contact-keyed attribute cannot express
+    two ownership states for one contact.
+  - **Why not `SystemConfigTable`:** `_store_system_event` is a 10-deep ring buffer. That
+    is an audit sample, not state — the ten handover events surviving from Jul-Aug 2026 are
+    all that is left of that whole period. Ownership that silently falls out of a 10-deep
+    buffer is worse than none, because it reads as present.
+  - **Why TTL is 7 days and not 24 hours:** the documented idle reset is 24h, and state
+    that expired at exactly that boundary could not be *reconciled against* the reset — you
+    have to still hold the stale value to notice the thread went idle. Asserted by
+    `test_the_ttl_outlasts_the_idle_reset`.
+  - **No IAM change.** `wecare-digital-lambda-role`'s inline policy already grants DynamoDB
+    on `table/stack-wecare-digital-*` and `/index/*`. That role is shared fleet-wide, so a
+    narrowing here would have been the risky edit, not a no-op.
+  - Rollback: `aws dynamodb delete-table`. Safe — the table has 0 items, nothing reads it,
+    and every writer swallows its own exceptions, so its absence degrades to "untracked".
+- A1_LOCAL:
+  - `amplify/functions/shared/lambda_utils/thread_ownership.py` — extended with
+    `thread_key`, `record_signal`, `get_state`, `may_send`, `store_standby_message`,
+    `signal_for_control`. `parse_handover` left pure and untouched.
+  - `amplify/functions/messaging/inbound-whatsapp-handler/handler.py` — new
+    `_thread_identity` helper plus three signal call sites.
+  - `scripts/check_data_model_drift.py` — `ThreadOwnershipTable` added to
+    `UNDECLARED_ALLOWED` with its reason, or that gate fails on an undeclared live table.
+  - `tests/test_thread_ownership_state.py` — new, 52 tests.
+- **The four documented signals, all wired:** `message_received` (after both message
+  stores in `_process_message`, so an ownership-write failure cannot cost us the message),
+  `handover_gained` / `handover_lost` (from `control_passed` / `control_taken` via
+  `signal_for_control`, which keeps that mapping in one place), `standby_observed` (in the
+  standby arm, before the existing log, control flow untouched). `service_message_sent`
+  lands in phase 3 where the send sites are already being touched.
+- **The 24-hour idle reset is modelled.** Only *user* activity moves the clock —
+  `message_received` and `standby_observed`. A handover or a business send does **not**,
+  because the documented reset is defined on user inactivity and sending does not hold a
+  thread open. An idle thread reports `owned=False` while keeping `storedOwned` visible, so
+  the reset is observable rather than a silent overwrite of what Meta actually told us.
+- **`may_send` fails OPEN, and that is deliberate.** It returns `True` when state is
+  unknown, untracked or unreadable. This is the *opposite* of
+  `lambda_utils/otp_throttle.py`, which sits beside it and looks similar: that one guards a
+  path that spends money and rings a stranger's handset, so an unreadable counter must
+  refuse; this one guards a path that **answers a customer**, so a DynamoDB blip must not
+  be the reason somebody goes unanswered. The fail-closed decision belongs with the flag
+  flip, which is deferred until an owner confirms a routing configuration exists.
+- `conversation_context` is captured when present and **never overwritten with `None`** —
+  it arrives only on `control_passed`, only sometimes, and carries the previous responder's
+  summary of the conversation, which is the most useful thing a handover gives us.
+- A3_PRODUCTION — `scripts/deploy_all_lambdas.py wecare-inbound-whatsapp`,
+  `updated=1 unchanged=0 failed=0`. `wecare-inbound-whatsapp` live **v74 → v75**, live
+  CodeSha256 == `$LATEST` (`maEM+iGvi3Iq…`). Package went from 130 to **131 files**, which
+  is the new shared module being packaged — the deploy script validates that every
+  top-level import resolves inside the package or an attached layer, so a `thread_ownership`
+  import that failed to package would have been caught there rather than at runtime.
+  Rollback: `update-function-code` back to `cnwBptrjLEq4…` (the phase-1 artifact), **not**
+  an alias move — the ingress invokes this function unqualified, so `$LATEST` is production.
+- Gates: `.venv/bin/python -m pytest tests -q` → **5 failed, 8183 passed, 5 skipped,
+  3 xfailed**. Same 5 pre-existing unrelated failures; +53 tests over phase 1, 0 new
+  failures. `.venv/bin/python scripts/check_data_model_drift.py` exits **0** with
+  `ok ThreadOwnershipTable`. `provision_thread_ownership_table.py --verify` passes,
+  including its assertion that `thread_key` is BSUID-preferred with a `wa_id` fallback and
+  returns `''` when neither is usable.
+- **No secret read, placed on a command line, or logged; no `get-secret-value`; no
+  credential rotated; no routing enabled; no flag enabled; no payment change; no IAM, WABA,
+  phone number, Cognito or route touched; no message sent; no existing table altered.**
+
 ## 2026-10-06 Conversation Routing phase 1 — make a routing event visible before it matters
 
 - Scope: Phase 1 of `.agents/tasks/conversation-routing-20261006/plan.md` (design in

@@ -201,6 +201,13 @@ UNDECLARED_ALLOWED: dict[str, str] = {
     "GiftCardsTable": "Provisioned by scripts/provision_gift_cards_table.py; a liability ledger "
                       "owned by wecare-gift-cards. Not modelled here because its partition key "
                       "is an HMAC of a bearer code, which has no place in a GraphQL model.",
+    "ThreadOwnershipTable":
+        "Provisioned 2026-10-06 by scripts/provision_thread_ownership_table.py for WhatsApp "
+        "Conversation Routing. Deliberately not modelled here: it is operational routing "
+        "state with a 7-day TTL, keyed on {phone_number_id}#{BSUID-or-wa_id} because one "
+        "contact can hold two independent threads (the same person talks to both WABA "
+        "numbers). A contact-keyed GraphQL model cannot express that, which is the reason "
+        "it is a table of its own rather than attributes on Contact.",
 }
 
 
