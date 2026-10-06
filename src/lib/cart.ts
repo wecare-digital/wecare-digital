@@ -406,7 +406,14 @@ export function removeItem ( ref: string ): CartItem[] {
   return items;
 }
 
-/** Empty the cart. Called after a checkout is successfully prepared. */
+/**
+ * Empty the cart. Called on a `VERIFIED_PAID` verify response and nowhere else.
+ *
+ * NOT ON A PREPARE, which is what this docstring used to claim and what no caller ever did. A
+ * prepared checkout is not a paid one: clearing there would empty the basket of a customer who
+ * closed the Razorpay modal. The single call site is `src/pages/cart.tsx`'s verify handler, on the
+ * one status where the server has confirmed an authoritative capture.
+ */
 export function clearCart (): void {
   if ( !hasWindow() ) return;
   window.localStorage.removeItem( CART_KEY );

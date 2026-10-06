@@ -761,7 +761,16 @@ describe( 'the cart page proceed flow', () => {
       razorpay_signature: 'signature-fixture',
     } );
     expect( navigatedTo ).toBe( '/checkout/status/?a=att-web-1' );
-    expect( cart.readCart() ).toHaveLength( 1 );
+    /*
+     * AND THE PAID BASKET IS GONE. This line asserted `toHaveLength( 1 )` until the
+     * VERIFIED_PAID finalization landed, which pinned the defect rather than the behaviour: every
+     * paid order left its lines in localStorage, so the next basket silently carried the previous
+     * purchase. The page docblock always promised the cart is kept "until a VERIFIED_PAID
+     * finalization"; this is that finalization, and the two reservation slots go with it.
+     */
+    expect( cart.readCart() ).toHaveLength( 0 );
+    expect( window.sessionStorage.getItem( 'wc_checkout_request_key' ) ).toBeNull();
+    expect( window.sessionStorage.getItem( 'wc_checkout_request_basket' ) ).toBeNull();
   } );
 
   it( 'calls a contribution a contribution in the modal, not an order', async () => {
@@ -1379,6 +1388,98 @@ describe( 'the payment rail latches once it has returned a result', () => {
     expect( String( away?.textContent || '' ) ).not.toMatch( /pay|again|retry/i );
   } );
 
+  it( 'empties the cart on VERIFIED_PAID, and drops the two reservation slots with it', async () => {
+    /*
+     * THE FINALIZATION, asserted on the only status that may trigger it.
+     *
+     * `clearCart()` shipped as DEAD CODE: it was exported, documented and called from no page, so
+     * every paid order left its lines in `localStorage` and the next basket silently re-carried
+     * the previous purchase. For a product basket that is an over-charge risk. For a contribution
+     * it was the whole of the reported "freeze": a leftover paid product plus a contribution is a
+     * MIXED basket, and a mixed basket disables Checkout -- so the customer could not pay a
+     * contribution at all until they manually removed an item they had already bought.
+     */
+    signedIn( 'fixture-session' );
+    const razorpay = fakeRazorpay();
+    const fetchMock = stubFetch( {
+      prepare: { body: READY_OPTIONS },
+      verify: { body: { status: 'VERIFIED_PAID', paymentAttemptId: 'att-latch-1' } },
+    } );
+    cart.addItem( PRODUCT, 1 );
+
+    render( <Cart /> );
+    await proceedPastProfile();
+    await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
+    // The reservation slots exist at this point - the prepare minted them.
+    expect( window.sessionStorage.getItem( 'wc_checkout_request_key' ) ).toBeTruthy();
+
+    await razorpay.options.handler( {
+      razorpay_payment_id: 'pay-latch-1',
+      razorpay_order_id: 'order-latch-1',
+      razorpay_signature: 'sig-latch-1',
+    } );
+    await waitFor( () => expect( callsTo( fetchMock, VERIFY_URL ) ).toHaveLength( 1 ) );
+
+    expect( cart.readCart() ).toEqual( [] );
+    expect( window.sessionStorage.getItem( 'wc_checkout_request_key' ) ).toBeNull();
+    expect( window.sessionStorage.getItem( 'wc_checkout_request_basket' ) ).toBeNull();
+    // The success UX is unchanged: the handoff to the hosted status screen still happens.
+    expect( navigatedTo ).toBe( '/checkout/status/?a=att-latch-1' );
+  } );
+
+  it( 'KEEPS the cart on every verify answer that is not VERIFIED_PAID', async () => {
+    /*
+     * THE NEGATIVE HALF, and it is the half that protects money. A pending, unknown or failed
+     * attempt is exactly the state the resume data exists for: emptying the cart there destroys
+     * what lets an unresolved payment be recovered, and tells a customer whose money may not have
+     * moved that their basket is finished. Driven for a read verdict AND for a verify that throws,
+     * because the throw is the case where a charge is most likely to have happened.
+     */
+    for ( const verify of [
+      { body: { status: 'NOT_CAPTURED', paymentAttemptId: 'att-latch-1' } },
+      new Error( 'network' ),
+    ] as const )
+    {
+      window.localStorage.clear();
+      window.sessionStorage.clear();
+      signedIn( 'fixture-session' );
+      const razorpay = fakeRazorpay();
+      stubFetch( { prepare: { body: READY_OPTIONS }, verify } );
+      cart.addItem( PRODUCT, 1 );
+
+      const { unmount } = render( <Cart /> );
+      await proceedPastProfile();
+      await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
+      await razorpay.options.handler( {
+        razorpay_payment_id: 'pay-latch-1',
+        razorpay_order_id: 'order-latch-1',
+        razorpay_signature: 'sig-latch-1',
+      } );
+
+      expect( cart.readCart() ).toHaveLength( 1 );
+      expect( window.sessionStorage.getItem( 'wc_checkout_request_key' ) ).toBeTruthy();
+      unmount();
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    }
+  } );
+
+  it( 'does NOT empty the cart when the modal is dismissed', async () => {
+    signedIn( 'fixture-session' );
+    const razorpay = fakeRazorpay();
+    stubFetch( { prepare: { body: READY_OPTIONS } } );
+    cart.addItem( PRODUCT, 1 );
+
+    render( <Cart /> );
+    await proceedPastProfile();
+    await waitFor( () => expect( razorpay.opens ).toBe( 1 ) );
+
+    razorpay.options.modal.ondismiss();
+
+    expect( cart.readCart() ).toHaveLength( 1 );
+    expect( await screen.findByText( /Your cart is unchanged/ ) ).toBeInTheDocument();
+  } );
+
   it( 'latches on a LOST verify response, which is the case money may have moved in', async () => {
     signedIn( 'fixture-session' );
     const razorpay = fakeRazorpay();
@@ -1721,6 +1822,18 @@ describe( 'a contribution basket skips the address gate, on the FIRST click', ()
 
 describe( 'a mixed basket is refused in the browser, before the auth gate', () => {
   it( 'shows the notice, disables Checkout and calls no prepare', async () => {
+    /*
+     * THIS TEST'S TITLE WAS TRUE OF THE PAGE IT DESCRIBED AND FALSE OF THE PAGE IT TESTED.
+     *
+     * It asserted the disabled button and the absent prepare and NOTHING about a notice, and it
+     * passed for as long as `mixedBasket` drove the `disabled` term and nothing else. Both of
+     * `CONTRIBUTION_ALONE_MESSAGE`'s other call sites sit downstream of the press -- one inside
+     * `runCheckout`, one on the server's `CONTRIBUTION_NOT_ALONE` reply -- and a native disabled
+     * button fires no `onClick`, so neither was reachable. The customer got a dead control with
+     * no sentence, no error and no request. A green test over a dead end is why it shipped.
+     *
+     * The notice is asserted WITHOUT a click, because render time is the whole of the fix.
+     */
     signedIn();
     const fetchMock = stubFetch( { profile: { body: PROFILE_READY } } );
     cart.setContribution( MID.variantId );
@@ -1730,7 +1843,76 @@ describe( 'a mixed basket is refused in the browser, before the auth gate', () =
     const button = await screen.findByRole(
       'button', { name: CTA } );
     expect( button ).toBeDisabled();
+    expect( screen.getByText( /A contribution is paid on its own/ ) ).toBeInTheDocument();
+    // Polite, not an interruption: the basket is in a state the shopper can simply edit.
+    expect( screen.getByText( /A contribution is paid on its own/ ) )
+      .toHaveAttribute( 'role', 'status' );
+    // And the reason carries an ACTION, not only words.
+    expect( screen.getByRole( 'button', { name: 'Keep only the contribution' } ) )
+      .toBeInTheDocument();
     expect( callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 0 );
+  } );
+
+  it( 'the offered action leaves the contribution alone, re-enables Checkout and posts prepare',
+    async () => {
+      /*
+       * The stuck basket, cleared the way the customer who arrived from a blog post means it.
+       *
+       * One press removes every non-contribution line -- `removeItem` per line, so there is still
+       * exactly one writer of the cart -- and the CTA becomes live in the same render, because
+       * `mixedBasket` is derived from `items` at render time.
+       */
+      signedIn();
+      const fetchMock = stubFetch( {
+        profile: { body: PROFILE_READY },
+        prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-mix-1' } },
+      } );
+      cart.setContribution( MID.variantId );
+      cart.addItem( PRODUCT, 1 );
+      cart.addItem( OTHER, 2 );
+
+      render( <Cart /> );
+      fireEvent.click( await screen.findByRole(
+        'button', { name: 'Keep only the contribution' } ) );
+
+      expect( cart.readCart().map( item => item.variantId ) ).toEqual( [ MID.variantId ] );
+      const button = await screen.findByRole( 'button', { name: CTA } );
+      expect( button ).not.toBeDisabled();
+      expect( screen.queryByText( /A contribution is paid on its own/ ) ).toBeNull();
+
+      fireEvent.click( button );
+      await waitFor( () => expect(
+        callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+    } );
+
+  it( 'a contribution-only basket is never disabled and reaches wecare-checkout', async () => {
+    /*
+     * THE CONTROL FOR THE WHOLE REPORT. The contribution path itself was never broken -- the
+     * variant id, the `options.variantId` catalogReference shape and the live checkout env all
+     * check out -- so this asserts the one thing the "freeze" denied: the button is live and the
+     * prepare POST actually leaves the browser, carrying the contribution variant and no money.
+     */
+    signedIn();
+    const fetchMock = stubFetch( {
+      profile: { body: PROFILE_READY },
+      prepare: { body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-solo-1' } },
+    } );
+    cart.setContribution( MID.variantId );
+
+    render( <Cart /> );
+    const button = await screen.findByRole( 'button', { name: CTA } );
+    expect( button ).not.toBeDisabled();
+    expect( screen.queryByText( /A contribution is paid on its own/ ) ).toBeNull();
+
+    fireEvent.click( button );
+    await waitFor( () => expect(
+      callsTo( fetchMock, PREPARE_URL, 'prepare' ) ).toHaveLength( 1 ) );
+    const [ prepare ] = callsTo( fetchMock, PREPARE_URL, 'prepare' );
+    expect( prepare.body.lineItems ).toHaveLength( 1 );
+    expect( prepare.body.lineItems[ 0 ].catalogReference.options )
+      .toEqual( { variantId: MID.variantId } );
+    expect( prepare.body.lineItems[ 0 ].quantity ).toBe( 1 );
+    expect( prepare.init.body as string ).not.toMatch( /price|amount|currency|formattedPrice/i );
   } );
 
   it( 'removing the kiosk lets the SAME click through, with no re-render in between', async () => {

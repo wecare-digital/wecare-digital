@@ -95,7 +95,7 @@ import type { StoredAddress } from '../components/AddressFields';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import type { CustomerSession } from '../lib/customerAuth';
 import {
-  readCart, setQuantity, removeItem, toLineItems, availableVariantsForItem,
+  readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartMixesContribution, cartRequiresDelivery,
   isContributionItem, setContribution,
@@ -881,6 +881,30 @@ export default function Cart (): React.ReactElement {
     setItems( removeItem( ref ) );
   }, [] );
 
+  /**
+   * The one action offered beside the mixed-basket notice: leave the contribution on its own.
+   *
+   * IT IS THE INTENT THAT ARRIVED HERE. The only way into a mixed basket is choosing an amount on
+   * a blog post, which navigates straight to this page, so the thing the customer is trying to do
+   * is pay the contribution. This performs the half of `CONTRIBUTION_ALONE_MESSAGE` that gets them
+   * there in one press; the per-row Remove buttons still do the other half, and nothing here is
+   * lost that the shop cannot re-add.
+   *
+   * `removeItem` RATHER THAN a bulk write, so there is still exactly one place that rewrites the
+   * cart. Each call re-reads storage and returns the new list, so the last return is the final
+   * state and no intermediate list is rendered.
+   */
+  const keepOnlyContribution = useCallback( (): void => {
+    let next = readCart();
+    for ( const other of next.filter( item => !isContributionItem( item ) ) )
+    {
+      next = removeItem( other.ref );
+    }
+    setItems( next );
+    setPaymentBlocked( false );
+    setNotice( { kind: 'none' } );
+  }, [] );
+
   const chooseVariant = useCallback( ( ref: string, variantId: string ): void => {
     if ( !variantId ) return;
     setItems( setVariant( ref, variantId ) );
@@ -1028,6 +1052,32 @@ export default function Cart (): React.ReactElement {
               };
               if ( verified.ok && String( verdict.status || '' ).toUpperCase() === 'VERIFIED_PAID' )
               {
+                /*
+                 * THE FINALIZATION THE DOCBLOCK AT THE TOP OF THIS FILE PROMISES. "Cart/resume
+                 * data is kept until a VERIFIED_PAID finalization" was half-implemented: the
+                 * keeping worked, the finalization did not exist, so `clearCart` shipped as dead
+                 * code and EVERY paid order left its lines in the browser. The next basket then
+                 * silently carried the previous purchase - an over-charge risk for a product
+                 * basket, and the whole of the contribution dead end, because a leftover product
+                 * plus a contribution is the mixed basket the Checkout button refuses.
+                 *
+                 * `VERIFIED_PAID` IS THE ONLY MOMENT THIS MAY RUN. It is the single point where
+                 * the server has confirmed an authoritative capture. Deliberately NOT on
+                 * `OPENED`, on dismiss, on `payment.failed`, on the two verify-failure arms
+                 * below, or on `CHECKOUT_AMBIGUOUS` - the resume data is exactly what lets an
+                 * unresolved attempt be recovered, and emptying the cart on a pending or failed
+                 * state destroys it.
+                 *
+                 * The two reservation slots go with it, so the next basket mints a fresh request
+                 * key rather than resuming the one this payment just consumed.
+                 *
+                 * It cannot race the success screen: /checkout/status/ is a full navigation that
+                 * reads the attempt from the server by id and never reads the cart, and the
+                 * `assign` below is the last statement on this path.
+                 */
+                clearCart();
+                window.sessionStorage.removeItem( CHECKOUT_REQUEST_KEY );
+                window.sessionStorage.removeItem( CHECKOUT_REQUEST_BASKET );
                 const paidAttempt = encodeURIComponent( String( verdict.paymentAttemptId || attemptId ) );
                 window.location.assign( `/checkout/status/?a=${ paidAttempt }` );
                 return;
@@ -1846,6 +1896,28 @@ export default function Cart (): React.ReactElement {
               {notice.kind === 'error' && (
                 <p className="cart-status cart-status-firm" role="alert">{ notice.message }</p>
               )}
+
+              {/* WHY THE CHECKOUT BUTTON BELOW IS DIMMED, SAID AT RENDER TIME.
+                  `mixedBasket` used to drive the `disabled` term and NOTHING ELSE, and both of
+                  `CONTRIBUTION_ALONE_MESSAGE`'s other call sites are downstream of the press: one
+                  inside `runCheckout`, one on the server's `CONTRIBUTION_NOT_ALONE` reply. A
+                  native disabled button fires no onClick, so neither could ever be reached from
+                  this state - the customer got a dead control, no sentence, no error and no
+                  request, which is exactly why the checkout Lambda saw no contribution traffic.
+                  The button SHOULD be disabled; it must not be disabled silently.
+                  Independent of `notice`, because this is a property of the basket rather than of
+                  the last thing that happened, and the same words whichever side refuses. */}
+              { mixedBasket && !railTerminal && (
+                <>
+                  <p className="cart-status" role="status">{ CONTRIBUTION_ALONE_MESSAGE }</p>
+                  <p className="cart-back">
+                    <button className="cart-remove" type="button" disabled={ busy }
+                            onClick={ keepOnlyContribution }>
+                      Keep only the contribution
+                    </button>
+                  </p>
+                </>
+              ) }
 
               {/* THE ONE REFUSAL THAT CARRIES AN ACTION. The excess lines are on the SERVER cart,
                   which nothing on this page can touch, so words alone would name an action the
