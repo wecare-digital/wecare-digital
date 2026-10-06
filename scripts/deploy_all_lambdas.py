@@ -238,6 +238,23 @@ SPECS: List[Spec] = [
         "ecommerce/customer-orders",
         provisioned_by="python scripts/provision_customer_orders.py",
     ),
+    # A customer's own invoice, as a 300-second presigned download. A SEPARATE function from
+    # wecare-customer-orders deliberately: this route needs dynamodb:GetItem, s3:GetObject
+    # and a second dynamodb:Query, and all three are specifically refused by that function's
+    # pinned policy and by six EQUALITY assertions in tests/test_customer_orders_iam.py.
+    # Putting the route there would mean editing those tests so they assert less, on the one
+    # function whose documented security property is its emptiness. Its own least-privilege
+    # role holds four reads plus the rate-limit counter increment, and no write verb of any
+    # kind - it cannot generate an invoice, which matters because generation advances the GST
+    # sequence. First creation is owned by scripts/provision_customer_invoice.py, which
+    # creates no table and no index: every resource it reads is owned elsewhere. NOT
+    # standalone: it imports lambda_utils.customer_auth, customer_session, rate_limit,
+    # receipt_links, ecommerce.customer_receipt, response and logging.
+    Spec(
+        "wecare-customer-invoice",
+        "ecommerce/customer-invoice",
+        provisioned_by="python scripts/provision_customer_invoice.py",
+    ),
     # Coupon issuance and eligibility. Owns stack-wecare-digital-CouponsTable; creates NO
     # discount amount of its own -- the arithmetic is Wix's Calculate Cart. NOT standalone: it
     # imports lambda_utils.customer_auth, response, logging, ecommerce.coupon_store and

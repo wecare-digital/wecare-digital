@@ -103,11 +103,22 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # without publishing the web-service key. Its role, server-key grant, live alias,
     # exact POST/OPTIONS routes and per-route throttle are first-created by
     # scripts/provision_vayulok_environment.py.
+    # wecare-customer-invoice added 2026-10-06: a customer's own invoice as a 300-second
+    # presigned download. Never created in AWS - its own least-privilege role (four reads
+    # plus the rate-limit counter, no write verb of any kind) and its one route are
+    # first-provisioned by scripts/provision_customer_invoice.py, so a deploy-all run before
+    # that is legitimately awaiting provisioning rather than failing. It is a SEPARATE
+    # function from wecare-customer-orders on purpose: the route needs dynamodb:GetItem,
+    # s3:GetObject and a second dynamodb:Query, and all three are specifically refused by
+    # that function's pinned policy and by six equality assertions in
+    # tests/test_customer_orders_iam.py. Its absence costs the page NOTHING today:
+    # featureFlags.invoiceDownload ships false, so /orders/ renders "No invoice yet" and
+    # issues no request to this route at all.
     # Session infrastructure is owned by its CloudFormation template; an account
     # without that stack must provision it rather than report a code-update failure.
     assert waiting == ["wecare-customer-session", "wecare-vayulok-environment", "wecare-customer-whatsapp-auth", "wecare-email-verification",
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
-                       "wecare-customer-orders",
+                       "wecare-customer-orders", "wecare-customer-invoice",
                        "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi",
                        "wecare-wix-catalog-webhook"]
 
