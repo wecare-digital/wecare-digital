@@ -67,6 +67,79 @@
   `wecare-system-cleanup` still logs no caller identity. Enabling versioning is a storage
   cost decision and was not taken here.
 
+## 2026-10-06 Three silent WhatsApp media defects fixed and deployed (D3, D4, D5)
+- Scope: `amplify/functions/messaging/inbound-whatsapp-handler/handler.py` and
+  `amplify/functions/messaging/outbound-whatsapp/handler.py`. All three were failures
+  that produced no visible error, which is why they survived.
+- A1_LOCAL, D3 — `_store_media_record` built its item with `fileId`, but
+  `stack-wecare-digital-MediaFilesTable`'s hash key is `id` (verified live:
+  `KeySchema [{'AttributeName': 'id', 'KeyType': 'HASH'}]`). Every `put_item` therefore
+  raised `ValidationException: Missing the key id` — **17 of 17** writes in the seven
+  days to 2026-10-06 — and the surrounding `except` reported it as "MediaFile table
+  write failed, but s3Key is stored in message record", i.e. as an expected absence.
+  The message row kept working so nothing surfaced; the damage was downstream.
+  `mediaId` stayed null, and the daily Meta media-DELETE cron `wecare-media-cleanup`
+  scanned an empty table and deleted nothing every day while reporting success. Now
+  writes `'id': file_id` and keeps `fileId` for any reader on the old shape.
+- A1_LOCAL, D4 — two definitions of `_download_media_direct_api` existed (a
+  5-parameter one and a 6-parameter one). Python binds the name to whichever executes
+  last, so the 6-parameter definition always won and the earlier was dead; the logs
+  confirm it (`media_download_direct_api` from the live one, never
+  `direct_api_media_downloaded` from the dead one). The call sites were written against
+  the dead signature and passed **5 positional arguments** into 6 parameters, so
+  `request_id` bound to `phone_number_id` and the mime hint bound to `request_id`.
+  Harmless in effect, because the inbound media GET does not send `phone_number_id` —
+  but the request id in those log lines was wrong, and it becomes a real defect the
+  moment anything reads that parameter. Dead definition removed (a comment records
+  why, so it is not re-added), and all three call sites now pass keywords. The router
+  call inside `_download_media` was already correct but positional; it was converted
+  too, so the invariant needs no exception list.
+- A1_LOCAL, D5 — `media_registration_failed` logged `errorType` and nothing else, as a
+  **duplicated dict key**. An HTTPError read as `errorType: HTTPError` with no status
+  and no Meta code, making the three failures this path actually produces
+  indistinguishable: 131053 (unsupported media type or size), 131052 (media
+  download/upload error) and 190 (expired token). Now adds `httpCode`, `metaCode`,
+  `metaSubcode` and `fbtraceId` via the `graph_errors.normalize` envelope already used
+  by `send_meta_error` in the same file. Meta's prose is deliberately NOT logged, only
+  `metaMessagePresent`: Meta writes the recipient into the message text of several
+  messaging errors, and the token is in the request that response answers. Same
+  reasoning as `_META_ERROR_SAFE_FIELDS` in `lambda_utils/masking.py`. No token, no
+  URL and no `str(exc)` reaches the log.
+- A1_LOCAL, test — `tests/test_media_record_writes_table_key.py` (6 tests). It asserts
+  the written item carries the hash key specifically, not merely that `put_item` was
+  called, because a call that is made and rejected is exactly what happened. It also
+  pins D4 by AST (one definition; `phone_number_id`/`request_id` passed by keyword) and
+  pins the R1 gate predicate against the state that actually occurred — `None` and `[]`
+  must both be refused, since a check that only looked for a *wrong* entry is what let
+  an absent configuration through for eleven days. The handler is loaded by path under
+  a unique module name: `import handler` is ambiguous in the full suite (every Lambda
+  has a `handler.py`) and resolved to a different function's module under
+  `pytest tests`, which passed in isolation — a false negative on a test whose whole
+  job is catching a silent failure.
+- A3_PRODUCTION: `python scripts/deploy_all_lambdas.py wecare-inbound-whatsapp
+  wecare-outbound-whatsapp`, which publishes and moves `live` (the API invokes `:live`,
+  not `$LATEST`). `wecare-inbound-whatsapp` **v70 -> v71** (sha `6ZRpClUoO6Ms…`),
+  `wecare-outbound-whatsapp` **v46 -> v47** (sha `ohWFD6Gb+Nqi…`). `updated=2 failed=0`.
+  Both report `State=Active`, `LastUpdateStatus=Successful`, and `live` CodeSha256 ==
+  `$LATEST` CodeSha256 after the move. Dry run first: no new import warnings (the 16
+  `cryptography` ones are pre-existing and guarded by try/except).
+- Gates: `pytest tests` **7804 passed / 5 failed / 5 skipped / 3 xfailed**; the 5 are the
+  same pre-existing, unrelated set recorded on 2026-10-05 (one `test_checkout_faq_sources`
+  row owned by another workstream, four `test_deployed_headers_target` live-probe rows)
+  and none is in a file touched here. `npx tsc --noEmit` **clean, exit 0**. `npm test`
+  **1101 passed / 2 failed**, both in `src/test/BlogContribution.test.tsx`, which was
+  last modified by the immediately preceding commit `7215d682` (a cart-rename
+  workstream) and which this change does not touch — zero TS files were modified here.
+- Rollback: `aws lambda update-alias --function-name wecare-inbound-whatsapp --name live
+  --function-version 70` and `… wecare-outbound-whatsapp … --function-version 46`.
+- Refusals and open risks: no secret read, printed or placed on a command line; no WABA,
+  token, phone-map or registration change; no live-send flag; no QA send. D3's fix means
+  the Meta media-DELETE cron will start finding rows for newly received media — it
+  cannot retroactively delete the media Meta still holds for the 17 records that were
+  never written, and those rows are not recoverable. D6 (Meta's 131051 "message type
+  unknown") and D7 (`wecare-system-cleanup` not logging caller identity) are NOT
+  addressed; D7 is part of the owner's R2 decision.
+
 ## 2026-10-05 Full Wix site migration: old site/account/app ids repointed to the new ones
 - Scope: the owner moved to a NEW Wix site, account and headless app. Three identifiers
   changed together — site `fcd82f0c-…` -> `c993128b-…`, account `15f02319-…` ->

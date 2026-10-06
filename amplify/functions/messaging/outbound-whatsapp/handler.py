@@ -2545,14 +2545,37 @@ def _upload_media(media_file: str, media_type: str, message_id: str, phone_numbe
             }))
             
         except Exception as e:
-            logger.error(json.dumps({
+            # This log used to carry `errorType` and nothing else - twice, as a
+            # duplicated dict key. So an HTTPError read as `errorType: HTTPError`
+            # with no status and no Meta code, and the three failures this path
+            # actually produces were indistinguishable: 131053 (unsupported media
+            # type or size), 131052 (media download/upload error) and 190 (expired
+            # token). Those are the codes a human debugs from, so they go in.
+            registration_error = {
                 'event': 'media_registration_failed',
-                'errorType': type(e).__name__,
                 'errorType': type(e).__name__,
                 's3Key': s3_key,
                 'phoneNumberId': phone_number_id,
-                'requestId': request_id
-            }))
+                'requestId': request_id,
+            }
+            if isinstance(e, urllib.error.HTTPError):
+                # Same shape as `send_meta_error` above: normalize() returns a NESTED
+                # envelope, so read through 'error' or every field is silently None.
+                error_body = e.read().decode('utf-8', errors='ignore') if e.fp else ''
+                registration_error['httpCode'] = e.code
+                try:
+                    normalized = graph_errors.normalize(error_body, e.code).get('error', {})
+                except Exception:  # noqa: BLE001 - diagnostics must not break the error path
+                    normalized = {}
+                registration_error['metaCode'] = normalized.get('code')
+                registration_error['metaSubcode'] = normalized.get('error_subcode')
+                registration_error['fbtraceId'] = normalized.get('fbtrace_id')
+                # Meta's prose is deliberately NOT logged, only its presence: Meta
+                # writes the recipient into the message text of several messaging
+                # errors, and the token is in the request this response answers.
+                # See the reasoning on `_META_ERROR_SAFE_FIELDS` in lambda_utils/masking.py.
+                registration_error['metaMessagePresent'] = bool(normalized.get('message'))
+            logger.error(json.dumps(registration_error))
             # Media registration failed - cannot send media without mediaId
             return None, None, None
         

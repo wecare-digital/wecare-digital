@@ -689,85 +689,17 @@ def _send_direct_api_typing(whatsapp_message_id: str, meta_phone_id: str = None)
     return _send_direct_api_read_receipt(whatsapp_message_id, meta_phone_id=meta_phone_id, show_typing=True)
 
 
-def _download_media_direct_api(whatsapp_media_id: str, message_id: str, media_type: str,
-                                request_id: str, mime_type_hint: str = '') -> Optional[str]:
-    """Download media via Meta Graph API via Direct API.
-    
-    Two-step process:
-    1. GET /{media_id} to get the download URL
-    2. GET the download URL to get the actual file bytes
-    3. Upload to S3
-    """
-    token = _load_direct_api_token()
-    if not token:
-        logger.warning(f"No Direct API token for media download: {whatsapp_media_id}")
-        return None
-    
-    try:
-        app_secret = _direct_api_token_cache.get('app_secret', '')
-        auth_headers = {'Authorization': f'Bearer {token}'}
-        
-        # Step 1: Get media URL
-        media_url = f"https://graph.facebook.com/{META_API_VERSION}/{whatsapp_media_id}"
-        if app_secret:
-            proof = hmac.new(app_secret.encode(), token.encode(), hashlib.sha256).hexdigest()
-            media_url = f"{media_url}?appsecret_proof={proof}"
-        
-        req = urllib.request.Request(media_url, headers=auth_headers)
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            media_info = json.loads(resp.read().decode('utf-8'))
-        
-        download_url = media_info.get('url', '')
-        mime_type = media_info.get('mime_type', mime_type_hint)
-        
-        if not download_url:
-            logger.warning(f"No download URL for media {whatsapp_media_id}")
-            return None
-        
-        logger.info(json.dumps({
-            'event': 'direct_api_media_url_fetched',
-            'mediaId': whatsapp_media_id,
-            'mimeType': mime_type,
-            'requestId': request_id
-        }))
-        
-        # Step 2: Download the actual file
-        dl_req = urllib.request.Request(download_url, headers=auth_headers)
-        with urllib.request.urlopen(dl_req, timeout=60) as dl_resp:
-            file_bytes = dl_resp.read()
-        
-        # Step 3: Upload to S3
-        ext = _get_extension_from_mime(mime_type) if mime_type else _get_extension_from_type(media_type)
-        short_id = uuid.uuid4().hex[:8]
-        s3_key = f"{MEDIA_PREFIX}wecare-digital-{short_id}{ext}"
-        
-        content_type = mime_type or 'application/octet-stream'
-        s3.put_object(
-            Bucket=MEDIA_BUCKET,
-            Key=s3_key,
-            Body=file_bytes,
-            ContentType=content_type
-        )
-        
-        logger.info(json.dumps({
-            'event': 'direct_api_media_downloaded',
-            'mediaId': whatsapp_media_id,
-            's3Key': s3_key,
-            'fileSize': len(file_bytes),
-            'mimeType': mime_type,
-            'requestId': request_id
-        }))
-        
-        return s3_key
-        
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'direct_api_media_download_error',
-            'mediaId': whatsapp_media_id,
-            'errorType': type(e).__name__,
-            'requestId': request_id
-        }))
-        return None
+# NOTE: a second `_download_media_direct_api` used to be defined here, taking 5
+# positional parameters and no `phone_number_id`. It was dead code: Python binds the
+# name to whichever definition executes last, so the 6-parameter definition further
+# down in this file always won, and the logs prove it (`media_download_direct_api`
+# from that one, never `direct_api_media_downloaded` from this one). It was removed
+# on 2026-10-06 together with the two call sites that still passed 5 positional
+# arguments to the 6-parameter signature, which silently bound `request_id` to
+# `phone_number_id` and the mime hint to `request_id`. Harmless in effect - the
+# download does not send `phone_number_id` - but it made the request id in those log
+# lines wrong, and it would have become a real defect the moment anything started
+# reading that parameter. The surviving call sites pass keyword arguments.
 
 
 # TTL: 30 days in seconds
@@ -1383,7 +1315,12 @@ def _process_message(
         mime_type_hint = media_data.get('mime_type', '')
         if whatsapp_media_id:
             if _is_direct_api_phone(aws_phone_number_id):
-                s3_key = _download_media_direct_api(whatsapp_media_id, message_id, msg_type, request_id, mime_type_hint)
+                s3_key = _download_media_direct_api(
+                    whatsapp_media_id, message_id, msg_type,
+                    phone_number_id=aws_phone_number_id,
+                    request_id=request_id,
+                    mime_type_hint=mime_type_hint,
+                )
             else:
                 s3_key = _download_media(whatsapp_media_id, message_id, msg_type, aws_phone_number_id, request_id, mime_type_hint)
             if s3_key:
@@ -1416,7 +1353,12 @@ def _process_message(
                 if isinstance(edata, dict) and edata.get('id'):
                     mime_hint = edata.get('mime_type', '')
                     if _is_direct_api_phone(aws_phone_number_id):
-                        s3_key = _download_media_direct_api(edata['id'], message_id, etype, request_id, mime_hint)
+                        s3_key = _download_media_direct_api(
+                            edata['id'], message_id, etype,
+                            phone_number_id=aws_phone_number_id,
+                            request_id=request_id,
+                            mime_type_hint=mime_hint,
+                        )
                     else:
                         s3_key = _download_media(edata['id'], message_id, etype, aws_phone_number_id, request_id, mime_hint)
                     if s3_key:
@@ -2721,8 +2663,12 @@ def _download_media(whatsapp_media_id: str, message_id: str, media_type: str,
     """
     # Route Direct API phones to Meta Graph API download
     if _is_direct_api_phone(phone_number_id):
-        return _download_media_direct_api(whatsapp_media_id, message_id, media_type,
-                                          phone_number_id, request_id, mime_type_hint)
+        return _download_media_direct_api(
+            whatsapp_media_id, message_id, media_type,
+            phone_number_id=phone_number_id,
+            request_id=request_id,
+            mime_type_hint=mime_type_hint,
+        )
     
     try:
         # Use MEDIA_PREFIX directly  -  files land flat, no subfolders
@@ -2901,6 +2847,16 @@ def _store_media_record(message_id: str, s3_key: str, media_data: Dict, whatsapp
         now = int(time.time())
         
         media_record = {
+            # MediaFilesTable's hash key is `id`, not `fileId`. Without it every
+            # put_item failed with `ValidationException: Missing the key id` - 17 out
+            # of 17 writes in the seven days to 2026-10-06 - and the failure was
+            # swallowed by the except below as "the table may not exist", so nothing
+            # ever surfaced. The visible consequence was downstream: `mediaId` stayed
+            # null on the message, and the daily Meta media-DELETE cron
+            # (`wecare-media-cleanup`) scanned an empty table and deleted nothing,
+            # every day, reporting success. `fileId` is kept alongside for any reader
+            # written against the old shape.
+            'id': file_id,
             'fileId': file_id,
             'messageId': message_id,
             's3Key': s3_key,
