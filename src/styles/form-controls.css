@@ -637,3 +637,205 @@ input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)
     min-width: var(--tap-target);
   }
 }
+
+/* ==========================================================================
+   LAYER 2 - OUR OWN MENUS. THE CLASSES src/components/ui/Popover.tsx AND Select.tsx WEAR.
+
+   WHY THEY LIVE HERE AND NOT IN styled-jsx, which is the whole reason this block exists in
+   a stylesheet at all: Popover renders through ReactDOM.createPortal into document.body, so
+   the node is NOT in the tree styled-jsx transformed. A `<style jsx>` block in the component
+   would ship rules whose selectors carry a scope hash the portalled markup never receives -
+   every rule dead, the panel falling back to whatever global `div` and `ul` styling it lands
+   next to. That defect has shipped twice in this repo (the pill rendering as
+   "Sign inConfirm code", and the phone field's dial-code segment) and
+   src/test/StyledJsxBuildScope.test.ts was written for it.
+
+   WHAT STAYS INLINE, AND ONLY THIS: the COMPUTED geometry - `top`, `left`, `width` from the
+   anchor's getBoundingClientRect() - plus two custom properties carrying numbers that cannot
+   be constants here, `--ui-popover-z` (the layer, picked per design 5.1 from
+   src/lib/design-tokens.ts) and `--ui-popover-max-h` (the maxMenuHeight prop). The
+   DECLARATIONS that consume them are below, so no colour, border, radius or shadow is ever
+   written from the component. InfoTooltip.tsx positions the same way.
+
+   DIRECTION. Every property here is logical, as src/test/LogicalDirectionCss.test.tsx's
+   deliberately EMPTY allow-list requires. The one physical edge is the chevron's
+   `background-position: right ... center`, where `right` is a VALUE rather than a property -
+   permitted, and mirrored by the one [dir="rtl"] override at the end of this block, exactly
+   as the native select's arrow is.
+
+   ONE HONEST LIMITATION, because it is a property of portals and not a bug to be found
+   later: the panel is a child of <body>, so it inherits type and colour from <body> and NOT
+   from the panel that rendered the trigger. A Select inside a small-type workspace card
+   draws its menu at body size. That is the correct default for a menu - it is an overlay,
+   not part of the card - and it is recorded here so the first person to notice does not read
+   it as lost styling.
+   ========================================================================== */
+
+/* The field wrapper and the label Select OWNS. A <span>, not a <label>, and that is measured
+   rather than stylistic: a <button> is a labelable element, so a wrapping <label> would still
+   associate and the accessible name would be computed by walking the label's subtree - which
+   contains the trigger's own text, producing "Fit and size Choose your fit and size" - and a
+   <label> forwards clicks to its control, which can double-activate a button. The cursor is a
+   pointer because the span opens the menu on click, which is the affordance the 18 wrapping
+   <label> call sites had for free. */
+.ui-field {
+  display: block;
+}
+.ui-field-label {
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--control-fg);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+}
+
+/* THE TRIGGER. Every number is the token the native select already renders, so a migrated
+   control is visually indistinguishable from the Layer-1-skinned one beside it: the same 2px
+   #e5e7eb box, the same 13px radius at runtime, the same 44px floor, the same lime hover and
+   focus border, the same 0.45-alpha house focus ring, and the same drawn chevron from
+   --control-arrow at the same 11px inset and 14px size with the same 32px end padding.
+   NO font-size, here or anywhere in this file: Layout.css:132-154 records the incident an
+   !important font-size caused, and `font: inherit` takes the surrounding type without
+   declaring a floor. `inline-size: 100%` matches inner-ux.css's `.inner-page select` rule,
+   which is what keeps ~50 workspace pages' controls full-width. */
+.ui-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--control-h);
+  padding-block: 0;
+  padding-inline-start: var(--control-px);
+  padding-inline-end: var(--control-arrow-pad);
+  appearance: none;
+  -webkit-appearance: none;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  background-image: var(--control-arrow);
+  background-repeat: no-repeat;
+  background-position: right var(--control-arrow-inset) center;
+  background-size: var(--control-arrow-size) var(--control-arrow-size);
+  color: var(--control-fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+.ui-select-trigger:hover {
+  border-color: var(--control-border-hover);
+}
+/* :focus and not :focus-visible, for the reason the select rules above give at length: every
+   existing focus rule on a control in this tree targets :focus, and a rule on :focus-visible
+   does not suppress one on :focus - so mixing the two splits the ring by input device. */
+.ui-select-trigger:focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+/* Open is a state worth seeing: the border holds the focus colour while the menu is up even
+   if a click moved focus for a frame. */
+.ui-select-trigger[aria-expanded="true"] {
+  border-color: var(--control-border-focus);
+}
+.ui-select-trigger[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+/* aria-disabled rather than :disabled, so the empty-options case (clause 5) and a
+   deliberately disabled control render identically - the component sets both. */
+.ui-select-trigger[aria-disabled="true"] {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+/* The chosen value, truncated rather than wrapped: the trigger is one line at --control-h. */
+.ui-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The prompt reads at the muted rung, the same distinction a text input's ::placeholder makes
+   and the same token the native `option[value=""]` rule above uses. */
+.ui-select-placeholder {
+  color: var(--control-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* THE PORTALLED PANEL. `position: fixed` belongs here and not inline, because only the two
+   coordinates are computed. The z-index and the height ceiling read the custom properties the
+   component sets; the fallbacks are the design's own numbers so a panel still renders sanely
+   if a consumer forgets to set them. 1500 clears all persistent chrome measured
+   (.inner-header 99, .tabs 100/101, .sidebar 100 and 1000 at <=768px) and sits below the
+   app's real transient-overlay band of 9998-10002, so a modal or a toast still wins over a
+   stray open menu. */
+.ui-popover {
+  position: fixed;
+  z-index: var(--ui-popover-z, 1500);
+  max-block-size: var(--ui-popover-max-h, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  color: var(--control-fg);
+  box-shadow: var(--shadow-xl);
+}
+
+.ui-select-menu,
+.ui-select-group {
+  margin: 0;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-1);
+  list-style: none;
+}
+.ui-select-group {
+  padding-block: 0;
+  padding-inline: 0;
+}
+.ui-select-option {
+  display: block;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--control-fg);
+  cursor: pointer;
+}
+/* THE ACTIVE ROW IS GREY, NOT LIME, and that is the design contract rather than a
+   preference: lime is the actionable colour and must not become a passive control fill. The
+   keyboard-active row and the hovered row read identically on purpose - there is one notion
+   of "the row under the cursor or the caret" - and the SELECTED row is distinguished by
+   colour plus weight instead, so the two states can be told apart when they coincide. */
+.ui-select-option[data-active="true"],
+.ui-select-option:hover {
+  background-color: var(--bg-hover);
+}
+.ui-select-option[aria-selected="true"] {
+  color: var(--accent);
+  font-weight: var(--font-semibold);
+}
+.ui-select-option[aria-disabled="true"] {
+  color: var(--control-fg-muted);
+  cursor: not-allowed;
+}
+.ui-select-group-label {
+  display: block;
+  padding-block: var(--space-2) var(--space-1);
+  padding-inline: var(--space-2);
+  color: var(--control-fg-muted);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* The one mirror. background-position-x is not a logical property, so the chevron needs the
+   same single override the native select's arrow takes above. [dir="rtl"] rather than
+   :dir(rtl) because `dir` is declared on <html> in the exported HTML and rtlcheck.js fails
+   the build if it is absent. */
+[dir="rtl"] .ui-select-trigger {
+  background-position: left var(--control-arrow-inset) center;
+}
