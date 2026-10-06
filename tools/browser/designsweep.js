@@ -55,11 +55,58 @@ const VIEWPORTS = [ { n: 'desktop', w: 1280, h: 900 }, { n: 'phone', w: 390, h: 
 
 /* ── colour ─────────────────────────────────────────────────────────────── */
 
+/**
+ * The single colour entry point for this file. Returns null - never a partial object - on a
+ * parse miss, because every caller's failure branch depends on being able to tell "unparseable"
+ * from "transparent". over() treats a falsy colour as "use the backdrop", so a half-parsed
+ * value would be silently composited away.
+ *
+ * THE HEX BRANCH IS NOT COSMETIC. The scrollbar expectations are now harvested from
+ * getPropertyValue( '--scrollbar-thumb' ), which returns the AUTHORED text - `#4a9e73` - while
+ * the computed sides come back as `rgb(74, 158, 115)`. Without hex parsing the harvested side
+ * is null on every route.
+ *
+ * AND #rrggbbaa IS REACHED IN PRACTICE, not just in theory. Measured against the built export:
+ * the minifier rewrites the track's `rgba(209, 244, 112, 0.22)` to `#d1f47038`, so the
+ * harvested track arrives as an 8-digit hex while the computed side is still `rgba(...)`. That
+ * is also why sameColour compares alpha with a tolerance - 0x38/255 is 0.2196, not 0.22.
+ */
 function rgb ( value ) {
-  const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?/.exec( value || '' );
+  const s = ( value || '' ).trim();
+  const hex = /^#([0-9a-f]{3,8})$/i.exec( s );
+  if ( hex ) {
+    const h = hex[ 1 ];
+    // #rgb and #rgba expand each nibble; #rrggbb and #rrggbbaa are read in pairs. A 5- or
+    // 7-digit string is not a colour, so it falls through to null rather than being guessed at.
+    const pairs = h.length === 3 || h.length === 4
+      ? h.split( '' ).map( c => c + c )
+      : h.length === 6 || h.length === 8 ? h.match( /.{2}/g ) : null;
+    if ( !pairs ) return null;
+    const [ r, g, b, a ] = pairs.map( p => parseInt( p, 16 ) );
+    return { r, g, b, a: a === undefined ? 1 : a / 255 };
+  }
+  const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,/\s]+([\d.]+))?/.exec( s );
   if ( !m ) return null;
   return { r: +m[ 1 ], g: +m[ 2 ], b: +m[ 3 ], a: m[ 4 ] === undefined ? 1 : +m[ 4 ] };
 }
+
+/**
+ * Whole colour literals out of a string that holds more than one. `scrollbar-color` is a single
+ * computed string carrying BOTH colours, and the engine emits ", " separators inside `rgb()`,
+ * so splitting on whitespace breaks mid-colour. Match the literals instead.
+ */
+const COLOURS = /#[0-9a-f]{3,8}|rgba?\([^)]*\)/gi;
+
+/**
+ * Component-wise, never string-wise. The two sides of every scrollbar assertion arrive in
+ * DIFFERENT NOTATIONS - the harvested token is `#4a9e73`, the computed value is
+ * `rgb(74, 158, 115)` - so a string compare could never pass, whatever the colours were.
+ */
+const sameColour = ( a, b ) => {
+  const x = rgb( a ), y = rgb( b );
+  return !!x && !!y && x.r === y.r && x.g === y.g && x.b === y.b
+    && Math.abs( x.a - y.a ) < 0.01;
+};
 
 /** Composite a possibly-transparent colour over an opaque backdrop. */
 function over ( fg, bg ) {
@@ -220,6 +267,13 @@ const PROBE = () => {
       thumb: sb( '::-webkit-scrollbar-thumb' ).backgroundColor,
       track: sb( '::-webkit-scrollbar-track' ).backgroundColor,
       size: sb( '::-webkit-scrollbar' ).width,
+      // THE EXPECTATION IS HARVESTED, NOT PASTED - this file's own header rule. These two are
+      // what every scrollbar assertion below compares against, so changing the token in
+      // src/styles/tokens.css moves the gate with it instead of stranding it on a stale
+      // constant. `var()` inside a custom property is substituted at computed-value time, so a
+      // track declared `var(--lime-tint)` comes back resolved as `rgba(...)`.
+      thumbToken: html.getPropertyValue( '--scrollbar-thumb' ).trim(),
+      trackToken: html.getPropertyValue( '--scrollbar-track' ).trim(),
     },
   };
 };
@@ -260,16 +314,21 @@ const EXEMPT = [
 function checkRoute ( route, viewport, ref, r ) {
   const where = `${route} @${viewport.n}`;
 
-  /* ── 1. the scrollbar, and the two engines must agree ── */
-  const thumbExpected = { r: 26, g: 58, b: 42, a: 1 };
-  const trackExpected = { r: 209, g: 244, b: 112, a: 0.22 };
+  /* ── 1. the scrollbar, and the two engines must agree ──
+   * The expectations come from r.scrollbar.thumbToken / trackToken, harvested from the page.
+   * What this file asserts is that every surface AGREES on the token; WHICH colour the token
+   * holds is a policy judged from a diff and pinned by src/test/ScrollbarTokens.test.ts. The
+   * previous version pasted the then-current dark green into three places and would have
+   * passed happily had the token been set to lime.
+   */
+  const { thumbToken, trackToken } = r.scrollbar;
 
   if ( ENGINE === 'chromium' ) {
-    const thumb = rgb( r.scrollbar.thumb );
-    if ( !thumb || thumb.r !== thumbExpected.r || thumb.g !== thumbExpected.g
-      || thumb.b !== thumbExpected.b ) {
+    // The WebKit half, and the one that catches a stray ::-webkit-scrollbar block - the
+    // original defect, where a per-element rule with !important beat the global one.
+    if ( !sameColour( r.scrollbar.thumb, thumbToken ) ) {
       fail( where, `scrollbar thumb is ${r.scrollbar.thumb}, expected the --scrollbar-thumb `
-        + 'token rgb(26, 58, 42). A competing declaration has won - check for a stray '
+        + `token ${thumbToken}. A competing declaration has won - check for a stray `
         + '::-webkit-scrollbar block, especially one carrying !important.' );
     }
     const size = parseFloat( r.scrollbar.size );
@@ -281,20 +340,36 @@ function checkRoute ( route, viewport, ref, r ) {
 
   // scrollbar-color is read by Firefox and reported by both engines, so it is checked on both -
   // it is the half that silently disagreed with the WebKit half for the life of the defect.
-  const sc = ( r.scrollbar.color || '' ).toLowerCase();
-  if ( !/26,\s*58,\s*42/.test( sc ) ) {
-    fail( where, `scrollbar-color thumb is "${r.scrollbar.color}", expected rgb(26, 58, 42). `
-      + 'The two engines read different properties for the same thing, so this half drifting is '
-      + 'how the site ended up with one scrollbar in Firefox and another everywhere else.' );
+  const [ scThumb, scTrack ] = ( r.scrollbar.color || '' ).match( COLOURS ) || [];
+  if ( !sameColour( scThumb, thumbToken ) ) {
+    fail( where, `scrollbar-color thumb is "${scThumb}" within "${r.scrollbar.color}", expected `
+      + `the --scrollbar-thumb token ${thumbToken}. The two engines read different properties `
+      + 'for the same thing, so this half drifting is how the site ended up with one scrollbar '
+      + 'in Firefox and another everywhere else.' );
   }
-  if ( !/209,\s*244,\s*112/.test( sc ) ) {
-    fail( where, `scrollbar-color track is "${r.scrollbar.color}", expected the lime state tint` );
+  if ( !sameColour( scTrack, trackToken ) ) {
+    fail( where, `scrollbar-color track is "${scTrack}" within "${r.scrollbar.color}", expected `
+      + `the --scrollbar-track token ${trackToken}` );
   }
-  // The thumb has to be findable against its own track - WCAG 1.4.11, 3:1 for a control boundary.
-  const ratio = contrast( over( thumbExpected, WHITE ), over( trackExpected, WHITE ) );
-  if ( ratio < 3 ) {
-    fail( where, `scrollbar thumb-on-track contrast is ${ratio.toFixed( 2 )}:1, under the 3:1 `
-      + 'WCAG 1.4.11 asks of a control boundary' );
+
+  /* The thumb has to be findable against its own track - WCAG 1.4.11, 3:1 for a control
+   * boundary. THE rgb() CALLS ARE LOAD-BEARING AND MUST NOT BE REMOVED: over() returns its
+   * backdrop for a falsy fg, returns fg when fg.a >= 1, and otherwise reads .r/.g/.b/.a. A raw
+   * string is truthy and has no .a, so it falls through to the arithmetic and yields
+   * { r: NaN, g: NaN, b: NaN }; contrast() then returns NaN, and `NaN < 3` is false - so
+   * passing the authored strings straight in makes this assertion pass for ANY token value,
+   * which is worse than the constants it replaced. The explicit !t || !k branch is the other
+   * half: rgb() returns null on a parse miss, and a null reaching over() reads as
+   * "transparent, use the backdrop" rather than as a broken token. */
+  const t = rgb( thumbToken ), k = rgb( trackToken );
+  if ( !t || !k ) {
+    fail( where, `unparseable scrollbar token: thumb "${thumbToken}" track "${trackToken}"` );
+  } else {
+    const ratio = contrast( over( t, WHITE ), over( k, WHITE ) );
+    if ( ratio < 3 ) {
+      fail( where, `scrollbar thumb-on-track contrast is ${ratio.toFixed( 2 )}:1, under the 3:1 `
+        + 'WCAG 1.4.11 asks of a control boundary' );
+    }
   }
 
   /* ── 2. buttons ── */

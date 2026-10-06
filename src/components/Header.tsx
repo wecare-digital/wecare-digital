@@ -768,16 +768,18 @@ const Header: React.FC = () => {
           padding:4px 8px 4px 0;
           background:rgba(209,244,112,.08);
           border-radius:10px;
-          /* LIME THEMED SCROLLBAR, not the browser default grey. Firefox uses
-             scrollbar-color (thin), WebKit/Blink use the ::-webkit-scrollbar rules below;
-             both are declared so every engine shows the brand colour. */
+          /* scrollbar-width STAYS and the colour does NOT. Gecko does not inherit
+             scrollbar-width and the canonical block in src/styles/inner-ux.css declares it on
+             html only, so dropping this line hands Firefox a system-default gutter inside the
+             nav group. A LIME-THEMED SCROLLBAR WAS DELETED HERE: the Gecko half
+             (scrollbar-color, a lime thumb on a transparent track) and the Blink half (four
+             .nav-products-scroll::-webkit-scrollbar* rules, lime thumb, darker-lime hover,
+             8px wide). A lime thumb is 1.18:1 on its own track, far under the 3:1 WCAG 1.4.11
+             asks of a control boundary, and this nav mounts on every public page. The brand
+             shows in the TRACK; the thumb is the --scrollbar-thumb token. Do not restore
+             either half - src/test/ScrollbarDeclarations.test.ts pins the file set. */
           scrollbar-width:thin;
-          scrollbar-color:#d1f470 transparent;
         }
-        .nav-products-scroll::-webkit-scrollbar{width:8px}
-        .nav-products-scroll::-webkit-scrollbar-track{background:transparent}
-        .nav-products-scroll::-webkit-scrollbar-thumb{background:#d1f470;border-radius:20px}
-        .nav-products-scroll::-webkit-scrollbar-thumb:hover{background:#c5e866}
         /* The Customer service heading is a link, so it needs an affordance the plain
            headings do not have - without one it looks like the same inert label. */
         .nav-group-link{color:#1a3a2a;text-decoration:none;border-radius:8px}

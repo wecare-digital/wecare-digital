@@ -807,7 +807,14 @@ const SupportWidget: React.FC = () => {
         /* min-height:0 is load-bearing in a flex column: without it a flex item refuses to
            shrink below its content size, so max-height on the panel would be ignored and the
            rows would push straight through the header on a short screen. */
-        .wc-rows{overflow-y:auto;min-height:0;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(26,58,42,.15) transparent}
+        /* scrollbar-width STAYS; the colour was deleted. It was a 15%-alpha dark green on a
+           transparent track, which composites to #e8ecea over white - 1.16:1 on the lime track,
+           effectively invisible - and being Gecko-only it made Firefox disagree with every
+           other engine on a widget that mounts on every public page. The single declaration
+           lives in src/styles/inner-ux.css and reads the --scrollbar-* tokens. This line
+           stays because Gecko does not inherit scrollbar-width and that block sets it on
+           html only. */
+        .wc-rows{overflow-y:auto;min-height:0;overscroll-behavior:contain;scrollbar-width:thin}
         /* min-height is DECLARED, not inherited. Measured at 46px before this line, which
            came from a global min-height rule on every button in the shared stylesheet - the
            row happened to clear the touch-target floor by luck. Accidentally correct is how

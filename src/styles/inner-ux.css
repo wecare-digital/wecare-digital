@@ -2955,12 +2955,14 @@
    #fafafa, which is what Firefox was actually rendering. It is not restored, and the reason is
    measured rather than aesthetic: #d1f470 against a near-white track is 1.24:1, nowhere near
    the 3:1 WCAG 1.4.11 asks of a control boundary, so the thumb would be the one part of the
-   page a low-vision visitor cannot find. #1a3a2a on this track is 12.48:1. Lime is this
-   site's "actionable" colour and a scrollbar is not an action - so the brand shows in the
-   TRACK (the house lime state tint) and the thumb takes the home CTA's own border colour.
+   page a low-vision visitor cannot find. Lime is this site's "actionable" colour and a
+   scrollbar is not an action - so the brand shows in the TRACK (the house lime state tint)
+   and the thumb is its own mid-green, #4a9e73, measured at 3.10:1 on that track. It used to
+   alias the home CTA's border colour #1a3a2a, which is 11.85:1 there and reads near-black.
 
-   The colours are the --scrollbar-* tokens in src/styles/tokens.css, every one an alias of a
-   token that already existed. Do not hardcode a colour here, and do not add a second copy
+   The colours are the --scrollbar-* tokens in src/styles/tokens.css: the track is an alias of
+   --lime-tint, a tint that already existed, and the thumb and its hover are dedicated values
+   measured against that track. Do not hardcode a colour here, and do not add a second copy
    anywhere: a competing declaration does not look like a CSS conflict, it looks like a
    browser bug. tools/browser/designsweep.js asserts the two engines agree.
    ========================================================================== */
