@@ -304,7 +304,9 @@ async function loadComponent() {
 }
 
 async function selectMumbai() {
-  const input = screen.getByRole( 'combobox' );
+  // The map search is rendered only after the Maps tilesloaded signal flips mapReady.
+  // Wait for that UI boundary instead of racing it after the FakeMap constructor runs.
+  const input = await screen.findByRole( 'combobox' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
   fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
   await waitFor( () => {
@@ -591,8 +593,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rail.querySelectorAll( '.is-future' ) ).toHaveLength( 2 );
     expect( rail.textContent ).toContain( 'Now' );
 
-    const airTab = screen.getByRole( 'tab', { name: 'Air' } );
-    const weatherTab = screen.getByRole( 'tab', { name: 'Weather' } );
+    // Changing from the default place to Mumbai clears/reloads current conditions.
+    // Wait for the post-selection detail UI rather than observing the brief stale-data frame.
+    const airTab = await screen.findByRole( 'tab', { name: 'Air' } );
+    const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
     expect( airTab ).toHaveAttribute( 'aria-selected', 'true' );
     expect( container.querySelector( '[aria-label="Air details"]' ) ).not.toBeNull();
 
