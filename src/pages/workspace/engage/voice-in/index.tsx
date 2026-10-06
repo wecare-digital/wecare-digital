@@ -615,21 +615,27 @@ const VoiceInPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
             </div>
             <div className="form-group">
               <label>Audio Source</label>
+              {/* data-ui-raw ON ALL FOUR RADIOS. `.audio-option input[type="radio"]` hides them
+                  with display: none at :823 and the visible control is the .audio-option label
+                  itself - its 2px border and its lime .selected state. form-controls.css would
+                  otherwise draw an 18px bordered box with a white dot on each one, a second
+                  control on top of the first. They are inert today only because this file never
+                  declares `display`, which is an accident rather than a contract. */}
               <div className="audio-options">
                 <label className={ `audio-option ${obdAudioSource === 'default' ? 'selected' : ''}` }>
-                  <input type="radio" name="audioSource" checked={ obdAudioSource === 'default' } onChange={ () => setObdAudioSource( 'default' ) } />
+                  <input type="radio" data-ui-raw name="audioSource" checked={ obdAudioSource === 'default' } onChange={ () => setObdAudioSource( 'default' ) } />
                   🔔 Default Jingle
                 </label>
                 <label className={ `audio-option ${obdAudioSource === 'library' ? 'selected' : ''}` }>
-                  <input type="radio" name="audioSource" checked={ obdAudioSource === 'library' } onChange={ () => { setObdAudioSource( 'library' ); loadAudioLibrary(); } } />
+                  <input type="radio" data-ui-raw name="audioSource" checked={ obdAudioSource === 'library' } onChange={ () => { setObdAudioSource( 'library' ); loadAudioLibrary(); } } />
                   📚 Audio Library
                 </label>
                 <label className={ `audio-option ${obdAudioSource === 'tts' ? 'selected' : ''}` }>
-                  <input type="radio" name="audioSource" checked={ obdAudioSource === 'tts' } onChange={ () => setObdAudioSource( 'tts' ) } />
+                  <input type="radio" data-ui-raw name="audioSource" checked={ obdAudioSource === 'tts' } onChange={ () => setObdAudioSource( 'tts' ) } />
                   🗣️ Text to Speech
                 </label>
                 <label className={ `audio-option ${obdAudioSource === 'upload' ? 'selected' : ''}` }>
-                  <input type="radio" name="audioSource" checked={ obdAudioSource === 'upload' } onChange={ () => setObdAudioSource( 'upload' ) } />
+                  <input type="radio" data-ui-raw name="audioSource" checked={ obdAudioSource === 'upload' } onChange={ () => setObdAudioSource( 'upload' ) } />
                   📁 Upload WAV
                 </label>
               </div>

@@ -1,5 +1,656 @@
 {
-  "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `select` as a whole token, or names a class that appears as a className literal on a <select>, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
+  "checkboxRadio": {
+    "blindSpot": "A BARE `input` selector is invisible to this counting rule and reaches every type. Seven matter and are pinned by line in design.md 1.14c rather than by this scan: tokens.css:420, :434, :440, inner-pages.css:279, :1999, :2021 and MCPConnections.module.css:14. tokens.css:420 declares padding 10px 12px on every checkbox and radio in the app, which is why form-controls.css must declare padding: 0.",
+    "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `input[type=\"checkbox\"]` or `input[type=\"radio\"]` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
+    "elements": [
+      "checkbox",
+      "radio"
+    ],
+    "files": [
+      "src/components/BlogContribution.tsx",
+      "src/pages/workspace/engage/sms/index.tsx",
+      "src/pages/workspace/engage/voice-in/index.tsx",
+      "src/styles/Dashboard.css",
+      "src/styles/Layout.css",
+      "src/styles/Pages.css",
+      "src/styles/form-controls.css",
+      "src/styles/inner-pages.css",
+      "src/styles/inner-ux.css",
+      "src/styles/tokens.css"
+    ],
+    "hits": [
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "position:absolute;opacity:0;width:1px;height:1px;margin:0",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": true,
+        "line": 233,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "margin": false,
+          "opacity": false,
+          "width": false
+        },
+        "sel": ".bc-radio",
+        "spec": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 246,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "border-color": false,
+          "box-shadow": false
+        },
+        "sel": ".bc-radio:hover + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "border-color:#1a3a2a;background:#d1f470",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 250,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "background": false,
+          "border-color": false
+        },
+        "sel": ".bc-radio:checked + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "outline:3px solid #1a3a2a;outline-offset:2px",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 252,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "outline": false,
+          "outline-offset": false
+        },
+        "sel": ".bc-radio:focus-visible + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "transform:none;box-shadow:none",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 265,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "box-shadow": false
+        },
+        "sel": ".bc-radio:hover + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: auto; margin: 0;",
+        "file": "src/pages/workspace/engage/sms/index.tsx",
+        "geometry": false,
+        "line": 591,
+        "mech": "B-styledjsx",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "margin": false,
+          "width": false
+        },
+        "sel": ".checkbox-label input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "display: none;",
+        "file": "src/pages/workspace/engage/voice-in/index.tsx",
+        "geometry": false,
+        "line": 829,
+        "mech": "B-styledjsx",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "display": false
+        },
+        "sel": ".audio-option input[type=\"radio\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 16px; height: 16px; accent-color: #1a3a2a;",
+        "file": "src/pages/workspace/engage/voice-in/index.tsx",
+        "geometry": true,
+        "line": 831,
+        "mech": "B-styledjsx",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".checkbox-group input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: #000000;",
+        "file": "src/styles/Dashboard.css",
+        "geometry": true,
+        "line": 936,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".msg-select-row input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 20px; height: 20px;",
+        "file": "src/styles/Dashboard.css",
+        "geometry": true,
+        "line": 1835,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".msg-select-row input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "min-height: 32px;",
+        "file": "src/styles/Layout.css",
+        "geometry": true,
+        "line": 128,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "min-height": false
+        },
+        "sel": "button, a, input[type=\"checkbox\"], input[type=\"radio\"], select",
+        "spec": [
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "outline: none !important; box-shadow: none !important;",
+        "file": "src/styles/Layout.css",
+        "geometry": false,
+        "line": 1917,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "box-shadow": true,
+          "outline": true
+        },
+        "sel": "input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "outline: none !important; outline-width: 0 !important; outline-offset: 0 !important; box-shadow: none !important; border: none !important;",
+        "file": "src/styles/Layout.css",
+        "geometry": true,
+        "line": 1922,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border": true,
+          "box-shadow": true,
+          "outline": true,
+          "outline-offset": true
+        },
+        "sel": "input[type=\"checkbox\"]:focus, input[type=\"checkbox\"]:focus-visible, input[type=\"checkbox\"]:active",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent);",
+        "file": "src/styles/Pages.css",
+        "geometry": true,
+        "line": 1194,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "cursor": false,
+          "height": false,
+          "width": false
+        },
+        "sel": ".message-select-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 20px; height: 20px;",
+        "file": "src/styles/Pages.css",
+        "geometry": true,
+        "line": 3040,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".message-select-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: var(--color-primary); cursor: pointer;",
+        "file": "src/styles/Pages.css",
+        "geometry": true,
+        "line": 4465,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "cursor": false,
+          "height": false,
+          "width": false
+        },
+        "sel": ".checkbox-label input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "opacity: 0.4; cursor: not-allowed;",
+        "file": "src/styles/Pages.css",
+        "geometry": false,
+        "line": 4472,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "cursor": false,
+          "opacity": false
+        },
+        "sel": ".checkbox-label input[type=\"checkbox\"]:disabled",
+        "spec": [
+          0,
+          3,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "appearance: none !important; -webkit-appearance: none !important; -moz-appearance: none !important; width: var(--control-box); height: var(--control-box); padding: 0 !important; border-width: var(--control-border-w) !important; border-style: solid !important; border-color: var(--control-border); background-color: var(--control-bg); background-repeat: no-repeat !important; background-position: center !important; background-size: var(--control-indicator-size) !important; cursor: pointer; accent-color: var(--accent);",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 506,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "-webkit-appearance": true,
+          "appearance": true,
+          "border-color": false,
+          "border-style": true,
+          "border-width": true,
+          "cursor": false,
+          "height": false,
+          "padding": true,
+          "width": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input), input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "border-radius: var(--radius-sm) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 534,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border-radius": true
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "border-radius: var(--radius-full) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 539,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border-radius": true
+        },
+        "sel": "input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "border-color: var(--control-border-hover);",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 543,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border-color": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover, input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "background-color: var(--accent); background-image: var(--control-tick) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 553,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "background-image": true
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "background-color: var(--accent); background-image: var(--control-dot) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 567,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "background-image": true
+        },
+        "sel": "input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "background-color: var(--accent); background-image: var(--control-dash) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 576,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "background-image": true
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):indeterminate",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "box-shadow: var(--focus-ring) !important; outline: none;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 592,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "box-shadow": true,
+          "outline": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus, input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "min-height: var(--tap-target); min-width: var(--tap-target);",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 634,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "min-height": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input), input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: #1a3a2a;",
+        "file": "src/styles/inner-pages.css",
+        "geometry": true,
+        "line": 1144,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".layout .main-content .campaign-page .contact-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: var(--color-primary);",
+        "file": "src/styles/inner-ux.css",
+        "geometry": true,
+        "line": 1082,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".contact-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "min-height: 44px; min-width: 44px;",
+        "file": "src/styles/tokens.css",
+        "geometry": true,
+        "line": 574,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "min-height": false
+        },
+        "sel": "button, a, input[type=\"checkbox\"], input[type=\"radio\"], select, [role=\"button\"]",
+        "spec": [
+          0,
+          1,
+          1
+        ]
+      }
+    ],
+    "summary": {
+      "files": 10,
+      "geometryFiles": 9,
+      "geometryRuleSets": 16,
+      "matchModes": {
+        "class": 5,
+        "element": 24
+      },
+      "mechanisms": {
+        "A-global": {
+          "files": 7,
+          "geometryFiles": 7,
+          "geometryRuleSets": 14,
+          "ruleSets": 21
+        },
+        "A-module": {
+          "files": 0,
+          "geometryFiles": 0,
+          "geometryRuleSets": 0,
+          "ruleSets": 0
+        },
+        "B-styledjsx": {
+          "files": 3,
+          "geometryFiles": 2,
+          "geometryRuleSets": 2,
+          "ruleSets": 8
+        },
+        "C-injected": {
+          "files": 0,
+          "geometryFiles": 0,
+          "geometryRuleSets": 0,
+          "ruleSets": 0
+        }
+      },
+      "pairings": 0,
+      "ruleSets": 29
+    }
+  },
+  "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `select` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
   "files": [
     "src/components/AddressFields.tsx",
     "src/components/TemplateSender.tsx",
@@ -1771,7 +2422,7 @@
       "decls": "font-size: 16px !important;",
       "file": "src/styles/tokens.css",
       "geometry": false,
-      "line": 549,
+      "line": 567,
       "mech": "A-global",
       "mode": "element",
       "pairing": false,
@@ -1790,7 +2441,7 @@
       "decls": "min-height: 44px; min-width: 44px;",
       "file": "src/styles/tokens.css",
       "geometry": true,
-      "line": 556,
+      "line": 574,
       "mech": "A-global",
       "mode": "element",
       "pairing": true,
@@ -1809,7 +2460,7 @@
       "decls": "font-size: 16px !important;",
       "file": "src/styles/tokens.css",
       "geometry": false,
-      "line": 665,
+      "line": 683,
       "mech": "A-global",
       "mode": "element",
       "pairing": false,
@@ -1856,6 +2507,10 @@
     "files": 29,
     "geometryFiles": 28,
     "geometryRuleSets": 41,
+    "matchModes": {
+      "class": 17,
+      "element": 66
+    },
     "mechanisms": {
       "A-global": {
         "files": 9,

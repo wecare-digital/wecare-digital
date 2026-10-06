@@ -357,10 +357,28 @@
      is the same tick in an 18px box and in the 44px box the <=768px floor block restores. */
   /* 1.3a */
   --control-tick: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
-  /* --control-dot (the radio's checked disc) and --control-dash (the indeterminate dash) are
-     the other two of this block's four assets. They are NOT declared yet: their only consumers
-     are the checkbox and radio rules, which land in batch 1.3c, and a token whose consumer does
-     not exist is surface area a test cannot see. They arrive here marked 1.3c. */
+  /* The RADIO's checked dot, as a background-image and NOT as an inset box-shadow. White disc
+     on the --accent fill, same centred fixed-size mechanism as the tick. THIS IS NOT A STYLE
+     CHOICE: the focus ring is also a box-shadow and carries !important, so a dot drawn with
+     box-shadow vanishes the moment the radio is focused - both sit at (0,5,1) with one
+     pseudo-class each, and a keyboard-focused checked radio would render as a solid accent
+     disc. Composing the two was considered and rejected: it works, but it leaves box-shadow
+     doing two jobs on one control type, so the next person to add a :checked:hover or a
+     :disabled:checked has to remember to re-compose and nothing fails if they do not. Drawing
+     the dot here makes box-shadow mean FOCUS RING and nothing else, which is a property a test
+     can state as a negative - and FormControlsCss.test.ts states it. Radius 5 of 24 so the disc
+     lands at ~5px inside the 12px indicator box, the same optical weight as the 4px inset ring
+     it replaces. */
+  /* 1.3c */
+  --control-dot: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='5' fill='%23ffffff'/%3E%3C/svg%3E");
+  /* The indeterminate dash. White on --accent, drawn at --control-indicator-size and CENTRED,
+     same mechanism as --control-tick. Its ONE consumer in the tree is
+     src/components/dashboard/tabs/DataTab.tsx:182's tri-state "select all" checkbox, which no
+     harness here can load. The :indeterminate rule MUST also set background-color:
+     var(--accent), or this is a white dash on a white box - an empty box, which is the precise
+     "looks permanently unchecked" failure batch 1.3c exists to prevent. */
+  /* 1.3c */
+  --control-dash: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E");
 }
 
 /* ========================================

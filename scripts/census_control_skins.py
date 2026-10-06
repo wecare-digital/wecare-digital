@@ -8,8 +8,8 @@ Mechanisms scanned:
                              document.head via createElement('style')
 
 Match modes:
-  1  the selector contains `select` as a whole token
-  2  the selector names a class that is a className literal on a <select>
+  1  the selector contains the element as a whole token
+  2  the selector names a class that is a className literal on that element
 
 Parsing notes (these matter and the previous census got them wrong):
   - `${ ... }` interpolation is opaque: its braces must not be read as CSS
@@ -27,8 +27,9 @@ IS NOT RESTATABLE FROM THE DESIGN'S TABLES: a defensible reimplementation lands 
 expected value gets edited instead of the bug fixed. So this file is the single source of
 the count. Do not reimplement it; call it.
 
-  python scripts/census_control_skins.py           human-readable report
-  python scripts/census_control_skins.py --json    the same scan as JSON
+  python scripts/census_control_skins.py                            human report, <select>
+  python scripts/census_control_skins.py --elements checkbox,radio   human report, 1.3c's set
+  python scripts/census_control_skins.py --json                      BOTH sets, as JSON
 
 TWO ADDITIONS WERE MADE WHEN IT WAS COMMITTED, neither of which touches how it counts:
 
@@ -40,6 +41,37 @@ TWO ADDITIONS WERE MADE WHEN IT WAS COMMITTED, neither of which touches how it c
      than re-deriving the scan in TypeScript. The self-test exists for the reason
      ScrollbarDeclarations.test.ts has one: a scanner with a parsing bug reports FEWER files
      than exist, which reads as "the gate passed".
+
+A THIRD ADDITION LANDED WITH BATCH 1.3c, and it does not touch the counting rule either -
+it WIDENS THE ELEMENT SET the same rule is applied to.
+
+  --elements checkbox,radio
+
+Batch 1.3c puts 53 checkboxes and 18 radios in scope, and until this flag existed nothing
+inventoried them: this scanner was hardcoded to <select> and the design's assertion 10 had
+no producer at all, while assertion 3 had this one. That asymmetry is what left 71 controls
+uncounted for five revisions - a twenty-ninth file skinning a select failed the suite while
+a twenty-first file skinning a checkbox landed unnoticed. So assertion 10 now shares
+assertion 3's producer rather than getting a second scanner that could disagree with it.
+
+The counting rule is the SAME SENTENCE with the element set substituted: one rule set = one
+{...} block, counted once regardless of how many compounds its selector list holds or how
+many at-rules it is nested inside; a block counts when its selector names
+input[type="checkbox"] or input[type="radio"] as a whole token, OR names a class that
+appears as a className literal on one, AND its body sets at least one box property.
+
+STATED BLIND SPOT, because a census presented as exhaustive is how the select half went
+wrong twice: a BARE `input` selector is invisible to this rule, and it reaches every type.
+Seven of them matter and they are pinned by line in design.md 1.14c rather than by this
+scan - tokens.css:420, :434, :440, inner-pages.css:279, :1999, :2021 and
+MCPConnections.module.css:14. tokens.css:420 is the one that forces form-controls.css to
+declare `padding: 0` on the checkbox.
+
+--json emits BOTH sets from one invocation, because src/test/fixtures/control-skin-census.json
+is one committed fixture and two scans in two files would drift apart. The select set keeps
+the top-level keys it has always had; the checkbox/radio set arrives under `checkboxRadio`.
+--elements selects the element set for the HUMAN report only; with --json present, --json
+wins and everything is emitted.
 """
 import json
 import os
@@ -55,6 +87,21 @@ BOX_PROPS = {
 }
 GEOMETRY = {'border', 'border-width', 'border-radius', 'padding', 'height',
             'min-height', 'appearance', '-webkit-appearance'}
+# EXTRA properties that count as skinning A CHECKBOX OR A RADIO and nothing else. This is
+# the one place batch 1.3c touches how the scan counts, and it is scoped to the new element
+# set so the 83/41 select baseline cannot move: adding `width` to BOX_PROPS globally would
+# make `.inner-page select { width: 100% }` a counted rule set and the select total 84, which
+# is precisely the "the expected value gets edited instead of the bug fixed" failure the
+# header warns about.
+#
+# WHY THESE THREE. The two visually-hidden native controls in the tree are hidden with
+# `display: none` (voice-in/index.tsx:823) and sized away with `width: auto; margin: 0`
+# (engage/sms/index.tsx:591). Neither is a box property, so neither was visible to the
+# select-era set - and they are exactly the two rules batch 1.3c has to SEE, because our
+# appearance:none box would be drawn on top of a control a call site deliberately hid.
+# A census of checkbox skins blind to `display: none` would miss the one defect the batch
+# exists to avoid. `height` is already in BOX_PROPS and is not repeated.
+CONTROL_BOX_PROPS = {'display', 'width', 'margin'}
 
 
 # ---------------------------------------------------------------- primitives
@@ -142,14 +189,15 @@ def rule_sets(body, base=0):
         i += 1
 
 
-def box_props(decls):
+def box_props(decls, extra=frozenset()):
     found = {}
+    wanted = BOX_PROPS | set(extra)
     for d in decls.split(';'):
         if ':' not in d:
             continue
         p, v = d.split(':', 1)
         p = p.strip().lower()
-        if p in BOX_PROPS:
+        if p in wanted:
             found[p] = ('!important' in v.lower())
     return found
 
@@ -218,7 +266,15 @@ def iter_sources():
                         yield rel, 'C-injected', i, src[i:j]
 
 
-def classnames_on_select():
+def classnames_on(tags):
+    """Classes worn by any of `tags`, each an (element, type-attribute-or-None) pair.
+
+    This is the same pass that resolved `<select>`'s classes; the only thing batch 1.3c
+    changed is that the element it looks for is an argument. The brace-aware walk to the
+    closing `>` is load-bearing and not caution: an `=>` inside an onChange handler ends a
+    naive scan early, and a tag whose className sits after the handler is then read as
+    having none.
+    """
     out = {}
     for dirpath, _d, files in os.walk(os.path.join(ROOT, 'src')):
         if '/test' in dirpath:
@@ -229,34 +285,64 @@ def classnames_on_select():
             p = os.path.join(dirpath, f)
             rel = os.path.relpath(p, ROOT)
             src = open(p, encoding='utf-8').read()
-            for m in re.finditer(r'<select(?=[\s/>])', src):
-                i, depth = m.end(), 0
-                while i < len(src):
-                    c = src[i]
-                    if c == '{':
-                        depth += 1
-                    elif c == '}':
-                        depth -= 1
-                    elif c == '>' and not depth:
-                        break
-                    i += 1
-                tag = src[m.start():i + 1]
-                line = src.count('\n', 0, m.start()) + 1
-                for cm in re.finditer(
-                        r'className=(?:"([^"]*)"|\{\s*[\'"]([^\'"]*)[\'"]\s*\})', tag):
-                    for cls in (cm.group(1) or cm.group(2) or '').split():
-                        if cls.startswith(('focus:', 'hover:')):
-                            continue
-                        out.setdefault(cls, []).append(f'{rel}:{line}')
+            for tag_name, want_type in tags:
+                for m in re.finditer(r'<' + tag_name + r'(?=[\s/>])', src):
+                    i, depth = m.end(), 0
+                    while i < len(src):
+                        c = src[i]
+                        if c == '{':
+                            depth += 1
+                        elif c == '}':
+                            depth -= 1
+                        elif c == '>' and not depth:
+                            break
+                        i += 1
+                    tag = src[m.start():i + 1]
+                    # An <input> only counts for the set that asked for its type.
+                    if want_type and not re.search(
+                            r'type=(?:"' + want_type + r'"|\{\s*[\'"]'
+                            + want_type + r'[\'"]\s*\})', tag):
+                        continue
+                    line = src.count('\n', 0, m.start()) + 1
+                    for cm in re.finditer(
+                            r'className=(?:"([^"]*)"|\{\s*[\'"]([^\'"]*)[\'"]\s*\})', tag):
+                        for cls in (cm.group(1) or cm.group(2) or '').split():
+                            if cls.startswith(('focus:', 'hover:')):
+                                continue
+                            out.setdefault(cls, []).append(f'{rel}:{line}')
     return out
 
 
 SELECT_TOKEN = re.compile(r'(?<![\w-])select(?![\w-])')
 INPUT_TOKEN = re.compile(r'(?<![\w-])input(?![\w-])')
+# `input[type="checkbox"]` as a WHOLE TOKEN. The quote style and a trailing `i` flag are
+# tolerated because a selector that means the same thing must count the same.
+CHECKBOX_TOKEN = re.compile(r'(?<![\w-])input\[\s*type\s*=\s*[\'"]?checkbox[\'"]?[^\]]*\]')
+RADIO_TOKEN = re.compile(r'(?<![\w-])input\[\s*type\s*=\s*[\'"]?radio[\'"]?[^\]]*\]')
+
+# One element set per name. `token` matches the element written as a selector token; `tags`
+# is what classnames_on() resolves classes from. The two must describe the SAME element or
+# the two match modes count different things.
+ELEMENTS = {
+    'select': {'token': SELECT_TOKEN, 'tags': [('select', None)], 'extra': frozenset()},
+    'checkbox': {'token': CHECKBOX_TOKEN, 'tags': [('input', 'checkbox')],
+                 'extra': CONTROL_BOX_PROPS},
+    'radio': {'token': RADIO_TOKEN, 'tags': [('input', 'radio')],
+              'extra': CONTROL_BOX_PROPS},
+}
+DEFAULT_ELEMENTS = ['select']
 
 
-def scan():
-    classes = classnames_on_select()
+def scan(elements=None):
+    elements = list(elements or DEFAULT_ELEMENTS)
+    for name in elements:
+        if name not in ELEMENTS:
+            raise SystemExit(f'unknown element set: {name} '
+                             f'(known: {",".join(sorted(ELEMENTS))})')
+    tokens = [ELEMENTS[n]['token'] for n in elements]
+    tags = [t for n in elements for t in ELEMENTS[n]['tags']]
+    extra = frozenset().union(*[ELEMENTS[n]['extra'] for n in elements])
+    classes = classnames_on(tags)
     hits = []
     for rel, mech, off, body in iter_sources():
         clean = mask_interpolation(blank_css_comments(body))
@@ -267,7 +353,7 @@ def scan():
                 continue
             mode = None
             matched = []
-            if SELECT_TOKEN.search(sel_one):
+            if any(t.search(sel_one) for t in tokens):
                 mode = 'element'
             else:
                 matched = [c for c in classes
@@ -276,7 +362,7 @@ def scan():
                     mode = 'class'
             if not mode:
                 continue
-            props = box_props(decls)
+            props = box_props(decls, extra)
             if not props:
                 continue
             # o points just past the previous '}'. Advance to the first
@@ -296,7 +382,14 @@ def scan():
         # list, so form-controls.css reaches one half of it and not the other. The count is
         # the producer of design 4.3's divergence table, and a twenty-third means a new
         # pairing exists whose accept-versus-rewrite decision has not been taken.
-        h['pairing'] = bool(h['geometry'] and SELECT_TOKEN.search(h['sel'])
+        #
+        # ONLY MEANINGFUL FOR THE SELECT SET, which is why it is gated on it rather than
+        # computed and quietly ignored: every selector in the checkbox/radio set names an
+        # `input` by construction, so the flag would be true for every geometry hit that
+        # also happened to mention a select and false for the rest, which is not the
+        # question the pairing count asks.
+        h['pairing'] = bool('select' in elements and h['geometry']
+                            and SELECT_TOKEN.search(h['sel'])
                             and INPUT_TOKEN.search(h['sel']))
     return hits
 
@@ -353,35 +446,78 @@ def summarise(hits):
         'geometryRuleSets': len(geo),
         'geometryFiles': len({h['file'] for h in geo}),
         'pairings': len([h for h in hits if h['pairing']]),
+        'matchModes': {'element': len([h for h in hits if h['mode'] == 'element']),
+                       'class': len([h for h in hits if h['mode'] == 'class'])},
         'mechanisms': mech,
     }
 
 
+COUNTING_RULE = (
+    'one rule set = one {{...}} block, counted once regardless of how many compounds its '
+    'selector list holds or how many at-rules it is nested inside; a block counts when its '
+    'selector names {subject} as a whole token, or names a class that appears as a '
+    'className literal on one, AND its body sets at least one box property. Geometry is the '
+    'subset whose body sets border, border-width, border-radius, padding, height, '
+    'min-height, appearance or -webkit-appearance.'
+)
+BLIND_SPOT = (
+    'A BARE `input` selector is invisible to this counting rule and reaches every type. '
+    'Seven matter and are pinned by line in design.md 1.14c rather than by this scan: '
+    'tokens.css:420, :434, :440, inner-pages.css:279, :1999, :2021 and '
+    'MCPConnections.module.css:14. tokens.css:420 declares padding 10px 12px on every '
+    'checkbox and radio in the app, which is why form-controls.css must declare padding: 0.'
+)
+
+
+def parse_elements(argv):
+    """--elements a,b. Returns the element-set names for the HUMAN report."""
+    for i, a in enumerate(argv):
+        if a == '--elements':
+            if i + 1 >= len(argv):
+                raise SystemExit('--elements needs a comma-separated list, e.g. '
+                                 '--elements checkbox,radio')
+            return [p.strip() for p in argv[i + 1].split(',') if p.strip()]
+        if a.startswith('--elements='):
+            return [p.strip() for p in a.split('=', 1)[1].split(',') if p.strip()]
+    return list(DEFAULT_ELEMENTS)
+
+
 def main():
-    hits = scan()
-    if '--json' in sys.argv[1:]:
+    argv = sys.argv[1:]
+    if '--json' in argv:
+        # BOTH SETS FROM ONE INVOCATION. The fixture is one committed file and two scans in
+        # two files would drift apart - which is the whole reason assertion 10 shares
+        # assertion 3's producer instead of getting a second scanner. The select set keeps
+        # the top-level keys it has always had, so the assertions written against it do not
+        # move; the checkbox/radio set arrives alongside under `checkboxRadio`.
+        sel = scan(['select'])
+        cbr = scan(['checkbox', 'radio'])
         json.dump({
             'generator': 'scripts/census_control_skins.py --json',
-            'countingRule': (
-                'one rule set = one {...} block, counted once regardless of how many '
-                'compounds its selector list holds or how many at-rules it is nested '
-                'inside; a block counts when its selector names `select` as a whole token, '
-                'or names a class that appears as a className literal on a <select>, AND '
-                'its body sets at least one box property. Geometry is the subset whose body '
-                'sets border, border-width, border-radius, padding, height, min-height, '
-                'appearance or -webkit-appearance.'
-            ),
-            'summary': summarise(hits),
-            'files': sorted({h['file'] for h in hits}),
+            'countingRule': COUNTING_RULE.format(subject='`select`'),
+            'summary': summarise(sel),
+            'files': sorted({h['file'] for h in sel}),
             'selfTest': self_test(),
-            'hits': hits,
+            'hits': sel,
+            'checkboxRadio': {
+                'elements': ['checkbox', 'radio'],
+                'countingRule': COUNTING_RULE.format(
+                    subject='`input[type="checkbox"]` or `input[type="radio"]`'),
+                'blindSpot': BLIND_SPOT,
+                'summary': summarise(cbr),
+                'files': sorted({h['file'] for h in cbr}),
+                'hits': cbr,
+            },
         }, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write('\n')
         return 0
 
+    elements = parse_elements(argv)
+    hits = scan(elements)
     summary = summarise(hits)
     geo = [h for h in hits if h['geometry']]
-    print(f'TOTAL rule sets skinning a select: {len(hits)} '
+    print(f'ELEMENT SET: {",".join(elements)}')
+    print(f'TOTAL rule sets skinning {"/".join(elements)}: {len(hits)} '
           f'in {len({h["file"] for h in hits})} files')
     print(f'  of which touch GEOMETRY (border/radius/padding/height/appearance): '
           f'{len(geo)} in {len({h["file"] for h in geo})} files')
@@ -399,8 +535,15 @@ def main():
         print(f'    PROP {imp}')
         print(f'    DECL {h["decls"][:260]}')
     print()
-    print(f'PAIRING rule sets (one selector list naming both an input and a select): '
-          f'{summary["pairings"]}')
+    print(f'MATCH MODES: {summary["matchModes"]["element"]} on the element token, '
+          f'{summary["matchModes"]["class"]} on a resolved class')
+    if 'select' in elements:
+        print(f'PAIRING rule sets (one selector list naming both an input and a select): '
+              f'{summary["pairings"]}')
+    else:
+        print('PAIRING is not computed for this element set - see the note in scan().')
+        print()
+        print('BLIND SPOT: ' + BLIND_SPOT)
     st = self_test()
     print('SELF-TEST on the planted sample: '
           + ('PASS' if all(v is True for k, v in st.items() if k != 'sample'

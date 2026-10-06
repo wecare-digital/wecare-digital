@@ -445,6 +445,156 @@ input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):
   background-color: var(--control-tint);
 }
 
+/* ==========================================================================
+   BATCH 1.3c - CHECKBOX AND RADIO. THE LAST LAYER 1 BATCH.
+
+   53 checkboxes and 18 radios across 35 files, and 20 rule sets in 9 files already skin one
+   (mechanism A 12 in 6 files, B/C 8 in 3). It is its own batch because the failure mode is
+   loud rather than subtle: appearance: none WITHOUT a drawn indicator makes every checkbox on
+   the site look permanently unchecked.
+
+   TWO OF THOSE 20 RULE SETS ARE OPT-OUTS, not competitors. BlogContribution.tsx's .bc-radio is
+   visually hidden with opacity: 0 and the visible control is drawn on a sibling
+   .bc-choice-face; voice-in/index.tsx's .audio-option input[type="radio"] is hidden with
+   display: none and the visible control is the label. Our rule would draw a SECOND control on
+   top of the first in both cases. Both happen to be inert today - we never declare `display`,
+   and `opacity` only on a select's :disabled - but that is an accident, so both are marked
+   [data-ui-raw] at the call site instead, which is what the attribute is for.
+   ========================================================================== */
+
+/* THE DRAWN BOX, checkbox and radio together. The radius differs and is declared separately
+   below; everything else is shared.
+
+   `padding: 0` IS NOT TIDINESS AND MUST NOT BE REMOVED. tokens.css:532 is a BARE `input`
+   selector at (0,0,1) declaring `padding: 10px 12px` on every checkbox and radio in the app,
+   and `* { box-sizing: border-box }` (Layout.css:25-29) then means a `width: 18px` box with
+   12px of inline padding and a 2px border cannot be 18px - the used width becomes the padding
+   plus the border. MEASURED in Chromium on a synthetic page carrying exactly tokens.css:532's
+   declarations: a UA-drawn checkbox computes padding 0px and border 0px and is 13px wide,
+   because Blink's style adjuster zeroes an author padding and border for a checkbox and a
+   radio specifically; add appearance: none and the authored 10px/12px LIVES and the box becomes
+   28px wide; add width: 18px as well and it is STILL 28px; add padding: 0 and it is 18px.
+   So appearance: none is precisely what makes that padding start to matter, and this one
+   declaration is what makes --control-box the box.
+
+   width and height carry NO !important, deliberately, and for two reasons. The <=768px block
+   below raises the floor with min-height/min-width, which are different properties whose used
+   size is simply the larger, so nothing is competing there. And inner-pages.css:1144 is
+   (0,5,1) - the one rule in the whole census that out-specifies this one - and it declares
+   18px, the same as --control-box, so leaving it to win costs nothing and keeps an agreement
+   rather than starting a fight.
+
+   THE BORDER LONGHANDS' !important IS LOAD-BEARING. DO NOT TIDY IT OFF. Layout.css:1920-1928
+   exists to erase a checkbox's focus indication and declares `border: none !important` at
+   :1927 on :focus, :focus-visible AND :active, at (0,2,1). A state rule carrying !important
+   beats a base rule that does not at any specificity, so a non-important border here would
+   draw a 2px box that VANISHES the instant the control is clicked or tabbed to - an
+   appearance: none checkbox with no border and no tick, which is an invisible control. This is
+   the one place in Layer 1 where dropping an !important produces nothing on screen rather than
+   a cosmetic difference. Our (0,4,1) beats that (0,2,1) at equal importance.
+
+   border-color stays NON-important, per the policy above, and there is one recorded residual:
+   inner-pages.css:280's `border-color: #d1f470 !important` reaches a focused checkbox (bare
+   `input` again) and beats us on importance, so a focused workspace checkbox takes a lime
+   border as well as our ring. That is the same appearance the select already has on focus, so
+   it is the consistent outcome rather than a defect - but it is a thing a reviewer will see
+   and this file does not declare it, so it is written down here. The RESTING border stays
+   #e5e7eb: that rule is :focus only.
+
+   No transition is declared. tokens.css:543's `transition: all` still reaches a checkbox -
+   batch 1.3a retired only `select` from that rule - so the border and the fill already ease. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  width: var(--control-box);
+  height: var(--control-box);
+  padding: 0 !important;
+  border-width: var(--control-border-w) !important;
+  border-style: solid !important;
+  /* non-important on purpose - see the residual note above */
+  border-color: var(--control-border);
+  /* non-important on purpose, as on the select: a call site may tint the resting box */
+  background-color: var(--control-bg);
+  /* THE INDICATOR IS A FIXED-SIZE CENTRED IMAGE, NEVER SIZED TO THE BOX. That is what makes
+     the tick 12px in an 18px box and 12px in the 44px box the media block below restores,
+     instead of a tick stretched across a phone-sized tile. */
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: var(--control-indicator-size) !important;
+  cursor: pointer;
+  /* A fallback for any engine that ignores appearance: none. Inert in Blink once it lands,
+     which is why the drawn indicator below cannot rely on it. */
+  accent-color: var(--accent);
+}
+
+/* 8px AT RUNTIME, not the 6px tokens.css:139 declares: inner-ux.css:91 redeclares --radius-sm
+   on :root and _app.tsx imports it later. Same import-order fact as --control-radius. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* 9999px, and --radius-full is not redeclared anywhere, so this one is what it says. */
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  border-radius: var(--radius-full) !important;
+}
+
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover,
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover {
+  border-color: var(--control-border-hover);
+}
+
+/* THE CHECKED STATES. Each one sets the FILL as well as the MARK, and that pairing is not
+   optional: a white tick, dot or dash on --control-bg is a white mark on a white box, which is
+   an empty box - the exact "looks permanently unchecked" failure this batch exists to prevent.
+   Measured: no rule in src/styles declares an !important background on a selector that reaches
+   a checkbox, so these non-important fills at (0,5,1) win outright. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked {
+  background-color: var(--accent);
+  background-image: var(--control-tick) !important;
+}
+
+/* THE RADIO'S DOT IS A background-image AND NOT AN INSET box-shadow. This is a correctness
+   fix, not a preference: in this file box-shadow MEANS focus ring and the focus rule carries
+   !important, so a dot drawn with `box-shadow: inset 0 0 0 4px` would sit at the same (0,5,1)
+   with one pseudo-class and lose - a keyboard-focused checked radio would render as a solid
+   accent disc with no dot at all. Composing the two into a :checked:focus rule works and was
+   rejected: it leaves box-shadow doing two jobs, so the next person to add a :checked:hover
+   has to remember to re-compose and nothing fails if they do not. Drawing the dot as an image
+   makes box-shadow mean one thing on both control types, which FormControlsCss.test.ts states
+   as a negative - no :checked and no :indeterminate rule here may set box-shadow. */
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked {
+  background-color: var(--accent);
+  background-image: var(--control-dot) !important;
+}
+
+/* :indeterminate occurs exactly ONCE in the tree - DataTab.tsx:182's tri-state select-all
+   checkbox, set through a ref rather than an attribute - on an authenticated dashboard tab no
+   harness here can load. Its evidence is DataTabCheckbox.test.tsx, which is a DOM-STATE test
+   (jsdom computes no background-image), plus the owner's signed-in pass. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):indeterminate {
+  background-color: var(--accent);
+  background-image: var(--control-dash) !important;
+}
+
+/* :focus, NOT :focus-visible, and the reason is a measurement rather than a preference about
+   whether a ring is wanted on a click. inner-pages.css:279-284 (decl :282) and :2021-2033
+   (decl :2031) BOTH paint a 0.3-alpha ring on a focused checkbox with !important, on :focus,
+   on every authenticated page - they reach it because their selector lists name a BARE
+   `input`, and they already defeat Layout.css:1919's `box-shadow: none !important` on source
+   order. So a ring is painted today. With ours on :focus-visible only, a CLICKED workspace
+   checkbox would keep 0.3 and a TABBED one would take 0.45: two ring values on one control
+   split by input device, across 53 checkboxes, invisible to every test here and to any single
+   screenshot. This selector is (0,5,1) counting the pseudo-class and (0,4,1) without it, which
+   out-specifies both of those at equal importance either way, so :focus gives one ring
+   appearance site-wide and this file keeps one pseudo-class convention throughout. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
 /* RTL. Padding is logical already, so it mirrors for free. The chevron does not:
    background-position-x is not a logical property, so the physical edge needs one override.
    [dir="rtl"] rather than :dir(rtl) because `dir` is declared on <html> in the exported HTML
@@ -452,4 +602,38 @@ input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):
    engine-support question needs answering. */
 [dir="rtl"] select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) {
   background-position: left var(--control-arrow-inset) center !important;
+}
+
+/* ==========================================================================
+   THE PHONE TAP-TARGET FLOOR - RESTORED, NOT PRESERVED, AND THE MEDIA BLOCK IS WHY IT IS SAFE.
+
+   THE 44px FLOOR ON A CHECKBOX DOES NOT HOLD TODAY. Measured in source:
+   Layout.css:127-129's `min-height: 32px` and tokens.css:576-581's `min-height: 44px` are
+   BOTH (0,1,1) on the input[type="checkbox"] compound - one element plus one attribute
+   selector each - and a media query changes no specificity. Source order decides, and
+   tokens.css reaches the page through Layout.css:8's @import, a fact Layout.css documents in
+   its own words. So Layout.css:127 is LATER and 32px wins at every viewport, phones included.
+   tokens.css:581's `min-width: 44px` is unopposed and does hold, so the phone box today is
+   44 wide by 32 high.
+
+   BOTH HALVES OF THIS MATTER AND FormControlsCss.test.ts PINS BOTH. A top-level min-height
+   would render a 44px tile at 1280px - the hazard that was the whole reason for declaring
+   nothing at all. A missing media-block one leaves the phone box at 32px. So the declaration
+   lives INSIDE this block and nowhere else: above 768px the block does not exist, so it cannot
+   reach desktop by any cascade route.
+
+   min-width goes with it even though tokens.css:581's min-width is currently unopposed,
+   because leaving one of the pair to a rule in another file is how the pair came apart in the
+   first place.
+
+   A 44px rounded tile with a CENTRED 12px tick - not a stretched one; the indicator is a
+   fixed-size background-image - is a deliberate phone affordance, and it is the thing to look
+   at first when reviewing this batch.
+   ========================================================================== */
+@media (max-width: 768px) {
+  input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+  input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+    min-height: var(--tap-target);
+    min-width: var(--tap-target);
+  }
 }

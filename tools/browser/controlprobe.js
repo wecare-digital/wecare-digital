@@ -31,9 +31,19 @@
  * nothing, and touches no payment path — it reads computed styles.
  *
  *   node tools/browser/controlprobe.js --cart
+ *   node tools/browser/controlprobe.js --post <slug>
  *   BASE=http://localhost:3000 node tools/browser/controlprobe.js --cart
  *
- * --post is reserved for batch 1.3c's checkbox/radio surface and is not implemented here.
+ * --post IS BATCH 1.3c'S ONE PUBLIC SURFACE, and the slug is an argument rather than a
+ * constant on purpose. post/[slug].tsx's getStaticPaths maps listPublicBlogPosts(), so the
+ * exported set is BUILD-TIME DATA; a literal here would be the crew-t-shirt mistake in a
+ * different file - a route that does not exist, producing a screenshot of a 404 offered as
+ * evidence. Read one from the build and pass it in:
+ *
+ *   npm run build && node tools/browser/controlprobe.js --post "$( ls out/post | head -1 )"
+ *
+ * An empty out/post/ means the corpus fetch failed, and the gate fails rather than passing on
+ * zero routes.
  */
 'use strict';
 
@@ -228,11 +238,174 @@ async function probeCart ( browser, base ) {
   return failures;
 }
 
+/**
+ * --post: THE RADIO, PUBLICLY AND FOR REAL. The only checkbox-or-radio surface in this repo a
+ * harness can reach at all.
+ *
+ * WHAT IS ON THE PAGE. post/[slug].tsx:533 renders <BlogContribution> with no gate, and the
+ * component renders CONTRIBUTION_CHOICES' three radios unconditionally while initialising
+ * variantId to the first choice - so ONE radio is checked and TWO are not, both states on
+ * screen in one shot, at both viewports, with no seeding and no interaction.
+ *
+ * THE GATE IS NOT "PRESENT AND VISIBLE" ON THE RADIO, AND THAT IS A CORRECTION RATHER THAN A
+ * RELAXATION. The design asked for `input[type="radio"]` to be asserted present AND VISIBLE.
+ * Measured, that assertion cannot pass on this surface and never could:
+ * BlogContribution.tsx:233 is `.bc-radio{position:absolute;opacity:0;width:1px;height:1px}`,
+ * so the radio is visually hidden BY CONSTRUCTION and the control a visitor actually sees is
+ * the sibling `.bc-choice-face` pill. A probe written to the letter would fail on correct
+ * output, which is the one thing a gate must not do. So it asserts the four things that are
+ * both true and worth proving, and fails before recording a single number if any is wrong:
+ *
+ *   1. exactly THREE input[type="radio"] are present - the page really rendered the widget
+ *   2. ALL THREE carry [data-ui-raw] - the opt-out batch 1.3c adds is actually on the element
+ *   3. the three .bc-choice-face pills are present AND VISIBLE - the control a user sees
+ *   4. exactly ONE radio is checked - so checked and unchecked are both on screen
+ *
+ * AND THEN THE NUMBERS THAT PROVE THE OPT-OUT WORKS. The opt-out is tested on the properties
+ * form-controls.css DECLARES - `appearance: none`, a 2px border and a 9999px radius, all three
+ * with !important - and NOT on the element's width.
+ *
+ * WIDTH WAS THE FIRST ATTEMPT AND IT WAS WRONG, which is worth keeping because it failed in the
+ * direction that looks like a bug in the code under test. The reasoning was: our rule draws an
+ * 18px box, `.bc-radio` declares 1px, so width > 2 means the skin leaked past [data-ui-raw].
+ * Measured, the hidden radio computes 1x32 at 1280px and 44x32 at 390px - and the 44 is
+ * tokens.css:581's PRE-EXISTING `@media (max-width: 768px) { input[type="radio"] { min-width:
+ * 44px } }`, which has nothing to do with this batch and which `min-width` beats a 1px `width`
+ * with regardless of who declared it. So the first run reported a leak that was not there, on a
+ * rule that predates the task. Measured on the same control, `appearance`, `border-width` and
+ * `border-radius` are all still the UA's, which is the actual question.
+ *
+ * The width and height are still RECORDED, because they corroborate something the design could
+ * only derive: Layout.css:127's `min-height: 32px` really does beat tokens.css:581's 44px at
+ * EVERY viewport, phone included - the height is 32px at 390px - while the unopposed
+ * `min-width: 44px` really does hold there. That is half of the cascade claim batch 1.3c's
+ * media block exists to correct, measured on a public route rather than predicted.
+ */
+const POST_RADIO = 'input[type="radio"]';
+const POST_FACE = '.bc-choice-face';
+
+async function probePost ( browser, base, slug ) {
+  let failures = 0;
+  const rows = [];
+
+  for ( const vp of VIEWPORTS ) {
+    const context = await browser.newContext( { viewport: { width: vp.width, height: vp.height } } );
+    await installVisible( context );
+    const page = await context.newPage();
+    await gotoStable( page, `${base}/post/${slug}/` );
+
+    const state = await page.evaluate( ( [ radioSel, faceSel ] ) => {
+      const radios = [ ...document.querySelectorAll( radioSel ) ];
+      const faces = [ ...document.querySelectorAll( faceSel ) ];
+      const read = el => {
+        const s = getComputedStyle( el );
+        return {
+          width: s.width, height: s.height, opacity: s.opacity,
+          appearance: s.appearance || s.webkitAppearance,
+          borderTopWidth: s.borderTopWidth, borderTopLeftRadius: s.borderTopLeftRadius,
+          backgroundImage: s.backgroundImage === 'none' ? 'none' : 'image',
+        };
+      };
+      return {
+        radioCount: radios.length,
+        optedOut: radios.filter( r => r.hasAttribute( 'data-ui-raw' ) ).length,
+        checked: radios.filter( r => r.checked ).length,
+        faceCount: faces.length,
+        facesVisible: faces.filter( f => window.__visible( f ) ).length,
+        radio: radios.length ? read( radios[ 0 ] ) : null,
+        face: faces.length ? read( faces[ 0 ] ) : null,
+        checkedFace: faces.length ? read( faces[ 0 ] ) : null,
+      };
+    }, [ POST_RADIO, POST_FACE ] );
+
+    // THE GATE, all four parts, before any number is recorded.
+    const problems = [];
+    if ( state.radioCount !== 3 ) {
+      problems.push( `expected 3 ${POST_RADIO}, found ${state.radioCount} - BlogContribution did not render` );
+    }
+    if ( state.optedOut !== state.radioCount || state.radioCount === 0 ) {
+      problems.push( `${state.optedOut} of ${state.radioCount} radios carry [data-ui-raw] - the opt-out is missing from the call site` );
+    }
+    if ( state.faceCount !== 3 || state.facesVisible !== 3 ) {
+      problems.push( `expected 3 visible ${POST_FACE} pills, found ${state.faceCount} present / ${state.facesVisible} visible` );
+    }
+    if ( state.checked !== 1 ) {
+      problems.push( `expected exactly 1 checked radio, found ${state.checked} - checked and unchecked are not both on screen` );
+    }
+    if ( problems.length ) {
+      failures += problems.length;
+      for ( const p of problems ) console.error( `FAIL ${vp.name}: ${p}` );
+      await context.close();
+      continue;
+    }
+
+    // THE OPT-OUT TEST, on the three properties form-controls.css declares with !important.
+    // If any of them is ours, the skin reached a control a call site deliberately hid and is
+    // drawing a second one on top of the pill.
+    const leaks = [];
+    if ( state.radio.appearance === 'none' ) leaks.push( 'appearance: none' );
+    if ( parseFloat( state.radio.borderTopWidth ) > 0 ) leaks.push( `border ${state.radio.borderTopWidth}` );
+    if ( parseFloat( state.radio.borderTopLeftRadius ) > 0 ) leaks.push( `radius ${state.radio.borderTopLeftRadius}` );
+    if ( state.radio.backgroundImage !== 'none' ) leaks.push( 'a drawn indicator' );
+    if ( leaks.length ) {
+      failures++;
+      console.error(
+        `FAIL ${vp.name}: the hidden radio has taken ${leaks.join( ', ' )} - form-controls.css `
+        + 'reached it despite [data-ui-raw], so a second control is being drawn over the pill.'
+      );
+    }
+
+    rows.push( {
+      viewport: vp.name,
+      control: POST_RADIO + ' (hidden, data-ui-raw)',
+      width: num( state.radio.width ), height: num( state.radio.height ),
+      opacity: state.radio.opacity,
+      appearance: state.radio.appearance,
+      borderTopWidth: num( state.radio.borderTopWidth ),
+      radius: num( state.radio.borderTopLeftRadius ),
+      indicator: state.radio.backgroundImage,
+      optOut: leaks.length ? 'FAIL' : 'PASS',
+    } );
+    rows.push( {
+      viewport: vp.name,
+      control: POST_FACE + ' (the control a user sees)',
+      width: num( state.face.width ), height: num( state.face.height ),
+      opacity: state.face.opacity,
+      appearance: state.face.appearance,
+      borderTopWidth: num( state.face.borderTopWidth ),
+      radius: num( state.face.borderTopLeftRadius ),
+      indicator: state.face.backgroundImage,
+      optOut: '-',
+    } );
+
+    console.log(
+      `${vp.name}  /post/${slug}/  3 radios, 3 with [data-ui-raw], `
+      + `${state.checked} checked, 3 visible pills, hidden radio ${num( state.radio.width )}x`
+      + `${num( state.radio.height )} appearance:${state.radio.appearance} border:`
+      + `${num( state.radio.borderTopWidth )}  ${leaks.length ? 'FAIL' : 'PASS'}`
+    );
+    await context.close();
+  }
+
+  console.table( rows );
+  return failures;
+}
+
 ( async () => {
-  const modes = process.argv.slice( 2 );
-  if ( !modes.includes( '--cart' ) ) {
+  const argv = process.argv.slice( 2 );
+  const postIndex = argv.indexOf( '--post' );
+  const wantCart = argv.includes( '--cart' );
+  const slug = postIndex >= 0 ? argv[ postIndex + 1 ] : null;
+
+  if ( !wantCart && postIndex < 0 ) {
     console.error( 'usage: node tools/browser/controlprobe.js --cart' );
-    console.error( '  --post is reserved for batch 1.3c and is not implemented yet.' );
+    console.error( '       node tools/browser/controlprobe.js --post <slug>' );
+    console.error( '  the slug is build-time data - read one with `ls out/post | head -1`.' );
+    process.exit( 2 );
+  }
+  if ( postIndex >= 0 && ( !slug || slug.startsWith( '--' ) ) ) {
+    console.error( '--post needs a slug, e.g. --post "$( ls out/post | head -1 )".' );
+    console.error( '  An empty out/post/ means the corpus fetch failed; that is a FAILURE, not zero work.' );
     process.exit( 2 );
   }
 
@@ -240,7 +413,8 @@ async function probeCart ( browser, base ) {
   const browser = await launch();
   let failures = 0;
   try {
-    failures += await probeCart( browser, site.base );
+    if ( wantCart ) failures += await probeCart( browser, site.base );
+    if ( slug ) failures += await probePost( browser, site.base, slug );
   } finally {
     await browser.close();
     await site.close();

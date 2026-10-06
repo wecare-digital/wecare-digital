@@ -26,6 +26,12 @@ import census from './fixtures/control-skin-census.json';
  *
  *   .venv/bin/python scripts/census_control_skins.py --json > src/test/fixtures/control-skin-census.json
  *
+ * ONE COMMAND, BOTH ELEMENT SETS. `--json` emits the select census under the top-level keys and
+ * the checkbox/radio census under `checkboxRadio`, because the fixture is one committed file and
+ * two scans written separately would drift apart. That is also why assertion 10 reads this
+ * fixture rather than getting a scanner of its own: it shares assertion 3's producer, so a count
+ * that moves means a RULE moved and not that two scanners disagree.
+ *
  * A real change then shows up as a fixture diff AND a failing literal, which is a reviewable
  * pair rather than an integer nobody can re-derive. LINE NUMBERS IN THE FIXTURE ARE NOT
  * ASSERTED — they move whenever any of these 29 files is edited, and asserting them would make
@@ -145,16 +151,31 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( formControlsCode ).toMatch( /transition:/ );
   } );
 
-  it( '6. no checkbox or radio rule sets min-height or min-width outside a media block', () => {
-    // THE TOP-LEVEL NEGATIVE ONLY. The paired positive - that the <=768px block DOES set both -
-    // belongs to batch 1.3c, which is what writes the checkbox and radio rules; asserting it now
-    // would be asserting a rule that does not exist yet. The negative is live from this batch
-    // because the hazard it guards is permanent: a top-level `min-height: !important` on a
-    // checkbox renders a 44px tile at 1280px, and a media-scoped one cannot, because the block
-    // does not exist above 768px.
-    const topLevel = formControlsCode.split( /@media[^{]*\{/ )[ 0 ];
+  it( '6. the tap-target floor is declared in the <=768px block and nowhere else', () => {
+    // A NEGATIVE PAIRED WITH A POSITIVE, and each one passes without the other, which is why
+    // both halves are here. The negative alone passes on a file that simply dropped the phone
+    // floor; the positive alone says nothing about a stray desktop min-height. And the hazards
+    // are different in kind: a top-level min-height renders a 44px tile at 1280px, while a
+    // missing media-block one leaves the phone box at Layout.css:127's 32px.
+    //
+    // THIS RESTORES A FLOOR RATHER THAN PRESERVING ONE. Layout.css:127's `min-height: 32px`
+    // and tokens.css:576's `min-height: 44px` are BOTH (0,1,1) on the checkbox compound, and
+    // tokens.css arrives through Layout.css:8's @import, so Layout.css is later in source order
+    // and 32px wins at every viewport - phones included. tokens.css:581's min-width is
+    // unopposed, so the phone box today is 44 wide by 32 high.
+    const blocks = formControlsCode.split( /@media[^{]*\{/ );
+    const topLevel = blocks[ 0 ];
     expect( topLevel ).not.toMatch( /input\[type="checkbox"\][^{]*\{[^}]*min-(height|width)/ );
     expect( topLevel ).not.toMatch( /input\[type="radio"\][^{]*\{[^}]*min-(height|width)/ );
+
+    // The positive, scoped to the <=768px block. There is exactly one media block in this file
+    // and it is the floor; if a second is ever added, this locates the right one by its query.
+    const phone = /@media\s*\(\s*max-width:\s*768px\s*\)\s*\{([\s\S]*)$/.exec( formControlsCode )?.[ 1 ] || '';
+    expect( phone, 'the <=768px block must exist' ).not.toBe( '' );
+    expect( phone ).toMatch( /input\[type="checkbox"\][^{]*\{[^}]*min-height/ );
+    expect( phone ).toMatch( /input\[type="checkbox"\][^{]*\{[^}]*min-width/ );
+    expect( phone ).toMatch( /min-height:\s*var\(--tap-target\)/ );
+    expect( phone ).toMatch( /min-width:\s*var\(--tap-target\)/ );
   } );
 
   it( '7. the pairing count is 21', () => {
@@ -235,7 +256,126 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( selfTest.reported.map( r => r.sel ) ).toEqual( [ '.ui-planted', '.ui-planted:focus' ] );
   } );
 
-  it( '12. the two data-URI assets this batch declares are pinned by content', () => {
+  it( '10. the set of files skinning a checkbox or a radio is exactly the frozen allow-list', () => {
+    // WHY THIS EXISTS AT ALL. Until batch 1.3c nothing inventoried the 53 checkboxes and 18
+    // radios: the scanner was hardcoded to <select>, so a twenty-ninth file skinning a select
+    // failed this suite while a twenty-first file skinning a checkbox landed unnoticed. That
+    // asymmetry is what left 71 controls without an inventory for five revisions. Assertion 10
+    // now shares assertion 3's PRODUCER - the same committed Python, run with
+    // `--elements checkbox,radio` - rather than getting a second scanner that could disagree
+    // with it. Regenerate the fixture with the single command in this file's header; --json
+    // emits both element sets from one invocation for exactly that reason.
+    //
+    // THE COUNTING RULE, same sentence with the element set substituted: one rule set = one
+    // {...} block, counted once regardless of how many compounds its selector list holds or
+    // how many at-rules it is nested inside; a block counts when its selector names
+    // input[type="checkbox"] or input[type="radio"] as a whole token, OR names a class worn by
+    // one, AND its body sets at least one box property.
+    //
+    // ONE DELIBERATE WIDENING, scoped to this element set and recorded because it is the only
+    // place 1.3c touches how the scan counts. `display`, `width` and `margin` count as skinning
+    // a checkbox or radio and nothing else. The two visually-hidden native controls in the tree
+    // are hidden with `display: none` (voice-in/index.tsx:823) and sized away with
+    // `width: auto; margin: 0` (engage/sms/index.tsx:591), and neither property was in the
+    // select-era set - so without the widening the census reports 18 in 8 files and is blind to
+    // the two rules this batch most needs to see, because our appearance:none box would be
+    // drawn on top of a control a call site deliberately hid. Adding `width` to the shared set
+    // instead would make `.inner-page select { width: 100% }` a counted rule and move the
+    // select total to 84, which is the "edit the expected value instead of fixing the bug"
+    // failure this fixture exists to prevent.
+    //
+    // THE PRE-BATCH FIGURE WAS 20 RULE SETS IN 9 FILES (A 12 in 6, B+C 8 in 3; 15 matched on
+    // the element token, 5 on a resolved class), reproduced exactly on the tree before this
+    // batch wrote a line of CSS. AND THE 20 IS NOT 20 RULES ON A CHECKBOX: it is 16 rules on the
+    // control plus FOUR sibling-combinator rules keyed on `.bc-radio` that style the `+`
+    // sibling `.bc-choice-face` rather than the radio itself. Those four are what a user of
+    // /post/<slug>/ actually sees, they are untouched by this batch, and they are counted
+    // because the counting rule matches on the selector naming a class worn by a radio - which
+    // is the right behaviour, since a rule keyed on a control's class is exactly the kind of
+    // thing a later edit could turn into a competitor.
+    //
+    // STATED BLIND SPOT, carried here rather than left in the design: a BARE `input` selector
+    // is invisible to this counting rule and reaches every type. Seven matter and are pinned by
+    // LINE rather than by this scan - tokens.css:420, :434, :440, inner-pages.css:279, :1999,
+    // :2021 and MCPConnections.module.css:14 (design.md 1.14c's second table; line numbers are
+    // that document's, taken before batches 1.1-1.3a moved them). tokens.css:420 is the one
+    // that forces form-controls.css to declare `padding: 0` on the checkbox, and
+    // inner-pages.css:279 and :2021 are the two that already paint a 0.3-alpha focus ring on
+    // every workspace checkbox - which is why the focus rule targets :focus and not
+    // :focus-visible. A census presented as exhaustive is how the select half went wrong twice.
+    const cbr = census.checkboxRadio;
+
+    // 9 of these 10 are pre-existing and stay. form-controls.css is the new one - and it has to
+    // be allow-listed, because without it this assertion fails the moment this batch writes the
+    // very file it exists to protect.
+    expect( cbr.files ).toEqual( [
+      'src/components/BlogContribution.tsx',
+      'src/pages/workspace/engage/sms/index.tsx',
+      'src/pages/workspace/engage/voice-in/index.tsx',
+      'src/styles/Dashboard.css',
+      'src/styles/Layout.css',
+      'src/styles/Pages.css',
+      'src/styles/form-controls.css',
+      'src/styles/inner-pages.css',
+      'src/styles/inner-ux.css',
+      'src/styles/tokens.css',
+    ] );
+
+    // Counts asserted separately from the file set, so a new rule in an already-allowed file is
+    // caught as well as a new file. 20 pre-batch + form-controls.css's own 9 = 29. The 9 are:
+    // the shared drawn box, the checkbox radius, the radio radius, :hover, checkbox :checked,
+    // radio :checked, :indeterminate, :focus, and the <=768px floor.
+    expect( cbr.summary.ruleSets ).toBe( 29 );
+    expect( cbr.summary.files ).toBe( 10 );
+    expect( cbr.summary.geometryRuleSets ).toBe( 16 );
+    expect( cbr.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 21, files: 7 } );
+    expect( cbr.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
+    expect( cbr.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 8, files: 3 } );
+    expect( cbr.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
+    // 5 class-resolved, all five in BlogContribution: `.bc-radio` itself and the four sibling
+    // rules. If this moves, a class worn by a checkbox or radio gained a skin somewhere.
+    expect( cbr.summary.matchModes ).toMatchObject( { element: 24, class: 5 } );
+    expect( cbr.hits.filter( h => h.file === 'src/components/BlogContribution.tsx' ) ).toHaveLength( 5 );
+    expect( cbr.hits.filter( h => h.file === 'src/styles/form-controls.css' ) ).toHaveLength( 9 );
+  } );
+
+  it( '11. no :checked and no :indeterminate rule in form-controls.css sets box-shadow', () => {
+    // A NEGATIVE, and the only mechanical guard against a collision inside this file's own
+    // contract. box-shadow MEANS focus ring here and carries !important; the radio's checked
+    // dot and the indeterminate dash are background-images for that reason. Draw an indicator
+    // with `box-shadow: inset 0 0 0 4px` instead and it sits at the same (0,5,1) with one
+    // pseudo-class as the focus rule, loses to its !important, and a keyboard-focused checked
+    // radio renders as a solid accent disc with no dot.
+    //
+    // THE NEGATIVE IS THE HALF THAT EARNS ITS PLACE. The positive it pairs with - that the
+    // focus rule declares `box-shadow: var(--focus-ring) !important` - passes whether or not
+    // the collision exists, which is precisely how the defect shipped in a previous revision of
+    // the design with everything else green.
+    const offenders: string[] = [];
+    for ( const m of formControlsCode.matchAll( /([^{}]+)\{([^}]*)\}/g ) ) {
+      const selector = m[ 1 ].replace( /\s+/g, ' ' ).trim();
+      if ( !/:checked|:indeterminate/.test( selector ) ) continue;
+      if ( /box-shadow/.test( m[ 2 ] ) ) offenders.push( selector );
+    }
+    expect( offenders ).toEqual( [] );
+
+    // And the paired positive, so a file that simply deleted the indicator rules cannot pass.
+    // Three state rules exist and each one draws with background-image, not box-shadow.
+    const stateRules = [ ...formControlsCode.matchAll( /([^{}]+)\{([^}]*)\}/g ) ]
+      .filter( m => /:checked|:indeterminate/.test( m[ 1 ] ) );
+    expect( stateRules ).toHaveLength( 3 );
+    for ( const m of stateRules ) {
+      expect( m[ 2 ], `${m[ 1 ].trim()} must draw with background-image` ).toMatch( /background-image:\s*var\(--control-(tick|dot|dash)\)/ );
+      // :indeterminate MUST set the fill as well as the mark, or it is a white dash on a white
+      // box - an empty box, which is the "looks permanently unchecked" failure this batch is for.
+      expect( m[ 2 ], `${m[ 1 ].trim()} must set the accent fill` ).toMatch( /background-color:\s*var\(--accent\)/ );
+    }
+    expect( formControlsCode ).toMatch(
+      /input\[type="checkbox"\][^{]*:indeterminate\s*\{[^}]*background-color:\s*var\(--accent\)/
+    );
+  } );
+
+  it( '12. all four data-URI assets are pinned by content', () => {
     // A data URI cannot read a custom property, so the hue inside one is the single hardcoded
     // colour in the FORM CONTROLS block. Pinning the assets is what makes the count a fact
     // rather than a sentence: an earlier revision declared two and needed three, so an
@@ -248,15 +388,34 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( tick ).toContain( 'stroke=\'%23ffffff\'' );
     expect( tick ).toContain( 'M20 6L9 17l-5-5' );
 
-    // Both are marked as this batch's.
+    // The radio's dot. A FILL rather than a stroke, and r='5' of a 24-unit viewBox so the disc
+    // lands at about 5px inside the 12px indicator box - the same optical weight as the 4px
+    // inset ring an earlier revision drew with box-shadow, which is the mechanism assertion 11
+    // now forbids.
+    const dot = /--control-dot:\s*url\("data:image\/svg\+xml[^"]*"\)/.exec( tokens )?.[ 0 ] || '';
+    expect( dot ).toContain( 'fill=\'%23ffffff\'' );
+    expect( dot ).toContain( 'r=\'5\'' );
+
+    // The indeterminate dash. Its one consumer in the tree is DataTab.tsx:182's tri-state
+    // select-all checkbox.
+    const dash = /--control-dash:\s*url\("data:image\/svg\+xml[^"]*"\)/.exec( tokens )?.[ 0 ] || '';
+    expect( dash ).toContain( 'stroke=\'%23ffffff\'' );
+    expect( dash ).toContain( 'M6 12h12' );
+
+    // Each one is marked with the batch that declared it. An earlier revision of the design
+    // claimed "two data URIs" while needing a third that no token held, so an implementer had
+    // to invent an asset the suite could not see. Pinning all four is what makes the count of
+    // four a fact rather than a sentence.
     expect( tokens ).toMatch( /\/\* 1\.3a \*\/\s*\n\s*--control-arrow:/ );
     expect( tokens ).toMatch( /\/\* 1\.3a \*\/\s*\n\s*--control-tick:/ );
+    expect( tokens ).toMatch( /\/\* 1\.3c \*\/\s*\n\s*--control-dot:/ );
+    expect( tokens ).toMatch( /\/\* 1\.3c \*\/\s*\n\s*--control-dash:/ );
 
-    // --control-dot and --control-dash are the other two of the four. They belong to batch 1.3c
-    // with the checkbox and radio rules that consume them, and a token whose consumer does not
-    // exist is surface area no test can see. This assertion inverts when 1.3c lands.
-    expect( tokens ).not.toMatch( /--control-dot:/ );
-    expect( tokens ).not.toMatch( /--control-dash:/ );
+    // And all four are consumed, so none of them is surface area no test can see.
+    for ( const token of [ 'arrow', 'tick', 'dot', 'dash' ] ) {
+      expect( formControlsCode, `--control-${token} must have a consumer` )
+        .toMatch( new RegExp( `var\\(--control-${token}\\)` ) );
+    }
   } );
 
   /**
