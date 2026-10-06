@@ -163,6 +163,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ deletingId, setDeletingId ] = useState<string | null>( null );
     const [ visibleCount, setVisibleCount ] = useState( 50 );
     const [ selectedWaba, setSelectedWaba ] = useState( WABAS[ 0 ].id );
+    // True once the agent has changed "Send from" for the conversation that is
+    // currently open. Reset on every thread change, so the default is always the
+    // thread's own WABA and a deliberate override is per-conversation rather than
+    // sticky across threads. State rather than a ref: it is read during render.
+    const [ wabaOverridden, setWabaOverridden ] = useState( false );
     const [ showTemplateSender, setShowTemplateSender ] = useState( false );
     const [ aiSuggesting, setAiSuggesting ] = useState( false );
     const [ summary, setSummary ] = useState( '' );
@@ -453,6 +458,29 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         return { phone, waba, contactId };
     }, [ thread, selected ] );
 
+    // Reply on the conversation's own WABA. `selectedWaba` was seeded to WABAS[0]
+    // and never synced, which is why an agent answering a WABA2 thread sent from
+    // WABA1 — 17 `typing_indicator_error` and 12 code-100 "Message ID … does not
+    // exist" in 30 days.
+    // Keyed on `selected` ONLY: `messages` repolls every 15s, so keying on the
+    // derived waba would stamp on an agent's manual "Send from" choice on every
+    // poll. Guarded on membership, like whatsapp/inbox.tsx — a partner WABA id
+    // would put the <select> on a value with no matching <option>.
+    useEffect( () => {
+        setWabaOverridden( false );
+        const w = replyTarget.waba;
+        if ( w && WABAS.some( x => x.id === w ) ) setSelectedWaba( w );
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ selected ] );
+
+    // The WABA a reply actually goes out on. The thread's own WABA wins, because a
+    // reply on the wrong one opens a conversation the customer never started; the
+    // dropdown is honoured only once the agent has deliberately changed it for this
+    // conversation. `selectedWaba` is the fallback, not the default.
+    const sendWaba = wabaOverridden
+        ? ( selectedWaba || replyTarget.waba )
+        : ( replyTarget.waba || selectedWaba );
+
     const handleSendRcsTemplate = useCallback( async ( templateId: string ) => {
         const { phone } = replyTarget;
         if ( !phone ) { toast.error( 'No phone number for this conversation' ); return; }
@@ -472,7 +500,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         const hasMedia = replyChannel === 'whatsapp' && mediaFiles.length > 0;
         if ( !base && !hasMedia ) return;
         const text = replyingTo && base ? `> ${( replyingTo.content || '' ).slice( 0, 120 )}\n\n${base}` : base;
-        const { phone, waba, contactId } = replyTarget;
+        const { phone, contactId } = replyTarget;
         // WhatsApp supports a native quoted reply (context). When available, use it
         // and skip the text-prefix quote.
         const waContext = ( replyChannel === 'whatsapp' && replyingTo && ( replyingTo as any ).whatsappMessageId ) ? ( replyingTo as any ).whatsappMessageId as string : undefined;
@@ -495,14 +523,14 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                         const type = file.type || inferMimeFromName( file.name );
                         const s3Key = await api.uploadMediaForSend( file, type, file.name );
                         if ( !s3Key ) { toast.error( `Upload failed: ${file.name}` ); continue; }
-                        const r = await api.sendWhatsAppMessage( { contactId, content: i === 0 ? waText : '', phoneNumberId: selectedWaba || waba || undefined, recipientBsuid: bsuid, mediaFile: s3Key, mediaType: type, mediaFileName: file.name, contextMessageId: i === 0 ? waContext : undefined } );
+                        const r = await api.sendWhatsAppMessage( { contactId, content: i === 0 ? waText : '', phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, mediaFile: s3Key, mediaType: type, mediaFileName: file.name, contextMessageId: i === 0 ? waContext : undefined } );
                         if ( r ) sent++;
                     }
                     ok = sent > 0;
                     if ( ok ) { setMediaFiles( [] ); setMediaPreview( null ); }
                 } else
                 {
-                    const r = await api.sendWhatsAppMessage( { contactId, content: waText, phoneNumberId: selectedWaba || waba || undefined, recipientBsuid: bsuid, contextMessageId: waContext } );
+                    const r = await api.sendWhatsAppMessage( { contactId, content: waText, phoneNumberId: sendWaba || undefined, recipientBsuid: bsuid, contextMessageId: waContext } );
                     ok = !!r;
                 }
             } else if ( replyChannel === 'sms' )
@@ -538,7 +566,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         {
             setSending( false );
         }
-    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, selectedWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData ] );
+    }, [ replyText, sending, replyingTo, replyTarget, replyChannel, sendWaba, smsType, emailSubject, mediaFiles, selected, contactDir, toast, loadData ] );
 
     const handleSuggest = useCallback( async () => {
         if ( aiSuggesting || !thread.length ) return;
@@ -787,7 +815,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         const now = Date.now();
         if ( lastTypingRef.current.id === selected && now - lastTypingRef.current.at < 20000 ) return;
         lastTypingRef.current = { id: selected, at: now };
-        api.sendTypingIndicator( selectedWaba, wamid ).catch( () => { } );
+        // The wamid belongs to the thread's own WABA, so the indicator must go out
+        // on that one regardless of the dropdown — a mismatch is the code-100
+        // "Message ID … does not exist" that produced 12 errors in 30 days.
+        api.sendTypingIndicator( replyTarget.waba || selectedWaba, wamid ).catch( () => { } );
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ replyText, selected, replyChannel ] );
 
@@ -1046,7 +1077,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             { replyChannel === 'whatsapp' && (
                                                 <div className="ui-wa-bar">
                                                     <span className="ui-wa-from">Send from:</span>
-                                                    <select className="ui-wa-waba" value={ selectedWaba } onChange={ e => setSelectedWaba( e.target.value ) }>
+                                                    <select className="ui-wa-waba" value={ selectedWaba } onChange={ e => { setWabaOverridden( true ); setSelectedWaba( e.target.value ); } }>
                                                         { WABAS.map( w => <option key={ w.id } value={ w.id }>{ w.name } ({ w.display })</option> ) }
                                                     </select>
                                                     <button className="ui-tpl-btn" onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
