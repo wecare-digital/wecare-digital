@@ -1876,6 +1876,20 @@ const VayuLokLive: React.FC = () => {
     new Map( [ ...exactPhotos, ...nearbyPhotos ].map( photo => [ photo.url, photo ] ) ).values(),
   ).slice( 0, 8 );
   const photoPages = displayPhotos.map( photo => [ photo ] );
+
+  useEffect( () => {
+    if ( displayPhotos.length < 2 ) return undefined;
+    if ( typeof window.matchMedia === 'function' && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches ) return undefined;
+    const id = window.setTimeout( () => {
+      const rail = photoRailRef.current;
+      if ( !rail || !rail.clientWidth ) return;
+      const next = ( photoIndex + 1 ) % displayPhotos.length;
+      rail.scrollTo( { left: rail.clientWidth * next, behavior: 'smooth' } );
+      setPhotoIndex( next );
+    }, 4600 );
+    return () => window.clearTimeout( id );
+  }, [ displayPhotos.length, photoIndex ] );
+
   const dotClass = ( sev: Sev ) => `vl-live-dot vl-live-dot-${sev}`;
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
   const currentPm25Sev = currentPm25 && Number.isFinite( currentPm25.value )
@@ -1933,20 +1947,46 @@ const VayuLokLive: React.FC = () => {
 
       <main className="vl-live-shell">
         <div className="vl-live-workspace">
-          <section className="vl-live-left" aria-label="Selected place and environmental details">
+          <section className="vl-live-left" aria-label="Place and environmental details">
             { hasSelection ? (
               <div className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
                 <div className="vl-live-place-visual">
-                  { displayPhotos[ 0 ] ? (
+                  { displayPhotos.length > 0 ? (
                     <>
-                      <img className="vl-live-place-image" src={ displayPhotos[ 0 ].url } alt={ previewPlace.name } />
-                      { displayPhotos[ 0 ].attributions.length > 0 && (
-                        <div className="vl-live-photo-credit">
-                          { displayPhotos[ 0 ].attributions.slice( 0, 2 ).map( ( credit, i ) => (
-                            <React.Fragment key={ `${credit.name}-${i}` }>
-                              { i > 0 ? ' · ' : '' }
-                              { credit.uri ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a> : credit.name }
-                            </React.Fragment>
+                      <div
+                        className="vl-live-photo-rail"
+                        ref={ photoRailRef }
+                        aria-label="Place photos"
+                        onScroll={ e => {
+                          const width = e.currentTarget.clientWidth;
+                          if ( width > 0 ) setPhotoIndex( Math.round( e.currentTarget.scrollLeft / width ) );
+                        } }
+                      >
+                        { displayPhotos.map( ( photo, i ) => (
+                          <figure className="vl-live-photo-slide" key={ photo.url }>
+                            <img
+                              className="vl-live-place-image"
+                              src={ photo.url }
+                              alt={ `${previewPlace.name} photo ${i + 1}` }
+                              loading={ i === 0 ? 'eager' : 'lazy' }
+                            />
+                            { photo.attributions.length > 0 && (
+                              <figcaption className="vl-live-photo-credit">
+                                { photo.attributions.slice( 0, 2 ).map( ( credit, j ) => (
+                                  <React.Fragment key={ `${credit.name}-${j}` }>
+                                    { j > 0 ? ' · ' : '' }
+                                    { credit.uri ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a> : credit.name }
+                                  </React.Fragment>
+                                ) ) }
+                              </figcaption>
+                            ) }
+                          </figure>
+                        ) ) }
+                      </div>
+                      { displayPhotos.length > 1 && (
+                        <div className="vl-live-photo-progress" aria-hidden="true">
+                          { displayPhotos.map( ( photo, i ) => (
+                            <span className={ i === photoIndex ? 'is-active' : '' } key={ photo.url } />
                           ) ) }
                         </div>
                       ) }
@@ -1957,15 +1997,9 @@ const VayuLokLive: React.FC = () => {
                       <div className="vl-live-art-block vl-live-art-two" />
                     </div>
                   ) }
-                  { displayPhotos.length > 0 && (
-                    <div className="vl-live-photo-count" aria-label={ `${displayPhotos.length} place photos` }>
-                      <span>{ displayPhotos.length }</span>
-                    </div>
-                  ) }
                 </div>
 
                 <div className="vl-live-place-copy">
-                  <div className="vl-live-place-kicker">Selected place</div>
                   <h3 className="vl-live-place-name">{ previewPlace.name }</h3>
                   { previewPlace.addr && <p className="vl-live-place-address">{ previewPlace.addr }</p> }
                   { addressDescriptor && <p className="vl-live-descriptor-line">{ addressDescriptor }</p> }
@@ -2206,24 +2240,29 @@ const VayuLokLive: React.FC = () => {
         .vl-live,.vl-live *{box-sizing:border-box}
         .vl-live button,.vl-live input{font:inherit}
         .vl-live button{cursor:pointer}
-        .vl-live button:focus-visible,.vl-live input:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+        .vl-live input:focus-visible{outline:none}
         .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-live-shell{max-width:1320px;margin:0 auto;padding:22px 24px 72px}
-        .vl-live-workspace{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:32px;align-items:start}
-        .vl-live-left,.vl-live-right{min-width:0}
+        .vl-live-workspace{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:32px;align-items:stretch}
+        .vl-live-left,.vl-live-right{min-width:0}\n        .vl-live-right{display:flex;flex-direction:column}
 
         .vl-live-place-card{border:1px solid var(--hair);border-radius:14px;background:#fff;overflow:hidden}
         .vl-live-place-visual{position:relative;height:238px;background:var(--alt);overflow:hidden}
-        .vl-live-place-image{display:block;width:100%;height:100%;object-fit:cover}
+        .vl-live-photo-rail{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-inline:contain;touch-action:pan-x pinch-zoom}
+        .vl-live-photo-rail::-webkit-scrollbar{display:none}
+        .vl-live-photo-slide{position:relative;flex:0 0 100%;height:100%;margin:0;scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden;background:var(--alt)}
+        .vl-live-place-image{display:block;width:100%;height:100%;object-fit:cover;user-select:none}
+        .vl-live-photo-progress{position:absolute;z-index:4;left:10px;right:10px;top:10px;display:flex;gap:4px;pointer-events:none}
+        .vl-live-photo-progress span{height:3px;flex:1 1 0;border-radius:999px;background:rgba(209,244,112,.42);box-shadow:0 1px 2px rgba(26,58,42,.08)}
+        .vl-live-photo-progress span.is-active{background:var(--lime)}
         .vl-live-place-art{position:absolute;inset:28px;display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
         .vl-live-art-block{border:1px solid rgba(26,58,42,.11);border-radius:14px;background:rgba(255,255,255,.78)}
         .vl-live-art-one{transform:translateY(12px)}
         .vl-live-art-two{transform:translateY(-7px);background:rgba(209,244,112,.26)}
-        .vl-live-photo-count{position:absolute;right:14px;top:14px;z-index:4;display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:32px;padding:0 10px;border:1px solid rgba(26,58,42,.20);border-radius:999px;background:var(--lime);color:var(--green);font-size:12px;font-weight:800}
-        .vl-live-photo-credit{position:absolute;left:8px;bottom:8px;z-index:3;max-width:calc(100% - 16px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 7px;border-radius:7px;background:rgba(255,255,255,.78);font-size:8px;color:rgba(26,58,42,.78)}
+        .vl-live-photo-credit{position:absolute;left:9px;right:9px;bottom:8px;z-index:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;padding:0;background:transparent;text-shadow:0 1px 3px rgba(0,0,0,.82);font-size:8.5px;color:rgba(255,255,255,.94)}
         .vl-live-photo-credit a{color:inherit}
         .vl-live-place-copy{padding:22px 22px 21px}
-        .vl-live-place-kicker{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(26,58,42,.70)}
         .vl-live-place-name{margin:7px 0 0;color:var(--heading);font-size:32px;line-height:1.05;letter-spacing:-1.1px;font-weight:700}
         .vl-live-place-address{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--muted)}
         .vl-live-descriptor-line{margin:8px 0 0;color:var(--green);font-size:12.5px;line-height:1.45;font-weight:700}
@@ -2306,7 +2345,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-day strong{display:block;margin-top:5px;color:var(--heading);font-size:13px}
         .vl-live-air-day small{display:block;margin-top:3px;color:var(--green);font-size:10px;font-weight:700}
 
-        .vl-live-map-shell{position:relative;height:748px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
+        .vl-live-map-shell{position:relative;height:100%;min-height:748px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
         .vl-live-map-canvas{position:absolute;inset:0;width:100%;height:100%;opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
@@ -2314,6 +2353,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
         .vl-live-search{position:relative}
         .vl-live-search-field{height:50px;display:flex;align-items:center;gap:10px;padding:0 17px;border:1px solid rgba(26,58,42,.28);border-radius:var(--pill-r);background:#fff;box-shadow:0 5px 18px rgba(26,58,42,.08)}
+        .vl-live-search-field:focus-within{border-color:rgba(26,58,42,.48);box-shadow:0 0 0 3px rgba(26,58,42,.12),0 5px 18px rgba(26,58,42,.08)}
         .vl-live-search-field svg{width:19px;height:19px;stroke:var(--green);fill:none;stroke-width:2;flex:0 0 auto}
         .vl-live-search-field input{width:100%;border:0;outline:0;background:transparent;color:var(--heading);font-size:14px}
         .vl-live-search-results{position:absolute;top:56px;left:0;right:0;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
