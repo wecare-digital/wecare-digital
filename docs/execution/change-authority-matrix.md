@@ -1286,3 +1286,57 @@ degrades to WABA1-only rather than taking customer sign-in down entirely.
 this function while the live function carries 11 - `OTP_SEND_MAX_PER_WINDOW` and
 `OTP_SEND_WINDOW_SECONDS` were never recorded. Flagged rather than silently corrected, since
 fixing it means re-deriving `_variables` for keys this change did not add.
+
+## 2026-10-06 - A shared contact card keeps its data, and "unsupported" stops quoting Meta
+**Three defects on one ingest path, each of which stored a row successfully while discarding the
+only part that mattered. That is why every assertion below is on the stored Item or the rendered
+output, not on "the write was called".**
+`_contacts` in `modules/content.py` ignored its argument and returned the bare string
+`[Contact Card]`. Puneet's card arrived, stored and was acknowledged; the name and number went
+nowhere, so an agent asked the customer to retype the number. It now reads `contacts[0]` and
+returns `[Contact Card] <name> · <phone>`, and `extract_contacts_payload` stores a sanitised,
+size-bounded copy (`MAX_CONTACTS=5`, `MAX_ITEMS=5`, every string capped at 128 chars) under
+`contactsPayload` on the WhatsApp row **and** the canonical dual-write.
+`extract_unsupported_content` read the error detail from `error['details']`. Meta puts it at
+`errors[].error_data.details` and **never** at the top level - 126 of 126 measured 131051
+payloads - so `details` was always empty, the OTP and ephemeral keyword branches were
+unreachable, and the fallback interpolated Meta's own error title into the message body. 131051
+with `unsupported.type == 'unknown'` (125 of 128) now returns one stable sentence of ours; 131060
+gets its own branch ahead of it, because with `details` finally populated it would otherwise
+print Meta's raw text.
+The unsupported-type probe only looked for a media id, so Meta naming the real type in
+`unsupported.type` was ignored and `_revoke`/`_edit` were unreachable dispatch-table entries. It
+now reads that field and tests membership of `KNOWN_TYPES` - the dispatch table itself, not a
+second hand-copied list, which is how `edit`/`revoke` came to be named in a log warning they
+could never reach. `unknown` is deliberately absent, so the measured case falls through unchanged.
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | `messaging/inbound-whatsapp-handler/modules/content.py`, `messaging/inbound-whatsapp-handler/handler.py`, `shared/lambda_utils/message_store.py`, `tests/test_content.py`, `tests/test_inbound_whatsapp.py` | `test_content.py` 24 -> **39 pass**; `test_inbound_whatsapp.py` 29 -> **35 pass**; full suite **7838 pass / 5 fail** against a **7817 pass / 6 fail** pre-change baseline, every remaining failure proven pre-existing and in `test_deployed_headers_target.py` / `test_checkout_faq_sources.py` | revert commit `f05827e6` |
+| `A1_LOCAL` | `src/api/client.ts`, `src/components/ContactCardBubble.tsx`, `src/pages/workspace/engage/whatsapp/inbox.tsx`, `src/pages/workspace/engage/inbox/index.tsx`, `src/lib/wa-errors.ts`, `src/test/InboxUnsupportedAndContactCard.test.tsx` | `npx tsc --noEmit` exit 0; `npx vitest run` **1105 pass / 2 fail**, both in `BlogContribution.test.tsx` and proven pre-existing by re-running it with the four touched source files stashed (identical 2 fail / 19 pass); `npm run build` exit 0 | revert commit `3a846edc` |
+| `A3_PRODUCTION` | `wecare-inbound-whatsapp` v72 published, `live` moved v71 -> v72 | `deploy_all_lambdas.py` reported `updated=1 skipped=0 failed=0`, packaged 129 files / 677,012 bytes; `GetAlias` reports `FunctionVersion 72`, `State Active`, and v72 `CodeSha256 6QSD9xh32Y28MW3c8ffsWIefJ2AHk04826f0Uu2hoKI=` **matches `$LATEST`** | `aws lambda update-alias --function-name wecare-inbound-whatsapp --name live --function-version 71` (v71 sha `6ZRpClUoO6MsWM3ReSBy1+H+i8aNwZ12fmRvCbux7Rg=`, captured live before publishing) |
+**The alias move is mandatory, not hygiene.** The HTTP API invokes
+`wecare-inbound-whatsapp:live`, so a `$LATEST` update reaches nothing. Equally, the rollback
+above is not in production until the alias moves back; v71 was neither deleted nor overwritten.
+**`origin == contact_request` -> ContactsTable is byte-identical and now pinned by a test.** It
+serves Meta's REQUEST_CONTACT_INFO BSUID flow, and widening it would write arbitrary forwarded
+numbers onto a contact record.
+**A revoke stores its own row and does NOT mark the message it deletes.** All 128 measured
+unsupported payloads carry exactly `errors + from + from_user_id + id + timestamp + type +
+unsupported` - there is no `context` key, so there is no `context.id` to resolve a revoke back to.
+A `TODO` at the recovery site records the missing field rather than guessing at a join.
+**Punit's existing row was not backfilled and cannot be.** It stored `content = "[Contact Card]"`
+with no contacts attribute, so the payload was never captured. It renders through the plain-label
+fallback, which is why that fallback stays and is pinned by its own test. No migration attempted.
+**Four probe types removed changed no reachable behaviour.** `poll`, `location`, `contacts` and
+`reaction` could never satisfy the `isinstance(dict) and .get('id')` guard they sat behind
+(`contacts` is a list; the other three carry no id), so listing them read as coverage that did
+not exist.
+**No live send, no QA send, no flag moved.** The contacts and revoke paths are covered by handler
+tests against the measured payload shapes. `unsupported_type_recovered` with
+`source: 'unsupported.type'` will read 0 in CloudWatch until another revoke arrives (1 in 30
+days); that is covered by test, not by waiting on production. The 131051 baseline is 1-12/day, so
+a new row carrying the sentinel should appear within hours. The UI ships through the Amplify build
+for app `d22dm4b0jn71jw`; no alias applies to it.
+**Pre-existing and left alone:** 8 `cryptography` import warnings from
+`lambda_utils/ecommerce/gift_card_spi_auth.py` and `wix_webhook.py`, each guarded by `try/except`
+at the import site and untouched by this change.
