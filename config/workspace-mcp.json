@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -29,7 +29,7 @@
           "deprecations"
         ]
       },
-      "registrationEndpoint": "https://mcp.facebook.com/.well-known/register/devtools"
+      "clientId": "2238810740192680"
     },
     "whatsapp": {
       "kind": "remote-mcp",
@@ -43,7 +43,7 @@
           "list"
         ]
       },
-      "registrationEndpoint": "https://mcp.facebook.com/.well-known/register/whatsapp_business_tools"
+      "clientId": "2238810740192680"
     },
     "aws": {
       "kind": "sdk",
