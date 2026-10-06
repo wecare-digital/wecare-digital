@@ -49,6 +49,8 @@ except Exception:  # noqa: BLE001
 # Sub-modules (monolith decomposition)
 from modules.content import extract_content as _extract_content_v2
 from modules.content import extract_unsupported_content as _extract_unsupported_content_v2
+from modules.content import extract_contacts_payload as _extract_contacts_payload
+from modules.content import KNOWN_TYPES as _KNOWN_TYPES
 
 logger = get_logger(__name__)
 
@@ -1223,7 +1225,36 @@ def _process_message(
     # Meta marks many messages as 'unsupported' but they still carry media/text
     # data. Detect the actual type so the inbox can render them properly.
     if msg_type == 'unsupported':
-        for probe_type in ('image', 'video', 'audio', 'document', 'sticker', 'poll', 'location', 'contacts', 'reaction'):
+        # Meta names the real type in `unsupported.type` / `unsupported.raw_type`.
+        # Reading it is what makes the `revoke` and `edit` extractors reachable at
+        # all; before this they were dispatch-table entries nothing could ever hit.
+        # Membership is tested against KNOWN_TYPES (the dispatch table itself) rather
+        # than a second hand-copied list. `unknown` is not in it, so the measured
+        # 125-of-128 case falls through to extract_unsupported_content unchanged.
+        # TODO: a revoke stores its own row and does NOT mark the message it deletes.
+        # The measured payload carries no `context` key, so there is no `context.id`
+        # to resolve the revoke back to. Joining them needs a field Meta is not
+        # sending today.
+        _u = message.get('unsupported')
+        if not isinstance(_u, dict):
+            _u = {}
+        _recovered = _u.get('type') or _u.get('raw_type')
+        if _recovered and _recovered != 'unsupported' and _recovered in _KNOWN_TYPES:
+            msg_type = _recovered
+            logger.info(json.dumps({
+                'event': 'unsupported_type_recovered',
+                'source': 'unsupported.type',
+                'recoveredType': _recovered,
+                'whatsappMessageId': whatsapp_message_id,
+                'requestId': request_id
+            }))
+        # The media five are the only types this probe can ever match: the guard
+        # below needs a dict carrying an `id`, and `contacts` is a list while
+        # `location`/`reaction`/`poll` carry no id. They were listed anyway, which
+        # read as coverage that did not exist.
+        for probe_type in ('image', 'video', 'audio', 'document', 'sticker'):
+            if msg_type != 'unsupported':
+                break
             probe_data = message.get(probe_type)
             if isinstance(probe_data, dict) and probe_data.get('id'):
                 # Has a media ID  -  this is a real media message wrapped as unsupported
@@ -1299,6 +1330,23 @@ def _process_message(
     
     # Extract message content based on type
     content = _extract_content(message, msg_type)
+
+    # A shared contact card carried a name and a number that the old extractor threw
+    # away, leaving an agent to ask the customer to retype it. Keep the sanitised
+    # payload so the inbox can render a real card. Guarded: a malformed vCard must
+    # cost the card, never the message. Never log the payload itself — it holds a
+    # third party's phone number.
+    _contacts_payload = None
+    if msg_type == 'contacts' or message.get('contacts'):
+        try:
+            _contacts_payload = _extract_contacts_payload(message)
+        except Exception as _ce:  # noqa: BLE001
+            logger.warning(json.dumps({
+                'event': 'contacts_payload_extract_failed',
+                'error': type(_ce).__name__,
+                'whatsappMessageId': whatsapp_message_id,
+                'requestId': request_id
+            }))
     
     # Generate message ID and calculate TTL
     message_id = str(uuid.uuid4())
@@ -1390,6 +1438,9 @@ def _process_message(
         'metaWabaIds': meta_waba_ids if meta_waba_ids else None,
         'createdAt': Decimal(str(now)),
         'expiresAt': Decimal(str(expires_at)),
+        # None when this is not a contacts message; the put_item below filters
+        # None values out, so no attribute is added.
+        'contactsPayload': _contacts_payload,
     }
     
     # Capture referral context (click-to-WhatsApp ads, product catalogs, social posts)
@@ -1488,6 +1539,7 @@ def _process_message(
         receiving_phone=receiving_phone,
         aws_phone_number_id=aws_phone_number_id,
         partner_waba_id=_partner_waba,
+        contacts_payload=_contacts_payload,
         timestamp=timestamp,
     )
 

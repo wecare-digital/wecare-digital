@@ -9,9 +9,30 @@ edit, revoke.
 
 import json
 import logging
-from typing import Dict
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Stable label for the measured 131051 case (125 of 128 payloads): Meta flags the
+# message unsupported and its `unsupported.type` is `unknown`, so it genuinely does
+# not say what arrived. Quoting Meta's own error title at the customer read as a
+# system fault, so the label is ours and fixed — the inbox also prefix-matches
+# `[Unsupported: ` so a row stored before this change still renders cleanly.
+UNSUPPORTED_UNKNOWN = '[Unsupported: WhatsApp did not say what this message was]'
+
+# Caps for the stored contacts payload. A DynamoDB item is capped at 400 KB and a
+# forwarded vCard is attacker-influenced input, so bound it at ingest rather than
+# trusting the sender.
+MAX_CONTACTS = 5
+MAX_ITEMS = 5
+MAX_STR = 128
+
+
+def _trim(value) -> str:
+    """Return a stripped, length-bounded string, or '' for anything non-string."""
+    if not isinstance(value, str):
+        return ''
+    return value.strip()[:MAX_STR]
 
 
 def extract_content(message: Dict, msg_type: str) -> str:
@@ -53,8 +74,116 @@ def _location(m: Dict) -> str:
     return f"[Location: {loc.get('latitude')}, {loc.get('longitude')}]"
 
 
-def _contacts(_m: Dict) -> str:
-    return '[Contact Card]'
+def _contacts_label(m: Dict) -> str:
+    """Build the `[Contact Card]` label, carrying the shared name and first number.
+
+    The bracket prefix is kept: both inbox previews key on the bracket shape, and
+    one already-stored row contains the bare label with no payload beside it.
+    Called from both the `contacts` extractor and the contacts-in-unsupported
+    fallback so the two cannot drift apart again.
+    """
+    try:
+        contacts = m.get('contacts')
+        if not isinstance(contacts, list) or not contacts:
+            return '[Contact Card]'
+        first = contacts[0]
+        if not isinstance(first, dict):
+            return '[Contact Card]'
+
+        name_obj = first.get('name')
+        if not isinstance(name_obj, dict):
+            name_obj = {}
+        display = _trim(name_obj.get('formatted_name')) or ' '.join(
+            part for part in (_trim(name_obj.get('first_name')),
+                              _trim(name_obj.get('last_name'))) if part
+        )
+
+        phone = ''
+        phones = first.get('phones')
+        if isinstance(phones, list):
+            for entry in phones:
+                if isinstance(entry, dict):
+                    phone = _trim(entry.get('phone'))
+                    if phone:
+                        break
+
+        parts = [part for part in (display, phone) if part]
+        return '[Contact Card] ' + ' · '.join(parts) if parts else '[Contact Card]'
+    except Exception:  # noqa: BLE001 — a label must never fail an inbound write
+        return '[Contact Card]'
+
+
+def _contacts(m: Dict) -> str:
+    return _contacts_label(m)
+
+
+def _sanitise_rows(items, fields) -> List[Dict[str, str]]:
+    """Bounded copy of a list of flat string dicts, keeping only `fields`."""
+    if not isinstance(items, list):
+        return []
+    out: List[Dict[str, str]] = []
+    for raw in items[:MAX_ITEMS]:
+        if not isinstance(raw, dict):
+            continue
+        row = {field: _trim(raw.get(field)) for field in fields}
+        row = {key: value for key, value in row.items() if value}
+        if row:
+            out.append(row)
+    return out
+
+
+def extract_contacts_payload(message: Dict) -> Optional[List[Dict]]:
+    """Sanitised, size-bounded copy of an inbound `contacts[]` array, or None.
+
+    Shape mirrors what this repo's own outbound composer declares (the Cloud API
+    shape): name{formatted_name,first_name,last_name}, phones[{phone,type,wa_id}],
+    emails[{email,type}], org{company,title}. Only fields Meta actually sent are
+    emitted, so every key is optional on the read side.
+
+    This can never raise. It runs on the inbound write path, where losing the
+    whole message to a malformed vCard would be far worse than losing the card.
+    """
+    try:
+        if not isinstance(message, dict):
+            return None
+        contacts = message.get('contacts')
+        if not isinstance(contacts, list):
+            return None
+
+        out: List[Dict] = []
+        for raw in contacts[:MAX_CONTACTS]:
+            if not isinstance(raw, dict):
+                continue
+            entry: Dict = {}
+
+            name_obj = raw.get('name')
+            if isinstance(name_obj, dict):
+                name = {field: _trim(name_obj.get(field))
+                        for field in ('formatted_name', 'first_name', 'last_name')}
+                name = {key: value for key, value in name.items() if value}
+                if name:
+                    entry['name'] = name
+
+            phones = _sanitise_rows(raw.get('phones'), ('phone', 'type', 'wa_id'))
+            if phones:
+                entry['phones'] = phones
+
+            emails = _sanitise_rows(raw.get('emails'), ('email', 'type'))
+            if emails:
+                entry['emails'] = emails
+
+            org_obj = raw.get('org')
+            if isinstance(org_obj, dict):
+                org = {field: _trim(org_obj.get(field)) for field in ('company', 'title')}
+                org = {key: value for key, value in org.items() if value}
+                if org:
+                    entry['org'] = org
+
+            if entry:
+                out.append(entry)
+        return out or None
+    except Exception:  # noqa: BLE001 — see docstring
+        return None
 
 
 def _sticker(_m: Dict) -> str:
@@ -196,16 +325,38 @@ def extract_unsupported_content(message: Dict) -> str:
     """
     errors = message.get('errors', [])
 
+    # What Meta itself claims the message was. `unknown` (or absent) is the measured
+    # case and is deliberately NOT in KNOWN_TYPES, so it stays here.
+    _unsupported = message.get('unsupported')
+    if not isinstance(_unsupported, dict):
+        _unsupported = {}
+    declared_type = _unsupported.get('type') or _unsupported.get('raw_type') or ''
+
     # ── Detect OTP / authentication template ──
     for error in errors:
         code = error.get('code', 0)
-        details = error.get('details', '')
+        # Meta puts the human-readable detail at errors[].error_data.details and
+        # never at the top level — measured on 126/126 131051 payloads. Reading only
+        # the top level left `details` empty, which is what kept the OTP and
+        # ephemeral keyword branches below unreachable. Same precedent as the status
+        # webhook's error read.
+        details = error.get('details') or (error.get('error_data') or {}).get('details', '')
         title = error.get('title', '')
         error_text = (details or title or '').lower()
+
+        # The message was revoked or expired before Meta could hand it over. Needs its
+        # own branch ahead of 131051: with `details` now populated it would otherwise
+        # fall through and print Meta's raw sentence.
+        if code == 131060:
+            return '[Unsupported: This message is no longer available]'
 
         if code == 131051 or 'not supported' in error_text:
             if any(kw in error_text for kw in ('otp', 'authentication', 'security', 'verification')):
                 return '[Unsupported: OTP or authentication message — content hidden by WhatsApp for security]'
+            if code == 131051 and declared_type in ('', 'unknown'):
+                return UNSUPPORTED_UNKNOWN
+            # A 131051 naming some other type has never been measured; keep the
+            # interpolated text rather than inventing a label for it.
             return f'[Unsupported: {details or title or "Message type not supported (error 131051)"}]'
 
         if 'ephemeral' in error_text or 'disappearing' in error_text:
@@ -249,7 +400,7 @@ def extract_unsupported_content(message: Dict) -> str:
 
     # Contacts in unsupported wrapper
     if 'contacts' in message:
-        return '[Contact Card]'
+        return _contacts_label(message)
 
     # Document in unsupported wrapper
     if 'document' in message:
@@ -306,3 +457,9 @@ _EXTRACTORS = {
     'product': _product, 'product_inquiry': _product, 'poll': _poll,
     'edit': _edit, 'revoke': _revoke,
 }
+
+# The one source of truth for "is this a type we can actually render". The handler's
+# unsupported-type recovery checks membership here rather than keeping a second
+# hand-copied list — a duplicate list is how `edit`/`revoke` ended up named in a log
+# warning while being unreachable. Note `unknown` is absent on purpose.
+KNOWN_TYPES = frozenset(_EXTRACTORS)

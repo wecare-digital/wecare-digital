@@ -110,6 +110,11 @@ def build_message_item(
         'aws_phone_number_id': 'awsPhoneNumberId',
         'partner_waba_id': 'partnerWabaId',
         'message_type': 'messageType',
+        # A shared contact card's sanitised name/phones/emails/org, as stored by the
+        # inbound WhatsApp handler. The extras loop passes a list of dicts through
+        # verbatim; this entry is what stops it landing under the snake_case key the
+        # UI does not read.
+        'contacts_payload': 'contactsPayload',
         'detected_language': 'detectedLanguage',
         'call_type': 'callType',
         'call_id': 'callId',
