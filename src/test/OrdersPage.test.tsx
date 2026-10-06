@@ -232,6 +232,97 @@ describe( '/orders/ — structure and the top band', () => {
     expect( CODE ).not.toMatch( /\bhsla?\(\s*(?:[0-9]|1[0-9]|3[4-9]\d|35\d)\s*,/i );
     expect( CODE ).not.toMatch( /:\s*(?:red|crimson|firebrick|tomato|indianred|darkred)\b/i );
   } );
+
+  /**
+   * THE SIGNED-IN HERO, WHICH NOTHING PINNED BEFORE THIS.
+   *
+   * `PageTopBand` is the outermost element of this page's `return` and wraps `.ord-page`
+   * entirely, so the hero renders in every view - but the one-h1/one-main test above only ever
+   * exercises the SIGNED-OUT render, because it renders with no session. The two-column
+   * restructure happens inside `.ord-page`, so the band cannot be dropped unless the band
+   * itself is moved; this is the test that fails if a later edit moves or conditionally
+   * renders it. Both halves must be green, which is the point of having two.
+   */
+  it( 'keeps the hero in the signed-in render, not just the signed-out one', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
+    expect( container.querySelector( 'h1' )!.textContent ).toBe( 'Your orders' );
+    expect( container.querySelectorAll( 'main' ) ).toHaveLength( 1 );
+    const top = container.querySelectorAll( '.ptb-top' );
+    expect( top ).toHaveLength( 1 );
+    expect( screen.getByText(
+      'What you have bought from us, and what each payment is doing.' ) ).toBeInTheDocument();
+    // Still nothing conversion-shaped inside the band, now that the body below it holds a table.
+    expect( top[ 0 ].querySelectorAll( 'button, a' ) ).toHaveLength( 0 );
+    expect( top[ 0 ].textContent ).not.toContain( '₹' );
+  } );
+} );
+
+describe( '/orders/ — the two-column layout', () => {
+  it( 'names the panel without adding a heading to it', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const panel = container.querySelector( '[aria-label="Your details"]' )!;
+    expect( panel ).toBeTruthy();
+    expect( panel.tagName ).toBe( 'ASIDE' );
+    expect( panel.querySelector( 'h1, h2, h3, h4, h5, h6' )!.textContent )
+      .toBe( 'What we have on file' );
+    // The card renders INSIDE it, and the h2 ladder is unchanged by the panel existing.
+    expect( panel.textContent ).toContain( 'rahul@example.com' );
+    const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
+    expect( h2 ).toEqual( [ 'What we have on file', 'Order history' ] );
+  } );
+
+  it( 'declares minmax(0,1fr) on the right column inside the 1024px query', () => {
+    // minmax(0,...) is what keeps document.documentElement.scrollWidth - vw at 0: a bare `1fr`
+    // is minmax(auto,1fr), refuses to shrink, and hands the overflow to the DOCUMENT, which is
+    // what tools/browser/devicecheck.js fails on at 280px.
+    expect( CODE ).toMatch(
+      /@media\(min-width:1024px\)\{[\s\S]*?grid-template-columns:340px minmax\(0,1fr\)/ );
+    expect( CODE ).toMatch(
+      /@media\(min-width:1024px\)\{[\s\S]*?\.ord-shell-editing\{grid-template-columns:1fr\}/ );
+    expect( CODE ).toContain( 'min-inline-size:0' );
+  } );
+
+  it( 'is one column by default, with the panel ahead of the orders in DOM order', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( CODE ).toContain( '.ord-shell{display:grid;grid-template-columns:1fr' );
+    const shell = container.querySelector( '.ord-shell' )!;
+    const children = Array.from( shell.children ).map( node => node.className );
+    // DOM order equals visual order at every width, so there is no `order:` property anywhere.
+    expect( children ).toEqual( [ 'ord-panel', 'ord-main' ] );
+    expect( CODE ).not.toMatch( /[;{\s]order\s*:\s*-?\d/ );
+  } );
+
+  it( 'collapses the shell to one column while the editor is open, and back when it closes',
+    async () => {
+      const { container } = await renderSignedIn( answer( 200, {
+        orders: [ row() ], profile: profile(),
+      } ) );
+      await screen.findByText( 'rahul@example.com' );
+      expect( container.querySelector( '.ord-shell' )!.className ).toBe( 'ord-shell' );
+      fireEvent.click( screen.getByRole( 'button', { name: 'Edit name' } ) );
+      await screen.findByTestId( 'profile-save' );
+      expect( container.querySelector( '.ord-shell' )!.className )
+        .toBe( 'ord-shell ord-shell-editing' );
+      fireEvent.click( screen.getByTestId( 'profile-save' ) );
+      await waitFor( () => expect( screen.queryByTestId( 'profile-save' ) ).toBeNull() );
+      expect( container.querySelector( '.ord-shell' )!.className ).toBe( 'ord-shell' );
+    } );
+
+  it( 'widens the measure to 1100px and keeps declaring the colour scheme', () => {
+    expect( CODE ).toContain( 'max-width:1100px' );
+    expect( CODE ).not.toContain( 'max-width:700px' );
+    expect( CODE ).toMatch( /color-scheme\s*:\s*light/ );
+  } );
 } );
 
 describe( '/orders/ — static source gates', () => {
@@ -631,6 +722,68 @@ describe( '/orders/ — a profile edit and the verified badge', () => {
     expect( screen.getByRole( 'button', { name: 'Edit name' } ) ).toBeDisabled();
     expect( screen.getByRole( 'button', { name: 'Change email' } ) ).toBeDisabled();
     expect( screen.getByRole( 'button', { name: 'Edit address' } ) ).toBeDisabled();
+  } );
+} );
+
+/**
+ * THE EDIT POLICY: NAME AND EMAIL ARE EDITABLE, THE PHONE IS NOT.
+ *
+ * This is already the implemented behaviour and it is structural rather than conventional -
+ * `CheckoutIdentityCard` declares exactly `onEditName`, `onChangeEmail` and `onEditAddress`, and
+ * `CheckoutProfileMode` has no 'phone' member, so there is no prop to pass and no mode to open.
+ * These three tests are what stop a later edit adding one, because "we did not build it" is not
+ * a guarantee.
+ *
+ * The phone IS the identity: sign-in is a WhatsApp OTP on that number against a phone-keyed
+ * CUSTOM_AUTH pool, and the card's "✓ verified" badge is unconditional because of it. A
+ * self-service phone edit would let a signed-in session rewrite the credential that session was
+ * issued against - an account-takeover shape, not a profile edit - and the badge would become a
+ * false claim the moment it shipped.
+ *
+ * Equality, not containment: a containment assertion passes while the surface grows.
+ */
+describe( '/orders/ — the profile panel edit policy', () => {
+  it( 'renders exactly three edit controls, and they are these three', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'rahul@example.com' );
+    const panel = container.querySelector( '[aria-label="Your details"]' )!;
+    const names = Array.from( panel.querySelectorAll( 'button' ) )
+      .map( node => ( node.getAttribute( 'aria-label' ) || node.textContent || '' ).trim() );
+    expect( names ).toEqual( [ 'Edit name', 'Change email', 'Edit address' ] );
+  } );
+
+  it( 'shows the phone with its badge and offers no control that could change it', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'rahul@example.com' );
+    const panel = container.querySelector( '[aria-label="Your details"]' )!;
+    const phoneRow = screen.getByText( 'Phone' ).parentElement!;
+    // Masked by the card's own maskPhone, which this page does not override.
+    expect( phoneRow.textContent ).toMatch( /\d/ );
+    expect( phoneRow.querySelector( '.identity-badge' )!.textContent ).toBe( '✓ verified' );
+    for ( const node of Array.from( panel.querySelectorAll( 'button' ) ) )
+    {
+      const name = ( node.getAttribute( 'aria-label' ) || node.textContent || '' );
+      expect( name, `${ name } reads as a phone affordance` )
+        .not.toMatch( /phone|number|mobile/i );
+    }
+  } );
+
+  it( 'source: there is no phone edit path to open', () => {
+    // CODE, not SOURCE: the page's own docblock legitimately NAMES onEditPhone in a comment
+    // explaining that no such prop exists, so sweeping the raw text would fail on the
+    // explanation rather than on the code. Same reasoning as every other sweep in this file.
+    expect( CODE ).not.toContain( 'onEditPhone' );
+    const modes = Array.from( CODE.matchAll( /openEditor\(\s*'([^']*)'\s*\)/g ) )
+      .map( match => match[ 1 ] );
+    expect( modes.length ).toBeGreaterThan( 0 );
+    for ( const mode of modes )
+    {
+      expect( [ 'name', 'email', 'address' ] ).toContain( mode );
+    }
   } );
 } );
 

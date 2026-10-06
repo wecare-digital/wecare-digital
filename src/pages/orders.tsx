@@ -401,28 +401,59 @@ export default function OrdersPage (): React.ReactElement {
             </div>
           ) }
 
-          { signedIn && ( profile
-            ? (
-              <>
-                <CheckoutIdentityCard
-                  identity={ {
-                    name: profile.name,
-                    email: profile.email,
-                    phone: profile.phone,
-                    // An incomplete address is not an address on file, so the row says so rather
-                    // than showing a partial line as if it were the delivery address.
-                    address: profile.addressComplete ? profile.address : null,
-                    emailVerified: profile.emailVerified,
-                  } }
-                  eyebrow="Your details"
-                  title="What we have on file"
-                  emptyAddressLabel="No address on file"
-                  editorOpen={ showProfile }
-                  onEditName={ () => openEditor( 'name' ) }
-                  onChangeEmail={ () => openEditor( 'email' ) }
-                  onEditAddress={ () => openEditor( 'address' ) }
-                />
-                { showProfile && (
+          { signedIn && (
+            // The two-column shell. One column by default and 340px + minmax(0,1fr) from
+            // 1024px up, collapsing back to one while the profile editor is open - see the
+            // .ord-shell-editing note in the stylesheet. DOM order equals visual order at
+            // every width, so there is no `order:` property and no reading-order divergence.
+            <div className={ showProfile ? 'ord-shell ord-shell-editing' : 'ord-shell' }>
+              { /* LEFT: the profile panel. It adds NO heading of its own - the rendered h2
+                   list must stay exactly ['What we have on file', 'Order history'], so the
+                   panel is named by aria-label and the only heading in it is the one
+                   CheckoutIdentityCard already owns.
+
+                   Exactly three edit affordances, and the PHONE IS NOT ONE OF THEM. That is
+                   structural rather than a convention this page keeps: CheckoutIdentityCard
+                   declares no onEditPhone prop and CheckoutProfileMode has no 'phone'
+                   member. The phone IS the WhatsApp-OTP identity and the card's
+                   "✓ verified" badge is unconditional because of it, so a self-service
+                   phone edit would let a signed-in session rewrite the credential it was
+                   issued against - and would make that badge a false claim. */ }
+              <aside className="ord-panel" aria-label="Your details">
+                { profile
+                  ? (
+                    <CheckoutIdentityCard
+                      identity={ {
+                        name: profile.name,
+                        email: profile.email,
+                        phone: profile.phone,
+                        // An incomplete address is not an address on file, so the row says so
+                        // rather than showing a partial line as if it were the delivery address.
+                        address: profile.addressComplete ? profile.address : null,
+                        emailVerified: profile.emailVerified,
+                      } }
+                      eyebrow="Your details"
+                      title="What we have on file"
+                      emptyAddressLabel="No address on file"
+                      editorOpen={ showProfile }
+                      onEditName={ () => openEditor( 'name' ) }
+                      onChangeEmail={ () => openEditor( 'email' ) }
+                      onEditAddress={ () => openEditor( 'address' ) }
+                    />
+                  )
+                  : (
+                    // Four empty rows would assert we know nothing while looking like we know
+                    // something. One line and a route to where the create-mode form lives.
+                    <p className="ord-p ord-nodetails">
+                      We do not have your details yet. You can add them in your{ ' ' }
+                      { /* A plain anchor, not next/link, for the reason Footer.tsx documents:
+                           styled-jsx does not scope composite components, so a Link carrying
+                           ord-link would arrive with no styling at all. */ }
+                      { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
+                      <a className="ord-link" href="/cart/">cart</a>.
+                    </p>
+                  ) }
+                { showProfile && profile && (
                   <CheckoutProfile
                     accessToken={ token }
                     mode={ profileMode }
@@ -438,22 +469,11 @@ export default function OrdersPage (): React.ReactElement {
                     } }
                   />
                 ) }
-              </>
-            )
-            : (
-              // Four empty rows would assert we know nothing while looking like we know
-              // something. One line and a route to where the create-mode form actually lives.
-              <p className="ord-p ord-nodetails">
-                We do not have your details yet. You can add them in your{ ' ' }
-                { /* A plain anchor, not next/link, for the reason Footer.tsx documents:
-                     styled-jsx does not scope composite components, so a Link carrying
-                     ord-link would arrive with no styling at all. */ }
-                { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
-                <a className="ord-link" href="/cart/">cart</a>.
-              </p>
-            )
-          ) }
+              </aside>
 
+              { /* RIGHT: the order history. The list and the empty state are alternatives and
+                   never render together. */ }
+              <div className="ord-main">
           { orders.length > 0 && (
             <section className="ord-list" aria-labelledby="ord-history">
               <h2 className="ord-h2" id="ord-history">Order history</h2>
@@ -560,6 +580,9 @@ export default function OrdersPage (): React.ReactElement {
                 ) }
             </section>
           ) }
+              </div>
+            </div>
+          ) }
         </div>
 
         <style jsx>{`
@@ -576,7 +599,36 @@ export default function OrdersPage (): React.ReactElement {
           /* Declared rather than inferred. prefers-color-scheme appears zero times under src/,
              so the site is light-only; stating it stops a browser inferring a scheme and
              recolouring form controls against a hardcoded light palette. */
-          .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:32px;max-width:700px}
+          /* 1100px, not the 700px a single column of prose wanted: a five-column table inside
+             700px is a permanent horizontal scroll. 1100 sits INSIDE PageTopBand's 1300px
+             measure, so the band's gutters still apply and nothing re-declares them. */
+          .ord-page{color-scheme:light;display:flex;flex-direction:column;gap:32px;max-width:1100px}
+
+          /* Mobile-first: one column, panel above orders, which is both the DOM order and the
+             layout this page already had. */
+          .ord-shell{display:grid;grid-template-columns:1fr;gap:28px}
+          @media(min-width:1024px){
+            /* minmax(0,1fr) IS NOT OPTIONAL and is the single most important line here. A bare
+               bare 1fr is minmax(auto,1fr), so the column refuses to shrink below its content's
+               intrinsic width, a wide table blows the grid out, and the overflow lands on the
+               DOCUMENT - which is what tools/browser/devicecheck.js measures
+               (document.documentElement.scrollWidth - vw) and fails on at 280px. With
+               minmax(0,...) the column shrinks and the table's own scroll container takes it.
+
+               1024px rather than the site's 767px body rung: a 340px panel beside a table needs
+               about 1024px before the table has usable room. */
+            .ord-shell{grid-template-columns:340px minmax(0,1fr);gap:32px;align-items:start}
+            /* Collapsed while the editor is open. CheckoutProfile's own grid is 1fr 1fr 1.5fr
+               and AddressFields' is 1fr 1fr, and both collapse only at a max-width:767px
+               VIEWPORT query - not a container query - so inside a 340px panel on a 1280px
+               desktop they would stay three- and two-up and render crushed inputs. Fixing that
+               properly means container queries on two shared components another phase owns. */
+            .ord-shell-editing{grid-template-columns:1fr}
+          }
+          /* min-inline-size:0 for the same reason as minmax(0,...): a flex/grid item defaults to
+             min-content and refuses to shrink. No position:sticky - the panel is short, and
+             sticky interacts badly with overflow ancestors. */
+          .ord-panel,.ord-main{display:flex;flex-direction:column;gap:18px;min-inline-size:0}
 
           /* The section rung: 700 against the band's 600 h1. That inversion is the site's and is
              deliberate - PageTopBand says not to "correct" it. Font stack DECLARED, not
