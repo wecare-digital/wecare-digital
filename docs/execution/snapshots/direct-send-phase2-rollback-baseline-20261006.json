@@ -1,0 +1,40 @@
+{
+  "capturedAt": "2026-10-06T00:00:00Z",
+  "purpose": "Rollback baseline captured BEFORE any Direct Send phase-2 edit. These two version numbers are the rollback targets: point the `live` alias back at them if the deployed code itself is at fault. Note that the primary rollback is cheaper than that - clearing DIRECT_SEND_ENABLED_WABAS makes the request byte-identical to today, because an absent `category` key is Meta's own definition of a service message.",
+  "account": "775261844268",
+  "region": "us-east-1",
+  "gitHead": "3d279942",
+  "functions": [
+    {
+      "functionName": "wecare-whatsapp-business-api",
+      "aliasVersion": "64",
+      "aliasRevisionId": "cec2fa6f-64e7-4e56-bd0e-9154f379516b",
+      "aliasCodeSha256": "MmCtja+O2ZeH0FUIcSX/oxUU0D/okR/CJ7FV8PkZJUk=",
+      "latestCodeSha256": "MmCtja+O2ZeH0FUIcSX/oxUU0D/okR/CJ7FV8PkZJUk=",
+      "aliasMatchesLatest": true,
+      "runtime": "python3.12",
+      "layers": [
+        "arn:aws:lambda:us-east-1:775261844268:layer:cryptography-python312:1"
+      ],
+      "envKeyCount": 18,
+      "hasDirectSendFlagBefore": false
+    },
+    {
+      "functionName": "wecare-outbound-whatsapp",
+      "aliasVersion": "47",
+      "aliasRevisionId": "8478793d-2780-4826-890e-b98da7fd24a1",
+      "aliasCodeSha256": "ohWFD6Gb+NqifQbvjuyrhOkO/jCnLBHS7WCpJd0N9qw=",
+      "latestCodeSha256": "ohWFD6Gb+NqifQbvjuyrhOkO/jCnLBHS7WCpJd0N9qw=",
+      "aliasMatchesLatest": true,
+      "runtime": "python3.12",
+      "layers": [],
+      "envKeyCount": 14,
+      "hasDirectSendFlagBefore": false
+    }
+  ],
+  "notes": [
+    "Both functions are invoked through the `live` alias, so $LATEST does not reach production. A deploy is not live until a version is published and the alias moves.",
+    "Both aliases pointed at the same CodeSha256 as $LATEST at capture time, so there was no pre-existing undeployed drift to confuse a rollback.",
+    "Env key NAMES are recorded, never values. DIRECT_SEND_ENABLED_WABAS was absent on both functions before this change; the new value is an empty string, which is not a secret."
+  ]
+}

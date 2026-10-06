@@ -1340,3 +1340,131 @@ for app `d22dm4b0jn71jw`; no alias applies to it.
 **Pre-existing and left alone:** 8 `cryptography` import warnings from
 `lambda_utils/ecommerce/gift_card_spi_auth.py` and `wix_webhook.py`, each guarded by `try/except`
 at the import site and untouched by this change.
+
+---
+
+## 2026-10-06 — WhatsApp Direct Send API, phase 2 (SHIPPED OFF)
+
+Direct Send sends a business-initiated utility or authentication message without a pre-created
+template: the same `POST /{phone_id}/messages`, the same Cloud API body, plus a **top-level
+`category`** sibling of `type`. Meta auto-generates or matches a template from the body.
+
+**Shipped OFF. `DIRECT_SEND_ENABLED_WABAS=""` on both functions.** Omitting `category` is Meta's
+own definition of a service message, so with the flag empty the request body is **byte-identical
+to today** — not an approximation of it. That is what makes the rollback complete without a code
+revert, and it is why this landed in production rather than waiting on owner onboarding.
+
+Full evidence: `.agents/tasks/direct-send-api-20261006/verification.md`.
+
+### P2-A — four defects in the phase-1 payload builder, all read at HEAD before being fixed
+
+| ID | Defect | Doc evidence | Consequence |
+|---|---|---|---|
+| **D1** | `payload['ttl'] = ttl` | the field is `ttl_seconds` | an unsupported parameter is itself a **100**, so every TTL send failed with an error that looked like something else |
+| **D2** | one `30 <= ttl <= 43200` for every category | authentication caps at **900** | we accepted values Meta refuses |
+| **D3** | `betaGated` keyed on `139200`/`131064`, no `100` entry at all | not-onboarded is a synchronous **100** with `error_data.details` naming the category/Direct Send requirement; 139200/131064 are the **post-misuse restriction** | a send from a never-onboarded WABA returned a bare "Invalid parameter" with no hint and `betaGated: false` — **the one failure the whole surface exists to explain** |
+| **D4** | `_direct_send_upload_sample` POSTing `/{waba_id}/message_samples` | appears in **none** of the ten Direct Send doc pages, no corroborating source found | phase 2 was about to be built on an endpoint we cannot evidence |
+
+D3 is the one that mattered most: 100-with-those-details is the signal the entire fail-closed
+design has to key on, so it was a precondition for P2-C rather than a cosmetic fix. The comment
+block that *asserted* the gate was 139200/131064 was the origin of the defect and was rewritten
+rather than left standing.
+
+**D4 was replaced with an explicit 410, not deleted.** Dispatch matches on `'/direct-send' in
+path`, so deleting the branch would have let the path fall through to `_direct_send` and answer
+`400 phoneId required` — a silent misroute that reads as a caller bug. Verified in production:
+the live route now returns 410 with `"removed": "2026-10-06"`.
+
+**TTL-bounds discrepancy, recorded rather than silently resolved.** Design §5.2 says utility
+"30-43200 default 30 days", which is self-contradictory — a 30-day default cannot fit a 12-hour
+maximum. **The brief won**: utility 30..2592000, authentication 30..900, service 30..43200. These
+are deliberately **not** `lambda_utils/template_ttl`'s numbers; that module owns a *different*
+field (`message_send_ttl_seconds`) and sharing one table would necessarily make one of them wrong.
+
+### P2-B — G1, the missing smoke guard
+
+`whatsapp-business-api` imported no `live_smoke`, so `_direct_send` could reach a real recipient
+while smoke mode claimed no branch could. **A latent hole in a lockdown is still a hole**: the
+guarantee is stated as absolute ("no branch reaches a customer"), and one branch broke it. The
+guard is now unconditional, at the wire, immediately before the Graph POST and after every
+validation, so no branch added later can bypass it. Latent only because smoke mode is off
+everywhere and the surface is admin-authenticated.
+
+### P2-C — the outside-window utility fallback
+
+Today a plain-text send outside the 24-hour service window is refused with a 403. With Direct Send
+enabled for the sender's WABA, that send now goes out as `category: 'utility'` instead.
+
+**The builder is the single arbiter, and it is an allowlist of ONE branch, not a denylist.**
+`_build_message_payload` injects `category` only when the **built** payload has `type == 'text'`
+and a non-empty `to`. The handler's own pre-check is a coarse optimisation. The reason is specific:
+a `content` string beginning with `{` is parsed as JSON and `_type` can route a text-looking
+request into contacts / location / location_request / address. The handler cannot see that; the
+builder can, because by then `payload['type']` is settled. Checking the built type is the only
+check that cannot be fooled. When the two disagree the send **falls back to today's 403** rather
+than leaving the service window as a free-form non-text message and collecting a 131047.
+
+**Fail closed on resolution, fail open on delivery.** Unresolvable WABA → `direct_send_waba_unresolved`,
+treated as not enabled, never a guess. Window **open** → no `category`, deliberately: today's
+free-form send is correct inside the window and cheaper. On `100`-with-not-enabled-details →
+`direct_send_not_onboarded` (WARNING), on `139200`/`131064` → `direct_send_restricted` (ERROR,
+alarmed), on any other `100` → `direct_send_rejected` with the full `error_data` — and all four
+return **today's 403, unchanged**. **Never an automatic retry as a template**: picking one means
+guessing which template matches the body, and a wrong guess sends the customer a *different
+message*.
+
+The fallback returns **before** `_store_message_record(status='failed')` and
+`_emit_delivery_metric('failed', ...)`, which is what makes it identical to flag-off in DynamoDB
+and in metrics, not merely on the wire. No row is written before the send on this path.
+
+**A real defect was caught by the tests, not by review.** The first implementation computed
+`direct_send_category` in `handler` but used it in `_handle_live_send`, a separate function —
+`NameError` on every flag-on send. It is now an explicit parameter, and the outside-window refusal
+is **one module-level function** called from both the decision site and all four fallback paths, so
+two copies of that response string cannot drift.
+
+**OTP was deliberately not touched** (design §5.4), and this sentence exists so the omission is a
+recorded decision rather than an oversight: authentication Direct Send is an access-restricted Beta
+inside a Beta, the copy-code button is English-locale only, business-named templates are
+unsupported for authentication, `customer-whatsapp-auth` has **no SMS fallback** so a WhatsApp
+failure is a hard lockout, and the current path is healthy (30 days: 25 delivered, 0 failed).
+Verified absent from `git diff --name-only`.
+
+### Change record
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | `shared/lambda_utils/direct_send.py` (new), `messaging/outbound-whatsapp/handler.py`, `messaging/whatsapp-business-api/handler.py`, `tests/test_direct_send_payload.py` (new), `tests/test_outbound_whatsapp.py`, `tests/test_whatsapp_sender_no_bypass.py` | `test_direct_send_payload.py` **98 pass**; `test_outbound_whatsapp.py` 51 → **68 pass**; `test_whatsapp_sender_no_bypass.py` 14 → **20 pass**; full suite **7984 pass / 5 fail**, all five proven pre-existing by re-running them against a pristine `git archive HEAD` export (identical 5 fail / 16 pass); `pytest amplify/functions -q` **37 pass** | revert the commit |
+| `A1_LOCAL` | `src/api/client.ts`, `src/pages/workspace/dashboard/wa-graph-tools.tsx`, `src/test/DirectSendErrorBlurb.test.ts` (new) | `npx tsc --noEmit` exit 0; `npx vitest run` **1122 pass / 2 fail**, both in `BlogContribution.test.tsx` and proven pre-existing against the same pristine export (2 fail / 19 pass); `npm run lint` reports **0 errors on all three files** (10 warnings, all pre-existing `set-state-in-effect` on untouched lines) | revert the commit |
+| `A3_PRODUCTION` | `DIRECT_SEND_ENABLED_WABAS=""` added to `wecare-whatsapp-business-api` and `wecare-outbound-whatsapp` | `UpdateFunctionConfiguration` **replaces** the environment map, so it was read and written back whole plus the one key — the same replace-not-patch trap as `UpdateUserPool`. Measured after the write: keys 18→19 and 14→15, flag present and **empty** on both, **every pre-existing key preserved with the same value**, **zero keys removed**. The read-modify-write ran entirely inside the AWS MCP sandbox and returned only key NAMES — `wecare-whatsapp-business-api` carries `FLOW_PRIVATE_KEY_PASSPHRASE`, so no value entered the agent's context or any command line | remove the key, or set it empty (it already is) |
+| `A3_PRODUCTION` | `wecare-whatsapp-business-api` v65 published, `live` moved **64 → 65** | `deploy_all_lambdas.py` `updated=2 unchanged=0 failed=0`, packaged 160 files / 1,071,273 bytes; `GetAlias` reports `FunctionVersion 65`, `State Active`, v65 `CodeSha256 EEjEux+ETRFObOYNy/vJXgSFaYdRTZzRAnxIjHAfhs0=` **matches `$LATEST`**; two inert live probes of the alias both report `ExecutedVersion 65` with no `FunctionError` — `OPTIONS` → 200, retired samples path → **410** | `aws lambda update-alias --function-name wecare-whatsapp-business-api --name live --function-version 64` (v64 sha `MmCtja+O2ZeH0FUIcSX/oxUU0D/okR/CJ7FV8PkZJUk=`, captured live before publishing) |
+| `A3_PRODUCTION` | `wecare-outbound-whatsapp` v48 published, `live` moved **47 → 48** | packaged 129 files / 646,663 bytes; `GetAlias` reports `FunctionVersion 48`, `State Active`, v48 `CodeSha256 rH26HSDatv8GFptFCu5du0buj6udlj87vdPUSOJpBhk=` **matches `$LATEST`**; live log stream `[48]` shows **5 real outbound requests, 3 messages sent, 0 errors, 0 `direct_send_*` events of any kind, 0 import/NameError**, and no new event name in the vocabulary | `aws lambda update-alias --function-name wecare-outbound-whatsapp --name live --function-version 47` (v47 sha `ohWFD6Gb+NqifQbvjuyrhOkO/jCnLBHS7WCpJd0N9qw=`) |
+| `A3_PRODUCTION` | 4 CloudWatch metric filters + 2 alarms (additive), via new `scripts/provision_direct_send_alarms.py` | filters `direct-send-restricted` and `direct-send-not-onboarded` on **both** log groups, namespace `WECARE.DIGITAL`; alarms `wecare-direct-send-restricted` and `wecare-direct-send-not-onboarded`, Sum `> 0` over 300s, `TreatMissingData=notBreaching`, each with **1 action** to `wecare-alarm-notifications`, which has **1 confirmed email subscription** — routable to a human. Both `INSUFFICIENT_DATA`, the expected state until the first datapoint | `cloudwatch delete-alarms` + `logs delete-metric-filter`; both are additive and inert while the flag is empty |
+| `A4_DESTRUCTIVE` | API Gateway route `POST /wa-business/direct-send/samples` — **NOT DELETED** | Exported in full first (`docs/execution/snapshots/apigw-direct-send-samples-route-before-delete-20261006.json`): `RouteId 7jhytm4`, integration `md9yz9g`. **Two reasons not to delete, both measured:** (1) the A4 grant covers a route whose target Lambda does *not* exist, and `wecare-whatsapp-business-api:live` does; (2) integration `md9yz9g` is **shared by all three** direct-send routes, so deleting it would break `POST /wa-business/direct-send` and `GET /wa-business/direct-send/templates` | n/a — nothing was deleted |
+
+### Rollback, stated plainly
+
+**Primary, and complete without a code revert:** clear `DIRECT_SEND_ENABLED_WABAS`, publish, move
+the alias. Because off is byte-identical to today, that is a full rollback. The flag is *already*
+empty, so this is the shipped state. **If the code itself is at fault**, point `live` back at v64 /
+v47 using the shas above; neither version was deleted or overwritten. Either way the rollback is
+**not in production until the alias moves** — the HTTP API invokes `:live`, not `$LATEST`.
+
+### Pending, not forgotten
+
+| # | Item | Status |
+|---|---|---|
+| G-A | `config/lambda-env-manifest.json` cannot record the new key | ⛔ **BLOCKED** — `env_manifest.py --export` refuses to write because a **pre-existing** real credential sits in `wecare-seo-tools`' environment (`WIX_CLIENT_ID`, `WIX_BLOG_CLIENT_ID` hold `wecare/wix/headless-api-key:app_secret`). `--keys-only` shows the manifest is already **20 keys / 7 functions** out of date with 5 whole functions absent, so this change's two keys join an existing backlog. **Not worked around**: the manifest was not hand-edited (it is a recorded diff target, and a hand edit records intent instead of reality) and `wecare-seo-tools` was not touched (moving a live credential is owner-gated). Unblock: move those two values to Secrets Manager, pass the secret NAME, re-export. |
+| G-B | The samples route is still live | ⏳ PENDING — owner decision. Harmless: it answers 410, verified in production. |
+| G-C | Design §8 step 10 — add a WABA id and do one QA send to `+918100640044` | ⏳ PENDING — **`MANUAL_OWNER_ACTION`**, gated on **O1** (eligibility banner, per WABA), **O2** (express-interest form), **O3** (accept beta terms), **O4** (confirm Meta added the `source=AUTO_GENERATED` fallback templates), **O6** (subscribe to `message_template_status_update`, `template_correct_category_detection`, `account_update`) and **O8** (approve in writing the copy that will be billed as `utility`). Enabling a live-send path is a standing agent refusal regardless. `DIRECT_SEND_ENABLED_WABAS` is **empty on both functions** — confirmed by `GetFunctionConfiguration` on the published alias version, not just `$LATEST`. |
+| G-D | The not-onboarded `error_data.details` wording is **unverified against a live Meta response** | MEDIUM. Documented, not quoted. `classify_error` is a deliberately tolerant two-token match (`'direct send'` + `'categor'`) and logs the full `details` on every 100 so it can be tightened after the first real one. A false negative degrades to `other_100` → full `error_data` logged → the same 403, so the customer-facing outcome is unchanged either way. |
+| G-E | Direct Send plain-text length limit | LOW. The limits table does not render in text extraction, so phase 1's 1024 is **ours**. Labelled as such in the source rather than changed — refusing locally is a clear error, Meta's refusal would not be. |
+| G-G | G2 — `button.payload` never read on inbound | LOW now. Phase 2 is plain text with no buttons; this becomes the gate on any phase 3 that enables Direct Send buttons. |
+
+**Pre-existing and left alone:** 8 `cryptography` import warnings from
+`lambda_utils/ecommerce/gift_card_spi_auth.py` and `wix_webhook.py`, each guarded by `try/except`
+at the import site. 85 eslint errors, all in three generated build artifacts inside another
+session's `.worktrees/ui-native-replace/`. 5 pytest and 2 vitest failures, all proven pre-existing.
+
+**No live send, no QA send, no flag enabled, no credential read or rotated, no secret on a command
+line, no payment mutation, no S3 bucket, no WABA or phone number touched, R2 not implemented.**

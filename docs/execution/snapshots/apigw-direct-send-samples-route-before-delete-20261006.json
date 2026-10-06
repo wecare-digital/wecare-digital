@@ -1,0 +1,44 @@
+{
+  "capturedAt": "2026-10-06T00:00:00Z",
+  "purpose": "Standing-authorization A4 export, taken BEFORE the Direct Send sample-upload code path was removed. This is the rollback for the route, should it ever be deleted.",
+  "apiId": "zllr9lrg7j",
+  "region": "us-east-1",
+  "account": "775261844268",
+  "totalRoutesOnApiAtCapture": 372,
+  "routeBeingRetired": {
+    "ApiKeyRequired": false,
+    "AuthorizationType": "NONE",
+    "RouteId": "7jhytm4",
+    "RouteKey": "POST /wa-business/direct-send/samples",
+    "Target": "integrations/md9yz9g"
+  },
+  "integration": {
+    "ConnectionType": "INTERNET",
+    "IntegrationId": "md9yz9g",
+    "IntegrationMethod": "POST",
+    "IntegrationType": "AWS_PROXY",
+    "IntegrationUri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+    "PayloadFormatVersion": "2.0",
+    "TimeoutInMillis": 30000
+  },
+  "siblingRoutesSharingTheSameIntegration": [
+    {
+      "RouteId": "kgl14zb",
+      "RouteKey": "POST /wa-business/direct-send",
+      "Target": "integrations/md9yz9g"
+    },
+    {
+      "RouteId": "maypgv1",
+      "RouteKey": "GET /wa-business/direct-send/templates",
+      "Target": "integrations/md9yz9g"
+    }
+  ],
+  "decision": "ROUTE NOT DELETED. Two independent reasons, both measured rather than assumed.",
+  "reasons": [
+    "AUTHORITY. The standing-authorization A4 grant covers deleting a route whose target Lambda does not exist. This route's target, wecare-whatsapp-business-api:live, does exist, so route deletion falls outside the grant and is left as an owner decision.",
+    "BLAST RADIUS. Integration md9yz9g is SHARED by all three direct-send routes (measured above, not inferred from the ARN). Deleting the integration would break POST /wa-business/direct-send and GET /wa-business/direct-send/templates, which are both still wanted. Only the route object could be safely deleted, never the integration."
+  ],
+  "whyLeavingTheRouteLiveIsSafe": "The handler no longer has a sample-upload function. The dispatch branch for this path was replaced with an explicit HTTP 410 rather than deleted, because dispatch matches on `'/direct-send' in path` and a deleted branch would fall through to _direct_send and answer `400 phoneId required` - a silent misroute. So the live route now returns a self-describing 410 and reaches no Meta endpoint.",
+  "restoreProcedure": "If the route is ever deleted and must come back: apigatewayv2 CreateRoute with ApiId zllr9lrg7j, RouteKey 'POST /wa-business/direct-send/samples', Target 'integrations/md9yz9g', AuthorizationType NONE, ApiKeyRequired false. The integration needs no change because it was never deleted. The handler-side function would also have to be restored from git history - see the commit that removed _direct_send_upload_sample.",
+  "whyTheCodePathWasRemoved": "POST /{waba_id}/message_samples appears in NONE of the ten Direct Send documentation pages fetched for the design, and a targeted search produced no Meta corroboration. It is most likely a private-beta affordance that has since gone, or was inferred. Phase 2 must not be built on an endpoint we cannot evidence."
+}
