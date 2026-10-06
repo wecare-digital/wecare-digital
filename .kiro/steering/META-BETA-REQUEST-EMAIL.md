@@ -118,8 +118,8 @@ We verified that the Bot API fields (`prompts`, `commands`, `enable_welcome_mess
 | Field | Value |
 |---|---|
 | Business Name | WECARE.DIGITAL |
-| GSTIN | 19AADFW7431N1ZK |
-| PAN | AADFW7431N |
+| GSTIN | 19AAFFW7196L1Z8 |
+| PAN | AAFFW7196L |
 | MCC | 4722 (Travel Agencies and Tour Operators) |
 | Purpose Code | 03 (Travel) |
 | Address | The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7, Phears Ln, Kolkata, WB 700012 |
