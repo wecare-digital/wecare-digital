@@ -99,8 +99,20 @@ class TestOwnPrefillsReachThePlaceholder:
         assert 'get help' in _literal_set_members(handler_source, 'BUTTON_MENU_TRIGGERS')
 
     @pytest.mark.parametrize('prefill', OWN_PREFILLS)
-    def test_bot_takes_control_from_the_ai(self, wa, prefill):
-        """Standby routing: our deterministic reply must win over the Meta AI agent."""
+    def test_our_deterministic_flow_claims_the_prefill_on_standby(self, wa, prefill):
+        """A prefill arriving as a standby copy must be claimed by OUR flow.
+
+        Renamed 2026-10-06. It was `test_bot_takes_control_from_the_ai`, and that name
+        carried a premise Meta has since retired: that sending a reply is how an observing
+        app takes thread control. Under an active Conversation Routing configuration only
+        the designated escalation partner can take a thread that way, and ownership is
+        claimed by RECEIVING rather than by replying.
+
+        The assertion is unchanged and still right, because membership in this set is a
+        narrower claim than the old name made: it decides whether our deterministic flow
+        HANDLES the message. Whether a reply is then actually sent is
+        `STANDBY_REPLY_ENABLED`'s decision — see tests/test_standby_produces_no_sends.py.
+        """
         assert prefill in wa._STANDBY_TEXT_TRIGGERS
 
     def test_deterministic_keywords_contains_get_help(self, wa):
@@ -199,7 +211,33 @@ class TestDecorativeEdgeNormalisation:
             assert forbidden not in handler_source, \
                 f'decoration fallback must not be applied here: {forbidden}'
 
-    def test_standby_gate_normalises_too(self, wa):
-        """A standby 'Hi 👋' must be taken by our own flow, not handed to the Meta AI."""
+    def test_the_deterministic_gate_normalises_decoration_too(self, wa, monkeypatch):
+        """Decoration must not stop our flow recognising a prefill.
+
+        Rewritten 2026-10-06. This was `test_standby_gate_normalises_too`, and its
+        docstring read: *"A standby 'Hi 👋' must be taken by our own flow, not handed to
+        the Meta AI."* That asserted the **opposite** of Meta's current rule. Under an
+        active routing configuration a Service message from a non-owner is rejected, so
+        "taken by our own flow" is precisely what must NOT follow from recognising a
+        standby message — recognising it and replying to it are two separate decisions.
+
+        What this was really testing is kept: `'Hi 👋'` must still normalise through
+        `strip_decorative_edges` and still be recognised as a deterministic trigger, so
+        the live WABA2 QR prefill matches. Whether a reply then goes out from standby is
+        `STANDBY_REPLY_ENABLED`'s decision, which
+        tests/test_standby_produces_no_sends.py covers.
+
+        The config read is stubbed so this measures the decision function rather than
+        whatever is currently in the `ai_hybrid_routing` row.
+        """
+        monkeypatch.setitem(wa._routing_cache, 'v', None)
+        monkeypatch.setitem(wa._routing_cache, 't', 0.0)
+        monkeypatch.setattr(wa, '_get_routing_config', lambda: {
+            'enabled': True,
+            'types': ['button', 'interactive', 'order', 'nfm_reply'],
+            'keywords': sorted(wa._STANDBY_TEXT_TRIGGERS),
+            'contains': [],
+            'commandPrefix': '/',
+        })
         assert wa._is_deterministic_trigger(
             {'type': 'text', 'text': {'body': 'Hi \U0001f44b'}}) is True

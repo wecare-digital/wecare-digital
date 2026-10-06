@@ -1,5 +1,149 @@
 # Change authority matrix
 
+## 2026-10-06 Conversation Routing phase 3 — the standby fix, shipped OFF behind a flag
+
+- Scope: Phase 3 of `.agents/tasks/conversation-routing-20261006/plan.md` — C5, C3, C4,
+  C10, C11. **Shipped with `STANDBY_REPLY_ENABLED` defaulting TRUE, which is today's
+  exact behaviour.** The flag is **not set on any function** and is absent from
+  `config/lambda-env-manifest.json`, so the default lives in code. **No behaviour change
+  reached production.** This is defensive readiness: if a routing configuration exists or
+  a Business Agent is enabled, the owner flips the flag to activate the fix.
+- Why it must default to today's behaviour: `wecare-whatsapp-calling` invokes
+  `wecare-inbound-whatsapp` **unqualified**, so `$LATEST` is production and this code was
+  live the instant `update-function-code` returned, before any alias move. There is no
+  staging gap in which to verify a behaviour change, so it had to ship inert.
+- A1_LOCAL: `amplify/functions/messaging/inbound-whatsapp-handler/handler.py`,
+  `scripts/seed_ai_hybrid_routing.py` (new),
+  `tests/test_deterministic_trigger_equivalence.py` (new, 74 cases),
+  `tests/test_standby_produces_no_sends.py` (new, 57 tests),
+  `tests/test_own_prefill_triggers_menu.py` (two tests renamed and re-premised),
+  `.agents/tasks/conversation-routing-20261006/findings.md` (§12 implementation note).
+- **C5 — the shadowing `_is_deterministic_trigger` is gone, and the kill switch is real.**
+  The module defined that name **twice**; the hardcoded second definition shadowed the
+  config-driven one, so the function that reads `ai_hybrid_routing` and honours
+  `enabled: false` was never the function being called. The switch was unreachable code,
+  and the row was **ABSENT** from `SystemConfigTable`, so it had never been exercised
+  either. There was no runtime way to stop replying from standby without a deploy.
+  **The two were NOT equivalent, so a straight deletion would have been a behaviour
+  change** — measured: the live one also accepted `nfm_reply`, matched
+  `_STANDBY_TEXT_TRIGGERS` (no `help`), and did **no** substring matching, whereas the
+  config-driven defaults added `help` and would have claimed any body containing `pay`,
+  `track` or `faq`. Deleting the shadow as-is would have stopped claiming flow and address
+  submissions and started claiming free-form questions. The survivor's built-in defaults
+  were changed to reproduce the deleted function exactly instead, with
+  `test_deterministic_trigger_equivalence.py` as the proof — **74 cases whose expectations
+  are retyped from the deleted function's semantics**, not generated from the new code.
+  An AST walk asserts exactly one definition now exists (a text search would pass on the
+  comments, which necessarily name it). `_DETERMINISTIC_KEYWORDS` /
+  `_DETERMINISTIC_CONTAINS` stay in the module as an opt-in widening, no longer defaults.
+- A3_PRODUCTION (additive) — `scripts/seed_ai_hybrid_routing.py` wrote
+  `id='ai_hybrid_routing'` to `stack-wecare-digital-SystemConfigTable`. **A no-op on the
+  day it landed by construction**: its `CONFIG_VALUE` is identical to the handler's
+  built-in defaults, asserted by a test, because a seed that changes behaviour is a
+  behaviour change dressed as configuration. Read back: `enabled: true`, 4 types,
+  28 keywords, `contains: []`. Rollback: delete the row — the loader falls back to the
+  same built-in defaults. **This is now the cheapest stop available**: `enabled: false`
+  halts every standby reply at the decision function with no deploy.
+- **C3 — every standby message is stored as standby-marked context, and the reply
+  fall-through is behind the flag.** Today's code `continue`s on every non-deterministic
+  standby message, so the free-form conversation the other responder is handling is
+  discarded — exactly the context Meta's docs say to keep, indexed by BSUID, for when
+  control arrives. All messages now land as `SB#<epoch>#<wamid>` rows on
+  `ThreadOwnershipTable` with `standbySourced: True` and a 7-day TTL. These rows go
+  **nowhere near `MessagesTable` or the Unified Inbox** — marking inbox rows is deferred,
+  and keeping standby context in its own table is what keeps it deferrable: no UI reads
+  it and no dashboard behaviour changes.
+- The comment that read *"sending a reply takes thread control from the AI"* is replaced
+  with a note recording that it was true when written on 2026-07-21 and is contradicted by
+  Meta's current Standby-partners doc, naming `STANDBY_REPLY_ENABLED` as the switch
+  between the two worlds. Recorded rather than deleted: a comment stating a false protocol
+  rule is how the next reader repeats the mistake.
+- **C4 — 13 reachable outbound side-effects gated on `_may_send`.** automation auto-reply,
+  button-reply menu, list-reply route, address submission, post-pay submission, cart
+  order, Direct-API reaction, AWS-path reaction, request_welcome menu, button-text menu,
+  the whole text keyword-routing block, brand-new-contact welcome, payment request.
+  With the flag true `_may_send` short-circuits on its first condition and never reads any
+  state, asserted directly by a test that makes `thread_ownership.may_send` raise.
+  - **Correction to the plan's framing, found by mutation testing and worth recording.**
+    The guards are **not** what produces zero sends with the flag off: the standby arm
+    `continue`s before `_process_message` is reached, so they are unreachable from the
+    standby webhook path, and forcing `_may_send` to return `True` fails no zero-send
+    test. The `continue` is decisive, and deliberately so — `thread_ownership.may_send`
+    fails **open** on unknown state, so a flag that merely delegated to the guards would
+    still reply from standby on every thread whose ownership was not yet derived, which is
+    nearly all of them. The guards are defence in depth plus cover for
+    `_send_payment_request`'s other callers, and they are tested **directly** through
+    `_process_message(standby_sourced=True)` rather than being left as untested dead code.
+  - **The read receipt / typing indicator at the Direct-API site is NOT gated**, nor is
+    its AWS-path twin. Meta's docs gate "Service messages" and never classify a
+    `status: read` or a `typing_indicator`; both go to the same `/{phone_id}/messages`
+    endpoint; it is ungated today and fires 462 times per 30 days. A
+    `TODO(conversation-routing)` at the site names the open question and the empirical
+    check that would settle it. **A test asserts it is NOT gated**, so "finishing the job"
+    fails the build rather than silently changing 462 sends on a guess. The 👍 reaction
+    immediately beside it **is** gated — that one is unambiguously a Service message, and
+    the asymmetry is the point.
+  - The brand-new-contact welcome guards the **send** but not the `welcomeSent` write, a
+    deliberate trade with a named cost: a suppressed welcome is never re-sent. The
+    alternative is retrying it on every later message from that contact, which under
+    routing is a rejected Graph send every time, forever.
+- **C10 — the may-send check now precedes the money mint, and the write order was traced**
+  (closing one of the investigation's own "NOT verified" entries). In
+  `_send_payment_request`: the `WD-PAY-` reference is minted on the first line of the
+  `try`, the Graph send follows, and **both** DynamoDB writes — the `MessagesTable` row
+  carrying `messageId`/`paymentReferenceId`, and the `ConversationHistoryTable` pending
+  ref — come **after** the send. So a refused send leaves a minted reference with a
+  `status: 'pending'` row, and a customer retry on top is the duplicate-paid-order shape
+  `.kiro/steering/whatsapp-payments-india-reference.md` forbids. The guard was therefore
+  placed **before the mint**, not before the send: returning there writes nothing at all.
+  A test asserts the guard precedes the mint **in source order**, because that ordering is
+  the entire fix and a later edit could invert it unnoticed.
+  **Nothing about amounts, paise arithmetic, GST, the convenience fee or the
+  `reference_id` format changed. No payment capture, refund or payment-configuration
+  mutation.**
+- **C11 — the load-bearing test.** `STANDBY_REPLY_ENABLED=false` ⇒ **0 calls at both Graph
+  boundaries** (`urllib.request.urlopen` AND `lambda_client.invoke` — counting one would
+  miss half the sends, since the menus go out over the former and the payment over the
+  latter), for an `interactive.list_reply`, a `type: order` cart, a `/menu` text and a
+  free-form text, individually and as one batch, across six spellings of "off". In the
+  same runs the standby context rows **were** written, so suppression stores rather than
+  discards. Flag unset (default) and `=true` produce the **same non-empty** send list.
+  Money: flag false ⇒ no `WD-PAY-` reaches either boundary and no payment row is written;
+  flag true ⇒ the `order_details` still goes out with a reference. Handover: `control_passed`
+  sets ownership and `control_taken` clears it, driven through `handler()` in **all three**
+  live payload shapes.
+  The inverted assertion at `test_own_prefill_triggers_menu.py` is **replaced**: its
+  docstring claimed a standby `'Hi 👋'` "must be taken by our own flow", the opposite of
+  the current doc rule. The decoration assertion it was really testing is kept; the name
+  and docstring now say what is true — the trigger set decides whether our flow HANDLES a
+  message, and whether a reply is sent is `STANDBY_REPLY_ENABLED`'s decision.
+  `test_bot_takes_control_from_the_ai` was renamed for carrying the same retired premise.
+- A3_PRODUCTION — `scripts/deploy_all_lambdas.py wecare-inbound-whatsapp`,
+  `updated=1 unchanged=0 failed=0`. live **v75 → v76**, live CodeSha256 == `$LATEST`
+  (`0bjTkI9BQcFnIHqD5F7PMBrrNhtukRcH8DOax5Tq++Q=`). `STANDBY_REPLY_ENABLED` confirmed
+  **absent** on the published version. Rollback: `update-function-code` back to
+  `maEM+iGvi3Iq…` (phase 2), **not** an alias move, because the ingress invokes this
+  function unqualified. The cheaper rollback for this phase is not a deploy at all —
+  `enabled: false` on the `ai_hybrid_routing` row.
+- Gates on the exact deployed tree: `.venv/bin/python -m pytest tests -q` → **5 failed,
+  8316 passed, 5 skipped, 3 xfailed** (same 5 pre-existing unrelated failures; +133 tests
+  over phase 2). `npx tsc --noEmit` → **exit 0**. `npm test` → **1 failed, 1197 passed,
+  2 skipped**; the one failure is `src/test/VayuLokLive.test.tsx`, a weather/AQI widget —
+  `git diff 3bd88d53 -- src/` is **empty**, so `src/` is byte-identical to the baseline and
+  that failure cannot be from this work. `check_data_model_drift.py` exit 0;
+  `seed_ai_hybrid_routing.py --verify` passes.
+- **DEFERRED, named rather than quietly dropped:** Phase 4 / C8 (`_thread_control` in
+  `meta-business-agent/handler.py` left exactly as-is — wrong host, legacy path, no
+  `recipient`/BSUID; needs owner answer O3); gating the read receipt / typing indicator;
+  flipping `STANDBY_REPLY_ENABLED` to false (waits on O1); C6 (marking standby rows in the
+  Unified Inbox); enabling Conversation Routing and every console action O1-O8.
+- **Nothing was live-verified against a real standby or handover webhook, because none
+  occur today** (0 of either in 30 days). The evidence is test and source evidence.
+- **No secret read, placed on a command line, or logged; no `get-secret-value`; no
+  credential rotated; no routing enabled; no live-send flag enabled; no payment capture,
+  refund or configuration change; no WABA, phone number, Cognito, IAM, route or existing
+  table touched; no message sent.**
+
 ## 2026-10-06 Conversation Routing phase 2 — derive thread ownership, gate nothing on it
 
 - Scope: Phase 2 of `.agents/tasks/conversation-routing-20261006/plan.md` — C1 and C2
