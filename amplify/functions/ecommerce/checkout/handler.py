@@ -93,8 +93,8 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness
 from lambda_utils.ecommerce import (
     blog_contribution, cart_v2, checkout_pricing, contact_address, customer_cart, finalization,
-    gift_card_settlement, order_creation, order_keys, payment_attempt, purchase_intent,
-    website_checkout, wix_address, wix_writeback)
+    gift_card_settlement, order_channel, order_creation, order_keys, payment_attempt,
+    purchase_intent, website_checkout, wix_address, wix_writeback)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -618,6 +618,24 @@ def _reserve_website_attempt(attempt: Dict[str, Any]) -> None:
     )
 
 
+def _claimed_handoff(identity: customer_auth.CustomerIdentity,
+                     body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The WhatsApp hand-off row this prepare is settling, or `None` for a website basket.
+
+    One job: give `channel` exactly ONE source, so `_website_prepare` does not later grow a second
+    reading of it that can disagree with the first. The hand-off row is written phone-bound by the
+    inbound WhatsApp catalogue-order path and claimed by the authenticated `claim-basket` action
+    (plan item 7); until that lands there is no row to find, so this answers `None` and every
+    prepare is attributed to the website. That is TRUE rather than convenient: the path that
+    would create a WhatsApp-origin basket does not exist yet and is gated off when it does.
+
+    DELIBERATELY NOT READ OFF `body`. Attribution the browser can type is attribution a customer
+    can forge, and `/orders` reports this word back as fact. The phone binding lives on the row,
+    which is why the row - and not the request - is the thing to read.
+    """
+    return None
+
+
 def _attempt_for_gateway_order(gateway_order_id: str) -> Optional[Dict[str, Any]]:
     binding = order_keys.resolve_gateway_order(_keys_table(), gateway_order_id) or {}
     attempt_id = str(binding.get("paymentAttemptId") or "")
@@ -673,6 +691,12 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             "message": "Verify your email and save your checkout details first.",
         }, origin)
 
+    # ATTRIBUTION, read once, here. `channel` says WHERE the order came from; `checkoutMode`
+    # below says HOW it settles and stays `CHECKOUT_MODE_WEBSITE` for both channels -- nothing is
+    # added to `finalization.ACCEPTED_CHECKOUT_MODES`, because a second accepted mode would be a
+    # second finalisation path rather than a label on one.
+    channel = order_channel.canonical((_claimed_handoff(identity, body) or {}).get("channel"))
+
     now = int(time.time())
     keys = _keys_table()
     try:
@@ -718,6 +742,10 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     "giftCardRedeemPaise": gift_card_paise,
                     "currency": "INR",
                     "checkoutMode": website_checkout.CHECKOUT_MODE_WEBSITE,
+                    # BESIDE `checkoutMode`, never inside it. On the `PAYREF#` row as well as the
+                    # attempt because the webhook reconciles on this row and a channel it cannot
+                    # read is a channel a reconciliation cannot report.
+                    "channel": channel,
                     "wixCartId": snapshot.cart_id,
                     "cartRevision": snapshot.cart_revision,
                     "quoteHash": snapshot.snapshot_hash,
@@ -747,7 +775,12 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                 "contact": identity.phone,
             },
             configuration_name=website_checkout.CHECKOUT_MODE_WEBSITE,
-            reserve_attempt=_reserve_website_attempt,
+            # Stamped HERE rather than inside `prepare_checkout`, so the shared module stays
+            # channel-agnostic and this edit is one wrapper instead of a new parameter threaded
+            # through six call sites. `reserve_attempt` is the single sink that writes the attempt
+            # row, so there is no second path the stamp could miss.
+            reserve_attempt=lambda attempt: _reserve_website_attempt(
+                dict(attempt, channel=channel)),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
             # can tell a basket has a recorded attempt but not whether that attempt was paid.
             attempts_table=_attempts_table(),

@@ -109,6 +109,7 @@ interface Row {
   currencyUnexpected?: boolean;
   status?: string;
   statusRank?: number;
+  channel?: string;
 }
 
 function row ( over: Row = {} ) {
@@ -1136,6 +1137,94 @@ describe( '/orders/ — the order history table', () => {
     const td = CODE.match( /(?:^|[;}\s])\.ord-td\{([^}]*)\}/ )![ 1 ];
     expect( td ).toContain( 'text-align:start' );
     expect( td ).toContain( 'font-weight:400' );
+  } );
+} );
+
+describe( '/orders/ — the order-source tag', () => {
+  it( 'says WhatsApp on a WhatsApp order and Website on a website order', async () => {
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [
+        row( { channel: 'whatsapp', referenceId: 'a' } ),
+        row( { channel: 'website', orderNumber: 'WD-2', referenceId: 'b' } ),
+      ],
+      profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    const tags = Array.from( container.querySelectorAll( '.ord-src' ) )
+      .map( node => node.textContent );
+    expect( tags ).toEqual( [ 'WhatsApp', 'Website' ] );
+  } );
+
+  it( 'reads Website for a row that carries no channel on the wire', async () => {
+    // Every order that existed before `channel` was written, and every row the SERVING index's
+    // older projection does not carry it on - the repoint to customerId-createdAt-v2-index is a
+    // separate deliberate step. `row()` deliberately omits the field, so this is the real shape.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row() ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( container.querySelector( '.ord-src' )!.textContent ).toBe( 'Website' );
+  } );
+
+  it( 'reads Website for an unrecognised channel rather than rendering it', async () => {
+    // The server canonicalises, so this should be unreachable - which is exactly why the browser
+    // must not echo whatever arrived. A third word on the page would be a disclosure of a bug
+    // dressed up as a label.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { channel: 'telegram' } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WD-1042' );
+    expect( container.querySelector( '.ord-src' )!.textContent ).toBe( 'Website' );
+    expect( container.textContent ).not.toContain( 'telegram' );
+  } );
+
+  it( 'adds no sixth column: the header is still exactly these five', async () => {
+    // The tag lives inside the existing Order # cell. A sixth column would be a restructure of
+    // the table, and the detail row's colSpan={5} would silently stop spanning the whole row.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WhatsApp' );
+    const headers = Array.from( container.querySelectorAll( 'th[scope="col"]' ) )
+      .map( node => node.textContent );
+    expect( headers ).toEqual( [ 'Order #', 'Date', 'Amount', 'Status', 'Invoice' ] );
+    expect( CODE ).toContain( 'colSpan={ 5 }' );
+  } );
+
+  it( 'is TEXT, not colour: the tag carries a readable word and a weight', () => {
+    // WCAG 1.4.1 - a tag distinguished only by hue fails for anyone who cannot see the
+    // difference, and this page has no legend to look one up in.
+    const src = CODE.match( /(?:^|[;}\s])\.ord-src\{([^}]*)\}/ )![ 1 ];
+    expect( src ).toContain( 'font-weight:700' );
+    expect( src ).not.toContain( 'background' );
+  } );
+
+  it( 'shows the same word in the row and in the opened detail panel', async () => {
+    // Both read ONE local, so they cannot disagree. Asserted on the rendered tree rather than on
+    // the source, because "derived from the same variable" is only interesting if it shows up.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
+    } ) );
+    const trigger = await screen.findByRole( 'button', { expanded: false } );
+    fireEvent.click( trigger );
+    const terms = Array.from( container.querySelectorAll( '.ord-facts dt' ) )
+      .map( node => node.textContent );
+    expect( terms ).toContain( 'Ordered on' );
+    const panel = Array.from( container.querySelectorAll( '.ord-facts dt' ) )
+      .find( node => node.textContent === 'Ordered on' )!.nextElementSibling;
+    expect( panel!.textContent ).toBe( 'WhatsApp' );
+    expect( container.querySelector( '.ord-src' )!.textContent ).toBe( 'WhatsApp' );
+  } );
+
+  it( 'leaves the tag translatable, because "Website" is prose', async () => {
+    // Nothing branches on the rendered string - the branch is on `order.channel`, which is the
+    // canonical value from the wire and never the text a reader sees.
+    const { container } = await renderSignedIn( answer( 200, {
+      orders: [ row( { channel: 'whatsapp' } ) ], profile: profile(),
+    } ) );
+    await screen.findByText( 'WhatsApp' );
+    expect( container.querySelector( '.ord-src' ) )
+      .not.toHaveAttribute( 'data-wc-no-translate' );
   } );
 } );
 

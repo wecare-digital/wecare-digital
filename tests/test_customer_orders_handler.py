@@ -439,6 +439,50 @@ def test_an_unmappable_status_degrades_honestly(ctx, stored):
     assert body["orders"][0]["statusRank"] == 0
 
 
+def test_a_whatsapp_order_says_so_on_the_wire(ctx):
+    """The order-source tag `/orders` renders. `channel` is ATTRIBUTION - it says where the order
+    was placed - and it is a separate field from `checkoutMode`, which says how it settled."""
+    module, orders, _, _ = ctx
+    orders.items = [order_row(channel="whatsapp")]
+    _, body = call(module, body={})
+    assert body["orders"][0]["channel"] == "whatsapp"
+
+
+def test_an_order_row_with_no_channel_reads_as_the_website(ctx):
+    """Every row written before the channel landed, and every row the SERVING index's projection
+    does not carry it on - the repoint to `customerId-createdAt-v2-index` is a separate step. Both
+    are honestly `website`: no WhatsApp order can exist, because the hand-off that would create
+    one is gated off."""
+    module, orders, _, _ = ctx
+    assert "channel" not in order_row()
+    orders.items = [order_row()]
+    _, body = call(module, body={})
+    assert body["orders"][0]["channel"] == "website"
+
+
+@pytest.mark.parametrize("stored,expected", [
+    ("WhatsApp", "whatsapp"), ("whatsapp ", "whatsapp"), ("WHATSAPP", "whatsapp"),
+    ("", "website"), (None, "website"), ("telegram", "website"), (Decimal("1"), "website"),
+    ({"channel": "whatsapp"}, "website"),
+])
+def test_the_channel_is_canonical_on_the_wire_whatever_the_row_holds(ctx, stored, expected):
+    """One spelling reaches the browser whatever was stored, and nothing in this list raises -
+    `_project`'s degrade-never-raise contract covers this field like every other one."""
+    module, orders, _, _ = ctx
+    orders.items = [order_row(channel=stored)]
+    _, body = call(module, body={})
+    assert body["orders"][0]["channel"] == expected
+
+
+def test_the_handler_compares_no_channel_word_raw(ctx):
+    """For the same reason it compares no payment word: a second reading of a vocabulary is a
+    second answer waiting to disagree with the first."""
+    source = HANDLER_PATH.read_text(encoding="utf-8")
+    for spelling in ('== "whatsapp"', "== 'whatsapp'", '== "website"', "== 'website'"):
+        assert spelling not in source
+    assert "order_channel.canonical(" in source
+
+
 def test_the_handler_compares_no_payment_word_at_all(ctx):
     """It reports; the sentence is chosen in the browser. A comparison here would be a sixth
     place the vocabulary lives."""

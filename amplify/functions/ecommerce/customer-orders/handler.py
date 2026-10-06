@@ -58,7 +58,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 from lambda_utils import customer_auth, customer_session, dynamo_reads, payment_status, rate_limit
-from lambda_utils.ecommerce import contact_address
+from lambda_utils.ecommerce import contact_address, order_channel
 from lambda_utils.identity import customer as customer_identity
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -377,6 +377,13 @@ def _project(row: Dict[str, Any]) -> Dict[str, Any]:
         "currencyUnexpected": currency_unexpected,
         "status": status,
         "statusRank": payment_status.rank(stored_status),
+        # WHERE the order was placed, through the one coercion that owns the word. No raw string
+        # comparison here for the same reason there is none for payment state: a second reading
+        # of a vocabulary is a second answer waiting to disagree. `canonical` is TOTAL, so it
+        # cannot break this function's degrade-never-raise property, and an absent `channel` -
+        # every row written before the index was widened - reads as `website`, which is true
+        # because no WhatsApp order can exist.
+        "channel": order_channel.canonical(row.get("channel")),
     }
 
 

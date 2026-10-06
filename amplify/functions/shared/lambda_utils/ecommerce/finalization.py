@@ -20,7 +20,7 @@ import time
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 
-from . import payment_attempt, wix_writeback
+from . import order_channel, payment_attempt, wix_writeback
 
 #: Modes whose attempts may become an internal order. 'WEBSITE_RAZORPAY_STANDARD' mirrors
 #: `website_checkout.CHECKOUT_MODE_WEBSITE`; the literal avoids an import cycle between two
@@ -235,6 +235,14 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
              'purchasedSnapshot': deepcopy(snapshot), 'snapshotHash': attempt['snapshotHash'],
              # The record says which flow produced it, rather than hard-coding one of them.
              'checkoutMode': attempt['checkoutMode'], 'paymentStatus': 'PAYMENT_PAID',
+             # WHERE the order came from, beside HOW it settled, and deliberately a SECOND field
+             # rather than a third `checkoutMode`: `checkoutMode` gates finalisation through
+             # `ACCEPTED_CHECKOUT_MODES` above, so a channel spelled into it would be a new
+             # settlement path instead of a label. `order_channel.canonical` is total, so an
+             # attempt row with no channel - which is every attempt written before this landed -
+             # reads as `website`. That default is TRUE and not a guess: no WhatsApp order can
+             # exist, because the hand-off that would create one is gated off.
+             'channel': order_channel.canonical(attempt.get('channel')),
              'finalizationStage': 'INTERNAL_ORDER_CREATED', 'createdAt': int(time.time())}
     try:
         orders.put_item(Item=order, ConditionExpression='attribute_not_exists(orderId)')
