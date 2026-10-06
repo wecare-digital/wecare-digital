@@ -1609,3 +1609,106 @@ session's `.worktrees/ui-native-replace/`. 5 pytest and 2 vitest failures, all p
 
 **No live send, no QA send, no flag enabled, no credential read or rotated, no secret on a command
 line, no payment mutation, no S3 bucket, no WABA or phone number touched, R2 not implemented.**
+
+## 2026-10-06 — Meta MCP authorize moved off dynamic client registration onto the existing Meta app
+
+Owner-authorized deploy of an already-committed config change. `config/workspace-mcp.json`
+drops `registrationEndpoint` from the `meta-social` (DevTools) and `whatsapp`
+(WhatsApp Business Tools) connections and gives both `clientId: 2238810740192680`, the
+existing Meta app, so `oauth_client` takes the static-client branch instead of attempting
+dynamic client registration against `mcp.facebook.com/.well-known/register/*`.
+
+Spread over **two** commits, not one: `98589c67` makes the substantive edit (version 3 → 4,
+endpoints removed, `clientId` added to both) and `aa722666` only bumps version 4 → 5.
+
+**No handler code changed.** The four code modules in the new bundle are byte-identical to
+the ones already live — `handler.py`, `patch_policy.py`, `provider_adapters.py`, `six.py`.
+The static-client branch already existed in the deployed handler; only the bundled policy
+file decides which branch runs. Confirmed by a member-by-member ZIP diff: 2202 entries on
+both sides, nothing added or removed, and the only substantive difference is
+`workspace-mcp.json`.
+
+The config **ships inside the Lambda ZIP** and is not fetched at runtime.
+`handler.py:26` does a module-scope `Path(__file__).with_name("workspace-mcp.json")` read,
+and `scripts/build_workspace_mcp.py:25-26` copies `config/workspace-mcp.json` into the
+package under that name. There is no S3 config object and no env pointer, so a code deploy
+is the whole propagation mechanism. Verified rather than assumed: the artifact that was
+live carried policy **version 3** with both `registrationEndpoint`s present and no
+`clientId`, read straight out of the stack's own `CodeKey`.
+
+`wecare-workspace-mcp` is not in the `deploy_all_lambdas.py` fleet. It ships via
+`scripts/build_workspace_mcp.py` + `scripts/deploy_workspace_mcp.py`, and
+`amplify/infra/workspace-mcp.json` owns `AWS::Lambda::Version` (keyed on the `CodeSha256`
+parameter, `DeletionPolicy: Retain`) and `AWS::Lambda::Alias` — so the publish and the
+alias move are driven by the CloudFormation change set, not by `snapstart_publish.py`.
+
+### Change record
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A3_PRODUCTION` | `wecare-workspace-mcp` v8 published, `live` moved **7 → 8**; CloudFormation stack `wecare-workspace-mcp` `UPDATE_COMPLETE` | Change set `workspace-mcp-de5e4141e89ba6dfec8c93f0` reviewed before execution and contained **exactly 3 changes**: `Function` Code (no replacement), `Version` (`RequiresRecreation: Always`, so a new version is published), `Alias.FunctionVersion` (`CausingEntity: Version.Version`). **No IAM, DynamoDB, KMS, API Gateway route, authorizer, log group or alarm change.** After execution: `GetAlias` reports `FunctionVersion 8`, `State Active`, `LastUpdateStatus Successful`; v8 `CodeSha256 3l5BQeibpt/sjJPwBwTnCUSHxohKW48ex8spLbx/q5k=` **matches `$LATEST`** and matches the built manifest; artifact `de5e4141e89ba6dfec8c93f00704e7094487c6884a5b8f1ec7cb292dbc7fab99.zip`, re-read from S3 after deploy and confirmed to carry policy **version 5** with `registrationEndpoint` absent and `clientId 2238810740192680` on both connections. One inert live probe of the alias (no authorizer context) reports `ExecutedVersion 8`, no `FunctionError`, **401 "Administrative authentication required"** — which proves the new bundle boots, i.e. the module-scope policy parse succeeded, without touching Meta | `aws lambda update-alias --function-name wecare-workspace-mcp --name live --function-version 7` — v7 `CodeSha256 STKa2lqn2KzgnT+GiLWj6JTcvBpzzdG1cuaiENJaFYc=`, captured live **before** publishing and **retained** (confirmed still present after deploy). Durable path: re-create the change set with the captured `CodeKey` `workspace-mcp/releases/49329ada5aa7d8ace09d3f8688b5a3e894dcbc1a73cdd1b572e6a210d25a1587.zip` + that `CodeSha256`, then `--execute`. Config revert if wanted: `git revert aa722666 98589c67` |
+| `A1_LOCAL` | `config/workspace-mcp.json` (already committed at `98589c67` / `aa722666`); `.agents/tasks/workspace-mcp-meta-oauth-20261006/{rollback,verification,report}.md` (gitignored) | `pytest tests/test_workspace_mcp.py tests/test_workspace_mcp_adapters.py tests/test_mcp_server.py tests/test_mcp_catalogue_drift.py -q` → **167 passed**, exit 0. `npx tsc --noEmit` exit 0. Full evidence in `.agents/tasks/workspace-mcp-meta-oauth-20261006/verification.md` | `git revert aa722666 98589c67` |
+
+### The authorize path was verified read-only, against the built artifact
+
+`.scratch/workspace-mcp/verify_authorize_branch.py` loads `handler.py` with the policy
+extracted from **the deployment ZIP itself** — not from `config/`, and deliberately not
+through `tests/test_workspace_mcp.py`'s fixture, which overrides `clientId` to
+`fixture-client` at lines 24-26 and so would pass whether or not the shipped config had
+changed. It stubs `module.http` to **raise**, so any dynamic-registration attempt fails the
+run loudly. 13 assertions per provider, `ALL CHECKS PASSED`, exit 0: Meta host and
+`/v26.0/dialog/oauth` path, `response_type=code`, `client_id=2238810740192680`,
+`code_challenge_method=S256`, `code_challenge == BASE64URL(SHA256(stored verifier))`
+recomputed from the row the handler wrote, exact cloud `redirect_uri`, policy `scope`,
+`resource` = the MCP endpoint, `status=consent_required`, and no `client_secret` in the URL.
+
+Before this change those same calls raised, at `handler.py:254`,
+`Refusal('Meta MCP client registration is unavailable for this cloud callback. Use the
+existing native MCP connection until Meta enables this client.')`.
+
+The dashboard's own guard accepts both URLs: `metaAuthorizationURL`
+(`src/lib/workspace-mcp.ts:27`) was extracted verbatim and run against them — both PASS. It
+requires the Meta origin and path, a `client_id`, `scope` or `config_id`, the exact cloud
+`redirect_uri`, and `S256`. **No frontend change and no frontend deploy.**
+
+### What "deployed" does NOT mean here, stated plainly
+
+**This is not a working Meta MCP connection, and it is not expected to be.** Per the prior
+read-only investigation (`.agents/tasks/workspace-mcp-meta-oauth-20261006/findings.md`),
+Meta **refused the `developer_tools_mcp_app_read` scope** for client `2238810740192680`,
+and **refused that app's token as a bearer** at
+`https://mcp.facebook.com/whatsapp_business_tools` — an ordinary business-app Graph token is
+not an accepted MCP credential. Meta's MCP server offering is marked Beta and rolling out
+gradually, and this app has not been admitted.
+
+So the expected effect of this deploy is to **move the failure later**: from a pre-login
+refusal ("registration unavailable") to a post-login scope or bearer refusal. That is the
+owner's decision and it shipped on that basis. What is verified is that the backend now
+hands the dashboard a well-formed PKCE authorization URL and that the dashboard will open
+it. End-to-end confirmation needs a human to click **Authorize** on
+`https://wecare.digital/workspace/dashboard/mcp-connections/` and report Meta's response;
+completing a real Meta OAuth was outside the authorized scope and was **not** done.
+
+### Honest note on build reproducibility
+
+The build is reproducible for a given pip invocation (`build_workspace_mcp.py` pins
+`date_time`, sorts names, fixes the mode) but **not** across differing pip flags. This build
+used `--no-compile`, so 7 `*.dist-info/RECORD` manifests differ from the live ones by the
+absence of `__pycache__/*.pyc` lines. Inert — no `.pyc` is in either ZIP, since the build
+excludes them — but it means a rebuild cannot be trusted to reproduce the old checksum, so
+a rollback must reuse the captured `CodeKey`/`CodeSha256` rather than rebuilding. Recorded
+in `rollback.md`.
+
+### Pre-existing and left alone
+
+9 vitest failures, **all** in `src/test/VayuLokLive.test.tsx`
+(`Unable to find an accessible element with the role "combobox"`), which arrived from
+commit `c9789ea2` "fix(vayulok): clean copy, map fallback, and calm gallery (#239)" in the
+same pull range and belongs to another workstream. This change touches no `src/` file — the
+two Meta commits modify `config/workspace-mcp.json` and nothing else — so it cannot reach a
+React component test. Left to its owning session per the parallel-sessions rule.
+
+**No secret read, placed on a command line, or logged; no `get-secret-value` /
+`batch-get-secret-value`; no Meta OAuth completed and no Meta Graph or OAuth call made with
+a token; no credential rotated; no provider mutation; no flag enabled; no other function,
+route, table, IAM policy or alarm touched.**
