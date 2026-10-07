@@ -45,11 +45,22 @@ describe( 'the service cart line (Phase O-1)', () => {
     expect( cart.serviceIntentFor( cart.toLineItems() ) ).toBe( '' );
   } );
 
-  it( 'refuses Drop Docs, Vault and a missing intent, writing nothing', () => {
-    for ( const variant of NOT_OFFERED_SERVICE_VARIANT_IDS )
+  it( 'accepts all four service variants, one at a time', () => {
+    expect( NOT_OFFERED_SERVICE_VARIANT_IDS ).toHaveLength( 0 );
+    for ( const choice of SERVICE_CHOICES )
     {
-      cart.setServiceLine( variant, INTENT );
+      cart.setServiceLine( choice.variantId, INTENT );
+      const services = cart.readCart().filter( cart.isServiceItem );
+      expect( services ).toHaveLength( 1 );
+      expect( services[ 0 ] ).toMatchObject( {
+        variantId: choice.variantId, name: choice.label, quantity: 1,
+        formattedPrice: `₹${ choice.rupees }.00`,
+      } );
     }
+  } );
+
+  it( 'refuses a GUID that is not a variant, and a missing intent, writing nothing', () => {
+    cart.setServiceLine( 'db166bc8-a763-41ec-9f65-0f718f18155b', INTENT );
     cart.setServiceLine( SUBMIT.variantId, '' );
     expect( cart.readCart() ).toEqual( [] );
   } );

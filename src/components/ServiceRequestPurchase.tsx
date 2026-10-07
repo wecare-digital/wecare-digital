@@ -10,13 +10,19 @@ import { colors, fontSize, radius, space } from '../lib/design-tokens';
 import catalog from '../content/wix-catalog.json';
 
 /**
- * THE BUY BOX for Submit Request / Request Amendment (Phase O-1), rendered AFTER the shared
- * ProductPage on the two service pages - ProductPage is shared by twelve pages and is not edited.
+ * THE BUY BOX for all four services, rendered AFTER the shared ProductPage on the four service
+ * pages - ProductPage is shared by twelve pages and is not edited.
  *
  * Flow: signed in (the existing WhatsApp-OTP Cognito session, reused) -> ask the server for an
  * INTENT (no money, no request yet) -> put the one service line in the existing cart -> /cart/,
  * where the ordinary checkout charges it. The copyable request id is created by the server only
  * after the paid order exists, and is shown on /orders.
+ *
+ * WHETHER A TARGET REQUEST IS ASKED FOR comes from `service.needsTarget`, never from a comparison
+ * against one kind: Request Amendment, Drop Docs and Vault all work on a request the caller has
+ * already submitted, and the wording below is driven off `service.label` so one code path reads
+ * correctly for all three. The server is the authority either way
+ * (service_requests.py TARGET_REQUIRED_KINDS); this flag only decides what the form asks for.
  *
  * Amount and label come from src/config/services.ts and nothing else; no figure is typed here.
  * The control is disabled only while a request is in flight, never frozen.
@@ -59,7 +65,7 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
       if ( !session ) { setPhase( 'signedOut' ); return; }
       setToken( session.accessToken );
       setPhase( 'ready' );
-      if ( kind === 'REQUEST_AMENDMENT' )
+      if ( serviceByKind( kind )?.needsTarget )
       {
         const outcome = await fetchMyRequests( session.accessToken, [] );
         if ( !live.current ) return;
@@ -76,13 +82,13 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
   if ( !service ) return null;
   const returnPath = service.path;
   const unavailable = catalogueSaysUnavailable( service.variantId );
-  const needsTarget = kind === 'REQUEST_AMENDMENT';
+  const needsTarget = service.needsTarget;
 
   const buy = async () => {
     if ( !token || phase === 'busy' ) return;
     if ( needsTarget && !chosen )
     {
-      setStatus( 'Choose the request you want to amend.' );
+      setStatus( `Choose the request this ${ service.label } is for.` );
       return;
     }
     setPhase( 'busy' );
@@ -138,14 +144,17 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
         targets.length === 0
           ? (
             <p className="srp-p">
-              You have no request to amend yet.{ ' ' }
+              { service.label } works on a request you have already submitted, and you have none
+              yet.{ ' ' }
               { /* eslint-disable-next-line @next/next/no-html-link-for-pages */ }
               <a className="srp-link" href="/submit-request/">Submit a request</a> first.
             </p>
           )
           : (
             <fieldset className="srp-choices">
-              <legend className="srp-legend">Which request are you amending?</legend>
+              <legend className="srp-legend">
+                { `Which request is this ${ service.label } for?` }
+              </legend>
               { targets.map( row => (
                 <label className="srp-choice" key={ row.requestId }>
                   <input

@@ -9,7 +9,8 @@ evaluates conditions and refuses any expression it does not understand.
 THE ONE RULE: A REQUEST EXISTS ONLY AFTER A PAID ORDER EXISTS
 -------------------------------------------------------------
 Two row families live before payment and carry no public id: ``INTENT#`` (what the customer is
-about to buy, and -- for an amendment -- which of THEIR requests it amends, checked BEFORE money
+about to buy, and -- for every kind in ``TARGET_REQUIRED_KINDS`` (amendment, Drop Docs, Vault) --
+which of THEIR requests it is against, checked BEFORE money
 moves, because a refund is not something this system may automate) and ``OPEN#`` (the one open
 intent per customer per service, so a reload resumes rather than multiplies). Neither appears on
 /orders and neither grants anything.
@@ -60,9 +61,9 @@ from lambda_utils import customer_auth
 from lambda_utils.ecommerce import order_keys
 from lambda_utils.ecommerce.service_requests import (
     INTENT_ID_RE, NOT_OFFERED_KINDS, PUBLIC_REQUEST_ID_ALPHABET, PUBLIC_REQUEST_ID_ENTROPY,
-    PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE, REQUEST_AMENDMENT, SERVICE_CHOICES_PAISE,
+    PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE, SERVICE_CHOICES_PAISE,
     SERVICE_CURRENCY, SERVICE_NOT_OFFERED, SERVICE_UNKNOWN_CHOICE, SERVICE_VARIANT_BY_KIND,
-    SUBMIT_REQUEST, ServiceRejected)
+    SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, ServiceRejected)
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -273,8 +274,11 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
     """Resolve the caller's one open intent for this service, or mint one. Never charges anything.
 
     Raises ``ServiceRejected`` (unknown or not-offered kind, or a missing/unexpected target),
-    ``CustomerNotAuthorized`` (an amendment target that is missing, not the caller's, or not a
-    Submit Request -- one identical refusal), or ``ServiceIdentityUnavailable``.
+    ``CustomerNotAuthorized`` (a target that is missing, not the caller's, or not a Submit
+    Request -- one identical refusal), or ``ServiceIdentityUnavailable``.
+
+    Every kind in ``TARGET_REQUIRED_KINDS`` -- amendment, Drop Docs and Vault -- takes a target
+    through the SAME branch, so none of them can acquire a different ownership rule by accident.
     """
     kind = str(kind or "").strip().upper()
     if kind in NOT_OFFERED_KINDS:
@@ -287,7 +291,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         raise customer_auth.CustomerNotAuthorized("session carries no customer id")
 
     target: Optional[Dict[str, Any]] = None
-    if kind == REQUEST_AMENDMENT:
+    if kind in TARGET_REQUIRED_KINDS:
         if not target_public_id:
             raise ServiceRejected("SERVICE_TARGET_REQUIRED")
         target = resolve_public(table, identity, target_public_id)
@@ -347,7 +351,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
             if str(existing.get("intentFingerprint") or "") == fingerprint:
                 return _intent_view(existing)
 
-            # A different amendment target: SUPERSEDE, in ONE transaction.
+            # A different target request: SUPERSEDE, in ONE transaction.
             intent = _new_intent(intent_id=new_id(), owner=owner, kind=kind,
                                  variant_id=variant_id, amount=amount, target=target,
                                  fingerprint=fingerprint, now=now)
@@ -486,7 +490,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
     if str(intent.get("currency") or "") != SERVICE_CURRENCY:
         return _unmatched("CURRENCY_MISMATCH", reference_id=reference_id, order_id=order_id)
     target_internal = str(intent.get("targetRequestId") or "")
-    if kind == REQUEST_AMENDMENT and not target_internal.startswith(REQUEST_PREFIX):
+    if kind in TARGET_REQUIRED_KINDS and not target_internal.startswith(REQUEST_PREFIX):
         return _unmatched("AMENDMENT_TARGET_MISSING", reference_id=reference_id,
                           order_id=order_id)
 
@@ -511,7 +515,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
             "paymentAttemptId": attempt_id, "referenceId": reference_id, "intentId": intent_id,
             "paidAt": now,
         }
-        if kind == REQUEST_AMENDMENT:
+        if kind in TARGET_REQUIRED_KINDS:
             request["targetRequestId"] = target_internal
             request["targetPublicRequestId"] = str(intent.get("targetPublicRequestId") or "")
         pointer = {KEY_ATTR: ORDER_PREFIX + order_id, "ownerCustomerId": owner,
@@ -536,7 +540,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
                     ":empty": [], ":oid": [order_id], ":sub": owner}),
             }},
         ]
-        if kind == REQUEST_AMENDMENT:
+        if kind in TARGET_REQUIRED_KINDS:
             items.append({"ConditionCheck": {
                 "TableName": table_name,
                 "Key": _marshal_item({KEY_ATTR: target_internal}),

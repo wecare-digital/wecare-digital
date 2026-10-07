@@ -27,7 +27,7 @@ export const MY_REQUESTS_URL = `${ API_BASE }/services/my-requests`;
  */
 export const SERVICE_REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
   SERVICE_NOT_OFFERED: 'This service is not offered yet. Nothing has been charged.',
-  SERVICE_UNKNOWN_CHOICE: 'Choose Submit Request or Request Amendment. Nothing has been charged.',
+  SERVICE_UNKNOWN_CHOICE: 'Choose a WECARE.DIGITAL service. Nothing has been charged.',
   SERVICE_INVALID_QUANTITY: 'A service is bought one at a time. Set its quantity to 1. Nothing has been charged.',
   SERVICE_ONE_PER_ORDER: 'Only one service can be paid for in an order. Remove the extra one. Nothing has been charged.',
   SERVICE_INTENT_REQUIRED: 'Start this service from its own page, then check out. Nothing has been charged.',
