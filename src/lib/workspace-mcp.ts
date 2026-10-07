@@ -5,6 +5,10 @@ export interface MCPConnection {
   kind: string;
   status: string;
   lastVerifiedAt?: number | null;
+  connectionScope?: string;
+  persistent?: boolean;
+  accessExpiresAt?: number | null;
+  automaticRefresh?: boolean | null;
 }
 
 export async function workspaceMCP<T>(name: string, args: Record<string, unknown> = {}): Promise<T> {

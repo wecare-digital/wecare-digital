@@ -313,14 +313,14 @@ def save_tokens(owner, provider, token_data, lease=None):
         raise Refusal("Provider token lifetime invalid")
     if lease:
         table().update_item(Key={"pk": "connection:" + owner + ":" + provider},
-            UpdateExpression="SET cipher = :cipher, expiresAt = :expires, #s = :status",
-            ConditionExpression="refreshLease = :lease", ExpressionAttributeNames={"#s": "status"},
+            UpdateExpression="SET cipher = :cipher, expiresAt = :expires, hasRefreshToken = :refresh",
+            ConditionExpression="refreshLease = :lease",
             ExpressionAttributeValues={":cipher": encrypt(token_data, owner, provider),
-                ":expires": int(time.time()) + lifetime, ":status": "authorized_unverified", ":lease": lease})
+                ":expires": int(time.time()) + lifetime, ":refresh": bool(token_data.get("refresh_token")), ":lease": lease})
         return
     table().put_item(Item={"pk": "connection:" + owner + ":" + provider,
         "owner": owner, "provider": provider, "status": "authorized_unverified",
-        "expiresAt": int(time.time()) + lifetime,
+        "expiresAt": int(time.time()) + lifetime, "hasRefreshToken": bool(token_data.get("refresh_token")),
         "cipher": encrypt(token_data, owner, provider)})
 
 
@@ -461,11 +461,14 @@ def registry(owner):
         stored = row("connection:" + owner + ":" + name)
         status = stored.get("status", "consent_required") if config["kind"] in {'remote-mcp', 'oauth-sdk'} else stored.get('status', config["kind"])
         if stored.get('expiresAt') and int(stored["expiresAt"]) <= time.time():
-            status = "refresh_or_consent_required"
+            status = "refresh_pending" if stored.get("hasRefreshToken") else "refresh_or_consent_required"
         if config.get('registrationEndpoint') and stored.get('cipher') and not row('oauth-client:' + owner + ':' + name):
             status = 'mcp_client_required'
         answer.append({"provider": name, "kind": config["kind"], "status": status,
-            "allowedTools": config.get("tools", []), "lastVerifiedAt": stored.get("lastVerifiedAt")})
+            "allowedTools": config.get("tools", []), "lastVerifiedAt": stored.get("lastVerifiedAt"),
+            "connectionScope": "account", "persistent": bool(stored),
+            "accessExpiresAt": stored.get("expiresAt"),
+            "automaticRefresh": stored.get("hasRefreshToken") if config["kind"] in {"remote-mcp", "oauth-sdk"} else None})
     return {"connections": answer, "policyVersion": POLICY["version"]}
 
 
