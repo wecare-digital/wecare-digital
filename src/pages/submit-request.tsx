@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ServiceRequestPurchase from '../components/ServiceRequestPurchase';
 import { customerserviceBySlug } from '../content/customerservice';
 
 /**
@@ -20,6 +21,12 @@ import { customerserviceBySlug } from '../content/customerservice';
  * PUBLIC, AND NOT [retired public path]/submit-request. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-const SubmitRequestPage: React.FC = () => <ProductPage product={ customerserviceBySlug( 'submit-request' ) } />;
+// Phase O-1: the buy box renders AFTER the shared ProductPage, which is not edited.
+const SubmitRequestPage: React.FC = () => (
+  <>
+    <ProductPage product={ customerserviceBySlug( 'submit-request' ) } />
+    <ServiceRequestPurchase kind="SUBMIT_REQUEST" />
+  </>
+);
 
 export default SubmitRequestPage;

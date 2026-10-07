@@ -20,6 +20,7 @@ import type { ShopProduct } from '../content/shop';
 // instead of against a literal copied out of it. A literal is a per-product hand edit, and
 // `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
 import catalog from '../content/wix-catalog.json';
+import { SERVICES_PRODUCT_ID } from '../config/services';
 
 /**
  * The /shop/ catalogue: the snapshot reader, and the two pages built on it.
@@ -113,6 +114,9 @@ describe( 'the Wix snapshot is read correctly', () => {
     const expected = rows
       .filter( r => r.visible !== false && !!r.slug && !!r.name )
       .filter( r => r.slug !== CONTRIBUTION_SLUG )
+      // The services product (Phase O-1) is a payment vehicle bought from /submit-request/ and
+      // /request-amendment/, excluded from /shop/ by id like the contribution.
+      .filter( r => ( r as { id?: string } ).id !== SERVICES_PRODUCT_ID )
       // The Wix template's twelve sample products, excluded by owner decision 2026-10-05. Derived
       // from the exported list rather than named here, so this stays the prefix-based check the
       // comment above argues for: a product the owner decides to sell is published by deleting one
@@ -691,11 +695,13 @@ describe( "the Wix template's own sample products are not this storefront", () =
       'referral-partner', 'viveka' ] ) {
       expect( SHOP_PRODUCTS.some( product => product.slug === slug ), slug ).toBe( true );
     }
-    // Exactly the visible rows, less the contribution vehicle, less the twelve samples.
+    // Exactly the visible rows, less the contribution vehicle, less the services vehicle
+    // (Phase O-1, a second payment vehicle excluded by id), less the twelve samples.
     const visible = ( ( catalog as { products?: { slug?: string; name?: string;
       visible?: boolean }[] } ).products || [] )
       .filter( row => row.visible !== false && !!row.slug && !!row.name );
-    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 1 - WIX_TEMPLATE_SAMPLE_SLUGS.length );
+    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 2 - WIX_TEMPLATE_SAMPLE_SLUGS.length );
+    expect( SHOP_PRODUCTS.some( product => product.id === SERVICES_PRODUCT_ID ) ).toBe( false );
     expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
     expect( CONTRIBUTION_PRODUCT?.slug ).toBe( CONTRIBUTION_SLUG );
   } );

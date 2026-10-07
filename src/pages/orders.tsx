@@ -4,6 +4,7 @@ import PageMeta from '../components/PageMeta';
 import PageTopBand from '../components/PageTopBand';
 import PillButton from '../components/PillButton';
 import CheckoutIdentityCard from '../components/CheckoutIdentityCard';
+import RequestsPanel from '../components/orders/RequestsPanel';
 import CheckoutProfile, {
   type CheckoutProfileMode,
   type CheckoutProfileValue,
@@ -698,7 +699,8 @@ export default function OrdersPage (): React.ReactElement {
             // every width, so there is no `order:` property and no reading-order divergence.
             <div className={ showProfile ? 'ord-shell ord-shell-editing' : 'ord-shell' }>
               { /* LEFT: the profile panel. It adds NO heading of its own - the rendered h2
-                   list must stay exactly ['What we have on file', 'Order history'], so the
+                   list must stay exactly ['What we have on file', 'Your requests', 'Order history'] (the
+                   middle one is RequestsPanel's, Phase O-1), so the
                    panel is named by aria-label and the only heading in it is the one
                    CheckoutIdentityCard already owns.
 
@@ -759,6 +761,15 @@ export default function OrdersPage (): React.ReactElement {
                     } }
                   />
                 ) }
+                { /* Phase O-1: the customer's service requests. Paid orders' references are
+                     passed so the server can create a request whose webhook hint was missed. */ }
+                <RequestsPanel
+                  accessToken={ token }
+                  paidReferenceIds={ orders
+                    .filter( order => INVOICE_ELIGIBLE.has( order.status ) && order.referenceId )
+                    .map( order => order.referenceId ) }
+                  onExpired={ expire }
+                />
               </aside>
 
               { /* RIGHT: the order history. The list and the empty state are alternatives and

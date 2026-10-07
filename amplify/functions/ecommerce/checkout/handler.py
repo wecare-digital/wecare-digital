@@ -103,6 +103,10 @@ from lambda_utils.ecommerce import (
 # prices there is no customer-proposed amount to validate.
 from lambda_utils.ecommerce.blog_contribution import (
     CONTRIBUTION_CHOICES_PAISE, CONTRIBUTION_PRODUCT_IDS, ContributionRejected)
+# Phase O-1 services (Submit Request / Request Amendment): the server allow-list and its
+# per-line price assertion. All logic lives in the module; this file only calls it.
+from lambda_utils.ecommerce import service_requests
+from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
@@ -632,6 +636,12 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED"}, origin)
     if not request_key or len(request_key) > 80:
         return cors_response(400, {"error": "REQUEST_KEY_REQUIRED"}, origin)
+    # Phase O-1: a services basket is refused here, PURE, before the profile read, any Wix call
+    # or any DynamoDB write -- Drop Docs/Vault, a bad quantity, a missing intent, or V1 pricing.
+    refusal = service_requests.checkout_preflight(line_items, body,
+                                                  v2_enabled=cart_v2.is_enabled())
+    if refusal is not None:
+        return cors_response(refusal[0], refusal[1], origin)
 
     profile = _checkout_profile(identity)
     if not profile:
@@ -690,6 +700,9 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                         snapshot.quote.collection_before_convenience_paise,
                     "quoteExpiresAt": snapshot.expires_at,
                     "policyVersion": snapshot.policy_version,
+                    # Phase O-1: `{"serviceLine": {...}}` for a services basket, `{}` otherwise,
+                    # so every other PAYREF# row is byte-identical to before.
+                    **service_requests.payref_extra(line_items, body),
                 })
 
         prepared = website_checkout.prepare_checkout(
@@ -768,6 +781,14 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             "error": "CONTRIBUTION_NOT_PAYABLE",
             "message": "Contributions cannot be taken right now. Nothing has been charged.",
         }, origin)
+    # Phase O-1 services. Both are `CartContractError`s, so both MUST stay above that arm.
+    except ServicePriceChanged:
+        return cors_response(409, service_requests.refusal(
+            service_requests.SERVICE_PRICE_CHANGED), origin)
+    except ServiceNotPayable:
+        logger.error(json.dumps({"event": "service_not_payable"}))
+        return cors_response(409, service_requests.refusal(
+            service_requests.SERVICE_NOT_PAYABLE), origin)
     except DeliveryMethodUnavailable:
         # MUST stay ABOVE the parent arm below, or the subclass is swallowed by it and
         # DELIVERY_METHOD_UNAVAILABLE never fires.
@@ -1339,7 +1360,10 @@ def _v2_catalog_items(line_items: list) -> tuple:
     lines = wix_ecom.resolved_catalog_lines(line_items)
     requested = [{"productId": line["productId"], "variantId": line["variantId"],
                   "quantity": line["quantity"]} for line in lines]
+    # A Phase O-1 service line ships nothing either (the Wix product is PHYSICAL), so it gets the
+    # same per-line identity override as a contribution.
     return requested, any(line["requiresDelivery"] and not _is_contribution_id(line["productId"])
+                          and not service_requests.is_service_product(line["productId"])
                           for line in lines)
 
 
@@ -1963,7 +1987,10 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
             # `except Exception` and become the 503 dead end; inside it, the existing arm below
             # reads Wix's own violation codes and answers 409 like every other delivery refusal.
             prepared = purchase_intent.prepare_delivery(adapter, cart_id, owned) or {}
-        elif contribution_paise is not None:
+        elif contribution_paise is not None or service_requests.has_service_line(line_items):
+            # (Phase O-1: a services-only basket takes this same address-free branch -- a request
+            # has nothing to ship, and its Wix product is PHYSICAL exactly like `Contribute`.)
+            #
             # THE ADDRESS IS STILL NEVER WRITTEN HERE. `prepare_delivery` is not called and
             # `owned` is not passed: a contribution must not have a postal address written onto
             # its Wix cart, because a payment with no delivery has no place of supply and writing
@@ -2050,6 +2077,8 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
             if contribution_paise is not None:
                 raise ContributionNotPayable(
                     "wix requires delivery for a contribution basket") from None
+            if service_requests.has_service_line(line_items):
+                raise ServiceNotPayable("wix requires delivery for a services basket") from None
             raise cart_v2.CartContractError(
                 "wix requires delivery for a no-delivery basket") from None
         if not codes or "MISSING_DELIVERY_ADDRESS" in codes:
@@ -2057,6 +2086,10 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
         raise DeliveryMethodUnavailable("wix offered no usable delivery method") from None
     if contribution_paise is not None:
         _assert_contribution_total(calculated, contribution_paise)
+    if service_requests.has_service_line(line_items):
+        # Phase O-1: per LINE, so it holds in a mixed basket and under a coupon. Fail-closed.
+        service_requests.assert_service_line_price(
+            calculated, line_items, delivery_required=requires_delivery)
     # Names and quantities only, for the payment request and the receipt. Line money never
     # travels with the item list: the authoritative amount is the one computed once, above, and
     # the snapshot hash already covers the per-line figures Wix calculated.
@@ -2092,11 +2125,28 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(400, {"error": "LINE_ITEMS_REQUIRED",
                                    "message": "Your cart is empty."}, origin)
 
+    # Phase O-1: A SERVICE IS NEVER BOUGHT ON THIS ROUTE, refused first and before any I/O.
+    #
+    # The reason is measured from the call graph, not the price. WIX_CART_V2_ENABLED=true on
+    # wecare-checkout (measured 2026-10-06), so `_v2_snapshot` below WOULD apply the service
+    # pre-check and the per-line price assertion here too -- the price would be honest. What this
+    # route cannot do is create the REQUEST: it reads no `serviceIntentId` and never runs
+    # `_website_prepare`'s `_allocate_reference`, so its PAYREF# row carries no `serviceLine`,
+    # and a capture here would be a paid service with no request, recoverable only by a human.
+    # (On the V1 branch it would also be priced with no per-line assertion at all.) Returned as
+    # a 409 directly rather than raised, so it can never reach `handler`'s outer 500.
+    if service_requests.has_service_line(line_items):
+        logger.info(json.dumps({"event": "service_refused",
+                                "reason": service_requests.SERVICE_WEBSITE_ONLY}))
+        return cors_response(409, service_requests.refusal(
+            service_requests.SERVICE_WEBSITE_ONLY), origin)
+
     # 1. Authoritative total, from Wix. The browser sent catalogue references and quantities;
     #    Wix computes the price. A non-INR or non-whole-paise total fails closed.
     #
-    #    Checkout V1 is what serves: Cart V2 is opt-in behind `WIX_CART_V2_ENABLED`
-    #    (`cart_v2.is_enabled`), which is absent on every function, so absence keeps V1. Both are
+    #    Cart V2 is opt-in behind `WIX_CART_V2_ENABLED` (`cart_v2.is_enabled`), and
+    #    WIX_CART_V2_ENABLED=true on wecare-checkout (measured 2026-10-06), so V2 serves here;
+    #    absence would keep V1. Both are
     #    the SAME checkout mode -- website Razorpay Standard Checkout -- differing only in which
     #    Wix API prices the cart. Neither routes a customer to a Wix-hosted checkout surface.
     wix_checkout_id = ""

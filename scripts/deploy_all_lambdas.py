@@ -238,6 +238,18 @@ SPECS: List[Spec] = [
         "ecommerce/customer-orders",
         provisioned_by="python scripts/provision_customer_orders.py",
     ),
+    # Phase O-1 service requests (Submit Request / Request Amendment): the pre-payment intent,
+    # the customer's own request list, and activation from the razorpay-webhook hint. It moves
+    # no money - it imports no Razorpay, Wix or cart module and reads no secret. First creation
+    # is owned by scripts/provision_service_requests.py, which also creates its table, two GSIs
+    # and the dedicated least-privilege role. NOT standalone: it imports lambda_utils
+    # customer_auth, customer_session, rate_limit, ecommerce.service_request_store/
+    # service_requests/order_keys, response and logging.
+    Spec(
+        "wecare-service-requests",
+        "ecommerce/service-requests",
+        provisioned_by="python scripts/provision_service_requests.py",
+    ),
     # A customer's own invoice, as a 300-second presigned download. A SEPARATE function from
     # wecare-customer-orders deliberately: this route needs dynamodb:GetItem, s3:GetObject
     # and a second dynamodb:Query, and all three are specifically refused by that function's

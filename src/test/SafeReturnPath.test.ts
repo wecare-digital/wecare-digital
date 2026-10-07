@@ -144,7 +144,7 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   // rejection is asserted positively in the inversion block further down, rather than only by
   // absence here.
   it( 'accepts each customer destination in its slashed form', () => {
-    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/' ] ) {
+    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/' ] ) {
       expect( safeLocalReturnPath( ok ) ).toBe( ok );
     }
   } );
@@ -168,7 +168,8 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   } );
 
   it( 'only ever returns a member of the allowed set', () => {
-    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/' ] );
+    // Phase O-1 added the two service pages, which link signed-out customers to sign in.
+    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/' ] );
     const inputs = [
       '/cart', '/cart/', '/', '//evil', '/workspace/access', 'https://evil.example/',
       '%2f%2fevil', '/../x', '', null, undefined, '/terms/', '/cart/#f',
