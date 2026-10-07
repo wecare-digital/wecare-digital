@@ -2399,3 +2399,11 @@ changed; `.kiro/settings/mcp.json` not edited.**
 | A2_REMOTE_CODE | Separate research branch | Non-force feature-branch push of explicit documentation/tool/prototype paths; no stack merge or production deployment. | Delete research branch after review |
 
 Prior pending registry migration and workspace MCP production deployment are not authorized by this research request and were not executed.
+
+## Pasted investigation reconciliation — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Current stack, page/API/deployment source | Verified service-request source/Spec entry, contextual Blog Production links, non-stub API consumers; no missing registered pages; module-home tests 31 passed. | Read only |
+| A0_READ | AWS authorizers/routes/Cognito/alarms/metrics | Verified 372 NONE, 1 JWT, 1 IAM route; both MFA OFF, customer challenge triggers preserved; 73 metric alarms; six-function seven-day invocation evidence. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Research branch / PR244 | Added corrections and metadata; no deletion or auth change inferred from another assistant’s report. | Revert research update |
