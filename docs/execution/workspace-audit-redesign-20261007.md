@@ -1,5 +1,7 @@
 # Workspace and public-site audit, 7 October 2026
 
+The owner's requested agent-first implementation roadmap is in [internal-agent-autonomy-phases-20261007.md](../workspace-review/internal-agent-autonomy-phases-20261007.md), with a ten-area capability matrix. It builds on the existing internal assistant and MCP services, and specifies persistent runs, policy-bound internal execution, verified receipts and an Agent work queue. This is a plan; production autonomy is not enabled.
+
 ## Scope and evidence
 
 Audited production source `a82ff4c9` on separate branch `codex/workspace-audit-redesign-20261007`. Enumerated all 149 page files: 113 workspace routes and 36 public route patterns, excluding Next's `_app` and `_document` framework files. A dynamic route represents a family of product/post/topic pages, not a count of every generated URL. Traced local imports, API helper calls, object API exports, direct request sites, feature flags, page embedding and navigation registration. Source contains 80 `handler.py` files; that is not an expected deployed-function count because it includes legacy/alternate implementations.

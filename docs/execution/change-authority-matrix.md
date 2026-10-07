@@ -2407,3 +2407,13 @@ Prior pending registry migration and workspace MCP production deployment are not
 | A0_READ | Current stack, page/API/deployment source | Verified service-request source/Spec entry, contextual Blog Production links, non-stub API consumers; no missing registered pages; module-home tests 31 passed. | Read only |
 | A0_READ | AWS authorizers/routes/Cognito/alarms/metrics | Verified 372 NONE, 1 JWT, 1 IAM route; both MFA OFF, customer challenge triggers preserved; 73 metric alarms; six-function seven-day invocation evidence. | Read only |
 | A1_LOCAL / A2_REMOTE_CODE | Research branch / PR244 | Added corrections and metadata; no deletion or auth change inferred from another assistant’s report. | Revert research update |
+
+## Internal agent autonomy phase plan — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Existing internal assistant, governance and workspace MCP | Traced custom Converse dispatch, disabled APPLY tools, plans/approvals, fail-open receipts, static settings catalog and worker-identity gap. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | Successful GetCallerIdentity, ListFunctions, ListStateMachines, ListQueues, ListAgents and three ListAliases calls. AI live 38, MCP live 10, action group live 28; classic agent NOT_PREPARED; zero state machines. No model invocation, secrets or customer reads. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added seven implementation phases, ten-area capability matrix and metadata evidence. Checked phase/gate coverage, CSV structure, source references and API-call success. | Revert documentation commit |
+
+This request creates the implementation plan. It does not activate autonomous production actions, change staff/customer authentication, lift protected-path restrictions or execute previously blocked production changes.
