@@ -2426,3 +2426,12 @@ This request creates the implementation plan. It does not activate autonomous pr
 | A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added 14 text diagrams, ten inner-page specifications, backend upgrade/release matrix, and all 113 workspace routes mapped to 14 proposed destination groups. Validated unique route coverage, destination count, source existence and whitespace. | Revert documentation commit |
 
 Destination consolidation is a design target, not approval to delete routes/backends. Public/customer flows, authentication, production resources and application behavior remain unchanged.
+
+## WhatsApp coverage audit integration — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Pasted WhatsApp audit and relevant repository source | Corrected Embedded Signup stub claim via shared component/API; checked legacy thread-control shape, group storage/helper, revoke limitation, OTP controls and website-only payment policy. Official Meta docs refresh failed (inaccessible/429); no replacement API contract claimed. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added twelve-area preservation matrix, dispositions for all 25 reported gaps and six staged batches; validated coverage and component/helper references. No app tests run for documentation-only change. | Revert documentation commit |
+
+No live provider requests, credential reads, PIN/number operations, payment reactivation, send activation, AWS changes or source behavior changes were made. Pasted recommendations are classified research inputs, not blanket execution authority.

@@ -1,5 +1,7 @@
 # Proposed final workspace: fewer destinations, complete workflows
 
+The owner-supplied WhatsApp coverage audit is reconciled in [whatsapp-coverage-redesign-addendum-20261007.md](whatsapp-coverage-redesign-addendum-20261007.md): all twelve capability areas are assigned a final home, with dispositions for its 25 reported gaps. Use these preservation gates before consolidating the 31 WhatsApp page implementations.
+
 Owner request, 7 October 2026. Design specification on `codex/workspace-audit-redesign-20261007`; this does not change the deployed UI. Read together with the page audit, investigation reconciliation and internal-agent phases. The pasted report is research input: unsupported “stub”, “orphan” and retirement claims are not carried into the implementation.
 
 ## Final navigation target
