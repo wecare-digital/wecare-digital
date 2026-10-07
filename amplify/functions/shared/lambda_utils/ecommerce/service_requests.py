@@ -278,6 +278,23 @@ def payref_extra(line_items: Any, body: Any) -> Dict[str, Any]:
                             "paise": line.paise, "intentId": _intent_id(body)}}
 
 
+def intent_rebound(payref: Optional[Mapping[str, Any]], body: Any) -> bool:
+    """True when a reserved attempt's ``PAYREF#`` row is bound to a DIFFERENT intent than ``body``.
+
+    The intent id is not part of either request-key fingerprint, and ``payref_extra`` is written
+    only when a FRESH attempt mints its reference. So a resumed request key keeps the intent its
+    first prepare bound -- and after a customer switches an amendment's target (intent A
+    superseded by B, identical cart lines), paying the resumed attempt would activate A and amend
+    the request they moved away from. The caller refuses such a resume with ``INTENT_CHANGED``.
+
+    PURE. Fails closed: a missing row or a row with no ``serviceLine`` is a rebind, never a match.
+    """
+    line = payref.get("serviceLine") if isinstance(payref, Mapping) else None
+    bound = str(line.get("intentId") or "") if isinstance(line, Mapping) else ""
+    presented = _intent_id(body)
+    return not bound or not presented or bound != presented
+
+
 def _catalog_item_id(cart_line: Dict[str, Any]) -> str:
     source = cart_line.get("source") if isinstance(cart_line, dict) else None
     reference = (source or {}).get("catalogReference") if isinstance(source, dict) else None
@@ -333,9 +350,18 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
     if line_paise != positive_paise(committed.paise):
         _mismatch(committed.paise, line_paise, "SERVICE_LINE_PRICE")
     if not delivery_required:
-        delivery = (calculated.get("componentsPaise") or {}).get("delivery")
-        if type(delivery) is not int or delivery != 0:
-            _mismatch(committed.paise, line_paise, "SERVICE_DELIVERY_CHARGED")
+        # A services-only basket (nothing ships, so nothing else is in it but services). Every
+        # component Wix can add on top of the lines must be exactly zero, or the payable rises
+        # above "Rs.99 + convenience fee" without a refusal -- the same hole
+        # `_assert_contribution_total` closes on the total. NOT applied to a mixed basket, where
+        # other lines legitimately carry delivery, tax and fees.
+        components = calculated.get("componentsPaise") or {}
+        for component, reason in (("delivery", "SERVICE_DELIVERY_CHARGED"),
+                                  ("tax", "SERVICE_TAX_CHARGED"),
+                                  ("additionalFees", "SERVICE_FEES_CHARGED")):
+            value = components.get(component)
+            if type(value) is not int or value != 0:
+                _mismatch(committed.paise, line_paise, reason)
 
 
 __all__ = [
@@ -343,6 +369,7 @@ __all__ = [
     "REQUEST_AMENDMENT", "SERVICE_CHOICES_PAISE", "SERVICE_CURRENCY", "SERVICE_MESSAGES",
     "SERVICE_PRODUCT_IDS", "SERVICE_VARIANT_BY_KIND", "SUBMIT_REQUEST", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected", "assert_service_line_price",
-    "checkout_preflight", "has_service_line", "is_service_product", "payref_extra", "refusal",
+    "checkout_preflight", "has_service_line", "intent_rebound", "is_service_product",
+    "payref_extra", "refusal",
     "service_line",
 ]

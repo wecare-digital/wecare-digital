@@ -5,8 +5,10 @@
     services basket makes -- as a set equality -- and a second prepare on the same request key
     makes zero further Razorpay order creates.
 (c) A captured payment delivered 3x by the webhook and once via verify-callback yields exactly
-    one PAYMENTATTEMPT# claim, one ORDER pointer, one REQ#, and the Razorpay fake records only
-    reads -- no capture, refund or payment-configuration call exists to record.
+    one PAYMENTATTEMPT# claim, one ORDER pointer, one REQ#. The REAL ``verifier_for_event`` runs
+    against a recorder installed AT THE HTTP SEAM (``urllib.request.urlopen``), so every provider
+    request the path makes is recorded; the set is exactly ``{GET /payments/<id>}`` -- no
+    capture, refund or payment-configuration request is made.
 (d) The enumeration is not vacuous.
 (e) The new role names no Razorpay or Wix credential path.
 """
@@ -37,6 +39,7 @@ from service_requests_fake_dynamo import RequestTable  # noqa: E402
 from lambda_utils import customer_auth  # noqa: E402
 from lambda_utils.ecommerce import order_creation, order_keys  # noqa: E402
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
+from lambda_utils.integrations import razorpay_verify  # noqa: E402
 
 PRODUCT = "df976a0a-f582-4535-b2e1-d532f348bd27"
 SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
@@ -121,21 +124,44 @@ def test_b_the_prepare_path_makes_exactly_the_enumerated_calls(monkeypatch):
 # ── (c) captured 3x via webhook + once via verify -> one of everything ────────
 
 class RecordingRazorpay:
-    """Every method a Razorpay client could expose. Only reads may ever be called."""
+    """THE HTTP SEAM itself: stands in for ``urllib.request.urlopen``, which is how BOTH
+    ``razorpay_verify`` and ``razorpay_orders`` reach Razorpay. Every request any production code
+    on the path makes lands here as ``(METHOD, path)``. Only ``GET /payments/<id>`` is answered;
+    anything else -- an order create, a capture, a refund, any POST -- is recorded and FAILS.
 
-    def __init__(self, amount):
+    Replaces an earlier recorder whose ``__getattr__`` was unreachable: only one bound method of
+    it was patched in, so no production code ever held the object (review R74-RECORDER-UNREACHABLE).
+    """
+
+    def __init__(self, amount, *, payment_id="pay_LIVE0000000001", order_id="order_ABC"):
         self.amount = amount
+        self.payment_id = payment_id
+        self.order_id = order_id
         self.calls = []
 
-    def verifier(self, _reference):
-        self.calls.append("payment.fetch")
-        return True, "pay_LIVE0000000001", self.amount, "INR"
+    def __call__(self, request, timeout=None):  # the urlopen signature production uses
+        from lambda_utils.integrations import razorpay_verify
+        method = request.get_method()
+        path = request.full_url[len(razorpay_verify.API_BASE):] \
+            if request.full_url.startswith(razorpay_verify.API_BASE) else request.full_url
+        self.calls.append((method, path))
+        if method != "GET" or path != f"/payments/{self.payment_id}":
+            raise AssertionError(f"money-moving or unexpected call {method} {path} "
+                                 "reached the provider")
+        body = json.dumps({"id": self.payment_id, "order_id": self.order_id,
+                           "status": razorpay_verify.CAPTURED, "amount": self.amount,
+                           "currency": "INR"}).encode("utf-8")
 
-    def __getattr__(self, name):
-        def forbidden(*_a, **_k):
-            self.calls.append(name)
-            raise AssertionError(f"money-moving call {name!r} reached the provider")
-        return forbidden
+        class _Response:
+            def __enter__(self_inner):
+                return self_inner
+
+            def __exit__(self_inner, *_exc):
+                return False
+
+            def read(self_inner):
+                return body
+        return _Response()
 
 
 class LambdaToReceiver:
@@ -161,6 +187,8 @@ def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(
     reference = order_keys.allocate_payment_reference(
         keys, payment_attempt_id="att-1",
         extra={"customerId": "sub-1", "amountPaise": 10193, "currency": "INR",
+               # The binding a real prepare records, which the REAL verifier requires.
+               "providerOrderId": "order_ABC",
                "serviceLine": {"kind": "SUBMIT_REQUEST", "variantId": SUBMIT, "paise": 9900,
                                "intentId": intent["intentId"]}})
 
@@ -187,18 +215,25 @@ def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(
     payload = {"id": "pay_LIVE0000000001", "order_id": "order_ABC", "amount": 10193,
                "currency": "INR"}
     outcomes = []
-    with patch.object(webhook, "dynamodb") as ddb, patch.object(webhook, "lambda_client", lam):
-        ddb.Table.return_value = keys
-        with patch("lambda_utils.integrations.razorpay_verify.verifier_for_event",
-                   return_value=razorpay.verifier):
+    load = lambda ref: order_keys.resolve_payment_reference(keys, ref)  # noqa: E731
+    # The REAL `verifier_for_event` runs. Only the credential read (no secret in a test) and the
+    # HTTP seam are replaced, so every provider call the path makes is observable.
+    with patch.object(razorpay_verify, "_credentials",
+                      return_value={"key_id": "test", "key_secret": "test"}), \
+            patch("urllib.request.urlopen", razorpay):
+        with patch.object(webhook, "dynamodb") as ddb, \
+                patch.object(webhook, "lambda_client", lam):
+            ddb.Table.return_value = keys
             for delivery in range(3):
                 outcomes.append(webhook._create_order_for_captured_payment(
                     payload, reference, f"req-{delivery}"))
-    # The verify-callback path reconciles through the same `reconcile_payment`.
-    verify = order_creation.reconcile_payment(
-        table=keys, reference_id=reference, verify_payment=razorpay.verifier,
-        load_attempt=lambda ref: order_keys.resolve_payment_reference(keys, ref))
-    store.activate(requests, keys, reference_id=reference, caller_customer_id="sub-1")
+        # The verify-callback path reconciles through the same `reconcile_payment`.
+        verify = order_creation.reconcile_payment(
+            table=keys, reference_id=reference,
+            verify_payment=razorpay_verify.verifier_for_event(
+                payment_id="pay_LIVE0000000001", load_attempt=load),
+            load_attempt=load)
+        store.activate(requests, keys, reference_id=reference, caller_customer_id="sub-1")
 
     assert [o["outcome"] for o in outcomes] == ["ORDER_CREATED", "ORDER_ALREADY_EXISTS",
                                                 "ORDER_ALREADY_EXISTS"]
@@ -208,8 +243,8 @@ def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(
     assert len([k for k in requests.rows if str(k).startswith("REQ#")]) == 1
     assert len([k for k in requests.rows if str(k).startswith("ORDER#")]) == 1
     assert len(lam.calls) == 3
-    assert set(razorpay.calls) <= {"payment.fetch"}
-    assert razorpay.calls, "the verifier must actually have been consulted"
+    # Every provider request the path made, at the HTTP seam: reads of the one payment only.
+    assert set(razorpay.calls) == {("GET", "/payments/pay_LIVE0000000001")}, razorpay.calls
 
 
 # ── (d) and (e) ───────────────────────────────────────────────────────────────
@@ -220,10 +255,14 @@ def test_d_the_enumeration_itself_is_not_vacuous():
     assert _imports(probe) & BANNED_IMPORTS == {"razorpay_orders"}
     assert [n for n in ast.walk(probe) if isinstance(n, ast.Call)
             and isinstance(n.func, ast.Attribute) and n.func.attr == "invoke"]
+    import urllib.request
+    from lambda_utils.integrations import razorpay_verify
     rp = RecordingRazorpay(1)
+    refund = urllib.request.Request(
+        razorpay_verify.API_BASE + "/payments/pay_LIVE0000000001/refund", method="POST")
     with pytest.raises(AssertionError):
-        rp.refund()
-    assert rp.calls == ["refund"]
+        rp(refund)
+    assert rp.calls == [("POST", "/payments/pay_LIVE0000000001/refund")]
 
 
 def test_e_the_new_role_names_no_provider_credential_path():

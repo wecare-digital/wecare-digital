@@ -444,7 +444,14 @@ declare global {
  */
 function getCheckoutRequestKey ( lineItems: CheckoutLineItem[] ): string {
   if ( typeof window === 'undefined' ) return '';
-  const fingerprint = basketFingerprint( lineItems );
+  // Phase O-1: a services basket also keys on its intent id, so switching an amendment's target
+  // (same lines, new intent) mints a fresh key instead of resuming the superseded attempt. The
+  // server refuses that resume with INTENT_CHANGED regardless; this saves the round trip. Every
+  // other basket's fingerprint is byte-identical to before.
+  const serviceIntent = serviceIntentFor( lineItems );
+  const fingerprint = serviceIntent
+    ? `${ basketFingerprint( lineItems ) }|intent:${ serviceIntent }`
+    : basketFingerprint( lineItems );
   const minted = window.sessionStorage.getItem( CHECKOUT_REQUEST_BASKET );
   const existing = window.sessionStorage.getItem( CHECKOUT_REQUEST_KEY );
   if ( existing && minted === fingerprint ) return existing;

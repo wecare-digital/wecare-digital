@@ -628,6 +628,29 @@ def _attempt_for_gateway_order(gateway_order_id: str) -> Optional[Dict[str, Any]
     ).get("Item")
 
 
+def _refuse_rebound_service_intent(identity: customer_auth.CustomerIdentity, request_key: str,
+                                   body: Dict[str, Any], keys) -> None:
+    """Phase O-1: refuse a request key whose attempt is bound to a different service intent.
+
+    Reads only (the REQUESTKEY# row, then its PAYREF#). A no-op for every non-service basket and
+    for a key with no reference yet. Raises `CheckoutRejected("INTENT_CHANGED")`, which
+    `cart.tsx` already answers by rotating the key once -- so the customer pays a FRESH attempt
+    bound to the intent they chose now, never the superseded one. See
+    `service_requests.intent_rebound`.
+    """
+    if not service_requests.has_service_line(body.get("lineItems")):
+        return
+    reservation = order_keys.resolve_checkout_request_key(
+        keys, customer_id=identity.customer_id, request_key=request_key) or {}
+    reference = str(reservation.get("referenceId") or "")
+    if not reference:
+        return
+    if service_requests.intent_rebound(order_keys.resolve_payment_reference(keys, reference),
+                                       body):
+        logger.warning(json.dumps({"event": "service_intent_rebound"}))
+        raise website_checkout.CheckoutRejected("INTENT_CHANGED")
+
+
 def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                      origin: str) -> Dict[str, Any]:
     line_items = body.get("lineItems")
@@ -653,6 +676,8 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     now = int(time.time())
     keys = _keys_table()
     try:
+        # Phase O-1: before any Wix call, a resumed key bound to a superseded service intent.
+        _refuse_rebound_service_intent(identity, request_key, body, keys)
         # The row is already in hand from the `_checkout_profile` call above, so threading it
         # keeps the happy path at one contacts Query.
         #
@@ -730,6 +755,10 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             purchased_snapshot=snapshot.frozen_data,
             wix_order_payload=wix_order_payload,
         )
+        # Phase O-1: again AFTER, authoritatively -- a concurrent click on the same key may have
+        # bound its reference between the check above and the reservation. Options are never
+        # handed out for an attempt bound to another intent.
+        _refuse_rebound_service_intent(identity, request_key, body, keys)
     # ── EVERY `cart_v2.CartContractError` SUBCLASS MUST PRECEDE ITS PARENT ARM BELOW, or it is
     # ── swallowed and its named code never fires. The parent is the `CART_NOT_PAYABLE` arm.
     except ContributionRejected as rejected:

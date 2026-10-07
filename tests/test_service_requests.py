@@ -218,6 +218,54 @@ def test_delivery_on_a_no_delivery_basket_fails_closed():
         sr.assert_service_line_price(calculated(delivery=4000), [line()], delivery_required=False)
 
 
+def _with_component(component: str, paise):
+    calc = calculated()
+    calc["componentsPaise"][component] = paise
+    if type(paise) is int:
+        calc["componentsPaise"]["total"] += paise
+    return calc
+
+
+@pytest.mark.parametrize("paise", [1, 1782, "0", None])
+def test_tax_on_a_no_delivery_basket_fails_closed(paise):
+    """Review SERVICE-TAX-FEES-UNCHECKED: a Wix tax rule on the PHYSICAL services product would
+    raise the payable above Rs.99 + convenience fee. One paise is enough to refuse."""
+    with pytest.raises(sr.ServicePriceChanged):
+        sr.assert_service_line_price(_with_component("tax", paise), [line()],
+                                     delivery_required=False)
+
+
+@pytest.mark.parametrize("paise", [1, 2500, "0", None])
+def test_additional_fees_on_a_no_delivery_basket_fail_closed(paise):
+    with pytest.raises(sr.ServicePriceChanged):
+        sr.assert_service_line_price(_with_component("additionalFees", paise), [line()],
+                                     delivery_required=False)
+
+
+def test_tax_and_fees_are_ignored_when_the_basket_genuinely_ships_something():
+    """A mixed basket's OTHER lines legitimately carry tax and fees; only the line is pinned."""
+    calc = calculated(delivery=4000, extra_line_paise=24999_00)
+    calc["componentsPaise"]["tax"] = 4500
+    calc["componentsPaise"]["additionalFees"] = 1000
+    sr.assert_service_line_price(calc, [kiosk(), line()], delivery_required=True)
+
+
+INTENT_B = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e60"
+
+
+def test_intent_rebound_matches_only_the_bound_intent():
+    bound = {"serviceLine": {"kind": "REQUEST_AMENDMENT", "variantId": AMEND, "paise": 9900,
+                             "intentId": INTENT}}
+    assert sr.intent_rebound(bound, {"serviceIntentId": INTENT}) is False
+    assert sr.intent_rebound(bound, {"serviceIntentId": INTENT_B}) is True
+
+
+@pytest.mark.parametrize("payref", [None, {}, {"serviceLine": None},
+                                    {"serviceLine": {"intentId": ""}}])
+def test_intent_rebound_fails_closed_on_an_unbound_row(payref):
+    assert sr.intent_rebound(payref, {"serviceIntentId": INTENT}) is True
+
+
 def test_delivery_is_ignored_when_the_basket_genuinely_ships_something():
     sr.assert_service_line_price(calculated(delivery=4000, extra_line_paise=24999_00),
                                  [kiosk(), line()], delivery_required=True)

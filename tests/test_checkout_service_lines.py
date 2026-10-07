@@ -270,3 +270,129 @@ def test_the_paid_basket_guard_still_refuses_the_identical_basket_on_the_identic
     assert second["statusCode"] == 409
     assert body_of(second)["reason"] == "CART_ALREADY_PAID"
     assert len(h.gateway_orders) == 1
+
+
+# ── review AMEND-INTENT-RESUME: a resumed key never pays a superseded intent ──────
+
+INTENT_B = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e60"
+
+
+class StableRevisionWix(ContributionWix):
+    """The world the review names as reachable: Wix does NOT bump the cart revision when the same
+    delivery method is re-selected. Then `intent_fingerprint` is unchanged between two prepares of
+    the same lines and a same-key prepare RESUMES -- the shape in which a superseded intent could
+    be paid. The stock fake always bumps, which hides the resume."""
+
+    def __call__(self, endpoint, method="GET", body=None):
+        if endpoint.endswith("/set-delivery-method"):
+            code = (((body or {}).get("deliveryMethod") or {}).get("code") or "")
+            if self.delivery_method and self.delivery_method.get("id") == code:
+                return {"cart": self._cart_body()}
+        return super().__call__(endpoint, method, body)
+
+
+def stable_services_wix(monkeypatch):
+    wix = StableRevisionWix()
+    monkeypatch.setitem(contribution_wix.UNIT_RUPEES, PRODUCT, 99)
+    wix.variants[PRODUCT] = [SUBMIT, AMEND, DROP_DOCS, VAULT]
+    wix.product_type[PRODUCT] = "PHYSICAL"
+    return wix
+
+
+def test_the_same_intent_on_the_same_key_resumes_in_the_stable_revision_world(monkeypatch):
+    """The control that makes the next test discriminating: with no intent change, the same key
+    RESUMES onto the one gateway order (200, options). So in this world the only thing that can
+    refuse the B prepare below is the intent binding."""
+    h, fake, _wix = make_env(monkeypatch, wix=stable_services_wix(monkeypatch))
+    assert prepare(h, [service(AMEND)])["statusCode"] == 200
+    again = prepare(h, [service(AMEND)])
+    assert again["statusCode"] == 200, body_of(again)
+    assert body_of(again)["status"] == "CHECKOUT_OPTIONS_READY"
+    assert len(h.gateway_orders) == 1
+    assert [row["serviceLine"]["intentId"] for row in payrefs(fake)] == [INTENT]
+
+
+@pytest.mark.parametrize("wix_factory", [stable_services_wix, services_wix],
+                         ids=["stable-revision", "bumped-revision"])
+def test_a_superseded_amendment_intent_cannot_resume_onto_the_old_attempt(monkeypatch,
+                                                                          wix_factory):
+    """Prepare with intent A, supersede to B (same lines, same tab, same requestKey), re-prepare.
+
+    The resumed attempt's PAYREF# is bound to A, so paying it would amend the request the
+    customer moved away from. It must refuse INTENT_CHANGED -- which cart.tsx rotates on once --
+    before any Wix call, with no second gateway order, attempt or reference. Both Wix worlds.
+    """
+    h, fake, wix = make_env(monkeypatch, wix=wix_factory(monkeypatch))
+    first = prepare(h, [service(AMEND)], serviceIntentId=INTENT)
+    assert first["statusCode"] == 200, body_of(first)
+    wix_calls_before = len(wix.calls)
+
+    again = prepare(h, [service(AMEND)], serviceIntentId=INTENT_B)
+
+    assert again["statusCode"] == 409, body_of(again)
+    assert body_of(again) == {"status": "CHECKOUT_REJECTED", "reason": "INTENT_CHANGED"}
+    assert "options" not in body_of(again)
+    assert len(wix.calls) == wix_calls_before          # refused before any Wix call
+    assert len(h.gateway_orders) == 1
+    assert len(fake.all_rows(ATTEMPTS_TABLE)) == 1
+    assert [row["serviceLine"]["intentId"] for row in payrefs(fake)] == [INTENT]
+
+
+def test_the_rotated_key_binds_a_fresh_reference_to_the_new_intent(monkeypatch):
+    """After the refusal, the browser's one rotation presents a fresh key. Whatever the cart guard
+    answers for that key, nothing it can hand out is bound to the superseded intent A."""
+    h, fake, _wix = make_env(monkeypatch, wix=stable_services_wix(monkeypatch))
+    assert prepare(h, [service(AMEND)], serviceIntentId=INTENT)["statusCode"] == 200
+    assert prepare(h, [service(AMEND)], serviceIntentId=INTENT_B)["statusCode"] == 409
+    rotated = prepare(h, [service(AMEND)], serviceIntentId=INTENT_B, requestKey="rk-rotated")
+    body = body_of(rotated)
+    # Measured: the one-live-payment guard holds the earlier, UNPAID attempt for its in-flight
+    # window, so the rotated key gets no modal at all (and /checkout/status/ offers no payment).
+    # Either way, nothing payable is bound to the superseded intent A.
+    assert body.get("reason") == "CART_PAYMENT_IN_FLIGHT", body
+    assert "options" not in body
+    assert len(h.gateway_orders) == 1
+    assert [row["serviceLine"]["intentId"] for row in payrefs(fake)] == [INTENT]
+
+
+def test_the_post_prepare_check_refuses_a_concurrently_rebound_key(monkeypatch):
+    """The authoritative second check: if the key's reference was bound to another intent
+    between the pre-check and the reservation, options are still never handed out. Simulated by
+    a concurrent click with intent B having bound the key's reference: the pre-check sees no
+    reference yet, then the PAYREF# the post-check reads names B."""
+    h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch))
+    real_resolve = h.order_keys.resolve_payment_reference
+
+    def bound_to_b(table, reference_id, **kwargs):
+        row = real_resolve(table, reference_id, **kwargs)
+        if row and isinstance(row.get("serviceLine"), dict):
+            row = {**row, "serviceLine": {**row["serviceLine"], "intentId": INTENT_B}}
+        return row
+
+    monkeypatch.setattr(h.order_keys, "resolve_payment_reference", bound_to_b)
+    response = prepare(h, [service(AMEND)], serviceIntentId=INTENT)
+    assert response["statusCode"] == 409, body_of(response)
+    assert body_of(response) == {"status": "CHECKOUT_REJECTED", "reason": "INTENT_CHANGED"}
+
+
+def test_a_non_service_basket_never_reads_the_request_key_for_an_intent(monkeypatch):
+    wix = ContributionWix(delivery_address=dict(WIX_ADDRESS))
+    h, _fake, _wix = make_env(monkeypatch, wix=wix)
+
+    def must_not_run(*_a, **_k):
+        raise AssertionError("intent binding is a services-only check")
+
+    monkeypatch.setattr(h.service_requests, "intent_rebound", must_not_run)
+    assert h.handler(prepare_event([kiosk_line(1)]), None)["statusCode"] == 200
+    assert h.handler(prepare_event([kiosk_line(1)]), None)["statusCode"] in (200, 409)
+
+
+# ── review SERVICE-TAX-FEES-UNCHECKED, end to end ─────────────────────────────
+
+@pytest.mark.parametrize("component", ["tax_rupees", "fees_rupees"])
+def test_a_tax_or_fee_on_a_services_only_basket_refuses_with_nothing_reserved(monkeypatch,
+                                                                              component):
+    h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch, **{component: 18}))
+    response = prepare(h, [service()])
+    assert (response["statusCode"], body_of(response)["error"]) == (409, "SERVICE_PRICE_CHANGED")
+    _nothing_reserved(h, fake)

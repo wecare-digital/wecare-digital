@@ -85,6 +85,42 @@ describe( 'the prepare body', () => {
   } );
 } );
 
+describe( 'the request key keys on the service intent (review AMEND-INTENT-RESUME)', () => {
+  const AMEND = SERVICE_CHOICES[ 1 ];
+  const INTENT_B = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e60';
+  const DISABLED = { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } };
+
+  async function prepareOnce () {
+    const before = prepareBodies.length;
+    const view = render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    await waitFor( () => expect( prepareBodies ).toHaveLength( before + 1 ) );
+    view.unmount();
+    return prepareBodies[ prepareBodies.length - 1 ];
+  }
+
+  it( 'keeps the same key for the same lines and the same intent', async () => {
+    stub( [ DISABLED ] );
+    cart.setServiceLine( AMEND.variantId, INTENT );
+    const first = await prepareOnce();
+    const second = await prepareOnce();
+    expect( prepareBodies ).toHaveLength( 2 );
+    expect( second.requestKey ).toBe( first.requestKey );
+  } );
+
+  it( 'mints a fresh key when the amendment target changes the intent, lines unchanged', async () => {
+    stub( [ DISABLED ] );
+    cart.setServiceLine( AMEND.variantId, INTENT );
+    const first = await prepareOnce();
+    cart.setServiceLine( AMEND.variantId, INTENT_B );
+    const second = await prepareOnce();
+    expect( prepareBodies ).toHaveLength( 2 );
+    expect( second.serviceIntentId ).toBe( INTENT_B );
+    expect( second.lineItems ).toEqual( first.lineItems );
+    expect( second.requestKey ).not.toBe( first.requestKey );
+  } );
+} );
+
 describe( 'service refusals', () => {
   for ( const [ code, message ] of Object.entries( SERVICE_REFUSAL_MESSAGES ) )
   {
