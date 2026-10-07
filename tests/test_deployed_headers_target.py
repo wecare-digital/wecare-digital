@@ -32,6 +32,20 @@ _spec.loader.exec_module(vdh)
 # to do with what they are pinning. This was three entries when the gate only checked
 # three names.
 GOOD_HEADERS = dict(vdh.declared_headers())
+STATIC_PROBE = "https://wecare.digital/_next/static/chunks/fixture.js"
+STATIC_HEADERS = dict(vdh.declared_headers_by_pattern()["/_next/static/**/*"])
+
+
+@pytest.fixture(autouse=True)
+def offline_pattern_probe(monkeypatch):
+    # main() discovers hashed assets through urllib, independently of fetch_headers.
+    # Keep every test offline and guarantee that the non-sitewide gate is exercised.
+    monkeypatch.setattr(vdh, "resolve_pattern_probe", lambda pattern, page: STATIC_PROBE)
+
+
+def passing_headers(url):
+    return dict(STATIC_HEADERS if url == STATIC_PROBE else GOOD_HEADERS)
+
 
 
 # ── the target ────────────────────────────────────────────────────────────────
@@ -83,7 +97,7 @@ def test_the_assets_report_cannot_change_the_verdict(monkeypatch, capsys):
     def fake(url):
         if url == vdh.ASSETS_URL:
             return 200, {"content-type": "text/html"}
-        return 200, dict(GOOD_HEADERS)
+        return 200, passing_headers(url)
 
     monkeypatch.setattr(vdh, "fetch_headers", fake)
     monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py"])
@@ -100,7 +114,7 @@ def test_a_broken_assets_request_does_not_fail_the_gate(monkeypatch):
     def fake(url):
         if url == vdh.ASSETS_URL:
             raise OSError("boom")
-        return 200, dict(GOOD_HEADERS)
+        return 200, passing_headers(url)
 
     monkeypatch.setattr(vdh, "fetch_headers", fake)
     monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py"])
@@ -212,9 +226,12 @@ def test_the_parser_agrees_with_pyyaml_exactly():
     is only worth having if it reads the file the same way YAML does."""
     yaml = pytest.importorskip("yaml")
     spec = yaml.safe_load((ROOT / "customHttp.yml").read_text())
-    reference = {h["key"].lower(): h["value"]
-                 for b in spec["customHeaders"] for h in b["headers"]}
-    assert vdh.declared_headers() == reference
+    reference = {}
+    for block in spec["customHeaders"]:
+        reference.setdefault(block["pattern"], {}).update(
+            {h["key"].lower(): h["value"] for h in block["headers"]})
+    assert vdh.declared_headers_by_pattern() == reference
+    assert vdh.declared_headers() == reference[vdh.SITEWIDE_PATTERN]
 
 
 def test_a_more_indented_folded_line_is_reported_as_a_defect(tmp_path, monkeypatch):
@@ -284,7 +301,13 @@ def test_whitespace_folding_differences_are_not_failures(monkeypatch):
     respaced = dict(GOOD_HEADERS)
     key = "content-security-policy-report-only"
     respaced[key] = GOOD_HEADERS[key].replace("; ", ";   ")
-    monkeypatch.setattr(vdh, "fetch_headers", lambda url: (200, respaced))
+    monkeypatch.setattr(vdh, "fetch_headers", lambda url: (200, STATIC_HEADERS if url == STATIC_PROBE else respaced))
     monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py", "--no-assets"])
 
     assert vdh.main() == 0
+
+
+def test_missing_static_asset_cache_control_still_fails(monkeypatch):
+    monkeypatch.setattr(vdh, "fetch_headers", lambda url: (200, GOOD_HEADERS))
+    monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py", "--no-assets"])
+    assert vdh.main() == 1
