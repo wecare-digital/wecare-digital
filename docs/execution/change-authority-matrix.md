@@ -2546,3 +2546,61 @@ A deny rule blocks the agent from that file, so this is owner-only.
 a token; no credential rotated; no provider mutation; no flag enabled; no payment, WABA,
 phone number or S3 bucket touched; no other function, route, table, IAM policy or alarm
 changed; `.kiro/settings/mcp.json` not edited.**
+
+## 2026-10-07 — Phase O-2 landed: Drop Docs and Vault as fixed-price lines on the one checkout
+
+Class `A2_REMOTE_CODE` + `A3_PRODUCTION`, inside the standing grant. Review verdict
+APPROVED, 6 non-blocking findings. Full record:
+`.agents/tasks/phase-o2-dropdocs-vault-20261002/land-report.md`.
+
+**Git.** `feat/phase-o2` rebased onto `origin/stack` (15 upstream commits, one conflict
+in `config/lambda-env-manifest.json` resolved by keeping both sides' header arithmetic
+at 69 functions / 419 variables, verified against the file's own content). Pushed
+non-force, fast-forward: **`779fb640..652d6f8a`** → `stack`.
+
+**Gates re-run on the rebased tree** (a rebase invalidates earlier verification):
+pytest 9213 passed / 1 failed, vitest 1287 passed, `tsc --noEmit` 0, `npm run build` 0
+(1411 sitemap URLs), `deploy_all_lambdas.py --dry-run` `failed=0 would_update=3`.
+The single failure is `test_checkout_faq_sources`, pre-existing — its three inputs are
+byte-identical to the base. O-1's other 4 base failures were fixed upstream.
+
+**Rollback versions, re-measured by API before any write** rather than read from the
+stale figures in `verification.md` and the 2026-10-07 incident entry above (review
+finding LIVE-STATE-RECORD-STALE): `wecare-secure-files` v26, `wecare-service-requests`
+v1, `wecare-checkout` v26.
+
+**AWS changed.** `provision_secure_files_api.py --apply`: `wecare-secure-files-role`
+inline policy refreshed with `s3:GetObject` on exactly
+`arn:aws:s3:::wecare-digital-get/o/stack/whatsapp-media/incoming/*` and DynamoDB
+Get/Put/Query on `stack-wecare-digital-ServiceRequestsTable`; env gained
+`DROPDOCS_ATTACH_ENABLED="false"` and `SERVICE_REQUESTS_TABLE`; all 10 `/secure-files*`
+routes retargeted; alias moved v26 → v27; 21/21 read-back PASS. The two dropdocs routes
+already existed as inert residue of the 2026-10-07 unauthorized provision, so this was a
+retarget, not a create. The script's `wecare-download-grants` revoke on the **shared**
+`wecare-digital-lambda-role` was a no-op — `list-role-policies` was checked read-only
+first and the policy was already absent. Then `deploy_all_lambdas.py` for three
+functions, `updated=3 failed=0`:
+
+| Function | live before | live after | Rollback |
+|---|---|---|---|
+| `wecare-secure-files` | v26 | **v28** | `update-alias --name live --function-version 26` |
+| `wecare-service-requests` | v1 | **v2** | `update-alias --name live --function-version 1` |
+| `wecare-checkout` | v26 | **v27** | `update-alias --name live --function-version 26` |
+
+Published from the merged tree. **v25 was deliberately not reused** (review finding
+AWS-WRITE-IN-BUILD-LOOP).
+
+**Verified after deploy.** All three aliases Active/Successful with live `CodeSha256`
+equal to the uploaded sha. Both dropdocs routes present on `zllr9lrg7j` via integration
+`r8781n0` → `wecare-secure-files:live`. `DROPDOCS_ATTACH_ENABLED` and
+`SECURE_FILES_PAYMENT_ENABLED` both read **`"false"`** on the deployed alias
+configuration. Inert unauthenticated probes of both routes returned **401 Verification
+required**. Zero ERROR/Traceback/import events in all three log groups.
+
+**No live-send flag enabled; `DROPDOCS_ATTACH_ENABLED` and
+`SECURE_FILES_PAYMENT_ENABLED` both shipped and verified `false`; no payment capture,
+refund or payment-configuration mutation; no provider credential read or rotated; no
+secret on a command line or in a log; no force push and no history rewrite; no
+`git add .`/`-A`/`-u`; no `s3:DeleteObject` added anywhere; no bucket created; no table,
+queue, alarm, secret or Cognito resource created, modified or deleted; no live QA send,
+so no number was messaged.**
