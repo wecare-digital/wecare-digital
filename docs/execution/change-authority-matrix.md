@@ -1104,7 +1104,7 @@ was attempted.
 | `A1_LOCAL` | 2b 13 read-only filters - `2371caf3` | `vitest`; per-file checklist grep | revert the commit |
 | `A1_LOCAL` | 2c 129 workspace write selects - `aba49e5f`, `37661d35`, `39783efe`, `e047485c` | per-file counts reconciled twice against the generated breakdown; `MCPPlayground.test.tsx` rewritten to the real user action | revert the four commits |
 | `A1_LOCAL` | 2d date/time/colour + 2e the public variant chooser - `0e444c6f`, `f3cba422` | `UiDateField.test.tsx` (29), `UiColorField.test.tsx` (15), `ShopCatalogue.test.tsx` rewritten; `designsweep /shop/merchandise/` PASS | revert the two commits |
-| `A1_LOCAL` | **2f the payment path** - this batch - `pay/flow` (9), `engage/inbox` (2), `pay/records` (1), `pay/link` (1), `PayTab` (1), `cart.tsx` (1), `AddressFields` (1) | full `vitest --run` 97 files / 1257 passed / 2 skipped; `tsc --noEmit` clean; `lint` 0 errors / 205 warnings (the baseline total); `npm run build` green; `controlprobe --cart` PASS with the native contribution select UNCHANGED; `designsweep` PASS on the 20 defaults and on `/shop/merchandise/`; `devicecheck` 390/390; `rtlcheck` 7531/7531; `translatecheck` PASS | revert the commit; per call site, restore the `<select>` from the diff |
+| `A1_LOCAL` | **2f the payment path** - this batch - `pay/flow` (9), `engage/inbox` (2), `pay/records` (1), `pay/link` (1), `PayTab` (1), `cart.tsx` (1), `AddressFields` (1) | full `vitest --run` 98 files / 1257 passed / 2 skipped; `tsc --noEmit` clean; `lint` 0 errors / 205 warnings (the baseline total); `npm run build` green; `controlprobe --cart` PASS with the native contribution select UNCHANGED; `designsweep` PASS on the 20 defaults and on `/shop/merchandise/`; `devicecheck` 390/390; `rtlcheck` 7531/7531; `translatecheck` PASS | revert the commit; per call site, restore the `<select>` from the diff |
 
 ### The reconciliation, closed
 
@@ -1227,9 +1227,118 @@ These are properties of the repo, not of this task, and none of them was closed 
   them "the open findings for this band, not a broken harness". They are pre-existing, on a
   surface no batch in this task touches, and they are **not fixed here**.
 - **`OrdersPage.test.tsx`'s "re-asks exactly once, then stops" failed in 2 of 5 full-suite runs
-  and passes in isolation and in the other 3.** It drives a 5-second re-ask under
+  and passed in isolation and in the other 3.** It drives a 5-second re-ask under
   `vi.useFakeTimers({ shouldAdvanceTime: true })`, where wall-clock time also advances the fake
-  clock, so the assertion is load-sensitive. Recorded as a flake rather than fixed: nothing in
-  this batch touches that page's fetch path, and the final two consecutive full runs were green
-  at 1257 passed / 2 skipped. A real fix means removing `shouldAdvanceTime` from that case, which
-  is a change to a test this batch has no reason to rewrite.
+  clock, so the assertion was load-sensitive. 2f recorded it as a flake rather than fixing it,
+  on the grounds that the fix meant removing `shouldAdvanceTime` from a test the batch had no
+  reason to rewrite. **FIXED in the integration pass instead, and it was not a timer-option
+  problem.** The root cause is a missing synchronisation point: `orders.tsx:256` registers the
+  one-shot re-ask only once `view === 'empty'`, which needs the first fetch to have resolved and
+  set state, so advancing the clock before that happens advances past a timer that does not yet
+  exist and the re-ask never fires. The two sibling cases in the same describe block always
+  awaited the "Checking for recent orders…" line - which renders on that exact condition - and
+  never flaked, which is what identified it. One `await screen.findByText( /Checking for recent
+  orders/ )` before the advance; `shouldAdvanceTime` is KEPT, because it is what lets
+  `renderSignedIn`'s own awaits settle. Every assertion is unchanged (1 fetch, then 2, then
+  still 2), the fix is mutation-checked (breaking the re-ask effect still fails the case), and
+  the suite ran green **six consecutive times** at 98 files / 1257 passed / 2 skipped.
+  Layer 2 is why this surfaced now: 2f added a `Select` to this page's render tree via
+  `CheckoutProfile` → `AddressFields`, which lengthened the window the assertion was racing.
+
+### The cross-batch integration pass: the census fixture was stale for five batches, and is not now
+
+The ten batches each verified themselves. Nobody had verified the seams between them, and one
+seam was genuinely open: `src/test/fixtures/control-skin-census.json` was last regenerated on
+1.3a's tree, and batches 2b, 2c, 2d, 2e and 2f each recorded - correctly, and in their own
+findings - that they were leaving it stale rather than editing this gate's frozen numbers inside
+a batch that moved elements instead of stylesheets.
+
+**That deferral was right per batch and wrong in aggregate.** `FormControlsCss.test.ts` asserts
+literals against the committed fixture, so for as long as the fixture was not regenerated the
+no-new-skins gate was comparing a snapshot to itself: it could not have failed on anything
+batches 2b-2f did. The property was not broken, it was unverified, which is the worse of the two
+to leave undocumented.
+
+Regenerated once here, on the finished tree, and the literals moved with it:
+
+| | 1.3a (frozen) | finished tree | delta |
+|---|---:|---:|---:|
+| select rule sets | 83 | **67** | -16 |
+| files skinning a select | 29 | **22** | -7 |
+| geometry rule sets | 41 | **29** | -12 |
+| B-styledjsx | 38 in 18 | **22 in 11** | -16 / -7 |
+| A-global | 42 in 9 | **42 in 9** | unchanged |
+| C-injected | 3 in 2 | **3 in 2** | unchanged |
+| pairings | 21 | **21** | unchanged |
+| checkbox/radio census | 29 in 10 | **29 in 10** | unchanged |
+
+**A falling count is this task succeeding, and the evidence that it is not something else is
+that mechanism A did not move.** 15 of the 16 departed rule sets are mode-`class` hits counted
+only because a `<select>` wore the class - the scanner's `classnames_on_select()` matches
+`<select` literally, so such a rule stops being a select skin when the element becomes a
+`<button role="combobox">`, whether or not the rule was touched. The sixteenth,
+`.shopd-options select`, is a `select`-token rule batch 2e deleted with the control it dressed.
+Only 12 of the 16 set a box property, which is why geometry fell by 12 and not 16; the other
+four are `:focus`/`:focus-visible`/`:hover` state rules. The global stylesheets - the only
+mechanism whose rules can win the cascade - are byte-for-byte the set 1.3a froze, and
+`form-controls.css` still contributes exactly 5 select and 9 checkbox/radio rule sets.
+
+**Mutation-checked in both arms, so the regenerated gate is known non-vacuous rather than merely
+green.** Planting `.mutation-probe select{border:1px;border-radius:3px;padding:9px}` in
+`Pages.css` (an already-allowed file) and regenerating fails assertion 3 on the count (68 vs 67)
+AND assertion 8 by file and line on both the 1px and the 3px. Planting a conforming rule in
+`flex-layout.css` (not on the list) fails the allow-list arm naming the new file. Both probes
+were reverted and both files are byte-identical to the commit.
+
+**One correction to batch 2d/2e's findings, recorded because it is now false:** FEAT-009 states
+that `.shopd-options select` was left in place as a dead rule so `shop/[slug].tsx` would stay in
+the frozen allow-list. Measured on the finished tree, the rule is gone and the file has left the
+list - and the call-site comment in `shop/[slug].tsx` says so explicitly ("The .shopd-options
+select rule is gone with the native control"). The deletion is the correct outcome; it is the
+findings sentence that was stale. Trust the scanner over the prose.
+
+### What the integration pass re-measured, and what it did not
+
+Re-ran on the finished tree, all green and all matching the figures the batches recorded:
+`npm run lint` 0 errors / 205 warnings · `tsc --noEmit` clean · `vitest --run` **98 files / 1257
+passed / 2 skipped** (the 2f row above said 97 files; that was a typo and is corrected) ·
+`npm run build` green at 1411 sitemap URLs / 1323 posts / 462 kB search index.
+
+Chromium harnesses, **public routes only**: `designsweep` PASS on the 20 defaults and PASS on
+`/shop/merchandise/` · `controlprobe --cart` PASS with the migrated trigger at 2px / 13px / 44px
+/ 32px and the native contribution select unchanged in every cell · `controlprobe --post` PASS ·
+`devicecheck` 390/390 · `uicheck` 96/96 · `rtlcheck` 7531/7531 · `translatecheck` PASS over 1530
+routes · `flowprobe` 24 ok / 3 FAIL exit 0, the same three pre-existing `section.home-flow`
+findings named above.
+
+The reconciliation was re-derived from the tree rather than from the batch arithmetic: 161
+`<Select>` JSX tags in non-test source, **minus the 2 internal to `TimeField.tsx`** (the
+picker's own hour and minute controls, which are not migrated call sites) = **159 migrated**,
+plus exactly **3** native `<select>` elements = **162**. The 17 date/time/colour call sites are
+a separate family and are intact at 9 + 3 + 2 + 3; no native `type="date"`, `type="time"`,
+`type="datetime-local"` or `type="color"` survives outside tests.
+
+**Two harness-reliability notes, recorded because they cost time and will again.**
+`translatecheck.js` sweeps 1530 routes with no per-route error handling, so a single Playwright
+navigation timeout leaves the browser open and the process HANGS rather than exiting - it looks
+like a slow run, not a failure. It failed that way twice under load and passed on the third run,
+PASS over all 1530. `rtlcheck.js` did the same once during 2f. Neither is caused by anything in
+this task; both are worth a `try`/`catch` per route, which is the harness's own change.
+
+**A TRAP WORTH KNOWING BEFORE READING A SKIP COUNT HERE: `StyledJsxBuildScope.test.ts` compares
+source mtimes against `out/` and SELF-SKIPS its 7 cases when any source file is newer**, naming
+the file and the lag ("`src/pages/orders.tsx` is newer than the export by 13690s - run
+`npm run build` first"). Touching a source file's timestamp is enough; the content does not have
+to change. Reverting a probe by rewriting the file does exactly that, so three full-suite runs
+read `97 passed | 1 skipped` and `1250 passed | 9 skipped` against the baseline's
+`98 passed` / `1257 passed | 2 skipped` - **seven tests silently not run, with the total still
+1259.** The guard is right to fail closed rather than verify scope hashes against a stale
+export, and the fix is simply `npm run build` before the suite. **Read the skip count, not just
+the pass count:** a green run with 9 skips is not the same evidence as a green run with 2.
+
+**The verification gaps are unchanged and none was closed here.** No workspace route can be
+browser-verified, no WebKit/Safari/iOS result is claimed anywhere, and `designsweep` still
+measures no `<select>`. Audited across every task artifact: every sentence pairing a harness
+with a workspace path is a statement that the harness can measure nothing there, and every
+WebKit/Safari/iOS mention is an explicit disclaimer. The owner's visual pass in a signed-in
+Chrome remains the appearance evidence for ~145 workspace controls.

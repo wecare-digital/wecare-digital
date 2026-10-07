@@ -9,12 +9,12 @@ import census from './fixtures/control-skin-census.json';
  * select, in any of the three authoring mechanisms.
  *
  * WHAT THIS IS AND IS NOT. It is a NO-NEW-SKINS gate, not a uniqueness claim, and the
- * difference is the whole point. 28 files skinned a select before batch 1.3a and 26 of them
- * still do: retiring `select` from 83 rule sets scoped to single workspace pages no harness can
- * load is a consolidation with its own risk budget and its own sign-off. A test asserting
- * uniqueness would have to be written to fail or written to lie. What it can honestly do is
- * fail the moment a THIRTIETH file joins — which is the mechanism that produced six competing
- * scrollbar declarations, one file at a time.
+ * difference is the whole point. 28 files skinned a select before batch 1.3a and 21 of them
+ * still do: retiring `select` from the rule sets that remain — scoped to single workspace pages
+ * no harness can load — is a consolidation with its own risk budget and its own sign-off. A
+ * test asserting uniqueness would have to be written to fail or written to lie. What it can
+ * honestly do is fail the moment a TWENTY-THIRD file joins — which is the mechanism that
+ * produced six competing scrollbar declarations, one file at a time.
  *
  * WHY IT READS A FIXTURE INSTEAD OF SCANNING. The producer of these figures is
  * `scripts/census_control_skins.py`, and it is deliberately NOT re-implemented here. Its
@@ -34,14 +34,41 @@ import census from './fixtures/control-skin-census.json';
  *
  * A real change then shows up as a fixture diff AND a failing literal, which is a reviewable
  * pair rather than an integer nobody can re-derive. LINE NUMBERS IN THE FIXTURE ARE NOT
- * ASSERTED — they move whenever any of these 29 files is edited, and asserting them would make
+ * ASSERTED — they move whenever any of these 22 files is edited, and asserting them would make
  * this suite fail for reasons that have nothing to do with control skinning.
  *
- * THE 83/41 FIGURES ARE POST-1.3a. The pre-batch inventory was 85 rule sets / 43 geometry
- * (A-global 44 in 8 files, B-styledjsx 38 in 18, C-injected 3 in 2). This batch removed `select`
- * from six counted rule sets (tokens.css base/:hover/:focus, inner-ux.css base/:hover/:focus),
- * deleted a seventh in full (the chevron block), and added form-controls.css as a ninth
- * mechanism-A file contributing five — so 85 - 7 + 5 = 83, and 43 - 3 + 1 = 41 geometry.
+ * THE FIGURES WERE 85/43 PRE-1.3a, 83/41 POST-1.3a, AND ARE 67/29 POST-LAYER-2. All three are
+ * recorded because the arithmetic between them is the only thing that makes the current numbers
+ * checkable.
+ *
+ * 1.3a: the pre-batch inventory was 85 rule sets / 43 geometry (A-global 44 in 8 files,
+ * B-styledjsx 38 in 18, C-injected 3 in 2). That batch removed `select` from six counted rule
+ * sets (tokens.css base/:hover/:focus, inner-ux.css base/:hover/:focus), deleted a seventh in
+ * full (the chevron block), and added form-controls.css as a ninth mechanism-A file contributing
+ * five — so 85 - 7 + 5 = 83, and 43 - 3 + 1 = 41 geometry.
+ *
+ * LAYER 2 (batches 2b-2f) then migrated 159 native selects onto `ui/Select`, and the fixture was
+ * NOT regenerated during those batches — deliberately, because each of them changed call sites
+ * rather than stylesheets, and regenerating inside one of them would have meant editing this
+ * gate's frozen numbers for a reason that is about elements. It was regenerated once, on the
+ * finished tree, by the cross-batch integration pass, and 16 rule sets in 10 files dropped out:
+ *
+ *   83 - 16 = 67 rule sets, 29 - 7 = 22 files, B-styledjsx 38 - 16 = 22 in 18 - 7 = 11 files.
+ *   41 - 12 = 29 geometry — only 12 of the 16 set a box property; the other four
+ *   (`.cart-option:focus-visible`, `.ui-pay-in:focus`, `.sms-search:focus`, `.waba-select:hover`)
+ *   are state rules that set none.
+ *
+ * ALL 16 ARE A MIGRATION CONSEQUENCE RATHER THAN A CSS EDIT, AND THE DISTINCTION IS WHAT MAKES
+ * THE DROP SAFE TO ACCEPT. Fifteen are mode-`class` hits counted only because a `<select>` wore
+ * the class — `classnames_on_select()` matches `<select` literally, so the rule stops being a
+ * select skin the moment the element becomes a `<button role="combobox">`, whether or not the
+ * rule itself was touched. The sixteenth, `.shopd-options select`, is a `select`-token rule that
+ * batch 2e deleted outright with the control it dressed. MECHANISM A DID NOT MOVE AT ALL:
+ * A-global is 42 rule sets in 9 files before and after, form-controls.css still contributes
+ * exactly 5, `pairings` is still 21, and the whole checkbox/radio census is unchanged at 29/10.
+ * So the global stylesheets — the only mechanism whose rules can actually win the cascade — are
+ * byte-for-byte the set 1.3a froze.
+ *
  * `.inner-page select { width: 100% }` adds no rule set to either count: `width` is not a box
  * property, which is exactly why assertion 4 has to watch that line separately.
  */
@@ -78,21 +105,20 @@ describe( 'form-controls.css — invariant 4', () => {
   } );
 
   it( '3. the set of files skinning a select is exactly the frozen allow-list', () => {
-    // 26 of these 29 are pre-existing and stay. form-controls.css is the new one; cart.tsx,
-    // shop/[slug].tsx and AddressFields.tsx were rewritten onto the tokens rather than retired.
+    // 21 of these 22 are pre-existing and stay; form-controls.css is the one 1.3a added.
+    // AddressFields.tsx and cart.tsx are still here because 1.3a rewrote their rule sets onto
+    // the tokens rather than retiring them, and the `input,select` selector list survives with
+    // an unreached `select` arm — retiring an arm from a shared list is its own consolidation.
+    // SEVEN FILES LEFT THIS LIST IN LAYER 2, and all seven left because their select became a
+    // `<button role="combobox">`, not because their CSS was edited: TemplateSender.tsx,
+    // engage/automation, engage/broadcast, engage/content, engage/inbox, engage/scheduled, and
+    // shop/[slug].tsx — the last of which did delete its rule, with the control, in batch 2e.
     expect( census.files ).toEqual( [
       'src/components/AddressFields.tsx',
-      'src/components/TemplateSender.tsx',
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
       'src/pages/cart.tsx',
-      'src/pages/shop/[slug].tsx',
-      'src/pages/workspace/engage/automation/index.tsx',
-      'src/pages/workspace/engage/broadcast/index.tsx',
-      'src/pages/workspace/engage/content/index.tsx',
-      'src/pages/workspace/engage/inbox/index.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
       'src/pages/workspace/engage/push/index.tsx',
-      'src/pages/workspace/engage/scheduled/index.tsx',
       'src/pages/workspace/engage/sms/index.tsx',
       'src/pages/workspace/engage/whatsapp/migration.tsx',
       'src/pages/workspace/engage/whatsapp/templates.tsx',
@@ -113,13 +139,16 @@ describe( 'form-controls.css — invariant 4', () => {
     ] );
 
     // The counts are asserted SEPARATELY from the file set, so a new rule added to an
-    // already-allowed file is caught as well as a new file.
-    expect( census.summary.ruleSets ).toBe( 83 );
-    expect( census.summary.files ).toBe( 29 );
-    expect( census.summary.geometryRuleSets ).toBe( 41 );
+    // already-allowed file is caught as well as a new file. The arithmetic from 1.3a's frozen
+    // 83/41/29 to these figures is in this file's header, property by property.
+    expect( census.summary.ruleSets ).toBe( 67 );
+    expect( census.summary.files ).toBe( 22 );
+    expect( census.summary.geometryRuleSets ).toBe( 29 );
+    // A-global, A-module and C-injected are UNCHANGED from 1.3a. Only mechanism B moved, and
+    // only because elements moved - so a regression in the global stylesheets still fails here.
     expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 42, files: 9 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 38, files: 18 } );
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 11 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and
@@ -184,6 +213,10 @@ describe( 'form-controls.css — invariant 4', () => {
     // design uses to decide rewrite-versus-accept. It was 22 before this batch; tokens.css's
     // `input, select, textarea` base and inner-ux.css's `.inner-page` base both lost `select`
     // (-2) and form-controls.css's own base rule is a new one (+1), so 21.
+    // LAYER 2 DID NOT MOVE IT. All 16 rule sets that left the census in 2b-2f are mechanism-B
+    // class hits plus one deleted styled-jsx rule, and a pairing needs a selector list naming
+    // both an input and a select - which none of those 16 was. AddressFields' `input,select` is
+    // still a pairing, and still counted, because the input half is live.
     // A TWENTY-SECOND means a new pairing exists whose accept-versus-rewrite decision has not
     // been taken rather than inherited.
     expect( census.summary.pairings ).toBe( 21 );

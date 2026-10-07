@@ -477,6 +477,22 @@ describe( '/orders/ — the empty state', () => {
     await renderSignedIn( answer( 200, { orders: [], profile: profile() } ) );
     expect( fetchMock ).toHaveBeenCalledTimes( 1 );
     fetchMock.mockResolvedValueOnce( answer( 200, { orders: [], profile: profile() } ) );
+    /**
+     * WAIT FOR THE CHECKING LINE BEFORE ADVANCING THE CLOCK, and it is a synchronisation point
+     * rather than an extra assertion. `orders.tsx:256` registers the one-shot re-ask only once
+     * `view === 'empty'`, which needs the FIRST fetch to have resolved and set state; and
+     * `checking` at :195 is that same condition, so this line rendering IS the timer being
+     * registered. Advancing a clock before the timer exists advances past nothing, and the
+     * re-ask then never fires.
+     *
+     * Without it this case failed in roughly 2 of 5 full-suite runs with "expected 2 times, got
+     * 1 times" while passing every time in isolation - load-sensitive, because
+     * `shouldAdvanceTime: true` lets wall-clock time move the fake clock while the suite is
+     * busy elsewhere. The two sibling cases in this describe block always awaited this line and
+     * never flaked, which is what identified the cause. `shouldAdvanceTime` is KEPT: it is what
+     * lets the awaits in `renderSignedIn` settle, and removing it changes more than this race.
+     */
+    await screen.findByText( /Checking for recent orders/ );
     await act( async () => { vi.advanceTimersByTime( 5_000 ); } );
     expect( fetchMock ).toHaveBeenCalledTimes( 2 );
     await act( async () => { vi.advanceTimersByTime( 60_000 ); } );
