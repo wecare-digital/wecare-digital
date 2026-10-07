@@ -1,6 +1,6 @@
 # Workspace and public-site audit, 7 October 2026
 
-The proposed final inner-page layout, 13 text diagrams and backend upgrade map are in [workspace-final-layout-text-20261007.md](../workspace-review/workspace-final-layout-text-20261007.md). [The complete canonical-destination mapping](../workspace-review/workspace-canonical-destinations-20261007.csv) covers all 113 workspace route patterns across 14 proposed primary destination groups. Detail/legacy URLs remain addressable; this is not a deployed route reduction.
+The proposed final inner-page layout, 14 text diagrams and backend upgrade map are in [workspace-final-layout-text-20261007.md](../workspace-review/workspace-final-layout-text-20261007.md). [The complete canonical-destination mapping](../workspace-review/workspace-canonical-destinations-20261007.csv) covers all 113 workspace route patterns across 14 proposed primary destination groups. Detail/legacy URLs remain addressable; this is not a deployed route reduction.
 
 The owner's requested agent-first implementation roadmap is in [internal-agent-autonomy-phases-20261007.md](../workspace-review/internal-agent-autonomy-phases-20261007.md), with a ten-area capability matrix. It builds on the existing internal assistant and MCP services, and specifies persistent runs, policy-bound internal execution, verified receipts and an Agent work queue. This is a plan; production autonomy is not enabled.
 
