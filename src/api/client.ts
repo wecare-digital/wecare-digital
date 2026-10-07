@@ -681,6 +681,17 @@ export interface Message {
   transcription?: string;       // English transcription of voice notes
   detectedLanguage?: string;    // Detected language of voice note (e.g. "hi-IN")
   contactsPayload?: WaContactCard[] | null;  // shared contact card(s), messageType=contacts
+  // Revoke ("delete for everyone") — written by inbound-whatsapp-handler._apply_revoke.
+  // The content is never deleted or redacted; isRevoked is what the inbox renders.
+  isRevoked?: boolean;
+  revokedAt?: number;
+  revokedByWhatsappMessageId?: string;
+  // 'exact' | 'inferred' — an inferred match is a timing guess and MUST be labelled
+  // as one in the UI. Present on the target row and on the revoke row itself.
+  revokeResolution?: string;
+  // Set on the REVOKE's own row, pointing at the message it deleted. Its presence is
+  // what stops the revoke rendering as a second, standalone bubble.
+  revokesMessageId?: string;
   // Call breadcrumb fields (channel=voice, messageType=call)
   callId?: string;
   callType?: string;            // plivo | aws | whatsapp; legacy rows may read 'airtel'
@@ -762,6 +773,13 @@ function normalizeMessage ( item: any ): Message {
     // This object is built by enumeration, so an omitted field is dropped before
     // any UI sees it — the contact card cannot render without this line.
     contactsPayload: Array.isArray( item.contactsPayload ) ? item.contactsPayload : undefined,
+    // Same enumeration rule as contactsPayload above: without these four lines the
+    // revoke fields are dropped before any UI can read them.
+    isRevoked: item.isRevoked === true,
+    revokedAt: typeof item.revokedAt === 'number' ? item.revokedAt : ( item.revokedAt ? Number( item.revokedAt ) : undefined ),
+    revokedByWhatsappMessageId: item.revokedByWhatsappMessageId,
+    revokeResolution: item.revokeResolution,
+    revokesMessageId: item.revokesMessageId,
     callId: item.callId,
     callType: item.callType,
     duration: typeof item.duration === 'number' ? item.duration : ( item.duration ? Number( item.duration ) : undefined ),
@@ -2314,7 +2332,7 @@ export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRe
     },
   };
 
-  // Always use checkout button template (wecare_pay) — enables address + coupons
+  // Always use checkout button template (wecarepay_wa) — enables address + coupons
   return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
     method: 'POST',
     body: JSON.stringify( {
@@ -2323,7 +2341,7 @@ export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRe
       recipientBsuid: request.recipientBsuid,
       isCheckoutTemplate: true,
       isTemplate: true,
-      templateName: 'wecare_pay',
+      templateName: 'wecarepay_wa',
       templateParams: [],
       checkoutOrderDetails: orderDetails,
       headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',

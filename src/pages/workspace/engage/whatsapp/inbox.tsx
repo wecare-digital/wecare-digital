@@ -49,6 +49,11 @@ interface Message {
   transcription?: string | null;       // English transcription of voice notes
   detectedLanguage?: string | null;    // Detected language of voice note
   contactsPayload?: WaContactCard[] | null;  // shared contact card(s), messageType=contacts
+  // Revoke ("delete for everyone"). The content is never removed from the record —
+  // isRevoked is what gets rendered, so the deletion is shown rather than enacted.
+  isRevoked?: boolean;
+  revokeResolution?: string;      // 'exact' | 'inferred' — an inferred match is a timing guess
+  revokesMessageId?: string;      // set on the REVOKE row; its presence suppresses that bubble
 }
 
 interface Contact {
@@ -472,6 +477,9 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
         // Enumerated mapping — an omitted field is silently dropped, so the
         // contact card needs this line as much as it needs the one in client.ts.
         contactsPayload: m.contactsPayload,
+        isRevoked: m.isRevoked,
+        revokeResolution: m.revokeResolution,
+        revokesMessageId: m.revokesMessageId,
       } ) ) );
     } catch ( err )
     {
@@ -1482,6 +1490,12 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
                 ) }
 
                 { visibleMessages.map( ( msg, idx ) => {
+                  // A revoke that resolved is already shown ON the message it deleted
+                  // (struck through, below), so rendering its own bubble as well is the
+                  // double render this is here to remove. When revokesMessageId is
+                  // absent the revoke never resolved, so it still renders as its own
+                  // system line and nothing becomes invisible.
+                  if ( msg.revokesMessageId ) return null;
                   const wabaInfo = getWabaInfo( msg.awsPhoneNumberId );
                   const showDate = idx === 0 ||
                     new Date( msg.timestamp ).toDateString() !==
@@ -1498,7 +1512,7 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
                           } ) }</span>
                         </div>
                       ) }
-                      <div className={ `message-bubble ${msg.direction}` }>
+                      <div className={ `message-bubble ${msg.direction}${msg.isRevoked ? ' revoked' : ''}` }>
                         { msg.direction === 'inbound' && msg.senderName && (
                           <div className="message-sender-name">
                             { msg.senderName }
@@ -1575,9 +1589,26 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
                             } )() }
                           </div>
                         ) }
-                        <div className="message-content">
+                        <div
+                          className="message-content"
+                          style={ msg.isRevoked ? { textDecoration: 'line-through', opacity: 0.55 } : undefined }
+                        >
                           { renderMessageContent( msg ) }
                         </div>
+                        { msg.isRevoked && (
+                          // An inferred match is a guess, and an unlabelled guess shown
+                          // as fact is the failure to avoid — so the qualifier is in the
+                          // visible text, not only in the tooltip.
+                          <div
+                            className="message-revoked-label"
+                            title={ msg.revokeResolution === 'inferred'
+                              ? 'Matched by timing — WhatsApp does not say which message was deleted.'
+                              : undefined }
+                            style={ { fontSize: 11, fontStyle: 'italic', opacity: 0.7, marginTop: 2 } }
+                          >
+                            Deleted by sender{ msg.revokeResolution === 'inferred' ? ' · matched by timing' : '' }
+                          </div>
+                        ) }
                         <div className="message-footer">
                           { wabaInfo && (
                             <span
