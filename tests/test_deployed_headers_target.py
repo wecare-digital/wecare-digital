@@ -33,6 +33,52 @@ _spec.loader.exec_module(vdh)
 # three names.
 GOOD_HEADERS = dict(vdh.declared_headers())
 
+# The same, DERIVED THE SAME WAY, for the one non-sitewide pattern the file declares.
+#
+# WHY THIS HAD TO BE ADDED. `declared_headers()` is the sitewide `**/*` view, and
+# `/_next/static/**/*` additionally carries `Cache-Control: public, max-age=31536000,
+# immutable` - deliberately not on HTML. So a stub that served GOOD_HEADERS for a static
+# asset reports a correctly-configured header as ABSENT, and the gate fails on correct
+# configuration. That is exactly what happened to this file when the verifier became
+# pattern-aware: the script grew `declared_headers_by_pattern()` and a second gate, and
+# the fixtures here still described a one-pattern world.
+STATIC_PATTERN = "/_next/static/**/*"
+STATIC_GOOD_HEADERS = dict(vdh.declared_headers_by_pattern()[STATIC_PATTERN])
+
+# A content-hashed asset path, shaped like the one `resolve_pattern_probe` discovers by
+# reading the live page's markup. Fixed here so no test in this file needs the network.
+PROBE_URL = "https://wecare.digital/_next/static/chunks/app-0000000000000000.js"
+
+
+#: The real resolver, captured before the autouse fixture below replaces it, so the
+#: function's own contract stays testable rather than hidden by its stub.
+_REAL_RESOLVE_PROBE = vdh.resolve_pattern_probe
+
+
+def live_headers(url: str) -> dict:
+    """What a fully-correct origin serves for `url`: the declared set for its pattern.
+
+    One helper rather than a per-test literal, because the point of deriving GOOD_HEADERS
+    from the real file is lost the moment a second stub hardcodes a subset of it.
+    """
+    return dict(STATIC_GOOD_HEADERS) if "/_next/static/" in url else dict(GOOD_HEADERS)
+
+
+@pytest.fixture(autouse=True)
+def _probe_without_network(monkeypatch):
+    """Keep `resolve_pattern_probe` offline, without skipping the block it resolves.
+
+    That function reads the live page through its OWN `urllib.request.urlopen` rather
+    than through `fetch_headers`, so stubbing the fetch - which is all these tests did -
+    left every one of them making a real request to the apex, and the asset it found was
+    then gated against whatever the fetch stub returned. Pinning a fixed path removes the
+    network and still exercises the non-sitewide gate for real; returning None would make
+    the block SKIP, which would pass the tests by checking less.
+    """
+    monkeypatch.setattr(
+        vdh, "resolve_pattern_probe",
+        lambda pattern, page_url: PROBE_URL if pattern == STATIC_PATTERN else None)
+
 
 # ── the target ────────────────────────────────────────────────────────────────
 
@@ -83,7 +129,7 @@ def test_the_assets_report_cannot_change_the_verdict(monkeypatch, capsys):
     def fake(url):
         if url == vdh.ASSETS_URL:
             return 200, {"content-type": "text/html"}
-        return 200, dict(GOOD_HEADERS)
+        return 200, live_headers(url)
 
     monkeypatch.setattr(vdh, "fetch_headers", fake)
     monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py"])
@@ -100,7 +146,7 @@ def test_a_broken_assets_request_does_not_fail_the_gate(monkeypatch):
     def fake(url):
         if url == vdh.ASSETS_URL:
             raise OSError("boom")
-        return 200, dict(GOOD_HEADERS)
+        return 200, live_headers(url)
 
     monkeypatch.setattr(vdh, "fetch_headers", fake)
     monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py"])
@@ -209,12 +255,30 @@ def test_no_declared_header_value_contains_a_newline():
 
 def test_the_parser_agrees_with_pyyaml_exactly():
     """The hand-rolled parser exists so the gate needs no third-party dependency. It
-    is only worth having if it reads the file the same way YAML does."""
+    is only worth having if it reads the file the same way YAML does.
+
+    COMPARED PER PATTERN, not flattened. This used to hold `declared_headers()` against a
+    reference flattened across every block, which was right while the file had one block
+    and became wrong the moment `/_next/static/**/*` appeared: `declared_headers()` is
+    documented as the sitewide `**/*` view, so the flattened reference carried a
+    Cache-Control the sitewide view is not supposed to contain. Both views are pinned
+    here, which is strictly more than the flat comparison checked - it also catches a
+    header landing in the wrong block.
+    """
     yaml = pytest.importorskip("yaml")
     spec = yaml.safe_load((ROOT / "customHttp.yml").read_text())
-    reference = {h["key"].lower(): h["value"]
-                 for b in spec["customHeaders"] for h in b["headers"]}
-    assert vdh.declared_headers() == reference
+    reference: dict = {}
+    for block in spec["customHeaders"]:
+        pattern = reference.setdefault(block["pattern"], {})
+        for header in block["headers"]:
+            pattern[header["key"].lower()] = header["value"]
+
+    assert vdh.declared_headers_by_pattern() == reference
+    assert vdh.declared_headers() == reference[vdh.SITEWIDE_PATTERN]
+    # The split is the whole reason the gate stopped reporting correct configuration as a
+    # failure: Cache-Control is declared for the static prefix and for nothing else.
+    assert "cache-control" in reference[STATIC_PATTERN]
+    assert "cache-control" not in reference[vdh.SITEWIDE_PATTERN]
 
 
 def test_a_more_indented_folded_line_is_reported_as_a_defect(tmp_path, monkeypatch):
@@ -278,13 +342,63 @@ def test_a_declared_header_served_with_a_different_value_fails(monkeypatch):
     assert vdh.main() == 1
 
 
+def test_a_static_asset_missing_its_cache_control_fails(monkeypatch):
+    """The non-sitewide gate really gates.
+
+    Cache-Control is declared for `/_next/static/**/*` and for nothing else, so it cannot
+    be seen on the apex HTML response the sitewide gate reads. If the asset stops carrying
+    it, every byte under that prefix is re-fetched on every navigation and nothing else in
+    this file would notice.
+    """
+    def fake(url):
+        headers = live_headers(url)
+        headers.pop("cache-control", None)
+        return 200, headers
+
+    monkeypatch.setattr(vdh, "fetch_headers", fake)
+    monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py", "--no-assets"])
+
+    assert vdh.main() == 1
+
+
+def test_the_probe_refuses_to_guess_a_url_for_an_unhandled_pattern():
+    """Asserted against the REAL resolver, which the autouse fixture replaces elsewhere.
+
+    It returns before making any request for a pattern it does not handle, so this needs
+    no network. Returning None is the honest answer: the caller prints the block as
+    UNVERIFIED instead of assuming it passed.
+    """
+    assert _REAL_RESOLVE_PROBE("**/*.json", vdh.DEFAULT_URL) is None
+
+
+def test_an_unresolvable_pattern_is_reported_unverified(monkeypatch, capsys):
+    """And the report says so out loud, rather than the block vanishing from the output."""
+    monkeypatch.setattr(vdh, "resolve_pattern_probe", lambda pattern, page_url: None)
+    monkeypatch.setattr(vdh, "fetch_headers", lambda url: (200, live_headers(url)))
+    monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py", "--no-assets"])
+
+    rc = vdh.main()
+    out = capsys.readouterr().out
+
+    assert "UNVERIFIED" in out
+    assert f"SKIP  {STATIC_PATTERN}" in out
+    # A skipped block is not a failure - it is unproven. Stated here so the distinction is
+    # deliberate rather than incidental.
+    assert rc == 0
+
+
 def test_whitespace_folding_differences_are_not_failures(monkeypatch):
     """A folded YAML scalar and the header a CDN re-emits can differ in run-length
     without differing in meaning. That must not be a red gate."""
-    respaced = dict(GOOD_HEADERS)
     key = "content-security-policy-report-only"
-    respaced[key] = GOOD_HEADERS[key].replace("; ", ";   ")
-    monkeypatch.setattr(vdh, "fetch_headers", lambda url: (200, respaced))
+
+    def respaced(url):
+        headers = live_headers(url)
+        if key in headers:
+            headers[key] = headers[key].replace("; ", ";   ")
+        return 200, headers
+
+    monkeypatch.setattr(vdh, "fetch_headers", respaced)
     monkeypatch.setattr("sys.argv", ["verify_deployed_headers.py", "--no-assets"])
 
     assert vdh.main() == 0
