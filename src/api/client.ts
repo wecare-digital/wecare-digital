@@ -494,16 +494,34 @@ export async function createContact ( contact: Partial<Contact> ): Promise<Conta
   return null;
 }
 
-export async function updateContact ( contactId: string, updates: Partial<Contact> ): Promise<Contact | null> {
-  const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}`, {
+/**
+ * A contact update that says WHY it failed.
+ *
+ * `contacts/handler.py` refuses some inputs on purpose - a phone carrying no dial code is a
+ * 400 `PHONE_COUNTRY_CODE_REQUIRED` rather than a guessed `+91` - so the reason for a refusal
+ * is information the operator needs. `updateContact` below collapses every one of those to
+ * `null`, which a caller cannot tell apart from a 503, and the CRM's inline cell editor
+ * rendered that `null` as a silent no-op. Prefer this in new code; `updateContact` stays for
+ * the callers that only branch on success.
+ */
+export async function updateContactResult ( contactId: string, updates: Partial<Contact> ): Promise<ApiResult<Contact | null>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts/${contactId}`, {
     method: 'PUT',
     body: JSON.stringify( updates ),
   } );
-  if ( data )
+  if ( !result.ok )
   {
-    return normalizeContact( data.contact || data );
+    return result;
   }
-  return null;
+  // `data` is still guarded: a 2xx with an empty body normalises to null rather than throwing
+  // inside `normalizeContact`, which is exactly what `updateContact` returned before.
+  const data = result.data;
+  return { ok: true, data: data ? normalizeContact( data.contact || data ) : null };
+}
+
+export async function updateContact ( contactId: string, updates: Partial<Contact> ): Promise<Contact | null> {
+  const result = await updateContactResult( contactId, updates );
+  return result.ok ? result.data : null;
 }
 
 export async function deleteContact ( contactId: string ): Promise<boolean> {

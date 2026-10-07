@@ -721,10 +721,27 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       toast.warning('Invalid phone number format');
       return;
     }
+    // THE DIAL CODE IS COMPOSED HERE, with the same expression `handleCreate` and `handleUpdate`
+    // already use. `contacts/handler.py::_e164_or_error` REFUSES a number carrying no dial code
+    // with 400 PHONE_COUNTRY_CODE_REQUIRED rather than guessing +91 — correct, because guessing
+    // would send an OTP to an unrelated Indian subscriber for a ten-digit foreign number and
+    // reserve the wrong identity permanently. But `isValidPhone` above accepts a bare
+    // `9876543210`, so the commonest inline edit an operator makes — retyping a national number
+    // — would be refused by the server. The dialog form never hit this because it composes the
+    // code first; the inline cell PUT the raw cell value. Normalisation stays the server's job;
+    // this only supplies the dial code the form supplies.
+    const outgoing = field === 'phone' && value
+      ? (value.startsWith('+') ? value : `${formCountryCode}${value.replace(/^0+/, '')}`)
+      : value;
     setInlineEdit(null);
     try {
-      const result = await api.updateContact(id, { [field]: value });
-      if (result) { toast.success(`${field} updated`); await loadContacts(); }
+      // `updateContactResult`, not `updateContact`: the latter collapses a 400 to null, and by
+      // this line the editor has already closed, so the old code re-rendered the stale value
+      // with no toast, no reload and no explanation — the refusal was invisible and the save
+      // looked like it had worked. The failure message is the server's own and is safe to show.
+      const result = await api.updateContactResult(id, { [field]: outgoing });
+      if (result.ok) { toast.success(`${field} updated`); await loadContacts(); }
+      else toast.error(`Could not update ${field} — ${result.failure.message}`);
     } catch { toast.error('Failed to update'); }
   };
 
