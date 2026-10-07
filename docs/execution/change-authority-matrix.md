@@ -2417,3 +2417,12 @@ Prior pending registry migration and workspace MCP production deployment are not
 | A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added seven implementation phases, ten-area capability matrix and metadata evidence. Checked phase/gate coverage, CSV structure, source references and API-call success. | Revert documentation commit |
 
 This request creates the implementation plan. It does not activate autonomous production actions, change staff/customer authentication, lift protected-path restrictions or execute previously blocked production changes.
+
+## Final workspace inner-page layout — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Owner-pasted report and reconciled page audit | Used current confirmed wiring/gaps; retained corrections to stub/orphan claims. Refreshed official resource-index and consistent-navigation references. No new AWS inventory claimed. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added 13 text diagrams, ten inner-page specifications, backend upgrade/release matrix, and all 113 workspace routes mapped to 14 proposed destination groups. Validated unique route coverage, destination count, source existence and whitespace. | Revert documentation commit |
+
+Destination consolidation is a design target, not approval to delete routes/backends. Public/customer flows, authentication, production resources and application behavior remain unchanged.
