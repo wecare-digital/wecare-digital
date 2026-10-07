@@ -83,6 +83,19 @@ export interface CartItem {
   quantity: number;
 }
 
+/**
+ * One line of a claimed WhatsApp hand-off: a catalogue reference and a quantity.
+ *
+ * Declared HERE rather than beside the claim call, because this module owns the one storage writer
+ * and `mergeClaimedLines` is what consumes the shape; `src/lib/whatsappBasket.ts` imports the type
+ * so there is a single declaration to audit for the absence of a price field.
+ */
+export interface ClaimedLine {
+  productId: string;
+  variantId: string;
+  quantity: number;
+}
+
 /** One entry of the checkout `create` payload: a catalogue reference and a quantity, nothing else. */
 export interface CheckoutLineItem {
   catalogReference: { appId: string; catalogItemId: string; options?: { variantId: string } };
@@ -493,6 +506,67 @@ export function setContribution ( variantId: string ): CartItem[] {
   } );
   writeCart( items );
   return items;
+}
+
+/**
+ * Merge the lines a WhatsApp hand-off claim returned into the cart the customer pays from.
+ *
+ * WHY THIS IS NEEDED AT ALL. The claim merges the lines into the SERVER-side Wix cart, but the
+ * cart this page renders - and the basket `prepare-checkout` is given, because `toLineItems()`
+ * reads the same storage - is the browser cart. Without this the claim succeeded invisibly: the
+ * customer saw no new items, and the next checkout reconciled the claimed lines straight back OUT
+ * of the Wix cart, because `_reconcile_saved_cart` makes the Wix cart match the REQUEST.
+ *
+ * IT ADDS NO SECOND STORAGE PATH. Every write goes through `addItem` or `setContribution`, which
+ * both end at `writeCart` - the one writer - so a claimed line is indistinguishable from a line
+ * added on /shop/ and announces the same `CART_CHANGED_EVENT` for the header badge.
+ *
+ * A LINE THIS BUILD CANNOT PLACE IS SKIPPED, NOT GUESSED AT, and the count says so. A claimed
+ * product can be absent from `SHOP_PRODUCTS` (added in Wix since the committed snapshot was
+ * fetched) or name a variant that snapshot no longer sells; there is no name and no price to show
+ * for either, and inventing a row would put an unidentifiable line in a cart that is about to be
+ * paid for. Skipping is also the safe direction at checkout: the server reconciles the Wix cart
+ * down to what was requested, so the customer pays for exactly the lines they can see. The caller
+ * uses `merged === 0` to say so out loud rather than showing an unchanged cart after a success.
+ *
+ * A CONTRIBUTION GOES THROUGH `setContribution`, which REPLACES rather than increments - there is
+ * exactly one contribution line per cart, and `addItem` would leave two for a customer who had
+ * already chosen an amount here, which is the basket the server refuses as two contributions.
+ */
+export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[]; merged: number } {
+  let merged = 0;
+  for ( const line of lines || [] )
+  {
+    const productId = String( line?.productId || '' ).trim();
+    const variantId = String( line?.variantId || '' ).trim();
+    if ( !productId || !variantId ) continue;
+    const quantity = normaliseQuantity( line?.quantity );
+
+    if ( CONTRIBUTION_PRODUCT_ID && productId === CONTRIBUTION_PRODUCT_ID )
+    {
+      // `setContribution` returns the cart unchanged for an unrecognised variant, so the presence
+      // of the chosen line is the honest test of whether anything was placed.
+      const after = setContribution( variantId );
+      if ( after.some( item => isContributionItem( item ) && item.variantId === variantId ) )
+      {
+        merged += 1;
+      }
+      continue;
+    }
+
+    const product = SHOP_PRODUCTS.find( candidate => candidate.id === productId );
+    if ( !product ) continue;
+    try
+    {
+      addItem( product, quantity, variantId );
+      merged += 1;
+    }
+    catch
+    {
+      // `addItem` throws for a variant this snapshot does not sell. Skipped, per the docblock.
+    }
+  }
+  return { items: readCart(), merged };
 }
 
 /**

@@ -230,9 +230,21 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 
 
 def test_the_provisioned_environment_ships_both_gates_closed(provisioner):
-    """`META_CATALOG_SYNC_ENABLED` is ABSENT, not set to "false": an absent key is harder to flip
-    by accident than a key whose value is one word away from enabling."""
-    assert "META_CATALOG_SYNC_ENABLED" not in provisioner.ENVIRONMENT
+    """Both gates are WRITTEN OUT, at their safe values. `META_CATALOG_SYNC_ENABLED` used to be
+    absent here, on the argument that an absent key is harder to flip than a key one word away
+    from enabling.
+
+    That reversed because an absent key is also indistinguishable from a key nobody ever
+    configured, on the one function in this phase that can write to a customer-visible Meta
+    catalogue - and because `config/lambda-env-manifest.json` records what is LIVE, so declaring
+    the gate closed there while no deploy ever set it would make `scripts/env_manifest.py` report
+    drift and exit 1 for good. The flip risk it traded away is covered by `verify()`, which
+    refuses outright when the live value reads true.
+
+    Asserted by equality against "false" rather than by absence, so this still fails the moment
+    anything sets it to an enabling value.
+    """
+    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_ENABLED"] == "false"
     assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_DRY_RUN"] == "true"
 
 

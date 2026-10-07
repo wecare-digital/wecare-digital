@@ -234,6 +234,7 @@
     "wecare-meta-catalog-sync": {
       "LOG_LEVEL": "INFO",
       "META_CATALOG_ID": "1607047307067517",
+      "META_CATALOG_SYNC_ENABLED": "false",
       "META_CATALOG_SYNC_DRY_RUN": "true",
       "META_TOKEN_FIELD": "access_token",
       "META_TOKEN_SECRET": "wecare/meta-system-user-token",

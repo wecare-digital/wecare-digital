@@ -644,11 +644,25 @@ def _claimed_handoff(identity: customer_auth.CustomerIdentity,
     Scan is neither in this function's IAM nor acceptable on a checkout path. `_claim_basket`
     therefore writes one keyed row per customer (`WABASKETCLAIM#<customerId>`) and this reads it.
 
+    IT IS BOUND TO THE CART, NOT JUST TO THE CUSTOMER, and that is the correction rather than a
+    refinement. The pointer's thirty-day lifetime matches `customer_cart.CART_LIFETIME`, but the
+    cart is CONSUMED at payment while the pointer is not - so a customer who claimed a WhatsApp
+    basket, paid for it, and placed an ordinary website order a week later was inside the lifetime
+    and had `whatsapp` written onto that second order's attempt, `PAYREF#` row, order row,
+    `/orders` tag and GST invoice. The pointer now records the Wix cart the lines were merged into
+    and `whatsapp_basket.active_claim` refuses to answer for any other cart, so the label expires
+    with the BASKET it describes.
+
+    THE CART IS RESOLVED ONLY WHEN A POINTER EXISTS, so the ordinary website prepare - which is
+    almost every prepare - still makes exactly one extra DynamoDB read and not two.
+
     NEVER RAISES, and that is load-bearing rather than defensive. This runs on the money path, and
     the only thing it decides is a LABEL. A DynamoDB blip while reading an attribution pointer must
     not fail a prepare, so the failure mode is "attributed to the website" - the same asymmetric
     default `order_channel.canonical` applies, which under-claims the WhatsApp channel rather than
-    mislabelling a website order.
+    mislabelling a website order. That now covers the cart read too: `CustomerCart.resolve` raises
+    `CartBusy` on a locked row and `ValueError` on a phone it will not key, and both of those are
+    "no claim" here rather than a 500 in a checkout.
     """
     try:
         pointer = _keys_table().get_item(
@@ -658,15 +672,23 @@ def _claimed_handoff(identity: customer_auth.CustomerIdentity,
         logger.info(json.dumps({"event": "checkout_channel_pointer_unavailable",
                                 "error": type(exc).__name__}))
         return None
-    if pointer is not None:
-        # Same ownership check every other customer-scoped row in this table gets. A pointer is
-        # keyed on the customer id, so this cannot normally fail; it is here because a read that
-        # trusts its key is a read that stops being safe the moment the key scheme changes.
-        try:
-            customer_auth.authorize_resource(identity, pointer)
-        except customer_auth.CustomerNotAuthorized:
-            return None
-    return whatsapp_basket.active_claim(pointer, int(time.time()))
+    if pointer is None:
+        return None
+    # Same ownership check every other customer-scoped row in this table gets. A pointer is
+    # keyed on the customer id, so this cannot normally fail; it is here because a read that
+    # trusts its key is a read that stops being safe the moment the key scheme changes.
+    try:
+        customer_auth.authorize_resource(identity, pointer)
+    except customer_auth.CustomerNotAuthorized:
+        return None
+    try:
+        current_cart = customer_cart.CustomerCart(
+            _keys_table(), cart_v2.CartV2(_wix_request)).resolve(identity)
+    except Exception as exc:  # noqa: BLE001 - a label never fails a prepare; see the docstring
+        logger.info(json.dumps({"event": "checkout_channel_cart_unresolved",
+                                "error": type(exc).__name__}))
+        return None
+    return whatsapp_basket.active_claim(pointer, int(time.time()), cart_id=current_cart or "")
 
 
 #: The one refusal every unclaimable basket gets, whatever made it unclaimable.
@@ -709,6 +731,23 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
     failing at Wix would burn a basket that was never merged, which is unrecoverable from the
     customer's side. Doing it this way means the worst case is a merged cart whose row is still
     unclaimed - and the second claim then no-ops on `ensure` and completes the mark.
+
+    `resetCart` IS READ HERE, AND IT IS WHAT STOPS `BASKET_CART_IN_USE` BEING A DEAD END. The
+    "empty your website cart and open the link again" answer below instructs the customer to clear
+    a cart they cannot reach: `clearCart()` empties localStorage, while the condition is the
+    SERVER-side `CUSTOMERCART#<phone>` pointer, which lives thirty days and survives the payment
+    that consumed its cart. So a customer who paid on the website, then sent a WhatsApp cart, read
+    an instruction with no way to follow it and had to wait out the pointer. `src/pages/cart.tsx`
+    now retries ONCE with `resetCart: true` when its own cart is empty, and that is the only
+    caller that sets it.
+
+    IT RELEASES A POINTER AND LOSES NOTHING DURABLE, which is why it is defensible on this path.
+    `_website_prepare` already offers the same release (`resetCart` there, behind "Start a new
+    cart"), and the browser cart - not the saved Wix cart - is what the next prepare rebuilds from:
+    `_reconcile_saved_cart`'s own docstring says the request's basket wins. So the worst case is a
+    Wix cart abandoned a few minutes before the next prepare would have reconciled it anyway.
+    `is True` is an identity comparison for the same reason it is in `_website_prepare`: a truthy
+    reading of `"false"` would make a typo destructive.
     """
     token = str(body.get("basket") or "").strip()
     # Bounded before it is used as a key. `new_token()` produces 32 URL-safe characters; a value
@@ -744,6 +783,12 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
 
     carts = customer_cart.CustomerCart(_keys_table(), cart_v2.CartV2(_wix_request))
     try:
+        if body.get("resetCart") is True:
+            # BEFORE `ensure`, so the create below is reached rather than the existing cart being
+            # resolved. `abandon` refuses while the row is `busy` and answers False when there is
+            # no pointer at all, so an unnecessary reset is a no-op rather than an error.
+            if carts.abandon(identity):
+                logger.info(json.dumps({"event": "checkout_basket_claim_cart_released"}))
         cart_id, created = carts.ensure(identity, items)
     except customer_cart.CartBusy:
         # A lock means a Wix outcome is unknown. The hand-off is LEFT UNCLAIMED so the customer can
@@ -793,8 +838,10 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
 
     # The attribution pointer, LAST, so it can never say `whatsapp` for a claim that did not
     # complete. An unconditional put: last claim wins, because the channel describes the basket the
-    # customer is about to pay for.
-    keys.put_item(Item=whatsapp_basket.build_claim_pointer(row, identity.customer_id, now=now))
+    # customer is about to pay for. BOUND TO `cart_id`, so the label dies with this basket instead
+    # of with this customer - see `_claimed_handoff` and `whatsapp_basket.build_claim_pointer`.
+    keys.put_item(Item=whatsapp_basket.build_claim_pointer(
+        row, identity.customer_id, now=now, cart_id=cart_id))
 
     logger.info(json.dumps({"event": "checkout_basket_claimed",
                             "handoffId": row["orderId"],
@@ -804,6 +851,21 @@ def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any]
         "status": "BASKET_CLAIMED",
         "channel": order_channel.CHANNEL_WHATSAPP,
         "mergedLines": len(items),
+        # THE LINES, SO THE HAND-OFF ACTUALLY ARRIVES SOMEWHERE THE CUSTOMER CAN PAY FROM.
+        #
+        # They were merged into the server-side Wix cart above, but the cart the customer SEES -
+        # and the basket `_website_prepare` prices, because `_reconcile_saved_cart` makes the Wix
+        # cart match the request - is the browser's localStorage cart. Returning only a count left
+        # that cart untouched, so a successful claim showed no items (indistinguishable from a
+        # refusal) and the next checkout reconciled the claimed lines straight back OUT of the Wix
+        # cart instead of paying for them.
+        #
+        # `catalog_items` shape exactly: `productId`, `variantId`, `quantity`. STILL NO MONEY FIELD
+        # OF ANY KIND - not a price, not a currency, not a total. The browser resolves its own
+        # display price from the committed catalogue snapshot it already renders every other cart
+        # line from, and the payable is still produced once, by `checkout_pricing.compute_quote`,
+        # on the prepare that follows.
+        "lines": items,
     }, origin)
 
 
@@ -1357,6 +1419,51 @@ def _finalize(identity: customer_auth.CustomerIdentity, outcome,
         # `ValueError('verified provider payment id required')`.
         outcome={**outcome.as_dict(), "providerPaymentId": outcome.provider_payment_id},
         verified_captured_paise=verified_captured_paise)
+    # The basket is paid, so the WhatsApp attribution pointer has stopped describing "the basket
+    # this customer is about to pay for". Released HERE because this is the one place in this
+    # function that writes a paid order record, and because nothing else consumes the saved cart:
+    # no code path abandons `CUSTOMERCART#<phone>` at payment, so without this the NEXT website
+    # prepare resolves the very same Wix cart id, the pointer still matches it, and an ordinary
+    # website order is stamped `whatsapp` on its attempt, its `PAYREF#` row, the order row, the
+    # `/orders` tag and the GST invoice's `Source:` line.
+    #
+    # AFTER `accept_paid`, never before. The order row carries `channel` already, so releasing the
+    # label cannot change what was just written; releasing it first and then failing to write the
+    # order would lose the attribution for a retry that is still entitled to it.
+    _release_claim_pointer(identity)
+
+
+def _release_claim_pointer(identity: customer_auth.CustomerIdentity) -> None:
+    """Expire this customer's claimed-channel pointer. Never raises, and never creates one.
+
+    AN EXPIRING UPDATE, NOT A DELETE, for the reason `customer_cart.abandon` is also a put: this
+    function's IAM grants GetItem/PutItem/UpdateItem on CommerceKeys and NOT DeleteItem
+    (amplify/infra/checkout.json, Sid PaymentAttemptAndCommerceKeys), so a delete would answer
+    AccessDeniedException in production and pass against every fake in the test suite.
+    `whatsapp_basket.active_claim` already reads `expiresAt > now`, so an expired pointer is
+    indistinguishable from an absent one to the only thing that reads it.
+
+    `attribute_exists(orderId)` so a customer who never claimed anything does not acquire a
+    pointer row as a side effect of paying.
+
+    SWALLOWS EVERYTHING, deliberately. The order is already written and the money has already
+    moved; failing a verified-capture response because a LABEL could not be expired would turn a
+    successful payment into an error the customer can do nothing about. The cost of a missed
+    release is one mis-attributed subsequent order, which is why it is also logged.
+    """
+    try:
+        _keys_table().update_item(
+            Key={"orderId": whatsapp_basket.claim_pointer_key(identity.customer_id)},
+            UpdateExpression="SET expiresAt = :zero",
+            ConditionExpression="attribute_exists(orderId)",
+            ExpressionAttributeValues={":zero": 0})
+    except Exception as error:  # noqa: BLE001 - see the docstring
+        if (getattr(error, "response", {}).get("Error", {}).get("Code")
+                == "ConditionalCheckFailedException"):
+            # No pointer to release. The ordinary website order, and not worth a log line.
+            return
+        logger.warning(json.dumps({"event": "checkout_channel_pointer_release_failed",
+                                   "error": type(error).__name__}))
 
 
 def _finalize_from_claim(identity: customer_auth.CustomerIdentity,

@@ -1,9 +1,10 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Cart from '../pages/cart';
 import * as cart from '../lib/cart';
 import * as customerAuth from '../lib/customerAuth';
+import { SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct } from '../content/shop';
 
 /**
@@ -36,6 +37,54 @@ const PRODUCT: ShopProduct = {
   inStock: true,
   tagline: 'Put your location to work.',
   body: [ 'You already have the place.' ],
+};
+
+/**
+ * A REAL product from the committed catalogue snapshot, which the claim tests need and `PRODUCT`
+ * above cannot be.
+ *
+ * `mergeClaimedLines` resolves a claimed line through `SHOP_PRODUCTS` - the claim carries a
+ * catalogue reference and a quantity and no name or price, so the name on screen has to come from
+ * the snapshot. A hand-written fixture is absent from `SHOP_PRODUCTS` and would therefore be
+ * skipped, which would make the journey test pass against a page that merged nothing.
+ *
+ * Chosen with EXACTLY ONE in-stock variant, so the cart line's rendered name is the product's own
+ * name (`addItem` appends a variant label only for a multi-variant product), and with a different
+ * name from `PRODUCT` so `getByText` cannot match the seeded line instead of the claimed one.
+ */
+const CATALOGUE_PRODUCT: ShopProduct = SHOP_PRODUCTS.find(
+  product => product.name !== PRODUCT.name
+    && ( product.variants || [] ).filter( variant => variant.inStock ).length === 1 )!;
+const CATALOGUE_VARIANT = ( CATALOGUE_PRODUCT.variants || [] )
+  .find( variant => variant.inStock )!;
+
+/** The Wix Stores app id `toLineItems()` sends. Repeated here for the same reason it is there. */
+const WIX_STORES_APP_ID = '215238eb-22a5-4c36-9e7b-e7c08025e04e';
+
+const PREPARE_URL = '/ecommerce/prepare-checkout';
+
+/** The `action:'profile'` reply for a customer who can pay right now, so no editor intervenes. */
+const PROFILE_READY = {
+  status: 'PROFILE_READY',
+  contactId: 'contact-1',
+  name: 'Asha Sen',
+  firstName: 'Asha',
+  lastName: 'Sen',
+  email: 'asha@example.com',
+  phone: '+918100640044',
+  emailVerified: true,
+  addressComplete: true,
+  address: {
+    addressLine1: '12 Dalhousie Square',
+    addressLine2: '',
+    locality: '',
+    city: 'Kolkata',
+    state: 'West Bengal',
+    postalCode: '700001',
+    country: 'India',
+    countryCode: 'IN',
+    fullAddress: '12 Dalhousie Square, Kolkata, West Bengal, 700001, India',
+  },
 };
 
 const TOKEN = 'wa-basket-token-abcdefghijklmnop';
@@ -92,10 +141,82 @@ function stubFetch ( status: string, extra: Record<string, unknown> = {} ) {
   return fetchMock;
 }
 
-const claims = ( fetchMock: ReturnType<typeof stubFetch> ) =>
-  fetchMock.mock.calls.filter(
-    ( [ , init ] ) => JSON.parse( String( ( init as RequestInit )?.body || '{}' ) )
-      .action === 'claim-basket' );
+/**
+ * A fetch stub that answers the FIRST claim one way and the second another.
+ *
+ * For the stale-saved-cart retry: the server reports `BASKET_CART_IN_USE`, the page retries once
+ * with `resetCart: true`, and that attempt claims. Keyed on call order rather than on the body, so
+ * a retry that forgot to send `resetCart` would still be answered - and the assertion on the
+ * recorded body is what catches that, rather than the stub quietly refusing.
+ */
+function stubFetchSequence ( answers: Array<Record<string, unknown>> ) {
+  let claimed = 0;
+  const fetchMock = vi.fn( async ( _url: string, init?: RequestInit ) => {
+    const body = JSON.parse( String( init?.body || '{}' ) );
+    if ( body.action === 'claim-basket' )
+    {
+      const answer = answers[ Math.min( claimed, answers.length - 1 ) ];
+      claimed += 1;
+      return { ok: true, status: 200, json: async () => answer };
+    }
+    return { ok: true, status: 200, json: async () => ( { status: 'PROFILE_REQUIRED' } ) };
+  } );
+  vi.stubGlobal( 'fetch', fetchMock );
+  return fetchMock;
+}
+
+/**
+ * Just enough of a `vi.fn()` to read its recorded calls.
+ *
+ * Deliberately NOT `ReturnType<typeof stubFetch>`: the three stubs in this file return mocks with
+ * different reply types, and keying the readers to one of them makes passing another a type error
+ * about `json()` rather than about anything that matters.
+ */
+type RecordedFetch = { mock: { calls: ReadonlyArray<ReadonlyArray<unknown>> } };
+
+/** The request body of a recorded call. */
+const bodyOf = ( call: ReadonlyArray<unknown> ): Record<string, unknown> =>
+  JSON.parse( String( ( call[ 1 ] as RequestInit | undefined )?.body || '{}' ) );
+
+const claims = ( fetchMock: RecordedFetch ) =>
+  fetchMock.mock.calls.filter( call => bodyOf( call ).action === 'claim-basket' );
+
+/** The claim's reply for a basket holding the one catalogue product this suite knows about. */
+const claimedLinesFor = ( quantity = 1 ) => [ {
+  productId: CATALOGUE_PRODUCT.id,
+  variantId: CATALOGUE_VARIANT.id,
+  quantity,
+} ];
+
+/**
+ * A stub for the WHOLE journey: the claim, the readiness probe, and the prepare that follows.
+ *
+ * Dispatched on the request's `action` rather than on call order, because the mount probe and the
+ * claim race and a positional queue would answer one of them with the other's reply.
+ */
+function stubJourney ( claim: Record<string, unknown> ) {
+  const fetchMock = vi.fn( async ( _url: string, init?: RequestInit ) => {
+    const body = JSON.parse( String( init?.body || '{}' ) );
+    if ( body.action === 'claim-basket' )
+    {
+      return { ok: true, status: 200, json: async () => claim };
+    }
+    if ( body.action === 'profile' )
+    {
+      return { ok: true, status: 200, json: async () => PROFILE_READY };
+    }
+    // The prepare. Answered with the one terminal status that asserts nothing about money and
+    // leaves the cart alone, so this file never has to model a payment rail.
+    return { ok: true, status: 200, json: async () => ( {
+      status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'att-claim-1', currency: 'INR',
+    } ) };
+  } );
+  vi.stubGlobal( 'fetch', fetchMock );
+  return fetchMock;
+}
+
+const prepares = ( fetchMock: RecordedFetch ) =>
+  fetchMock.mock.calls.map( bodyOf ).filter( body => body.action === 'prepare' );
 
 beforeEach( () => {
   window.localStorage.clear();
@@ -173,13 +294,104 @@ describe( 'success', () => {
   it( 'says nothing on success - the items on screen are the message', async () => {
     setLocation( `?basket=${ TOKEN }` );
     signedIn();
-    stubFetch( 'BASKET_CLAIMED', { mergedLines: 2 } );
+    stubFetch( 'BASKET_CLAIMED',
+      { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
 
     const { container } = render( <Cart /> );
 
-    await waitFor( () => expect( screen.getByText( 'Kiosk' ) ).toBeInTheDocument() );
+    // The CLAIMED item, not the seeded one - which is what makes "the items are the message" an
+    // honest claim rather than an assertion about a line the test put there itself.
+    await waitFor( () => expect(
+      screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
     expect( container.querySelector( '[data-wc-basket-claim]' ) ).toBeNull();
   } );
+
+  it( 'puts the claimed lines in a cart that did not hold them, and in the next checkout POST',
+    async () => {
+      /*
+       * THE WHOLE JOURNEY, end to end, and the one assertion the previous version of this file
+       * could not make.
+       *
+       * The claim merges the lines into the SERVER-side Wix cart. The cart this page renders and
+       * the basket `prepare` is given both come from localStorage, so a reply carrying only
+       * `mergedLines` left the customer looking at an unchanged cart - and the following checkout
+       * reconciled the claimed lines back OUT of the Wix cart, because `_reconcile_saved_cart`
+       * makes the Wix cart match the REQUEST.
+       *
+       * Started from an EMPTY cart deliberately: a seeded line would let a page that merged
+       * nothing still show something and still post something.
+       */
+      window.localStorage.clear();
+      setLocation( `?basket=${ TOKEN }` );
+      signedIn();
+      const fetchMock = stubJourney( {
+        status: 'BASKET_CLAIMED', channel: 'whatsapp', mergedLines: 1,
+        lines: claimedLinesFor( 2 ),
+      } );
+
+      render( <Cart /> );
+
+      await waitFor( () => expect(
+        screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
+
+      fireEvent.click( await screen.findByRole( 'button', { name: /Pay securely/ } ) );
+      await waitFor( () => expect( prepares( fetchMock ) ).toHaveLength( 1 ) );
+
+      expect( prepares( fetchMock )[ 0 ].lineItems ).toEqual( [ {
+        catalogReference: {
+          appId: WIX_STORES_APP_ID,
+          catalogItemId: CATALOGUE_PRODUCT.id,
+          options: { variantId: CATALOGUE_VARIANT.id },
+        },
+        quantity: 2,
+      } ] );
+    } );
+
+  it( 'merges into the cart rather than replacing it, through the ordinary cart writer',
+    async () => {
+      // The seeded line survives, because a claim adds to the cart and does not take it over.
+      // `CART_CHANGED_EVENT` is the header badge's signal, and it fires because the merge goes
+      // through `addItem` -> `writeCart` like every other line.
+      setLocation( `?basket=${ TOKEN }` );
+      signedIn();
+      const changes: unknown[] = [];
+      window.addEventListener( cart.CART_CHANGED_EVENT, event => changes.push( event ) );
+      stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
+
+      render( <Cart /> );
+
+      await waitFor( () => expect(
+        screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
+      expect( screen.getByText( PRODUCT.name ) ).toBeInTheDocument();
+      expect( cart.readCart() ).toHaveLength( 2 );
+      expect( changes.length ).toBeGreaterThan( 0 );
+    } );
+
+  it( 'says so when it could place none of the claimed lines, instead of looking unchanged',
+    async () => {
+      /*
+       * A product in the live Wix catalogue - and therefore in the WhatsApp catalogue projected
+       * from it - but absent from the snapshot committed with this build. Added in Wix since the
+       * last catalogue sync is exactly that case.
+       *
+       * Saying nothing here would reproduce the defect the returned lines exist to fix: a
+       * successful claim that is indistinguishable from a refusal.
+       */
+      window.localStorage.clear();
+      setLocation( `?basket=${ TOKEN }` );
+      signedIn();
+      stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: [ {
+        productId: '00000000-0000-4000-8000-000000000000',
+        variantId: '00000000-0000-4000-8000-000000000001',
+        quantity: 1,
+      } ] } );
+
+      render( <Cart /> );
+
+      await waitFor( () => expect(
+        screen.getByText( /cannot show those items yet/i ) ).toBeInTheDocument() );
+      expect( cart.readCart() ).toHaveLength( 0 );
+    } );
 } );
 
 describe( 'refusal', () => {
@@ -195,15 +407,69 @@ describe( 'refusal', () => {
     expect( replaceState ).not.toHaveBeenCalled();
   } );
 
-  it( 'tells the customer their website cart is in the way, when it is', async () => {
+  it( 'tells the customer their website cart is in the way, when it really is', async () => {
+    // The seeded `PRODUCT` line is what makes the sentence true: the browser cart is NOT empty,
+    // so "empty it and open the link again" names something the customer can do.
     setLocation( `?basket=${ TOKEN }` );
     signedIn();
-    stubFetch( 'BASKET_CART_IN_USE', { handoffLines: 2 } );
+    const fetchMock = stubFetch( 'BASKET_CART_IN_USE', { handoffLines: 2 } );
 
     render( <Cart /> );
 
     await waitFor( () => expect(
       screen.getByText( /already has items in it/i ) ).toBeInTheDocument() );
+    // ONE claim. With items on screen there is nothing to release, so no retry is attempted.
+    expect( claims( fetchMock ).length ).toBe( 1 );
+    expect( bodyOf( claims( fetchMock )[ 0 ] ).resetCart ).toBeUndefined();
+  } );
+
+  it( 'releases a stale saved cart and retries once when this cart is already empty', async () => {
+    /*
+     * `BASKET_CART_IN_USE` WAS A DEAD END FOR ANYONE WHO HAD PAID ONCE.
+     *
+     * The server condition is the `CUSTOMERCART#<phone>` pointer, which lives thirty days and
+     * survives the payment that consumed its cart - nothing releases it at payment, and
+     * `clearCart()` only empties localStorage. So the instruction "empty your website cart" named
+     * an action with no way to perform it, and the link kept returning the same answer.
+     *
+     * With an empty cart here there is nothing of the customer's to lose, so the page retries once
+     * with `resetCart: true` - the same release the existing "Start a new cart" control performs.
+     */
+    window.localStorage.clear();
+    setLocation( `?basket=${ TOKEN }` );
+    signedIn();
+    const fetchMock = stubFetchSequence( [
+      { status: 'BASKET_CART_IN_USE', handoffLines: 1 },
+      { status: 'BASKET_CLAIMED', mergedLines: 1, lines: claimedLinesFor( 1 ) },
+    ] );
+
+    const { container } = render( <Cart /> );
+
+    await waitFor( () => expect(
+      screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
+    const posted = claims( fetchMock ).map( bodyOf );
+    expect( posted ).toHaveLength( 2 );
+    expect( posted[ 0 ].resetCart ).toBeUndefined();
+    expect( posted[ 1 ].resetCart ).toBe( true );
+    expect( posted[ 1 ].basket ).toBe( TOKEN );
+    // The retry succeeded, so there is no sentence to show and no token left in the URL.
+    expect( container.querySelector( '[data-wc-basket-claim]' ) ).toBeNull();
+  } );
+
+  it( 'retries at most once, so a second refusal is reported rather than looped', async () => {
+    window.localStorage.clear();
+    setLocation( `?basket=${ TOKEN }` );
+    signedIn();
+    const fetchMock = stubFetchSequence( [
+      { status: 'BASKET_CART_IN_USE', handoffLines: 1 },
+      { status: 'BASKET_CART_IN_USE', handoffLines: 1 },
+    ] );
+
+    render( <Cart /> );
+
+    await waitFor( () => expect(
+      screen.getByText( /already has items in it/i ) ).toBeInTheDocument() );
+    expect( claims( fetchMock ).length ).toBe( 2 );
   } );
 
   it( 'reports a lost request as lost rather than as a refusal', async () => {

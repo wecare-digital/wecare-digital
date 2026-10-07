@@ -62,7 +62,14 @@ receiver = _load()
 
 @pytest.fixture(autouse=True)
 def gates_closed(monkeypatch):
-    """Both flags ABSENT, which is how the function ships and how it is deployed.
+    """Both flags ABSENT in this process, which exercises the handler's OWN defaults.
+
+    Not the same thing as the deployed configuration, and the difference is deliberate: the
+    function ships with `META_CATALOG_SYNC_ENABLED="false"` and `META_CATALOG_SYNC_DRY_RUN="true"`
+    written out explicitly, so an audit can tell a closed gate from an unconfigured one. Both
+    spellings are off - `_enabled()` requires the value to be in `_TRUE` - and
+    `test_the_manifest_records_both_gates_at_their_safe_values` is what pins the shipped pair.
+    Deleting them here means the code is proven safe even if a deploy ever drops a key.
 
     Autouse, so a test has to opt in to an enabling value explicitly and no test can inherit one
     from the developer's shell.
@@ -250,6 +257,58 @@ def test_both_gates_open_is_the_only_path_that_writes(snapshot_products, monkeyp
     assert write["path"].endswith("/items_batch")
     methods = {request["method"] for request in write["payload"]["requests"]}
     assert methods == {"UPDATE"}, "there is no DELETE method anywhere in this function"
+
+
+def test_the_manifest_records_both_gates_at_their_safe_values():
+    """`config/lambda-env-manifest.json` must carry BOTH gate variables, and both closed.
+
+    WHY ABSENCE IS NOT GOOD ENOUGH IN THE MANIFEST. An absent `META_CATALOG_SYNC_ENABLED` is
+    correctly OFF in code, so the function was safe either way - but the manifest describes itself
+    as "the source of truth to diff against", and an absent key cannot be told apart from a key
+    NOBODY EVER CONFIGURED. That is precisely the distinction worth having on the one function in
+    this phase that can write to a customer-visible Meta catalogue, where an item created appears
+    in WhatsApp.
+
+    Pinned alongside `scripts/provision_meta_catalog_sync.py::ENVIRONMENT`, which sets the same
+    pair, so the recorded state and the provisioned state cannot drift apart - a manifest key no
+    deploy ever sets would make `scripts/env_manifest.py` report drift and exit 1 indefinitely.
+    """
+    manifest = json.loads(
+        (ROOT / "config/lambda-env-manifest.json").read_text(encoding="utf-8"))
+    entry = manifest["functions"]["wecare-meta-catalog-sync"]
+
+    assert entry["META_CATALOG_SYNC_ENABLED"] == "false"
+    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "true"
+
+    # The provisioner is what puts them there, so the two documents are asserted to agree rather
+    # than each asserted alone.
+    provisioner = _load_provisioner()
+    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_ENABLED"] == "false"
+    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_DRY_RUN"] == "true"
+    for gate in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN"):
+        assert entry[gate] == provisioner.ENVIRONMENT[gate], (
+            f"{gate} disagrees between the manifest and the provisioner")
+
+    # And neither value is an enabling one, however it is spelled. `_TRUE` / the dry-run reading
+    # are the functions that decide, so the check goes through them rather than through a literal.
+    assert entry["META_CATALOG_SYNC_ENABLED"].strip().lower() not in ("true", "1", "yes", "on")
+    assert entry["META_CATALOG_SYNC_DRY_RUN"].strip().lower() not in ("false", "0", "no", "off")
+
+
+def _load_provisioner():
+    """`scripts/provision_meta_catalog_sync.py` by path, under its own module name.
+
+    Imported lazily inside the one test that needs it: the script imports boto3 at module scope,
+    and making that a cost every other test in this file pays would be a change to this file's
+    "no network and no AWS, anywhere" property for no benefit. Loading it creates no client.
+    """
+    path = ROOT / "scripts/provision_meta_catalog_sync.py"
+    spec = importlib.util.spec_from_file_location(
+        "wecare_provision_meta_catalog_sync_for_manifest", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_an_empty_plan_writes_nothing_even_with_both_gates_open(

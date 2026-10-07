@@ -275,24 +275,61 @@ def test_a_token_is_unguessable_and_comes_from_secrets():
 # ── the claimed-channel pointer ───────────────────────────────────────────────
 
 
-def test_the_claim_pointer_carries_the_channel_and_no_money(handoff):
-    pointer = wb.build_claim_pointer(handoff, "CUS_01J", now=5_000)
+#: The Wix cart a claim merged its lines into. Lowercase, because `cart_v2.identifier` lowercases
+#: whatever `CustomerCart.ensure` returns and both sides of the comparison must be one spelling.
+CLAIMED_CART = "11111111-2222-3333-4444-555555555555"
+
+
+def test_the_claim_pointer_carries_the_channel_and_the_cart_and_no_money(handoff):
+    pointer = wb.build_claim_pointer(handoff, "CUS_01J", now=5_000, cart_id=CLAIMED_CART)
     assert pointer == {"orderId": "WABASKETCLAIM#CUS_01J", "customerId": "CUS_01J",
                        "channel": "whatsapp", "handoffId": "WABASKET#tok-claim",
-                       "token": "tok-claim", "claimedAt": 5_000,
+                       "token": "tok-claim", "wixCartId": CLAIMED_CART, "claimedAt": 5_000,
                        "expiresAt": 5_000 + wb.CLAIM_POINTER_LIFETIME_SECONDS}
 
 
 def test_an_active_pointer_reports_whatsapp_and_an_expired_one_reports_nothing(handoff):
-    pointer = wb.build_claim_pointer(handoff, "CUS_01J", now=5_000)
-    assert wb.active_claim(pointer, 5_001)["channel"] == "whatsapp"
-    assert wb.active_claim(pointer, pointer["expiresAt"]) is None
-    assert wb.active_claim(pointer, pointer["expiresAt"] + 1) is None
+    pointer = wb.build_claim_pointer(handoff, "CUS_01J", now=5_000, cart_id=CLAIMED_CART)
+    assert wb.active_claim(pointer, 5_001, cart_id=CLAIMED_CART)["channel"] == "whatsapp"
+    assert wb.active_claim(pointer, pointer["expiresAt"], cart_id=CLAIMED_CART) is None
+    assert wb.active_claim(pointer, pointer["expiresAt"] + 1, cart_id=CLAIMED_CART) is None
+
+
+def test_a_pointer_for_a_different_cart_is_not_an_attribution(handoff):
+    """THE DEFECT THIS CLOSES, stated as a test rather than as a comment.
+
+    The pointer is keyed on the CUSTOMER and lives thirty days, but the cart it describes is
+    CONSUMED at payment. So a customer who claimed a WhatsApp basket, paid for it, and then placed
+    an ordinary website order a week later was still inside the lifetime - and `whatsapp` was
+    stamped onto that second order's attempt, its `PAYREF#` row, the order row, the `/orders` tag
+    and the `Source:` line of a GST tax invoice. A mislabelled order cannot be told apart from a
+    real one afterwards.
+
+    A mismatch degrades EXACTLY like a malformed pointer: `None`, which `order_channel.canonical`
+    turns into `website`. Under-claiming the WhatsApp channel is the recoverable direction.
+    """
+    pointer = wb.build_claim_pointer(handoff, "CUS_01J", now=5_000, cart_id=CLAIMED_CART)
+    other_cart = "99999999-8888-7777-6666-555555555555"
+
+    assert wb.active_claim(pointer, 5_001, cart_id=other_cart) is None
+    # No cart at all - the pointer's own cart is gone and nothing replaced it yet.
+    assert wb.active_claim(pointer, 5_001, cart_id=None) is None
+    assert wb.active_claim(pointer, 5_001, cart_id="") is None
+    # A pointer written before `wixCartId` existed stops answering rather than answering wrongly.
+    legacy = {key: value for key, value in pointer.items() if key != "wixCartId"}
+    assert wb.active_claim(legacy, 5_001, cart_id=CLAIMED_CART) is None
+    # Case is not a difference: `identifier` lowercases, and both sides are reduced the same way.
+    assert wb.active_claim(pointer, 5_001,
+                           cart_id=CLAIMED_CART.upper())["channel"] == "whatsapp"
 
 
 def test_the_pointer_lifetime_matches_the_cart_lifetime():
     """The channel belongs to the CART. A pointer outliving the cart it describes would stamp
-    `whatsapp` on an unrelated website order weeks later."""
+    `whatsapp` on an unrelated website order weeks later.
+
+    The lifetime is the OUTER bound and not the binding - see the test above. A cart that is never
+    paid for is never consumed, and this is what expires it.
+    """
     from lambda_utils.ecommerce import customer_cart
     assert wb.CLAIM_POINTER_LIFETIME_SECONDS == customer_cart.CART_LIFETIME
 
@@ -300,9 +337,15 @@ def test_the_pointer_lifetime_matches_the_cart_lifetime():
 def test_a_malformed_pointer_degrades_to_no_claim_rather_than_raising():
     """Its one caller is on the money path: a 500 in a prepare is worse than an under-claimed tag."""
     for junk in (None, {}, "pointer", {"expiresAt": "soon"}, {"expiresAt": None}):
-        assert wb.active_claim(junk, 1) is None
-    # A junk channel on a live pointer degrades to `website`, never to an exception.
-    assert wb.active_claim({"expiresAt": 10, "channel": {"not": "a word"}}, 1)["channel"] == "website"
+        assert wb.active_claim(junk, 1, cart_id=CLAIMED_CART) is None
+    # A junk channel on a live pointer for the CURRENT cart degrades to `website`, never to an
+    # exception.
+    assert wb.active_claim({"expiresAt": 10, "channel": {"not": "a word"},
+                            "wixCartId": CLAIMED_CART}, 1,
+                           cart_id=CLAIMED_CART)["channel"] == "website"
+    # And a junk CART id is a mismatch rather than a raise, for the same reason.
+    assert wb.active_claim({"expiresAt": 10, "wixCartId": ["not", "an", "id"]}, 1,
+                           cart_id=CLAIMED_CART) is None
 
 
 # ── stored row -> Wix cart items ──────────────────────────────────────────────

@@ -17,6 +17,8 @@
  * carries no price-like key the same way `toLineItems()` is asserted.
  */
 
+import type { ClaimedLine } from './cart';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
 /** The same authenticated route `prepare` and `verify` use. One function, one action word. */
@@ -39,11 +41,40 @@ export const BASKET_PARAM = 'basket';
  *   LOST       - the request never produced an answer, so it proves nothing either way.
  */
 export type ClaimOutcome =
-  | { kind: 'CLAIMED'; mergedLines: number }
+  | { kind: 'CLAIMED'; mergedLines: number; lines: ClaimedLine[] }
   | { kind: 'CART_IN_USE'; handoffLines: number }
   | { kind: 'RETRY' }
   | { kind: 'REFUSED' }
   | { kind: 'LOST' };
+
+/**
+ * One claimed line: a catalogue reference and a quantity, which is the whole of it.
+ *
+ * NO PRICE FIELD, AND NOTHING TO PUT IN ONE. The server merged these into the Wix cart and
+ * returned them so the browser cart can hold the same basket; the amount still comes from
+ * `checkout_pricing.compute_quote` on the prepare that follows, and the figure shown beside the
+ * line comes from the committed catalogue snapshot every other cart line already reads.
+ *
+ * One declaration, in the module that owns the cart storage (see `src/lib/cart.ts`). Re-exported
+ * here because the claim response is where these arrive.
+ */
+export type { ClaimedLine };
+
+/** The claimed lines, validated into the shape `cart.ts` merges. Unusable entries are dropped. */
+function claimedLines ( value: unknown ): ClaimedLine[] {
+  if ( !Array.isArray( value ) ) return [];
+  const lines: ClaimedLine[] = [];
+  for ( const entry of value )
+  {
+    const line = entry as Partial<ClaimedLine>;
+    const productId = String( line?.productId || '' ).trim();
+    const variantId = String( line?.variantId || '' ).trim();
+    const quantity = Math.floor( Number( line?.quantity ) );
+    if ( !productId || !variantId || !Number.isFinite( quantity ) || quantity <= 0 ) continue;
+    lines.push( { productId, variantId, quantity } );
+  }
+  return lines;
+}
 
 /** The token from `?basket=`, or `''`. SSR-guarded, because these pages are statically exported. */
 export function basketTokenFromUrl (): string {
@@ -92,7 +123,8 @@ export function stripBasketParam (): void {
  * `accessToken` is an argument rather than read here, for the reason `loadProfileStatus` takes one:
  * this closes over no state, so it adds no `useCallback` dependency and cannot go stale.
  */
-export async function claimBasket ( accessToken: string, token: string ): Promise<ClaimOutcome> {
+export async function claimBasket ( accessToken: string, token: string,
+                                    options: { resetCart?: boolean } = {} ): Promise<ClaimOutcome> {
   if ( !accessToken || !token ) return { kind: 'REFUSED' };
   try
   {
@@ -104,14 +136,22 @@ export async function claimBasket ( accessToken: string, token: string ): Promis
       },
       // A token and an action. No amount, no phone, no customer id: the server takes identity from
       // the proven session and the phone from the hand-off row.
-      body: JSON.stringify( { action: 'claim-basket', [ BASKET_PARAM ]: token } ),
+      //
+      // `resetCart` is sent ONLY on the one retry described in `cart.tsx`, and only as a literal
+      // `true` - the server compares with `is True`, so the key is omitted rather than sent false.
+      body: JSON.stringify( {
+        action: 'claim-basket',
+        [ BASKET_PARAM ]: token,
+        ...( options.resetCart ? { resetCart: true } : {} ),
+      } ),
     } );
     if ( response.status === 401 ) return { kind: 'REFUSED' };
     const data = await response.json().catch( () => null );
     const status = data && typeof data === 'object' ? String( data.status || '' ) : '';
     if ( status === 'BASKET_CLAIMED' )
     {
-      return { kind: 'CLAIMED', mergedLines: Number( data.mergedLines || 0 ) };
+      return { kind: 'CLAIMED', mergedLines: Number( data.mergedLines || 0 ),
+        lines: claimedLines( data.lines ) };
     }
     if ( status === 'BASKET_CART_IN_USE' )
     {
@@ -129,14 +169,40 @@ export async function claimBasket ( accessToken: string, token: string ): Promis
   }
 }
 
+/**
+ * A claim succeeded and this build could place NONE of its lines in the visible cart.
+ *
+ * Reachable for a product that exists in the live Wix catalogue - and therefore in the WhatsApp
+ * catalogue the sync projects from it - but not in `src/content/wix-catalog.json`, the snapshot
+ * committed with this deployment. A product added in Wix since the last catalogue sync is exactly
+ * that case. Saying nothing here would reproduce the failure the returned lines exist to fix:
+ * a successful claim that looks identical to a refusal.
+ *
+ * It does NOT suggest reloading. The claim is spent and the lines are in the server-side cart, so
+ * a reload would place exactly as little; the only action that moves this forward is a reply on
+ * WhatsApp.
+ */
+export const CLAIM_NOT_SHOWN_MESSAGE =
+  'Your WhatsApp cart was received, but this page cannot show those items yet. Reply on WhatsApp '
+  + 'and we will finish the order with you.';
+
 /** The one sentence shown for each non-success outcome. `null` means say nothing. */
 export function claimMessage ( outcome: ClaimOutcome ): string | null {
   switch ( outcome.kind )
   {
     case 'CLAIMED':
-      // Nothing to explain: the items are on screen, which is the whole message.
+      // Nothing to explain: the items are on screen, which is the whole message. That is now TRUE
+      // rather than aspirational - `cart.tsx` merges `outcome.lines` into the browser cart before
+      // this is consulted, and says `CLAIM_NOT_SHOWN_MESSAGE` when it could place none of them.
       return null;
     case 'CART_IN_USE':
+      // ONLY REACHED WITH A NON-EMPTY BROWSER CART, which is what makes this instruction
+      // performable. The server condition is the saved `CUSTOMERCART#` pointer, and emptying
+      // localStorage does not release it - so `cart.tsx` retries once with `resetCart: true` when
+      // its own cart is already empty, and this sentence is shown only when the customer really
+      // does have website items to clear. Byte-identical to the handler's own
+      // `BASKET_CART_IN_USE` message, pinned equal by
+      // `tests/test_checkout_claim_basket.py::test_the_cart_in_use_sentence_is_the_same_on_both_sides`.
       return 'Your website cart already has items in it. Empty it, then open your WhatsApp cart '
         + 'link again.';
     case 'RETRY':

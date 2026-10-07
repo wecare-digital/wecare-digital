@@ -98,14 +98,14 @@ import {
   readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
-  isContributionItem, setContribution, serviceIntentFor,
+  isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines,
 } from '../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal } from '../lib/serviceRequests';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
 // request shape has one definition. See `src/lib/whatsappBasket.ts`.
 import {
-  basketTokenFromUrl, claimBasket, claimMessage, stripBasketParam,
+  basketTokenFromUrl, claimBasket, claimMessage, stripBasketParam, CLAIM_NOT_SHOWN_MESSAGE,
 } from '../lib/whatsappBasket';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import { colors } from '../lib/design-tokens';
@@ -928,6 +928,22 @@ export default function Cart (): React.ReactElement {
    *
    * IT FETCHES NOTHING WHEN THE PARAMETER IS ABSENT, which is most visits. That keeps the static
    * export's no-fetch-at-render property intact -- `src/test/CartRedemption.test.tsx` asserts it.
+   *
+   * THE CLAIMED LINES ARE MERGED INTO THE BROWSER CART, and that is the whole point of the round
+   * trip rather than a nicety. The claim merges them into the SERVER-side Wix cart, but this page
+   * renders `readCart()` and `proceed` posts `toLineItems( currentItems )` from the same storage --
+   * so a claim that returned only a count left the customer looking at an unchanged cart (a
+   * success indistinguishable from a refusal) and the next checkout reconciled the claimed lines
+   * back OUT of the Wix cart, because `_reconcile_saved_cart` makes the Wix cart match the
+   * REQUEST. `mergeClaimedLines` writes them through the same `cart.ts` helpers /shop/ uses.
+   *
+   * ONE RETRY FOR A STALE SAVED CART, AND ONLY WHEN THIS CART IS EMPTY. `BASKET_CART_IN_USE` is
+   * the server's `CUSTOMERCART#<phone>` pointer, which lives thirty days and SURVIVES the payment
+   * that consumed its cart -- `clearCart()` only empties localStorage. So "empty your website cart
+   * and open the link again" was an instruction with no way to follow it for anyone who had
+   * already paid once. With an empty cart here there is nothing of the customer's to lose, so the
+   * retry sends `resetCart: true`, which releases that pointer exactly as the existing "Start a
+   * new cart" control does. With a NON-empty cart the sentence is true as written, and is shown.
    */
   useEffect( () => {
     const token = basketTokenFromUrl();
@@ -945,12 +961,22 @@ export default function Cart (): React.ReactElement {
 
     let live = true;
     void ( async () => {
-      const outcome = await claimBasket( session.accessToken, token );
+      let outcome = await claimBasket( session.accessToken, token );
       if ( !live ) return;
+      if ( outcome.kind === 'CART_IN_USE' && readCart().length === 0 )
+      {
+        outcome = await claimBasket( session.accessToken, token, { resetCart: true } );
+        if ( !live ) return;
+      }
       if ( outcome.kind === 'CLAIMED' )
       {
+        const { items: merged, merged: placed } = mergeClaimedLines( outcome.lines );
+        setItems( merged );
+        // Said out loud only when NOTHING could be placed. A partial merge needs no sentence: the
+        // customer pays for the lines they can see, which the server reconciles the cart down to.
+        setBasketClaim( outcome.lines.length > 0 && placed === 0
+          ? CLAIM_NOT_SHOWN_MESSAGE : null );
         stripBasketParam();
-        setBasketClaim( null );
         return;
       }
       setBasketClaim( claimMessage( outcome ) );
@@ -1803,6 +1829,25 @@ export default function Cart (): React.ReactElement {
 
   const isEmpty = ready && items.length === 0;
 
+  /**
+   * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
+   * button: every outcome's own sentence already names the action that helps, and a button here
+   * would re-post a single-use claim. A success says nothing at all - the items appearing in the
+   * list is the message.
+   *
+   * HOISTED OUT OF THE LIST BRANCH because it was unreachable exactly when it mattered most. It
+   * used to live inside `items.length > 0`, so a customer whose cart was EMPTY - which is the
+   * state every refusal arrives in for anyone who has just paid, and the state the stale-saved-cart
+   * retry is for - read nothing at all and was left on "Your cart is empty." with no explanation
+   * of the link they had just opened. Rendered in both branches from one definition, in the same
+   * position within the list branch as before, so nothing moves for a customer who has items.
+   */
+  const basketClaimLine = basketClaim ? (
+    <p className="cart-status" role="status" data-wc-basket-claim="true">
+      { basketClaim }
+    </p>
+  ) : null;
+
   return (
     <>
       <Head>
@@ -1821,6 +1866,10 @@ export default function Cart (): React.ReactElement {
           {isEmpty && (
             <div className="cart-empty">
               <p className="cart-body">Your cart is empty.</p>
+              {/* ABOVE the "Browse the shop" link, because it explains why the cart the customer
+                  was sent a link to is not here - which has to be read before the suggestion to
+                  go and shop instead makes any sense. */}
+              { basketClaimLine }
               <p className="cart-back"><Link href="/shop/">Browse the shop</Link></p>
             </div>
           )}
@@ -1959,15 +2008,9 @@ export default function Cart (): React.ReactElement {
                 The store confirms your final total, including taxes and fees, before payment.
               </p>
 
-              {/* THE WHATSAPP CLAIM, when it did not simply work. One line, no amount, no retry
-                  button: every outcome's own sentence already names the action that helps, and a
-                  button here would re-post a single-use claim. A success says nothing at all -
-                  the items appearing in the list is the message. */}
-              { basketClaim && (
-                <p className="cart-status" role="status" data-wc-basket-claim="true">
-                  { basketClaim }
-                </p>
-              ) }
+              {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not
+                  written inline here any more. */}
+              { basketClaimLine }
 
               {/* role is chosen by severity, not by colour: 'status' is polite for a state the
                   shopper can simply retry, 'alert' interrupts for one they cannot. Neither relies

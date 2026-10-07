@@ -64,10 +64,15 @@ a missing key, or simply missed an event.
 
 IT SHIPS WITH BOTH GATES CLOSED, AND THIS SCRIPT DOES NOT OPEN THEM
 -------------------------------------------------------------------
-`META_CATALOG_SYNC_ENABLED` is absent from `ENVIRONMENT` (so: off) and `META_CATALOG_SYNC_DRY_RUN`
-is set to `"true"` explicitly. Writing to the Meta catalog is a customer-visible production
-mutation - items appear in WhatsApp - and is an owner decision. `--apply` provisions a function
-that computes and logs the plan and sends nothing.
+`META_CATALOG_SYNC_ENABLED` and `META_CATALOG_SYNC_DRY_RUN` are both set EXPLICITLY, to `"false"`
+and `"true"`. Writing to the Meta catalog is a customer-visible production mutation - items appear
+in WhatsApp - and is an owner decision. `--apply` provisions a function that computes and logs the
+plan and sends nothing.
+
+The enable flag was previously left absent, because an absent key is off and is not one word away
+from enabling. It is written out now so that "deliberately closed" can be told apart from "never
+configured" by anyone auditing the live environment or `config/lambda-env-manifest.json` - see the
+note on `ENVIRONMENT`, which records what that change cost and what it bought.
 
 Usage:
     python scripts/provision_meta_catalog_sync.py              # dry run, the default
@@ -115,12 +120,25 @@ WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
 #: from `src/pages/catalog-builder.tsx`; WABA2's `1424934879646296` is reachable by changing this
 #: one variable plus `META_TOKEN_FIELD`.
 #:
-#: `META_CATALOG_SYNC_ENABLED` IS DELIBERATELY ABSENT. An absent flag is off, and an absent key is
-#: harder to flip by accident than a key set to "false".
+#: `META_CATALOG_SYNC_ENABLED` IS SET EXPLICITLY TO "false", AND IT USED TO BE ABSENT. The reason
+#: for the absence was that an absent key is harder to flip by accident than a key one word away
+#: from enabling - but that reading does not survive contact with the audit: an absent key is
+#: indistinguishable from a key NOBODY EVER CONFIGURED, and this is the one function in this phase
+#: that can write to a customer-visible Meta catalogue. "Deliberately closed" and "never thought
+#: about" have to be tellable apart on exactly that function.
+#:
+#: The accident argument also turns out to cost nothing to give up. `_enabled()` requires the value
+#: to be in `_TRUE`, so "false" is off for the same reason absence is; flipping "false" to "true"
+#: and adding a missing key are both a deliberate edit plus a deploy; and `_report_gates` below
+#: refuses outright when the LIVE value reads true, which is the guard that actually catches a
+#: flip. What absence did cost was `config/lambda-env-manifest.json` - it records what is live, so
+#: an entry declaring the gate closed while no deploy ever set it would make
+#: `scripts/env_manifest.py` report key-level drift and exit 1 indefinitely.
 ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
     "META_CATALOG_ID": "1607047307067517",
+    "META_CATALOG_SYNC_ENABLED": "false",
     "META_CATALOG_SYNC_DRY_RUN": "true",
     "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
     "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
@@ -491,7 +509,7 @@ def verify() -> int:
     if not problems:
         print("  in step")
         print(f"  no public surface: no HTTP API route, no function URL")
-        print(f"  gates: META_CATALOG_SYNC_ENABLED absent (off), "
+        print(f"  gates: META_CATALOG_SYNC_ENABLED false, "
               f"META_CATALOG_SYNC_DRY_RUN true")
     return 1 if problems else 0
 
@@ -519,7 +537,7 @@ def main(argv=None) -> int:
     print()
     print("  no HTTP API route and no function URL are created: this function has no public")
     print("  surface. Its callers are the webhook's async invoke and the schedule above.")
-    print("  BOTH GATES SHIP CLOSED. META_CATALOG_SYNC_ENABLED is absent (off) and")
+    print("  BOTH GATES SHIP CLOSED. META_CATALOG_SYNC_ENABLED is \"false\" and")
     print("  META_CATALOG_SYNC_DRY_RUN is true, so it computes and logs the plan and writes")
     print("  nothing to the Meta catalog. Opening either is an owner decision.")
     if not apply:

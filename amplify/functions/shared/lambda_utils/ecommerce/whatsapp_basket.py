@@ -85,11 +85,17 @@ MESSAGE_INDEX_PREFIX = "WABASKETMSG#"
 #: most recently.
 CLAIM_POINTER_PREFIX = "WABASKETCLAIM#"
 
-#: How long a claimed-channel pointer keeps answering. Thirty days, matching
+#: How long a claimed-channel pointer keeps answering AT MOST. Thirty days, matching
 #: `customer_cart.CART_LIFETIME`, because the channel belongs to the CART: a pointer that outlived
 #: the cart it describes would stamp `whatsapp` on an unrelated website order weeks later, and a
 #: mislabelled order cannot be told apart from a real one afterwards. Expiry is compared in
 #: application code for the same reason the hand-off's is - CommerceKeys has no TTL.
+#:
+#: MATCHING THAT LIFETIME IS NOT WHAT MAKES IT SAFE, and assuming it did was a measured defect: the
+#: cart is consumed at payment while the pointer is not, so a website order placed days after a
+#: paid WhatsApp one was still inside these thirty days and inherited `whatsapp`. The binding that
+#: actually holds is `wixCartId` on the pointer, compared against the customer's current cart by
+#: `active_claim`. This bound is the outer limit for a cart that is never consumed at all.
 CLAIM_POINTER_LIFETIME_SECONDS = 30 * 24 * 3600
 
 #: 24 bytes of `secrets.token_urlsafe` entropy - 32 URL-safe characters. Chosen rather than a
@@ -407,12 +413,26 @@ def claim_pointer_key(customer_id: Any) -> str:
     return CLAIM_POINTER_PREFIX + str(customer_id or "")
 
 
-def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int,
+def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int, cart_id: Any,
                         lifetime: int = CLAIM_POINTER_LIFETIME_SECONDS) -> Dict[str, Any]:
     """The pointer `_claimed_handoff` reads. Carries the CHANNEL and no money, like the row itself.
 
     `customerId` is on it so `customer_auth.authorize_resource` can refuse a row belonging to
     somebody else, the same way every other customer-scoped row in this table is checked.
+
+    `cart_id` IS REQUIRED, AND IT IS WHAT BOUNDS THE POINTER'S MEANING. `CLAIM_POINTER_LIFETIME_SECONDS`
+    matching `customer_cart.CART_LIFETIME` is NOT sufficient on its own, which is the defect this
+    argument closes: the cart is CONSUMED at payment and the pointer is not, so a customer who
+    claimed a WhatsApp basket, paid it, and then placed an ordinary website order days later was
+    still inside the pointer's thirty days and had `whatsapp` stamped on the second order - on the
+    attempt, the `PAYREF#` row, the order row, the `/orders` tag and the GST invoice's
+    `Source:` line. A mislabelled order cannot be told apart from a real one afterwards.
+    Recording the Wix cart the lines were merged INTO makes the pointer describe one basket rather
+    than one customer, so it stops answering the moment that cart is gone.
+
+    The value is the cart id `CustomerCart.ensure` returned, which has already been through
+    `cart_v2.identifier` - so both sides of the comparison in `active_claim` are the same
+    lowercased UUID rather than two spellings of one cart.
     """
     return {
         "orderId": claim_pointer_key(customer_id),
@@ -420,18 +440,37 @@ def build_claim_pointer(row: Mapping[str, Any], customer_id: Any, *, now: int,
         "channel": order_channel.canonical(row.get("channel")),
         "handoffId": str(row.get("orderId") or ""),
         "token": str(row.get("token") or ""),
+        "wixCartId": _cart_key(cart_id),
         "claimedAt": int(now),
         "expiresAt": int(now) + int(lifetime),
     }
 
 
-def active_claim(pointer: Optional[Mapping[str, Any]], now: int) -> Optional[Dict[str, Any]]:
+def _cart_key(cart_id: Any) -> str:
+    """A cart id reduced to the one comparable form. `''` for anything that is not one.
+
+    Lowercased and stripped rather than validated through `cart_v2.identifier`, because that
+    raises and `active_claim` must not - and because a value that is not a cart id at all simply
+    fails to match, which is the answer either way.
+    """
+    return str(cart_id or "").strip().lower()
+
+
+def active_claim(pointer: Optional[Mapping[str, Any]], now: int, *,
+                 cart_id: Any) -> Optional[Dict[str, Any]]:
     """The pointer if it still describes the customer's current basket, else `None`.
 
     TOTAL AND NON-RAISING, because its one caller is `_website_prepare`'s attribution read, which
     runs on the money path. A malformed pointer degrades to "no claim", and `order_channel.canonical`
     then answers `website` - the asymmetric default that under-claims the WhatsApp channel rather
     than mislabelling a website order.
+
+    `cart_id` is the customer's CURRENT Wix cart, and a mismatch takes exactly that same degraded
+    path rather than a distinct one: the pointer was written for the cart the hand-off was merged
+    into, so a different cart is a different basket and is NOT the WhatsApp one however recently
+    the claim happened. An absent or unresolvable cart is also a mismatch - `''` never equals a
+    stored id, and a pointer written before this field existed carries `''` and therefore stops
+    answering, which is the fail-closed direction.
     """
     if not isinstance(pointer, Mapping):
         return None
@@ -441,9 +480,13 @@ def active_claim(pointer: Optional[Mapping[str, Any]], now: int) -> Optional[Dic
         return None
     if expires_at <= int(now):
         return None
+    current = _cart_key(cart_id)
+    if not current or current != _cart_key(pointer.get("wixCartId")):
+        return None
     return {"channel": order_channel.canonical(pointer.get("channel")),
             "handoffId": str(pointer.get("handoffId") or ""),
-            "token": str(pointer.get("token") or "")}
+            "token": str(pointer.get("token") or ""),
+            "wixCartId": current}
 
 
 def catalog_items(row: Mapping[str, Any]) -> List[Dict[str, Any]]:
