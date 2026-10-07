@@ -22,7 +22,7 @@ const descriptions: Record<string, string> = {
 };
 const statusNames: Record<string, string> = {
   consent_required: 'Sign-in needed', authorized_unverified: 'Ready to verify', verified: 'Verified',
-  refresh_or_consent_required: 'Renew sign-in', sdk: 'Ready to check',
+  refresh_or_consent_required: 'Check renewal', refresh_pending: 'Automatic renewal available', sdk: 'Ready to check',
   'pending-adapter': 'Adapter pending', 'documentation-only': 'Documentation only',
   documentation_verified: 'Documentation verified',
   mcp_client_required: 'MCP client sign-in needed',
@@ -38,6 +38,8 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [authorizations, setAuthorizations] = useState<Record<string, Authorization>>({});
+  const [readProvider, setReadProvider] = useState('aws');
+  const [failures, setFailures] = useState<Record<string, string>>({});
   const [checks, setChecks] = useState<Record<string, string>>({});
   const [activity, setActivity] = useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
@@ -57,6 +59,7 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
           'connection_verify', { provider },
         );
         setChecks(old => ({ ...old, [provider]: statusNames[String(value.status)] || 'Check needed' }));
+        setFailures(old => { const next = { ...old }; delete next[provider]; return next; });
         setAuthorizations(old => { const next = { ...old }; delete next[provider]; return next; });
         const read = (value.read || {}) as Record<string, unknown>;
         const detail = provider === 'aws' ? `Account ${read.account} · ${read.region}`
@@ -66,6 +69,7 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
         setActivity(old => [`${names[provider] || provider}: ${detail}`, ...old].slice(0, 20));
       } catch (e) {
         setChecks(old => ({ ...old, [provider]: 'Check needed' }));
+        setFailures(old => ({ ...old, [provider]: e instanceof Error ? e.message : 'Check failed' }));
         setActivity(old => [`${names[provider] || provider}: ${e instanceof Error ? e.message : 'Check failed'}`, ...old].slice(0, 20));
       }
     }
@@ -91,7 +95,7 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
       </header>
       {role.loading ? <p role="status">Checking your access…</p> : !admin ?
         <p className={styles.notice}>A staff Admin account is required to manage MCP connections.</p> : <>
-        <p className={styles.notice}>Connect each account separately. After sign-in in the new tab, return here and select Verify. Dashboard connections belong to your staff session; desktop MCP authorizations are separate. A registered callback alone does not verify account access.</p>
+        <p className={styles.notice}>Connections are saved securely for your staff account and remain after signing out or closing your browser. Google access renews automatically while its saved authorization remains valid. Check renewal before reconnecting. Meta may require new consent when permissions or access expire. After sign-in, return here and select Verify. Desktop MCP authorizations are separate.</p>
         {error && <p className={styles.notice} role="alert">{error}</p>}
         <div className={styles.toolbar}>
           <span>{selected.length} selected</span>
@@ -111,10 +115,13 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
                   onChange={e => setSelected(old => e.target.checked ? [...old, provider] : old.filter(item => item !== provider))} />}</div>
               <span className={styles.badge}>{checks[provider] || statusNames[connection.status] || connection.status}</span>
               <p>{descriptions[connection.kind] || 'Connection status unavailable.'}</p>
+              {remote && <p>{connection.automaticRefresh === true ? 'Saved authorization supports automatic renewal.' : 'Saved authorization persists; renewal depends on the provider.'}</p>}
+              {failures[provider] && <p className={styles.notice} role="alert">{failures[provider]}</p>}
               {connection.lastVerifiedAt && <p>Last verified: {new Date(connection.lastVerifiedAt * 1000).toLocaleString()}</p>}
               <div className={styles.actions}>
                 {remote && <Button variant="primary" disabled={busy} onClick={() => void connect(provider)}>Connect</Button>}
                 {supported && <Button disabled={busy} onClick={() => void run([provider])}>{remote ? 'Verify' : 'Check connection'}</Button>}
+                {supported && <a href="#playground" onClick={() => setReadProvider(provider)}>View data</a>}
               </div>
               {validLink && <div className={styles.notice}><a href={authorization.url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">Continue with {provider.startsWith('google-') ? 'Google' : 'Meta'} ↗</a><p>Complete sign-in, then return and verify.</p></div>}
               {authorization && !validLink && <p className={styles.notice}>Sign-in link expired. Select Connect for a fresh link.</p>}
@@ -122,7 +129,7 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
           })}
         </div>
         {!connections.length && !busy && <p>No connections loaded. Use Refresh to retry.</p>}
-        <MCPPlayground connections={connections} names={names} onVerified={(provider, status) => {
+        <MCPPlayground key={readProvider} connections={connections} names={names} selectedProvider={readProvider} onProviderChange={setReadProvider} onVerified={(provider, status) => {
           setConnections(old => old.map(item => item.provider === provider ? { ...item, status, lastVerifiedAt: Math.floor(Date.now() / 1000) } : item));
           setChecks(old => ({ ...old, [provider]: statusNames[status] || status }));
         }} />

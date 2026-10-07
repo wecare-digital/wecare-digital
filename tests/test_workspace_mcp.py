@@ -11,6 +11,41 @@ ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = ROOT / "amplify/functions/ai/workspace-mcp"
 
 
+def test_persisted_refresh_grant_has_no_ttl_and_registry_explains_renewal(module, memory):
+    module.save_tokens('owner', 'google-cloud', {'access_token': 'fixture-access', 'refresh_token': 'fixture-refresh', 'expires_in': 3600})
+    saved = memory.rows['connection:owner:google-cloud']
+    assert saved['hasRefreshToken'] is True
+    assert 'ttl' not in saved
+    saved.update(expiresAt=1, status='verified', lastVerifiedAt=10)
+    connection = next(c for c in module.registry('owner')['connections'] if c['provider'] == 'google-cloud')
+    assert connection['status'] == 'refresh_pending'
+    assert connection['automaticRefresh'] is True
+    assert connection['persistent'] is True
+    assert connection['lastVerifiedAt'] == 10
+    assert 'fixture-' not in json.dumps(connection)
+
+
+def test_refresh_preserves_account_verification_and_has_conditional_custody(module, memory, monkeypatch):
+    calls = []
+    monkeypatch.setattr(memory, 'update_item', lambda **kw: calls.append(kw))
+    module.save_tokens('owner', 'google-cloud', {'access_token': 'fixture-new', 'refresh_token': 'fixture-refresh', 'expires_in': 3600}, lease='fixture-lease')
+    update = calls[0]
+    assert update['ConditionExpression'] == 'refreshLease = :lease'
+    assert ':status' not in update['ExpressionAttributeValues']
+    assert update['ExpressionAttributeValues'][':refresh'] is True
+    assert 'lastVerifiedAt' not in update['UpdateExpression']
+    assert 'ttl' not in update['UpdateExpression']
+
+
+def test_connections_remain_scoped_to_same_account_across_new_requests(module, memory):
+    memory.rows['connection:owner:aws'] = {'status': 'verified', 'lastVerifiedAt': 10}
+    first = next(c for c in module.registry('owner')['connections'] if c['provider'] == 'aws')
+    second = next(c for c in module.registry('owner')['connections'] if c['provider'] == 'aws')
+    another = next(c for c in module.registry('another')['connections'] if c['provider'] == 'aws')
+    assert first == second and second['lastVerifiedAt'] == 10
+    assert another['lastVerifiedAt'] is None
+
+
 @pytest.fixture
 def module(monkeypatch):
     # Import needs only the static policy. No AWS clients are created at import.

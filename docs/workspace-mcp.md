@@ -221,3 +221,23 @@ its reviewed IaC rollback, subject to destructive-operation rules. Registry/KMS
 resources have retain policies. For later code releases, restore the captured prior
 live alias version and matching IaC. Never roll back checkout, public `/mcp`, other
 provider connections or shared Amplify routing to repair this endpoint.
+
+## Connection persistence and viewing results
+
+Connections are stored server-side under the stable IAM identity or Cognito user
+subject, not a browser session identifier. Closing the browser or signing out does
+not delete them. Signing in as a different user or using the desktop IAM bridge
+selects a different namespace; never copy another user's authorization to bridge it.
+Only short-lived OAuth state rows have DynamoDB TTL. Provider access-token expiry
+remains separate from registry retention. Automatic refresh retains the existing
+verification timestamp and status, rotates the encrypted token payload under the
+refresh lease, and records only a non-sensitive refresh-capability flag.
+
+On the dashboard, use Verify/Check connection first, then View data to select the
+provider in MCP Playground. Choose a read and Run read; results appear below.
+An expired access token means Check renewal, not that the saved grant is lost.
+Google offline grants renew on demand while valid. Revocation, changed permissions
+or provider refresh-token expiry can still require consent. Meta authorization
+errors must be resolved in the approved provider app/client configuration; do not
+mark a callback or ordinary Graph token as a verified remote MCP connection.
+Plivo/Sinch checks confirm documentation discovery, not a live account.

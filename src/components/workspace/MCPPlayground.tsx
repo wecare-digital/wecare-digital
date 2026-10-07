@@ -31,8 +31,8 @@ export function playgroundJSON(value: unknown): string {
   return text.length > 50000 ? `${text.slice(0, 50000)}\n… Display limited to 50,000 characters.` : text;
 }
 
-export default function MCPPlayground({ connections, names, onVerified }: { connections: MCPConnection[]; names: Record<string, string>; onVerified?: (provider: string, status: string) => void }) {
-  const [provider, setProvider] = useState('aws');
+export default function MCPPlayground({ connections, names, onVerified, selectedProvider, onProviderChange }: { selectedProvider?: string; onProviderChange?: (provider: string) => void; connections: MCPConnection[]; names: Record<string, string>; onVerified?: (provider: string, status: string) => void }) {
+  const [provider, setProvider] = useState(selectedProvider || 'aws');
   const [operation, setOperation] = useState('verify');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState('');
@@ -52,10 +52,10 @@ export default function MCPPlayground({ connections, names, onVerified }: { conn
   };
   return <section className={styles.activity} aria-labelledby="mcp-playground-title" id="playground">
     <h2 id="mcp-playground-title">MCP Playground</h2>
-    <p>Check a connection and inspect its data, or run an available account read. Results belong to your current staff account.</p>
+    <p>Choose a connection and select Run read to see its result below. Meta Social offers app settings and API usage; WhatsApp offers business lists. Other integrations show their available connection data. Results belong to your staff account.</p>
     <div className={styles.playgroundControls}>
       <label>Connection<select value={provider} disabled={busy || !connections.length} onChange={event => {
-        setProvider(event.target.value); setOperation('verify'); setResult(''); setError(''); setCompleted('');
+        setProvider(event.target.value); onProviderChange?.(event.target.value); setOperation('verify'); setResult(''); setError(''); setCompleted('');
       }}>{connections.map(item => <option key={item.provider} value={item.provider}>{names[item.provider] || item.provider}</option>)}</select></label>
       <label>Read<select value={operation} disabled={busy} onChange={event => { setOperation(event.target.value); setResult(''); setError(''); setCompleted(''); }}>
         <option value="verify">Check connection and view data</option>
