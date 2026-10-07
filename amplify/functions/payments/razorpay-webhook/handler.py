@@ -447,7 +447,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
     Razorpay retry the whole event and the lease above already handles recovery.
     """
     try:
-        from lambda_utils.ecommerce import order_creation, order_keys
+        from lambda_utils.ecommerce import order_channel, order_creation, order_keys
         from lambda_utils.integrations import razorpay_verify
 
         payment_id = str(payment.get('id') or '')
@@ -457,6 +457,16 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
 
         table = dynamodb.Table(order_keys.commerce_keys_table_name())
 
+        # `_load_attempt` runs INSIDE `reconcile_payment`, so the row it reads is not otherwise
+        # visible out here - and the channel is needed again further down, for the invoice. Noted
+        # on the way past rather than re-read: it is the same row, and a second GetItem on a money
+        # path buys nothing. It is deliberately NOT added to the narrowed dict `_load_attempt`
+        # returns: `reconcile_payment` is a pure module that decides money questions and has no
+        # business with attribution, so a key it never reads would only suggest it did. Empty
+        # until the row is read, which is why the reader below goes through
+        # `order_channel.canonical` rather than trusting this dict.
+        attribution: Dict[str, Any] = {}
+
         def _load_attempt(ref: str):
             row = order_keys.resolve_payment_reference(table, ref)
             if not row or not row.get('paymentAttemptId'):
@@ -464,6 +474,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             # The attempt's authoritative amount and currency live on the PAYREF# row, written when
             # the payment request was built from the Wix checkout. Reading them from the webhook
             # instead would make the comparison compare the event against itself.
+            attribution['channel'] = row.get('channel', '')
             return {
                 'paymentAttemptId': row['paymentAttemptId'],
                 'customerId': row.get('customerId', ''),
@@ -511,7 +522,14 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
                 'referenceId': reference_id,
                 'requestId': request_id,
             }))
-        return outcome.as_dict()
+        # `channel` is added HERE and not inside `ReconciliationOutcome`: that class is a pure
+        # module's published contract with its key set pinned by equality tests, and attribution is
+        # not part of what a reconciliation decides. `order_channel.canonical` is total, so a row
+        # written before the channel existed - which is every row today - reports `website`.
+        return {
+            **outcome.as_dict(),
+            'channel': order_channel.canonical(attribution.get('channel')),
+        }
 
     except Exception as e:  # noqa: BLE001
         # Type only, and never re-raised: a non-2xx makes Razorpay retry the whole event, and the
@@ -1197,7 +1215,14 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
         _mark_invoice_paid_by_reference(reference_id, request_id, payment_id)
 
     # Post-payment: create invoice, generate image (internal reference only)
-    _post_payment_handler(payment_id, amount_rupees, currency, contact, email, description, notes, request_id)
+    #
+    # The channel rides along so the GST invoice prints the SAME origin the orders page shows for
+    # the same order. It comes off the reconciliation outcome, which read it from the `PAYREF#`
+    # row - never from `notes`, because Razorpay notes are request content and attribution the
+    # request can set is attribution a customer can forge. Absent on the legacy settlement path
+    # (no `PAYREF#` row exists there), which `create_invoice` canonicalises to `website`.
+    _post_payment_handler(payment_id, amount_rupees, currency, contact, email, description, notes, request_id,
+                          channel=str((outcome or {}).get('channel') or ''))
 
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
@@ -2092,7 +2117,8 @@ def _mark_invoice_paid_by_phone_and_amount(phone: str, amount_rupees: float,
 
 
 def _post_payment_handler(payment_id: str, amount: float, currency: str, contact: str,
-                          email: str, description: str, notes: Dict, request_id: str) -> None:
+                          email: str, description: str, notes: Dict, request_id: str,
+                          *, channel: str = '') -> None:
     """
     After payment captured (Razorpay webhook path):
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
@@ -2100,6 +2126,11 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
     2. Generate invoice image (POS receipt style) — for internal reference
     3. Generate PDF (async) — for internal reference
     4. NO WhatsApp send — WhatsApp path handles customer delivery
+
+    `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
+    the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
+    positional arguments are unaffected, and so omitting it is a silent, correct `website` rather
+    than a TypeError on a path where the money has already moved.
     """
     logger.info(json.dumps({'event': 'post_payment_start', 'paymentId': payment_id, 'path': 'webhook_backup', 'requestId': request_id}))
 
@@ -2109,6 +2140,11 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
             'body': json.dumps({
                 'paymentId': payment_id,
                 'entryPoint': 'webhook',
+                # NOT the same fact as `entryPoint`, which records which internal flow minted the
+                # invoice. A WhatsApp-origin catalogue order settles on the website leg, so its
+                # entryPoint is a website one while its channel is `whatsapp`; printing entryPoint
+                # as the Source line would tell the customer the wrong origin.
+                'channel': channel,
                 'itemName': description or notes.get('itemName', 'Payment'),
                 'gstRate': float(notes.get('gstRate', 18)),
                 'shipping': float(notes.get('shipping', 0)),
