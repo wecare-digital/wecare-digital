@@ -39,6 +39,11 @@ for path in (str(SHARED), str(Path(__file__).resolve().parent)):
 
 HANDLER_PATH = CRM_DIR / "handler.py"
 PROVISION_PATH = ROOT / "scripts" / "provision_crm_api.py"
+CONTACTS_HANDLER_PATH = ROOT / "amplify" / "functions" / "core" / "contacts" / "handler.py"
+
+#: Imported AFTER the `sys.path` setup above - `--import-mode=importlib` does not put a test's own
+#: directory on the path, so this module is only importable once that loop has run.
+from contacts_fake_table import FakeContactsResource, FakeContactsTable  # noqa: E402
 
 
 def code_only(path: Path) -> str:
@@ -384,3 +389,93 @@ class TestProvisioning:
     def test_a_conflicting_route_is_reported_not_repointed(self):
         code = code_only(PROVISION_PATH)
         assert "CONFLICT" in code
+
+
+# ===========================================================================
+# The CRM stores one phone format, and it is the one every other surface reads
+# ===========================================================================
+
+def _contacts_module(monkeypatch, table):
+    """`core/contacts` loaded under a unique name, with the fake table wired in.
+
+    Loaded by path for the same reason `_handler_module` is: dozens of Lambdas here have a
+    `handler.py` and `sys.modules['handler']` resolves to whichever one imported first.
+    """
+    monkeypatch.setenv("CONTACTS_TABLE", "stack-wecare-digital-ContactsTable")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    spec = importlib.util.spec_from_file_location(
+        "wecare_contacts_phone_under_test", CONTACTS_HANDLER_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    monkeypatch.setattr(module, "dynamodb", FakeContactsResource(table))
+    return module
+
+
+class TestContactPhoneIsStoredAsE164:
+    """The linking key between the CRM, the website and WhatsApp is the E.164 phone.
+
+    Measured before this changed: an operator typing `9876543210` produced the stored value
+    `+9876543210`, while a signed-in website session looks the row up as `+919876543210` and an
+    inbound WhatsApp `wa_id` arrives as `919876543210`. The row was invisible to both, and the
+    customer who already existed in the CRM was pushed through the entire first-time flow.
+    """
+
+    def test_a_number_with_its_dial_code_is_stored_verbatim(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._create({"name": "Asha Sen", "phone": "+919876543210"}, "req-1")
+        assert response["statusCode"] == 201
+        assert table.puts[0]["phone"] == "+919876543210"
+
+    def test_a_bare_ten_digit_number_is_REFUSED_not_prefixed(self, monkeypatch):
+        """The headline fix. Guessing +91 here would reserve the wrong identity permanently and
+        send the OTP to an unrelated subscriber; the CRM form supplies a dial code explicitly,
+        so refusing is correct rather than inconvenient."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._create({"name": "Asha Sen", "phone": "9876543210"}, "req-2")
+        assert response["statusCode"] == 400
+        assert json.loads(response["body"])["error"] == contacts.PHONE_COUNTRY_CODE_REQUIRED
+        assert table.puts == [], "a refused number must not be stored in any form"
+
+    def test_a_foreign_country_code_survives(self, monkeypatch):
+        """`normalize_phone` prepended +91 to this number because it strips non-digits BEFORE it
+        looks for a country code - measured, `+6591234567` became `+916591234567`."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._create({"name": "Wei Lim", "phone": "+6591234567"}, "req-3")
+        assert response["statusCode"] == 201
+        assert table.puts[0]["phone"] == "+6591234567"
+
+    def test_separators_collapse_so_duplicate_detection_can_work(self, monkeypatch):
+        """Uniqueness is enforced on the normalised value, so two spellings of one number must
+        reach one string BEFORE `_check_duplicate` queries `phone-index`."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        contacts._create({"name": "Asha Sen", "phone": "+91 98765-43210"}, "req-4")
+        assert table.puts[0]["phone"] == "+919876543210"
+        again = contacts._create({"name": "Asha again", "phone": "+919876543210"}, "req-5")
+        assert again["statusCode"] == 409, "the second spelling must collide with the first"
+
+    def test_the_update_path_normalises_the_same_way(self, monkeypatch):
+        """An update that re-wrote the number in the old `'+' + digits` form would undo the link
+        for a row that was created correctly."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._update("contact-1", {"phone": "9876543210"}, "req-6")
+        assert response["statusCode"] == 400
+        assert json.loads(response["body"])["error"] == contacts.PHONE_COUNTRY_CODE_REQUIRED
+
+    def test_the_lenient_normaliser_is_not_imported_at_all(self):
+        """Not "is not called" - is not IMPORTED. Leaving the import in place would tell the next
+        reader that the +91-inferring function is still in play on this surface."""
+        code = code_only(CONTACTS_HANDLER_PATH)
+        assert "normalize_phone(" not in code
+        assert "normalize_phone_preserving_country" in code
+
+    def test_a_contact_with_only_an_email_is_still_valid(self, monkeypatch):
+        """The phone rule must not turn an email-only CRM row into a 400."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._create({"name": "Asha Sen", "email": "asha@example.com"}, "req-7")
+        assert response["statusCode"] == 201

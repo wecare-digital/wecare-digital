@@ -28,9 +28,15 @@ from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, options_response, extract_origin
 from lambda_utils.logging import get_logger, log_event
-from lambda_utils.validation import sanitize_html, sanitize_dict, normalize_phone
+# `normalize_phone` is deliberately NOT imported here. It strips non-digits BEFORE it looks for a
+# country code, so a ten-digit foreign number arrives looking like an Indian mobile and gets +91
+# prepended - measured, `+6591234567` became `+916591234567`. This surface uses
+# `customer_identity.normalize_phone_preserving_country` instead; see `_e164_or_error`.
+from lambda_utils.validation import sanitize_html, sanitize_dict
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
+from lambda_utils.privacy import mask_phone  # a phone reaches a log masked, or not at all
+from lambda_utils.identity import customer as customer_identity
 
 logger = get_logger(__name__)
 
@@ -41,6 +47,23 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+
+# The function that ALREADY holds `cognito-idp:AdminCreateUser` on the customer pool
+# `us-east-1_46ULYuukt` (`scripts/provision_secure_files_api.py`, Sid `CustomerPoolOnly`). The CRM
+# asks IT to provision a login rather than gaining the grant itself - see
+# `_provision_customer_login` for why that direction is the whole point.
+CUSTOMER_LOGIN_FUNCTION = os.environ.get('CUSTOMER_LOGIN_FUNCTION', 'wecare-secure-files:live')
+
+#: The copy a CRM operator sees when the dial code is missing. A refusal, not a default - see
+#: `_e164_or_error`.
+PHONE_COUNTRY_CODE_REQUIRED = 'Phone number must include a country code, e.g. +91'
+
+# The error message for a number that carries a country code but still is not reachable. Kept as
+# the pre-existing wording so no CRM UI string has to change.
+PHONE_INVALID = 'Invalid phone number format'
+
+_lambda_client = None  # built on first use only; see `_provision_customer_login`
+
 
 # The checkout delivery address, READ-ONLY on this handler.
 #
@@ -186,16 +209,20 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
     phone = body.get('phone', '').strip() if body.get('phone') else None
     email = body.get('email', '').strip().lower() if body.get('email') else None
 
-    # Normalize phone to digits-only E.164 before validation/storage
+    # E.164 that honours the country code the operator actually typed - see `_e164_or_error`.
     if phone:
-        normalized = normalize_phone(phone)
-        if normalized:
-            phone = f'+{normalized}'
+        phone, phone_error = _e164_or_error(phone)
+        if phone_error:
+            return cors_response(400, {'error': phone_error}, origin)
 
     if not phone and not email:
         return cors_response(400, {'error': 'At least one of phone or email is required'}, origin)
+    # Belt only, and said so rather than left to be trusted: `_e164_or_error` already guarantees
+    # `+` followed by 8-15 ASCII digits, which satisfies this regex by construction. It is kept
+    # because it is the shape check this surface has always had, not because it is what makes the
+    # stored number correct.
     if phone and not _validate_phone(phone):
-        return cors_response(400, {'error': 'Invalid phone number format'}, origin)
+        return cors_response(400, {'error': PHONE_INVALID}, origin)
     if email and not _validate_email(email):
         return cors_response(400, {'error': 'Invalid email format'}, origin)
 
@@ -251,6 +278,12 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
 
     table = dynamodb.Table(CONTACTS_TABLE)
     table.put_item(Item=_to_dynamo(contact))
+
+    # AFTER the row exists, and never before it: the login is an attachment to a contact that is
+    # already stored, so a dispatch that fires and then a failed write cannot leave a Cognito user
+    # with no row behind it. Off by default, and a no-op when it is off.
+    if phone:
+        _provision_customer_login(phone, request_id)
 
     log_event(logger, 'contact_created', contactId=contact_id, requestId=request_id)
     return cors_response(201, _from_dynamo(contact), origin)
@@ -361,11 +394,14 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
             return cors_response(400, {'error': f'{f} must be a boolean value'}, origin)
 
     if 'phone' in updates and updates['phone']:
-        normalized = normalize_phone(updates['phone'])
-        if normalized:
-            updates['phone'] = f'+{normalized}'
+        # The SAME normalisation as `_create`, deliberately: an update that re-wrote the number
+        # in the old `'+' + digits` form would undo the link for a row that was created
+        # correctly, which is the defect arriving through the back door.
+        updates['phone'], phone_error = _e164_or_error(updates['phone'])
+        if phone_error:
+            return cors_response(400, {'error': phone_error}, origin)
         if not _validate_phone(updates['phone']):
-            return cors_response(400, {'error': 'Invalid phone number format'}, origin)
+            return cors_response(400, {'error': PHONE_INVALID}, origin)
     if 'email' in updates and updates['email']:
         updates['email'] = updates['email'].strip().lower()
         if not _validate_email(updates['email']):
@@ -508,6 +544,98 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
+
+def _e164_or_error(raw: str) -> tuple:
+    """`(e164, None)` or `(None, message)`. The CRM's single phone-entry contract.
+
+    THIS IS THE FIX THAT MAKES A CRM ROW VISIBLE TO THE WEBSITE AND TO WHATSAPP. One contact row
+    is reached from three directions and the only key all three share is the E.164 phone:
+    `phone-index` on `+91...` for a signed-in website session (`auth/customer-profile`,
+    `ecommerce/checkout`, `ecommerce/customer-orders`), the same index for an inbound WhatsApp
+    `wa_id`, and the Cognito `Username`. Measured before this changed: an operator typing
+    `9876543210` produced the stored value `+9876543210`, so the website looked up
+    `+919876543210` and WhatsApp looked up `919876543210` and NEITHER found the row. The CRM
+    customer was pushed through the entire first-time flow despite already existing.
+
+    A MISSING COUNTRY CODE IS REFUSED, NOT GUESSED. `normalize_phone_preserving_country` raises
+    `MissingCountryCode` for input carrying neither `+` nor `00`, and that rejection is carried
+    straight through to a 400 here rather than softened. Refusing is correct rather than
+    inconvenient on this surface: the CRM form supplies a dial code explicitly, so no real UI
+    state produces a bare national number - only a direct API caller does - and the alternative
+    is the defect wearing a wrapper. Guessing `+91` for a ten-digit foreign number sends the OTP
+    to an unrelated Indian subscriber AND reserves the wrong identity permanently, because
+    uniqueness is enforced on the normalised value.
+
+    The duplicate check downstream therefore compares normalised values on both sides, which is
+    the second half of the same property: two spellings of one number must collapse to one string
+    BEFORE `_check_duplicate` queries `phone-index`, or the same person gets two rows.
+    """
+    try:
+        return customer_identity.normalize_phone_preserving_country(raw), None
+    except customer_identity.MissingCountryCode:
+        return None, PHONE_COUNTRY_CODE_REQUIRED
+    except customer_identity.InvalidPhoneNumber:
+        return None, PHONE_INVALID
+
+
+def _customer_login_enabled() -> bool:
+    """`CRM_PROVISION_CUSTOMER_LOGIN`, read at REQUEST time and defaulting to OFF.
+
+    Read per request rather than at import so the flag can be flipped by an environment update
+    without waiting for every warm sandbox to recycle. Default off means a CRM create behaves
+    exactly as it does today until an owner deliberately turns it on.
+    """
+    return os.environ.get('CRM_PROVISION_CUSTOMER_LOGIN', 'false').strip().lower() == 'true'
+
+
+def _provision_customer_login(phone: str, request_id: str) -> None:
+    """Ask the function that already holds the grant to create the customer's Cognito login.
+
+    WHY AN ASYNC INVOKE RATHER THAN A CALL FROM HERE. A CRM contact has no Cognito user, so the
+    WhatsApp OTP trigger answers `registered=false` and sends nothing - the customer the CRM just
+    created cannot sign in. Fixing that needs `cognito-idp:AdminCreateUser` on the customer pool
+    `us-east-1_46ULYuukt`, and `core/secure-files` already holds exactly that, scoped to the
+    customer pool, for `_ensure_customer_user`. Reaching it by invoke keeps the grant in the one
+    role that was provisioned for it instead of widening this role, which is shared.
+
+    USER-LEVEL ADMIN APIS ONLY. Nothing in this path calls `UpdateUserPool`. That API is a FULL
+    REPLACE: on 2026-09-28 a partial call returned 200, silently cleared three auth triggers and
+    flipped `AllowAdminCreateUserOnly` to false on this very pool - self-signup opened on a
+    public, internet-facing pool, with no error and no warning. If a pool-level setting ever has
+    to change it goes through `scripts/cognito_pool_safe_update.py --apply` and nothing else.
+
+    THE PAYLOAD CARRIES THE NORMALISED E.164 AND NOTHING ELSE. Not the name, not the email, not
+    the contact id. The receiving function needs the phone to key the user and no more, and a
+    smaller payload is a smaller thing to get wrong; the phone reaches the log masked.
+
+    Fire-and-forget on purpose. A login is a convenience attached to a contact row that is
+    already stored, so a dispatch failure must not fail the create - it is recoverable by
+    re-saving the contact once the flag is on.
+    """
+    if not _customer_login_enabled():
+        return
+    global _lambda_client
+    try:
+        if _lambda_client is None:
+            # Built here rather than at import: with the flag off, no Lambda client is ever
+            # constructed and this handler's cold start is unchanged.
+            _lambda_client = boto3.client(
+                'lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        _lambda_client.invoke(
+            FunctionName=CUSTOMER_LOGIN_FUNCTION,
+            InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'provisionCustomerLogin',
+                'phone': phone,
+            }).encode('utf-8'),
+        )
+        log_event(logger, 'crm_customer_login_dispatched',
+                  phone=mask_phone(phone), requestId=request_id)
+    except Exception as exc:  # noqa: BLE001 - a missing login, never a lost contact
+        # Type only: a ClientError message can echo the request content, phone included.
+        log_event(logger, 'crm_customer_login_dispatch_failed', level='warning',
+                  error=type(exc).__name__, requestId=request_id)
+
 
 def _validate_phone(phone: str) -> bool:
     pattern = r'^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}[-\s\.]?[0-9]{0,9}$'

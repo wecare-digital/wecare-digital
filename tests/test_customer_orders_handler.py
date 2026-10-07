@@ -676,11 +676,88 @@ def test_first_and_last_name_travel_separately(ctx):
     assert body["profile"]["lastName"] == "Sen Gupta"
 
 
+def test_a_crm_created_unowned_row_IS_the_profile(ctx):
+    """Only the checkout path writes `checkoutCustomerId`, so a CRM-created contact carries none.
+
+    Demanding one made this the odd reader out: `ecommerce/checkout._unowned` and
+    `auth/customer-profile._owned_contact` already adopt such a row off the same index, so a
+    customer who exists in the CRM saw a profile at checkout and no profile on `/orders`. The
+    address has to arrive too - a card with a name and no address still sends them to re-type it.
+    """
+    module, _, contacts, _ = ctx
+    row = contact_row()
+    row.pop("checkoutCustomerId")
+    contacts.items = [row]
+    _, body = call(module, body={})
+    profile = body["profile"]
+    assert profile is not None
+    assert profile["name"] == "Asha Sen"
+    assert profile["addressComplete"] is True
+    assert profile["address"]["addressLine1"] == "12 MG Road"
+
+
+def test_an_empty_string_owner_counts_as_unowned(ctx):
+    """`_unowned` strips before it tests, because an attribute written as `""` by some other
+    writer is "owned by nobody" and not "owned by a customer whose id is the empty string"."""
+    module, _, contacts, _ = ctx
+    contacts.items = [contact_row(checkoutCustomerId="   ")]
+    _, body = call(module, body={})
+    assert body["profile"] is not None
+
+
+def test_an_owned_row_wins_over_an_unowned_one_on_the_same_number(ctx):
+    """Otherwise a session with its own row could adopt a stray unowned duplicate and render
+    somebody else's name on the identity card."""
+    module, _, contacts, _ = ctx
+    stray = contact_row(id="stray", email="stray@example.com")
+    stray.pop("checkoutCustomerId")
+    contacts.items = [stray, contact_row(id="mine", email="mine@example.com")]
+    _, body = call(module, body={})
+    assert body["profile"]["email"] == "mine@example.com"
+
+
+def test_a_soft_deleted_unowned_row_is_not_adopted(ctx):
+    module, _, contacts, _ = ctx
+    row = contact_row(deletedAt=1700000001)
+    row.pop("checkoutCustomerId")
+    contacts.items = [row]
+    _, body = call(module, body={})
+    assert body["profile"] is None
+
+
 def test_a_row_owned_by_another_customer_is_not_the_profile(ctx):
     module, _, contacts, _ = ctx
     contacts.items = [contact_row(checkoutCustomerId=OTHER_SUBJECT)]
     _, body = call(module, body={})
     assert body["profile"] is None
+
+
+def test_adopting_an_unowned_row_does_not_open_a_cross_customer_read(ctx):
+    """THE BOUNDARY, restated the way it would actually be breached: a row with ANOTHER owner
+    must stay refused even when an unowned fallback exists on the same number, and the fallback
+    must never be reached by relaxing the owner comparison itself."""
+    module, _, contacts, _ = ctx
+    contacts.items = [contact_row(id="theirs", email="theirs@example.com",
+                                  checkoutCustomerId=OTHER_SUBJECT)]
+    _, body = call(module, body={})
+    assert body["profile"] is None
+
+
+def test_the_profile_never_writes_to_the_contacts_table():
+    """Read-only adoption. This role holds `dynamodb:Query` on `phone-index` and nothing else, so
+    a stamp from here would fail with AccessDenied at runtime where no test would see it - and
+    `tests/test_customer_orders_iam.py` asserts that grant by equality, so widening the role to
+    allow one would fail there instead. The claim is written by `auth/customer-profile`.
+    """
+    import ast
+
+    tree = ast.parse(HANDLER_PATH.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name in {"_profile", "_unowned"}:
+            rendered = ast.unparse(node)
+            for writer in ("update_item", "put_item", "delete_item"):
+                assert writer not in rendered, \
+                    f"{node.name} calls {writer}; this role has no write grant on ContactsTable"
 
 
 def test_a_soft_deleted_row_is_not_the_profile(ctx):

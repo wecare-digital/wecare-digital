@@ -361,6 +361,55 @@ def _ensure_customer_user(phone: str, name: str) -> str:
     return username
 
 
+def provision_customer_login(e164: str) -> Tuple[bool, str]:
+    """Create the Cognito login for a CRM-created contact. Idempotent. `(ok, detail)`.
+
+    Reached ONLY by async invoke from `core/contacts`, which is gated by
+    `CRM_PROVISION_CUSTOMER_LOGIN` (default off). It exists here rather than there because THIS
+    role already holds `cognito-idp:AdminCreateUser` scoped to the customer pool
+    (`scripts/provision_secure_files_api.py`, Sid `CustomerPoolOnly`), and the CRM's role is
+    shared across the fleet - widening it would widen every other function too.
+
+    IT REUSES `_ensure_customer_user` RATHER THAN RESTATING IT. Three details there are
+    load-bearing and easy to get wrong in a second copy: `MessageAction=SUPPRESS` (no SMS invite
+    on a user with no email), a permanent random password from `secrets` so the user is CONFIRMED
+    rather than stuck in FORCE_CHANGE_PASSWORD and CUSTOM_AUTH can run, and
+    `custom:partner_waba_id`, without which the OTP trigger raises `PermissionError` and the code
+    never arrives. A fork of that function is a fork of all three.
+
+    A CONFLICT IS SUCCESS. The whole point is that a contact can be saved twice: `AliasExists`
+    and `UsernameExists` both mean the login this call was asked to guarantee already exists.
+    `_ensure_customer_user` already absorbs `UsernameExistsException` itself (it updates the
+    attributes instead); `AliasExistsException` is caught here because a phone alias can collide
+    with a DIFFERENT username, which that function does not handle.
+
+    USER-LEVEL ADMIN APIS ONLY - no `UpdateUserPool` anywhere in this path. See
+    `core/contacts._provision_customer_login` for the 2026-09-28 incident that makes that
+    sentence worth writing down.
+    """
+    text = str(e164 or "")
+    digits = text[1:] if text.startswith("+") else text
+    # ASCII only, deliberately: `str.isdigit()` is true for an Arabic-Indic digit, which would
+    # reach `Username` and reserve an identity indistinguishable to a human from the real one.
+    if not digits or not all(ch in "0123456789" for ch in digits):
+        return False, "not an E.164 phone"
+    if not 8 <= len(digits) <= 15:
+        return False, "not an E.164 phone"
+
+    client = _cognito_client()
+    try:
+        _ensure_customer_user(digits, "")
+    except (client.exceptions.AliasExistsException,
+            client.exceptions.UsernameExistsException):
+        return True, "exists"
+    except Exception as exc:  # noqa: BLE001
+        # Type only: a Cognito error message can echo the username, which is the phone number.
+        logger.error(json.dumps({"event": "customer_login_provision_failed",
+                                 "error": type(exc).__name__}))
+        return False, type(exc).__name__
+    return True, "provisioned"
+
+
 def _safe_extension(filename: str) -> str:
     """A short, conservative extension, or none.
 
@@ -1179,6 +1228,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         ok, detail = confirm_and_deliver(order_id) if order_id else (False, "no orderId")
         logger.info(
             json.dumps({"event": "confirm_and_deliver_result", "ok": ok, "detail": detail})
+        )
+        return {"ok": ok, "detail": detail}
+
+    # Internal async dispatch from the CRM (`core/contacts`), gated THERE by
+    # CRM_PROVISION_CUSTOMER_LOGIN which defaults off. Same `requestContext`-absence guard as the
+    # two branches above, for the same reason: an event arriving through API Gateway always
+    # carries a requestContext, so no HTTP caller can reach this.
+    #
+    # Worth being precise about what an attacker who could reach it would gain: a phone-keyed
+    # customer in the customer pool, with no email and no credential anybody knows. Signing in as
+    # that user still requires a WhatsApp OTP delivered to the number itself, so the capability is
+    # "create a login for a phone you already control", not "log in as someone".
+    if event.get("internalAction") == "provisionCustomerLogin" and not event.get("requestContext"):
+        ok, detail = provision_customer_login(str(event.get("phone") or ""))
+        logger.info(
+            json.dumps({"event": "customer_login_provision_result", "ok": ok, "detail": detail})
         )
         return {"ok": ok, "detail": detail}
 

@@ -42,6 +42,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
+from contacts_fake_table import FakeContactsResource, FakeContactsTable  # noqa: E402
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import contact_address  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
@@ -228,6 +229,40 @@ def test_an_unowned_crm_row_is_claimable(profile):
     crm_row(fake)
     owned = h._owned_contact(STORED_PHONE, CUSTOMER)
     assert owned is not None and owned["id"] == "crm-1"
+
+
+def test_a_crm_create_stores_the_EXACT_string_the_website_looks_up(monkeypatch):
+    """The link, asserted end to end rather than as two separate normalisations.
+
+    `STORED_PHONE` here is `normalize_phone_preserving_country(RAW_PHONE)` - the same call every
+    reader makes on the session phone before it queries `phone-index`. So this test says: the
+    string `core/contacts` WRITES is byte-identical to the string `customer-profile`, `checkout`
+    and `customer-orders` READ. That identity is the whole of requirement 5; before it, the CRM
+    wrote `+9876543210` and all three readers looked for `+919876543210`.
+    """
+    monkeypatch.setenv("CONTACTS_TABLE", CONTACTS)
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    contacts = _load(CONTACTS_HANDLER, "contacts_create_link_under_test")
+    table = FakeContactsTable()
+    monkeypatch.setattr(contacts, "dynamodb", FakeContactsResource(table))
+
+    response = contacts._create({"name": "Asha Sen", "phone": RAW_PHONE, "email": EMAIL},
+                                "req-link")
+    assert response["statusCode"] == 201
+    assert table.puts[0]["phone"] == STORED_PHONE
+
+
+def test_a_crm_created_unowned_row_is_claimable_and_its_address_resolves(profile):
+    """Claimable AND usable. A row that is adopted but whose address will not resolve leaves the
+    customer at `409 DELIVERY_DETAILS_REQUIRED`, which looks identical to not being found at all.
+    """
+    h, fake, _ = profile
+    crm_row(fake, **{contact_address.ATTRIBUTE: dict(ADDRESS)})
+    owned = h._owned_contact(STORED_PHONE, CUSTOMER)
+    assert owned is not None and owned["id"] == "crm-1"
+    resolved = contact_address.from_contact(owned)
+    assert resolved is not None, "an adopted row's stored address must still resolve"
+    assert {key: resolved[key] for key in ADDRESS} == ADDRESS
 
 
 def test_a_row_owned_by_another_customer_is_never_claimed(profile):
