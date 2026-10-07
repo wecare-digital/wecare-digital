@@ -114,11 +114,16 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # tests/test_customer_orders_iam.py. Its absence costs the page NOTHING today:
     # featureFlags.invoiceDownload ships false, so /orders/ renders "No invoice yet" and
     # issues no request to this route at all.
+    # wecare-service-requests added 2026-10-06 (Phase O-1): Submit Request / Request Amendment
+    # intents, the customer's own request list, and activation from the razorpay-webhook hint.
+    # Never created in AWS - its table + two GSIs, its own least-privilege role, its two routes
+    # and its alarm are first-provisioned by scripts/provision_service_requests.py.
     # Session infrastructure is owned by its CloudFormation template; an account
     # without that stack must provision it rather than report a code-update failure.
     assert waiting == ["wecare-customer-session", "wecare-vayulok-environment", "wecare-customer-whatsapp-auth", "wecare-email-verification",
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
-                       "wecare-customer-orders", "wecare-customer-invoice",
+                       "wecare-customer-orders", "wecare-service-requests",
+                       "wecare-customer-invoice",
                        "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi",
                        "wecare-wix-catalog-webhook"]
 

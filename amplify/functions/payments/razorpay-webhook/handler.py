@@ -491,6 +491,15 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             'requestId': request_id,
         }))
 
+        if outcome.has_order:
+            # Phase O-1: a hint only (ids, fire-and-forget, never raises); the receiver re-reads
+            # every link and no-ops for an ordinary order.
+            from lambda_utils.ecommerce import service_request_dispatch
+            service_request_dispatch.dispatch_activation(
+                lambda_client, reference_id=reference_id,
+                payment_attempt_id=outcome.payment_attempt_id, order_id=outcome.order_id,
+                request_id=request_id)
+
         if outcome.needs_human:
             # Money moved and no order followed. The alarm condition: recoverable only by staff,
             # and the customer must never be asked to pay again.

@@ -98,8 +98,9 @@ import {
   readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
-  isContributionItem, setContribution,
+  isContributionItem, setContribution, serviceIntentFor,
 } from '../lib/cart';
+import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal } from '../lib/serviceRequests';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import { colors } from '../lib/design-tokens';
@@ -335,6 +336,7 @@ type Outcome =
   | { kind: 'CONTRIBUTION_UNAVAILABLE' }
   | { kind: 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' }
   | { kind: 'CONTRIBUTION_NOT_PAYABLE' }
+  | { kind: 'SERVICE_REFUSED'; message: string }
   | { kind: 'CART_RESET_REQUIRED' }
   | { kind: 'CART_NOT_PAYABLE' }
   | { kind: 'CART_RECONCILIATION_REQUIRED' }
@@ -442,7 +444,14 @@ declare global {
  */
 function getCheckoutRequestKey ( lineItems: CheckoutLineItem[] ): string {
   if ( typeof window === 'undefined' ) return '';
-  const fingerprint = basketFingerprint( lineItems );
+  // Phase O-1: a services basket also keys on its intent id, so switching an amendment's target
+  // (same lines, new intent) mints a fresh key instead of resuming the superseded attempt. The
+  // server refuses that resume with INTENT_CHANGED regardless; this saves the round trip. Every
+  // other basket's fingerprint is byte-identical to before.
+  const serviceIntent = serviceIntentFor( lineItems );
+  const fingerprint = serviceIntent
+    ? `${ basketFingerprint( lineItems ) }|intent:${ serviceIntent }`
+    : basketFingerprint( lineItems );
   const minted = window.sessionStorage.getItem( CHECKOUT_REQUEST_BASKET );
   const existing = window.sessionStorage.getItem( CHECKOUT_REQUEST_KEY );
   if ( existing && minted === fingerprint ) return existing;
@@ -945,6 +954,9 @@ export default function Cart (): React.ReactElement {
           // what it was. The server reads `body.get("resetCart") is True` -- an identity
           // comparison, no coercion -- so an absent key and a false one are the same thing.
           ...( resetCart ? { resetCart: true } : {} ),
+          // Phase O-1: only a services basket carries its intent id; every other body is
+          // byte-identical to before.
+          ...( serviceIntentFor( lineItems ) ? { serviceIntentId: serviceIntentFor( lineItems ) } : {} ),
         } ),
       } );
 
@@ -1133,6 +1145,11 @@ export default function Cart (): React.ReactElement {
         return { kind: 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' };
       }
       if ( status === 'CONTRIBUTION_NOT_PAYABLE' ) return { kind: 'CONTRIBUTION_NOT_PAYABLE' };
+      // Phase O-1 service refusals, one sentence each, all before any money moves.
+      if ( isServiceRefusal( status ) )
+      {
+        return { kind: 'SERVICE_REFUSED', message: SERVICE_REFUSAL_MESSAGES[ status ] };
+      }
       // The Cart V2 arms, in the vocabulary `_create` already speaks.
       if ( status === 'CART_RESET_REQUIRED' ) return { kind: 'CART_RESET_REQUIRED' };
       if ( status === 'CART_NOT_PAYABLE' ) return { kind: 'CART_NOT_PAYABLE' };
@@ -1296,6 +1313,14 @@ export default function Cart (): React.ReactElement {
       // rather than a gentle correction. It still does not latch `paymentBlocked` -- no payment
       // was attempted, and a dashboard setting can be fixed between two presses.
       setNotice( { kind: 'error', message: CONTRIBUTION_NOT_PAYABLE_MESSAGE } );
+      return;
+    }
+
+    // Phase O-1: shown as an error and deliberately NOT latched -- nothing was charged, and the
+    // customer (or a dashboard fix) can clear every one of these between two presses.
+    if ( outcome.kind === 'SERVICE_REFUSED' )
+    {
+      setNotice( { kind: 'error', message: outcome.message } );
       return;
     }
 

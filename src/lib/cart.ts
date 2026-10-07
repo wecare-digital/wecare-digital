@@ -54,6 +54,7 @@ import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
 import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
+import { SERVICES_PRODUCT_ID, serviceChoice } from '../config/services';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -165,7 +166,7 @@ const CATALOGUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  *     Checkout.
  */
 function droppableUnknown ( item: CartItem ): boolean {
-  if ( isContributionItem( item ) ) return false;
+  if ( isContributionItem( item ) || isServiceItem( item ) ) return false;
   const claimed = [ item.productId, String( item.ref || '' ).split( ':' )[ 0 ] ]
     .map( value => String( value || '' ).trim().toLowerCase() )
     .filter( value => CATALOGUE_ID.test( value ) );
@@ -511,7 +512,7 @@ export function setContribution ( variantId: string ): CartItem[] {
  * `useCallback(..., [profile, profileStatus])` with `items` deliberately not a dependency.
  */
 export const cartRequiresDelivery = ( items: CartItem[] = readCart() ): boolean =>
-  !( items.length > 0 && items.every( isContributionItem ) );
+  !( items.length > 0 && items.every( item => isContributionItem( item ) || isServiceItem( item ) ) );
 
 /*
  * `cartMixesContribution` WAS HERE AND IS DELETED RATHER THAN LEFT DEAD.
@@ -581,4 +582,68 @@ export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem
   return items
     .filter( item => item.ref && item.quantity > 0 )
     .map( item => ( { catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e', catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: item.quantity } ) );
+}
+
+/* ── Phase O-1 services: Submit Request / Request Amendment ─────────────────────────────────── */
+
+/**
+ * Where the service INTENT pointer lives. NOT on the CartItem: `parseCart` and
+ * `reconcileStoredCart` rebuild every item from a fixed field list, so an extra field would be
+ * silently dropped on the next read. A separate key survives both.
+ */
+const SERVICE_INTENT_KEY = 'wecare.cart.serviceIntent.v1';
+
+/** Is this line the services product? On `productId`, like `isContributionItem`. */
+export const isServiceItem = ( item: CartItem ): boolean =>
+  !!SERVICES_PRODUCT_ID && item.productId === SERVICES_PRODUCT_ID;
+
+/**
+ * SET the one service line (replacing any other service line) and remember its intent id.
+ *
+ * Exactly one service per order (the server refuses two), quantity 1, display name and price from
+ * config. An unrecognised variant - including Drop Docs and Vault - writes nothing.
+ */
+export function setServiceLine ( variantId: string, intentId: string ): CartItem[] {
+  const choice = serviceChoice( variantId );
+  if ( !SERVICES_PRODUCT_ID || !choice || !intentId ) return readCart();
+  const items = readCart().filter( item => !isServiceItem( item ) );
+  items.push( {
+    productId: SERVICES_PRODUCT_ID,
+    variantId: choice.variantId,
+    ref: `${ SERVICES_PRODUCT_ID }:${ choice.variantId }`,
+    // Empty, so the cart row does not link to a /shop/ page that deliberately does not exist.
+    slug: '',
+    name: choice.label,
+    formattedPrice: `\u20B9${ choice.rupees }.00`,
+    quantity: 1,
+  } );
+  if ( hasWindow() )
+  {
+    window.localStorage.setItem(
+      SERVICE_INTENT_KEY, JSON.stringify( { variantId: choice.variantId, intentId } ) );
+  }
+  writeCart( items );
+  return items;
+}
+
+/**
+ * The stored intent id, but ONLY when the basket's single service line is the same variant the
+ * intent was taken for. Anything else - no service line, two of them, a different variant, a
+ * corrupt pointer - answers '' and the server refuses with SERVICE_INTENT_REQUIRED.
+ */
+export function serviceIntentFor ( lineItems: CheckoutLineItem[] ): string {
+  if ( !hasWindow() ) return '';
+  const lines = lineItems.filter( line => line.catalogReference.catalogItemId === SERVICES_PRODUCT_ID );
+  if ( lines.length !== 1 ) return '';
+  try
+  {
+    const stored = JSON.parse( window.localStorage.getItem( SERVICE_INTENT_KEY ) || 'null' ) as
+      { variantId?: unknown; intentId?: unknown } | null;
+    if ( !stored || typeof stored.intentId !== 'string' ) return '';
+    return stored.variantId === lines[ 0 ].catalogReference.options?.variantId ? stored.intentId : '';
+  }
+  catch
+  {
+    return '';
+  }
 }

@@ -53,6 +53,15 @@ vi.mock( '../lib/customerAuth', () => ( {
  * carries no such member. The stub therefore renders one button per completion and echoes back
  * the mode it was mounted with.
  */
+/**
+ * RequestsPanel (Phase O-1) is STUBBED here so this file's fetch-count assertions keep measuring
+ * the ORDERS page alone; the panel's own fetch, copy and states are pinned in
+ * src/test/OrdersRequests.test.tsx. The stub keeps its heading so the h2 ladder is still real.
+ */
+vi.mock( '../components/orders/RequestsPanel', () => ( {
+  __esModule: true,
+  default: () => <section aria-labelledby="rqp-title"><h2 id="rqp-title">Your requests</h2></section>,
+} ) );
 vi.mock( '../components/CheckoutProfile', () => ( {
   __esModule: true,
   default: ( { mode, initial, onReady }: any ) => (
@@ -275,7 +284,7 @@ describe( '/orders/ — the two-column layout', () => {
     // The card renders INSIDE it, and the h2 ladder is unchanged by the panel existing.
     expect( panel.textContent ).toContain( 'rahul@example.com' );
     const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
-    expect( h2 ).toEqual( [ 'What we have on file', 'Order history' ] );
+    expect( h2 ).toEqual( [ 'What we have on file', 'Your requests', 'Order history' ] );
   } );
 
   it( 'declares minmax(0,1fr) on the right column inside the 1024px query', () => {
@@ -510,13 +519,13 @@ describe( '/orders/ — the order list', () => {
     expect( ids[ 1 ] ).toBe( EXPECTED_DATE );
   } );
 
-  it( 'renders only the two expected h2 rungs', async () => {
+  it( 'renders only the three expected h2 rungs', async () => {
     const { container } = await renderSignedIn( answer( 200, {
       orders: [ row() ], profile: profile(),
     } ) );
     await screen.findByText( 'WD-1042' );
     const h2 = Array.from( container.querySelectorAll( 'h2' ) ).map( h => h.textContent );
-    expect( h2 ).toEqual( [ 'What we have on file', 'Order history' ] );
+    expect( h2 ).toEqual( [ 'What we have on file', 'Your requests', 'Order history' ] );
   } );
 } );
 
