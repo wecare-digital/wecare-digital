@@ -28,8 +28,13 @@ Run after ``provision_secure_file_sharing.py`` (which makes the tables) and
 
 Usage
 -----
-    python scripts/provision_secure_files_api.py --dry-run
-    python scripts/provision_secure_files_api.py
+**A bare invocation is a DRY RUN.** Writing requires ``--apply``, which publishes a
+version and moves the production ``live`` alias. The default used to be the other way
+round and it cost an unauthorized production apply on 2026-10-07; see ``main``.
+
+    python scripts/provision_secure_files_api.py              # dry run (the default)
+    python scripts/provision_secure_files_api.py --dry-run    # the same, said out loud
+    python scripts/provision_secure_files_api.py --apply      # writes; moves live
     python scripts/provision_secure_files_api.py --verify
 """
 
@@ -749,7 +754,26 @@ def verify() -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--dry-run", action="store_true")
+    # DRY RUN IS THE DEFAULT, and `--apply` is the only way to write.
+    #
+    # It used to be the other way round: `--dry-run` was opt-in, so a bare invocation
+    # refreshed the role policy, uploaded code, published a version and MOVED THE LIVE
+    # ALIAS. On 2026-10-07 that is exactly what happened - the command was run from a build
+    # loop with no flag and put unmerged worktree code behind `wecare-secure-files:live`
+    # for about six minutes across ten writes (recorded in
+    # docs/execution/change-authority-matrix.md). Nothing about the script said it would.
+    #
+    # Every other provisioning habit in this repo trains the opposite expectation
+    # (`terraform plan`, `cdk synth`, `sam build`, `deploy_all_lambdas.py --dry-run`), so
+    # the default is now the safe direction and the dangerous one has to be typed.
+    # `--dry-run` is still accepted, and still means what it says, so every recorded
+    # command and every habit keeps working.
+    ap.add_argument("--apply", action="store_true",
+                    help="actually write: refresh the role policy, upload code, publish a "
+                         "version and MOVE THE LIVE ALIAS. Without it this is a dry run.")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="explicitly report the delta and change nothing. The default, "
+                         "kept so an existing command keeps meaning what it meant.")
     ap.add_argument("--verify", action="store_true")
     group = ap.add_mutually_exclusive_group()
     group.add_argument(
@@ -772,19 +796,26 @@ def main(argv=None) -> int:
     if args.disable_payment:
         return set_payment_flag(False)
 
+    if args.apply and args.dry_run:
+        # Refuse rather than pick one. Both flags together means the caller does not know
+        # which they want, and guessing in either direction is worse than stopping.
+        print("--apply and --dry-run contradict each other; pass one")
+        return 2
+    dry_run = not args.apply
+
     print(f"region: {REGION}  api: {API_ID}")
-    print(f"dry run: {args.dry_run}\n")
-    print(f"role: {ensure_role(args.dry_run)}")
+    print(f"dry run: {dry_run}\n")
+    print(f"role: {ensure_role(dry_run)}")
     zip_bytes = package()
     print(f"package: {len(zip_bytes)} bytes")
-    print(f"function: {ensure_function(zip_bytes, args.dry_run)}")
-    print(f"alias: {ensure_alias(args.dry_run)}")
-    for line in ensure_routes(args.dry_run):
+    print(f"function: {ensure_function(zip_bytes, dry_run)}")
+    print(f"alias: {ensure_alias(dry_run)}")
+    for line in ensure_routes(dry_run):
         print(f"route {line}")
-    print(f"webhook: {ensure_webhook_access(args.dry_run)}")
+    print(f"webhook: {ensure_webhook_access(dry_run)}")
 
-    if args.dry_run:
-        print("\ndry run: nothing changed")
+    if dry_run:
+        print("\ndry run: nothing changed  (pass --apply to write)")
         return 0
 
     print("\nread-back verification:")

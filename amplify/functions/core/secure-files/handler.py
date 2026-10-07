@@ -1277,6 +1277,15 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
     the right move. A refusal is never a hint - an unknown request, somebody else's request
     and a request that is not Drop Docs all produce the identical `NOT_REGISTERED` body this
     function shares with the paid-download routes.
+
+    THE TARGET REQUEST IS RESOLVED BEFORE ANY BYTE MOVES. An ownership refusal that arrives
+    after the promotion would leave an object in ``secure/u/dropdocs/`` with no ``DOC#`` row
+    naming it, which no role may delete (`s3:DeleteObject` is granted nowhere, deliberately)
+    and which no `system-cleanup` TTL covers - a permanent orphan of up to
+    ``MAX_DOCUMENT_BYTES`` minted by a request that was refused. So the order is: prove the
+    request is the caller's paid Drop Docs request, THEN copy, THEN register. The
+    registration re-resolves it anyway and that re-check stays the authority; this one only
+    makes the common refusal free.
     """
     if not _dropdocs_attach_enabled():
         # Checked before the body is read, so a request made while the route is off learns
@@ -1298,6 +1307,20 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
     if not public_request_id or not source_key:
         return _no_store(cors_response(
             400, {"error": "requestId and sourceKey are required"}, origin))
+
+    request_table = _table(SERVICE_REQUESTS_TABLE)
+    try:
+        # One GetItem pair, before S3 is touched at all. A refusal here transfers nothing
+        # and so cannot leave an undeletable orphan in the gated tree.
+        service_request_store.resolve_dropdocs_request(
+            request_table, proven, public_request_id)
+    except customer_auth.CustomerNotAuthorized:
+        return _no_store(_not_registered(origin))
+    except service_request_store.ServiceIdentityUnavailable as exc:
+        logger.error(json.dumps({"event": "dropdocs_attach_unavailable",
+                                 "stage": "resolve", "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
 
     try:
         promoted = dropdocs_storage.promote_to_secure(
@@ -1330,7 +1353,7 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
 
     try:
         document = service_request_store.attach_document(
-            _table(SERVICE_REQUESTS_TABLE),
+            request_table,
             proven,
             public_request_id,
             storage_key=promoted["storageKey"],
@@ -1379,8 +1402,11 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
             origin,
         ))
     except service_request_store.ServiceIdentityUnavailable as exc:
+        # ``stage`` distinguishes this from the pre-flight failure above: a table failure
+        # before the promotion transferred nothing, one here means an object was copied and
+        # no row names it. Same answer to the caller, different thing to investigate.
         logger.error(json.dumps({"event": "dropdocs_attach_unavailable",
-                                 "error": type(exc).__name__}))
+                                 "stage": "register", "error": type(exc).__name__}))
         return _no_store(cors_response(
             503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
 

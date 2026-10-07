@@ -65,8 +65,9 @@ from lambda_utils.ecommerce.document_errors import (
 from lambda_utils.ecommerce.service_requests import (
     DROP_DOCS, INTENT_ID_RE, NOT_OFFERED_KINDS, PUBLIC_REQUEST_ID_ALPHABET,
     PUBLIC_REQUEST_ID_ENTROPY, PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE,
-    SERVICE_CHOICES_PAISE, SERVICE_CURRENCY, SERVICE_NOT_OFFERED, SERVICE_UNKNOWN_CHOICE,
-    SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, ServiceRejected)
+    REQUEST_AMENDMENT, SERVICE_CHOICES_PAISE, SERVICE_CURRENCY, SERVICE_NOT_OFFERED,
+    SERVICE_UNKNOWN_CHOICE, SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS,
+    ServiceRejected)
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -518,8 +519,16 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
         return _unmatched("CURRENCY_MISMATCH", reference_id=reference_id, order_id=order_id)
     target_internal = str(intent.get("targetRequestId") or "")
     if kind in TARGET_REQUIRED_KINDS and not target_internal.startswith(REQUEST_PREFIX):
-        return _unmatched("AMENDMENT_TARGET_MISSING", reference_id=reference_id,
-                          order_id=order_id)
+        # The condition is generic across `TARGET_REQUIRED_KINDS`; the reason code is not,
+        # and must not be. ``AMENDMENT_TARGET_MISSING`` is kept verbatim for an amendment
+        # because it is what every historical PAID_SERVICE_UNMATCHED alert and any operator
+        # runbook already says, and a renamed code would silently stop matching them. A Drop
+        # Docs or Vault payment reports ``TARGET_MISSING`` instead -- telling whoever reads a
+        # stuck Vault payment that an *amendment* target is missing sends them looking for a
+        # service the customer never bought.
+        return _unmatched(
+            "AMENDMENT_TARGET_MISSING" if kind == REQUEST_AMENDMENT else "TARGET_MISSING",
+            reference_id=reference_id, order_id=order_id)
 
     previously = [str(entry) for entry in (intent.get("consumedOrderIds") or [])]
     if previously and order_id not in previously:
@@ -686,6 +695,17 @@ def list_for_customer(table: Any, identity: customer_auth.CustomerIdentity, *,
 # then kind, then gatedness, and only then writes -- in that order, so a non-gated key can
 # never leave a row behind. `dropdocs_storage.promote_to_secure` does the copying and HEADs
 # the destination; this function refuses to trust its answer without re-checking the key.
+#
+# A ``storageKey`` IS NOT AN ENTITLEMENT, AND CANNOT BECOME ONE. The destination key is a
+# pure function of the bytes (``secure/u/dropdocs/wecare-digital-<sha256><ext>``), which is
+# what makes a replay converge instead of duplicating -- but it also means two different
+# customers who attach identical bytes land on ONE shared S3 object, reachable from both of
+# their ``DOC#`` rows. Authorization is therefore on the ROW and never on the key: both
+# `attach_document` and `list_documents` go through `_resolve_dropdocs_request` and
+# `list_documents` re-checks ``ownerCustomerId`` on every row it returns. Nothing in this
+# phase can download a ``DOC#`` (D7 keeps Vault release out of scope); when a release path
+# is built it must look the row up and compare its owner. "The caller knows the key" is not
+# a statement about who the document belongs to.
 
 
 def _document_view(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -716,6 +736,24 @@ def _resolve_dropdocs_request(table: Any, identity: customer_auth.CustomerIdenti
     if str(request.get("kind") or "") != DROP_DOCS:
         raise customer_auth.CustomerNotAuthorized("resource does not exist or is not yours")
     return request
+
+
+def resolve_dropdocs_request(table: Any, identity: customer_auth.CustomerIdentity,
+                             public_request_id: Any) -> Dict[str, Any]:
+    """`_resolve_dropdocs_request`, exposed so a caller can refuse BEFORE it moves bytes.
+
+    Exists for exactly one reason. `attach_document` resolves the target itself and always
+    will -- that re-check inside the transaction is the authority, and nothing here replaces
+    it. But a caller that copies a document into ``secure/`` and only then discovers the
+    request is missing, foreign or the wrong kind has already written an object that no
+    ``DOC#`` row references, that no role may delete (`s3:DeleteObject` is granted nowhere,
+    deliberately) and that no ``system-cleanup`` TTL covers -- a permanent orphan of up to
+    100 MB produced by a refusal.
+
+    So the locker calls this first and promotes nothing if it raises. Two reads instead of
+    one is the whole cost; the refusal is identical, because it is the same function.
+    """
+    return _resolve_dropdocs_request(table, identity, public_request_id)
 
 
 def attach_document(table: Any, identity: customer_auth.CustomerIdentity,

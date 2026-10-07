@@ -1098,3 +1098,111 @@ def test_f_the_gate_is_ordered_ownership_then_kind_then_gatedness():
     gated = body.index("media_paths.is_gated(storage_key)")
     write = body.index("_transact(table, items)")
     assert resolve < gated < write
+
+
+# ── (h) a refusal must not leave an object nobody can delete ──────────────────
+#
+# The copy used to run BEFORE the target request was resolved, so every ownership refusal
+# left an unreferenced object of up to 100 MB under ``secure/u/dropdocs/`` - with no DOC#
+# row naming it, no role able to delete it (``s3:DeleteObject`` is granted nowhere) and no
+# ``system-cleanup`` TTL covering any ``secure/`` prefix. A permanent orphan, minted by a
+# request that was refused. The order is now resolve, then copy, then register.
+
+
+@pytest.mark.parametrize("label", ["unknown", "foreign", "wrong_kind"])
+def test_h_a_refused_request_transfers_no_bytes_at_all(handler, monkeypatch, label):
+    """Not merely "writes no row" - makes no S3 call whatsoever.
+
+    ``s3.calls == []`` is the whole assertion. A 403 that had already copied the object
+    would still read as a clean refusal to the caller and to every other test in this file.
+    """
+    table = {"unknown": _seeded_table(),
+             "foreign": _seeded_table(owner=STRANGER),
+             "wrong_kind": _seeded_table(kind=SUBMIT_REQUEST)}[label]
+    request_id = "WD-REQ-ZZZZZZZZ" if label == "unknown" else PUBLIC_ID
+    s3 = FakeS3()
+    _wire(handler, monkeypatch, s3, table)
+
+    response = handler.handler(_attach_event(requestId=request_id), None)
+
+    assert response["statusCode"] == 403
+    assert json.loads(response["body"])["error"] == "NOT_REGISTERED"
+    assert s3.calls == [], "a refused attach reached S3 and may have left an orphan"
+    assert _doc_rows(table) == []
+    assert table.applied == []
+
+
+def test_h_the_request_is_resolved_before_the_promotion():
+    """Source-level ordering, for the same reason case (f) asserts the other one: the order
+    IS the property, and it is invisible from the signatures."""
+    source = (FUNC_DIR / "handler.py").read_text(encoding="utf-8")
+    # the trailing "(" matters: `_dropdocs_attach_enabled` is defined earlier in the file
+    body = source.split("def _dropdocs_attach(", 1)[1].split("\ndef ", 1)[0]
+
+    resolve = body.index("service_request_store.resolve_dropdocs_request(")
+    promote = body.index("dropdocs_storage.promote_to_secure(")
+    register = body.index("service_request_store.attach_document(")
+    assert resolve < promote < register
+
+
+def test_h_the_preflight_refusal_is_the_same_function_the_write_uses():
+    """Two resolves must not become two rules. The public entry point exists only so the
+    locker can refuse early; it delegates, so the refusal cannot drift from the authority."""
+    source = (SHARED / "lambda_utils" / "ecommerce"
+              / "service_request_store.py").read_text(encoding="utf-8")
+    body = source.split("def resolve_dropdocs_request", 1)[1].split("\ndef ", 1)[0]
+    assert "return _resolve_dropdocs_request(table, identity, public_request_id)" in body
+
+    # and it answers identically, including for a request that does not exist
+    for table, request_id in ((_seeded_table(owner=STRANGER), PUBLIC_ID),
+                              (_seeded_table(kind=SUBMIT_REQUEST), PUBLIC_ID),
+                              (_seeded_table(), "WD-REQ-ZZZZZZZZ")):
+        with pytest.raises(customer_auth.CustomerNotAuthorized):
+            store.resolve_dropdocs_request(table, _identity(), request_id)
+
+
+def test_h_a_shared_storage_key_is_not_an_entitlement():
+    """Two customers who attach IDENTICAL bytes share one S3 object, by construction.
+
+    The key is a pure function of the content - that is what makes a replay converge
+    instead of duplicating - so it cannot also be a statement about who a document belongs
+    to. Authorization is on the ``DOC#`` row and nowhere else. Recorded as a test rather
+    than a comment because the Vault release path is a follow-up, and the tempting shortcut
+    there is to treat a known ``storageKey`` as proof of entitlement.
+    """
+    shared_key = f"secure/u/dropdocs/wecare-digital-{'d' * 64}.pdf"
+    kwargs = dict(storage_key=shared_key, sha256="d" * 64, content_type="application/pdf",
+                  size_bytes=len(DOCUMENT_BYTES), source_key=SOURCE_KEY,
+                  public_source_retained=True)
+
+    mine = _seeded_table()
+    theirs = _seeded_table(owner=STRANGER)
+    first = store.attach_document(mine, _identity(), PUBLIC_ID, **kwargs)
+    second = store.attach_document(theirs, _identity(STRANGER), PUBLIC_ID, **kwargs)
+
+    # one object, two rows, two owners
+    assert first["storageKey"] == second["storageKey"] == shared_key
+    assert len(_doc_rows(mine)) == len(_doc_rows(theirs)) == 1
+    assert mine.rows[_doc_rows(mine)[0]]["ownerCustomerId"] == OWNER
+    assert theirs.rows[_doc_rows(theirs)[0]]["ownerCustomerId"] == STRANGER
+
+    # and knowing the key buys nothing: the read goes through the request, not the key
+    assert [doc["storageKey"] for doc in
+            store.list_documents(mine, _identity(), PUBLIC_ID)] == [shared_key]
+    with pytest.raises(customer_auth.CustomerNotAuthorized):
+        store.list_documents(mine, _identity(STRANGER), PUBLIC_ID)
+
+
+def test_h_a_vault_or_dropdocs_payment_does_not_report_an_amendment_problem():
+    """`activate` generalised the condition to every kind in ``TARGET_REQUIRED_KINDS`` and
+    kept the amendment-specific reason code, so an operator diagnosing a stuck Vault payment
+    was told an *amendment* target was missing - a service the customer never bought.
+
+    The amendment code is deliberately unchanged: it is what existing PAID_SERVICE_UNMATCHED
+    alerts already say, and renaming it would silently stop matching them.
+    """
+    source = (SHARED / "lambda_utils" / "ecommerce"
+              / "service_request_store.py").read_text(encoding="utf-8")
+    body = source.split("def activate", 1)[1].split("\ndef ", 1)[0]
+    assert ('"AMENDMENT_TARGET_MISSING" if kind == REQUEST_AMENDMENT else "TARGET_MISSING"'
+            in body)

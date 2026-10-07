@@ -7,7 +7,8 @@ because the next person to run that script needs to read it before they do.
 
 ### The footgun, stated before the consequence
 
-`scripts/provision_secure_files_api.py` **applies by default.** `--dry-run` is opt-in:
+At the time of the incident, `scripts/provision_secure_files_api.py` **applied by default.**
+`--dry-run` was opt-in:
 
 ```python
 ap.add_argument("--dry-run", action="store_true")
@@ -16,14 +17,18 @@ ap.add_argument("--dry-run", action="store_true")
 The Phase O-2 convergence gate list names the script with the comment `# DRY RUN ONLY`. The
 agent ran it with no flag. Every other provisioner habit in this repo — `terraform plan`,
 `cdk synth`, `sam build`, `deploy_all_lambdas.py --dry-run` — trains the opposite
-expectation, and the script's own `--help` line at the top of its docstring shows the
+expectation, and the script's own `--help` line at the top of its docstring showed the
 `--dry-run` spelling, which reads as documentation of the default rather than of an option.
-It is not the default. **Pass `--dry-run` explicitly, every time, and read the delta before
-you pass `--apply`-equivalent (i.e. no flag at all).**
 
-Recommendation carried into the land report: the script should be changed to require an
-explicit `--apply`, with dry run as the default. **Not changed in this loop** — editing a
-provisioner while remediating an accidental provision is how one mistake becomes two.
+**Closed 2026-10-07, in the pass after the remediation.** Dry run is now the default and
+writing requires `--apply`; passing both contradictory flags exits 2 rather than picking
+one. `--dry-run` is still accepted and still means what it says, so every command recorded
+in this file and in the task artefacts keeps working. The deferral in the original entry —
+"editing a provisioner while remediating an accidental provision is how one mistake becomes
+two" — was the right call *during* the remediation and the wrong place to leave it
+afterwards: the alias rollback was verified by API read before this change was made.
+`tests/test_secure_files.py::test_the_provisioner_requires_an_explicit_apply` pins it, so
+the default cannot drift back to apply without a test failing.
 
 ### A0_READ → A3_PRODUCTION without authority: what the run actually wrote
 
@@ -53,10 +58,19 @@ returned only one unrelated `CreateLogStream`. Only the correct event name finds
 
 - `DROPDOCS_ATTACH_ENABLED="false"` and `SECURE_FILES_PAYMENT_ENABLED="false"` on the live
   alias throughout. Both new routes refuse; nothing could be attached and nothing charged.
-- The code that shipped **already contained the fix for the review's one blocking finding**
-  (`DROPDOCS-SOURCE-UNOWNED`) — the source allow-list, the size ceiling and the digest cap
-  were committed before the run, so what reached production was the remediated version, not
-  the version the review found exploitable.
+- The code that shipped **appears to have contained the fix for the review's one blocking
+  finding** (`DROPDOCS-SOURCE-UNOWNED`) — the source allow-list, the size ceiling and the
+  digest cap. **Corrected 2026-10-07, and the correction matters more than the claim:** an
+  earlier version of this line said those were "committed before the run". They were not.
+  The apply window is 08:57:51–08:58:11 UTC and `c14db8b3` carries author and committer
+  date 14:31:50 +0530 = **09:01:50 UTC**, about four minutes later. What is true is weaker
+  and is all that can be said: `package()` zips files from the **worktree**, not from git,
+  so the fix bytes could have been present uncommitted when the zip was built — and the
+  review ran the full suite against the fixed tree afterwards. What is *not* available is
+  proof. v25's `CodeSha256` cannot settle it, because `package()` writes each file with
+  `ZipFile.write`, which embeds its mtime, so the archive is ordered-deterministic but not
+  byte-reproducible; a rebuild would differ even from an identical tree. Read this bullet as
+  "probably the remediated version, unproven", never as a measurement.
 - The IAM delta is additive, read-only on one public prefix, item-level on one table. No
   `s3:DeleteObject`, no `dynamodb:DeleteItem`, no wildcard.
 - No Razorpay mutation, no capture, no refund, no payment-configuration change, no live
@@ -130,7 +144,14 @@ nothing points at it.
 **The land step must publish a NEW version from the rebased-onto-`stack` tree and move the
 alias to that. It must NOT reuse v25.** v25 was built from the unmerged worktree; promoting
 it would land phase code without the merge. And any provisioning in the land step runs
-`--dry-run` first, with the printed delta read, before a bare invocation.
+`--dry-run` first, with the printed delta read, before `--apply`. **That is now the
+script's own shape too** — a bare invocation changes nothing, so this instruction no longer
+depends on the caller remembering it.
+
+Re-verified by API read in the convergence pass that followed (no write performed):
+`wecare-secure-files:live` is still version **24** at RevisionId
+`fd5817ef-8f74-4bd1-a548-65a232546782`, unchanged from the rollback above, and a bare
+`provision_secure_files_api.py` printed `dry run: True` / `nothing changed`.
 
 **No secret read, placed on a command line, or logged; no `get-secret-value` /
 `batch-get-secret-value`; no Razorpay mutation, capture, refund or payment-configuration

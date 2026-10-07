@@ -34,6 +34,14 @@ Hashing the content, rather than naming the file, buys three things:
 3. **An overwrite writes identical bytes**, which is what makes bucket versioning being
    Suspended tolerable here rather than dangerous.
 
+It costs one thing, stated here so the follow-up cannot be built on the wrong assumption:
+the key is a function of the content and of nothing else, so two different customers who
+attach identical bytes land on **one shared object**. The key therefore says nothing about
+who a document belongs to. Ownership lives on the ``DOC#`` row
+(``service_request_store.attach_document`` / ``list_documents``), and any future release
+path must authorise by looking that row up -- never by accepting a ``storageKey`` as proof
+of entitlement.
+
 The source is allow-listed, because the caller chooses it
 --------------------------------------------------------
 ``sourceKey`` arrives in a request body, so it is attacker-controlled, and the role this
