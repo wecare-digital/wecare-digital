@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 68,
-  "_variables": 404,
+  "_variables": 405,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -168,6 +168,7 @@
       "INBOUND_TABLE": "stack-wecare-digital-WhatsAppInboundTable",
       "MEDIA_BUCKET": "wecare-digital-get",
       "OUTBOUND_TABLE": "stack-wecare-digital-WhatsAppOutboundTable",
+      "STANDBY_REPLY_ENABLED": "false",
       "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345",
       "WHATSAPP_PHONE_NUMBER_ID_2": "phone-number-id-waba-t-direct-1055232054343117"
     },

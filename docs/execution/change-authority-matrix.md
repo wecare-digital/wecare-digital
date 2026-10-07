@@ -1,5 +1,104 @@
 # Change authority matrix
 
+## 2026-10-07 Conversation Routing — standby suppression ACTIVATED (`STANDBY_REPLY_ENABLED=false`)
+
+- Scope: **one environment variable.** No code change, no in-code default change, no
+  gating/ownership logic touched, no `_STANDBY_TEXT_TRIGGERS` edit, no resource created,
+  no live send. This activates the fix that landed inert on 2026-10-06 (the section two
+  below).
+- Authority: the owner **confirmed Conversation Routing / the Meta Business Agent is
+  ACTIVE** and authorized activating the fix **on both WABAs**. That confirmation is the
+  thing the previous entry recorded as the open blocker (O1). Nothing in the code is
+  per-WABA, so one flag covers both — there is no second thing to set.
+- A3_PRODUCTION — env change + publish + alias move on **one** function:
+
+  | Function | `live` version | `STANDBY_REPLY_ENABLED` | CodeSha256 | Vars |
+  |---|---|---|---|---|
+  | `wecare-inbound-whatsapp` | 76 → **77** | **ABSENT** (code default `true`) → `"false"` | unchanged `0bjTkI9BQcFnIHqD5F7PMBrrNhtukRcH8DOax5Tq++Q=` | 7 → 8 |
+
+  CodeSha256 identical before and after is the expected signature of an env-only change,
+  and was verified at the alias version as well as `$LATEST`.
+- **Rollback is clearing the env var, NOT an `update-function-code`.** v76/v77 carry the
+  code we want; only the variable moved. Reverting the build would undo the readiness work
+  along with the flag. The restore is two commands:
+
+  ```
+  .venv/bin/python scripts/set_standby_reply_flag.py --state absent --apply
+  .venv/bin/python scripts/snapstart_publish.py wecare-inbound-whatsapp
+  ```
+
+  `--state absent` is preferred over `--state true` so the default lives in exactly one
+  place (the code). Full pre-change snapshot, captured read-only **before** any mutation:
+  `.agents/tasks/standby-reply-enabled-false-20261006/rollback.md` and
+  `rollback-snapshot.json` beside it.
+- **There was no staging gap, and the sequencing reflects that.**
+  `wecare-whatsapp-calling` and `wecare-messages-delete` invoke this function
+  **unqualified** (`messaging/whatsapp-calling/handler.py:107`,
+  `core/messages-delete/handler.py:30`), so `$LATEST` IS production for the webhook path —
+  the change was live the moment `UpdateFunctionConfiguration` settled, **before** the
+  alias move. The alias move exists so the alias-based integrations carry the same
+  configuration. The flag is read **per call**, not cached at module scope, so warm
+  sandboxes picked it up without recycling. Consequence accepted deliberately: the unit
+  tests were the pre-flight proof, not a canary.
+- **Why `scripts/set_standby_reply_flag.py` (new) and not a raw CLI call.**
+  `UpdateFunctionConfiguration` **REPLACES** `Environment.Variables` wholesale — the same
+  replace-not-patch hazard as `UpdateUserPool`. A partial `--environment` would silently
+  drop `CONTACTS_TABLE`, `INBOUND_TABLE`, `OUTBOUND_TABLE`, `MEDIA_BUCKET`, `IAM_REFRESH`
+  and both `WHATSAPP_PHONE_NUMBER_ID_*` keys and break inbound WhatsApp outright, without
+  erroring. The script reads the whole map, changes one key, and **refuses to write** unless
+  the resulting key set is exactly `current ∪ {flag}` or `current \ {flag}` and every
+  preserved value is byte-identical. Dry run taken first; it reported one key changing,
+  7 → 8, and the 7 preserved names. `tests/test_set_standby_reply_flag.py` (new, 16 tests)
+  pins that refusal against a fake Lambda client, including two mutation tests that drop
+  and mangle a preserved key and assert the script exits non-zero having written nothing.
+- **The precision worth keeping: the live effect is the standby-arm `continue`, not 14
+  newly-active gates.** `_may_send` returns True unless `_send_context['standby']` is set,
+  and that is only set *after* the `continue` at the standby arm. So with the flag false no
+  standby copy ever reaches a `_may_send` call site — the ~14 guards remain belt-and-braces
+  for a path that cannot execute while the flag is false. Claiming they "became active"
+  would overstate the change.
+- Unchanged by the flip: every standby message is still stored as standby-marked context
+  *above* the `continue` (`thread_ownership.store_standby_message`), so **suppression keeps
+  the context instead of discarding it**. `stack-wecare-digital-ThreadOwnershipTable` is
+  `ACTIVE`, so those writes land.
+- **`ai_hybrid_routing` verified untouched.** `scripts/seed_ai_hybrid_routing.py --verify`
+  after the deploy still reports `enabled: True`, 28 keywords, `contains: []` (substring
+  matching OFF), `commandPrefix: '/'` and the closing no-op line — byte-identical to the
+  pre-change run. The two switches answer different questions and were deliberately not
+  moved together: that row is the blunt stop (our flow claims nothing at all),
+  `STANDBY_REPLY_ENABLED` is the narrow one (our flow keeps deciding, only the standby
+  *send* is suppressed).
+- No secret read, printed or passed. Only `STANDBY_REPLY_ENABLED` — a non-secret feature
+  flag — was ever printed; the other seven keys are reported by **name and count only**, in
+  the script output, the snapshot and this entry. `get-secret-value` was never called, in
+  any spelling. `wecare-seo-tools` was not touched.
+- `config/lambda-env-manifest.json` **hand-edited**, deliberately: the file's own
+  `_comment` says regenerate with `--export`, but `scripts/env_manifest.py --export` calls
+  `get_secret_value` (line 84), which is a standing refusal, and is additionally blocked by
+  a pre-existing credential in `wecare-seo-tools`' environment. A hand edit of one
+  non-secret key plus the `_variables` counter (404 → 405) is the only non-blocked route.
+  `_functions` (68) and `_fingerprinted` (15) left alone — no function was added and the
+  value is a flag, not a fingerprinted credential. Verified with `--keys-only`: the
+  key-level difference count went 21 → **20**, the pre-existing baseline, and
+  `wecare-inbound-whatsapp.STANDBY_REPLY_ENABLED` appears in neither the "set live but NOT
+  recorded" nor the "recorded but not live" list. The remaining 20 are the known separate
+  debt (5 functions absent, 15 unrecorded keys), none of them this function.
+- Evidence: `.agents/tasks/standby-reply-enabled-false-20261006/verification.md`.
+  Regression: `258 passed` across the six focused standby/ownership/flag files
+  (242 pre-existing + 16 new); full suite unchanged at **5 failed, 3 xfailed** where all 5
+  are the pre-existing live-site header/FAQ probes
+  (`test_deployed_headers_target.py` ×4, `test_checkout_faq_sources.py` ×1) that this work
+  does not touch.
+- **Nothing was live-verified against a real standby webhook, because none has arrived** —
+  zero in the 30 days to 2026-10-06, per
+  `scripts/provision_conversation_routing_alarms.py`. The flag's effect is proven by the
+  env read at both qualifiers and by `tests/test_standby_produces_no_sends.py` (0 calls at
+  **both** Graph boundaries — `urllib.request.urlopen` AND `lambda_client.invoke` — plus no
+  minted order/`reference_id` on the money path), not by live traffic. The observation path
+  from here is the `wecare-standby-webhook-received` alarm plus the
+  `standby_reply_suppressed` log line; if a standby webhook does arrive the pass condition
+  is that line with `stored >= 1` and zero sends in the same `requestId`.
+
 ## 2026-10-06 Direct Send — `DIRECT_SEND_ENABLED_WABAS` ENABLED on both WABAs
 
 - Scope: **flag flip only.** No code change, no eligibility/category/allowlist/content logic
