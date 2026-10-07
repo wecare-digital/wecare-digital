@@ -1697,25 +1697,11 @@ export async function getPollyVoices (): Promise<{
   };
 }
 
-// Transcribe a voice note — returns English transcription + detected language
-export interface TranscribeResult {
-  transcription: string;
-  originalTranscription?: string;
-  detectedLanguage: string;
-  messageId?: string;
-  cached: boolean;
-}
-
-export async function transcribeVoiceNote ( params: {
-  messageId?: string;
-  s3Key?: string;
-  direction?: 'INBOUND' | 'OUTBOUND';
-} ): Promise<TranscribeResult | null> {
-  return apiCall<TranscribeResult>( `${API_BASE}/whatsapp-voice/transcribe`, {
-    method: 'POST',
-    body: JSON.stringify( params ),
-  } );
-}
+// The on-demand voice-note transcription call and its result type were removed here.
+// The live account exposes seven /whatsapp-voice/* routes — clear-logs, language-config
+// (GET and PUT), logs, voices, send and tts — and no transcribe route, so the button that
+// invoked this 404'd in both inboxes. A transcription that arrives from the backend on a
+// message is still rendered; only the never-working on-demand trigger went.
 
 // Voice language configuration
 export interface VoiceLanguageConfig {

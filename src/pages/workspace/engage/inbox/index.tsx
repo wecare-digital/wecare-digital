@@ -239,9 +239,8 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     // Multi-file media staging
     const [ mediaFiles, setMediaFiles ] = useState<File[]>( [] );
     const [ mediaPreview, setMediaPreview ] = useState<string | null>( null );
-    // Per-message reaction + transcription
+    // Per-message reaction
     const [ reactFor, setReactFor ] = useState<string | null>( null );
-    const [ transcribingId, setTranscribingId ] = useState<string | null>( null );
     // Full TTS picker
     const [ ttsText, setTtsText ] = useState( '' );
     const [ ttsLang, setTtsLang ] = useState( 'en-IN' );
@@ -412,25 +411,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         if ( i === 0 ) setMediaPreview( null );
     }, [] );
 
-    // Per-message voice-note transcription (on demand).
-    const handleTranscribe = useCallback( async ( m: api.Message ) => {
-        if ( transcribingId ) return;
-        setTranscribingId( m.messageId );
-        try
-        {
-            const r = await api.transcribeVoiceNote( {
-                messageId: m.messageId,
-                s3Key: ( m as any ).s3Key || undefined,
-                direction: ( ( m.direction || '' ).toUpperCase() === 'OUTBOUND' ? 'OUTBOUND' : 'INBOUND' ),
-            } );
-            if ( r?.transcription )
-            {
-                setMessages( prev => prev.map( x => x.messageId === m.messageId ? { ...x, transcription: r.transcription, detectedLanguage: r.detectedLanguage } as api.Message : x ) );
-                toast.success( 'Transcribed' );
-            } else toast.error( 'Transcription failed' );
-        } catch { toast.error( 'Transcription failed' ); }
-        finally { setTranscribingId( null ); }
-    }, [ transcribingId, toast ] );
+    // The on-demand voice-note transcription handler was removed: its API route does not
+    // exist in the live account, so the control it backed always failed. A transcription
+    // already stored on a message is still rendered below.
 
     // Group messages into conversations by contact.
     const conversations = useMemo<Conversation[]>( () => {
@@ -1052,12 +1035,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                     } )() }
                                                     { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
                                                         && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && <span className="ui-msg-text">{ prettyMsg( m.content, m.messageType ) }</span> }
-                                                    { m.transcription ? <span className="ui-msg-transcript">📝 { m.transcription }</span> :
-                                                        ( ch === 'whatsapp' && [ 'audio', 'voice' ].includes( ( m.messageType || '' ).toLowerCase() ) && (
-                                                            <button className="ui-transcribe-btn" disabled={ transcribingId === m.messageId } onClick={ () => handleTranscribe( m ) }>
-                                                                { transcribingId === m.messageId ? '⏳ Transcribing…' : '📝 Transcribe' }
-                                                            </button>
-                                                        ) ) }
+                                                    { m.transcription && <span className="ui-msg-transcript">📝 { m.transcription }</span> }
                                                     <span className="ui-msg-meta">
                                                         { fmtTime( m.timestamp ) } · { ( () => {
                                                             const st = ( m.status || '' ).toLowerCase();
@@ -1566,8 +1544,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-emoji-scroll { overflow-y: auto; padding: 0 8px 8px; }
         .ui-emoji-cat-label { font-size: 10px; font-weight: 700; color: ${colors.textMuted}; text-transform: uppercase; margin: 6px 2px 4px; }
         .ui-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(30px, 1fr)); gap: 2px; }
-        .ui-transcribe-btn { align-self: flex-start; background: ${colors.bgSecondary}; border: 1px solid ${colors.borderLight}; border-radius: 8px; padding: 3px 8px; font-size: 11px; color: ${colors.textSecondary}; cursor: pointer; }
-        .ui-transcribe-btn:disabled { opacity: 0.6; cursor: wait; }
+        /* The two rules that styled the on-demand transcribe button went with the button.
+           Lint does not flag dead CSS, so an unreferenced rule has to be removed by hand.
+           .ui-msg-transcript above STAYS: a transcription stored on the message is still shown. */
         .ui-react-wrap { position: relative; display: inline-flex; }
         .ui-react-pop { position: absolute; bottom: 130%; right: 0; display: flex; gap: 2px; background: #fff; border: 1px solid ${colors.border}; border-radius: 9999px; padding: 4px 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); z-index: 20; }
         .ui-react-em { background: none; border: none; cursor: pointer; font-size: 16px; padding: 2px; line-height: 1; }
