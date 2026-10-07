@@ -4841,6 +4841,17 @@ export interface Invoice {
   customerPhone: string;
   paidByPhone: string;
   customerEmail: string;
+  /**
+   * The public customer id — a uuid4 the server mints and `invoice-engine` re-validates with
+   * `customer_uuid.is_customer_uuid` before storing, so a junk value is dropped rather than
+   * recorded. Optional because an invoice raised before the attribute existed carries none, and
+   * absent must stay distinguishable from empty here: the invoice renderers print no Customer ID
+   * row at all in that case rather than a placeholder.
+   *
+   * Safe to show in full. It is opaque, carries no timestamp (uuid4, deliberately not uuid7) and
+   * is not a credential — which is the point: a staff member can quote it instead of the phone.
+   */
+  customerUuid?: string;
   shippingAddress: string;
   billingAddress: string;
   goodsType?: 'digital-goods' | 'physical-goods';

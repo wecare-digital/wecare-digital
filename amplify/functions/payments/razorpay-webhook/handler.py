@@ -448,6 +448,7 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
     """
     try:
         from lambda_utils.ecommerce import order_channel, order_creation, order_keys
+        from lambda_utils.identity import customer_uuid
         from lambda_utils.integrations import razorpay_verify
 
         payment_id = str(payment.get('id') or '')
@@ -475,6 +476,12 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             # the payment request was built from the Wix checkout. Reading them from the webhook
             # instead would make the comparison compare the event against itself.
             attribution['channel'] = row.get('channel', '')
+            # The public customer id, on the same footing and for the same reasons as the
+            # channel one line above: read off OUR row and never from the event, noted on the
+            # way past rather than re-read, and kept OUT of the narrowed dict below. An id the
+            # Razorpay `notes` could set would be an id a customer could forge onto someone
+            # else's tax invoice.
+            attribution['customerUuid'] = row.get('customerUuid', '')
             return {
                 'paymentAttemptId': row['paymentAttemptId'],
                 'customerId': row.get('customerId', ''),
@@ -526,9 +533,15 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
         # module's published contract with its key set pinned by equality tests, and attribution is
         # not part of what a reconciliation decides. `order_channel.canonical` is total, so a row
         # written before the channel existed - which is every row today - reports `website`.
+        # `customerUuid` joins it, and unlike the channel it has NO canonical default: an order
+        # whose `PAYREF#` row carries none reports `''`, which suppresses the Customer ID row at
+        # every render site. `customer_uuid.from_contact` is reused here as the validator - it
+        # re-checks the stored value and never raises - so a junk or uuid7 value cannot reach a
+        # printed invoice even if some future writer put one on the row.
         return {
             **outcome.as_dict(),
             'channel': order_channel.canonical(attribution.get('channel')),
+            'customerUuid': customer_uuid.from_contact(attribution),
         }
 
     except Exception as e:  # noqa: BLE001
@@ -1221,8 +1234,12 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # row - never from `notes`, because Razorpay notes are request content and attribution the
     # request can set is attribution a customer can forge. Absent on the legacy settlement path
     # (no `PAYREF#` row exists there), which `create_invoice` canonicalises to `website`.
+    # `customerUuid` rides the same outcome dict for the same reason, and is absent on the
+    # legacy settlement path where no `PAYREF#` row exists - which prints no Customer ID row
+    # rather than a placeholder.
     _post_payment_handler(payment_id, amount_rupees, currency, contact, email, description, notes, request_id,
-                          channel=str((outcome or {}).get('channel') or ''))
+                          channel=str((outcome or {}).get('channel') or ''),
+                          customer_uuid=str((outcome or {}).get('customerUuid') or ''))
 
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
@@ -2118,7 +2135,7 @@ def _mark_invoice_paid_by_phone_and_amount(phone: str, amount_rupees: float,
 
 def _post_payment_handler(payment_id: str, amount: float, currency: str, contact: str,
                           email: str, description: str, notes: Dict, request_id: str,
-                          *, channel: str = '') -> None:
+                          *, channel: str = '', customer_uuid: str = '') -> None:
     """
     After payment captured (Razorpay webhook path):
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
@@ -2131,6 +2148,11 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
     positional arguments are unaffected, and so omitting it is a silent, correct `website` rather
     than a TypeError on a path where the money has already moved.
+
+    `customer_uuid` is the public customer id, read off the same `PAYREF#` row. Keyword-only and
+    defaulted for the identical reason, and - unlike the channel - an omission has no default
+    beyond empty: the invoice simply prints no Customer ID row, which is the honest answer for a
+    payment whose reference row carries none.
     """
     logger.info(json.dumps({'event': 'post_payment_start', 'paymentId': payment_id, 'path': 'webhook_backup', 'requestId': request_id}))
 
@@ -2145,6 +2167,10 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
                 # entryPoint is a website one while its channel is `whatsapp`; printing entryPoint
                 # as the Source line would tell the customer the wrong origin.
                 'channel': channel,
+                # OURS, read off the `PAYREF#` row, never from `notes`. The engine re-validates
+                # it with `customer_uuid.is_customer_uuid` before storing, so a junk value is
+                # dropped rather than printed on a tax invoice.
+                'customerUuid': customer_uuid,
                 'itemName': description or notes.get('itemName', 'Payment'),
                 'gstRate': float(notes.get('gstRate', 18)),
                 'shipping': float(notes.get('shipping', 0)),

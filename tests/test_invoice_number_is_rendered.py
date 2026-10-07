@@ -412,8 +412,16 @@ def test_the_caption_contains_no_personal_data(engine):
     assert "Kolkata" not in caption
     assert "customer@example.com" not in caption
     # Positively: every line is a label, an amount or one of our own identifiers.
+    #
+    # `Customer ID:` was added to this tuple when the public customer uuid landed, and it belongs
+    # here rather than being an exception to the property above: the uuid is ours, opaque, carries
+    # no timestamp and identifies nobody to a stranger reading a notification preview. The phone,
+    # the name and the address do, which is why they stay out.
+    # `tests/test_customer_uuid_on_the_invoice.py` asserts the same no-personal-data property with
+    # a uuid actually present, which this fixture deliberately has none of.
     for line in caption.splitlines():
-        assert line.startswith(("Invoice", "Order:", "Ref:", "Ordered on:", "Thank you")), line
+        assert line.startswith(("Invoice", "Order:", "Ref:", "Ordered on:",
+                                "Customer ID:", "Thank you")), line
 
 
 # ══════════════════════════════════════════════════════════════════════════════

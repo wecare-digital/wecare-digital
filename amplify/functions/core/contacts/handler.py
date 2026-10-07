@@ -37,6 +37,10 @@ from lambda_utils import contact_key  # `id` is the physical key; `contactId` is
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.privacy import mask_phone  # a phone reaches a log masked, or not at all
 from lambda_utils.identity import customer as customer_identity
+# The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
+# uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
+# would publish a value derived from the Cognito subject.
+from lambda_utils.identity import customer_uuid
 
 logger = get_logger(__name__)
 
@@ -236,6 +240,17 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
 
     contact = {
         **contact_key.contact_item_keys(contact_id),
+        # THE PUBLIC CUSTOMER ID, minted inline and never read back first. This IS the resolve
+        # half of resolve-before-generate and it needs no extra read: `_check_duplicate` ran
+        # above and returned `None`, so no live row exists on this phone or this email - there is
+        # nothing to resolve TO. The update path cannot make that claim and so uses
+        # `if_not_exists` instead.
+        #
+        # Taken from the body is exactly what it is NOT. The client never supplies this: it is
+        # absent from `ALLOWED_UPDATE_FIELDS` and never read out of `body` here, so a request
+        # carrying `customerUuid` is ignored rather than honoured. A customer-chosen public id
+        # would let one customer claim another's identifier on an invoice.
+        customer_uuid.ATTRIBUTE: customer_uuid.new_customer_uuid(),
         'name': body.get('name', '').strip(),
         'phone': phone,
         'email': email,
@@ -422,6 +437,23 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         set_parts.append(f'#n{i} = :v{i}')
         names[f'#n{i}'] = k
         values[f':v{i}'] = Decimal(str(v)) if isinstance(v, (int, float)) and not isinstance(v, bool) else v
+
+    # THE PUBLIC CUSTOMER ID, backfilled onto a hand-updated contact. This is the requirement's
+    # "a manually updated contact becomes a real customer with an id we can print".
+    #
+    # Added AFTER the loop and through its own placeholder, deliberately NOT via
+    # `ALLOWED_UPDATE_FIELDS`: that set is the list of fields the CLIENT may set, and this one it
+    # may not. Routing the mint through `updates` would put a customer-supplied `customerUuid`
+    # straight onto the row.
+    #
+    # `if_not_exists` rather than a read-then-write. A fresh uuid4 is minted locally on every
+    # update and DISCARDED by DynamoDB whenever the row already has one - that costs no network
+    # call, and it makes "an existing customer keeps its id" an atomic database guarantee instead
+    # of a race window between the read and the write. Two concurrent updates therefore cannot
+    # issue two ids for one customer.
+    set_parts.append(
+        f'{customer_uuid.ATTRIBUTE} = if_not_exists({customer_uuid.ATTRIBUTE}, :vcustuuid)')
+    values[':vcustuuid'] = customer_uuid.new_customer_uuid()
 
     table = dynamodb.Table(CONTACTS_TABLE)
     try:

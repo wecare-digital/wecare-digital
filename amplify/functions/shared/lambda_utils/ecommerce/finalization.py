@@ -244,6 +244,18 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
              # exist, because the hand-off that would create one is gated off.
              'channel': order_channel.canonical(attempt.get('channel')),
              'finalizationStage': 'INTERNAL_ORDER_CREATED', 'createdAt': int(time.time())}
+    # WHO the order belongs to, in the one form we are willing to print. Copied off the attempt
+    # - never minted here - because this function runs after the money has moved and a write to
+    # ContactsTable for a display field is the wrong trade on that path.
+    #
+    # CONDITIONAL, and that matters twice over. An order row for an attempt with no public id is
+    # byte-identical to one written before this landed, and - decisively - the key is NOT added
+    # to the five-key association-conflict comparison below. That comparison exists to refuse an
+    # idempotent re-entry that would bind one order to different MONEY; the customer id is
+    # attribution, so letting it raise `internal order association conflict` would turn a
+    # harmless redelivery into a paid-but-no-order alarm over a label.
+    if attempt.get('customerUuid'):
+        order['customerUuid'] = attempt['customerUuid']
     try:
         orders.put_item(Item=order, ConditionExpression='attribute_not_exists(orderId)')
     except Exception as error:

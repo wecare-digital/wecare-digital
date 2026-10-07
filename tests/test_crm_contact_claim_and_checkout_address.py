@@ -46,6 +46,7 @@ from contacts_fake_table import FakeContactsResource, FakeContactsTable  # noqa:
 from crm_fake_dynamo import FakeDynamo  # noqa: E402
 from lambda_utils.ecommerce import contact_address  # noqa: E402
 from lambda_utils.identity import customer as customer_identity  # noqa: E402
+from lambda_utils.identity import customer_uuid  # noqa: E402
 
 CONTACTS = "stack-wecare-digital-ContactsTable"
 ATTEMPTS = "stack-wecare-digital-PaymentAttemptsTable"
@@ -493,3 +494,99 @@ def test_checkout_does_not_try_to_write_the_claim_it_has_no_grant_for():
     for statement in contacts_statements:
         assert set(statement["Action"]) == {"dynamodb:Query"}, \
             "the ContactsTable grant must stay read-only; the claim is written elsewhere"
+
+
+# ─── the public customer id survives a claim and a re-save ────────────────────
+#
+# `auth/customer-profile` is the OTHER writer of a contact row, and it reaches a row three
+# different ways: the edit path (site 1), the deterministic create (site 2) and the race fallback
+# on that create (site 3). All three must converge on ONE public customer id per customer, because
+# that id is printed on an invoice the customer keeps.
+#
+# Site 1 and site 3 share `_set_fragments`, which assigns it with `if_not_exists`. Site 2 mints
+# inline, and is only reachable when neither index resolved a row. `FakeDynamo` evaluates
+# `if_not_exists` for real (see `_apply_update`), so these assert on the STORED value rather than
+# on the expression text.
+
+
+def test_a_profile_save_mints_a_public_customer_id(profile):
+    """A website customer with no prior CRM row gets one - `_upsert_contact`'s create branch.
+
+    Driven through `_upsert_contact` rather than through `handler`, because reaching site (2) via
+    the route additionally needs a name, an email AND a verified email proof bound to it; the
+    proof machinery is `test_crm_customer_login.py`'s subject, and threading it here would test
+    the OTP exchange rather than the id.
+    """
+    h, fake, _ = profile
+    result = h._upsert_contact(customer_id=CUSTOMER, phone=STORED_PHONE, email=EMAIL,
+                               first_name="Asha", last_name="Sen",
+                               address=dict(ADDRESS), proof_validated=True)
+    assert result["created"] is True
+    row = fake.all_rows(CONTACTS)[0]
+    assert customer_uuid.is_customer_uuid(row[customer_uuid.ATTRIBUTE])
+
+
+def test_claiming_a_crm_row_does_NOT_replace_its_public_customer_id(profile):
+    """THE property that makes the id safe to print. A contact added by hand in the CRM already
+    has an id; when that person later signs in on the website and their row is claimed, the id
+    must be the same one - otherwise the invoice in their possession stops matching the record.
+    """
+    h, fake, _ = profile
+    existing = "11111111-1111-4111-8111-111111111111"
+    crm_row(fake, **{customer_uuid.ATTRIBUTE: existing})
+
+    response = h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"address": dict(ADDRESS)}),
+    }, None)
+    assert response["statusCode"] == 200
+    row = fake.all_rows(CONTACTS)[0]
+    assert row["checkoutCustomerId"] == CUSTOMER, "the claim itself must still have happened"
+    assert row[customer_uuid.ATTRIBUTE] == existing
+
+
+def test_a_claimed_crm_row_with_no_id_yet_gains_one(profile):
+    """Every row written before this attribute existed carries none. The claim is the natural
+    moment to backfill, and `if_not_exists` makes doing it on every save harmless."""
+    h, fake, _ = profile
+    crm_row(fake)
+    response = h.handler({
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"address": dict(ADDRESS)}),
+    }, None)
+    assert response["statusCode"] == 200
+    row = fake.all_rows(CONTACTS)[0]
+    assert customer_uuid.is_customer_uuid(row[customer_uuid.ATTRIBUTE])
+
+
+def test_two_consecutive_saves_do_not_issue_two_ids(profile):
+    """The mint runs on every save by design - a fresh uuid4 is cheap and needs no read. What
+    must not happen is the second one landing on the row."""
+    h, fake, _ = profile
+    crm_row(fake)
+    event = {
+        "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
+        "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
+        "body": json.dumps({"address": dict(ADDRESS)}),
+    }
+    assert h.handler(event, None)["statusCode"] == 200
+    first = fake.all_rows(CONTACTS)[0][customer_uuid.ATTRIBUTE]
+    assert h.handler(event, None)["statusCode"] == 200
+    assert fake.all_rows(CONTACTS)[0][customer_uuid.ATTRIBUTE] == first
+
+
+def test_the_public_id_is_never_the_row_id(profile):
+    """`_upsert_contact`'s create branch mints the row `id` as uuid5 of the Cognito sub. The
+    public id must be a different value AND a different version, or printing it on an invoice
+    would publish a hash of the Cognito subject."""
+    h, fake, _ = profile
+    h._upsert_contact(customer_id=CUSTOMER, phone=STORED_PHONE, email=EMAIL,
+                      first_name="Asha", last_name="Sen",
+                      address=dict(ADDRESS), proof_validated=True)
+    row = fake.all_rows(CONTACTS)[0]
+    assert row[customer_uuid.ATTRIBUTE] != row["id"]
+    assert customer_uuid.is_customer_uuid(row[customer_uuid.ATTRIBUTE])
+    # The row id really is the uuid5 this test is distinguishing it from.
+    assert not customer_uuid.is_customer_uuid(row["id"])

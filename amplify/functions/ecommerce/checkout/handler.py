@@ -116,6 +116,7 @@ from lambda_utils import wix_ecom
 # instance and raise `AttributeError` inside `_checkout_profile`'s `except Exception: raise` --
 # a 500 on every checkout.
 from lambda_utils.identity import customer as customer_identity
+from lambda_utils.identity import customer_uuid
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
 
@@ -930,6 +931,13 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     # second finalisation path rather than a label on one.
     channel = order_channel.canonical((_claimed_handoff(identity, body) or {}).get("channel"))
 
+    # THE PUBLIC CUSTOMER ID, read off the SAME row `_checkout_profile` already returned - so
+    # this costs no extra contacts Query, and the money path below never has to read
+    # ContactsTable at all. `from_contact` never raises and answers "" for a row that has none,
+    # which is every row written before this attribute existed; "" then suppresses the field
+    # everywhere downstream rather than printing a placeholder on an invoice.
+    public_customer_uuid = customer_uuid.from_contact(profile)
+
     now = int(time.time())
     keys = _keys_table()
     try:
@@ -989,6 +997,21 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     # Phase O-1: `{"serviceLine": {...}}` for a services basket, `{}` otherwise,
                     # so every other PAYREF# row is byte-identical to before.
                     **service_requests.payref_extra(line_items, body),
+                    # THE PUBLIC CUSTOMER ID, on this row as well as on the attempt, and that is
+                    # not redundant: the webhook lineage reads attribution off the `PAYREF#` row
+                    # (`razorpay-webhook._load_attempt`) while the finalisation lineage reads it
+                    # off the ATTEMPT row (`finalization.accept_paid`). Writing it to only one
+                    # would give one order's invoice a customer id on one settlement path and
+                    # nothing on the other.
+                    #
+                    # Spread conditionally, in the same shape as `payref_extra` above and for the
+                    # same reason: a contact with no id - every contact created before the
+                    # attribute existed - produces a row whose KEY SET is byte-identical to
+                    # today's, which `test_checkout_service_lines` asserts by equality. A key
+                    # present with `''` would be a different row shape for no gain, since `''`
+                    # suppresses every downstream render anyway.
+                    **({customer_uuid.ATTRIBUTE: public_customer_uuid}
+                       if public_customer_uuid else {}),
                 })
 
         prepared = website_checkout.prepare_checkout(
@@ -1012,8 +1035,21 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             # channel-agnostic and this edit is one wrapper instead of a new parameter threaded
             # through six call sites. `reserve_attempt` is the single sink that writes the attempt
             # row, so there is no second path the stamp could miss.
+            #
+            # The public customer id rides the SAME wrapper, and that is not laziness - it is the
+            # measured answer. `payment_attempt.build` is called from `_bind_and_ready`, a
+            # module-level helper reached from FOUR sites through two more helpers, so a
+            # `customer_uuid=` parameter on `prepare_checkout` would have to be threaded through
+            # all of them; the first attempt at exactly that produced a `NameError` inside a
+            # money path's `except Exception` and a 503 on every checkout. One sink, one stamp.
+            #
+            # `**({...} if v else {})` rather than a plain key, so an attempt for a contact with
+            # no public id is byte-identical to one written before this landed - the same
+            # conditional-emit rule `payment_attempt.build` applies to `cartId` and `retryOf`.
             reserve_attempt=lambda attempt: _reserve_website_attempt(
-                dict(attempt, channel=channel)),
+                dict(attempt, channel=channel,
+                     **({customer_uuid.ATTRIBUTE: public_customer_uuid}
+                        if public_customer_uuid else {}))),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
             # can tell a basket has a recorded attempt but not whether that attempt was paid.
             attempts_table=_attempts_table(),

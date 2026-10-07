@@ -271,6 +271,17 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
                             ? `…${String( inv.customerPhone ).slice( -4 )}`
                             : inv.customerEmail || '' }
                         </div>
+                        { /* The public customer id, IN FULL, directly beneath a phone masked to
+                             its last four. The asymmetry is the whole value of this cell: the
+                             masked suffix is ambiguous (the owner-nominated QA number and a
+                             business number share `0044`), so a support agent quoting it is
+                             guessing — while the uuid is exact, opaque and safe to read aloud.
+                             Omitted entirely for an invoice that has none, so a blank is a blank
+                             rather than an em dash standing in for an identifier. */ }
+                        { inv.customerUuid && (
+                          <div className="ir-muted ir-mono" data-wc-no-translate
+                            title="Customer ID">{ inv.customerUuid }</div>
+                        ) }
                       </td>
                       <td className="ir-total">{ money( inv.total, inv.currency ) }</td>
                       <td>
