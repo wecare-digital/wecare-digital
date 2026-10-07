@@ -2344,10 +2344,18 @@ def _process_message(
                 review_trigger = (flow_triggers.get('leave_review') or {})
                 if review_trigger.get('enabled', True) and review_trigger.get('flowId') \
                         and _may_send('leave_review_attributed'):
-                    _park_review_reference(sender_phone, review_reference, request_id)
+                    # The park result is CARRIED INTO THE LOG, not discarded. A park
+                    # failure degrades to an unattributed review, which is the right
+                    # trade - the customer still gets the form - but silently, and a
+                    # recurring DynamoDB problem would look like customers simply not
+                    # using the website door. `attributed` on the one event this branch
+                    # emits makes the failure rate answerable from a single metric filter
+                    # instead of needing a second log line nobody has a filter for.
+                    parked = _park_review_reference(sender_phone, review_reference, request_id)
                     logger.info(json.dumps({
                         'event': 'review_attributed_flow_sent',
                         'reference': review_reference,
+                        'attributed': parked,
                         'contactId': mask_contact_id(contact_id),
                         'phone': mask_phone(sender_phone),
                         'requestId': request_id,
@@ -5329,6 +5337,29 @@ _REVIEW_REF_PATTERN = r'^review\s+([A-Za-z0-9][A-Za-z0-9-]{3,39})$'
 #: FlowDraftTable suffix, mirrored by `flows/leave_review.REF_DRAFT_CODE`.
 REVIEW_REF_DRAFT_CODE = 'WD_REV_REF'
 
+#: How long a parked review reference stays valid. THIRTY MINUTES, not `save_draft`'s seven
+#: days, and the difference is the whole point of having a separate constant.
+#:
+#: Seven days is right for what `save_draft` holds — a half-finished order form worth
+#: resuming tomorrow. This row holds something with a much shorter natural life: the
+#: reference is only meaningful between the customer's `review <REF>` message and the
+#: submission of the form that message triggered, which is one sitting.
+#:
+#: The hazard a long TTL creates is ABANDONMENT, not storage. `flows/leave_review.handle_init`
+#: reads this row without clearing it, and `handle_review_form` clears it only on a
+#: successful submission, so a customer who opens the attributed door for order A and then
+#: dismisses the Flow leaves the row behind. With a seven-day life, their next bare `review`
+#: — days later, about something else entirely — would be stored against order A, and a
+#: staff member reading the moderation queue would see a confident, wrong attribution with
+#: nothing to flag it.
+#:
+#: Thirty minutes is generous for one sitting and short enough that an abandoned door is
+#: forgotten rather than remembered wrongly. It is carried BOTH as the DynamoDB `ttl` (which
+#: reclaims the row, best-effort and documented to lag up to 48 hours) and as `expiresAt`
+#: inside `formData`, which `flows/leave_review._pending_reference` enforces on read. The
+#: second is the one that actually bounds attribution; the first only bounds storage.
+REVIEW_REF_TTL_SECONDS = 30 * 60
+
 
 def _review_attribution_enabled() -> bool:
     """Whether `review <REF>` is recognised at all. **Defaults FALSE.**
@@ -5370,7 +5401,12 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
 
     Written in the shape `flows/common.restore_draft` expects - `formData` as a JSON
     STRING, not a map - because that helper is the reader and it `json.loads` the field.
-    7-day TTL, matching `save_draft`, so an abandoned reference expires itself.
+
+    `expiresAt` travels INSIDE `formData` rather than beside it, because `restore_draft`
+    returns only `{screen, formData}` and drops every other attribute of the item. The
+    DynamoDB `ttl` is set to the same instant, but TTL deletion is best-effort and can lag
+    by up to 48 hours, so it reclaims the row while `expiresAt` is what actually bounds the
+    attribution. See `REVIEW_REF_TTL_SECONDS` for why that bound is short.
 
     The reference is logged IN FULL, deliberately. It is neither a secret nor a phone
     number, and it is the one field that makes a review traceable end to end without
@@ -5378,14 +5414,15 @@ def _park_review_reference(sender_phone: str, reference: str, request_id: str) -
     """
     try:
         now = int(time.time())
+        expires_at = now + REVIEW_REF_TTL_SECONDS
         dynamodb.Table(FLOW_DRAFTS_TABLE).put_item(Item={
             'draftKey': f'{sender_phone}#{REVIEW_REF_DRAFT_CODE}',
             'phone': sender_phone,
             'flowCode': REVIEW_REF_DRAFT_CODE,
             'screen': 'REVIEW_FORM',
-            'formData': json.dumps({'reference': reference}),
+            'formData': json.dumps({'reference': reference, 'expiresAt': expires_at}),
             'updatedAt': Decimal(str(now)),
-            'ttl': now + (7 * 86400),
+            'ttl': expires_at,
         })
         return True
     except Exception as e:

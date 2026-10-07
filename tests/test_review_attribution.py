@@ -28,18 +28,26 @@ retry reads an empty draft and rewrites the review row with `orderId` gone — l
 attribution precisely on the path the derived id exists to make safe. That is
 `test_a_replay_does_not_drop_the_attribution`.
 
-THE FLAG IS OFF, AND THE OFF STATE IS TESTED FIRST
---------------------------------------------------
-`REVIEW_ATTRIBUTION_ENABLED` defaults false. The inbound ingress invokes
-`wecare-inbound-whatsapp` UNQUALIFIED, so `$LATEST` is production the moment
-`update-function-code` returns and there is no alias gap in which to verify a behaviour
-change — it has to ship inert. `test_with_the_flag_off_nothing_changes` is what pins that.
+THE FLAG IS OFF, AND IT GATES BOTH LAMBDAS
+------------------------------------------
+`REVIEW_ATTRIBUTION_ENABLED` defaults false and is read by BOTH halves. The inbound
+ingress invokes `wecare-inbound-whatsapp` UNQUALIFIED, so `$LATEST` is production the
+moment `update-function-code` returns and there is no alias gap in which to verify a
+behaviour change — it has to ship inert. `test_the_flag_defaults_off` pins that end.
+
+`wecare-whatsapp-business-api` needs the same gate for a different reason, and
+`TestTheFlowSideIsGated` is what pins it: the published Flow version on Meta declares the
+screen's data model, publishing is owner-only, and the Lambda deploy does not happen at the
+same instant. So `handle_init` must not start returning an `order_ref` the published
+version has never heard of. With the flag off its response is key-for-key what it was
+before Phase R, which is what makes the deploy a provable no-op.
 """
 from __future__ import annotations
 
 import importlib
 import json
 import sys
+import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -76,7 +84,12 @@ def review_env(monkeypatch):
     `flows.common` builds its DynamoDB resource at module scope, so the fakes are patched
     onto the imported module rather than injected - the same approach
     `tests/test_flow_completion.py` takes with `fc._table`.
+
+    THE FLAG IS ON HERE, because attribution is what this fixture exists to exercise. The
+    off state is not an afterthought though - it is the shipped default and it has its own
+    class, `TestTheFlowSideIsGated`, which deletes the variable instead of setting it.
     """
+    monkeypatch.setenv("REVIEW_ATTRIBUTION_ENABLED", "true")
     from flows import common as flows_common
     leave_review = importlib.import_module("flows.leave_review")
 
@@ -109,15 +122,22 @@ def review_env(monkeypatch):
     return leave_review, fake, sends
 
 
-def _park(fake, flows_drafts_table, reference=REFERENCE):
-    """Write the draft row the inbound handler writes, in exactly its shape."""
+def _park(fake, flows_drafts_table, reference=REFERENCE, expires_in=1800):
+    """Write the draft row the inbound handler writes, in exactly its shape.
+
+    `expires_in` is negative in the abandonment tests. `expiresAt` lives INSIDE `formData`
+    because `common.restore_draft` returns only `{screen, formData}` and drops every other
+    attribute, so the DynamoDB `ttl` attribute is not visible to the reader at all.
+    """
+    expires_at = int(time.time()) + expires_in
     fake.Table(flows_drafts_table).put_item(Item={
         "draftKey": DRAFT_KEY,
         "phone": QA_PHONE,
         "flowCode": "WD_REV_REF",
         "screen": "REVIEW_FORM",
         # A JSON STRING, because `common.restore_draft` json.loads this field.
-        "formData": json.dumps({"reference": reference}),
+        "formData": json.dumps({"reference": reference, "expiresAt": expires_at}),
+        "ttl": expires_at,
     })
 
 
@@ -186,6 +206,79 @@ class TestTheReviewIsAttributed:
         result = leave_review.handle_init({}, TOKEN, "req-1")
         assert result["data"]["order_ref"] == leave_review.UNATTRIBUTED_LABEL
         assert result["data"]["order_ref"].strip()
+
+
+class TestTheFlowSideIsGated:
+    """The OFF state of `wecare-whatsapp-business-api`, which is what actually ships.
+
+    WHY THIS CLASS EXISTS. The published Flow version on Meta declares the screen's data
+    model, and a data_exchange response is answered against that model - `${data.order_ref}`
+    with no `order_ref` declaration is rejected when the Flow is created. Creating and
+    publishing a Flow version is owner-only work, and the Lambda deploy happens at the land
+    step, so the two sides do NOT change at the same instant.
+
+    If `handle_init` returned `order_ref` unconditionally, the deploy alone would start
+    answering every review Flow init with a key the currently published version has never
+    declared, on a path `review`, `feedback` and `rate` already reach today. Whether Meta
+    tolerates an extra key is not measurable from this repo - reaching its validator means
+    creating the Flow. So the response shape is held still until the owner says otherwise,
+    and these tests are what hold it.
+    """
+
+    @pytest.fixture()
+    def flag_off(self, review_env, monkeypatch):
+        monkeypatch.delenv("REVIEW_ATTRIBUTION_ENABLED", raising=False)
+        return review_env
+
+    def test_the_flag_defaults_off_here_too(self, flag_off):
+        leave_review, _fake, _ = flag_off
+        assert leave_review._attribution_enabled() is False
+
+    def test_the_init_response_does_not_mention_order_ref(self, flag_off):
+        """ABSENT, not empty. An empty string is still a key in the response."""
+        leave_review, fake, _ = flag_off
+        from flows import common as flows_common
+        _park(fake, flows_common.DRAFTS_TABLE)
+
+        result = leave_review.handle_init({}, TOKEN, "req-1")
+        assert "order_ref" not in result["data"]
+
+    def test_the_init_response_is_otherwise_byte_for_byte_what_it_was(self, flag_off):
+        """The deploy must be a provable no-op against the published Flow version."""
+        leave_review, _fake, _ = flag_off
+        result = leave_review.handle_init({}, TOKEN, "req-1")
+        assert result["screen"] == "REVIEW_FORM"
+        assert set(result["data"]) == {"ratings", "categories"}
+
+    def test_a_parked_reference_is_not_read_at_all(self, flag_off):
+        """Not merely unused - unread. The draft row must survive untouched."""
+        leave_review, fake, _ = flag_off
+        from flows import common as flows_common
+        _park(fake, flows_common.DRAFTS_TABLE)
+
+        leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
+
+        assert "orderId" not in fake.all_rows(leave_review.REVIEWS_TABLE)[0]
+        assert fake.Table(flows_common.DRAFTS_TABLE).get_item(
+            Key={"draftKey": DRAFT_KEY}).get("Item") is not None
+
+    def test_a_row_already_attributed_is_not_blanked_by_turning_the_flag_off(self, flag_off):
+        """Turning the flag off is a ROLLBACK, and a rollback must not destroy data.
+
+        `_stored_order_id` is deliberately NOT gated: it recovers a reference this function
+        already wrote. Gated, a Meta retry arriving after the flag went off would rewrite
+        the review with `orderId` gone, because the domain write is a `put_item` and
+        replaces the whole item rather than merging.
+        """
+        leave_review, fake, _ = flag_off
+        key, _unused = fc.completion_key(TOKEN, "REVIEW_FORM", FORM_DATA)
+        review_id = fc.reference_for(key, "WD-REV")
+        fake.Table(leave_review.REVIEWS_TABLE).put_item(
+            Item={"reviewId": review_id, "orderId": REFERENCE})
+
+        leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-retry")
+
+        assert fake.all_rows(leave_review.REVIEWS_TABLE)[0]["orderId"] == REFERENCE
 
     @pytest.mark.parametrize("raw,expected", [
         ("5", 5), ("1", 1), ("3", 3),
@@ -271,6 +364,74 @@ class TestReplaySafety:
         leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
         assert fake.Table(flows_common.DRAFTS_TABLE).get_item(
             Key={"draftKey": DRAFT_KEY}).get("Item") is None
+
+    def test_an_abandoned_door_does_not_attribute_the_next_review(self, review_env):
+        """THE OTHER HALF OF THE SAME INVARIANT, and the submitted case does not cover it.
+
+        Submission is not the only way out of a Flow. A customer can tap the attributed
+        review button for order A and simply dismiss the form - nothing clears the parked
+        row, because `handle_init` reads it without consuming it and `handle_review_form`
+        never ran. Their NEXT message is a bare `review` about something else entirely, and
+        with a long-lived row that unrelated review would be stored against order A.
+
+        The expiry is what closes it, and it is enforced on READ rather than left to
+        DynamoDB: TTL deletion is best-effort and documented to lag up to 48 hours, so the
+        `ttl` attribute bounds storage while `expiresAt` bounds attribution.
+        """
+        leave_review, fake, _ = review_env
+        from flows import common as flows_common
+        # Parked, the Flow opened, then abandoned - and long enough ago to have lapsed.
+        _park(fake, flows_common.DRAFTS_TABLE, expires_in=-1)
+
+        assert leave_review._pending_reference(QA_PHONE) == ""
+
+        later = TOKEN.replace("3f2a91c4", "77777777")
+        leave_review.handle_review_form(dict(FORM_DATA), later, "req-later")
+
+        rows = fake.all_rows(leave_review.REVIEWS_TABLE)
+        assert len(rows) == 1
+        assert "orderId" not in rows[0], "a lapsed door attributed an unrelated review"
+
+    def test_a_live_door_still_attributes_within_its_window(self, review_env):
+        """The bound must not be so tight that the normal path stops working."""
+        leave_review, fake, _ = review_env
+        from flows import common as flows_common
+        _park(fake, flows_common.DRAFTS_TABLE, expires_in=60)
+        assert leave_review._pending_reference(QA_PHONE) == REFERENCE
+
+    def test_a_row_with_no_expiry_is_treated_as_lapsed(self, review_env):
+        """FAIL-CLOSED on a shape this module did not write.
+
+        The cost of refusing is one unattributed review. The cost of accepting is a
+        silently wrong order id on a review a staff member will act on.
+        """
+        leave_review, fake, _ = review_env
+        from flows import common as flows_common
+        fake.Table(flows_common.DRAFTS_TABLE).put_item(Item={
+            "draftKey": DRAFT_KEY, "phone": QA_PHONE, "flowCode": "WD_REV_REF",
+            "screen": "REVIEW_FORM", "formData": json.dumps({"reference": REFERENCE}),
+        })
+        assert leave_review._pending_reference(QA_PHONE) == ""
+
+    def test_a_failed_row_write_keeps_the_draft_so_the_retry_can_attribute(self, review_env):
+        """The clear is guarded on the WRITE, not only on winning the claim.
+
+        If the ReviewTable `put_item` raises, there is no row for `_stored_order_id` to
+        recover from. Clearing the draft as well would leave a Meta retry with neither
+        source, and the review would be stored permanently unattributed - the one outcome
+        the two-source read exists to prevent.
+        """
+        leave_review, fake, _ = review_env
+        from flows import common as flows_common
+        _park(fake, flows_common.DRAFTS_TABLE)
+        fake.arm_failure(leave_review.REVIEWS_TABLE, "put_item", RuntimeError("boom"))
+
+        leave_review.handle_review_form(dict(FORM_DATA), TOKEN, "req-1")
+
+        assert fake.all_rows(leave_review.REVIEWS_TABLE) == []
+        assert fake.Table(flows_common.DRAFTS_TABLE).get_item(
+            Key={"draftKey": DRAFT_KEY}).get("Item") is not None, \
+            "the only surviving copy of the reference was destroyed"
 
     def test_a_genuinely_new_review_is_a_new_row(self, review_env):
         """The escape hatch: a second review arrives with a new flow token."""
@@ -380,13 +541,42 @@ class TestTheParkedDraftRow:
         assert row["flowCode"] == "WD_REV_REF"
         # A JSON STRING, because `flows.common.restore_draft` json.loads this field. A map
         # here would make the reader return {} and the attribution would vanish silently.
-        assert json.loads(row["formData"]) == {"reference": REFERENCE}
-        assert int(row["ttl"]) > 0
+        parked = json.loads(row["formData"])
+        assert parked["reference"] == REFERENCE
+        # INSIDE formData, because `restore_draft` returns only `{screen, formData}` and
+        # drops every other attribute - the reader cannot see `ttl` at all.
+        assert parked["expiresAt"] == int(row["ttl"])
+
+    def test_the_parked_reference_expires_in_minutes_not_days(self, inbound):
+        """`save_draft`'s 7 days is wrong for this row, and the margin matters.
+
+        A parked reference is only meaningful for one sitting. Left for days, an abandoned
+        review door attributes the customer's next unrelated `review` to the order they
+        walked away from. One hour is the ceiling asserted here so a future edit cannot
+        quietly restore the 7-day TTL this row was first written with.
+        """
+        handler, fake = inbound
+        assert 0 < handler.REVIEW_REF_TTL_SECONDS <= 3600
+
+        before = int(time.time())
+        handler._park_review_reference(QA_PHONE, REFERENCE, "req-1")
+        row = fake.Table(handler.FLOW_DRAFTS_TABLE).get_item(
+            Key={"draftKey": DRAFT_KEY})["Item"]
+        assert int(row["ttl"]) <= before + handler.REVIEW_REF_TTL_SECONDS + 5
 
     def test_the_draft_suffix_matches_the_flow_module(self, inbound):
         handler, _ = inbound
         leave_review = importlib.import_module("flows.leave_review")
         assert handler.REVIEW_REF_DRAFT_CODE == leave_review.REF_DRAFT_CODE
+
+    def test_the_two_halves_read_the_same_flag(self, inbound):
+        """One flag, both Lambdas. Two names would be two things to remember to flip."""
+        handler, _ = inbound
+        leave_review = importlib.import_module("flows.leave_review")
+        source = (Path(leave_review.__file__)).read_text(encoding="utf-8")
+        assert "REVIEW_ATTRIBUTION_ENABLED" in source
+        assert "REVIEW_ATTRIBUTION_ENABLED" in (INBOUND / "handler.py").read_text(
+            encoding="utf-8")
 
     def test_a_storage_failure_is_swallowed_rather_than_losing_the_reply(self, inbound):
         """Attribution is a nicety; answering the customer is not.
@@ -435,14 +625,33 @@ class TestTheInboundBranchIsWiredAndGated:
         assert "mask_contact_id(contact_id)" in block
         assert "'reference': review_reference" in block
 
+    def test_a_park_failure_is_visible_on_the_event_it_emits(self):
+        """The boolean is CONSUMED, not discarded.
+
+        A park failure degrades to an unattributed review - the right trade, since the
+        customer still gets the form - but silently. Carrying the result onto the one event
+        this branch emits makes a recurring DynamoDB problem answerable from a single
+        metric filter, instead of looking like customers not using the website door.
+        """
+        text = self.source
+        assert "parked = _park_review_reference(" in text
+        start = text.index("'event': 'review_attributed_flow_sent'")
+        assert "'attributed': parked" in text[start:start + 400]
+
     def test_nothing_here_can_message_a_business_number(self):
         """The `wa.me` door is the CUSTOMER messaging US; this branch only replies.
 
         Asserted as a property so a future edit cannot introduce a hardcoded destination.
+
+        The slice runs to the branch's own `return`, not to a character count: a fixed
+        window silently stops covering the code it was written to cover the moment anyone
+        adds a line, which is a test that passes by shrinking.
         """
         text = self.source
         start = text.index("if _review_attribution_enabled():")
-        block = text[start:start + 1600]
+        end = text.index("return  # Skip AI automation", start)
+        block = text[start:end]
+        assert "_send_generic_flow(" in block, "the slice no longer covers the send call"
         for business in ("918031830030", "919330994400", "919903300044"):
             assert business not in block
         assert "sender_phone=sender_phone" in block

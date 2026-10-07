@@ -10,11 +10,22 @@ structural check", not "validated by Meta".
 
 THE SECOND HALF IS THE ONE THAT WILL ACTUALLY CATCH SOMETHING
 -------------------------------------------------------------
-`handle_init` in `flows/leave_review.py` returns an `order_ref` for the REVIEW_FORM screen.
-If a later edit drops the key from the JSON, Meta renders nothing and the caption goes blank;
-if it drops it from `handle_init`, Meta rejects the data_exchange response for referencing an
-undeclared field. Neither failure shows up in the validator, because each file is internally
-consistent on its own. So the JSON and the handler are asserted against each other.
+`handle_init` in `flows/leave_review.py` supplies an `order_ref` for the REVIEW_FORM screen
+whenever attribution is enabled. If a later edit drops the declaration from the JSON, the
+caption references a field the screen does not declare, which is the `Missing dynamic data
+... in the data model for screen` class of error Meta raises when the Flow is created. If an
+edit drops the fallback from `handle_init`, the screen renders a blank line. Neither failure
+shows up in the validator, because each file is internally consistent on its own. So the
+JSON and the handler are asserted against each other.
+
+WHAT THIS FILE CANNOT SEE, AND WHY IT MATTERS HERE
+--------------------------------------------------
+It compares the repo's JSON against the repo's handler. It cannot see the version PUBLISHED
+on Meta, which is the version a live `/flow-data` response is actually answered against.
+That blind spot is the reason the handler gates `order_ref` behind
+`REVIEW_ATTRIBUTION_ENABLED` rather than relying on a test: the gate holds the response
+shape still across the gap between the Lambda deploy and the owner's publish, which no
+local check can measure.
 """
 from __future__ import annotations
 
@@ -119,14 +130,20 @@ class TestTheReviewFlowAndItsHandlerAgree:
         assert "${data.order_ref}" in layout
 
     def test_the_caption_is_unconditional_so_it_cannot_render_empty(self):
-        """`handle_init` always supplies a value, falling back to a plain label.
+        """Once `order_ref` is in play, `handle_init` always supplies a non-empty value.
 
-        That is why no If/visibility construct is needed, and asserting it here is what
-        stops someone "tidying" the fallback away and leaving a blank line on the screen.
+        That is why the caption needs no If/visibility construct, and asserting it here is
+        what stops someone "tidying" the fallback away and leaving a blank line on screen.
+
+        "In play" is the qualifier, and `_attribution_enabled` is what decides it: with the
+        flag off the key is OMITTED rather than blanked, so the response stays key-for-key
+        what the currently published Flow version expects. See `TestTheFlowSideIsGated` in
+        `tests/test_review_attribution.py` for why that gate exists.
         """
         source = (FLOWS / "leave_review.py").read_text(encoding="utf-8")
         assert "UNATTRIBUTED_LABEL" in source
-        assert "'order_ref':" in source
+        assert "screen_data['order_ref']" in source
+        assert "if _attribution_enabled():" in source
 
     def test_the_rating_dropdown_still_offers_exactly_one_to_five(self):
         """The handler clamps to 1-5; the screen must not offer anything else."""

@@ -100,9 +100,18 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       // but only by opening each row one at a time, which is the opposite of what a
       // moderation queue is for. Nothing WROTE `orderId` until Phase R, so this column was
       // not useful before now.
+      //
+      // HEADED "Reference", NOT "Order", and the wire field name is the reason it has to
+      // be. `orderId` is the pre-existing `api.Review` field and renaming it would fork a
+      // shared contract, but what the customer's link actually carries is `/orders/`'s
+      // `copyValue` ladder — `order.orderNumber || order.referenceId` — and
+      // `referenceId` is a `WD-PAY-…` PAYMENT reference. Labelling that "Order" sends a
+      // staff member looking for an order number that does not exist. "Reference" is true
+      // of both shapes, and the prefix tells them which one they are holding.
+      //
       // `—` rather than blank for an unattributed review: a review left from
-      // /leave-review/ has no order by design, and an empty cell reads as missing data.
-      key: 'orderId', header: 'Order', width: '150px',
+      // /leave-review/ has no reference by design, and an empty cell reads as missing data.
+      key: 'orderId', header: 'Reference', width: '150px',
       render: ( r: api.Review ) => (
         <span style={ { fontSize: 13, color: r.orderId ? '#1a1a1a' : '#6b7280' } }>
           { r.orderId || '—' }
@@ -173,7 +182,12 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
               <div><span style={ labelStyle }>Source</span><div>{ selected.source }</div></div>
               <div><span style={ labelStyle }>Status</span><div>{ statusBadge( selected.status ) }</div></div>
               <div><span style={ labelStyle }>Date</span><div>{ formatDate( selected.createdAt ) }</div></div>
-              { selected.orderId && <div><span style={ labelStyle }>Order</span><div>{ selected.orderId }</div></div> }
+              { /* "Reference" for the same reason as the list column above: this field can
+                   hold either a `WD-ORD-…` order number or a `WD-PAY-…` payment reference,
+                   so "Order" is true of only one of them. The label was here before Phase R
+                   but nothing ever wrote the field, so this is the first release in which
+                   it is read by anyone. */ }
+              { selected.orderId && <div><span style={ labelStyle }>Reference</span><div>{ selected.orderId }</div></div> }
             </div>
             { selected.comment && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Comment</span><div style={ { padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.comment }</div></div> }
             { selected.response && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Response</span><div style={ { padding: 12, background: '#f0fdf4', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.response }</div></div> }
