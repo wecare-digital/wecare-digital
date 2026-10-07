@@ -7,6 +7,7 @@
 import React, { useState } from 'react';
 import { DashboardData } from '../../../types/dashboard';
 import Select, { type SelectOption } from '../../ui/Select';
+import ColorField from '../../ui/ColorField';
 
 interface Props { data: DashboardData; }
 
@@ -14,11 +15,16 @@ interface Props { data: DashboardData; }
  * The three option lists, hoisted. Same order, same values, same visible text, and every
  * cast preserved verbatim at the call sites.
  *
- * THIS FILE'S FOUR input[type="color"] CONTROLS ARE DELIBERATELY NOT TOUCHED HERE. They
- * belong to the picker batch, and the split is recorded because an earlier revision had this
- * file in that batch for its colour inputs ONLY and lost these three selects entirely - they
- * appeared in no batch at all, which is the failure the per-file reconciliation exists to
- * catch.
+ * The three colour pickers below were left to the picker batch, which has now landed: they are
+ * ColorField. The split is recorded because an earlier revision had this file in that batch for
+ * its colour controls ONLY and lost these three selects entirely - they appeared in no batch at
+ * all, which is the failure the per-file reconciliation exists to catch.
+ *
+ * AND THE COLOUR COUNT IN THAT PLAN WAS FOUR, MEASURED AGAINST THREE. The design's census read
+ * 4 for this file from a textual grep; three of those matches were elements and the fourth was
+ * the `.ab-color-row` CSS selector that skinned them, inside the styled-jsx block below. So the
+ * batch migrated 3 colour controls, not 4, and the census and the element count differ by that
+ * one selector - which is now deleted along with the controls it styled.
  */
 const PLAY_TRACK_OPTIONS: SelectOption[] = [
   { value: 'internal', label: 'Internal Testing' },
@@ -452,24 +458,34 @@ const AppBuilderTab: React.FC<Props> = ( { data } ) => {
                 <label>Build Number</label>
                 <input type="text" value={ appConfig.buildNumber } onChange={ e => setAppConfig( { ...appConfig, buildNumber: e.target.value } ) } />
               </div>
+              { /* The three brand-colour pickers. ColorField emits lowercase `#rrggbb`, exactly
+                   what the native control emitted, so `appConfig.primaryColor`, `accentColor`
+                   and `splashBg` are unchanged and the free-text input beside each one keeps
+                   round-tripping the same string - which is why that input is left as it is.
+                   THE CAPABILITY REDUCTION IS ACCEPTED AND RECORDED: there is no eyedropper and
+                   no HSV area any more, so a colour outside the design palette is reachable only
+                   through a hex field. ColorField's header states it at length; these are
+                   brand-colour choices, which is the case where a palette is arguably the better
+                   control. The bare <label> stays as the section's heading and the field takes
+                   its own `ariaLabel`, because a <label> with no htmlFor named neither input. */ }
               <div className="ab-form-field">
                 <label>Primary Color</label>
                 <div className="ab-color-row">
-                  <input type="color" value={ appConfig.primaryColor } onChange={ e => setAppConfig( { ...appConfig, primaryColor: e.target.value } ) } />
+                  <ColorField ariaLabel="Primary colour" value={ appConfig.primaryColor } onChange={ v => setAppConfig( { ...appConfig, primaryColor: v } ) } />
                   <input type="text" value={ appConfig.primaryColor } onChange={ e => setAppConfig( { ...appConfig, primaryColor: e.target.value } ) } />
                 </div>
               </div>
               <div className="ab-form-field">
                 <label>Accent Color</label>
                 <div className="ab-color-row">
-                  <input type="color" value={ appConfig.accentColor } onChange={ e => setAppConfig( { ...appConfig, accentColor: e.target.value } ) } />
+                  <ColorField ariaLabel="Accent colour" value={ appConfig.accentColor } onChange={ v => setAppConfig( { ...appConfig, accentColor: v } ) } />
                   <input type="text" value={ appConfig.accentColor } onChange={ e => setAppConfig( { ...appConfig, accentColor: e.target.value } ) } />
                 </div>
               </div>
               <div className="ab-form-field">
                 <label>Splash Background</label>
                 <div className="ab-color-row">
-                  <input type="color" value={ appConfig.splashBg } onChange={ e => setAppConfig( { ...appConfig, splashBg: e.target.value } ) } />
+                  <ColorField ariaLabel="Splash background colour" value={ appConfig.splashBg } onChange={ v => setAppConfig( { ...appConfig, splashBg: v } ) } />
                   <input type="text" value={ appConfig.splashBg } onChange={ e => setAppConfig( { ...appConfig, splashBg: e.target.value } ) } />
                 </div>
               </div>
@@ -626,7 +642,11 @@ const styles = `
 .ab-info-box strong { display: block; color: #1a3a2a; margin-bottom: 4px; }
 .ab-info-box p { margin: 0; line-height: 1.5; }
 .ab-color-row { display: flex; gap: 8px; align-items: center; }
-.ab-color-row input[type="color"] { width: 44px; height: 44px; border: 1px solid #d1d5db; border-radius: 8px; padding: 2px; cursor: pointer; }
+/* The 44x44 swatch rule went with the three native colour inputs. It could not be kept even as
+   dead CSS: styled-jsx scopes a selector to the DOM tags it can see in this file, and the
+   control is now inside ColorField, which never receives that hash. The trigger sizes itself
+   from --control-h in form-controls.css, which is the same 44px. */
+.ab-color-row > :global(.ui-field) { flex: 0 0 auto; }
 .ab-color-row input[type="text"] { flex: 1; }
 .ab-pwa-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 .ab-pwa-card { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; }

@@ -3,6 +3,7 @@
  */
 import React from 'react';
 import { CopyToClipboardButton } from './copy';
+import DateTimeField from '../ui/DateTimeField';
 
 // Edits a Unix timestamp (seconds) via a datetime-local control; shows the epoch.
 export const DateTimeUnixInput: React.FC<{ value?: number; onChange: ( unixSeconds: number ) => void; label?: string }> = (
@@ -16,14 +17,19 @@ export const DateTimeUnixInput: React.FC<{ value?: number; onChange: ( unixSecon
     };
     return (
         <div>
-            <label style={ { fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 } }>{ label }</label>
-            <input
-                type="datetime-local"
+            { /* DateTimeField emits exactly the string `datetime-local` did - `YYYY-MM-DDTHH:MM`
+                 - so `toLocal`'s output goes straight back in and the Date.parse that converts
+                 it to epoch seconds is UNCHANGED, including its NaN guard. The one difference
+                 is that the component now also emits '' while either half is unset, which
+                 Date.parse rejects, so the guard that was already here covers it. The <label>
+                 moves into the component rather than sitting beside an unlabelled control. */ }
+            <DateTimeField
+                label={ label }
+                style={ { fontSize: 12, fontWeight: 600, color: '#444' } }
                 value={ toLocal( value ) }
-                onChange={ e => { const t = Date.parse( e.target.value ); if ( !isNaN( t ) ) onChange( Math.floor( t / 1000 ) ); } }
-                style={ { padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, fontSize: 14 } }
+                onChange={ v => { const t = Date.parse( v ); if ( !isNaN( t ) ) onChange( Math.floor( t / 1000 ) ); } }
             />
-            { value ? <span style={ { marginLeft: 8, fontSize: 12, color: '#888' } }>epoch: { value }</span> : null }
+            { value ? <span style={ { marginInlineStart: 8, fontSize: 12, color: '#888' } }>epoch: { value }</span> : null }
         </div>
     );
 };

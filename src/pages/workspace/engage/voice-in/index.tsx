@@ -12,7 +12,12 @@ import Tabs, { TabItem } from '../../../../components/ui/Tabs';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
+import DateField from '../../../../components/ui/DateField';
 import * as api from '../../../../api/client';
+
+/* LAYOUT ONLY. The CDR filter row is a wrapping flex container, so each date field needs a
+   width of its own rather than inheriting one. */
+const CDR_DATE_STYLE: React.CSSProperties = { width: 170 };
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 interface Contact { contactId: string; name: string; phone: string; }
@@ -459,9 +464,13 @@ const VoiceInPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                       </button>
                     ) ) }
                     <span style={ { marginLeft: '12px', fontSize: '12px', color: '#0f2a1d', fontWeight: 500 } }>Date:</span>
-                    <input type="date" value={ cdrStartDate } onChange={ e => setCdrStartDate( e.target.value ) } className="cdr-date-input" />
+                    { /* The CDR date range, ours now. The visible "Date:" / "to" words stay as
+                         text - they are a sentence around the pair, not a label for either one -
+                         so each field carries its own name. ISO in, ISO out: `cdrStartDate` and
+                         `cdrEndDate` are read by the filter below exactly as before. */ }
+                    <DateField ariaLabel="CDR start date" value={ cdrStartDate } onChange={ setCdrStartDate } style={ CDR_DATE_STYLE } />
                     <span style={ { fontSize: '11px', color: '#6b7280' } }>to</span>
-                    <input type="date" value={ cdrEndDate } onChange={ e => setCdrEndDate( e.target.value ) } className="cdr-date-input" />
+                    <DateField ariaLabel="CDR end date" value={ cdrEndDate } onChange={ setCdrEndDate } style={ CDR_DATE_STYLE } />
                     { ( cdrStartDate || cdrEndDate ) && (
                       <button onClick={ () => { setCdrStartDate( '' ); setCdrEndDate( '' ); } } className="cdr-date-clear">Clear</button>
                     ) }
@@ -813,9 +822,12 @@ const VoiceInPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
         .webhook-info code { display: block; background: #fff; padding: 8px; border-radius: 6px; font-size: 11px; color: #0f2a1d; border: 1px solid #f3f4f6; margin-top: 6px; word-break: break-all; white-space: normal; }
         .cdr-detail-row td { border-bottom: 2px solid #e5e7eb; }
         .detail-label { font-weight: 600; color: #374151; margin-right: 4px; }
-        .cdr-date-input { padding: 5px 10px; border-radius: 8px; border: 1.5px solid #d1f470; font-size: 12px; color: #1a3a2a; background: #fff; outline: none; font-family: inherit; cursor: pointer; }
-        .cdr-date-input:focus { border-color: #1a3a2a; box-shadow: 0 0 0 3px rgba(209,244,112,0.35); }
-        .cdr-date-input::-webkit-calendar-picker-indicator { filter: invert(0.2) sepia(1) saturate(3) hue-rotate(100deg); cursor: pointer; }
+        /* The three .cdr-date-input rules went with the two native date inputs they skinned.
+           One of them was ::-webkit-calendar-picker-indicator, a hue-rotate filter on the
+           browser's own glyph - the clearest possible example of what Layer 2 is for: tinting
+           an icon we could not draw. DateField draws its own, from a token. The rules could not
+           have been retained even as dead CSS: styled-jsx scopes a selector to the DOM tags it
+           sees in this file, and a className handed to a component never receives that hash. */
         .cdr-date-clear { padding: 5px 12px; border-radius: 8px; border: 1.5px solid #d1f470; background: #d1f470; font-size: 11px; cursor: pointer; color: #1a3a2a; font-weight: 500; }
         .cdr-date-clear:hover { background: #c4e85e; }
 

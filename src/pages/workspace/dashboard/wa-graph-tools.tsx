@@ -12,6 +12,7 @@ import Spinner from '../../../components/ui/Spinner';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import Select, { type SelectOption } from '../../../components/ui/Select';
+import DateTimeField from '../../../components/ui/DateTimeField';
 import * as api from '../../../api/client';
 import { WHATSAPP_PHONES } from '../../../config/constants';
 
@@ -159,8 +160,15 @@ function SchedulesTab ( { wabaId, toast }: { wabaId: string; toast: any } ) {
                     <div key={ k }><label style={ label }>{ k }</label>
                         <input style={ input } value={ ( form as any )[ k ] } onChange={ e => setForm( { ...form, [ k ]: e.target.value } ) } /></div>
                 ) ) }
-                <div><label style={ label }>delivery_time</label>
-                    <input type="datetime-local" style={ input } value={ form.delivery_time } onChange={ e => setForm( { ...form, delivery_time: e.target.value } ) } /></div>
+                { /* `delivery_time` is posted verbatim, and DateTimeField emits the same
+                     `YYYY-MM-DDTHH:MM` the native control did, so the request body is
+                     unchanged. The bare <label> beside it named nothing - no htmlFor, no
+                     wrapping - so the field takes the words as its own label and gains an
+                     accessible name. `input` was the local appearance style object; the
+                     component draws itself from form-controls.css, so only the label's own
+                     type style is carried across. */ }
+                <DateTimeField label="delivery_time" style={ label } value={ form.delivery_time }
+                    onChange={ v => setForm( { ...form, delivery_time: v } ) } />
             </div>
             <div style={ { marginTop: 12 } }><Button variant="primary" onClick={ create } loading={ saving }>Create Schedule</Button></div>
         </div>

@@ -9,6 +9,8 @@ import * as api from '../api/client';
 import { WHATSAPP_PHONES } from '../config/constants';
 import { useConfirm } from '../contexts/ConfirmContext';
 import Select, { type SelectOption } from './ui/Select';
+import DateField from './ui/DateField';
+import TimeField from './ui/TimeField';
 
 /* The template category filter's rows, hoisted. 'all' is the filter's own sentinel and was
    its first <option>, so it stays first and keeps its value and its text. */
@@ -1058,18 +1060,24 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
                 <span>Schedule for later</span>
               </label>
 
+              { /* The schedule pair, ours now. Both were unlabelled - two bare inputs in a
+                   row - so each takes an `ariaLabel` and the schedule finally reads as
+                   "Scheduled date" and "Scheduled time" rather than two blank fields. `min`
+                   is the same expression as before and is now enforced in the grid AND on
+                   type-in, which a native input does neither of. ISO / HH:MM in and out, so
+                   `scheduledDate` and `scheduledTime` reach the send call unchanged. */ }
               { scheduleMode && (
                 <div className="schedule-inputs">
-                  <input
-                    type="date"
+                  <DateField
+                    ariaLabel="Scheduled date"
                     value={ scheduledDate }
-                    onChange={ ( e ) => setScheduledDate( e.target.value ) }
+                    onChange={ setScheduledDate }
                     min={ new Date().toISOString().split( 'T' )[ 0 ] }
                   />
-                  <input
-                    type="time"
+                  <TimeField
+                    ariaLabel="Scheduled time"
                     value={ scheduledTime }
-                    onChange={ ( e ) => setScheduledTime( e.target.value ) }
+                    onChange={ setScheduledTime }
                   />
                 </div>
               ) }
@@ -1481,12 +1489,18 @@ const TemplateSender: React.FC<TemplateSenderProps> = ( {
           gap: 8px;
           margin-top: 12px;
         }
-        .schedule-inputs input {
-          flex: 1;
-          padding: 10px 12px;
-          border: 1px solid #ddd;
-          border-radius: 6px;
-          font-size: 14px;
+        /* The .schedule-inputs input rule is gone with the two native controls it skinned. It
+           could not be kept even as dead CSS: styled-jsx scopes a selector to the DOM tags it
+           can see in this file, and the inputs are now inside DateField and TimeField, which
+           never receive that hash. The pickers' own flex: 1 1 0 in form-controls.css replaces
+           the flex: 1 this rule supplied; the 1px #ddd / 6px radius it declared is replaced by
+           the shared control tokens, which is the point of the batch.
+           NO BACKTICK IN A styled-jsx COMMENT - this block is a template literal, so a
+           backtick around a property name terminates it and the parser reports a cascade of
+           JSX errors 400 lines later. */
+        .schedule-inputs > :global(.ui-field) {
+          flex: 1 1 0;
+          min-width: 0;
         }
         .sender-footer {
           display: flex;
