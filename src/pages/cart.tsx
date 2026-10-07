@@ -105,7 +105,8 @@ import type { CartItem, CheckoutLineItem } from '../lib/cart';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
 // request shape has one definition. See `src/lib/whatsappBasket.ts`.
 import {
-  basketTokenFromUrl, claimBasket, claimMessage, stripBasketParam, CLAIM_NOT_SHOWN_MESSAGE,
+  basketTokenFromUrl, claimBasket, claimMessage, rememberBasketToken, stripBasketParam,
+  CLAIM_NOT_SHOWN_MESSAGE,
 } from '../lib/whatsappBasket';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import { colors } from '../lib/design-tokens';
@@ -917,10 +918,16 @@ export default function Cart (): React.ReactElement {
    * link is no longer available" over a cart that had just been filled correctly. A synchronous
    * ref latch is the only guard that holds, for the same reason `proceedInFlightRef` is one.
    *
-   * NO SESSION MEANS SIGN IN FIRST, AND NOTHING IS REIMPLEMENTED HERE. `SIGN_IN_PATH` already
-   * carries `?return=/cart/`, and the WhatsApp link's own `?basket=` is preserved by sending the
-   * customer to the sign-in page and letting it return them to this URL -- which is why the
-   * parameter is read from `window.location` on arrival rather than captured into state earlier.
+   * NO SESSION MEANS SIGN IN FIRST, AND THE TOKEN TRAVELS BESIDE THE URL, NOT INSIDE IT. A link
+   * opened in WhatsApp's in-app browser usually has no session, so this is the normal case rather
+   * than an edge. The `return` value is validated by `safeLocalReturnPath`
+   * (`src/lib/safeReturnPath.ts`), which REJECTS any value carrying a query string and re-emits the
+   * normalised ALLOWLIST member rather than the input -- so `?return=%2Fcart%2F%3Fbasket%3D<token>`
+   * comes back as a bare `/cart/` and the token is gone. That refusal is the control against a
+   * smuggled query and must not be loosened, so `rememberBasketToken` stashes the token in
+   * `sessionStorage` before the redirect and `basketTokenFromUrl()` reads and CLEARS it on arrival.
+   * Single-use on purpose: a stale token could only be refused, and a refusal for a basket already
+   * in the cart is the confusing outcome this whole effect exists to avoid.
    *
    * THE PARAMETER IS STRIPPED ON SUCCESS ONLY. On a refusal it is left in place: the sentence
    * explains what happened, and a customer who reloads sees the same honest answer rather than a
@@ -953,7 +960,9 @@ export default function Cart (): React.ReactElement {
     const session = getSession();
     if ( !session )
     {
-      // The sign-in flow returns to `/cart/`, and the token is still in the URL when it does.
+      // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
+      // token has to be stashed here or it is lost. See the docblock above.
+      rememberBasketToken( token );
       window.location.assign( `/account/sign-in/?return=${ encodeURIComponent(
         window.location.pathname + window.location.search ) }` );
       return;

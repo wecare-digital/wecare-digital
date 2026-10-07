@@ -76,15 +76,79 @@ function claimedLines ( value: unknown ): ClaimedLine[] {
   return lines;
 }
 
-/** The token from `?basket=`, or `''`. SSR-guarded, because these pages are statically exported. */
-export function basketTokenFromUrl (): string {
-  if ( typeof window === 'undefined' ) return '';
+/**
+ * Where the token waits while the customer signs in. ONE key, overwritten rather than queued.
+ *
+ * WHY IT IS NEEDED AT ALL. A WhatsApp link opened in the in-app browser usually has no session, so
+ * the cart sends the customer to `/account/sign-in/?return=...` first. That `return` value is
+ * validated by `safeLocalReturnPath` (`src/lib/safeReturnPath.ts`), which REJECTS any value
+ * carrying a query string and re-emits the normalised allowlist member -- so the path that survives
+ * sign-in is a bare `/cart/` and `?basket=` is gone by the time the customer arrives back. That
+ * refusal is deliberate and is the control against a smuggled query, so the token travels BESIDE
+ * the URL instead of inside it.
+ *
+ * `sessionStorage`, not `localStorage`: the stash is scoped to the tab doing the signing in and
+ * disappears when it closes, so a token cannot linger on a shared device after the visit that
+ * created it.
+ */
+const BASKET_STASH_KEY = 'wc.basketToken';
+
+/** A token that could plausibly have been issued. The same bound the server applies. */
+const usableToken = ( value: string ): string =>
+  value.length > 0 && value.length <= 100 ? value : '';
+
+/**
+ * Stash the token for the sign-in round trip. Called immediately before the redirect.
+ *
+ * SSR-guarded and swallowing, like everything else in this file: the cart is statically exported,
+ * and `sessionStorage` is not merely empty but THROWS on access in some privacy modes. A customer
+ * in one of those modes loses the claim, which is the outcome they had before this stash existed;
+ * a thrown error would instead take the whole cart page down.
+ */
+export function rememberBasketToken ( token: string ): void {
+  if ( typeof window === 'undefined' || !usableToken( token ) ) return;
   try
   {
-    const token = new URLSearchParams( window.location.search ).get( BASKET_PARAM ) || '';
+    window.sessionStorage.setItem( BASKET_STASH_KEY, token );
+  }
+  catch
+  {
+    // No stash, so no claim after sign-in. The hand-off row stays claimable for seven days and
+    // re-tapping the WhatsApp link while signed in still works.
+  }
+}
+
+/**
+ * The token from `?basket=`, falling back to the sign-in stash. SSR-guarded, because these pages
+ * are statically exported.
+ *
+ * THE FALLBACK IS SINGLE-USE: the key is CLEARED as it is read, whether or not the claim that
+ * follows succeeds. A claim is a single-use server-side write, so a token left in the stash could
+ * only be re-posted on some later visit to `/cart/` and refused -- showing a refusal for a basket
+ * the customer already has. Clearing on read is what makes the stash a hand-off and not a replay.
+ *
+ * The URL wins when both are present. `?basket=` is the link the customer just opened; the stash
+ * is at most a leftover from an earlier one.
+ */
+export function basketTokenFromUrl (): string {
+  if ( typeof window === 'undefined' ) return '';
+  let fromUrl = '';
+  try
+  {
     // Bounded here as well as on the server. A token this long was never issued, and sending it
     // would only make the server refuse it after a round trip.
-    return token.length > 0 && token.length <= 100 ? token : '';
+    fromUrl = usableToken( new URLSearchParams( window.location.search ).get( BASKET_PARAM ) || '' );
+  }
+  catch
+  {
+    fromUrl = '';
+  }
+  if ( fromUrl ) return fromUrl;
+  try
+  {
+    const stashed = window.sessionStorage.getItem( BASKET_STASH_KEY ) || '';
+    window.sessionStorage.removeItem( BASKET_STASH_KEY );
+    return usableToken( stashed );
   }
   catch
   {

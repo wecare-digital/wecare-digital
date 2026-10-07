@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import Cart from '../pages/cart';
 import * as cart from '../lib/cart';
 import * as customerAuth from '../lib/customerAuth';
+import { safeLocalReturnPath } from '../lib/safeReturnPath';
 import { SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct } from '../content/shop';
 
@@ -23,7 +24,11 @@ import type { ShopProduct } from '../content/shop';
  *      the same answer rather than a silently different page.
  *   4. IT DOES NOT FETCH WITHOUT THE PARAMETER. Most visits have no `?basket=`, and the static
  *      export's no-fetch-at-render property has to survive this feature.
- *   5. NO SESSION ROUTES TO SIGN-IN, reusing the existing flow and reimplementing none of it.
+ *   5. NO SESSION ROUTES TO SIGN-IN AND THE CLAIM STILL HAPPENS AFTERWARDS. This is the normal
+ *      case for a link opened in WhatsApp's in-app browser, and it is the one that used to fail
+ *      silently: `safeLocalReturnPath` strips the query from the `return` value, so the token
+ *      cannot ride back in the URL and is stashed out of band instead. The round trip is walked
+ *      through the real validator rather than asserted on the outgoing URL alone.
  *   6. NO AMOUNT IS SENT OR SHOWN. The claim is not a quote.
  */
 
@@ -220,6 +225,9 @@ const prepares = ( fetchMock: RecordedFetch ) =>
 
 beforeEach( () => {
   window.localStorage.clear();
+  // The sign-in stash lives here. Cleared between tests so a round-trip test cannot leave a token
+  // behind for the next one - which is the same single-use property the page relies on.
+  window.sessionStorage.clear();
   cart.addItem( PRODUCT, 1 );
 } );
 
@@ -498,7 +506,7 @@ describe( 'refusal', () => {
 } );
 
 describe( 'no session', () => {
-  it( 'routes to the existing sign-in flow and returns to this URL', async () => {
+  it( 'routes to the existing sign-in flow and posts no claim', async () => {
     const { assign } = setLocation( `?basket=${ TOKEN }` );
     signedOut();
     const fetchMock = stubFetch( 'BASKET_CLAIMED' );
@@ -506,10 +514,96 @@ describe( 'no session', () => {
     render( <Cart /> );
 
     await waitFor( () => expect( assign ).toHaveBeenCalled() );
-    const target = String( assign.mock.calls[ 0 ][ 0 ] );
-    expect( target ).toContain( '/account/sign-in/' );
-    // The token survives the round trip, so the claim happens after sign-in rather than being lost.
-    expect( decodeURIComponent( target ) ).toContain( `basket=${ TOKEN }` );
+    expect( String( assign.mock.calls[ 0 ][ 0 ] ) ).toContain( '/account/sign-in/' );
     expect( claims( fetchMock ).length ).toBe( 0 );
+  } );
+
+  it( 'claims after an unauthenticated sign-in round trip, with the token the URL could not carry',
+    async () => {
+      /*
+       * THE ROUND TRIP ITSELF, because asserting the token is in the OUTGOING url proves nothing:
+       * the half that used to lose it is the validator on the way back.
+       *
+       * `src/pages/account/sign-in.tsx::returnPathFromUrl` reads `?return=` with
+       * `URLSearchParams.get` -- which DECODES it -- and hands the result to `safeLocalReturnPath`.
+       * That function lists `?` in `FORBIDDEN_CHARS` and re-emits the normalised allowlist member
+       * rather than the input, so `%2Fcart%2F%3Fbasket%3D<token>` arrives back as a bare `/cart/`.
+       * This test walks that exact pipeline with the exact string `cart.tsx` constructs, asserts
+       * the token really is gone from the surviving path, and then proves the claim still happens
+       * from the stash. That is the normal case, not an edge: a link opened in WhatsApp's in-app
+       * browser usually has no session.
+       */
+      const { assign } = setLocation( `?basket=${ TOKEN }` );
+      signedOut();
+      const outbound = render( <Cart /> );
+      await waitFor( () => expect( assign ).toHaveBeenCalled() );
+      const signInUrl = String( assign.mock.calls[ 0 ][ 0 ] );
+      outbound.unmount();
+
+      // Exactly what sign-in.tsx does with the value, and nothing this test invented.
+      const raw = String( new URLSearchParams(
+        new URL( signInUrl, 'https://wecare.digital' ).search ).get( 'return' ) || '' ).trim();
+      expect( raw ).toBe( `/cart/?basket=${ TOKEN }` );
+      const surviving = safeLocalReturnPath( raw );
+      expect( surviving ).toBe( '/cart/' );
+      expect( surviving ).not.toContain( 'basket' );
+      expect( surviving ).not.toContain( TOKEN );
+
+      // Back at the bare path the allowlist allowed, now signed in. An empty cart deliberately:
+      // a seeded line would let a page that merged nothing still show something.
+      window.localStorage.clear();
+      setLocation( '' );
+      signedIn();
+      const fetchMock = stubFetch( 'BASKET_CLAIMED',
+        { mergedLines: 1, lines: claimedLinesFor( 2 ) } );
+
+      render( <Cart /> );
+
+      await waitFor( () => expect( claims( fetchMock ).length ).toBe( 1 ) );
+      expect( bodyOf( claims( fetchMock )[ 0 ] ) )
+        .toEqual( { action: 'claim-basket', basket: TOKEN } );
+      await waitFor( () => expect(
+        screen.getByText( CATALOGUE_PRODUCT.name ) ).toBeInTheDocument() );
+      expect( cart.readCart() ).toHaveLength( 1 );
+      expect( cart.readCart()[ 0 ].quantity ).toBe( 2 );
+    } );
+
+  it( 'spends the stash once, so a later visit to /cart/ claims nothing', async () => {
+    // The claim is a single-use server-side write, so a token left behind could only be refused --
+    // and a refusal for a basket already in the cart is the confusing outcome the effect exists to
+    // avoid. `basketTokenFromUrl()` clears the key as it reads it.
+    const { assign } = setLocation( `?basket=${ TOKEN }` );
+    signedOut();
+    const outbound = render( <Cart /> );
+    await waitFor( () => expect( assign ).toHaveBeenCalled() );
+    outbound.unmount();
+
+    setLocation( '' );
+    signedIn();
+    const spent = stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
+    const first = render( <Cart /> );
+    await waitFor( () => expect( claims( spent ).length ).toBe( 1 ) );
+    first.unmount();
+
+    const later = stubFetch( 'BASKET_CLAIMED', { mergedLines: 1, lines: claimedLinesFor( 1 ) } );
+    render( <Cart /> );
+
+    await waitFor( () => expect( screen.getByText( PRODUCT.name ) ).toBeInTheDocument() );
+    expect( claims( later ).length ).toBe( 0 );
+  } );
+
+  it( 'leaves safeLocalReturnPath strict: a query string is still refused', () => {
+    /*
+     * THE FIX MUST NOT BE A LOOSENING. `safeLocalReturnPath` refuses `?` and re-emits the
+     * allowlist member precisely so an accepted path cannot carry attacker-chosen state, and the
+     * stash exists because that refusal is correct. Pinned here so a future "simplification" that
+     * carries the token in the URL after all fails this file rather than reopening the hole.
+     */
+    expect( safeLocalReturnPath( `/cart/?basket=${ TOKEN }` ) ).toBe( '/cart/' );
+    expect( safeLocalReturnPath( '/orders/?next=//evil' ) ).toBe( '/cart/' );
+    expect( safeLocalReturnPath( '//evil' ) ).toBe( '/cart/' );
+    expect( safeLocalReturnPath( '/workspace/access' ) ).toBe( '/cart/' );
+    // Unchanged in the accepting direction too, so this is a pin and not half of one.
+    expect( safeLocalReturnPath( '/orders/' ) ).toBe( '/orders/' );
   } );
 } );
