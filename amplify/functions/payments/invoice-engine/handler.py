@@ -38,6 +38,10 @@ from lambda_utils import media_paths
 # Aliased: `payment_status` is a local parameter in the invoice renderers below, holding the raw
 # stored word. `pay_status` is the module that says what the word means.
 from lambda_utils import payment_status as pay_status
+# Attribution, not mechanics: which surface the order was placed from. One module owns the two
+# literals and the one total coercion, so the three render sites below cannot disagree about what
+# `channel` means - the same discipline `pay_status` applies to payment words.
+from lambda_utils.ecommerce import order_channel
 
 logger = get_logger(__name__)
 
@@ -604,6 +608,14 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'orderId': body.get('orderId', ''),
         'referenceId': reference_id,
         'entryPoint': entry_point,
+        # Where the customer placed the order, so the invoice can print its own Source line
+        # (GST Rule 46 carries no such requirement; this is for the customer and for support).
+        # `entryPoint` is NOT a substitute: it records which internal flow minted the invoice
+        # (`pay_flow`, `webhook`, `manual`), and a WhatsApp-origin catalogue order is settled by
+        # the website leg, so its entryPoint is a website one. Canonicalised on the way in, so the
+        # stored word is already one of exactly two and no reader has to coerce it again. Never
+        # empty, so the put_item filter below cannot drop it.
+        'channel': order_channel.canonical(body.get('channel')),
         'status': status,
         'paymentStatus': payment_status,
         # Customer
@@ -722,6 +734,11 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'orderId': payment.get('orderId', ''),
         'referenceId': payment.get('referenceId', ''),
         'entryPoint': body.get('entryPoint', 'webhook'),
+        # Pass through, not decide: the caller (razorpay-webhook / the post-payment handler) knows
+        # the order's channel because it holds the attempt row that carries it. An absent value
+        # reaches `create_invoice` as '' and canonicalises to `website`, which is true of every
+        # payment that can exist today - no WhatsApp-origin order is reachable yet.
+        'channel': body.get('channel', ''),
         'status': 'paid',
         'paymentStatus': 'captured',
         'paidAt': int(float(payment.get('createdAt', time.time()))),
@@ -882,6 +899,24 @@ def list_invoices(params: Dict, request_id: str) -> Dict:
 # ─── Invoice Rendering (POS Receipt Style Image + PDF) ───
 
 
+def _source_label(invoice: Dict) -> str:
+    """The word the Source line prints: `Website` or `WhatsApp`.
+
+    One function for all three render sites (HTML/PDF, PNG, WhatsApp caption) so a customer
+    cannot be shown two different origins for one order - the same reason `/orders` derives its
+    table tag and its detail rung from a single local.
+
+    The stored value is already canonical (`create_invoice` coerces on the way in), but this
+    coerces again rather than trusting it: a row written before this field existed carries no
+    `channel` at all, and `order_channel.canonical` is total, so an absent or junk value prints
+    `Website` instead of raising inside a renderer. Title-cased here and canonical in storage,
+    because this is prose for a human and the stored word is a key for a machine.
+    """
+    if order_channel.canonical(invoice.get('channel')) == order_channel.CHANNEL_WHATSAPP:
+        return 'WhatsApp'
+    return 'Website'
+
+
 def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     """Build POS receipt style HTML matching the PNG receipt design.
     Single delivery address (billing = same), no Order ID shown,
@@ -970,6 +1005,17 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     reference_id = invoice.get('referenceId', '')
     ref_id_html = f'<div class="info-row"><span>Ref: {reference_id}</span></div>' if reference_id else ''
 
+    # GST Rule 46(b): the invoice number is a mandatory particular of a tax invoice. `inv_num` has
+    # been assigned at the top of this function since the renderer was written and was printed
+    # NOWHERE, so every document this engine has ever produced was missing it. Empty renders no
+    # row rather than `Invoice No: ` with nothing after it - an unnumbered invoice should look
+    # unnumbered, not look like a rendering fault. Only `_get_next_invoice_number` may mint one;
+    # a renderer that invented a substitute would advance the GST series from a read path.
+    inv_num_html = f'<div class="info-row"><span>Invoice No: {inv_num}</span></div>' if inv_num else ''
+    # Source always renders, because every order has an origin: absent means website, and that is
+    # measured rather than assumed (see order_channel - no WhatsApp-origin order exists yet).
+    source_html = f'<div class="info-row"><span>Source: {_source_label(invoice)}</span></div>'
+
     # Status
     status_upper = payment_status.upper()
     badge_color = '#059669' if status_upper == 'CAPTURED' else '#d97706' if status_upper == 'PENDING' else '#dc2626'
@@ -1016,8 +1062,10 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="divider2"></div>
 <div class="center" style="margin:4px 0"><span style="font-size:13px;font-weight:bold;letter-spacing:1px">TAX INVOICE</span></div>
 <div class="divider"></div>
+{inv_num_html}
 <div class="info-row"><span>Date: {date_str}</span><span>{time_str}</span></div>
 {ref_id_html}
+{source_html}
 {f'<div class="info-row"><span>Brand: {purpose}</span></div>' if purpose else ''}
 {f'<div class="info-row b"><span>PAID: {paid_str}</span></div>' if status_upper == 'CAPTURED' and paid_str else ''}
 <div class="divider"></div>
@@ -1396,11 +1444,25 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     _sep()
 
     # ═══ INVOICE META ═══
+    # GST Rule 46(b) first: the invoice number leads the meta block, which is where a reader
+    # looks for it. The PNG never read `invoiceNumber` at all before this, so the image sent to
+    # the customer on WhatsApp carried no number. Read here rather than in the extraction block
+    # above so this line and the two render sites that match it stay in one place.
+    # `str(... or '')` because DynamoDB hands back whatever was stored and an f-string would
+    # happily print `None`.
+    inv_num = str(invoice.get('invoiceNumber', '') or '')
+    if inv_num:
+        _left(f"Invoice No: {inv_num}", FB)
+        y += LINE_H
     _lr(f"Date: {date_str}", time_str, F)
     y += LINE_H
     if reference_id:
         _left(f"Ref: {reference_id}", F)
         y += LINE_H
+    # Source after Ref, per docs/invoice-layout.md section 2. Unconditional: every order has an
+    # origin, and `_source_label` is total, so there is no empty-label case to guard.
+    _left(f"Source: {_source_label(invoice)}", F)
+    y += LINE_H
     # Brand: all customerservice/flow invoices → "Customer service"
     # Pay flow / WhatsApp payment → "Pay"
     # Manual / admin → no brand line
@@ -2608,9 +2670,21 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str, 
     total = float(invoice.get('total', 0))
     order_id = invoice.get('orderId', '')
     reference_id = invoice.get('referenceId', '')
+    invoice_number = str(invoice.get('invoiceNumber', '') or '')
     order_line = f"\nOrder: {order_id}" if order_id and order_id != 'Offline' else ''
     ref_line = f"\nRef: {reference_id}" if reference_id else ''
-    caption = f"Invoice \u20b9{total:,.2f}{order_line}{ref_line}\nThank you for your payment!"
+    # The caption is the only part of this message a customer can search, forward or read without
+    # opening the image, so the invoice number belongs in it as well as on the document. Omitted
+    # entirely when absent, like the Order and Ref lines above - a label with nothing after it
+    # reads as a bug.
+    invoice_line = f"\nInvoice: {invoice_number}" if invoice_number else ''
+    # Every line here is an identifier or a label. NO PERSONAL DATA: no phone, no name, no
+    # address. A WhatsApp caption is rendered in notification previews and in forwards, so it is
+    # the least private surface this engine writes to, and the document inside the image already
+    # carries the bill-to details for the one recipient entitled to them.
+    source_line = f"\nOrdered on: {_source_label(invoice)}"
+    caption = (f"Invoice \u20b9{total:,.2f}{invoice_line}{order_line}{ref_line}{source_line}"
+               f"\nThank you for your payment!")
 
     # Look up contact by phone
     contact = _lookup_contact_by_phone(to_phone)
