@@ -36,7 +36,12 @@ const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 
 
 function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const toast = useToastContext();
-  const [ activeTab, setActiveTab ] = useState<'registry' | 'submissions' | 'payments' | 'stats' | 'journey' | 'health'>( 'registry' );
+  // A sixth member, 'health', was here until 2026-10-07. The whole tab went, not just
+  // its data: it called /wa-business/flow-version-health, which has no live route, and
+  // the loader's catch swallowed the 404 — so the tab always rendered 'Click "Check
+  // Health" to scan all registered flows' no matter how often you clicked. A tab that
+  // can never populate is worse than no tab, because it reads as a feature.
+  const [ activeTab, setActiveTab ] = useState<'registry' | 'submissions' | 'payments' | 'stats' | 'journey'>( 'registry' );
 
   // Registry state
   const [ registry, setRegistry ] = useState<api.FlowRegistryItem[]>( [] );
@@ -59,11 +64,6 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const [ journeyPhone, setJourneyPhone ] = useState( '' );
   const [ journey, setJourney ] = useState<api.CustomerJourney | null>( null );
   const [ journeyLoading, setJourneyLoading ] = useState( false );
-
-  // Version Health state
-  const [ versionHealth, setVersionHealth ] = useState<api.FlowVersionHealth[]>( [] );
-  const [ healthLoading, setHealthLoading ] = useState( false );
-  const [ recommendedVersion, setRecommendedVersion ] = useState( '' );
 
   // SLA check state
   const [ slaRunning, setSlaRunning ] = useState( false );
@@ -125,18 +125,6 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
     finally { setJourneyLoading( false ); }
   };
 
-  const loadVersionHealth = async () => {
-    setHealthLoading( true );
-    try
-    {
-      const data = await api.checkFlowVersionHealth();
-      if ( data ) { setVersionHealth( data.flows || [] ); setRecommendedVersion( data.recommendedVersion || '' ); }
-    } catch ( e ) { console.error( e ); }
-    finally { setHealthLoading( false ); }
-  };
-
-  useEffect( () => { if ( activeTab === 'health' ) loadVersionHealth(); }, [ activeTab ] );
-
   const handleSlaCheck = async () => {
     setSlaRunning( true );
     try { const r = await api.runSlaCheck(); setSlaResult( r ); toast.success( 'SLA check complete' ); }
@@ -189,14 +177,14 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
 
       {/* Tabs */ }
       <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem' } }>
-        { ( [ 'registry', 'submissions', 'payments', 'stats', 'journey', 'health' ] as const ).map( tab => (
+        { ( [ 'registry', 'submissions', 'payments', 'stats', 'journey' ] as const ).map( tab => (
           <button key={ tab } onClick={ () => setActiveTab( tab ) }
             style={ {
               padding: '0.5rem 1rem', border: 'none', borderRadius: '0.375rem 0.375rem 0 0', cursor: 'pointer',
               background: activeTab === tab ? '#0f2a1d' : '#f3f4f6', color: activeTab === tab ? '#fff' : '#374151',
               fontWeight: activeTab === tab ? 600 : 400, fontSize: '0.85rem',
             } }>
-            { tab === 'registry' ? 'Registry' : tab === 'submissions' ? 'Submissions' : tab === 'payments' ? 'Payments' : tab === 'stats' ? 'Analytics' : tab === 'journey' ? 'Journey' : 'Health' }
+            { tab === 'registry' ? 'Registry' : tab === 'submissions' ? 'Submissions' : tab === 'payments' ? 'Payments' : tab === 'stats' ? 'Analytics' : 'Journey' }
           </button>
         ) ) }
       </div>
@@ -630,50 +618,8 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
         </div>
       ) }
 
-      {/* Version Health Tab */ }
-      { activeTab === 'health' && (
-        <div>
-          <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' } }>
-            <button onClick={ loadVersionHealth } disabled={ healthLoading }
-              style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
-              { healthLoading ? 'Checking...' : 'Check Health' }
-            </button>
-            { recommendedVersion && <span style={ { fontSize: '0.8rem', color: '#6b7280' } }>Recommended: v{ recommendedVersion }</span> }
-          </div>
-          { healthLoading && <div style={ { textAlign: 'center', padding: '2rem' } }><Spinner size="lg" /></div> }
-          { !healthLoading && versionHealth.length > 0 && (
-            <div style={ { overflowX: 'auto' } }>
-              <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' } }>
-                <thead><tr style={ { background: '#f9fafb', borderBottom: '2px solid #e5e7eb' } }>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Flow</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Version</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Data API</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Status</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Action</th>
-                </tr></thead>
-                <tbody>{ versionHealth.map( f => (
-                  <tr key={ f.flowId } style={ { borderBottom: '1px solid #e5e7eb', background: f.versionStatus === 'frozen' ? '#fef2f2' : f.versionStatus === 'outdated' ? '#fffbeb' : 'transparent' } }>
-                    <td style={ { padding: '8px 12px' } }><span style={ { fontFamily: 'monospace', fontWeight: 600 } }>{ f.flowCode }</span> — { f.flowName }</td>
-                    <td style={ { padding: '8px 12px', fontFamily: 'monospace' } }>{ f.flowVersion }</td>
-                    <td style={ { padding: '8px 12px', fontFamily: 'monospace' } }>{ f.dataApiVersion }</td>
-                    <td style={ { padding: '8px 12px' } }>
-                      <span style={ {
-                        padding: '2px 8px', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 600,
-                        background: f.versionStatus === 'ok' ? '#d1fae5' : f.versionStatus === 'frozen' ? '#fee2e2' : '#fef3c7',
-                        color: f.versionStatus === 'ok' ? '#065f46' : f.versionStatus === 'frozen' ? '#991b1b' : '#92400e',
-                      } }>{ f.versionStatus.toUpperCase() }</span>
-                    </td>
-                    <td style={ { padding: '8px 12px', fontSize: '0.75rem', color: '#6b7280' } }>{ f.message }</td>
-                  </tr>
-                ) ) }</tbody>
-              </table>
-            </div>
-          ) }
-          { !healthLoading && versionHealth.length === 0 && (
-            <div style={ { textAlign: 'center', padding: '3rem', color: '#9ca3af' } }>Click &quot;Check Health&quot; to scan all registered flows.</div>
-          ) }
-        </div>
-      ) }
+      {/* The Version Health tab rendered here. Removed with its endpoint — see the
+          note on the activeTab union above. */ }
     </div>
   );
 }

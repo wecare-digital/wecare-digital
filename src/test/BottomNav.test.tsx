@@ -54,7 +54,7 @@ describe( 'the bar is derived, not hardcoded', () => {
     expect( screen.getAllByRole( 'button' ) ).toHaveLength( 5 );
   } );
 
-  it( 'does not try to show all eight streams', () => {
+  it( 'does not try to show all nine streams', () => {
     render( <BottomNav onMore={ () => {} } /> );
     // The fifth stream must NOT be on the bar; it lives in the drawer.
     const fifth = navigationConfig[ 4 ];

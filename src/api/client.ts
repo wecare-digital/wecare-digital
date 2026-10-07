@@ -1411,15 +1411,12 @@ export interface VoiceCall {
   updatedAt: string;
 }
 
-export interface MakeVoiceCallRequest {
-  contactId?: string;
-  phoneNumber: string;
-  provider: VoiceProviderSelectable;
-  callType: 'tts' | 'audio' | 'ivr' | 'click_to_call';
-  messageText?: string;
-  voiceId?: string;
-  audioUrl?: string;
-}
+// `MakeVoiceCallRequest` was declared here, as the body type for `makeVoiceCall`
+// below. Both went on 2026-10-07: the function posted to `${API_BASE}/voice/call`
+// and the live routes are GET and DELETE `/voice/calls`, PLURAL — there is no
+// singular POST route to reach. Nothing in src/ called it. The read path either
+// side of it (`listVoiceCalls`, `getVoiceCall`, `normalizeVoiceCall`) is live and
+// stays.
 
 export async function listVoiceCalls ( contactId?: string, provider?: string ): Promise<VoiceCall[]> {
   let url = `${API_BASE}/voice/calls`;
@@ -1440,13 +1437,6 @@ export async function listVoiceCalls ( contactId?: string, provider?: string ): 
 export async function getVoiceCall ( callId: string ): Promise<VoiceCall | null> {
   const calls = await listVoiceCalls();
   return calls.find( call => call.callId === callId || call.id === callId ) || null;
-}
-
-export async function makeVoiceCall ( request: MakeVoiceCallRequest ): Promise<{ callId: string; status: string } | null> {
-  return apiCall<{ callId: string; status: string }>( `${API_BASE}/voice/call`, {
-    method: 'POST',
-    body: JSON.stringify( request ),
-  } );
 }
 
 function normalizeVoiceCall ( item: any ): VoiceCall {
@@ -3206,22 +3196,14 @@ export async function migratePhone ( params: {
 }
 
 
-// ============================================================================
-// AD ATTRIBUTION API
-// ============================================================================
-
-export async function getAdAttributionStats (): Promise<{ stats: any } | null> {
-  const data = await apiCall<any>( `${API_BASE}/ad-attribution/stats` );
-  return data ? { stats: data } : null;
-}
-
-export async function getAdAttributionClicks ( params?: { limit?: number; sourceId?: string } ): Promise<{ attributions: any[]; count: number } | null> {
-  const qs = new URLSearchParams();
-  if ( params?.limit ) qs.append( 'limit', String( params.limit ) );
-  if ( params?.sourceId ) qs.append( 'sourceId', params.sourceId );
-  const url = `${API_BASE}/ad-attribution${qs.toString() ? '?' + qs : ''}`;
-  return apiCall<{ attributions: any[]; count: number }>( url );
-}
+// The AD ATTRIBUTION API block was here: `getAdAttributionStats` and
+// `getAdAttributionClicks`, both against `${API_BASE}/ad-attribution*`. Removed
+// 2026-10-07 — the live HTTP API has no route under that prefix, so both calls
+// could only ever resolve to a 404. Their one consumer,
+// src/components/AdAttributionDashboard.tsx, went in the same change; nothing else
+// in src/ referenced either function. The `wecare-ad-attribution` LAMBDA is
+// untouched: retiring it is a separate, owner-gated decision, and this change only
+// removes a frontend that could not reach it.
 
 
 // ============================================================================
@@ -5414,14 +5396,12 @@ export async function exportSubmissionsCsv ( params?: { flowCode?: string; payme
   return data?.csv || '';
 }
 
-export interface FlowVersionHealth {
-  flowCode: string; flowName: string; flowId: string; flowVersion: string;
-  dataApiVersion: string; versionStatus: string; message: string;
-}
-
-export async function checkFlowVersionHealth (): Promise<{ flows: FlowVersionHealth[]; recommendedVersion: string } | null> {
-  return apiCall<any>( `${WA_BIZ_BASE}/flow-version-health` );
-}
+// `FlowVersionHealth` and `checkFlowVersionHealth` were here. Removed 2026-10-07:
+// the call went to `${WA_BIZ_BASE}/flow-version-health`, i.e.
+// /wa-business/flow-version-health, and no live route matches it. Its one caller was
+// the Flow Hub's 'Health' tab, which swallowed the 404 in a catch and rendered an
+// empty panel — so the tab went with it rather than being left to render nothing.
+// The flow-submissions and flow-registry calls above and below are live and stay.
 
 // ── WhatsApp Commerce Catalog ──
 
