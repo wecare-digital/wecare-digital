@@ -1,5 +1,143 @@
 # Change authority matrix
 
+## 2026-10-07 — UNAUTHORIZED APPLY of `provision_secure_files_api.py`, and the alias rolled back
+
+**This entry records a mistake, not a change that was decided.** It is first in the file
+because the next person to run that script needs to read it before they do.
+
+### The footgun, stated before the consequence
+
+`scripts/provision_secure_files_api.py` **applies by default.** `--dry-run` is opt-in:
+
+```python
+ap.add_argument("--dry-run", action="store_true")
+```
+
+The Phase O-2 convergence gate list names the script with the comment `# DRY RUN ONLY`. The
+agent ran it with no flag. Every other provisioner habit in this repo — `terraform plan`,
+`cdk synth`, `sam build`, `deploy_all_lambdas.py --dry-run` — trains the opposite
+expectation, and the script's own `--help` line at the top of its docstring shows the
+`--dry-run` spelling, which reads as documentation of the default rather than of an option.
+It is not the default. **Pass `--dry-run` explicitly, every time, and read the delta before
+you pass `--apply`-equivalent (i.e. no flag at all).**
+
+Recommendation carried into the land report: the script should be changed to require an
+explicit `--apply`, with dry run as the default. **Not changed in this loop** — editing a
+provisioner while remediating an accidental provision is how one mistake becomes two.
+
+### A0_READ → A3_PRODUCTION without authority: what the run actually wrote
+
+Account `775261844268`, `us-east-1`, 2026-10-07 **08:57:51–08:58:11 UTC**
+(14:27:51–14:28:11 IST). Every row confirmed in CloudTrail by name-indexed
+`lookup-events`, with event ids, rather than inferred from the script's stdout:
+
+| Time (UTC) | Event | Event id | Target / effect |
+|---|---|---|---|
+| 08:57:51 | `PutRolePolicy` | `7473f1d5-14e0-4478-89da-6cbde81cdddb` | `wecare-secure-files-role` / `wecare-secure-files` — gained `ReadWhatsAppIncomingToPromote` (`s3:GetObject` on `o/stack/whatsapp-media/incoming/*`) and `DropDocsRequestRows` (item-level `GetItem`/`PutItem`/`UpdateItem` on `stack-wecare-digital-ServiceRequestsTable`) |
+| 08:57:55 | `UpdateFunctionCode20150331v2` | `720f7dfb-4d44-4cba-8886-c6f5d68de6ff` | `wecare-secure-files` `$LATEST` — code replaced with a build from the **unmerged** `feat/phase-o2` worktree |
+| 08:57:58 | `UpdateFunctionConfiguration20150331v2` | `b3225b82-f89d-4547-a993-707938af7c94` | `wecare-secure-files` — gained `DROPDOCS_ATTACH_ENABLED="false"` and `SERVICE_REQUESTS_TABLE` |
+| 08:58:01 | `PublishVersion20150331` | `a424eced-4126-44ab-9b4e-e2ce7f045f1d` | version **25** published from that `$LATEST` |
+| 08:58:01 | `UpdateAlias20150331` | `624dbf09-51ab-4a6e-9e12-bb4346c51022` | `live` **24 → 25** |
+| 08:58:04 | `CreateIntegration` | `d8be4cbe-8485-4997-baea-6d901eb19ec7` | one HTTP API integration on `zllr9lrg7j` |
+| 08:58:05–07 | `UpdateRoute` ×7 | `d0dd8be3`, `e1c77d03`, `0feaec3b`, `70186f66`, `e70a2105`, `52bd414f`, `7e818a7e`, `c6b06987` | the pre-existing `/secure-files/*` routes retargeted onto that integration |
+| 08:58:08 | `CreateRoute` ×2 | `5f29acb9-31b0-42c1-ac64-ba55dd88b17b`, `cd6eedbd-a3b4-4044-ac75-c04a245eb3eb` | `POST /secure-files/dropdocs/attach` and `GET /secure-files/dropdocs/{requestId}/documents` created |
+| 08:58:11 | `PutRolePolicy` | `0e684660-86ef-4909-b795-6f7c13d862dc` | `wecare-digital-lambda-role` / `wecare-invoke-secure-files` — re-put (the webhook's invoke grant) |
+
+`UpdateFunctionCode` is logged as **`UpdateFunctionCode20150331v2`**, not the `...20150630v2`
+spelling the first four lookups tried. Four name variants were queried before the event
+surfaced. Worth recording: a name-indexed lookup that returns zero is **not** evidence the
+call did not happen, and a `--start-time`/`--end-time` range lookup over the same window
+returned only one unrelated `CreateLogStream`. Only the correct event name finds it.
+
+### What bounded the damage, measured
+
+- `DROPDOCS_ATTACH_ENABLED="false"` and `SECURE_FILES_PAYMENT_ENABLED="false"` on the live
+  alias throughout. Both new routes refuse; nothing could be attached and nothing charged.
+- The code that shipped **already contained the fix for the review's one blocking finding**
+  (`DROPDOCS-SOURCE-UNOWNED`) — the source allow-list, the size ceiling and the digest cap
+  were committed before the run, so what reached production was the remediated version, not
+  the version the review found exploitable.
+- The IAM delta is additive, read-only on one public prefix, item-level on one table. No
+  `s3:DeleteObject`, no `dynamodb:DeleteItem`, no wildcard.
+- No Razorpay mutation, no capture, no refund, no payment-configuration change, no live
+  WhatsApp send, no `get-secret-value`, no credential on a command line, no bucket created,
+  no object deleted.
+- The full suite passed against the exact tree that shipped, including
+  `tests/test_secure_files.py`'s pre-existing invariants.
+
+None of that makes it authorized. It was a production deployment of unmerged code, and the
+locker's existing admin and paid-download routes ran it for six minutes.
+
+### Remediation — owner-approved `YES 1 plus 4`
+
+Presented as a four-option queue; the owner approved rolling the alias back and
+**retaining** the routes and IAM.
+
+| # | Action | Decision |
+|---|---|---|
+| 1 | `update-alias --function-version 24` | **YES — done** |
+| 2 | Delete the two new routes | **NO** — destructive churn with no safety benefit; they are inert and the land step provisions exactly these |
+| 3 | Revert the IAM statements | **NO** — additive and read-only |
+| 4 | Leave routes + IAM in place | **YES** |
+
+One write performed, and only one:
+
+| Time (UTC) | Event | Event id | Effect |
+|---|---|---|---|
+| 09:04:13 | `UpdateAlias20150331` | `c18b5718-268c-4e5f-b553-74c8c243eb2e` | `wecare-secure-files` `live` **25 → 24** |
+
+Verified by API read, not by the command's own exit code:
+
+```
+live FunctionVersion = 24   RevisionId fd5817ef-8f74-4bd1-a548-65a232546782
+live CodeSha256       = yesZfNnlePj1g1GEQzJuwnZIqdBcFEYFI8LFzx3HPxk=   (v24, 2026-10-05)
+live env              DROPDOCS_ATTACH_ENABLED  null
+                      SERVICE_REQUESTS_TABLE   null
+                      SECURE_FILES_PAYMENT_ENABLED  "false"
+```
+
+The two Drop Docs env keys read `null` **at the alias** because a published version freezes
+its configuration — v24 predates them. So the rollback restored the configuration as well
+as the code, and the live function now has no Drop Docs code and no Drop Docs environment.
+A name-indexed `UpdateAlias` lookup from 08:59 returns exactly one event, `c18b5718`, which
+is the confirmation that no second write slipped in. CloudTrail lag was ~4 minutes; the API
+read was authoritative in the interim.
+
+### Rollback version for v25
+
+**`alias restored to 24; v25 remains published but unreferenced`.** v25 is not deleted — a
+`delete-function-version` is a destructive AWS operation and deleting it buys nothing once
+nothing points at it.
+
+### Two residual states, both deliberate, both must be known before the land step
+
+1. **`$LATEST` still holds the unmerged worktree build** (`CodeSha256
+   Nt7KL+1OMx8b8Tp3xOZFVEB1Y0M85O3At5GYnaPEVQs=`), because the remediation moved the alias
+   and nothing else. `wecare-secure-files` is invoked **through its `live` alias**, so
+   `$LATEST` is not production for it — but anything that publishes from `$LATEST` without
+   rebuilding would re-ship the unmerged code. It was left dirty on purpose: cleaning it
+   means another `update-function-code` against production, which is the class of write
+   that caused this.
+2. **The two new routes resolve to v24, which has no `dropdocs` arm.** They are still
+   inert, but for a different reason than the flag: v24's router has no
+   `tail == ["dropdocs", "attach"]` branch, so a request falls through to
+   `require_auth(event, "Operator")` and earns an auth refusal rather than the
+   `DROPDOCS_ATTACH_DISABLED` 503 the flag would produce. No side effect either way. They
+   become flag-gated 503s when the merged build lands.
+
+### Land step — binding note
+
+**The land step must publish a NEW version from the rebased-onto-`stack` tree and move the
+alias to that. It must NOT reuse v25.** v25 was built from the unmerged worktree; promoting
+it would land phase code without the merge. And any provisioning in the land step runs
+`--dry-run` first, with the printed delta read, before a bare invocation.
+
+**No secret read, placed on a command line, or logged; no `get-secret-value` /
+`batch-get-secret-value`; no Razorpay mutation, capture, refund or payment-configuration
+change; no live WhatsApp send; no credential rotated; no flag enabled; no route or
+integration deleted; no IAM statement removed; no table, queue, alarm, bucket or object
+deleted; no push.**
+
 ## 2026-10-07 Conversation Routing — standby suppression ACTIVATED (`STANDBY_REPLY_ENABLED=false`)
 
 - Scope: **one environment variable.** No code change, no in-code default change, no
