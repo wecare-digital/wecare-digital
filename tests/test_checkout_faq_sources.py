@@ -31,6 +31,15 @@ def test_public_faq_buttons_target_current_public_pages():
     faq = json.loads((ROOT / 'shared/faq-config.json').read_text())
     public = json.loads((ROOT / 'config/public-pages.json').read_text())
     pages = {item['path'].rstrip('/') or '/' for item in public['pages']}
+    spec = importlib.util.spec_from_file_location('faq_redirects', ROOT / 'scripts/provision_legacy_redirects.py')
+    redirects = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(redirects)
+    # Withdrawn front doors may resolve through an exact permanent redirect.
+    # Keep its destination in the generated public-page contract.
+    routes = {rule['source']: rule['target'] for rule in redirects.desired_redirects()
+              if rule['status'] == '301' and rule['source'].startswith('/')}
     for entry in faq['faqs']:
         if entry.get('ctaPath'):
-            assert entry['ctaPath'].rstrip('/') in pages, entry['ctaPath']
+            path = entry['ctaPath']
+            target = routes.get(path, path)
+            assert (target.rstrip('/') or '/') in pages, path
