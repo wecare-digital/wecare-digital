@@ -34,9 +34,9 @@ not a new main-branch write).
 
 ## Validation
 
-Full Python suite after the baseline CI cleanup: 8363 passed, 6 skipped, 3 xfailed.
-Two subsequent additional failure/SSM tests and the final fail-closed initialization
-adjustment: 201 focused tests passed, including 80 workspace MCP tests. Syntax and
+Final full Python suite after merging the owner's latest stack changes (240bfccd):
+8547 passed, 6 skipped, 3 xfailed. Final focused suite: 201 passed, including
+80 workspace MCP tests. Syntax and
 git diff whitespace checks passed. No frontend application source changed.
 Live IAM inspection confirms the SEO role already permits DynamoDB DeleteItem on the
 dedup table; no privilege expansion is needed for fenced lease release. Its Lambda

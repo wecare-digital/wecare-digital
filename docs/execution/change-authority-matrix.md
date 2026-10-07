@@ -2410,9 +2410,9 @@ A1_LOCAL/A2_REMOTE_CODE, explicit owner instruction to resolve the review findin
 on a separate branch and research consolidation of 22 active secrets. Isolated
 codex/deep-review-20261007 includes PR242's baseline CI cleanup, collision-safe Flow
 claims, fenced derived-audit leases, bounded partner caches, Standard SSM registry
-writer and open-advisory reporting in both lockfiles. Validation: 8363 full Python
-tests passed before the final two regressions, then 201 focused tests passed on the
-final source. See docs/execution/deep-review-fixes-20261007.md for design and rollback.
+writer and open-advisory reporting in both lockfiles. Validation: 8547 full Python
+tests passed on the final merged tree, plus 201 focused tests passed. Owner changes
+through 240bfccd were merged into this branch without changing the shared checkout. See docs/execution/deep-review-fixes-20261007.md for design and rollback.
 
 A0_READ: fresh metadata confirms 22 active secrets, eight marked for deletion today,
 running micro_3_0 voice instance ($7 bundle; nano is $5), and an empty current WhatsApp
