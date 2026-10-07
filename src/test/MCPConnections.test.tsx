@@ -10,6 +10,28 @@ vi.mock('../hooks/useUserRole', () => ({ useUserRole: vi.fn() }));
 vi.mock('../lib/workspace-mcp', async importOriginal => ({ ...await importOriginal<typeof import('../lib/workspace-mcp')>(), workspaceMCP: vi.fn() }));
 const call = vi.mocked(workspaceMCP);
 const role = vi.mocked(useUserRole);
+
+it('explains durable account storage and selects the provider for viewing data', async () => {
+  render(<Page />);
+  const github = await screen.findByRole('region', { name: 'GitHub' });
+  expect(screen.getByText(/remain after signing out/)).toBeInTheDocument();
+  fireEvent.click(within(github).getByRole('link', { name: 'View data' }));
+  expect(screen.getByRole('combobox', { name: 'Connection' })).toHaveValue('github');
+  fireEvent.click(screen.getByRole('button', { name: 'Run read' }));
+  await waitFor(() => expect(call).toHaveBeenCalledWith('connection_verify', { provider: 'github' }));
+});
+
+it('shows renewal checks and provider failures without claiming the grant was lost', async () => {
+  call.mockImplementation(async name => {
+    if (name === 'connections_list') return { connections: [{ provider: 'google-cloud', kind: 'oauth-sdk', status: 'refresh_or_consent_required' }] };
+    throw new Error('Provider access was revoked.');
+  });
+  render(<Page />);
+  const google = await screen.findByRole('region', { name: 'Google Cloud' });
+  expect(within(google).getByText('Check renewal')).toBeInTheDocument();
+  fireEvent.click(within(google).getByRole('button', { name: 'Verify' }));
+  expect(await within(google).findByRole('alert')).toHaveTextContent('Provider access was revoked.');
+});
 const connections = [{ provider: 'aws', kind: 'sdk', status: 'sdk' }, { provider: 'github', kind: 'sdk', status: 'sdk' },
   { provider: 'whatsapp', kind: 'remote-mcp', status: 'consent_required' }, { provider: 'wix', kind: 'pending-adapter', status: 'pending-adapter' }];
 beforeEach(() => {
@@ -42,4 +64,17 @@ it('shows a validated OAuth link only after the chosen provider starts authoriza
   fireEvent.click(within(region).getByRole('button', { name: 'Connect' }));
   expect(await screen.findByRole('link', { name: /Continue with Meta/ })).toHaveAttribute('rel', 'noopener noreferrer');
   expect(call).toHaveBeenCalledWith('connection_authorize', { provider: 'whatsapp' });
+});
+
+it('shows a refused Meta client on its card without offering an unusable sign-in link', async () => {
+  call.mockImplementation(async name => {
+    if (name === 'connections_list') return { connections };
+    throw new Error('Meta MCP client registration is unavailable for this cloud callback.');
+  });
+  render(<Page />);
+  const region = await screen.findByRole('region', { name: 'WhatsApp Business Tools' });
+  fireEvent.click(within(region).getByRole('button', { name: 'Connect' }));
+  expect(await within(region).findByRole('alert')).toHaveTextContent('client registration is unavailable');
+  expect(within(region).getByText('Authorization blocked')).toBeInTheDocument();
+  expect(within(region).queryByRole('link', { name: /Continue with Meta/ })).toBeNull();
 });

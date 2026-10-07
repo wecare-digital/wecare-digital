@@ -11,6 +11,41 @@ ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = ROOT / "amplify/functions/ai/workspace-mcp"
 
 
+def test_persisted_refresh_grant_has_no_ttl_and_registry_explains_renewal(module, memory):
+    module.save_tokens('owner', 'google-cloud', {'access_token': 'fixture-access', 'refresh_token': 'fixture-refresh', 'expires_in': 3600})
+    saved = memory.rows['connection:owner:google-cloud']
+    assert saved['hasRefreshToken'] is True
+    assert 'ttl' not in saved
+    saved.update(expiresAt=1, status='verified', lastVerifiedAt=10)
+    connection = next(c for c in module.registry('owner')['connections'] if c['provider'] == 'google-cloud')
+    assert connection['status'] == 'refresh_pending'
+    assert connection['automaticRefresh'] is True
+    assert connection['persistent'] is True
+    assert connection['lastVerifiedAt'] == 10
+    assert 'fixture-' not in json.dumps(connection)
+
+
+def test_refresh_preserves_account_verification_and_has_conditional_custody(module, memory, monkeypatch):
+    calls = []
+    monkeypatch.setattr(memory, 'update_item', lambda **kw: calls.append(kw))
+    module.save_tokens('owner', 'google-cloud', {'access_token': 'fixture-new', 'refresh_token': 'fixture-refresh', 'expires_in': 3600}, lease='fixture-lease')
+    update = calls[0]
+    assert update['ConditionExpression'] == 'refreshLease = :lease'
+    assert ':status' not in update['ExpressionAttributeValues']
+    assert update['ExpressionAttributeValues'][':refresh'] is True
+    assert 'lastVerifiedAt' not in update['UpdateExpression']
+    assert 'ttl' not in update['UpdateExpression']
+
+
+def test_connections_remain_scoped_to_same_account_across_new_requests(module, memory):
+    memory.rows['connection:owner:aws'] = {'status': 'verified', 'lastVerifiedAt': 10}
+    first = next(c for c in module.registry('owner')['connections'] if c['provider'] == 'aws')
+    second = next(c for c in module.registry('owner')['connections'] if c['provider'] == 'aws')
+    another = next(c for c in module.registry('another')['connections'] if c['provider'] == 'aws')
+    assert first == second and second['lastVerifiedAt'] == 10
+    assert another['lastVerifiedAt'] is None
+
+
 @pytest.fixture
 def module(monkeypatch):
     # Import needs only the static policy. No AWS clients are created at import.
@@ -24,6 +59,7 @@ def module(monkeypatch):
     for name in ('meta-social', 'whatsapp'):
         result.POLICY['connections'][name].pop('registrationEndpoint', None)
         result.POLICY['connections'][name]['clientId'] = 'fixture-client'
+        result.POLICY['connections'][name]['clientMode'] = 'existing-meta-app'
     return result
 
 
@@ -596,3 +632,27 @@ def test_empty_patch_chunk_is_rejected():
     from patch_policy import validate_patch
     with pytest.raises(ValueError, match="Empty patch chunk"):
         validate_patch("diff --git ")
+
+
+@pytest.mark.parametrize('provider,resource', [('meta-social', 'devtools'), ('whatsapp', 'whatsapp_business_tools')])
+def test_meta_cloud_policy_requires_registered_resource_client(provider, resource):
+    policy = json.loads((ROOT / 'config/workspace-mcp.json').read_text())['connections'][provider]
+    assert policy['registrationEndpoint'] == 'https://mcp.facebook.com/.well-known/register/' + resource
+    assert policy['clientMode'] == 'registered-mcp-client'
+    assert 'clientId' not in policy and 'loginConfigId' not in policy
+    assert policy['kind'] == 'remote-mcp'
+
+
+@pytest.mark.parametrize('provider,resource', [('meta-social', 'devtools'), ('whatsapp', 'whatsapp_business_tools')])
+def test_refused_meta_client_never_falls_back_to_graph_login(module, memory, monkeypatch, provider, resource):
+    policy = json.loads((ROOT / 'config/workspace-mcp.json').read_text())['connections'][provider]
+    module.POLICY['connections'][provider] = policy
+    calls = []
+    def refuse(url, payload, **kwargs):
+        calls.append(url)
+        raise module.Refusal('Dynamic registration is not available for this client.')
+    monkeypatch.setattr(module, 'http', refuse)
+    with pytest.raises(module.Refusal, match='client registration is unavailable'):
+        module.oauth_begin('owner', provider)
+    assert calls == [policy['registrationEndpoint']]
+    assert not memory.rows
