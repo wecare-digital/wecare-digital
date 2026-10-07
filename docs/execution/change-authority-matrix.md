@@ -1,5 +1,76 @@
 # Change authority matrix
 
+## 2026-10-06 Direct Send — `DIRECT_SEND_ENABLED_WABAS` ENABLED on both WABAs
+
+- Scope: **flag flip only.** No code change, no eligibility/category/allowlist/content logic
+  touched, no resource created, no live send. Owner authorized explicitly and repeatedly and
+  accepted the risk.
+- A3_PRODUCTION — env change + publish + alias move on **two** functions:
+
+  | Function | `live` version | `DIRECT_SEND_ENABLED_WABAS` | CodeSha256 | Vars |
+  |---|---|---|---|---|
+  | `wecare-outbound-whatsapp` | 49 → **50** | `""` → `2094615664435155,2513394156072604` | unchanged `tIBm6b4r4K0s97klpMLjyBofWwARSu7xo/ZzKDOBYH8=` | 15 → 15 |
+  | `wecare-whatsapp-business-api` | 65 → **66** | `""` → `2094615664435155,2513394156072604` | unchanged `EEjEux+ETRFObOYNy/vJXgSFaYdRTZzRAnxIjHAfhs0=` | 19 → 19 |
+
+  The value is the two WABA ids comma-separated: WABA1 `2094615664435155` (phone
+  `1016149501586345`) and WABA2 `2513394156072604` (phone `1055232054343117`). Non-secret
+  numeric ids that already appear in committed source, so set through the normal env
+  mechanism and never through a secret path.
+- **Why a publish and an alias move were mandatory.** Both functions carry a `live` alias
+  and the HTTP API invokes it, and a published version **freezes its own environment** — so
+  editing `$LATEST` would have changed nothing in production. CodeSha256 is identical before
+  and after, which is the expected signature of an env-only change. Verified at the alias
+  version, not at `$LATEST`.
+- **Why `scripts/set_lambda_env_flag.py` and not a raw CLI call.**
+  `UpdateFunctionConfiguration` **replaces** the whole environment map, so a partial
+  `--environment` silently deletes the other 14/18 variables and the function starts
+  resolving defaults. The script reads whole, merges one key, writes whole, asserts nothing
+  was lost, then publishes and moves the alias. Dry run taken first; it reported the
+  before-state in `rollback.md` exactly.
+- No secret read, printed or passed. Both envs were first checked for credential-shaped
+  values (issuer prefixes, long opaque values on name-hinted keys) → `RISKY: none`; the
+  name-hinted keys hold secret *names* or are empty. `get-secret-value` was never called.
+- A1_LOCAL: `tests/test_direct_send_deployed_flag.py` (new, 21 tests, all passing). It pins
+  the **exact deployed string**, so it fails on a typo, one id or a wrong separator — which
+  the pre-existing `test_direct_send_payload.py` cannot, because it constructs its own
+  value. Drives the real `handler()`: window closed + plain text returns **403 with the flag
+  empty and 200 carrying top-level `category: 'utility'` at the deployed value**, for each
+  WABA independently. That pair is the sensitivity proof. Wire patched throughout — no
+  network, no Meta call, no token, no send.
+- Evidence: `.agents/tasks/direct-send-enable-both-wabas-20261006/verification.md`.
+  Regression: `187 passed` across the three Direct Send / outbound files; full suite
+  `8338 passed, 5 failed` where all 5 are pre-existing live-site header/FAQ probes
+  (`test_deployed_headers_target.py`, `test_checkout_faq_sources.py`) that this work does
+  not touch.
+- **Fail-closed fallback confirmed from code, unchanged.** A Meta rejection of a
+  `category:utility` send IS caught: code `100` (not-onboarded, and any unclassified 100)
+  and `139200`/`131064` all return `_outside_window_refusal` — the **same function** the
+  flag-off decision site calls — and return *before* `_store_message_record(status='failed')`
+  and `_emit_delivery_metric('failed')`, so DynamoDB and metrics also end identical to
+  flag-off. Limit, stated rather than glossed: any **other** Meta code, and any non-HTTP
+  transport error, falls through to the pre-existing generic failure path rather than the
+  403.
+- **Caveat carried.** Nothing was live-verified by a real send. Direct Send eligibility is
+  granted by Meta **per WABA** and is not verifiable here without a token call this task
+  prohibits, so live delivery still depends on Meta having onboarded each WABA; a
+  non-onboarded WABA degrades to today's 403 via the fallback above. Standing risk: routing
+  marketing-type copy through `category: 'utility'` can escalate Meta's enforcement ladder
+  up to WABA revocation, and the flag cannot police copy — only genuine utility copy should
+  use this path.
+- `config/lambda-env-manifest.json` **not** updated. `env_manifest.py --export` is blocked
+  by a pre-existing live credential in `wecare-seo-tools`' environment (a different,
+  owner-gated function, deliberately untouched) and additionally calls `get_secret_value`,
+  which is prohibited. Both Direct Send keys were already in that 20-difference backlog, so
+  no new manifest debt. Not hand-edited: the manifest is generated *from* live AWS, so a
+  hand edit would record intent instead of reality.
+- Rollback: `scripts/set_lambda_env_flag.py --set DIRECT_SEND_ENABLED_WABAS= --functions
+  wecare-outbound-whatsapp wecare-whatsapp-business-api --apply` — complete without a code
+  revert, because omitting `category` is Meta's own definition of a service message, so
+  "off" is byte-identical to today. It publishes and moves `live` itself, which is required:
+  a warm sandbox keeps its old environment. Alias rollback if the code is ever suspected
+  instead: outbound → **49**, business-api → **65**. Pre-change env snapshot:
+  `docs/execution/snapshots/lambda-env-before-direct_send_enabled_wabas-20261006T163230Z.json`.
+
 ## 2026-10-06 Conversation Routing phase 3 — the standby fix, shipped OFF behind a flag
 
 - Scope: Phase 3 of `.agents/tasks/conversation-routing-20261006/plan.md` — C5, C3, C4,

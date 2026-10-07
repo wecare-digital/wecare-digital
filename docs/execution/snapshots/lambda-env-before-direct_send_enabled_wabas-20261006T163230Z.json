@@ -1,0 +1,46 @@
+{
+  "wecare-outbound-whatsapp": {
+    "env": {
+      "ADMIN_MFA_REQUIRED": "true",
+      "S3_BUCKET": "wecare-digital-get",
+      "DIRECT_SEND_ENABLED_WABAS": "",
+      "MEDIA_BUCKET": "wecare-digital-get",
+      "MESSAGES_TABLE": "stack-wecare-digital-WhatsAppOutboundTable",
+      "CDN_DOMAIN": "wecare.digital/get",
+      "REGION": "us-east-1",
+      "RATE_LIMIT_TABLE": "stack-wecare-digital-RateLimitTable",
+      "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345",
+      "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
+      "SEND_MODE": "LIVE",
+      "MEDIA_FILES_TABLE": "stack-wecare-digital-MediaFilesTable",
+      "WHATSAPP_PHONE_NUMBER_ID_2": "phone-number-id-waba-t-direct-1055232054343117",
+      "AWS_ACCOUNT_ID": "775261844268",
+      "LOG_LEVEL": "INFO"
+    },
+    "live": "49"
+  },
+  "wecare-whatsapp-business-api": {
+    "env": {
+      "FLOW_SUBMISSIONS_TABLE": "stack-wecare-digital-FlowSubmissionTable",
+      "WIX_SITE_URL": "https://wecare.digital",
+      "SUBMIT_REQUESTS_TABLE": "stack-wecare-digital-SubmitRequestsTable",
+      "DIRECT_SEND_ENABLED_WABAS": "",
+      "WIX_ORDERS_CACHE_TABLE": "stack-wecare-digital-WixOrdersCache",
+      "MEDIA_BUCKET": "wecare-digital-get",
+      "PAYMENT_WABA_ID": "2094615664435155",
+      "FLOW_PRIVATE_KEY_PASSPHRASE": "",
+      "META_API_VERSION": "v25.0",
+      "SECRETS_REFRESHED_AT": "2026-10-04T13:43:50Z",
+      "FLOW_REGISTRY_TABLE": "stack-wecare-digital-FlowRegistryTable",
+      "RAZORPAY_UPI_ID": "wecaredigitalbh511413.rzp@rxairtel",
+      "FLOW_LOGS_TABLE": "stack-wecare-digital-FlowLogTable",
+      "META_TOKEN_SECRET": "wecare/meta-system-user-token",
+      "AUTH_SKIP_PATHS": "/wa-business/flow-data",
+      "WIX_ORDER_IDS_TABLE": "stack-wecare-digital-WixOrderIds",
+      "FLOW_PRIVATE_KEY_SECRET": "wecare/flow-private-key",
+      "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
+      "LOG_LEVEL": "INFO"
+    },
+    "live": "65"
+  }
+}
