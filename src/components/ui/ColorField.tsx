@@ -157,7 +157,17 @@ const ColorField: React.FC<ColorFieldProps> = ( {
         setOpen( true );
     }, [ disabled, selectedIndex ] );
 
-    const onDismiss = useCallback( ( _reason: PopoverDismissReason ) => { setOpen( false ); }, [] );
+    /**
+     * The reason is acted on, for the reason DateField's own `onDismiss` sets out at length:
+     * roving focus lives on a swatch INSIDE the portalled panel, so a dismissal that unmounts
+     * the panel takes the focused node with it and drops the operator on `<body>`. Popover's
+     * 'escape' arm already refocuses the anchor; 'tab' and 'outside' do not, so they are
+     * handled here. 'route' is left alone - the trigger is on its way out too.
+     */
+    const onDismiss = useCallback( ( reason: PopoverDismissReason ) => {
+        setOpen( false );
+        if ( reason === 'tab' || reason === 'outside' ) triggerRef.current?.focus();
+    }, [] );
 
     /** Roving focus, so the arrow keys land somewhere visible the moment the grid opens. */
     useEffect( () => {
@@ -185,6 +195,20 @@ const ColorField: React.FC<ColorFieldProps> = ( {
             case 'Spacebar':
                 e.preventDefault();
                 commit( PALETTE[ activeIndex ].hex );
+                setOpen( false );
+                triggerRef.current?.focus();
+                return;
+            case 'Tab':
+                /*
+                 * Cancelled, then focus back on the trigger - the same reasoning as DateField's
+                 * Tab arm: the browser computes the next tab stop from the focused node, and
+                 * the unmount removes it first, so the default move starts from nowhere.
+                 *
+                 * Nothing is committed here and nothing needs to be: the arrows in this grid
+                 * already commit as they move, so whatever the operator last landed on has
+                 * been emitted. Tab only puts the panel away.
+                 */
+                e.preventDefault();
                 setOpen( false );
                 triggerRef.current?.focus();
                 return;

@@ -276,6 +276,45 @@ describe( 'DateField - the calendar', () => {
     expect( document.activeElement ).toBe( trigger() );
   } );
 
+  it( 'TAB closes and RESTORES FOCUS TO THE TRIGGER, rather than dropping it on <body>', () => {
+    // The same hazard as the Escape case above, by a different route and one Popover does NOT
+    // cover: its 'escape' arm refocuses the anchor, its 'tab' arm does not. Before the fix the
+    // panel unmounted with the focused day button inside it, so the browser's default tab move
+    // was computed from a node no longer in the document - measured in jsdom as activeElement
+    // '.ui-date-day' before the key and BODY after.
+    render( <Harness initial={ MARCH } /> );
+    fireEvent.click( trigger() );
+    // The precondition the Select family does not share: focus is INSIDE the portalled panel.
+    expect( document.activeElement ).toHaveClass( 'ui-date-day' );
+
+    fireEvent.keyDown( screen.getByRole( 'grid' ), { key: 'Tab' } );
+
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument();
+    expect( document.activeElement ).toBe( trigger() );
+    expect( document.activeElement ).not.toBe( document.body );
+  } );
+
+  it( 'an outside press closes and takes focus back too', () => {
+    // The third arm of the same hole. It matters less than Tab in a real browser, because the
+    // mousedown that follows usually moves focus to whatever was pressed - but when the press
+    // lands on something unfocusable, this is the difference between the trigger and <body>.
+    render( <Harness initial={ MARCH } /> );
+    fireEvent.click( trigger() );
+    fireEvent.pointerDown( document.body );
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument();
+    expect( document.activeElement ).toBe( trigger() );
+  } );
+
+  it( 'Tab DISCARDS, as Esc does - the arrows move the grid, Enter is what commits', () => {
+    const onChange = vi.fn();
+    render( <Harness initial={ MARCH } onChange={ onChange } /> );
+    fireEvent.click( trigger() );
+    fireEvent.keyDown( screen.getByRole( 'grid' ), { key: 'ArrowRight' } );
+    fireEvent.keyDown( screen.getByRole( 'grid' ), { key: 'Tab' } );
+    expect( onChange ).not.toHaveBeenCalled();
+    expect( input() ).toHaveValue( '15/03/2026' );
+  } );
+
   it( 'Esc discards: the value is untouched by opening and closing', () => {
     const onChange = vi.fn();
     render( <Harness initial={ MARCH } onChange={ onChange } /> );

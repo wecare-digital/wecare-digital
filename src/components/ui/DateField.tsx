@@ -259,7 +259,24 @@ const DateField: React.FC<DateFieldProps> = ( {
         setOpen( true );
     }, [ disabled, value, today, min, max ] );
 
-    const onDismiss = useCallback( ( _reason: PopoverDismissReason ) => { setOpen( false ); }, [] );
+    /**
+     * THE REASON IS ACTED ON, NOT DISCARDED, AND THAT IS NOT A STYLE POINT.
+     *
+     * Unlike Select - where DOM focus never leaves the trigger - this component runs roving
+     * focus INSIDE the portalled panel (see the effect below). So any dismissal that unmounts
+     * the panel while a day button holds focus removes the focused node from the document, and
+     * the operator lands on `<body>` with no keyboard route back to the control. That is the
+     * hazard UiDateField.test.tsx states in full on the Escape case.
+     *
+     * Escape is already covered, and covered by Popover rather than here: its 'escape' arm
+     * calls `anchorRef.current?.focus()`. 'tab' and 'outside' have no such arm, so they are
+     * handled here. 'route' deliberately is NOT - the page is navigating and the trigger is
+     * about to be unmounted too, so grabbing focus would fight the next page for it.
+     */
+    const onDismiss = useCallback( ( reason: PopoverDismissReason ) => {
+        setOpen( false );
+        if ( reason === 'tab' || reason === 'outside' ) triggerRef.current?.focus();
+    }, [] );
 
     const commitDay = useCallback( ( iso: string ) => {
         setOpen( false );
@@ -306,6 +323,25 @@ const DateField: React.FC<DateFieldProps> = ( {
             case 'Spacebar':
                 e.preventDefault();
                 if ( inRange( current, min, max ) ) commitDay( current );
+                return;
+            case 'Tab':
+                /*
+                 * TAB IS CANCELLED HERE AND FOCUS IS PUT BACK ON THE TRIGGER, which is one
+                 * more Tab than a native picker needs - and is the deliberate trade.
+                 *
+                 * The browser computes the next tab stop from the node that is focused when
+                 * the default action runs. Letting the default stand would compute it from a
+                 * day button that the unmount has already removed from the document, so the
+                 * move starts from nowhere and ends on `<body>`. Cancelling it and returning
+                 * focus to the trigger makes the NEXT Tab a normal move from a real node.
+                 *
+                 * Like Escape, this DISCARDS: the grid's arrows only move the roving focus,
+                 * Enter is what commits, so there is nothing here to commit. Select's Tab
+                 * commits because its arrows commit; this one must not.
+                 */
+                e.preventDefault();
+                setOpen( false );
+                triggerRef.current?.focus();
                 return;
             default:
         }

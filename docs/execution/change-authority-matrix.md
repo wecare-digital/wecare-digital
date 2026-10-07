@@ -1342,3 +1342,74 @@ measures no `<select>`. Audited across every task artifact: every sentence pairi
 with a workspace path is a statement that the harness can measure nothing there, and every
 WebKit/Safari/iOS mention is an explicit disclaimer. The owner's visual pass in a signed-in
 Chrome remains the appearance evidence for ~145 workspace controls.
+
+### Review pass 2: Tab dismissal dropped keyboard focus on `<body>` in DateField and ColorField
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | `src/components/ui/{DateField,ColorField,Popover}.tsx`, `src/test/Ui{DateField,ColorField}.test.tsx` | 6 new vitest cases, 4 of them RED on a mutation probe that restored the pre-fix code and GREEN after; full suite 98 files / **1269 passed / 2 skipped** | revert the commit; the three components are self-contained and no call site passes anything new |
+
+**The defect.** `Select` keeps DOM focus on its trigger, so `Popover` can let Tab's default
+action stand and focus moves to the next control exactly as a native `<select>` does.
+`DateField` and `ColorField` are the other pattern: both run roving focus **inside** the
+portalled panel - on `.ui-date-day[tabindex="0"]` and `.ui-color-swatch[tabindex="0"]` - and
+both reduced dismissal to one statement that discarded the `reason` it was handed. So Tab
+unmounted the panel with the focused node inside it, the browser computed the next tab stop
+from a node no longer in the document, and the operator was left on `<body>` with no keyboard
+route back. Measured in jsdom on both components before the fix: `activeElement` is the day
+button / the swatch before the key and `BODY` after, panel closed. Escape never had this
+problem because `Popover`'s `'escape'` arm already calls `anchorRef.current?.focus()` - which
+is why both files carried a passing "Esc closes and RESTORES FOCUS TO THE TRIGGER" case while
+the Tab path went unguarded. `'outside'` had the same hole.
+
+Scope: `DateField`'s 9 call sites plus the 3 reached through `DateTimeField`, and `ColorField`'s
+3. `TimeField` is unaffected - it composes two `Select`s and owns no panel. `Select` is
+untouched, and `UiSelect.test.tsx`'s assertion that its Tab event is **not** cancelled still
+passes, which is the guard that stops this fix leaking into the control it would break.
+
+**ACCEPTED BEHAVIOUR DELTA: Tab out of an open calendar or palette costs one extra keypress.**
+The fix cancels Tab inside the panel and returns focus to the trigger, so the operator presses
+Tab once to close and again to move on; a native picker closes and moves in one. Cancelling is
+what makes the second press a normal move from a node that exists, and the alternative -
+computing the next tab stop ourselves and focusing it - means reimplementing the browser's
+tab-order algorithm, which is a larger and more fragile change than the problem warrants.
+Trading one keypress for never stranding focus is the right side of that trade, and the trigger
+sits after the text input in `DateField`, so the onward move is where the operator expects it.
+Tab **discards** in `DateField` (its arrows only move the roving focus; Enter commits) and emits
+nothing of its own in `ColorField` (its arrows already commit as they move) - both pinned by a
+test, so a revert has to move the assertion back deliberately. `'route'` is deliberately NOT
+given focus-restore: the page is navigating and the trigger is on its way out too.
+
+`Popover` itself is unchanged in behaviour - only its Tab comment, which now records why the
+cancel cannot live there: the primitive cannot know where focus should return to, and
+cancelling for every consumer would break `Select`. The `reason` is reported and the consumer
+decides, which is what the signature was written for.
+
+**No new browser evidence, and none is claimable.** All 12 `DateField` and 3 `ColorField` call
+sites are workspace surfaces behind `AuthShell`, which is `dynamic(..., { ssr: false })`, so
+every one of those routes ships an empty `#__next` in the static export and no Chromium harness
+can reach them. The focus evidence here is jsdom plus the mutation probe. The public harnesses
+were re-run to prove nothing regressed, not to evidence this fix: `designsweep` PASS on the 20
+defaults and on `/shop/merchandise/` · `controlprobe --cart` PASS with the migrated trigger
+still at 2px / 13px / 44px / 32px and the native contribution select unchanged · `controlprobe
+--post` PASS · `devicecheck` 390/390 · `uicheck` 96/96 · `rtlcheck` 7531/7531 ·
+`translatecheck` PASS over its full route sweep · `flowprobe` 24 ok / 3 FAIL exit 0, the same
+three pre-existing `section.home-flow` findings. `npm run lint` 0 errors / 205 warnings ·
+`tsc --noEmit` clean · `npm run build` green at 1411 sitemap URLs / 1323 posts / 462 kB index.
+No WebKit, Safari or iOS result is claimed, here or anywhere in the task.
+
+**The reconciliation is unchanged and was re-derived rather than carried forward:** 161 `<Select`
+tags in non-test `src`, minus the 2 internal to `TimeField.tsx`, = **159 migrated**, plus exactly
+3 native `<select>` elements - `cart.tsx:549`, `ctwa-ads.tsx:197`,
+`design-reference.tsx:244` - = **162**. Zero `type="date"`, `"time"`, `"datetime-local"` or
+`"color"` attributes survive outside `src/test`, and
+`scripts/census_control_skins.py --json` is still object-equal to
+`src/test/fixtures/control-skin-census.json`.
+
+**One harness note, the same one recorded above and worth re-recording because it recurred:**
+`translatecheck.js` hung on its first run of this pass with no output and had to be killed at
+the 30-minute mark, leaving a stranded Playwright process. It has no per-route error handling
+across its route sweep, so one navigation timeout hangs the process rather than failing it -
+indistinguishable from a slow run. It passed on the second run after the stranded browser was
+cleared. Not caused by anything in this change; a `try`/`catch` per route is the harness's own
+fix.

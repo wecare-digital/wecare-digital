@@ -174,8 +174,16 @@ const Popover: React.FC<PopoverProps> = ( {
                 anchorRef.current?.focus();
                 return;
             }
-            // Tab commits and closes, and does NOT preventDefault - focus moves on, which is
-            // what a native select does.
+            // Tab closes and does NOT preventDefault here, so focus moves on - which is what a
+            // native select does, and Select is the consumer that pattern is right for.
+            //
+            // IT IS NOT RIGHT FOR A CONSUMER THAT PUTS DOM FOCUS INSIDE THE PANEL. For those,
+            // the default move would be computed from a node the unmount has already removed,
+            // so the operator lands on <body>. That cannot be fixed here - this handler cannot
+            // know where focus is meant to return to, and cancelling the default for every
+            // consumer would break Select - so the 'tab' reason is reported and the consumer
+            // decides. See DateField's and ColorField's `onDismiss` and `onGridKeyDown`, which
+            // cancel it themselves and refocus their trigger. The same applies to 'outside'.
             if ( e.key === 'Tab' ) onDismiss( 'tab' );
         };
         const onPointerDown = ( e: Event ) => {

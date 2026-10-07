@@ -122,6 +122,41 @@ describe( 'ColorField - the string it emits', () => {
     expect( document.activeElement ).toBe( trigger() );
   } );
 
+  it( 'TAB closes and restores focus to the trigger, rather than dropping it on <body>', () => {
+    // Popover's 'escape' arm refocuses the anchor; its 'tab' arm does not. Roving focus lives
+    // on a swatch INSIDE the portalled panel, so before the fix the unmount removed the node
+    // the browser would have computed the next tab stop from - measured in jsdom as
+    // activeElement '.ui-color-swatch' before the key and BODY after.
+    render( <Harness /> );
+    fireEvent.click( trigger() );
+    expect( document.activeElement ).toHaveClass( 'ui-color-swatch' );
+
+    fireEvent.keyDown( screen.getByRole( 'radiogroup' ), { key: 'Tab' } );
+
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument();
+    expect( document.activeElement ).toBe( trigger() );
+    expect( document.activeElement ).not.toBe( document.body );
+  } );
+
+  it( 'an outside press closes and takes focus back too', () => {
+    render( <Harness /> );
+    fireEvent.click( trigger() );
+    fireEvent.pointerDown( document.body );
+    expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument();
+    expect( document.activeElement ).toBe( trigger() );
+  } );
+
+  it( 'Tab emits nothing of its own - the arrows already committed as they moved', () => {
+    const onChange = vi.fn();
+    render( <Harness onChange={ onChange } /> );
+    fireEvent.click( trigger() );
+    fireEvent.keyDown( screen.getByRole( 'radiogroup' ), { key: 'ArrowRight' } );
+    expect( onChange ).toHaveBeenCalledExactlyOnceWith( PALETTE[ 1 ].hex );
+    fireEvent.keyDown( screen.getByRole( 'radiogroup' ), { key: 'Tab' } );
+    // Still exactly one call: closing does not re-emit the already-committed swatch.
+    expect( onChange ).toHaveBeenCalledExactlyOnceWith( PALETTE[ 1 ].hex );
+  } );
+
   it( 'carries the value in a hidden input, so a form submission still sees it', () => {
     const { container } = render( <Harness initial="#d1f470" name="primaryColor" /> );
     expect( container.querySelector( 'input[type="hidden"][name="primaryColor"]' ) ).toHaveValue( '#d1f470' );
