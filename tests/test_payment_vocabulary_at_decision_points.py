@@ -231,6 +231,14 @@ CONSULTING_FILES = [
     # holding `pending`, `none`, `paid` and arbitrary admin input. Listing it brings both gates:
     # the import assertion, and the AST walk that forbids a raw comparison.
     ("ecommerce/customer-orders/handler.py", "payment_status"),
+    # The locker's Razorpay readback, which decides whether a paying customer may download what
+    # they bought. `test_file_access_is_granted_on_any_spelling_of_captured` above already
+    # reasons about this exact function, but it asserted the property against `payment_status`
+    # in the abstract and never pinned the file - so the one decision site that could drift was
+    # the one the gate described rather than guarded. The import is function-local
+    # (`order_is_paid` imports lazily, so a cold start pays nothing for it), which `ast.walk`
+    # finds regardless of nesting.
+    ("core/secure-files/razorpay_orders.py", "payment_status"),
 ]
 
 #: Files with no payment-status decision of their own, which must still never compare a payment
@@ -255,6 +263,15 @@ RAW_SCAN_ONLY_FILES = [
     # existence of the `PAYMENTATTEMPT#` claim. Scanned so a payment word never creeps into a
     # storage decision.
     ("shared/lambda_utils/ecommerce/dropdocs_storage.py", None),
+    # The locker itself, which is where that separation is actually under pressure. Unlike the
+    # three files above, this one genuinely contains a payment path - `_payment_enabled`,
+    # `_create_order` and the grant readback - and Phase O-2 added the Drop Docs attach arm
+    # directly beside it. So it is the one file where a payment word and a storage decision are
+    # neighbours, and it is scanned to keep them from meeting. It consults nothing itself: the
+    # capture question is delegated to `razorpay_orders.order_is_paid`, which is listed above
+    # as a consulting file, so an unused import here would weaken that assertion rather than
+    # add anything.
+    ("core/secure-files/handler.py", None),
 ]
 
 
