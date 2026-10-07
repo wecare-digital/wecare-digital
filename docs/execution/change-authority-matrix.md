@@ -2387,3 +2387,15 @@ A deny rule blocks the agent from that file, so this is owner-only.
 a token; no credential rotated; no provider mutation; no flag enabled; no payment, WABA,
 phone number or S3 bucket touched; no other function, route, table, IAM policy or alarm
 changed; `.kiro/settings/mcp.json` not edited.**
+
+## Workspace audit and redesign research — 2026-10-07
+
+| Class | Target | Action and evidence | Rollback |
+|---|---|---|---|
+| A0_READ | origin/stack, pages, API helpers, handlers | Refreshed stack a82ff4c9; inventoried 149 route patterns and 80 handler sources; preserved concurrent working directories. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | GetApis/GetRoutes/GetIntegrations/ListFunctions/ListTables/ListAliases/GetApp/GetBranch/GetJob. 74 functions, 374 routes, 84 tables; Amplify job 1423 succeeded at audited SHA. Metadata only. | Read only |
+| A1_LOCAL | codex/workspace-audit-redesign-20261007 | Research report, every-page decisions, metadata evidence, local prototype and repeatable inventory/DOM checks. No production application code changed. | Remove research commit or branch |
+| A0_READ | Local artifact preview | In-app browser rejected file URL under security policy. No URL/browser workaround. File opened in Codex; DOM checks passed. Visual/mobile render unverified. | No external change |
+| A2_REMOTE_CODE | Separate research branch | Non-force feature-branch push of explicit documentation/tool/prototype paths; no stack merge or production deployment. | Delete research branch after review |
+
+Prior pending registry migration and workspace MCP production deployment are not authorized by this research request and were not executed.
