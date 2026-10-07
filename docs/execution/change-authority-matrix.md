@@ -2938,3 +2938,14 @@ across its route sweep, so one navigation timeout hangs the process rather than 
 indistinguishable from a slow run. It passed on the second run after the stranded browser was
 cleared. Not caused by anything in this change; a `try`/`catch` per route is the harness's own
 fix.
+# Workspace rescan and final plan — 2026-10-08
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | origin/stack 57ff0e03 and GitHub checks | Fresh source checkout; 141 routes/81 handler sources; five current failed Actions logs diagnosed; PR243/244 remain open. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | Successful discovery of 75 functions, 376 routes, 76 integrations, 84 tables, 73 alarms, 16 metric filters; sampled aliases/pools and Amplify job1429 source match. No credentials/customer records or provider effects. | Read only |
+| A1_LOCAL | codex/workspace-rescan-20261008 | Final plan/flows, 105-route migration map, 36-case test matrix, sanitized metadata and repeatable static inventory. Bulk graphs stay in task outputs. | Remove research files |
+| A0_READ | Current-tree offline tests | 538 governance/catalog/module Python +411 checkout/document/order Python +245 frontend tests passed. 81 handler ASTs parsed. Reused dependency runtime; no full local suite/build claimed. | No production change |
+| A2_REMOTE_CODE | Separate rescan research branch | Explicit-path non-force documentation/evidence push and draft review. No production merge/deploy, MFA/provider/sends/payments/secret/SIP change. | Close draft/revert research commit |
+
+Current CI red checks remain release gates; this research does not bypass them or infer authorization from pasted retirement/API suggestions.
