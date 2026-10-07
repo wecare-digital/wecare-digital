@@ -500,6 +500,27 @@ def _load_owned_address(
 LOAD_OWNED_ADDRESS = _load_owned_address
 
 
+def _owned_for_supply(owned: Optional[Dict[str, Any]],
+                      requires_delivery: bool) -> Optional[Dict[str, Any]]:
+    """What to hand `build_intent_with_calculation` as `owned_address` for GST place-of-supply.
+
+    FEAT-003 made storage international, so `from_contact` now returns a structurally-valid
+    address whose state may not resolve to a GST subdivision. The place-of-supply derivation in
+    `purchase_intent` raises `UnmappableAddress` on such a value, which is CORRECT for a delivery
+    basket (and already pre-empted by the `for_wix` gate upstream) but WRONG for a no-delivery
+    contribution, which has no place of supply at all. For a no-delivery basket, an address whose
+    state is not GST-resolvable is passed as `None` so the quote falls back to the documented
+    intra-state default - exactly the pre-FEAT-003 behaviour, when `from_contact` returned None.
+    A delivery basket's address is passed through unchanged (it is already proven payable).
+    """
+    if owned and not requires_delivery:
+        try:
+            wix_address.gst_state_code(owned)
+        except wix_address.UnmappableAddress:
+            return None
+    return owned or None
+
+
 def _hardened(response: Dict[str, Any]) -> Dict[str, Any]:
     """`no-store` on a response body carrying an email and a postal address.
 
@@ -2297,22 +2318,24 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
              if profile is not None and loader is _load_owned_address
              else (loader(identity) if callable(loader) else None))
 
+    adapter = cart_v2.CartV2(_wix_request)
+    requested, requires_delivery = _v2_catalog_items(line_items)   # GET only, writes nothing
+    if requires_delivery and not owned:
+        raise purchase_intent.DeliveryDetailsRequired("no owned delivery address on file")
+
     # FEAT-003: storage is international; the India place-of-supply / Wix-mappability rule now
-    # runs HERE, at pay time, through the shared gate. An address the CRM accepted that cannot
-    # price a Razorpay/Wix cart (e.g. a legacy unmappable Indian state) becomes the recoverable
-    # 409 DELIVERY_DETAILS_REQUIRED rather than a 503 or a wrong tax split. A caller-supplied
-    # loader (tests) that returns an already-Wix-shaped dict is left untouched.
-    if owned and loader is _load_owned_address:
+    # runs HERE, at pay time, through the shared gate -- but ONLY when the basket REQUIRES
+    # delivery. A fee-exempt contribution or any no-delivery basket must not be refused for an
+    # unmappable stored address it never ships to. For a delivery basket, an address the CRM
+    # accepted that cannot price a Razorpay/Wix cart (e.g. a legacy unmappable Indian state)
+    # becomes the recoverable 409 DELIVERY_DETAILS_REQUIRED rather than a 503 or a wrong tax
+    # split. A caller-supplied loader (tests) returning an already-Wix-shaped dict is left alone.
+    if requires_delivery and owned and loader is _load_owned_address:
         try:
             payment_address.for_wix(owned)
         except payment_address.UnpayableAddress:
             raise purchase_intent.DeliveryDetailsRequired(
                 "stored address is not payable on the website channel") from None
-
-    adapter = cart_v2.CartV2(_wix_request)
-    requested, requires_delivery = _v2_catalog_items(line_items)   # GET only, writes nothing
-    if requires_delivery and not owned:
-        raise purchase_intent.DeliveryDetailsRequired("no owned delivery address on file")
 
     # ONE CustomerCart, so ONE `now` and one lock protocol own `ensure`, `abandon` and the
     # reconcile. `self.now` drives both `expiresAt = now + CART_LIFETIME` and the QUOTE_LIFETIME
@@ -2417,7 +2440,17 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
             # `None` rather than a falsy dict. `purchase_intent` tests `is not None`, because `{}`
             # is a placeholder address that must still raise `UnmappableAddress` rather than be
             # laundered into a price; only a true `None` means "no place of supply to resolve".
-            owned_address=owned or None, now=int(time.time()), site=wix_ecom.WIX_SITE_ID,
+            #
+            # FEAT-003: for a DELIVERY basket, `owned` is already proven payable by the `for_wix`
+            # gate above, so it resolves here. For a NO-DELIVERY basket (a contribution), storage
+            # is now international and `from_contact` returns a structurally-valid but possibly
+            # GST-unresolvable address (e.g. a legacy "Nowhere Pradesh"); a payment with no
+            # delivery has no place of supply, so such an address is passed as `None` rather than
+            # raising `UnmappableAddress` inside the quote. This preserves the pre-FEAT-003
+            # behaviour exactly (the intra-state default) now that `from_contact` no longer
+            # returns None for it. The laundering guard for delivery baskets is unchanged.
+            owned_address=(_owned_for_supply(owned, requires_delivery)),
+            now=int(time.time()), site=wix_ecom.WIX_SITE_ID,
             # The fee-exempt calculator, substituted at an EXISTING seam rather than branching
             # inside the calculator every other basket shares. OWNER DECISION [PHASE2-FEE-001]:
             # a contribution collects exactly the amount chosen. `build_intent_with_calculation`

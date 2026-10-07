@@ -1,19 +1,15 @@
 """FEAT-003: a supplied-but-unpayable customer_address must FAIL CLOSED — never fall back to
 the business beneficiary. A valid India customer_address builds the Meta beneficiary from the
 shared shape. A caller supplying no customer_address keeps today's behaviour exactly.
+
+Handler is imported lazily inside the fixture (not at module level), matching test_payments.py
+so test_handler_import_isolation stays satisfied.
 """
 import os
 import sys
+from unittest.mock import patch
 
 import pytest
-
-HANDLER_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "amplify", "functions", "messaging", "outbound-whatsapp")
-SHARED = os.path.join(os.path.dirname(__file__), "..", "amplify", "functions", "shared")
-sys.path.insert(0, os.path.abspath(SHARED))
-sys.path.insert(0, os.path.abspath(HANDLER_DIR))
-
-import handler  # noqa: E402
 
 PHONE_1 = "phone-number-id-waba1-direct-1016149501586345"
 
@@ -45,48 +41,49 @@ def _order(**extra):
     return o
 
 
-def _build(order):
-    return handler._build_message_payload(
-        "+919330994400", "", None, None, False, None, [],
-        is_interactive_payment=True, order_details=order,
-        phone_number_id=PHONE_1)
+class TestBeneficiaryFailsClosed:
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        sys.path.insert(0, os.path.join(
+            os.path.dirname(__file__), "..", "amplify", "functions", "messaging", "outbound-whatsapp"))
+        with patch.dict(os.environ, {"AWS_REGION": "us-east-1", "SEND_MODE": "DRY_RUN"}):
+            with patch("boto3.resource"), patch("boto3.client"):
+                import handler
+                self.handler = handler
+                self.build = handler._build_message_payload
 
+    def _build(self, order):
+        return self.build("+919330994400", "", None, None, False, None, [],
+                          is_interactive_payment=True, order_details=order,
+                          phone_number_id=PHONE_1)
 
-def test_valid_india_customer_address_builds_meta_beneficiary_from_shared_shape():
-    payload = _build(_order(customer_address=_india_addr(), recipient_name="A. Customer"))
-    params = payload["interactive"]["action"]["parameters"]
-    bens = params["beneficiaries"]
-    assert len(bens) == 1
-    b = bens[0]
-    assert set(b.keys()) == {
-        "name", "address_line1", "address_line2", "city", "state", "country", "postal_code"}
-    assert b["name"] == "A. Customer"
-    assert b["country"] == "India"
-    assert b["postal_code"] == "700012"
-    # NOT the business fallback.
-    assert b["address_line1"] != "81/2/7 Phears Ln"
+    def test_valid_india_customer_address_builds_meta_beneficiary_from_shared_shape(self):
+        payload = self._build(_order(customer_address=_india_addr(), recipient_name="A. Customer"))
+        bens = payload["interactive"]["action"]["parameters"]["beneficiaries"]
+        assert len(bens) == 1
+        b = bens[0]
+        assert set(b.keys()) == {
+            "name", "address_line1", "address_line2", "city", "state", "country", "postal_code"}
+        assert b["name"] == "A. Customer"
+        assert b["country"] == "India"
+        assert b["postal_code"] == "700012"
+        assert b["address_line1"] != "81/2/7 Phears Ln"  # NOT the business fallback
 
+    def test_supplied_but_unpayable_customer_address_fails_closed_no_business_fallback(self):
+        bad = {
+            "addressLine1": "1 Market St", "city": "San Francisco",
+            "state": "US-CA", "postalCode": "94105", "countryCode": "US", "country": "United States",
+        }
+        with pytest.raises(self.handler.PaymentConfigurationUnresolved):
+            self._build(_order(customer_address=bad, recipient_name="X"))
 
-def test_supplied_but_unpayable_customer_address_fails_closed_no_business_fallback():
-    # A non-India customer_address cannot settle on WhatsApp -> the payload must NOT be built,
-    # and specifically must NOT substitute the business beneficiary.
-    bad = {
-        "addressLine1": "1 Market St", "city": "San Francisco",
-        "state": "US-CA", "postalCode": "94105", "countryCode": "US", "country": "United States",
-    }
-    with pytest.raises(handler.PaymentConfigurationUnresolved):
-        _build(_order(customer_address=bad, recipient_name="X"))
+    def test_india_bad_pin_customer_address_fails_closed(self):
+        with pytest.raises(self.handler.PaymentConfigurationUnresolved):
+            self._build(_order(customer_address=_india_addr(pin="70001"), recipient_name="X"))
 
-
-def test_india_bad_pin_customer_address_fails_closed():
-    with pytest.raises(handler.PaymentConfigurationUnresolved):
-        _build(_order(customer_address=_india_addr(pin="70001"), recipient_name="X"))
-
-
-def test_no_customer_address_keeps_todays_behaviour_business_fallback():
-    # No customer_address and no shipping_info -> the business-address fallback still applies.
-    payload = _build(_order())
-    bens = payload["interactive"]["action"]["parameters"]["beneficiaries"]
-    assert len(bens) == 1
-    assert bens[0]["name"] == "WECARE.DIGITAL"
-    assert bens[0]["postal_code"] == "700012"
+    def test_no_customer_address_keeps_todays_behaviour_business_fallback(self):
+        payload = self._build(_order())
+        bens = payload["interactive"]["action"]["parameters"]["beneficiaries"]
+        assert len(bens) == 1
+        assert bens[0]["name"] == "WECARE.DIGITAL"
+        assert bens[0]["postal_code"] == "700012"

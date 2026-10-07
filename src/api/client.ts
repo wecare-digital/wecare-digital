@@ -417,6 +417,22 @@ export interface Contact {
   checkoutDeliveryAddress?: CheckoutDeliveryAddress;
   /** Epoch seconds the checkout address was last written. */
   checkoutAddressUpdatedAt?: number;
+  /**
+   * FEAT-003 WRITE-side structured address. When present on a create/update, the server runs it
+   * through the one shared validator (`contact_address.normalize_for_storage`, international) and
+   * writes `checkoutDeliveryAddress`. This is the single validated write path; the flat
+   * `addressLine1`/`city`/… fields below remain for existing readers. Not the same as
+   * `checkoutDeliveryAddress`, which is the stored/read result.
+   */
+  address?: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country?: string;
+    countryCode?: string;
+  };
   // Structured address JSON (Meta shipping_info format) — set by subscribe flow
   shippingAddressJson?: string;
   billingAddressJson?: string;

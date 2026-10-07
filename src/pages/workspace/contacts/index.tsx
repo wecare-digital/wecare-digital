@@ -552,6 +552,13 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         landmark: formLandmark || undefined, houseNumber: formHouseNumber || undefined, buildingName: formBuildingName || undefined,
         towerNumber: formTowerNumber || undefined, floorNumber: formFloorNumber || undefined,
         country: formCountry || undefined,
+        // FEAT-003: validated structured address -> checkoutDeliveryAddress via the shared
+        // server-side validator. Flat fields kept for other readers; collapsing is a follow-up.
+        address: (formAddressLine1 && formCity && formState && formPostalCode) ? {
+          addressLine1: formAddressLine1, addressLine2: formAddressLine2 || undefined,
+          city: formCity, state: formState, postalCode: formPostalCode,
+          country: formCountry || undefined, countryCode: formCountry || undefined,
+        } : undefined,
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
@@ -627,6 +634,13 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         landmark: formLandmark || undefined, houseNumber: formHouseNumber || undefined, buildingName: formBuildingName || undefined,
         towerNumber: formTowerNumber || undefined, floorNumber: formFloorNumber || undefined,
         country: formCountry || undefined,
+        // FEAT-003: validated structured address -> checkoutDeliveryAddress via the shared
+        // server-side validator. Flat fields kept for other readers; collapsing is a follow-up.
+        address: (formAddressLine1 && formCity && formState && formPostalCode) ? {
+          addressLine1: formAddressLine1, addressLine2: formAddressLine2 || undefined,
+          city: formCity, state: formState, postalCode: formPostalCode,
+          country: formCountry || undefined, countryCode: formCountry || undefined,
+        } : undefined,
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
