@@ -496,8 +496,10 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     // exist" in 30 days.
     // Keyed on `selected` ONLY: `messages` repolls every 15s, so keying on the
     // derived waba would stamp on an agent's manual "Send from" choice on every
-    // poll. Guarded on membership, like whatsapp/inbox.tsx — a partner WABA id
-    // would put the <select> on a value with no matching <option>.
+    // poll. Guarded on membership — a partner WABA id would put the <select> on a
+    // value with no matching <option>. This used to read "like whatsapp/inbox.tsx";
+    // that file is now a wrapper that renders THIS component with channel="whatsapp",
+    // so the comparison pointed at itself and the guard stands on its own.
     useEffect( () => {
         setWabaOverridden( false );
         const w = replyTarget.waba;
