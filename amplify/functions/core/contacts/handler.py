@@ -41,6 +41,10 @@ from lambda_utils.identity import customer as customer_identity
 # uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
 # would publish a value derived from the Cognito subject.
 from lambda_utils.identity import customer_uuid
+# A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
+# never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
+# so the word `captured` never has to be compared in this handler.
+from lambda_utils.ecommerce import contact_payment_links
 
 logger = get_logger(__name__)
 
@@ -51,6 +55,13 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+
+# READ-ONLY, and only on the hard-delete path. These two tables answer "does this contact owe
+# its existence to a payment", through `contact_payment_links`. The defaults match
+# `config/lambda-env-manifest.json` exactly, so the recorded-but-not-yet-deployed variables are
+# inert: whichever way round the deploy lands, the guard reads the same two tables.
+INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
+ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
 
 # The function that ALREADY holds `cognito-idp:AdminCreateUser` on the customer pool
 # `us-east-1_46ULYuukt` (`scripts/provision_secure_files_api.py`, Sid `CustomerPoolOnly`). The CRM
@@ -476,10 +487,76 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
 
 # ─── DELETE (soft / hard) ───────────────────────────────────────────────────
 
+#: The two refusals, distinct on the wire so the UI can say WHICH happened rather than offering
+#: one vague "could not delete". Both carry `archiveInstead: True`, because the soft delete is
+#: always still available and is what the operator actually wants.
+HARD_DELETE_REFUSED_PAYMENTS = 'CONTACT_HAS_PAYMENTS'
+HARD_DELETE_REFUSED_UNKNOWN = 'PAYMENT_LINKAGE_UNKNOWN'
+
+
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
     if hard:
+        refusal = _hard_delete_refusal(contact_id, request_id, origin)
+        if refusal is not None:
+            return refusal
         return _hard_delete(contact_id, request_id, origin)
     return _soft_delete(contact_id, request_id, origin)
+
+
+def _hard_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+    """`None` when the hard delete may proceed; otherwise the 409 response to return.
+
+    Runs BEFORE `_hard_delete`, which is the only ordering that helps: `_hard_delete` deletes
+    every message and every S3 object first and the contact row last, so a check made partway
+    through would already have destroyed the history the guard exists to protect.
+
+    Fail-closed in three places, not one. An unreadable contact row, an unreadable index, and a
+    row with no usable key all refuse, because none of them is evidence of "no payments".
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        row = table.get_item(Key={'id': contact_id}).get('Item') or {}
+    except Exception as exc:  # noqa: BLE001 - cannot read the row, so cannot read its linkage
+        log_event(logger, 'contact_hard_delete_linkage_unknown', contactId=contact_id,
+                  reason=f'contact row unreadable: {type(exc).__name__}', requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_UNKNOWN, 'archiveInstead': True,
+            'reason': f'the contact row could not be read: {type(exc).__name__}',
+        }, origin)
+
+    if not row:
+        # Not a refusal. `_hard_delete` owns the 404 and already answers it, and duplicating
+        # that answer here would be two places deciding what "not found" looks like.
+        return None
+
+    try:
+        linkage = contact_payment_links.has_payment_links(
+            invoices_table=dynamodb.Table(INVOICES_TABLE),
+            orders_table=dynamodb.Table(ORDERS_TABLE),
+            contact_row=row,
+        )
+    except contact_payment_links.PaymentLinkageUnknown as exc:
+        # `str(exc)` is safe HERE and only here: the module builds that message itself from a
+        # fixed phrase plus `type(exc).__name__`, so it carries no provider text.
+        log_event(logger, 'contact_hard_delete_linkage_unknown', contactId=contact_id,
+                  reason=str(exc), requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_UNKNOWN, 'archiveInstead': True, 'reason': str(exc),
+        }, origin)
+
+    # `contactId` and the signal names are the whole log line. The phone is deliberately absent
+    # rather than masked: nothing here needs it, and the contact id is the correlation key.
+    if linkage.blocked:
+        log_event(logger, 'contact_hard_delete_refused', contactId=contact_id,
+                  signals=list(linkage.signals), reason=linkage.reason, requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_PAYMENTS, 'archiveInstead': True,
+            'reason': linkage.reason, 'signals': list(linkage.signals),
+        }, origin)
+
+    log_event(logger, 'contact_hard_delete_allowed', contactId=contact_id,
+              signals=list(linkage.signals), requestId=request_id)
+    return None
 
 
 def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:

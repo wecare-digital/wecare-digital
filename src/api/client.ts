@@ -1916,32 +1916,74 @@ function getEstimatedBilling (): AWSBillingData {
 // ============================================================================
 
 /**
- * Hard Delete - Completely removes contact, all messages, and media from S3
- * This is irreversible!
- * 
- * Uses the backend ?hard=true parameter to trigger full deletion
+ * Why a hard delete can be REFUSED, and what the caller must do about it.
+ *
+ * `CONTACT_HAS_PAYMENTS`      the contact is tied to a captured invoice or to an order, so the
+ *                             row is the provenance record for that money. Archive instead.
+ * `PAYMENT_LINKAGE_UNKNOWN`   the server could not read one of the two indexes. It refuses
+ *                             rather than guessing, because "cannot determine" is not "no
+ *                             payments". Retrying later is reasonable; archiving is safe now.
+ * `ERROR`                     anything else: a 404, a network failure, a 500.
  */
-export async function hardDeleteContact ( contactId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}?hard=true`, {
-    method: 'DELETE',
-  } );
+export type HardDeleteRefusalCode = 'CONTACT_HAS_PAYMENTS' | 'PAYMENT_LINKAGE_UNKNOWN' | 'ERROR';
 
-  if ( data && data.success )
-  {
-    return true;
-  }
+export type HardDeleteResult =
+  | { ok: true; messagesDeleted: number; mediaDeleted: number }
+  | { ok: false; code: HardDeleteRefusalCode; reason?: string; archiveInstead: boolean };
 
-  // Fallback: delete messages one by one, then soft delete contact
+/**
+ * Hard Delete - permanently removes a contact, all its messages, and its media from S3.
+ * Irreversible, and the server may now refuse it.
+ *
+ * THE FALLBACK THAT USED TO BE HERE IS DELETED, DELIBERATELY. On a falsy `success` this
+ * function called `deleteContactMessages` and then `deleteContact` - so a SERVER REFUSAL
+ * destroyed the paid contact's entire message history and soft-deleted the row anyway, which
+ * is the exact opposite of what the refusal is for. The guard it defeats is in
+ * `core/contacts._hard_delete_refusal`.
+ *
+ * Returns a discriminated result rather than a boolean, because "refused because this
+ * customer has paid" and "the request failed" need different words in front of an operator.
+ *
+ * Uses `authFetch` rather than `apiCall` on purpose: `apiCall` collapses a non-2xx to `null`
+ * and the refusal CODE lives in the 409 body, which is the one thing this caller needs.
+ */
+export async function hardDeleteContact ( contactId: string ): Promise<HardDeleteResult> {
+  let response: Response;
   try
   {
-    const messagesDeleted = await deleteContactMessages( contactId );
-    const contactDeleted = await deleteContact( contactId );
-    return contactDeleted;
+    response = await authFetch( `${API_BASE}/contacts/${contactId}?hard=true`, {
+      method: 'DELETE',
+    } );
   } catch ( error )
   {
-    console.error( 'Hard delete fallback error:', error );
-    return false;
+    console.error( 'Hard delete request failed:', error );
+    return { ok: false, code: 'ERROR', archiveInstead: false };
   }
+
+  let data: any = null;
+  try { data = await response.json(); } catch { data = null; }
+
+  if ( response.ok && data && data.success )
+  {
+    return {
+      ok: true,
+      messagesDeleted: Number( data.messagesDeleted ) || 0,
+      mediaDeleted: Number( data.mediaDeleted ) || 0,
+    };
+  }
+
+  const serverCode = typeof data?.error === 'string' ? data.error : '';
+  const code: HardDeleteRefusalCode =
+    serverCode === 'CONTACT_HAS_PAYMENTS' || serverCode === 'PAYMENT_LINKAGE_UNKNOWN'
+      ? serverCode
+      : 'ERROR';
+
+  return {
+    ok: false,
+    code,
+    reason: typeof data?.reason === 'string' ? data.reason : undefined,
+    archiveInstead: data?.archiveInstead === true,
+  };
 }
 
 /**
@@ -5152,6 +5194,12 @@ export interface CleanupResult {
   deleted: number;
   elapsed?: number;
   error?: string;
+  /**
+   * Rows the server PROTECTED, counted apart from `deleted` and from `error`. A contact with
+   * payments is refused by design, which is a correct outcome rather than a failure — and
+   * folding it into either number is how a sweep that left rows behind reads as finished.
+   */
+  refused?: number;
 }
 
 export async function getCleanupPreview (): Promise<CleanupResource[]> {

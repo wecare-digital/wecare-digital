@@ -239,6 +239,12 @@ CONSULTING_FILES = [
     # (`order_is_paid` imports lazily, so a cold start pays nothing for it), which `ast.walk`
     # finds regardless of nesting.
     ("core/secure-files/razorpay_orders.py", "payment_status"),
+    # The contact hard-delete guard. It decides whether a contact row - the provenance record
+    # tying a captured payment to a human - may be destroyed, so a comparison that misses the
+    # `paid` spelling reads as "no payments" and lets the delete through. That is the dangerous
+    # direction on a path with no undo, which is why the policy lives in a shared module and is
+    # listed here rather than being written inline in `core/contacts`.
+    ("shared/lambda_utils/ecommerce/contact_payment_links.py", "payment_status"),
 ]
 
 #: Files with no payment-status decision of their own, which must still never compare a payment
