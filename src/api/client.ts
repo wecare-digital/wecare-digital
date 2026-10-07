@@ -1818,6 +1818,11 @@ export interface AWSBillingData {
   recommendations?: CostRecommendation[];
   health?: AWSHealthData;
   trustedAdvisor?: TrustedAdvisorData;
+  // False when the backend cannot measure spend (Cost Explorer was removed on
+  // 2026-09-28 because it bills per request). A zero totalCost then means "not
+  // measured", not "spent nothing" -- the dashboard must not show it as a bill.
+  costReportingEnabled?: boolean;
+  note?: string;
 }
 
 // AWS Free Tier limits for reference
@@ -1868,6 +1873,9 @@ export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBill
       recommendations: data.recommendations || [],
       health: data.health,
       trustedAdvisor: data.trustedAdvisor,
+      // Absent means enabled, so a real bill renders exactly as before.
+      costReportingEnabled: data.costReportingEnabled !== false,
+      note: data.note,
     };
   }
 

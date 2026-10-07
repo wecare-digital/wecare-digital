@@ -1425,7 +1425,18 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
                   </div>
                 ) }
 
-                { billingData && (
+                { billingData && billingData.costReportingEnabled === false && (
+                  <div style={ { background: '#f9fafb', borderRadius: '8px', textAlign: 'center', padding: '3rem', border: '1px solid #e5e7eb' } }>
+                    <div style={ { fontSize: '2rem', marginBottom: '1rem' } }>—</div>
+                    <h3 style={ { color: '#0f2a1d', margin: '0 0 0.5rem' } }>Cost Reporting Disabled</h3>
+                    <p style={ { color: '#6b7280', margin: 0 } }>
+                      { billingData.note || 'AWS cost reporting is disabled for this account.' }
+                    </p>
+                    <div style={ { color: '#6b7280', marginTop: '0.75rem', fontSize: '0.875rem' } }>Account: { AWS_ACCOUNT_ID }</div>
+                  </div>
+                ) }
+
+                { billingData && billingData.costReportingEnabled !== false && (
                   <>
                     <div className="billing-summary">
                       <div className="billing-total">
