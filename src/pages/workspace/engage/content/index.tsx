@@ -10,6 +10,7 @@ import Link from 'next/link';
 import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { colors } from '../../../../lib/design-tokens';
@@ -34,6 +35,11 @@ const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     pending: { fg: '#b45309', bg: '#fffbeb' },
     rejected: { fg: '#b91c1c', bg: '#fef2f2' },
 };
+const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'all', label: 'All channels' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'rcs', label: 'RCS' },
+];
 
 const bodyOf = ( t: api.WhatsAppTemplate ): string => {
     const b = ( t.components || [] ).find( c => c.type === 'BODY' );
@@ -86,11 +92,12 @@ const ContentLibrary: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
 
                 <div className="cl-toolbar">
                     <input className="cl-search" placeholder="Search templates…" value={ search } onChange={ e => setSearch( e.target.value ) } />
-                    <select className="cl-filter" value={ channelFilter } onChange={ e => setChannelFilter( e.target.value ) }>
-                        <option value="all">All channels</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="rcs">RCS</option>
-                    </select>
+                    { /* `.cl-filter` is dropped for the styled-jsx scoping reason: the class the
+                         stylesheet expects is hashed onto this file's own JSX, never onto markup
+                         a child component renders. Width is layout and stays. */ }
+                    <Select ariaLabel="Channel" value={ channelFilter }
+                        onChange={ v => setChannelFilter( v ) }
+                        options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
                     <Link href="/workspace/engage/whatsapp/settings" className="cl-new">+ WhatsApp template</Link>
                     <Link href="/workspace/engage/rcs" className="cl-new">+ RCS template</Link>
                 </div>

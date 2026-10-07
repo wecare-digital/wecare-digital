@@ -22,6 +22,7 @@ import { inferMimeFromName, validateWaMediaSize, formatBytes } from '../../../..
 import { describeWaError } from '../../../../lib/wa-errors';
 import InfoTooltip from '../../../../components/ui/InfoTooltip';
 import { scrollToEnd } from '../../../../lib/scroll-to-end';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps {
   signOut?: () => void;
@@ -78,6 +79,14 @@ const WABA_CONFIG = {
     shortName: 'MA'
   },
 };
+
+const WABA_SEND_OPTIONS: SelectOption[] = Object.entries( WABA_CONFIG ).map( ( [ id, config ] ) => ( {
+  value: id,
+  label: `${ config.name } (${ config.phone })`,
+} ) );
+/* The native control sized itself to its widest option; `flex: 0 1` lets the trigger shrink
+   inside the chat header instead, and .ui-select-value already truncates. */
+const WABA_SEND_STYLE: React.CSSProperties = { flex: '0 1 170px', minWidth: 0 };
 
 // Infer a WhatsApp-supported MIME type from a filename extension.
 // (shared helper lives in src/lib/wa-media.ts — imported above)
@@ -1415,16 +1424,13 @@ const WhatsAppUnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded = 
 
                 <div className="waba-selector">
                   <label>Send from:</label>
-                  <select
+                  <Select
+                    ariaLabel="Send from"
                     value={ selectedWaba }
-                    onChange={ ( e ) => setSelectedWaba( e.target.value ) }
-                  >
-                    { Object.entries( WABA_CONFIG ).map( ( [ id, config ] ) => (
-                      <option key={ id } value={ id }>
-                        { config.name } ({ config.phone })
-                      </option>
-                    ) ) }
-                  </select>
+                    onChange={ ( v ) => setSelectedWaba( v ) }
+                    options={ WABA_SEND_OPTIONS }
+                    style={ WABA_SEND_STYLE }
+                  />
                   <button
                     className="clear-chat-btn"
                     onClick={ () => loadData() }

@@ -57,6 +57,18 @@ const ROW = {
 
 const field = ( label: RegExp | string ) => screen.getByText( label ).parentElement!.querySelector( 'input, select' ) as HTMLInputElement;
 
+/**
+ * Availability is a ui/Select now, not a native control, so there is no element to fire a
+ * `change` at - the user opens the menu and commits a row. This is the same USER ACTION the
+ * old `fireEvent.change` stood for, which is why the assertions below are untouched: they were
+ * always about the arguments handed to api.updateCatalogProduct, not about the control's
+ * spelling.
+ */
+const chooseAvailability = ( option: string ) => {
+    fireEvent.click( screen.getByRole( 'combobox', { name: 'Availability' } ) );
+    fireEvent.click( screen.getByRole( 'option', { name: option } ) );
+};
+
 const openEdit = async ( row: Record<string, unknown> = ROW ) => {
     listCatalogProductsAdmin.mockResolvedValue( [ row ] );
     render( <CatalogBuilderPage /> );
@@ -85,7 +97,7 @@ describe( 'catalog product edit', () => {
 
     it( 'omits price when the field was not touched, so a formatted price is never re-sent', async () => {
         await openEdit();
-        fireEvent.change( field( 'Availability' ), { target: { value: 'out of stock' } } );
+        chooseAvailability( 'out of stock' );
         fireEvent.click( screen.getByRole( 'button', { name: 'Save changes' } ) );
         await waitFor( () => expect( updateCatalogProduct ).toHaveBeenCalled() );
         const [ pid, updates ] = updateCatalogProduct.mock.calls[ 0 ];
@@ -112,7 +124,7 @@ describe( 'catalog product edit', () => {
     it( 'still saves an availability-only edit when the price string did not parse', async () => {
         await openEdit( { ...ROW, price: 'on request' } );
         expect( field( /^Price/ ).value ).toBe( '' );
-        fireEvent.change( field( 'Availability' ), { target: { value: 'out of stock' } } );
+        chooseAvailability( 'out of stock' );
         fireEvent.click( screen.getByRole( 'button', { name: 'Save changes' } ) );
         await waitFor( () => expect( updateCatalogProduct ).toHaveBeenCalled() );
         expect( updateCatalogProduct.mock.calls[ 0 ][ 1 ].price ).toBeUndefined();

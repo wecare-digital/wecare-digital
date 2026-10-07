@@ -12,6 +12,7 @@ import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
 import { useToastContext } from '../../../../contexts/ToastContext';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -22,6 +23,22 @@ const WABAS = [
     { label: 'WABA1 · +91 93309 94400', phoneId: 'phone-number-id-waba1-direct-1016149501586345', catalog: 'wecare_catalog', catalogId: '1607047307067517', payConfig: 'Razorpay_wecare.digital' },
     { label: 'WABA2 · +91 99033 00044', phoneId: 'phone-number-id-waba-t-direct-1055232054343117', catalog: 'Catalogue_Products', catalogId: '1424934879646296', payConfig: 'WECAREDIGITAL' },
 ];
+
+/* Hoisted option rows. Same order, same values, same visible text as the <option>s they
+   replaced. The business-number list is derived from WABAS so the two cannot drift. */
+const PHONE_ID_OPTIONS: SelectOption[] = WABAS.map(
+    w => ( { value: w.phoneId, label: w.label } )
+);
+const GOODS_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'physical-goods', label: 'Physical goods (collect address)' },
+    { value: 'digital-goods', label: 'Digital goods' },
+];
+
+/* LAYOUT ONLY - what the inline `width: '100%'` carried; the box is the trigger's. The goods
+   chooser is a flex child beside a caption, and a native select sized itself to its widest
+   option while the trigger shows the selected one. */
+const FULL_WIDTH: React.CSSProperties = { width: '100%' };
+const GOODS_SELECT_STYLE: React.CSSProperties = { flex: '0 1 300px' };
 
 interface LineItem { name: string; amount: string; quantity: string; }
 
@@ -192,10 +209,13 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                 <h1 style={ { fontSize: 'var(--h2)', fontWeight: 700, margin: '0 0 var(--space-4)', color: 'var(--text)' } }>Commerce</h1>
 
                 <div style={ card }>
+                    { /* The `lbl` caption is an UNASSOCIATED <label> - no `for`, no wrapped
+                         control - so it was never a name source. It stays, keeping its own type
+                         and spacing, and the control takes `ariaLabel`. */ }
                     <label style={ lbl }>Business number</label>
-                    <select value={ phoneId } onChange={ e => setPhoneId( e.target.value ) } style={ { width: '100%' } }>
-                        { WABAS.map( w => <option key={ w.phoneId } value={ w.phoneId }>{ w.label }</option> ) }
-                    </select>
+                    <Select ariaLabel="Business number" value={ phoneId }
+                        onChange={ v => setPhoneId( v ) }
+                        options={ PHONE_ID_OPTIONS } style={ FULL_WIDTH } />
                     <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' } }>
                         Catalog: <b>{ activeWaba.catalog }</b> · Payments: <b>{ activeWaba.payConfig }</b> (Razorpay)
                     </p>
@@ -255,10 +275,9 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                     <h2 style={ h2 }>Compose a bill (native Review &amp; Pay)</h2>
                     <div style={ { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 } }>
                         <label style={ { fontSize: 13, color: 'var(--text-secondary)' } }>Goods:</label>
-                        <select value={ goodsType } onChange={ e => setGoodsType( e.target.value as any ) }>
-                            <option value="physical-goods">Physical goods (collect address)</option>
-                            <option value="digital-goods">Digital goods</option>
-                        </select>
+                        <Select ariaLabel="Goods type" value={ goodsType }
+                            onChange={ v => setGoodsType( v as any ) }
+                            options={ GOODS_TYPE_OPTIONS } style={ GOODS_SELECT_STYLE } />
                     </div>
                     { items.map( ( it, idx ) => (
                         <div key={ idx } style={ { display: 'flex', gap: 6, marginBottom: 6 } }>

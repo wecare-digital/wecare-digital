@@ -18,6 +18,7 @@ import ContactMessageComposer from '../../../../components/ContactMessageCompose
 import ContactCardBubble from '../../../../components/ContactCardBubble';
 import LocationSendComposer from '../../../../components/LocationSendComposer';
 import TemplateSender from '../../../../components/TemplateSender';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { colors, shadow } from '../../../../lib/design-tokens';
@@ -63,6 +64,55 @@ const CHANNEL: Record<string, { label: string; fg: string; bg: string; reply: st
 };
 
 const chMeta = ( c?: string ) => CHANNEL[ ( c || 'whatsapp' ).toLowerCase() ] || { label: c || '?', fg: colors.textMuted, bg: colors.bgSecondary, reply: '/workspace/engage' };
+
+/*
+ * The toolbar channel filter's rows. 'ALL' is uppercase here and nowhere else in this file,
+ * which is deliberate - `channelFilter` is compared against the API's uppercase `channel`
+ * after lowercasing, and `?channel=` resolves to 'ALL' when it names nothing known.
+ */
+const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'ALL', label: 'All channels' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'sms', label: 'SMS' },
+    { value: 'email', label: 'Email' },
+    { value: 'rcs', label: 'RCS' },
+    { value: 'voice', label: 'Voice' },
+];
+
+/*
+ * The reply bar's two choosers: which WABA sends an outbound WhatsApp message, and the India
+ * TRANSACTIONAL/PROMOTIONAL DLT classification on an outbound SMS. Same order, same values
+ * and the same visible text as the <option> rows they replaced.
+ */
+const WABA_OPTIONS: SelectOption[] = WABAS.map(
+    w => ( { value: w.id, label: `${ w.name } (${ w.display })` } )
+);
+const SMS_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'TRANSACTIONAL', label: 'Transactional' },
+    { value: 'PROMOTIONAL', label: 'Promotional' },
+];
+
+/* LAYOUT ONLY - both sit in `.ui-wa-bar`, a flex row, and the box is the trigger's. */
+const WABA_SELECT_STYLE: React.CSSProperties = { flex: '0 1 240px' };
+const SMS_TYPE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 160px' };
+/*
+ * BATCH 2f - THE TWO MONEY CONTROLS IN THE `ui-pay` REQUEST-PAYMENT PANEL, and the last two
+ * selects in this file. They were held back from 2c deliberately: the sender chooser decides
+ * which number a payment request is sent FROM, and the GST chooser sets the rate applied to an
+ * amount, so both are on an India payment path and `whatsapp-payments-india-reference.md`
+ * applies to them. Same values, same order, same visible text as the <option> rows they
+ * replaced - the GST values stay STRINGS because `payItems[].gstRate` is a string and the
+ * panel's own `parseInt` does the only conversion there is. No arithmetic is introduced here.
+ */
+const PAY_PHONE_OPTIONS: SelectOption[] = PAYMENT_PHONES.map( p => ( {
+    value: p.id,
+    label: `${ p.display } (${ p.name })${ p.paymentProtected ? ' [Protected]' : '' }`,
+} ) );
+const PAY_GST_OPTIONS: SelectOption[] = GST_RATES.map(
+    g => ( { value: String( g.value ), label: `GST ${ g.label }` } )
+);
+/* LAYOUT ONLY - `.ui-pay-gst` capped the native control at 110px inside `.ui-pay-row`. */
+const PAY_GST_SELECT_STYLE: React.CSSProperties = { flex: '0 0 110px' };
 
 // Reaction quick-set for the per-message react popover.
 const REACT_EMOJIS = [ '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅' ];
@@ -830,14 +880,16 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
 
                 <div className="ui-toolbar">
                     <input className="ui-search" placeholder="Search conversations…" value={ search } onChange={ e => setSearch( e.target.value ) } />
-                    <select className="ui-filter" value={ channelFilter } onChange={ e => setChannelFilter( e.target.value ) }>
-                        <option value="ALL">All channels</option>
-                        <option value="whatsapp">WhatsApp</option>
-                        <option value="sms">SMS</option>
-                        <option value="email">Email</option>
-                        <option value="rcs">RCS</option>
-                        <option value="voice">Voice</option>
-                    </select>
+                    { /* The first control migrated in this file, in batch 2b. Four of the six
+                         that remained followed in 2c - the WABA chooser, the India
+                         TRANSACTIONAL/PROMOTIONAL SMS class, and the two voice pickers - and the
+                         last two followed in 2f: the send-from number and the GST rate in the
+                         "Request payment" panel are money controls on an India payment path, so
+                         they waited for the payment batch rather than riding along with the
+                         filters. No native select is left in this file. */ }
+                    <Select ariaLabel="Channel" value={ channelFilter }
+                        onChange={ v => setChannelFilter( v ) }
+                        options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
                 </div>
 
                 <div className={ `ui-panes ${selected ? 'has-selection' : ''}` }>
@@ -1077,9 +1129,16 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             { replyChannel === 'whatsapp' && (
                                                 <div className="ui-wa-bar">
                                                     <span className="ui-wa-from">Send from:</span>
-                                                    <select className="ui-wa-waba" value={ selectedWaba } onChange={ e => { setWabaOverridden( true ); setSelectedWaba( e.target.value ); } }>
-                                                        { WABAS.map( w => <option key={ w.id } value={ w.id }>{ w.name } ({ w.display })</option> ) }
-                                                    </select>
+                                                    { /* `.ui-wa-waba` SKINNED the native control, so it is dropped rather
+                                                         than forwarded - className on a Select lands on the wrapper and
+                                                         would paint a box around the whole field. Only its width survives,
+                                                         as layout, because `.ui-wa-bar` is a flex row.
+                                                         `setWabaOverridden( true )` stays FIRST, as it was on the native
+                                                         control: it is what makes `sendWaba` honour the operator's pick
+                                                         instead of the thread's inferred WABA. */ }
+                                                    <Select ariaLabel="Send from" value={ selectedWaba }
+                                                        onChange={ v => { setWabaOverridden( true ); setSelectedWaba( v ); } }
+                                                        options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
                                                     <button className="ui-tpl-btn" onClick={ () => setShowTemplateSender( true ) }>Send template ▾</button>
                                                 </div>
                                             ) }
@@ -1103,10 +1162,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             { replyChannel === 'sms' && (
                                                 <div className="ui-wa-bar">
                                                     <span className="ui-wa-from" style={ { color: chMeta( 'sms' ).fg } }>SMS · { replyTarget.phone || '—' }</span>
-                                                    <select className="ui-wa-waba" value={ smsType } onChange={ e => setSmsType( e.target.value as 'TRANSACTIONAL' | 'PROMOTIONAL' ) }>
-                                                        <option value="TRANSACTIONAL">Transactional</option>
-                                                        <option value="PROMOTIONAL">Promotional</option>
-                                                    </select>
+                                                    { /* The cast is preserved verbatim, and the two option values are
+                                                         exactly the two members of that union - this is the India
+                                                         TRANSACTIONAL/PROMOTIONAL DLT classification on an outbound SMS,
+                                                         so the value contract may not be loosened. */ }
+                                                    <Select ariaLabel="SMS type" value={ smsType }
+                                                        onChange={ v => setSmsType( v as 'TRANSACTIONAL' | 'PROMOTIONAL' ) }
+                                                        options={ SMS_TYPE_OPTIONS } style={ SMS_TYPE_SELECT_STYLE } />
                                                 </div>
                                             ) }
                                             { replyChannel === 'email' && (
@@ -1230,10 +1292,24 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             return (
                                 <div className="ui-pay">
                                     <div className="ui-pay-title">Request payment</div>
+                                    { /* TWO STATEMENTS, IN THIS ORDER, AND THE SECOND ONE IS THE
+                                         WHOLE REASON THIS SITE IS NAMED IN THE BATCH. Changing
+                                         the sender RE-LOCKS the admin-verification gate: a
+                                         protected number requires `Verify Admin access` before
+                                         the panel will send, and a handler that lost
+                                         `setPayUnlocked( false )` would leave the panel unlocked
+                                         after the sender changed - so a verification granted for
+                                         one number would carry over to another. Pinned by
+                                         src/test/InboxPaymentSender.test.tsx, behaviourally and
+                                         in source order, rather than left to a diff review.
+                                         `.ui-pay-in` SKINNED the native control, so it is dropped
+                                         rather than forwarded: a className on a Select lands on
+                                         the field wrapper and would paint a box around the whole
+                                         field. The control is full width either way. */ }
                                     <label className="ui-pay-label">Send from</label>
-                                    <select className="ui-pay-in" value={ payPhone } onChange={ e => { setPayPhone( e.target.value ); setPayUnlocked( false ); } }>
-                                        { PAYMENT_PHONES.map( p => <option key={ p.id } value={ p.id }>{ p.display } ({ p.name }){ p.paymentProtected ? ' [Protected]' : '' }</option> ) }
-                                    </select>
+                                    <Select ariaLabel="Send from" value={ payPhone }
+                                        onChange={ v => { setPayPhone( v ); setPayUnlocked( false ); } }
+                                        options={ PAY_PHONE_OPTIONS } />
                                     { locked && (
                                         <div className="ui-pay-lock">
                                             <button className="ui-pay-unlock" onClick={ unlockPayPhone }>Verify Admin access</button>
@@ -1246,9 +1322,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             <div className="ui-pay-row">
                                                 <input className="ui-pay-in" type="number" min="0" step="0.01" placeholder="₹ Amount" value={ it.amount } onChange={ e => updatePayItem( i, 'amount', e.target.value ) } />
                                                 <input className="ui-pay-in ui-pay-qty" type="number" min="1" placeholder="Qty" value={ it.quantity } onChange={ e => updatePayItem( i, 'quantity', e.target.value ) } />
-                                                <select className="ui-pay-in ui-pay-gst" value={ it.gstRate } onChange={ e => updatePayItem( i, 'gstRate', e.target.value ) }>
-                                                    { GST_RATES.map( g => <option key={ g.value } value={ g.value }>GST { g.label }</option> ) }
-                                                </select>
+                                                { /* The GST rate applied to this line's amount.
+                                                     It had NO accessible name at all - no
+                                                     caption, no aria-label - so `ariaLabel` adds
+                                                     one and changes nothing on screen. The value
+                                                     stays a string and `updatePayItem` receives
+                                                     exactly what the native handler passed it. */ }
+                                                <Select ariaLabel="GST rate" value={ it.gstRate }
+                                                    onChange={ v => updatePayItem( i, 'gstRate', v ) }
+                                                    options={ PAY_GST_OPTIONS } style={ PAY_GST_SELECT_STYLE } />
                                                 { payItems.length > 1 && <button type="button" className="ui-pay-rm" onClick={ () => removePayItem( i ) }>✕</button> }
                                             </div>
                                         </div>
@@ -1279,22 +1361,37 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             const voicesMap = Object.keys( pollyVoices ).length ? pollyVoices : fallbackLangs;
                             const langs = Object.keys( voicesMap );
                             const voices = voicesMap[ ttsLang ] || voicesMap[ langs[ 0 ] ] || [];
+                            /*
+                             * Built here rather than memoised: this block is an IIFE inside JSX, so no hook is
+                             * available to it, and both lists are already derived per render from `pollyVoices`.
+                             * Same order, same values, same visible text as the <option> rows they replaced.
+                             */
+                            const langOptions: SelectOption[] = langs.map( l => ( { value: l, label: l } ) );
+                            const voiceOptions: SelectOption[] = voices.map(
+                                v => ( { value: v.id, label: `${ v.id } (${ v.gender }, ${ v.engine })` } )
+                            );
                             return (
                                 <div className="ui-pay">
                                     <div className="ui-pay-title">Send voice note (text-to-speech)</div>
                                     <textarea className="ui-pay-in" rows={ 3 } placeholder="Text to speak…" value={ ttsText } onChange={ e => setTtsText( e.target.value ) } />
                                     <div className="ui-pay-row">
                                         <div style={ { flex: 1 } }>
+                                            { /* The `.ui-pay-label` captions are UNASSOCIATED labels - no `for`, no
+                                                 wrapped control - so they were never a name source and these two had
+                                                 no accessible name at all. They stay where they are, keeping their own
+                                                 type and spacing, and the controls take `ariaLabel`. Both handlers keep
+                                                 every statement and their order: the language change also resets the
+                                                 voice and engine to the first voice of the new language. */ }
                                             <label className="ui-pay-label">Language</label>
-                                            <select className="ui-pay-in" value={ ttsLang } onChange={ e => { const l = e.target.value; setTtsLang( l ); const v = ( voicesMap[ l ] || [] )[ 0 ]; if ( v ) { setTtsVoice( v.id ); setTtsEngine( v.engine ); } } }>
-                                                { langs.map( l => <option key={ l } value={ l }>{ l }</option> ) }
-                                            </select>
+                                            <Select ariaLabel="Voice language" value={ ttsLang }
+                                                onChange={ value => { setTtsLang( value ); const v = ( voicesMap[ value ] || [] )[ 0 ]; if ( v ) { setTtsVoice( v.id ); setTtsEngine( v.engine ); } } }
+                                                options={ langOptions } />
                                         </div>
                                         <div style={ { flex: 1 } }>
                                             <label className="ui-pay-label">Voice</label>
-                                            <select className="ui-pay-in" value={ ttsVoice } onChange={ e => { setTtsVoice( e.target.value ); const v = voices.find( x => x.id === e.target.value ); if ( v ) setTtsEngine( v.engine ); } }>
-                                                { voices.map( v => <option key={ v.id } value={ v.id }>{ v.id } ({ v.gender }, { v.engine })</option> ) }
-                                            </select>
+                                            <Select ariaLabel="Voice" value={ ttsVoice }
+                                                onChange={ value => { setTtsVoice( value ); const v = voices.find( x => x.id === value ); if ( v ) setTtsEngine( v.engine ); } }
+                                                options={ voiceOptions } />
                                         </div>
                                     </div>
                                     <div className="ui-pay-actions">

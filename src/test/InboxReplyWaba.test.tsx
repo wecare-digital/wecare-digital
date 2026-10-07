@@ -19,10 +19,20 @@ import { WHATSAPP_PHONES } from '../config/constants';
 
 const WABA1 = WHATSAPP_PHONES.primary.id;
 const WABA2 = WHATSAPP_PHONES.secondary.id;
+// The visible option text, composed exactly as `WABA_OPTIONS` composes it.
+const LABEL1 = `${ WHATSAPP_PHONES.primary.name } (${ WHATSAPP_PHONES.primary.display })`;
+const LABEL2 = `${ WHATSAPP_PHONES.secondary.name } (${ WHATSAPP_PHONES.secondary.display })`;
 
 let routerQuery: Record<string, string> = {};
 
+/*
+ * THE DEFAULT EXPORT IS NOT OPTIONAL once a test opens the "Send from" menu. `Popover` - which
+ * the combobox menu portals through - reads the next/router SINGLETON (`Router.events`) rather
+ * than `useRouter()`, because `useRouter()` throws without a mounted RouterContext. A mock with
+ * only `useRouter` leaves `Router` undefined and the menu cannot open at all.
+ */
 vi.mock( 'next/router', () => ( {
+  default: { events: { on: vi.fn(), off: vi.fn(), emit: vi.fn() } },
   useRouter: () => ( {
     query: routerQuery,
     isReady: true,
@@ -153,10 +163,14 @@ describe( 'the agent can still override the WABA', () => {
     const { container } = render( <Inbox /> );
     await openThread();
 
-    const select = container.querySelector( 'select.ui-wa-waba' ) as HTMLSelectElement;
-    expect( select ).toBeTruthy();
-    expect( select.value ).toBe( WABA1 );   // defaults to the thread's own WABA
-    fireEvent.change( select, { target: { value: WABA2 } } );
+    // "Send from" is ui/Select now, so there is no `select.value` to set: the trigger is a
+    // <button role="combobox"> carrying the chosen option's LABEL, and the rows are
+    // <li role="option">. Same user action - read the default, open the menu, click the other
+    // number - and the assertion that matters is unchanged, because it was never about state.
+    const trigger = screen.getByRole( 'combobox', { name: 'Send from' } );
+    expect( trigger ).toHaveTextContent( LABEL1 );   // defaults to the thread's own WABA
+    fireEvent.click( trigger );
+    fireEvent.click( screen.getByRole( 'option', { name: LABEL2 } ) );
 
     await sendReply( container );
     expect( sentPhoneNumberId() ).toBe( WABA2 );
@@ -164,13 +178,15 @@ describe( 'the agent can still override the WABA', () => {
 
   it( 'leaves the dropdown on a real option when the thread names no WABA', async () => {
     // Older rows carry no `awsPhoneNumberId`. The sync is guarded on membership, so
-    // it must not blank the <select> or set it to a value with no <option>.
+    // it must not blank the control or set it to a value no option carries. On ui/Select an
+    // unmatched value renders the PLACEHOLDER rather than a stale label, so reading the
+    // trigger's text is a stricter check than reading a native `value` was.
     listMessages.mockResolvedValue( [ inbound( undefined ) ] );
     const { container } = render( <Inbox /> );
     await openThread();
 
-    const select = container.querySelector( 'select.ui-wa-waba' ) as HTMLSelectElement;
-    expect( [ WABA1, WABA2 ] ).toContain( select.value );
+    const trigger = screen.getByRole( 'combobox', { name: 'Send from' } );
+    expect( [ LABEL1, LABEL2 ] ).toContain( trigger.textContent );
 
     await sendReply( container );
     expect( [ WABA1, WABA2 ] ).toContain( sentPhoneNumberId() );

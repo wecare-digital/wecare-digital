@@ -9,6 +9,21 @@ import styles from '../styles/RichTextEditor.module.css';
 import * as api from '../api/client';
 import { generateReferenceId } from '../lib/formatters';
 import { PAYMENT_CONFIG, DEFAULT_GSTIN, PAYMENT_PHONES, DEFAULT_PAYMENT_CONFIG } from '../config/constants';
+import Select, { type SelectOption } from './ui/Select';
+
+/*
+ * The two fixed option lists, hoisted. Each holds exactly the <option> rows it replaced, in
+ * the same order, with the same values and the same visible text. The GST rates stay STRINGS
+ * because that is what the request carries and what `item.gstRate` holds; no arithmetic is
+ * introduced here, and none is wanted - a rate is compared and sent, never computed on.
+ */
+const PAYMENT_PHONE_OPTIONS: SelectOption[] = PAYMENT_PHONES.map( p => ( {
+  value: p.id,
+  label: `${p.display} (${p.name})${p.paymentProtected ? ' [Protected]' : ''}`,
+} ) );
+const GST_RATE_OPTIONS: SelectOption[] = [ '0', '3', '5', '12', '18', '28' ].map(
+  rate => ( { value: rate, label: `${rate}%` } )
+);
 
 // Payment dialog state
 interface PaymentItem {
@@ -428,6 +443,17 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
     'cy-GB': { label: 'Welsh', voices: [{ id: 'Gwyneth', name: 'Gwyneth', gender: 'Female', engine: 'standard' }] },
   };
 
+  /* The two TTS lists. Built here rather than memoised or hoisted, because POLLY_VOICES is
+     itself declared inside this component and recreated every render, so a useMemo keyed on
+     it would never hit - and this is exactly the per-render .map the <option> rows already
+     did. Same order, same values, same visible text. */
+  const ttsLanguageOptions: SelectOption[] = Object.entries(POLLY_VOICES).map(
+    ([code, data]) => ({ value: code, label: data.label })
+  );
+  const ttsVoiceOptions: SelectOption[] = (POLLY_VOICES[ttsLanguage]?.voices || []).map(
+    v => ({ value: v.id, label: `${v.name} (${v.gender}) — ${v.engine}` })
+  );
+
   const handleTTSLanguageChange = (lang: string) => {
     setTtsLanguage(lang);
     const voices = POLLY_VOICES[lang]?.voices || [];
@@ -607,15 +633,19 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className={styles['variable-dialog-inputs']}>
             <div className={styles['payment-grid']}>
               <div className={styles['variable-input-row']}>
+                {/* BOTH statements and their order are preserved, and that is load-bearing
+                    rather than tidy: the second resets the admin-verification gate, so a
+                    handler that lost it would leave this panel unlocked after the sender
+                    changed. The `.variable-input-row` caption is an unassociated <label> -
+                    no `for`, no wrapped control - so it stays and the control takes
+                    ariaLabel. */}
                 <label>Send From</label>
-                <select
+                <Select
+                  ariaLabel="Send from"
                   value={paymentForm.phoneNumberId}
-                  onChange={(e) => { setPaymentForm({...paymentForm, phoneNumberId: e.target.value}); setPayPhone2Unlocked(false); }}
-                >
-                  {PAYMENT_PHONES.map(p => (
-                    <option key={p.id} value={p.id}>{p.display} ({p.name}){p.paymentProtected ? ' [Protected]' : ''}</option>
-                  ))}
-                </select>
+                  onChange={v => { setPaymentForm({...paymentForm, phoneNumberId: v}); setPayPhone2Unlocked(false); }}
+                  options={PAYMENT_PHONE_OPTIONS}
+                />
               </div>
               {isPayPhoneLocked() && (
                 <div className={`${styles['variable-input-row']} ${styles['full-width']}`}>
@@ -694,18 +724,15 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     </div>
                     <div style={{ flex: 0.8 }}>
                       <label>GST</label>
-                      <select
+                      {/* The six rates keep their exact string values, which is what the
+                          request carries; every statement of the handler is preserved in
+                          order, and no arithmetic is introduced here. */}
+                      <Select
+                        ariaLabel="GST rate"
                         value={item.gstRate}
-                        onChange={(e) => { const items = [...paymentForm.items]; items[idx] = {...items[idx], gstRate: e.target.value}; setPaymentForm({...paymentForm, items}); }}
-                        style={{ padding: '6px 2px', fontSize: '12px' }}
-                      >
-                        <option value="0">0%</option>
-                        <option value="3">3%</option>
-                        <option value="5">5%</option>
-                        <option value="12">12%</option>
-                        <option value="18">18%</option>
-                        <option value="28">28%</option>
-                      </select>
+                        onChange={v => { const items = [...paymentForm.items]; items[idx] = {...items[idx], gstRate: v}; setPaymentForm({...paymentForm, items}); }}
+                        options={GST_RATE_OPTIONS}
+                      />
                     </div>
                     {paymentForm.items.length > 1 && (
                       <button
@@ -836,19 +863,15 @@ const RichTextEditor: React.FC<RichTextEditorProps> = ({
               </div>
               <div className={styles['variable-input-row']}>
                 <label>Language</label>
-                <select value={ttsLanguage} onChange={e => handleTTSLanguageChange(e.target.value)}>
-                  {Object.entries(POLLY_VOICES).map(([code, data]) => (
-                    <option key={code} value={code}>{data.label}</option>
-                  ))}
-                </select>
+                <Select ariaLabel="Voice language" value={ttsLanguage}
+                  onChange={v => handleTTSLanguageChange(v)}
+                  options={ttsLanguageOptions} />
               </div>
               <div className={styles['variable-input-row']}>
                 <label>Voice</label>
-                <select value={ttsVoiceId} onChange={e => handleTTSVoiceChange(e.target.value)}>
-                  {(POLLY_VOICES[ttsLanguage]?.voices || []).map(v => (
-                    <option key={v.id} value={v.id}>{v.name} ({v.gender}) — {v.engine}</option>
-                  ))}
-                </select>
+                <Select ariaLabel="Voice" value={ttsVoiceId}
+                  onChange={v => handleTTSVoiceChange(v)}
+                  options={ttsVoiceOptions} />
               </div>
             </div>
           </div>

@@ -14,6 +14,7 @@ import { API_BASE } from '../../../../config/constants';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import Spinner from '../../../../components/ui/Spinner';
 import MaybeLayout from '../../../../components/MaybeLayout';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -32,6 +33,25 @@ const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7
 const label: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' };
 const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 12 };
 const btn = ( bg: string ): React.CSSProperties => ( { padding: '8px 16px', background: bg, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' } );
+
+const WABA_OPTIONS: SelectOption[] = WABAS.map( w => ( { value: w.key, label: w.label } ) );
+const AUDIENCE_OPTIONS: SelectOption[] = [
+    { value: 'EVERYONE', label: 'Everyone' },
+    { value: 'ALLOWLISTED_ONLY', label: 'Allowlisted only' },
+];
+/** The interval is a NUMBER in state, so the option value is that number as a string. */
+const INTERVAL_OPTIONS: SelectOption[] = INTERVALS.map( s => ( { value: String( s ), label: intervalLabel( s ) } ) );
+const AUTH_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'API_KEY', label: 'API_KEY (header)' },
+    { value: 'NONE', label: 'NONE' },
+];
+/* Layout only. The WABA picker and the two settings rows are flex children, so they need a
+   size: the native control sized itself to its widest option, while the trigger shows the
+   selected one and would otherwise collapse. */
+const WABA_SELECT_STYLE: React.CSSProperties = { flex: '0 1 300px', minWidth: 0 };
+const ROW_SELECT_STYLE: React.CSSProperties = { flex: '0 0 200px' };
+/** The marginBottom the shared `input` object carried. */
+const FIELD_SELECT_STYLE: React.CSSProperties = { marginBottom: 12 };
 
 const pillBase: React.CSSProperties = { fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 999, whiteSpace: 'nowrap' };
 const Pill = ( { ok, okText, badText }: { ok: boolean; okText: string; badText: string } ) => (
@@ -240,10 +260,9 @@ function AiAgentPageBody ( { }: PageProps ) {
         <div style={ { padding: '4px 4px 40px' } }>
             {/* WABA selector + eligibility */ }
             <div style={ { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' } }>
-                <select value={ waba } onChange={ e => setWaba( e.target.value as WabaKey ) }
-                    style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, fontWeight: 600 } }>
-                    { WABAS.map( w => <option key={ w.key } value={ w.key }>{ w.label }</option> ) }
-                </select>
+                <Select ariaLabel="WhatsApp Business Account" value={ waba }
+                    onChange={ v => setWaba( v as WabaKey ) }
+                    options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
                 { eligible !== null && (
                     <span style={ {
                         fontSize: 12, fontWeight: 600, padding: '4px 10px', borderRadius: 10,
@@ -278,11 +297,9 @@ function AiAgentPageBody ( { }: PageProps ) {
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
                         <div><b>Audience</b><div style={ { fontSize: 12, color: '#6b7280' } }>Who the AI replies to.</div></div>
-                        <select value={ audience } disabled={ saving } onChange={ e => saveSettings( { aiAudience: e.target.value } ) }
-                            style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 } }>
-                            <option value="EVERYONE">Everyone</option>
-                            <option value="ALLOWLISTED_ONLY">Allowlisted only</option>
-                        </select>
+                        <Select ariaLabel="Audience" value={ audience } disabled={ saving }
+                            onChange={ v => saveSettings( { aiAudience: v } ) }
+                            options={ AUDIENCE_OPTIONS } style={ ROW_SELECT_STYLE } />
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f3f4f6' } }>
                         <div><b>Handoff to human</b><div style={ { fontSize: 12, color: '#6b7280' } }>{ settings?.handoff?.message || 'Connecting you to our team.' }</div></div>
@@ -291,11 +308,10 @@ function AiAgentPageBody ( { }: PageProps ) {
                     </div>
                     <div style={ { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' } }>
                         <div><b>Follow-up after inactivity</b></div>
-                        <select value={ settings?.followup?.followup_interval_in_seconds ?? 0 } disabled={ saving }
-                            onChange={ e => saveSettings( { followup: { enabled: Number( e.target.value ) > 0, followup_interval_in_seconds: Number( e.target.value ) } } ) }
-                            style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14 } }>
-                            { INTERVALS.map( s => <option key={ s } value={ s }>{ intervalLabel( s ) }</option> ) }
-                        </select>
+                        <Select ariaLabel="Follow-up after inactivity" disabled={ saving }
+                            value={ String( settings?.followup?.followup_interval_in_seconds ?? 0 ) }
+                            onChange={ v => saveSettings( { followup: { enabled: Number( v ) > 0, followup_interval_in_seconds: Number( v ) } } ) }
+                            options={ INTERVAL_OPTIONS } style={ ROW_SELECT_STYLE } />
                     </div>
                 </div>
             ) ) }
@@ -484,10 +500,9 @@ function AiAgentPageBody ( { }: PageProps ) {
                         <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } }>
                             <div><label style={ label }>Name</label><input style={ input } value={ cName } onChange={ e => setCName( e.target.value ) } /></div>
                             <div><label style={ label }>Auth type</label>
-                                <select style={ input } value={ cAuth } onChange={ e => setCAuth( e.target.value as 'API_KEY' | 'NONE' ) }>
-                                    <option value="API_KEY">API_KEY (header)</option>
-                                    <option value="NONE">NONE</option>
-                                </select>
+                                <Select ariaLabel="Auth type" value={ cAuth }
+                                    onChange={ v => setCAuth( v as 'API_KEY' | 'NONE' ) }
+                                    options={ AUTH_TYPE_OPTIONS } style={ FIELD_SELECT_STYLE } />
                             </div>
                             <div style={ { gridColumn: '1 / span 2' } }><label style={ label }>Description</label><input style={ input } value={ cDesc } onChange={ e => setCDesc( e.target.value ) } /></div>
                             <div style={ { gridColumn: '1 / span 2' } }><label style={ label }>Base URL</label><input style={ input } value={ cUrl } onChange={ e => setCUrl( e.target.value ) } /></div>

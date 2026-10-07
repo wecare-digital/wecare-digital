@@ -5,6 +5,8 @@
 
 import React from 'react';
 
+import DateField from './ui/DateField';
+
 // Bar Chart
 interface BarChartProps {
   data: { label: string; value: number; color?: string }[];
@@ -339,18 +341,14 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
           </button>
         ))}
       </div>
-      <label>From:</label>
-      <input
-        type="date"
-        value={startDate}
-        onChange={e => onStartChange(e.target.value)}
-      />
-      <label>To:</label>
-      <input
-        type="date"
-        value={endDate}
-        onChange={e => onEndChange(e.target.value)}
-      />
+      {/* BOTH date inputs are ours. The two bare <label> elements they sat beside named
+          nothing - a <label> with no `htmlFor` and no control inside it is not a name source
+          for anything - so DateField takes the words as its own `label` and the pair finally
+          has an accessible name. ISO in, ISO out: `onStartChange`/`onEndChange` still receive
+          exactly the 'YYYY-MM-DD' string `e.target.value` gave them, which is why `setPreset`
+          above needs no change. */}
+      <DateField label="From:" value={startDate} onChange={onStartChange} />
+      <DateField label="To:" value={endDate} onChange={onEndChange} />
     </div>
   );
 };

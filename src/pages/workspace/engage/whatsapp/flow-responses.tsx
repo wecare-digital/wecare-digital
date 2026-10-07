@@ -3,14 +3,91 @@
  * View submit requests and flow interaction logs from WhatsApp Flows
  * Supports per-flow filtering via flowCode dropdown
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { MaskedPhone } from '../../../../components/wa';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+
+/* Two DIFFERENT status vocabularies on one page, and they are not interchangeable: the flow
+   submissions view lists submission states, the legacy requests view lists request states.
+   Both drove `statusFilter`, and both lists are reproduced exactly as their <option> rows were. */
+const SUBMISSION_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+];
+const PAYMENT_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Payment' },
+  { value: 'none', label: 'No Payment' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'captured', label: 'Captured' },
+  { value: 'failed', label: 'Failed' },
+];
+const REQUEST_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+];
+/** Layout only: the filter rows are flex, and the trigger shows the SELECTED label. */
+const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 0 };
+
+/** The per-row Update control. `cancelled` is in this list and in no filter list. */
+const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+const ROW_SELECT_STYLE: React.CSSProperties = { width: 150 };
+
+/**
+ * The per-row status control, and why it owns a piece of state rather than reading the row.
+ *
+ * It was UNCONTROLLED - React's uncontrolled default attribute, seeded from `s.status`, with an
+ * async onChange and no variable behind it. The native element kept the operator's choice
+ * across a parent re-render
+ * on its own. A controlled Select has nothing to keep it, and the save is followed immediately
+ * by `loadSubmissions()` - so pointing `value` at `s.status` would make the cell snap back to
+ * whatever the list now says, including while the request is in flight and including when it
+ * fails. That is the regression FlowResponseStatus.test.tsx pins.
+ *
+ * `setStatus` therefore runs BEFORE the save, and the row key is the submissionId, so this
+ * state survives the re-render the refresh causes.
+ */
+const SubmissionStatusSelect: React.FC<{
+  submissionId: string;
+  initial: string;
+  onSaved: () => void;
+}> = ( { submissionId, initial, onSaved } ) => {
+  const toast = useToastContext();
+  const [ status, setStatus ] = useState( initial );
+  const change = async ( next: string ) => {
+    setStatus( next );
+    try
+    {
+      await api.updateSubmissionStatus( submissionId, next );
+      toast.success( `Status → ${next.replace( '_', ' ' )}` );
+      onSaved();
+    } catch ( err: any )
+    {
+      toast.error( err?.message || 'Update failed' );
+    }
+  };
+  return (
+    <Select ariaLabel="Update status" value={ status } onChange={ change }
+      options={ SUBMISSION_STATUS_UPDATE_OPTIONS } style={ ROW_SELECT_STYLE } />
+  );
+};
 
 const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
@@ -33,6 +110,12 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
   useEffect( () => {
     api.listFlowRegistry().then( setRegistry ).catch( () => { } );
   }, [] );
+
+  /* Derived from the FETCHED registry, so memoised on it rather than rebuilt inline. */
+  const flowCodeOptions: SelectOption[] = useMemo( () => [
+    { value: '', label: 'All Flows' },
+    ...registry.map( f => ( { value: f.flowCode, label: `${ f.flowCode } — ${ f.flowName }` } ) ),
+  ], [ registry ] );
 
   const loadRequests = useCallback( async () => {
     setRequestsLoading( true );
@@ -137,27 +220,15 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         { activeSection === 'submissions' && (
           <div>
             <div style={ { display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' } }>
-              <select value={ flowCodeFilter } onChange={ e => setFlowCodeFilter( e.target.value ) }
-                style={ { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } }>
-                <option value="">All Flows</option>
-                { registry.map( f => <option key={ f.flowCode } value={ f.flowCode }>{ f.flowCode } — { f.flowName }</option> ) }
-              </select>
-              <select value={ statusFilter } onChange={ e => setStatusFilter( e.target.value ) }
-                style={ { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } }>
-                <option value="">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="closed">Closed</option>
-              </select>
-              <select value={ paymentFilter } onChange={ e => setPaymentFilter( e.target.value ) }
-                style={ { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } }>
-                <option value="">All Payment</option>
-                <option value="none">No Payment</option>
-                <option value="pending">Pending</option>
-                <option value="captured">Captured</option>
-                <option value="failed">Failed</option>
-              </select>
+              <Select ariaLabel="Filter by flow" value={ flowCodeFilter }
+                onChange={ v => setFlowCodeFilter( v ) }
+                options={ flowCodeOptions } style={ FILTER_SELECT_STYLE } />
+              <Select ariaLabel="Filter by status" value={ statusFilter }
+                onChange={ v => setStatusFilter( v ) }
+                options={ SUBMISSION_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
+              <Select ariaLabel="Filter by payment status" value={ paymentFilter }
+                onChange={ v => setPaymentFilter( v ) }
+                options={ PAYMENT_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
               <button onClick={ loadSubmissions } disabled={ subsLoading }
                 style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } }>
                 { subsLoading ? 'Loading...' : '↻ Refresh' }
@@ -198,28 +269,11 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                         <td style={ { padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ s.subject || s.requestType || '-' }</td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( s.status ) }</td>
                         <td style={ { padding: '8px 10px' } }>
-                          <select
-                            defaultValue={ s.status || 'open' }
-                            onChange={ async ( e ) => {
-                              const newStatus = e.target.value;
-                              try
-                              {
-                                await api.updateSubmissionStatus( s.submissionId, newStatus );
-                                toast.success( `Status → ${newStatus.replace( '_', ' ' )}` );
-                                loadSubmissions();
-                              } catch ( err: any )
-                              {
-                                toast.error( err?.message || 'Update failed' );
-                              }
-                            } }
-                            style={ { padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 11, cursor: 'pointer' } }
-                          >
-                            <option value="open">Open</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="closed">Closed</option>
-                            <option value="cancelled">Cancelled</option>
-                          </select>
+                          <SubmissionStatusSelect
+                            submissionId={ s.submissionId }
+                            initial={ s.status || 'open' }
+                            onSaved={ loadSubmissions }
+                          />
                         </td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( s.paymentStatus ) }</td>
                         <td style={ { padding: '8px 10px' } }>{ formatPaise( s.paymentAmount || 0 ) }</td>
@@ -237,14 +291,9 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
         { activeSection === 'requests' && (
           <div>
             <div style={ { display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' } }>
-              <select value={ statusFilter } onChange={ e => setStatusFilter( e.target.value ) }
-                style={ { padding: '6px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } }>
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="paid">Paid</option>
-                <option value="completed">Completed</option>
-                <option value="failed">Failed</option>
-              </select>
+              <Select ariaLabel="Filter by status" value={ statusFilter }
+                onChange={ v => setStatusFilter( v ) }
+                options={ REQUEST_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
               <button onClick={ loadRequests } disabled={ requestsLoading }
                 style={ { padding: '6px 14px', border: '1px solid #ddd', borderRadius: 6, background: '#fff', cursor: 'pointer', fontSize: 13 } }>
                 { requestsLoading ? 'Loading...' : '↻ Refresh' }

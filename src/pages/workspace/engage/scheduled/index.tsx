@@ -6,6 +6,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { colors } from '../../../../lib/design-tokens';
@@ -18,6 +19,14 @@ const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     failed: { fg: '#b91c1c', bg: '#fef2f2' },
     cancelled: { fg: '#6b7280', bg: '#f9fafb' },
 };
+
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+    { value: 'all', label: 'All status' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'sent', label: 'Sent' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'cancelled', label: 'Cancelled' },
+];
 
 const fmt = ( iso: string ) => { const d = new Date( iso ); return isNaN( d.getTime() ) ? iso : d.toLocaleString( 'en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' } ); };
 
@@ -57,13 +66,13 @@ const ScheduledPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
             <div className="sc-wrap">
                 <PageHeader title="Scheduled" subtitle="Upcoming scheduled sends across channels" icon="message" />
                 <div className="sc-toolbar">
-                    <select className="sc-filter" value={ statusFilter } onChange={ e => setStatusFilter( e.target.value ) }>
-                        <option value="all">All status</option>
-                        <option value="pending">Pending</option>
-                        <option value="sent">Sent</option>
-                        <option value="failed">Failed</option>
-                        <option value="cancelled">Cancelled</option>
-                    </select>
+                    { /* `.sc-filter` is not forwarded: it is a styled-jsx class, and styled-jsx
+                         scopes by adding a hash to the elements IN THIS FILE's JSX - markup a
+                         child component renders never receives it, so the class would be inert
+                         on the wrapper and the box would be drawn twice if it were not. */ }
+                    <Select ariaLabel="Status" value={ statusFilter }
+                        onChange={ v => setStatusFilter( v ) }
+                        options={ STATUS_FILTER_OPTIONS } style={ { width: 180 } } />
                     <button className="sc-refresh" onClick={ load }>Refresh</button>
                 </div>
                 <div className="sc-table-wrap">

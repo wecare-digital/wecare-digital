@@ -92,6 +92,7 @@ import CheckoutProfile from '../components/CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../components/CheckoutProfile';
 import CheckoutIdentityCard from '../components/CheckoutIdentityCard';
 import type { StoredAddress } from '../components/AddressFields';
+import Select from '../components/ui/Select';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import type { CustomerSession } from '../lib/customerAuth';
 import {
@@ -566,6 +567,9 @@ function ContributionAmount (
 
   return (
     <>
+      {/* STILL NATIVE AFTER BATCH 2f, BY THE OWNER'S OWN MONEY-SAFETY INSTRUCTION - the element,
+          its id, this external label and the handler are untouched, and the paragraph above is
+          the reason. Its closed state is already fully ours from batch 1.3a. */}
       <label className="cart-qty-label" htmlFor={ inputId }>Contribute amount</label>
       <select
         id={ inputId }
@@ -1897,20 +1901,37 @@ export default function Cart (): React.ReactElement {
                       {/* DISPLAY ONLY. This Wix passthrough price never reaches the server. */}
                       <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
                       { needsVariantSelection( item ) && (
-                        <label className="cart-option-label">
-                          <span>Choose option</span>
-                          <select
-                            className="cart-option"
-                            aria-label={ `Choose option for ${item.name}` }
-                            value=""
-                            onChange={ e => chooseVariant( item.ref, e.target.value ) }
-                          >
-                            <option value="" disabled>Select fit / size</option>
-                            { availableVariantsForItem( item ).map( variant => (
-                              <option key={ variant.id } value={ variant.id }>{ variant.label }</option>
-                            ) ) }
-                          </select>
-                        </label>
+                        /*
+                         * BOTH LABELLING SOURCES, AND THAT IS THE POINT. The visible text is the
+                         * same two words on every cart row, so it is `label` and the component
+                         * renders and wires it; the accessible name is PER ITEM, so a shopper on
+                         * a screen reader with three unvariant rows can tell the three
+                         * comboboxes apart, and that is `ariaLabel`. Select emits `aria-label`
+                         * and deliberately NOT `aria-labelledby` when both are passed, because
+                         * `aria-labelledby` outranks `aria-label` and the per-item name would be
+                         * lost silently. CartCheckout.test.tsx resolves this control by the EXACT
+                         * string, which is the test standing in front of a wrong-amount order.
+                         *
+                         * The wrapping <label> is gone: a <button role="combobox"> inside a
+                         * <label> still associates, so the name would be computed by walking the
+                         * label subtree and would come out as the caption plus the trigger text.
+                         *
+                         * The '' row stays a REAL option, disabled, rather than becoming a
+                         * `placeholder`, so the row list is exactly what it was.
+                         */
+                        <Select
+                          className="cart-option"
+                          label="Choose option"
+                          ariaLabel={ `Choose option for ${item.name}` }
+                          value=""
+                          onChange={ value => chooseVariant( item.ref, value ) }
+                          options={ [
+                            { value: '', label: 'Select fit / size', disabled: true },
+                            ...availableVariantsForItem( item ).map(
+                              variant => ( { value: variant.id, label: variant.label } )
+                            ),
+                          ] }
+                        />
                       ) }
                     </div>
                     <div className="cart-row-controls">
@@ -2137,35 +2158,94 @@ export default function Cart (): React.ReactElement {
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
-          .cart-option-label{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:14px;font-weight:700;color:#1a3a2a}
-          .cart-option{
-            min-height:44px;max-width:260px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;
-            background:#fff;color:#1a1a1a;font:inherit;
+          /* THE VARIANT CHOOSER, NOW OUR OWN COMBOBOX (batch 2f). What was a .cart-option-label
+             wrapping a .cart-option select is one Select, so .cart-option is the className on
+             the FIELD WRAPPER and the two rules below are the label-and-field layout the old
+             wrapping label carried: the flex column, the 6px gap, the 12px top margin, and the
+             caption type, inherited by the component label rather than restated on it.
+             :global() IS MANDATORY ON BOTH, for the reason shop/<slug>.tsx records at length:
+             styled-jsx stamps its scope hash only onto the lowercase DOM tags it can see in this
+             file, and a className handed to a component reaches a node it never saw - so without
+             :global() these rules match nothing and the chooser renders unspaced.
+             max-width moves from the control to the wrapper, because the trigger is
+             inline-size:100% of its field; 260px is the number the native control was capped at.
+             THE BOX IS NOW form-controls.css's: the same 2px #e5e7eb, the same 13px radius, the
+             same 44px floor and the same drawn chevron the native control was given in 1.3a, so
+             the closed state does not change. What changes is the OPEN list, which is the one
+             part no stylesheet could reach.
+             THE FOCUS OUTLINE IS NOT REPRODUCED, and that is the one visible loss here: the
+             shared file paints box-shadow var(--focus-ring) on :focus and declares outline none,
+             which is what every other migrated control in the app does, and re-adding a 3px
+             outline for this one control would make the checkout page the odd one out. The
+             pairing rule is still gated - FormControlsCss.test.ts holds the ring on
+             .ui-select-trigger:focus, and CartCheckout.test.tsx holds it on the two controls that
+             are still styled here.
+             NO APOSTROPHE OR STRAY QUOTE IN A CSS COMMENT HERE, deliberately: the census
+             scanner blanks comments with a scanner that treats a quote as a string opener, so a
+             lone apostrophe swallows the rules that follow and the census silently UNDER-counts.
+             That is the one direction a gate must never fail in. */
+          .cart-row-main :global(.cart-option){
+            display:flex;flex-direction:column;gap:6px;margin-top:12px;max-width:260px;
+            font-size:14px;font-weight:700;color:#1a3a2a;
           }
-          .cart-option:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          .cart-row-main :global(.cart-option .ui-field-label){
+            margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
+          }
           .cart-row-controls{display:flex;align-items:center;gap:12px}
           .cart-qty-label{font-size:14px;font-weight:700;color:#1a3a2a}
           /* 44px is the tap-target floor. The site's CTA is 52px; a secondary field is not
              required to match it, only to clear 44. */
           .cart-qty{
-            width:72px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
-            font-family:inherit;font-size:16px;text-align:center;color:#1a1a1a;
+            width:72px;min-height:var(--control-h);padding:0 10px;
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            font-family:inherit;font-size:16px;text-align:center;color:var(--control-fg);
           }
-          .cart-qty:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-          /* The contribution row's amount chooser. Deliberately the SAME box as .cart-qty - the
-             1px #e5e7eb hairline, the 8px radius, the 44px tap floor and the 16px type - because
-             it occupies the same slot in the row and a second control idiom there would read as a
-             different kind of thing. Wider, because "₹250" plus the native disclosure arrow does
-             not fit 72px. The leading rupee mark that used to sit beside the old free-text field
-             went with it: each option already carries its own ₹.
+          /* box-shadow:var(--focus-ring) IS THE PAIRING FIX, not decoration. form-controls.css
+             gives .cart-amount-select that ring with !important, and it CANNOT give it to this
+             control: .cart-qty is a number input and deliberately outside the selector in the
+             shared file, which covers select and the date family only. Without this line the
+             two halves of one row would match on border, radius and height and disagree on focus.
+             :focus-visible rather than :focus, so the ring and the outline appear and disappear
+             together - a ring with no outline on a mouse click would be a third appearance
+             rather than a matched pair. */
+          .cart-qty:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
+          /* The amount chooser on the contribution row. Deliberately the SAME box as .cart-qty -
+             --control-border-w / --control-border, --control-radius, the 44px tap floor and the
+             16px type - because it occupies the same slot in the row and a second control idiom
+             there would read as a different kind of thing. Wider, because a three-digit rupee
+             amount plus the disclosure arrow does not fit 72px. The leading rupee mark that used
+             to sit beside the old free-text field went with it: each option already carries one.
 
-             #1a3a2a is --accent / colors.primary and #e5e7eb is the shared hairline; no new hue is
-             introduced by this phase. */
+             THE PAIR NOW MATCHES ON TOKENS, NOT ON TWO COPIES OF A NUMBER. This rule and
+             .cart-qty above both read --control-border-w / --control-border / --control-radius /
+             --control-h, so the shared skin cannot move one and leave the other behind - which
+             is what would have happened here, since form-controls.css reaches a select and
+             cannot reach a number input.
+
+             TWO PROPERTIES THE PAIR NO LONGER SHARES, both forced by the chevron and both
+             unavoidable: the end inset (32px here from form-controls.css, 10px on .cart-qty) and
+             the appearance reset. A select has an arrow to make room for; a number field has not.
+
+             --accent is #1a3a2a and --control-border is #e5e7eb; no new hue is introduced. */
           .cart-amount-select{
-            min-width:96px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
-            font-family:inherit;font-size:16px;color:#1a1a1a;background:#fff;
+            min-width:96px;min-height:var(--control-h);
+            padding-block:0;padding-inline-start:var(--control-px);
+            padding-inline-end:var(--control-arrow-pad);
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            font-family:inherit;font-size:16px;color:var(--control-fg);
+            background-color:var(--control-bg);
           }
-          .cart-amount-select:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          /* Outline kept with !important for the reason the .cart-option focus rule records; the
+             ring restated so the focus appearance of the pair is declared where the pair is. */
+          .cart-amount-select:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
           /* A 44px target, not a 27px one. This was padding:6px around a 15px line, which
              computed to about 27px tall - under the floor devicecheck enforces elsewhere on the
              site and the smallest control on the page. */

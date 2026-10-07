@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as api from '../../../../api/client';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import Spinner from '../../../../components/ui/Spinner';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { StatusBadge, MaskedPhone } from '../../../../components/wa';
 import MaybeLayout from '../../../../components/MaybeLayout';
 
@@ -14,6 +15,24 @@ interface FlowHubProps {
 const FLOW_TYPES = [ 'form_submit', 'order_management', 'interactive', 'data_collection', 'payment', 'booking', 'feedback' ];
 const PAYMENT_STATUSES = [ 'none', 'pending', 'captured', 'failed', 'refunded' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
+
+const FLOW_TYPE_OPTIONS: SelectOption[] = FLOW_TYPES.map( t => ( { value: t, label: t } ) );
+const REGISTRY_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'DRAFT', label: 'DRAFT' },
+  { value: 'PUBLISHED', label: 'PUBLISHED' },
+  { value: 'DEPRECATED', label: 'DEPRECATED' },
+];
+/** The leading '' row is the placeholder ROW the old `<option value="">` was. */
+const SUBMISSION_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...SUBMISSION_STATUSES.map( s => ( { value: s, label: s } ) ),
+];
+const PAYMENT_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Payment' },
+  ...PAYMENT_STATUSES.map( s => ( { value: s, label: s } ) ),
+];
+/** Layout only: the filter rows are flex, and the trigger shows the SELECTED label. */
+const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 0 };
 
 function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const toast = useToastContext();
@@ -52,6 +71,13 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
 
   // CSV export state
   const [ exporting, setExporting ] = useState( false );
+
+  /* Derived from the FETCHED registry, so memoised on it rather than rebuilt inline. Shared by
+     the submissions filter and the stats filter, which listed the same flows. */
+  const flowFilterOptions: SelectOption[] = useMemo( () => [
+    { value: '', label: 'All Flows' },
+    ...registry.map( f => ( { value: f.flowCode, label: `${ f.flowCode } — ${ f.flowName }` } ) ),
+  ], [ registry ] );
 
   // Register flow form
   const [ showRegForm, setShowRegForm ] = useState( false );
@@ -212,10 +238,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Flow Type</label>
-                  <select value={ regForm.flowType } onChange={ e => setRegForm( { ...regForm, flowType: e.target.value } ) }
-                    style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-                    { FLOW_TYPES.map( t => <option key={ t } value={ t }>{ t }</option> ) }
-                  </select>
+                  <Select ariaLabel="Flow Type" value={ regForm.flowType || '' }
+                    onChange={ v => setRegForm( { ...regForm, flowType: v } ) }
+                    options={ FLOW_TYPE_OPTIONS } />
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>WABA ID</label>
@@ -229,12 +254,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Status</label>
-                  <select value={ regForm.status || 'DRAFT' } onChange={ e => setRegForm( { ...regForm, status: e.target.value } ) }
-                    style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="PUBLISHED">PUBLISHED</option>
-                    <option value="DEPRECATED">DEPRECATED</option>
-                  </select>
+                  <Select ariaLabel="Status" value={ regForm.status || 'DRAFT' }
+                    onChange={ v => setRegForm( { ...regForm, status: v } ) }
+                    options={ REGISTRY_STATUS_OPTIONS } />
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Preferred Gateway</label>
@@ -328,21 +350,15 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { activeTab === 'submissions' && (
         <div>
           <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' } }>
-            <select value={ subsFlowFilter } onChange={ e => setSubsFlowFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Flows</option>
-              { registry.map( f => <option key={ f.flowCode } value={ f.flowCode }>{ f.flowCode } — { f.flowName }</option> ) }
-            </select>
-            <select value={ subsStatusFilter } onChange={ e => setSubsStatusFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Statuses</option>
-              { SUBMISSION_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-            </select>
-            <select value={ subsPaymentFilter } onChange={ e => setSubsPaymentFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Payment</option>
-              { PAYMENT_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-            </select>
+            <Select ariaLabel="Filter by flow" value={ subsFlowFilter }
+              onChange={ v => setSubsFlowFilter( v ) }
+              options={ flowFilterOptions } style={ FILTER_SELECT_STYLE } />
+            <Select ariaLabel="Filter by status" value={ subsStatusFilter }
+              onChange={ v => setSubsStatusFilter( v ) }
+              options={ SUBMISSION_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
+            <Select ariaLabel="Filter by payment status" value={ subsPaymentFilter }
+              onChange={ v => setSubsPaymentFilter( v ) }
+              options={ PAYMENT_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
             <button onClick={ loadSubmissions } disabled={ subsLoading }
               style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
               { subsLoading ? 'Loading...' : 'Refresh' }
@@ -513,11 +529,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { activeTab === 'stats' && (
         <div>
           <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem' } }>
-            <select value={ statsFlowFilter } onChange={ e => setStatsFlowFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Flows</option>
-              { registry.map( f => <option key={ f.flowCode } value={ f.flowCode }>{ f.flowCode } — { f.flowName }</option> ) }
-            </select>
+            <Select ariaLabel="Filter by flow" value={ statsFlowFilter }
+              onChange={ v => setStatsFlowFilter( v ) }
+              options={ flowFilterOptions } style={ FILTER_SELECT_STYLE } />
             <button onClick={ loadStats } disabled={ statsLoading }
               style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
               { statsLoading ? 'Loading...' : 'Refresh' }
