@@ -141,6 +141,79 @@ const undeclaredDialogCalls = ( raw: string ): string[] => {
   } );
 };
 
+/**
+ * The `name` of every CONFIG OBJECT in the array `eslint.config.mjs` default-exports, in
+ * source order, and nothing else named `name`.
+ *
+ * THIS COUNTS BRACKET DEPTH RATHER THAN ANCHORING TO A LINE START, and the difference is not
+ * cosmetic. The thing being separated is a config object - a direct element of the exported
+ * array - from a `no-restricted-globals` entry, which is `{ name: 'prompt' }` nested two
+ * levels deeper inside a rule's option array. The earlier scan told them apart by requiring
+ * `name:` to begin its own line, which the nested entries never do because each is written
+ * `{ name: ... }` on one line.
+ *
+ * That anchor had a hole, and the hole was found occupied: a config object written compactly
+ * on ONE line - `{ name: 'zz-tail', files: [ 'x' ], rules: {} },` - also puts `{ ` before its
+ * `name:`, so it was skipped by the same qualifier that skips the rule entries. The result was
+ * the worst available outcome: the ordering assertion below read the two gate names as the
+ * last two and PASSED, while the file visibly had a third object sitting between them. A gate
+ * that is green on a tree that violates it is worse than no gate, because it gets cited.
+ *
+ * Depth closes it because depth is the actual property. A config object is at `[` then `{`
+ * and nothing more; a rule entry is at `[ { [ {` or deeper. Formatting cannot change either.
+ */
+export const configObjectNames = ( source: string ): string[] => {
+  const start = source.indexOf( 'export default [' );
+  if ( start < 0 ) return [];
+
+  // Strings and comments are skipped rather than stripped, because a brace inside either is
+  // not structure and a `name:` inside either is not a declaration.
+  const stack: string[] = [];
+  const names: string[] = [];
+  let i = source.indexOf( '[', start );
+
+  while ( i < source.length ) {
+    const c = source[ i ];
+
+    if ( c === '/' && source[ i + 1 ] === '/' ) {
+      const nl = source.indexOf( '\n', i );
+      i = nl < 0 ? source.length : nl;
+      continue;
+    }
+    if ( c === '/' && source[ i + 1 ] === '*' ) {
+      const end = source.indexOf( '*/', i + 2 );
+      i = end < 0 ? source.length : end + 2;
+      continue;
+    }
+    if ( c === '\'' || c === '"' || c === '`' ) {
+      i += 1;
+      while ( i < source.length && source[ i ] !== c ) i += source[ i ] === '\\' ? 2 : 1;
+      i += 1;
+      continue;
+    }
+    if ( c === '[' || c === '{' ) { stack.push( c ); i += 1; continue; }
+    if ( c === ']' || c === '}' ) {
+      stack.pop();
+      // The exported array itself has closed; everything after it is not config.
+      if ( stack.length === 0 ) break;
+      i += 1;
+      continue;
+    }
+
+    // A direct element of the exported array is at exactly `[` `{`. The look-behind keeps
+    // `filename:` or `pluginName:` from being read as `name:`.
+    if (
+      c === 'n' && stack.length === 2 && stack[ 0 ] === '[' && stack[ 1 ] === '{'
+      && !/[A-Za-z0-9_$]/.test( source[ i - 1 ] ?? '' )
+    ) {
+      const here = /^name:\s*'([^']*)'/.exec( source.slice( i ) );
+      if ( here ) { names.push( here[ 1 ] ); i += here[ 0 ].length; continue; }
+    }
+    i += 1;
+  }
+  return names;
+};
+
 describe( 'no native browser dialogs outside src/test/', () => {
   const files = WALK( SRC ).filter( f => !rel( f ).startsWith( 'src/test/' ) );
 
@@ -245,14 +318,7 @@ describe( 'the ESLint gate that keeps a seventh native dialog out', () => {
     // comments go first or every one of them reads as a declaration.
     .replace( /^[ \t]*\/\/.*$/gm, ' ' );
 
-  /**
-   * The `name` of each config OBJECT, which is a `name:` at the start of its own line.
-   *
-   * The qualifier is load-bearing: `no-restricted-globals` entries are `{ name: 'prompt' }`
-   * written inline, so an unanchored match returns 'prompt' as the last config name and the
-   * ordering assertion fails for a reason that has nothing to do with ordering.
-   */
-  const objectNames = [ ...config.matchAll( /^[ \t]*name:\s*'([^']+)'/gm ) ].map( m => m[ 1 ] );
+  const objectNames = configObjectNames( config );
 
   it( 'declares both objects as the LAST TWO entries of the exported array', () => {
     // Order matters twice over. Flat config resolves by order, so the src/test/** exemption
@@ -267,6 +333,52 @@ describe( 'the ESLint gate that keeps a seventh native dialog out', () => {
     // Nothing may follow the exemption but the end of the array.
     expect( config.slice( config.lastIndexOf( '\'no-restricted-properties\': \'off\'' ) ) )
       .toMatch( /^'no-restricted-properties':\s*'off'\s*\}\s*,?\s*\}\s*,?\s*\]\s*;?\s*$/ );
+  } );
+
+  it( 'sees a COMPACT config object, which is how a third entry once hid between the two', () => {
+    // The regression this pins, verbatim in shape: `{ name: 'zz-tail', files: [ 'x' ], rules:
+    // {} },` was committed between the two gate objects and the ordering assertion above still
+    // passed, because a one-line object puts `{ ` before its `name:` exactly as a nested
+    // `no-restricted-globals` entry does. Depth tells them apart; a line anchor cannot.
+    const planted = [
+      'export default [',
+      "  { name: 'wecare/no-native-dialogs', rules: {",
+      "    'no-restricted-globals': [ 'error',",
+      "      { name: 'alert' }, { name: 'confirm' }, { name: 'prompt' },",
+      '    ] } },',
+      "  { name: 'zz-tail', files: [ 'x' ], rules: {} },",
+      "  { name: 'wecare/no-native-dialogs-test-exempt', files: [ 'src/test/**' ] },",
+      '];',
+    ].join( '\n' );
+
+    // The three rule entries are NOT config objects, and the compact one IS.
+    expect( configObjectNames( planted ) ).toEqual( [
+      'wecare/no-native-dialogs',
+      'zz-tail',
+      'wecare/no-native-dialogs-test-exempt',
+    ] );
+    // So the assertion above would now fail on that tree, which is the whole point.
+    expect( configObjectNames( planted ).slice( -2 ) ).not.toEqual( [
+      'wecare/no-native-dialogs',
+      'wecare/no-native-dialogs-test-exempt',
+    ] );
+
+    // Braces and a `name:` inside a string or a comment are not structure.
+    expect( configObjectNames(
+      'export default [\n'
+      + "  { name: 'a', message: 'a { brace } and a name: \\'decoy\\' in prose' },\n"
+      + "  /* { name: 'commented-out' } */\n"
+      + "  // { name: 'line-commented' }\n"
+      + '];\n'
+    ) ).toEqual( [ 'a' ] );
+
+    // A key that merely ENDS in `name` is not `name`.
+    expect( configObjectNames( "export default [\n  { filename: 'x', name: 'real' },\n];\n" ) )
+      .toEqual( [ 'real' ] );
+
+    // Spread elements carry no name and must not shift the count.
+    expect( configObjectNames( "export default [\n  ...others,\n  { name: 'last' },\n];\n" ) )
+      .toEqual( [ 'last' ] );
   } );
 
   it( 'restricts all three globals and all three window properties, as errors', () => {

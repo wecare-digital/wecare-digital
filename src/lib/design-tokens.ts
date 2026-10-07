@@ -139,8 +139,16 @@ export const zIndex = {
      * one: 1000 TIES with the mobile sidebar (Layout.css `.sidebar` at <=768px) and would
      * resolve on DOM order. The rest of this scale is aspirational - the app's real overlay
      * band is 9998-10002 - and reconciling it is a separate task, not a prerequisite for a
-     * dropdown. No call site passes layer="overlay" today; the entry exists so the hazard is
-     * answered rather than discovered.
+     * dropdown.
+     *
+     * TWO CALL SITES PASS IT, and both are controls that did not work without it: the Brand
+     * Select in pay/flow's invoice-edit modal and the expiry DateField in link's create/edit
+     * modal. Both modals are `position: fixed; inset: 0` overlays at `z-index: 9999`
+     * (inner-ux.css `.pf-modal-overlay`, flex-layout.css `.link-modal-overlay`) with no
+     * stacking context between them and the root, so a Popover portalled to document.body at
+     * 1500 painted UNDER the veil - clickable-through in the first case, invisible in the
+     * second. src/test/OverlayPopoverLayer.test.ts resolves every layered control against
+     * this scale and fails any that needs this entry without passing it.
      */
     overlayPopover: 10001,
 } as const;

@@ -1,7 +1,7 @@
 /**
  * DateTimeUnixInput + CurlPreview (Part 5).
  */
-import React from 'react';
+import React, { useId } from 'react';
 import { CopyToClipboardButton } from './copy';
 import DateTimeField from '../ui/DateTimeField';
 
@@ -9,6 +9,7 @@ import DateTimeField from '../ui/DateTimeField';
 export const DateTimeUnixInput: React.FC<{ value?: number; onChange: ( unixSeconds: number ) => void; label?: string }> = (
     { value, onChange, label = 'Date / time' }
 ) => {
+    const captionId = `wa-dtu-${ useId().replace( /[^A-Za-z0-9_-]/g, '' ) }-label`;
     const toLocal = ( s?: number ) => {
         if ( !s ) return '';
         const d = new Date( s * 1000 );
@@ -21,11 +22,23 @@ export const DateTimeUnixInput: React.FC<{ value?: number; onChange: ( unixSecon
                  - so `toLocal`'s output goes straight back in and the Date.parse that converts
                  it to epoch seconds is UNCHANGED, including its NaN guard. The one difference
                  is that the component now also emits '' while either half is unset, which
-                 Date.parse rejects, so the guard that was already here covers it. The <label>
-                 moves into the component rather than sitting beside an unlabelled control. */ }
+                 Date.parse rejects, so the guard that was already here covers it.
+
+                 THE CAPTION STAYS OUTSIDE THE CONTROL, and its three declarations stay with
+                 it. They are the typography of the <label> this replaced - 12px, 600, #444 -
+                 and `style` on DateTimeField is documented "Layout only: width / flex /
+                 margin" because it lands on the field WRAPPER, from which `.ui-date-input`'s
+                 `font: inherit` would pull the 12px down into the text box. The box was 14px
+                 as a native datetime-local and form-controls.css declares no font-size on any
+                 control on purpose, so inheriting the surrounding type is the designed
+                 behaviour and a caption's size must not override it.
+
+                 A <span> rather than a <label>, named through `labelledBy`: DateField's header
+                 records that a <label> wrapping a text box plus a trigger button names itself
+                 by walking both and double-activates the button on a click. */ }
+            <span id={ captionId } style={ { fontSize: 12, fontWeight: 600, color: '#444', display: 'block', marginBottom: 4 } }>{ label }</span>
             <DateTimeField
-                label={ label }
-                style={ { fontSize: 12, fontWeight: 600, color: '#444' } }
+                labelledBy={ captionId }
                 value={ toLocal( value ) }
                 onChange={ v => { const t = Date.parse( v ); if ( !isNaN( t ) ) onChange( Math.floor( t / 1000 ) ); } }
             />

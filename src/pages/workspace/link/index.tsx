@@ -414,8 +414,16 @@ const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => {
                      on a click. `.link-label` moves to the field wrapper - it is a global class
                      in flex-layout.css rather than styled-jsx, so it still applies - which keeps
                      the 13px type and the column layout the other seven fields have. ISO in, ISO
-                     out, so `formExpiry` reaches handleSave unchanged. */ }
-                <DateField className="link-label" label="Expiry Date (optional)" value={ formExpiry } onChange={ setFormExpiry } />
+                     out, so `formExpiry` reaches handleSave unchanged.
+
+                     layer="overlay" IS REQUIRED, not a precaution. This field is only ever
+                     rendered inside `.link-modal-overlay`, which is position:fixed inset:0 at
+                     `z-index: 9999` (flex-layout.css:329-337), and the Popover portals to
+                     document.body - so at its default 1500 the calendar paints BEHIND both the
+                     veil and the opaque `.link-modal`, hidden rather than merely dimmed, in the
+                     one place this control exists. 10001 clears the overlay and still loses to
+                     the 10002 toast band, which is the ordering design 5.1 picked. */ }
+                <DateField className="link-label" label="Expiry Date (optional)" value={ formExpiry } onChange={ setFormExpiry } layer="overlay" />
               </div>
               <div className="link-modal-footer">
                 <button className="link-cancel-btn" onClick={ () => { setShowForm( false ); resetForm(); } }>Cancel</button>

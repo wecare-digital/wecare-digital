@@ -846,9 +846,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <div className="form-group"><label>Phone</label><input type="tel" value={ editForm.customerPhone } onChange={ e => setEditForm( { ...editForm, customerPhone: e.target.value } ) } /></div>
                   <div className="form-group"><label>Email</label><input type="email" value={ editForm.customerEmail } onChange={ e => setEditForm( { ...editForm, customerEmail: e.target.value } ) } /></div>
                   <div className="form-group"><label>Brand</label>
+                    { /* layer="overlay" IS REQUIRED HERE, not a precaution. This Select sits
+                         inside `.pf-modal-overlay`, which is position:fixed inset:0 at
+                         `z-index: 9999` (inner-ux.css:2017-2025), and no ancestor of that
+                         overlay opens a stacking context - so the overlay and the Popover's
+                         body portal compete in the ROOT context and the Popover's default
+                         1500 loses. The menu would paint under the 40% black veil and a
+                         click aimed at an option would land on the overlay instead, whose
+                         onClick closes this modal and discards the edit. 10001 clears the
+                         overlay and still loses to the 10002 toast band, which is the
+                         ordering design 5.1 picked. */ }
                     <Select ariaLabel="Brand" value={ editForm.purpose }
                       onChange={ v => setEditForm( { ...editForm, purpose: v } ) }
-                      options={ brandOptions } />
+                      options={ brandOptions } layer="overlay" />
                   </div>
                   <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
                   <div className="form-group"><label>Promo / Discount ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>

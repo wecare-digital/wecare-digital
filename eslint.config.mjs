@@ -154,7 +154,6 @@ export default [
       ],
     },
   },
-  { name: 'zz-tail', files: [ 'x' ], rules: {} },
   {
     name: 'wecare/no-native-dialogs-test-exempt',
     files: [ 'src/test/**' ],
