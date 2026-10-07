@@ -263,6 +263,10 @@ RAW_SCAN_ONLY_FILES = [
     # existence of the `PAYMENTATTEMPT#` claim. Scanned so a payment word never creeps into a
     # storage decision.
     ("shared/lambda_utils/ecommerce/dropdocs_storage.py", None),
+    # The four Drop Docs refusals. They decide what the HTTP layer answers - 400, 409 or
+    # 503 - which is exactly the kind of place a payment word gets reached for ("the
+    # document is not captured yet"). Scanned so it cannot be.
+    ("shared/lambda_utils/ecommerce/document_errors.py", None),
     # The locker itself, which is where that separation is actually under pressure. Unlike the
     # three files above, this one genuinely contains a payment path - `_payment_enabled`,
     # `_create_order` and the grant readback - and Phase O-2 added the Drop Docs attach arm

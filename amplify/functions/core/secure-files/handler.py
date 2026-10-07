@@ -65,7 +65,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from lambda_utils import customer_auth, media_paths
-from lambda_utils.ecommerce import dropdocs_storage, service_request_store
+from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -1302,6 +1302,20 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
     try:
         promoted = dropdocs_storage.promote_to_secure(
             _s3_client(), bucket=BUCKET, source_key=source_key)
+    except document_errors.DocumentRejected as exc:
+        # 400, not 503. `sourceKey` is caller-supplied, and the one prefix this route
+        # accepts is the WhatsApp arrival tree - naming anything else (another customer's
+        # gated upload included) is permanently invalid, not a transient storage failure.
+        # The message never names the allowed prefix: a refusal must not teach the caller
+        # what would have been accepted.
+        logger.warning(json.dumps({"event": "dropdocs_source_refused",
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            400,
+            {"error": "DOCUMENT_SOURCE_REFUSED",
+             "message": "That document cannot be attached. Nothing was attached."},
+            origin,
+        ))
     except (dropdocs_storage.DocumentPromotionFailed,
             dropdocs_storage.DocumentNotPrivate) as exc:
         # type only: a storage error message can echo back a key or a bucket policy detail
@@ -1328,6 +1342,30 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
         )
     except customer_auth.CustomerNotAuthorized:
         return _no_store(_not_registered(origin))
+    except document_errors.DocumentRejected as exc:
+        # Shape, not privacy: a digest or byte count the store will never accept. 400,
+        # because retrying the identical request cannot succeed.
+        logger.warning(json.dumps({"event": "dropdocs_document_refused",
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            400,
+            {"error": "DOCUMENT_SOURCE_REFUSED",
+             "message": "That document cannot be attached. Nothing was attached."},
+            origin,
+        ))
+    except document_errors.DocumentLimitReached as exc:
+        # A stated ceiling, answered readably. Without it the DynamoDB 400 KB item limit
+        # eventually turns every further attach into an unreadable validation error.
+        logger.warning(json.dumps({"event": "dropdocs_document_limit_reached",
+                                   "requestId": public_request_id,
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            409,
+            {"error": "DOCUMENT_LIMIT_REACHED",
+             "message": "This request already holds the maximum number of documents.",
+             "limit": service_request_store.MAX_DOCUMENTS_PER_REQUEST},
+            origin,
+        ))
     except dropdocs_storage.DocumentNotPrivate as exc:
         # The store re-checks gatedness itself and will not be talked out of it. Reaching
         # here means the promotion returned a key the store refused, so no row exists.
@@ -1351,6 +1389,45 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
                             "promoted": bool(promoted["promoted"])}))
     return _no_store(cors_response(201, {"requestId": public_request_id,
                                          "document": document}, origin))
+
+
+def _dropdocs_list(public_request_id: str, identity: Dict[str, Any], origin: str):
+    """The caller's own documents for one paid Drop Docs request.
+
+    Here rather than held back for a future UI, so `list_documents` has a caller and runs
+    under this phase's tests instead of first running in production. Gated by the same
+    `DROPDOCS_ATTACH_ENABLED` flag as the write, so the pair switches on together, and the
+    refusal is the same `NOT_REGISTERED` body - a list route that answered differently for
+    "no such request" and "not yours" would re-open the oracle the attach route closes.
+
+    No key under ``o/`` can appear in the response: `service_request_store._document_view`
+    omits ``sourceKey`` and every ``storageKey`` it returns is gated by construction.
+    """
+    if not _dropdocs_attach_enabled():
+        return _no_store(cors_response(
+            503,
+            {"error": "DROPDOCS_ATTACH_DISABLED",
+             "message": "Attaching documents is not enabled yet."},
+            origin,
+        ))
+
+    proven = _dropdocs_identity(identity)
+    if not proven.customer_id:
+        return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+
+    try:
+        documents = service_request_store.list_documents(
+            _table(SERVICE_REQUESTS_TABLE), proven, public_request_id)
+    except customer_auth.CustomerNotAuthorized:
+        return _no_store(_not_registered(origin))
+    except service_request_store.ServiceIdentityUnavailable as exc:
+        logger.error(json.dumps({"event": "dropdocs_list_unavailable",
+                                 "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
+
+    return _no_store(cors_response(200, {"requestId": public_request_id,
+                                         "documents": documents}, origin))
 
 
 # ── routing ───────────────────────────────────────────────────────────────────
@@ -1438,6 +1515,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not identity:
                 return _no_store(cors_response(401, {"error": "Verification required"}, origin))
             return _dropdocs_attach(event, identity, origin)
+
+        # The read side of the same pair. A literal `dropdocs` segment, so it cannot be
+        # confused with the `{fileId}` routes below, and matched before them for the same
+        # reason.
+        if len(tail) == 3 and tail[0] == "dropdocs" and tail[2] == "documents":
+            if method != "GET":
+                return _no_store(cors_response(405, {"error": "Method not allowed"}, origin))
+            identity = _customer_identity(event)
+            if not identity:
+                return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+            return _dropdocs_list(tail[1], identity, origin)
 
         if len(tail) == 2 and tail[1] in ("order", "download", "whatsapp-pay"):
             identity = _customer_identity(event)

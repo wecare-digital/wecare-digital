@@ -194,10 +194,13 @@ def test_b_the_attach_route_does_not_share_a_code_path_with_the_order_route():
 
 
 def test_b_the_existing_locker_routes_are_untouched():
-    """Phase O-2 ADDS one route key. It must not retarget or rename an existing one."""
+    """Phase O-2 ADDS two route keys, both under a literal ``dropdocs`` segment. It must not
+    retarget or rename an existing one, and it must not introduce a second ``{fileId}``
+    shape that could shadow the paid-download routes."""
     provisioner = _load_provisioner()
     keys = [f"{method} {path}" for method, path in provisioner.ROUTES]
     assert keys.count("POST /secure-files/dropdocs/attach") == 1
+    assert keys.count("GET /secure-files/dropdocs/{requestId}/documents") == 1
     for existing in ("GET /secure-files",
                      "POST /secure-files/upload-init",
                      "POST /secure-files/{fileId}/confirm",
@@ -207,7 +210,11 @@ def test_b_the_existing_locker_routes_are_untouched():
                      "POST /secure-files/{fileId}/whatsapp-pay",
                      "GET /secure-files/{fileId}/download"):
         assert existing in keys
-    assert len(keys) == len(set(keys)) == 9
+    assert len(keys) == len(set(keys)) == 10
+    # every new key is Drop Docs; nothing else was added under cover of this phase
+    assert {key for key in keys if "dropdocs" in key} == {
+        "POST /secure-files/dropdocs/attach",
+        "GET /secure-files/dropdocs/{requestId}/documents"}
 
 
 # ── both flags ship off ───────────────────────────────────────────────────────

@@ -34,6 +34,34 @@ Hashing the content, rather than naming the file, buys three things:
 3. **An overwrite writes identical bytes**, which is what makes bucket versioning being
    Suspended tolerable here rather than dangerous.
 
+The source is allow-listed, because the caller chooses it
+--------------------------------------------------------
+``sourceKey`` arrives in a request body, so it is attacker-controlled, and the role this
+runs under can read all of ``secure/*`` as well as the WhatsApp incoming prefix. Without a
+check, a customer could name **another customer's** locker upload and have it registered as
+their own document -- and for a source under ``o/``, have it copied into the gated tree
+under their own ownership, which inverts the exact leak this module exists to close.
+
+So exactly one source prefix is accepted: `WHATSAPP_INCOMING_PREFIX`. Everything else is
+`DocumentRejected`, including an already-gated key. That last one is deliberate rather than
+incidental: a browser upload reached ``secure/u/`` through the locker's own presigned PUT
+and already has a locker row, so it never needed this route. Accepting it bought nothing and
+made this an existence oracle for the private tree -- the 201 body carries the key, its
+content type and its exact byte count.
+
+Note what this is NOT: it is not proof the *object* belongs to the caller. Nothing in the
+inbound WhatsApp key shape records a customer. The allow-list bounds the blast radius to one
+prefix of non-enumerable keys; the ownership that is actually enforced is on the **target
+request**, inside `service_request_store.attach_document`.
+
+The read is bounded
+-------------------
+The source is HEADed before it is read, and refused above `MAX_DOCUMENT_BYTES` -- the same
+100 MB ceiling the locker already applies to its own uploads. The body is then read with an
+explicit limit, so a HEAD that disagrees with the object cannot still exhaust a 512 MB
+function. An unbounded ``Body.read()`` here fails as an OOM or a timeout surfacing as a
+502, which is a refusal nobody can read.
+
 The public original is NOT deleted, deliberately
 ------------------------------------------------
 Neither ``wecare-secure-files-role`` nor ``wecare-digital-lambda-role`` holds
@@ -44,14 +72,14 @@ rather than hidden: the result carries ``publicSourceRetained`` and exactly one 
 is logged carrying the retained public key under the alert
 ``DROPDOCS_PUBLIC_SOURCE_RETAINED``. Do not add a delete to get a tidier story.
 
-One deviation from the brief, and why
--------------------------------------
+Two deviations from the brief, and why
+--------------------------------------
 The brief said an already-gated source should be returned "unchanged", i.e. with no S3
-call at all. It cannot be: ``attach_document`` keys its row on
-``DOC#<request>#<sha256>``, so without a digest the row key is malformed and the
-resolve-before-generate property above is lost. An already-gated source is therefore
-still read and hashed -- but nothing is copied, nothing is written, and the storage key
-returned is the source key itself, so no object moves between roots.
+call at all. That branch is **gone**, not implemented: see the allow-list above. It was
+never reachable for a legitimate caller and it was reachable for an illegitimate one.
+
+The brief also did not mention a size ceiling. One is applied anyway, because the function
+is 512 MB / 30 s and the object is hashed in memory.
 
 Logging carries keys and ids only; a key under ``o/`` appears in exactly one place (the
 retention alert) and nowhere else. Exceptions are logged by ``type(exc).__name__``.
@@ -65,6 +93,8 @@ import logging
 from typing import Any, Dict, Optional
 
 from lambda_utils import media_paths
+from lambda_utils.ecommerce.document_errors import (
+    DocumentNotPrivate, DocumentPromotionFailed, DocumentRejected)
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +102,16 @@ logger = logging.getLogger(__name__)
 #: "upload as received" child; a third top-level ``secure/`` child would fragment a
 #: two-prefix contract that the role policy and a migration already encode.
 DROPDOCS_SUBPREFIX = "u/dropdocs"
+
+#: The ONE prefix a Drop Docs document may be promoted FROM, composed rather than written
+#: out so it cannot drift from the key `inbound-whatsapp-handler` actually writes and from
+#: the single ``s3:GetObject`` resource the role is granted.
+WHATSAPP_INCOMING_PREFIX = media_paths.public("stack/whatsapp-media", "incoming/")
+
+#: The locker's own ceiling for a customer upload (``secure-files.MAX_DOCUMENT_BYTES``),
+#: applied here too. Pinned equal by a test, because two numbers that must agree and live in
+#: two files do not stay equal on their own.
+MAX_DOCUMENT_BYTES = 100 * 1024 * 1024
 
 #: A deliberately conservative ceiling, mirroring ``secure-files._safe_extension``.
 MAX_EXTENSION_CHARS = 8
@@ -81,23 +121,14 @@ FALLBACK_CONTENT_TYPE = "application/octet-stream"
 
 __all__ = [
     "DROPDOCS_SUBPREFIX",
+    "MAX_DOCUMENT_BYTES",
+    "WHATSAPP_INCOMING_PREFIX",
     "DocumentNotPrivate",
     "DocumentPromotionFailed",
+    "DocumentRejected",
     "promote_to_secure",
     "safe_extension",
 ]
-
-
-class DocumentPromotionFailed(RuntimeError):
-    """S3 refused a read, a copy or the proving HEAD. No row may be written."""
-
-
-class DocumentNotPrivate(RuntimeError):
-    """A key that is not under the gated root reached a point that requires one.
-
-    Raised rather than corrected. A key moved between roots to "make it work" is a
-    disclosure in one direction and a dead link in the other.
-    """
 
 
 def safe_extension(key: str) -> str:
@@ -114,22 +145,36 @@ def safe_extension(key: str) -> str:
     return ""
 
 
-def _read(s3: Any, *, bucket: str, key: str) -> Dict[str, Any]:
+def _refuse_oversized(s3: Any, *, bucket: str, key: str) -> None:
+    """Refuse above `MAX_DOCUMENT_BYTES` before any bytes move.
+
+    A HEAD on the source rather than a look at ``get_object``'s response, so an oversized
+    object costs one cheap call and transfers nothing at all.
+    """
     try:
-        response = s3.get_object(Bucket=bucket, Key=key)
-        return {"body": response["Body"].read(),
-                "contentType": str(response.get("ContentType") or "").strip()}
+        head = s3.head_object(Bucket=bucket, Key=key)
     except Exception as error:  # noqa: BLE001 - any S3 refusal means "write no row"
         raise DocumentPromotionFailed(
             f"could not read the source object: {type(error).__name__}") from error
+    if int(head.get("ContentLength") or 0) > MAX_DOCUMENT_BYTES:
+        # Permanently invalid rather than retryable: the same object will be the same size
+        # next time, and the locker refuses it at the same ceiling on its own upload path.
+        raise DocumentRejected("the document is larger than this service accepts")
 
 
-def _already_private(source: str, *, digest: str, content_type: str,
-                     size_bytes: int) -> Dict[str, Any]:
-    logger.info(json.dumps({"event": "dropdocs_source_already_private",
-                            "storageKey": source, "sha256": digest}))
-    return {"storageKey": source, "sha256": digest, "contentType": content_type,
-            "sizeBytes": size_bytes, "promoted": False, "publicSourceRetained": False}
+def _read(s3: Any, *, bucket: str, key: str) -> Dict[str, Any]:
+    try:
+        response = s3.get_object(Bucket=bucket, Key=key)
+        # Bounded explicitly, not trusted from the HEAD above: the whole body is hashed in
+        # memory on a 512 MB function, so the limit has to hold even if the two disagree.
+        body = response["Body"].read(MAX_DOCUMENT_BYTES + 1)
+        content_type = str(response.get("ContentType") or "").strip()
+    except Exception as error:  # noqa: BLE001
+        raise DocumentPromotionFailed(
+            f"could not read the source object: {type(error).__name__}") from error
+    if len(body) > MAX_DOCUMENT_BYTES:
+        raise DocumentRejected("the document is larger than this service accepts")
+    return {"body": body, "contentType": content_type}
 
 
 def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str]) -> Dict[str, Any]:
@@ -139,25 +184,29 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str]) -> Dic
     records the exact call set. The call set for a real promotion is exactly
     ``get_object``, ``copy_object``, ``head_object`` -- and never ``delete_object``.
 
-    Raises ``DocumentPromotionFailed`` when S3 refuses anything, and
-    ``DocumentNotPrivate`` when the destination this module composed is somehow not under
-    the gated root. Both leave the caller with no row to write.
+    Raises ``DocumentRejected`` for a source this service will never accept (outside
+    `WHATSAPP_INCOMING_PREFIX`, not a key at all, or over `MAX_DOCUMENT_BYTES`),
+    ``DocumentPromotionFailed`` when S3 refuses anything, and ``DocumentNotPrivate`` when
+    the destination this module composed is somehow not under the gated root. All three
+    leave the caller with no row to write.
     """
     source = media_paths.canonical(source_key)
     if not source:
-        raise DocumentPromotionFailed("no source key was given")
+        raise DocumentRejected("no source key was given")
     if source.startswith(("http://", "https://")):
         # `canonical` passes a URL through untouched, so this is not an S3 key at all.
-        raise DocumentPromotionFailed("a source must be an object key, not a URL")
+        raise DocumentRejected("a source must be an object key, not a URL")
+    if not source.startswith(WHATSAPP_INCOMING_PREFIX):
+        # THE ownership bound on the one input the caller controls. An already-gated key
+        # lands here too, deliberately: it is somebody's private upload, this route cannot
+        # tell whose, and a browser upload never needed promoting. See the module docstring.
+        raise DocumentRejected("a document may only be promoted from a WhatsApp arrival")
 
+    _refuse_oversized(s3, bucket=bucket, key=source)
     read = _read(s3, bucket=bucket, key=source)
     raw = read["body"]
     digest = hashlib.sha256(raw).hexdigest()
     content_type = read["contentType"] or FALLBACK_CONTENT_TYPE
-
-    if media_paths.is_gated(source):
-        return _already_private(source, digest=digest, content_type=content_type,
-                                size_bytes=len(raw))
 
     destination = media_paths.secure(
         DROPDOCS_SUBPREFIX, f"wecare-digital-{digest}{safe_extension(source)}")

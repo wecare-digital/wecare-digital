@@ -94,10 +94,12 @@ ROUTES = [
     ("POST", "/secure-files/{fileId}/order"),
     ("POST", "/secure-files/{fileId}/whatsapp-pay"),
     ("GET", "/secure-files/{fileId}/download"),
-    # Drop Docs: promote a document into secure/ and register it against a paid request.
-    # Flag-gated OFF by DROPDOCS_ATTACH_ENABLED; the route exists so the flag has
-    # something to switch.
+    # Drop Docs: promote a document into secure/ and register it against a paid request,
+    # and read back the caller's own documents for one request. Both flag-gated OFF by
+    # DROPDOCS_ATTACH_ENABLED; the routes exist so the flag has something to switch. The
+    # `dropdocs` segment is literal, so neither collides with the {fileId} routes above.
     ("POST", "/secure-files/dropdocs/attach"),
+    ("GET", "/secure-files/dropdocs/{requestId}/documents"),
 ]
 
 # Lambdas secure-files invokes for WhatsApp delivery.

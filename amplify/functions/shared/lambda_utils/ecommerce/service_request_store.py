@@ -60,7 +60,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from lambda_utils import customer_auth, media_paths
 from lambda_utils.ecommerce import order_keys
-from lambda_utils.ecommerce.dropdocs_storage import DocumentNotPrivate
+from lambda_utils.ecommerce.document_errors import (
+    DocumentLimitReached, DocumentNotPrivate, DocumentRejected)
 from lambda_utils.ecommerce.service_requests import (
     DROP_DOCS, INTENT_ID_RE, NOT_OFFERED_KINDS, PUBLIC_REQUEST_ID_ALPHABET,
     PUBLIC_REQUEST_ID_ENTROPY, PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE,
@@ -88,6 +89,22 @@ DOC_PREFIX = "DOC#"
 #: A sha256 hex digest, and nothing else. A malformed digest would produce a ``DOC#`` key
 #: that no replay could ever converge on, which is the one property this family exists for.
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+#: How many documents one Drop Docs request may hold.
+#:
+#: There IS a hard ceiling whether or not we choose one: ``documentSha256s`` is an attribute
+#: on the ``REQ#`` row, and at roughly 70 marshalled bytes per digest the 400 KB DynamoDB
+#: item limit arrives somewhere near five thousand. Past that, every further attach fails
+#: with a validation error nobody can read. 200 is far below it, well above any plausible
+#: set of documents for one request, and keeps `list_documents` -- one ``GetItem`` per
+#: digest, deliberately not a Query -- bounded at a readable cost.
+#:
+#: Enforced on the read side, so the refusal is legible. A burst of concurrent attaches can
+#: therefore overshoot by the number in flight, which is bounded and nowhere near the item
+#: limit; the alternative is a transaction condition whose failure is indistinguishable from
+#: an ownership failure, and answering "not yours" to a cap is worse than overshooting by a
+#: handful.
+MAX_DOCUMENTS_PER_REQUEST = 200
 
 #: Intent lifecycle. A rank, so "only rank 0 is resumable" is one integer comparison.
 INTENT_OPEN, INTENT_OPEN_RANK = "OPEN", 0
@@ -709,10 +726,13 @@ def attach_document(table: Any, identity: customer_auth.CustomerIdentity,
     """Register one document against the caller's paid Drop Docs request. Idempotent.
 
     Raises ``CustomerNotAuthorized`` (missing, not the caller's, or not a Drop Docs
-    request), ``DocumentNotPrivate`` (``storage_key`` is not under the gated root, or the
-    digest is not a sha256) or ``ServiceIdentityUnavailable``. Every one of them leaves the
-    table untouched: there is no partial state in which a row exists for an object that is
-    still only reachable under ``o/``.
+    request), ``DocumentRejected`` (the digest is not a sha256, or the byte count is absent
+    or negative -- permanently invalid input, not a privacy failure),
+    ``DocumentNotPrivate`` (``storage_key`` is not under the gated root),
+    ``DocumentLimitReached`` (the request already holds `MAX_DOCUMENTS_PER_REQUEST`) or
+    ``ServiceIdentityUnavailable``. Every one of them leaves the table untouched: there is
+    no partial state in which a row exists for an object that is still only reachable under
+    ``o/``.
 
     The write is a two-item transaction rather than a bare put, so the row and the request's
     index of it land together or not at all. Item 0 is the ``DOC#`` row under
@@ -725,7 +745,9 @@ def attach_document(table: Any, identity: customer_auth.CustomerIdentity,
 
     digest = str(sha256 or "").strip().lower()
     if not SHA256_RE.match(digest):
-        raise DocumentNotPrivate("a document must be identified by its sha256")
+        # Shape, not privacy. Separate exceptions because the HTTP layer answers 400 here
+        # and 503 below, and "please try again" on a malformed digest is a lie.
+        raise DocumentRejected("a document must be identified by its sha256")
     if not media_paths.is_gated(storage_key):
         # The fail-closed gate. Checked here, after ownership and kind and BEFORE any write,
         # because a row pointing at a public object is worse than no row at all.
@@ -736,7 +758,15 @@ def attach_document(table: Any, identity: customer_auth.CustomerIdentity,
     document_key = f"{DOC_PREFIX}{request_internal}#{digest}"
     size = _int(size_bytes)
     if size is None or size < 0:
-        raise DocumentNotPrivate("a document must carry an exact byte count")
+        raise DocumentRejected("a document must carry an exact byte count")
+
+    held = [str(entry or "").strip().lower() for entry in (request.get("documentSha256s")
+                                                           or [])]
+    if digest not in held and len(held) >= MAX_DOCUMENTS_PER_REQUEST:
+        # A replay of a digest already held still goes through, so idempotency survives at
+        # the ceiling rather than turning into a refusal the caller cannot resolve.
+        raise DocumentLimitReached(
+            f"a request may hold at most {MAX_DOCUMENTS_PER_REQUEST} documents")
 
     now = _now(clock)
     document = {
@@ -801,12 +831,17 @@ def list_documents(table: Any, identity: customer_auth.CustomerIdentity,
     with ``REQ#`` rows for the page limit in `list_for_customer`, so a customer with enough
     documents would see an empty request list. Each row's owner is re-checked, so a digest
     that somehow named another customer's row yields nothing.
+
+    One ``GetItem`` per digest, which is affordable only because the digest list is capped
+    at `MAX_DOCUMENTS_PER_REQUEST`. The cap is read here too, so a row that overshot it in a
+    concurrent burst still reads back at a bounded cost instead of growing the page without
+    limit.
     """
     request = _resolve_dropdocs_request(table, identity, public_request_id)
     request_internal = str(request[KEY_ATTR])
     documents: List[Dict[str, Any]] = []
     seen: set = set()
-    for entry in (request.get("documentSha256s") or []):
+    for entry in (request.get("documentSha256s") or [])[:MAX_DOCUMENTS_PER_REQUEST]:
         digest = str(entry or "").strip().lower()
         if not SHA256_RE.match(digest) or digest in seen:
             continue

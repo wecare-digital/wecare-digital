@@ -50,7 +50,7 @@ for path in (str(ROOT / "tests"), str(FUNC_DIR), str(SHARED)):
 from service_requests_fake_dynamo import RequestTable  # noqa: E402
 
 from lambda_utils import customer_auth, media_paths  # noqa: E402
-from lambda_utils.ecommerce import dropdocs_storage  # noqa: E402
+from lambda_utils.ecommerce import document_errors, dropdocs_storage  # noqa: E402
 from lambda_utils.ecommerce import service_request_store as store  # noqa: E402
 from lambda_utils.ecommerce.service_requests import DROP_DOCS, SUBMIT_REQUEST  # noqa: E402
 
@@ -90,6 +90,13 @@ class FakeS3:
         self.calls: List[str] = []
         self.call_log: List[Dict[str, Any]] = []
         self.fail_on: Dict[str, Exception] = {}
+        #: Let a HEAD lie about ``ContentLength``, so the size ceiling can be exercised
+        #: without allocating a hundred megabytes in a test.
+        self.declared_sizes: Dict[str, int] = {}
+        #: Fail the HEAD of the DESTINATION only. There are now two HEADs on the promotion
+        #: path - the source size check and the proving HEAD - so failing them by operation
+        #: name alone could no longer distinguish which one a test meant.
+        self.fail_on_destination_head: Any = None
 
     def _record(self, name: str, **kwargs) -> None:
         self.calls.append(name)
@@ -104,8 +111,11 @@ class FakeS3:
             raise FakeS3Error("NoSuchKey")
 
         class _Body:
-            def read(self_inner):
-                return held["body"]
+            def read(self_inner, amt=None):
+                # boto3's StreamingBody takes an optional byte count, and the promotion
+                # passes one. Honouring it here is what lets case (g) prove the limit holds
+                # even when a HEAD under-reports the object.
+                return held["body"] if amt is None else held["body"][:amt]
 
         return {"Body": _Body(), "ContentType": held["contentType"]}
 
@@ -122,10 +132,13 @@ class FakeS3:
 
     def head_object(self, Bucket=None, Key=None):  # noqa: N803
         self._record("head_object", Bucket=Bucket, Key=Key)
+        if media_paths.is_gated(Key) and self.fail_on_destination_head is not None:
+            raise self.fail_on_destination_head
         held = self.objects.get(Key)
         if held is None:
             raise FakeS3Error("NotFound")
-        return {"ContentLength": len(held["body"]), "ContentType": held["contentType"]}
+        return {"ContentLength": self.declared_sizes.get(Key, len(held["body"])),
+                "ContentType": held["contentType"]}
 
     def __getattr__(self, name):  # pragma: no cover - reached only by an unexpected call
         def _unsupported(*_args, **_kwargs):
@@ -227,40 +240,31 @@ def test_a_the_s3_call_set_is_exactly_read_copy_prove_and_never_delete():
     dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=SOURCE_KEY)
     assert set(s3.calls) == {"get_object", "copy_object", "head_object"}
     assert "delete_object" not in s3.calls
-    # and the HEAD is of the DESTINATION, which is what proves the copy landed
+    # TWO heads, and which is which matters: the first sizes the SOURCE before a byte
+    # moves, the second proves the copy landed at the DESTINATION.
     head = [call for call in s3.call_log if call["operation"] == "head_object"]
-    assert len(head) == 1
-    assert media_paths.is_gated(head[0]["Key"])
+    assert len(head) == 2
+    assert head[0]["Key"] == SOURCE_KEY
+    assert not media_paths.is_gated(head[0]["Key"])
+    assert media_paths.is_gated(head[1]["Key"])
     copy = [call for call in s3.call_log if call["operation"] == "copy_object"][0]
     assert copy["MetadataDirective"] == "REPLACE"
     assert copy["ContentType"] == "application/pdf"  # preserved, not re-guessed
     assert copy["CopySource"] == {"Bucket": BUCKET, "Key": SOURCE_KEY}
 
 
-def test_a_the_head_comes_after_the_copy_not_before():
-    """Ordering, not presence. HEADing before the copy proves nothing about the copy."""
+def test_a_the_proving_head_comes_after_the_copy_not_before():
+    """Ordering, not presence. HEADing before the copy proves nothing about the copy.
+
+    The full order is: size the source, read it, copy it, prove the destination. The last
+    ``head_object`` is the proving one, which is why the index is taken from the right.
+    """
     s3 = FakeS3()
     dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=SOURCE_KEY)
-    assert s3.calls.index("copy_object") < s3.calls.index("head_object")
-
-
-def test_a_an_already_gated_source_is_not_copied_anywhere():
-    """A browser upload already landed in ``secure/u/`` via the locker's presigned PUT.
-
-    It is still read, because `attach_document` keys its row on the content hash and a row
-    with no digest could never converge on a replay - but nothing is copied and the key
-    returned is the source key itself, so no object moves between roots.
-    """
-    gated = "secure/u/wecare-digital-deadbeef.pdf"
-    s3 = FakeS3()
-    s3.objects[gated] = {"body": DOCUMENT_BYTES, "contentType": "application/pdf"}
-
-    result = dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=gated)
-
-    assert result["storageKey"] == gated
-    assert result["promoted"] is False
-    assert result["publicSourceRetained"] is False
-    assert set(s3.calls) == {"get_object"}
+    proving = len(s3.calls) - 1 - s3.calls[::-1].index("head_object")
+    assert s3.calls.index("copy_object") < proving
+    # the size check, by contrast, comes before anything is transferred
+    assert s3.calls.index("head_object") < s3.calls.index("get_object")
 
 
 def test_a_an_extension_is_whitelisted_exactly_as_the_locker_does_it(handler):
@@ -308,16 +312,53 @@ def test_b_every_shape_of_public_key_is_refused(key):
 
 def test_b_a_malformed_digest_writes_no_row():
     """A ``DOC#`` key with a junk digest could never be converged on by a replay, so the
-    resolve-before-generate property would be silently lost rather than loudly broken."""
+    resolve-before-generate property would be silently lost rather than loudly broken.
+
+    ``DocumentRejected``, not ``DocumentNotPrivate``: a malformed digest is a shape failure
+    and will never succeed on retry, so the HTTP layer must answer 400 rather than a 503
+    that invites one.
+    """
     table = _seeded_table()
     for bad in ("", "abc", "g" * 64, "a" * 63, "a" * 65, "a" * 32 + "-" * 32):
-        with pytest.raises(dropdocs_storage.DocumentNotPrivate):
+        with pytest.raises(document_errors.DocumentRejected):
             store.attach_document(
                 table, _identity(), PUBLIC_ID,
                 storage_key="secure/u/dropdocs/wecare-digital-x.pdf", sha256=bad,
                 content_type="application/pdf", size_bytes=10, source_key=SOURCE_KEY,
                 public_source_retained=True)
     assert _doc_rows(table) == []
+
+
+@pytest.mark.parametrize("size", [None, -1, "", "not a number"])
+def test_b_a_missing_or_negative_byte_count_is_a_shape_refusal_not_a_privacy_one(size):
+    """Same reasoning as the digest above, and the same 400. A privacy exception here would
+    tell the caller to retry a request that can never succeed, and would also muddy the one
+    alert that is supposed to mean "two checks disagreed about where an object lives"."""
+    table = _seeded_table()
+    with pytest.raises(document_errors.DocumentRejected):
+        store.attach_document(
+            table, _identity(), PUBLIC_ID,
+            storage_key=f"secure/u/dropdocs/wecare-digital-{'e' * 64}.pdf",
+            sha256="e" * 64, content_type="application/pdf", size_bytes=size,
+            source_key=SOURCE_KEY, public_source_retained=True)
+    assert _doc_rows(table) == []
+
+
+def test_b_a_privacy_refusal_and_a_shape_refusal_are_different_exceptions():
+    """Asserted directly, because the handler's 400-vs-503 split rests on it and an
+    `except DocumentRejected` placed after `except DocumentNotPrivate` would silently
+    collapse the two if one subclassed the other."""
+    assert not issubclass(document_errors.DocumentRejected,
+                          document_errors.DocumentNotPrivate)
+    assert not issubclass(document_errors.DocumentNotPrivate,
+                          document_errors.DocumentRejected)
+    assert not issubclass(document_errors.DocumentLimitReached,
+                          document_errors.DocumentRejected)
+    # and the store and the storage module borrow the SAME classes, so an `except` written
+    # against either spelling catches both
+    assert store.DocumentNotPrivate is document_errors.DocumentNotPrivate
+    assert dropdocs_storage.DocumentNotPrivate is document_errors.DocumentNotPrivate
+    assert dropdocs_storage.DocumentRejected is document_errors.DocumentRejected
 
 
 def test_b_an_uppercase_digest_is_normalised_rather_than_refused():
@@ -375,7 +416,9 @@ def test_c_a_missing_destination_after_a_successful_copy_also_writes_no_row(hand
     readable would otherwise mint a row pointing at nothing, while the PUBLIC original is
     still being served."""
     s3 = FakeS3()
-    s3.fail_on["head_object"] = FakeS3Error("NotFound")
+    # the DESTINATION head only: failing both would also fail the source size check, and
+    # the 503 would then prove nothing about the proving HEAD.
+    s3.fail_on_destination_head = FakeS3Error("NotFound")
     table = _seeded_table()
     _wire(handler, monkeypatch, s3, table)
 
@@ -395,7 +438,9 @@ def test_c_a_missing_source_writes_no_row(handler, monkeypatch):
 
     assert response["statusCode"] == 503
     assert _doc_rows(table) == []
-    assert set(s3.calls) == {"get_object"}
+    # the source size check is the first thing that touches S3, so a missing object is
+    # refused before a single byte is transferred
+    assert set(s3.calls) == {"head_object"}
 
 
 def test_c_the_route_refuses_while_the_flag_is_unset(handler, monkeypatch):
@@ -614,6 +659,359 @@ def test_e_no_phone_number_is_logged_by_this_path(handler, monkeypatch, caplog):
         message = record.getMessage()
         assert "918100640044" not in message
         assert "8100640044" not in message
+
+
+# ── (g) the caller chooses the source, so the source is allow-listed ──────────
+#
+# `sourceKey` arrives in a request body. The role can read all of `secure/*` as well as the
+# WhatsApp incoming prefix, so without a bound a customer could name another customer's
+# locker upload and have it registered as their own - and for a source under `o/`, copied
+# into the gated tree under their own ownership, which inverts the leak this phase exists to
+# close. One prefix is accepted. Everything else is a 400.
+
+OTHER_CUSTOMERS_UPLOAD = "secure/u/0199abcd-somebody-else/passport.pdf"
+
+
+@pytest.mark.parametrize("key", [
+    OTHER_CUSTOMERS_UPLOAD,                         # another customer's locker original
+    "secure/d/0199abcd-somebody-else/rendition.pdf",  # ...and their deliverable rendition
+    "secure/u/dropdocs/wecare-digital-deadbeef.pdf",  # another customer's promoted document
+    "o/public/wa-tpl/approved-template.png",        # a public object outside the one prefix
+    "o/blog-production/sources/pdf/abcd.pdf",
+    "stack/whatsapp-media/x.pdf",                   # legacy-rooted, and still outside it
+    "o/stack/whatsapp-media/x.pdf",                 # one level ABOVE the allowed prefix
+    "o/stack/whatsapp-media/incoming-other/x.pdf",  # a sibling whose name shares the stem
+    "https://wecare.digital/get/o/stack/whatsapp-media/incoming/x.pdf",
+    "", None,
+])
+def test_g_only_a_whatsapp_arrival_may_be_promoted(key):
+    """The allow-list, as an enumeration of what it excludes."""
+    s3 = FakeS3()
+    s3.objects[OTHER_CUSTOMERS_UPLOAD] = {"body": b"someone else's passport",
+                                          "contentType": "application/pdf"}
+    with pytest.raises(document_errors.DocumentRejected):
+        dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=key)
+    # refused before S3 is touched at all, so it is not an existence oracle either
+    assert s3.calls == []
+
+
+def test_g_the_check_runs_on_the_canonical_key_not_the_raw_input():
+    """Both directions of the same property, which is why it is a test of its own.
+
+    A legacy-rooted spelling of an ALLOWED key (``stack/whatsapp-media/incoming/...``, no
+    ``o/`` - the shape `media_paths.canonical` exists to normalise) names exactly the object
+    the prefix permits, so it must be accepted. And the matching legacy spelling of a
+    DISALLOWED key must not slip through by dropping the root, which the parametrize above
+    covers. Checking the raw input instead would get one of these two wrong whichever way it
+    was written.
+    """
+    legacy = "stack/whatsapp-media/incoming/wecare-digital-ab12.pdf"
+    assert media_paths.canonical(legacy) == SOURCE_KEY
+    s3 = FakeS3()
+    result = dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=legacy)
+    assert result["promoted"] is True
+    assert media_paths.is_gated(result["storageKey"])
+
+
+def test_g_the_allowed_prefix_is_composed_not_written_out():
+    """It must stay equal to the key `inbound-whatsapp-handler` writes and to the single
+    ``s3:GetObject`` resource the role is granted. Three copies of a literal drift."""
+    assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == media_paths.public(
+        "stack/whatsapp-media", "incoming/")
+    assert dropdocs_storage.WHATSAPP_INCOMING_PREFIX == "o/stack/whatsapp-media/incoming/"
+    assert not media_paths.is_gated(dropdocs_storage.WHATSAPP_INCOMING_PREFIX)
+
+
+def test_g_an_already_gated_source_is_refused_over_http_and_writes_no_row(handler,
+                                                                         monkeypatch):
+    """The one that mattered. A gated key names SOMEBODY's private upload and this route
+    cannot tell whose, so accepting it made the 201 body an existence oracle for the private
+    tree - key, content type and exact byte count. A browser upload reached ``secure/u/``
+    through the locker's own presigned PUT and already has a locker row, so it never needed
+    this route."""
+    s3 = FakeS3()
+    s3.objects[OTHER_CUSTOMERS_UPLOAD] = {"body": b"someone else's passport",
+                                          "contentType": "application/pdf"}
+    table = _seeded_table()
+    _wire(handler, monkeypatch, s3, table)
+
+    response = handler.handler(_attach_event(sourceKey=OTHER_CUSTOMERS_UPLOAD), None)
+
+    assert response["statusCode"] == 400
+    body = json.loads(response["body"])
+    assert body["error"] == "DOCUMENT_SOURCE_REFUSED"
+    assert _doc_rows(table) == []
+    assert s3.calls == []
+    # the refusal names neither the key it was given nor the prefix it would have accepted
+    assert OTHER_CUSTOMERS_UPLOAD not in response["body"]
+    assert "whatsapp-media" not in response["body"]
+    assert "secure/" not in response["body"]
+
+
+def test_g_a_public_object_outside_the_prefix_is_not_copied_into_the_gated_tree(handler,
+                                                                               monkeypatch):
+    """The worse half of the same hole: a key under ``o/`` is unlisted-but-public with the
+    URL as the secret, so a leaked URL must not be convertible into a durable private
+    document owned by whoever found it."""
+    s3 = FakeS3()
+    leaked = "o/public/wa-tpl/someone-elses-document.pdf"
+    s3.objects[leaked] = {"body": b"a leaked public document",
+                          "contentType": "application/pdf"}
+    table = _seeded_table()
+    _wire(handler, monkeypatch, s3, table)
+
+    response = handler.handler(_attach_event(sourceKey=leaked), None)
+
+    assert response["statusCode"] == 400
+    assert _doc_rows(table) == []
+    assert "copy_object" not in s3.calls
+    assert s3.calls == []
+
+
+def test_g_a_refused_source_is_logged_by_type_only(handler, monkeypatch, caplog):
+    import logging
+
+    s3 = FakeS3()
+    table = _seeded_table()
+    _wire(handler, monkeypatch, s3, table)
+    caplog.set_level(logging.INFO)
+
+    handler.handler(_attach_event(sourceKey=OTHER_CUSTOMERS_UPLOAD), None)
+
+    for record in caplog.records:
+        message = record.getMessage()
+        assert OTHER_CUSTOMERS_UPLOAD not in message
+        assert "passport" not in message
+
+
+# ── (g2) the read is bounded ──────────────────────────────────────────────────
+
+def test_g_the_ceiling_is_the_same_one_the_locker_already_applies(handler):
+    """Two numbers that must agree, in two files. Pinned, because they do not stay equal on
+    their own - and the attach path not consulting the locker's own limit is how a 512 MB
+    function ends up hashing an arbitrarily large object in memory."""
+    assert dropdocs_storage.MAX_DOCUMENT_BYTES == handler.MAX_DOCUMENT_BYTES
+    assert dropdocs_storage.MAX_DOCUMENT_BYTES == 100 * 1024 * 1024
+
+
+def test_g_an_oversized_source_is_refused_before_a_byte_is_transferred():
+    """The HEAD is what makes this cheap: an oversized object costs one call and no
+    transfer, rather than an OOM or a timeout surfacing as a 502 nobody can read."""
+    s3 = FakeS3()
+    s3.declared_sizes[SOURCE_KEY] = dropdocs_storage.MAX_DOCUMENT_BYTES + 1
+
+    with pytest.raises(document_errors.DocumentRejected):
+        dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=SOURCE_KEY)
+
+    assert s3.calls == ["head_object"]
+    assert "get_object" not in s3.calls
+    assert "copy_object" not in s3.calls
+
+
+def test_g_an_object_at_exactly_the_ceiling_is_accepted():
+    """A ceiling that refuses its own boundary value is an off-by-one, not a policy."""
+    s3 = FakeS3()
+    s3.declared_sizes[SOURCE_KEY] = dropdocs_storage.MAX_DOCUMENT_BYTES
+    result = dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=SOURCE_KEY)
+    assert result["promoted"] is True
+
+
+def test_g_a_head_that_under_reports_the_object_still_cannot_blow_the_limit(monkeypatch):
+    """The body read is bounded explicitly rather than trusted from the HEAD, because the
+    limit has to hold even when the two disagree."""
+    monkeypatch.setattr(dropdocs_storage, "MAX_DOCUMENT_BYTES", 8)
+    s3 = FakeS3()
+    s3.declared_sizes[SOURCE_KEY] = 1  # a HEAD claiming the object is tiny
+
+    with pytest.raises(document_errors.DocumentRejected):
+        dropdocs_storage.promote_to_secure(s3, bucket=BUCKET, source_key=SOURCE_KEY)
+
+    assert "copy_object" not in s3.calls
+
+
+def test_g_an_oversized_source_answers_400_and_writes_no_row(handler, monkeypatch):
+    s3 = FakeS3()
+    s3.declared_sizes[SOURCE_KEY] = dropdocs_storage.MAX_DOCUMENT_BYTES + 1
+    table = _seeded_table()
+    _wire(handler, monkeypatch, s3, table)
+
+    response = handler.handler(_attach_event(), None)
+
+    assert response["statusCode"] == 400
+    assert json.loads(response["body"])["error"] == "DOCUMENT_SOURCE_REFUSED"
+    assert _doc_rows(table) == []
+
+
+# ── (g3) the digest index has a stated ceiling ────────────────────────────────
+
+def test_g_a_request_may_not_hold_unbounded_documents():
+    """``documentSha256s`` is an attribute on the REQ# row, so there IS a hard ceiling
+    whether or not we choose one: the 400 KB item limit arrives near five thousand digests
+    and turns every further attach into an unreadable validation error. A stated cap turns
+    that into a refusal a caller can read."""
+    table = _seeded_table()
+    table.rows[REQUEST_INTERNAL]["documentSha256s"] = [
+        f"{index:064x}" for index in range(store.MAX_DOCUMENTS_PER_REQUEST)]
+
+    with pytest.raises(document_errors.DocumentLimitReached):
+        store.attach_document(
+            table, _identity(), PUBLIC_ID,
+            storage_key=f"secure/u/dropdocs/wecare-digital-{'f' * 64}.pdf",
+            sha256="f" * 64, content_type="application/pdf", size_bytes=10,
+            source_key=SOURCE_KEY, public_source_retained=True)
+    assert _doc_rows(table) == []
+
+
+def test_g_a_replay_still_succeeds_at_the_ceiling():
+    """Idempotency must survive the cap. Refusing a digest the request already holds would
+    turn a harmless retry into a failure the caller cannot resolve."""
+    table = _seeded_table()
+    held = [f"{index:064x}" for index in range(store.MAX_DOCUMENTS_PER_REQUEST - 1)]
+    digest = "a" * 64
+    table.rows[REQUEST_INTERNAL]["documentSha256s"] = held + [digest]
+    gated = f"secure/u/dropdocs/wecare-digital-{digest}.pdf"
+    table.seed({"requestId": f"{store.DOC_PREFIX}{REQUEST_INTERNAL}#{digest}",
+                "ownerCustomerId": OWNER, "targetRequestId": REQUEST_INTERNAL,
+                "storageKey": gated, "sha256": digest, "contentType": "application/pdf",
+                "sizeBytes": 10, "sourceKey": SOURCE_KEY, "publicSourceRetained": True,
+                "attachedAt": 1})
+
+    view = store.attach_document(table, _identity(), PUBLIC_ID, storage_key=gated,
+                                 sha256=digest, content_type="application/pdf",
+                                 size_bytes=10, source_key=SOURCE_KEY,
+                                 public_source_retained=True)
+
+    assert view["documentId"] == digest
+    assert len(_doc_rows(table)) == 1
+
+
+def test_g_the_cap_answers_409_rather_than_a_validation_error(handler, monkeypatch):
+    s3 = FakeS3()
+    table = _seeded_table()
+    table.rows[REQUEST_INTERNAL]["documentSha256s"] = [
+        f"{index:064x}" for index in range(store.MAX_DOCUMENTS_PER_REQUEST)]
+    _wire(handler, monkeypatch, s3, table)
+
+    response = handler.handler(_attach_event(), None)
+
+    assert response["statusCode"] == 409
+    body = json.loads(response["body"])
+    assert body["error"] == "DOCUMENT_LIMIT_REACHED"
+    assert body["limit"] == store.MAX_DOCUMENTS_PER_REQUEST
+    assert _doc_rows(table) == []
+
+
+def test_g_the_list_read_is_bounded_by_the_same_cap():
+    """A row that overshot the cap in a concurrent burst must still read back at a bounded
+    cost - `list_documents` issues one GetItem per digest, deliberately not a Query."""
+    table = _seeded_table()
+    table.rows[REQUEST_INTERNAL]["documentSha256s"] = [
+        f"{index:064x}" for index in range(store.MAX_DOCUMENTS_PER_REQUEST + 50)]
+    reads: List[str] = []
+    original = table.get_item
+
+    def _counting(**kwargs):
+        reads.append(str((kwargs.get("Key") or {}).get("requestId")))
+        return original(**kwargs)
+
+    table.get_item = _counting
+    store.list_documents(table, _identity(), PUBLIC_ID)
+    # one resolve of the REQ# row, one of the REQNO# pointer, then at most the cap
+    assert len([key for key in reads if key.startswith(store.DOC_PREFIX)]) == \
+        store.MAX_DOCUMENTS_PER_REQUEST
+
+
+# ── (g4) the read route exists, so list_documents has a caller ────────────────
+
+def _list_event(request_id: str = PUBLIC_ID) -> Dict[str, Any]:
+    return {"requestContext": {
+                "http": {"method": "GET",
+                         "path": f"/secure-files/dropdocs/{request_id}/documents"},
+                "stage": "$default"},
+            "headers": {"authorization": "Bearer t", "origin": "https://wecare.digital"}}
+
+
+def test_g_the_list_route_returns_the_callers_own_documents(handler, monkeypatch):
+    table = _seeded_table()
+    _wire(handler, monkeypatch, FakeS3(), table)
+    assert handler.handler(_attach_event(), None)["statusCode"] == 201
+
+    response = handler.handler(_list_event(), None)
+
+    assert response["statusCode"] == 200
+    body = json.loads(response["body"])
+    assert body["requestId"] == PUBLIC_ID
+    assert len(body["documents"]) == 1
+    assert media_paths.is_gated(body["documents"][0]["storageKey"])
+    # same privacy properties as the write: no public key, nothing cacheable
+    assert "o/" not in response["body"]
+    assert "sourceKey" not in response["body"]
+    assert response["headers"]["Cache-Control"] == "no-store"
+
+
+def test_g_the_list_route_is_not_an_existence_oracle(handler, monkeypatch):
+    """One identical refusal for "no such request", "not yours" and "not Drop Docs" - the
+    same property the attach route is careful about. A list route that leaked the
+    distinction would re-open it."""
+    _wire(handler, monkeypatch, FakeS3(), _seeded_table())
+    unknown = handler.handler(_list_event("WD-REQ-ZZZZZZZZ"), None)
+
+    _wire(handler, monkeypatch, FakeS3(), _seeded_table(owner=STRANGER))
+    foreign = handler.handler(_list_event(), None)
+
+    _wire(handler, monkeypatch, FakeS3(), _seeded_table(kind=SUBMIT_REQUEST))
+    wrong_kind = handler.handler(_list_event(), None)
+
+    for response in (unknown, foreign, wrong_kind):
+        assert response["statusCode"] == 403
+        assert json.loads(response["body"])["error"] == "NOT_REGISTERED"
+    assert unknown["body"] == foreign["body"] == wrong_kind["body"]
+
+
+def test_g_the_list_route_is_behind_the_same_flag(handler, monkeypatch):
+    """The pair switches on together. A readable list of a customer's documents while the
+    write is off would be new surface nobody decided to expose."""
+    table = _seeded_table()
+    _wire(handler, monkeypatch, FakeS3(), table, enabled=False)
+
+    response = handler.handler(_list_event(), None)
+
+    assert response["statusCode"] == 503
+    assert json.loads(response["body"])["error"] == "DROPDOCS_ATTACH_DISABLED"
+
+
+def test_g_the_list_route_needs_a_customer_pool_token(handler, monkeypatch):
+    monkeypatch.setenv("DROPDOCS_ATTACH_ENABLED", "true")
+    monkeypatch.setattr(handler, "_customer_identity", lambda _event: None)
+    monkeypatch.setattr(handler, "_table", lambda _name: _seeded_table())
+
+    assert handler.handler(_list_event(), None)["statusCode"] == 401
+
+    source = (FUNC_DIR / "handler.py").read_text(encoding="utf-8")
+    arm = source.split('tail[2] == "documents"', 1)[1].split("\n        if ", 1)[0]
+    assert "_customer_identity(event)" in arm
+    assert "require_auth" not in arm
+
+
+@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH"])
+def test_g_the_list_route_is_read_only(handler, monkeypatch, method):
+    table = _seeded_table()
+    _wire(handler, monkeypatch, FakeS3(), table)
+    event = _list_event()
+    event["requestContext"]["http"]["method"] = method
+
+    response = handler.handler(event, None)
+
+    assert response["statusCode"] == 405
+    assert _doc_rows(table) == []
+
+
+def test_g_both_dropdocs_routes_are_registered_for_provisioning():
+    """The route has to exist in the provisioner or the handler arm is unreachable, which is
+    a failure mode no unit test would catch."""
+    source = (ROOT / "scripts" / "provision_secure_files_api.py").read_text(encoding="utf-8")
+    assert '("POST", "/secure-files/dropdocs/attach")' in source
+    assert '("GET", "/secure-files/dropdocs/{requestId}/documents")' in source
 
 
 # ── (f) the absences, asserted on the AST ─────────────────────────────────────
