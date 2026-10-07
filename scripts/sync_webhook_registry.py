@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Sync the webhook registry into the TXT ledger and Secrets Manager, and verify AWS keys.
+"""Sync noncredential webhook config into the TXT ledger and Standard SSM Parameter Store.
 
     python scripts/sync_webhook_registry.py --dry-run
     python scripts/sync_webhook_registry.py
 
 What it does:
-  1. Verifies the AWS IAM access key is consistent across ~/.aws/credentials,
+  1. With explicit owner-only --verify-aws-keys, verifies the AWS IAM access key is consistent across ~/.aws/credentials,
      the TXT ledger and Secrets Manager - by FINGERPRINT only, no value printed.
      Verifies rather than replaces: no rotation is authorized.
   2. Writes/refreshes a WEBHOOK REGISTRY block in the TXT ledger, between stable
      markers so re-running replaces the block instead of appending a second copy.
-  3. Stores the same registry in Secrets Manager at wecare/config/webhook-registry.
+  3. Stores the registry in Standard SSM at /wecare/config/webhook-registry.
      URLs are NOT secrets; this is a config record, and webhook SECRETS are not
      copied into it.
 
@@ -36,7 +36,7 @@ ACCOUNT = "775261844268"
 TXT = Path.home() / "aws-new-keys-SAVE-THEN-DELETE.txt"
 BEGIN = "# >>> BEGIN WEBHOOK REGISTRY (managed by scripts/sync_webhook_registry.py) >>>"
 END = "# <<< END WEBHOOK REGISTRY <<<"
-CONFIG_SECRET = "wecare/config/webhook-registry"
+CONFIG_PARAMETER = "/wecare/config/webhook-registry"
 BASE = "https://wecare.digital/api"
 
 WEBHOOKS = [
@@ -135,7 +135,7 @@ def registry_block() -> str:
          f"last_synced          = {now}",
          f"api_gateway          = zllr9lrg7j  ({ACCOUNT} / {REGION})",
          f"base_url             = {BASE}",
-         f"also_in_secrets_mgr  = {CONFIG_SECRET}",
+         f"also_in_ssm          = {CONFIG_PARAMETER}",
          f"also_in_repo         = docs/WEBHOOK-INVENTORY.md",
          "",
          "NOTE: webhook SECRETS are not recorded here. Razorpay's signing secret",
@@ -186,7 +186,7 @@ def write_txt(block: str, dry: bool) -> str:
     return f"{action}. size {len(original)} -> {len(updated)}, mode {oct(mode)[-3:]}"
 
 
-def write_secret(dry: bool) -> str:
+def write_parameter(dry: bool) -> str:
     payload = {
         "_note": "Inbound webhook registry. URLs are not secrets. Signing secrets "
                  "are NOT stored here.",
@@ -208,28 +208,26 @@ def write_secret(dry: bool) -> str:
             "secret_location": "wecare/razorpay-webhook:webhook_secret",
         },
     }
+    body = json.dumps(payload, separators=(',', ':'))
+    if len(body.encode('utf-8')) > 4096:
+        raise ValueError('Registry exceeds the free Standard parameter size')
     if dry:
-        return f"would write {CONFIG_SECRET} ({len(json.dumps(payload))} bytes)"
-    sm = boto3.client("secretsmanager", region_name=REGION)
-    body = json.dumps(payload, indent=2)
-    try:
-        r = sm.put_secret_value(SecretId=CONFIG_SECRET, SecretString=body)
-        return f"updated {CONFIG_SECRET} -> version {r['VersionId'][:8]}…"
-    except ClientError as exc:
-        if exc.response["Error"]["Code"] != "ResourceNotFoundException":
-            raise
-        r = sm.create_secret(Name=CONFIG_SECRET, SecretString=body,
-                             Description="Inbound webhook registry (config, not secrets)")
-        return f"created {CONFIG_SECRET} -> version {r['VersionId'][:8]}…"
+        return f"would write {CONFIG_PARAMETER} ({len(body.encode('utf-8'))} bytes)"
+    ssm = boto3.client("ssm", region_name=REGION)
+    response = ssm.put_parameter(Name=CONFIG_PARAMETER, Value=body, Type="String",
+                                 Tier="Standard", Overwrite=True,
+                                 Description="Inbound webhook registry; no signing credentials")
+    return f"updated {CONFIG_PARAMETER} -> version {response['Version']}"
 
 
 def main() -> int:
     dry = "--dry-run" in sys.argv
-    print("=== AWS access key consistency (verify, not rotate) ===")
-    for line in verify_aws_keys():
-        print(line)
-    print("\n=== Secrets Manager webhook registry ===")
-    print("  " + write_secret(dry))
+    if "--verify-aws-keys" in sys.argv:
+        print("=== Owner-only AWS key consistency check ===")
+        for line in verify_aws_keys():
+            print(line)
+    print("\n=== SSM Parameter Store webhook registry ===")
+    print("  " + write_parameter(dry))
     print("\n=== TXT ledger webhook block ===")
     print("  " + write_txt(registry_block(), dry))
     if dry:
