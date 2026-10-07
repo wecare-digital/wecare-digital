@@ -69,6 +69,11 @@ UNIFIED_MESSAGES_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-
 MEDIA_FILES_TABLE = os.environ.get('MEDIA_FILES_TABLE', 'stack-wecare-digital-MediaFilesTable')
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
+# Same table and same `{phone}#{flowCode}` key contract `flows/common.py` uses, named
+# identically there as DRAFTS_TABLE. Phase R parks a review's order reference here under
+# the Phase-R-only `WD_REV_REF` suffix so it survives the hop from this Lambda to the
+# Flow data-exchange callback in `wecare-whatsapp-business-api`.
+FLOW_DRAFTS_TABLE = os.environ.get('DRAFTS_TABLE', 'stack-wecare-digital-FlowDraftTable')
 AI_INTERACTIONS_TABLE = os.environ.get('AI_INTERACTIONS_TABLE', 'stack-wecare-digital-AIInteractionsTable')
 INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
 INBOUND_DLQ_URL = os.environ.get('INBOUND_DLQ_URL', '')
@@ -2321,6 +2326,41 @@ def _process_message(
                     flow_key=flow_key,
                 )
                 return  # Skip AI automation  -  flow handles the rest
+
+        # ── `review <REF>` — the attributed half of the website review door (Phase R) ──
+        #
+        # Placed AFTER the exact-match loop so it can never shadow it: `review` on its own
+        # is a `leave_review` keyword and still takes the loop above, unattributed. This
+        # branch only exists for the extra token the website link adds.
+        #
+        # It is a second, tightly-bounded branch rather than extra keywords because the
+        # loop matches `content_lower in keywords` - an EXACT match - so no keyword list
+        # can ever contain a reference. It fires on the literal root `review` only, never
+        # on `rate`, `feedback` or `testimonial`: those are the generic keywords
+        # `docs/whatsapp-experience-structure.md` already flags as a precedence hazard.
+        if _review_attribution_enabled():
+            review_reference = _extract_review_reference(content_lower)
+            if review_reference:
+                review_trigger = (flow_triggers.get('leave_review') or {})
+                if review_trigger.get('enabled', True) and review_trigger.get('flowId') \
+                        and _may_send('leave_review_attributed'):
+                    _park_review_reference(sender_phone, review_reference, request_id)
+                    logger.info(json.dumps({
+                        'event': 'review_attributed_flow_sent',
+                        'reference': review_reference,
+                        'contactId': mask_contact_id(contact_id),
+                        'phone': mask_phone(sender_phone),
+                        'requestId': request_id,
+                    }))
+                    _send_generic_flow(
+                        contact_id=contact_id,
+                        phone_number_id=aws_phone_number_id,
+                        sender_phone=sender_phone,
+                        request_id=request_id,
+                        flow_config=review_trigger,
+                        flow_key='leave_review',
+                    )
+                    return  # Skip AI automation  -  flow handles the rest
 
         # ── Direct "Pay" keyword trigger (LLM-independent, hardcoded) ──
         # Exact matches (content_lower must be exactly one of these)
@@ -5270,6 +5310,93 @@ def _send_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: st
             'error': str(e),
             'requestId': request_id
         }))
+
+
+# ── Attributed review door (Phase R) ──
+#
+# The website's "Leave a review" button opens `wa.me/<WABA1>?text=review <REF>`, so the
+# CUSTOMER messages US with the order they want to review. This is the inbound half of
+# that door: recognise the reference, park it, and send the review Flow the exact same
+# way a bare `review` already does.
+
+#: Anchored and bounded at BOTH ends on purpose. `review` alone keeps taking the existing
+#: exact-match path; prose such as `can i leave a review for my order` must NOT match, or
+#: a generic sentence starts dispatching a Flow. `src/lib/reviewLink.ts` enforces the
+#: identical bound before it will put a reference in the link, so the two ends of this
+#: door cannot disagree about what a reference is.
+_REVIEW_REF_PATTERN = r'^review\s+([A-Za-z0-9][A-Za-z0-9-]{3,39})$'
+
+#: FlowDraftTable suffix, mirrored by `flows/leave_review.REF_DRAFT_CODE`.
+REVIEW_REF_DRAFT_CODE = 'WD_REV_REF'
+
+
+def _review_attribution_enabled() -> bool:
+    """Whether `review <REF>` is recognised at all. **Defaults FALSE.**
+
+    OFF is today's exact behaviour: `review WD-ORD-A7K2M9PQ` does not equal any keyword in
+    `DEFAULT_FLOW_TRIGGERS['leave_review']`, the match at the keyword loop is `in`, so it
+    falls through with no reply. With the flag off this branch returns before matching
+    anything and that fall-through is preserved byte for byte.
+
+    It has to default off rather than ship enabled, for the same reason
+    `_standby_reply_enabled` has to default to TODAY'S behaviour: the inbound ingress
+    invokes `wecare-inbound-whatsapp` UNQUALIFIED, so `$LATEST` is production the instant
+    `update-function-code` returns and there is no alias gap in which to verify. The owner
+    flips this after publishing the Flow version on Meta.
+
+    Read per call, never cached at module scope - a module-scope read is frozen for the
+    life of the execution environment, so flipping it would not take effect until every
+    warm sandbox recycled.
+    """
+    return os.environ.get('REVIEW_ATTRIBUTION_ENABLED', 'false').strip().lower() \
+        in ('true', '1', 'yes', 'on')
+
+
+def _extract_review_reference(content_lower: str) -> str:
+    """The order/product reference in a `review <REF>` message, or ''.
+
+    Upper-cased, which is lossless here: the public order-number alphabet
+    (`order_keys.PUBLIC_ORDER_NUMBER_ALPHABET`) and the `WD-ORD-`/`WD-PAY-` prefixes are
+    already upper-case and digits, so recovering the customer's original string from the
+    lowercased `content_lower` needs nothing more than this.
+    """
+    import re
+    match = re.match(_REVIEW_REF_PATTERN, (content_lower or '').strip())
+    return match.group(1).upper() if match else ''
+
+
+def _park_review_reference(sender_phone: str, reference: str, request_id: str) -> bool:
+    """Park the reference for the Flow callback to read back. Key `{phone}#WD_REV_REF`.
+
+    Written in the shape `flows/common.restore_draft` expects - `formData` as a JSON
+    STRING, not a map - because that helper is the reader and it `json.loads` the field.
+    7-day TTL, matching `save_draft`, so an abandoned reference expires itself.
+
+    The reference is logged IN FULL, deliberately. It is neither a secret nor a phone
+    number, and it is the one field that makes a review traceable end to end without
+    unmasking anything - the same reasoning `reference_id` carries on the payment path.
+    """
+    try:
+        now = int(time.time())
+        dynamodb.Table(FLOW_DRAFTS_TABLE).put_item(Item={
+            'draftKey': f'{sender_phone}#{REVIEW_REF_DRAFT_CODE}',
+            'phone': sender_phone,
+            'flowCode': REVIEW_REF_DRAFT_CODE,
+            'screen': 'REVIEW_FORM',
+            'formData': json.dumps({'reference': reference}),
+            'updatedAt': Decimal(str(now)),
+            'ttl': now + (7 * 86400),
+        })
+        return True
+    except Exception as e:
+        logger.warning(json.dumps({
+            'event': 'review_reference_park_failed',
+            'reference': reference,
+            'phone': mask_phone(sender_phone),
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
+        return False
 
 
 def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,

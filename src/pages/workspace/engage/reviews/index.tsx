@@ -94,6 +94,21 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       )
     },
     { key: 'source', header: 'Source', width: '90px', render: ( r: api.Review ) => r.source },
+    {
+      // ATTRIBUTION IN THE LIST, not only in the detail modal. The modal already rendered
+      // `selected.orderId`, so a staff member could see which order a review was about —
+      // but only by opening each row one at a time, which is the opposite of what a
+      // moderation queue is for. Nothing WROTE `orderId` until Phase R, so this column was
+      // not useful before now.
+      // `—` rather than blank for an unattributed review: a review left from
+      // /leave-review/ has no order by design, and an empty cell reads as missing data.
+      key: 'orderId', header: 'Order', width: '150px',
+      render: ( r: api.Review ) => (
+        <span style={ { fontSize: 13, color: r.orderId ? '#1a1a1a' : '#6b7280' } }>
+          { r.orderId || '—' }
+        </span>
+      ),
+    },
     { key: 'status', header: 'Status', width: '100px', render: ( r: api.Review ) => statusBadge( r.status ) },
     { key: 'createdAt', header: 'Date', width: '100px', render: ( r: api.Review ) => formatDate( r.createdAt ) },
     {

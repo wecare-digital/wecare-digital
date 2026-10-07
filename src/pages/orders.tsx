@@ -17,6 +17,7 @@ import { type StoredAddress } from '../components/AddressFields';
 import { featureFlags } from '../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../lib/customerAuth';
 import { formatPaiseINR } from '../lib/money';
+import { isCarriableReference, reviewWaLink } from '../lib/reviewLink';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -866,6 +867,26 @@ export default function OrdersPage (): React.ReactElement {
                             ? 'An invoice is created once the payment is settled.'
                             : '';
 
+                      // THE ATTRIBUTED REVIEW DOOR. `wa.me/<WABA1>?text=review <REF>`, so the
+                      // CUSTOMER messages us and their own message opens the 24-hour window the
+                      // review Flow needs. This page sends nothing.
+                      //
+                      // Deliberately reusing `copyValue`'s ladder, not `displayId`'s: the two
+                      // real identifiers and never the date, for the same reason — a date is not
+                      // something staff can resolve to an order.
+                      //
+                      // '' omits the row entirely rather than rendering an unattributed button.
+                      // A review door in a per-order panel that carries no order would attribute
+                      // nothing while looking like it does, and /leave-review/ already is the
+                      // unattributed door for anyone who wants one. `isCarriableReference` is the
+                      // same bound the Lambda enforces on arrival, so the legacy spaced Wix
+                      // number ('WD-ORD - A1B2C3D4 - …') drops out here instead of travelling as
+                      // a mangled reference that matches no order.
+                      const reviewHref =
+                        featureFlags.reviewCta && isCarriableReference( copyValue )
+                          ? reviewWaLink( copyValue )
+                          : '';
+
                       return (
                         <React.Fragment key={ rowId }>
                           <tr className={ isOpen ? 'ord-tr ord-tr-open' : 'ord-tr' }>
@@ -1060,6 +1081,23 @@ export default function OrdersPage (): React.ReactElement {
                                       <>
                                         <dt>Invoice</dt>
                                         <dd>{ panelInvoice }</dd>
+                                      </>
+                                    ) }
+                                    { !!reviewHref && (
+                                      <>
+                                        <dt>Review</dt>
+                                        { /* The shared lime pill, unchanged - no new component
+                                             and no new tokens. NO `ariaLabel`: that prop does
+                                             not exist on PillButton, by design, so the visible
+                                             text IS the accessible name and the two cannot
+                                             drift out of WCAG 2.5.3 compliance. */ }
+                                        <dd>
+                                          <PillButton
+                                            as="a"
+                                            href={ reviewHref }
+                                            action="Leave a review"
+                                          />
+                                        </dd>
                                       </>
                                     ) }
                                   </dl>
