@@ -5403,20 +5403,16 @@ export async function exportSubmissionsCsv ( params?: { flowCode?: string; payme
 // empty panel — so the tab went with it rather than being left to render nothing.
 // The flow-submissions and flow-registry calls above and below are live and stay.
 
-// ── WhatsApp Commerce Catalog ──
-
-const CATALOG_BASE = `${API_BASE}/catalog`;
-
-export async function getCatalogProducts ( params?: { wabaId?: string; phoneNumberId?: string; catalogId?: string; limit?: number } ): Promise<{ products: any[]; paging?: any } | null> {
-  const qs = new URLSearchParams();
-  if ( params?.wabaId ) qs.set( 'wabaId', params.wabaId );
-  if ( params?.phoneNumberId ) qs.set( 'phoneNumberId', params.phoneNumberId );
-  if ( params?.catalogId ) qs.set( 'catalogId', params.catalogId );
-  if ( params?.limit ) qs.set( 'limit', String( params.limit ) );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${CATALOG_BASE}/products${query ? '?' + query : ''}` );
-  return data || { products: [] };
-}
+// The `WhatsApp Commerce Catalog` block — `CATALOG_BASE` (`${API_BASE}/catalog`) and
+// `getCatalogProducts` — was here. Removed 2026-10-07: /catalog/products has no live
+// route, and the deployment never had one, so every caller got a 404 body back. That
+// is worse than an error, because `apiCall` hands the parsed body on and the callers
+// read `products` off it as an empty array — the UI then said "no products in this
+// catalog" when the truth was "there is no catalog endpoint". Its two consumers went
+// with it: src/components/CatalogBrowser.tsx (deleted) and the inbox composer's
+// 'Load products' picker. This is the CUT branch of the catalog-lookup decision; the
+// catalog SEND below and in the inbox is a DIFFERENT, LIVE surface over WA_BIZ_BASE
+// and deliberately stays.
 
 // ── Catalog product admin (Meta catalog create/list/delete via WA Business API) ──
 export interface CatalogProductInput {

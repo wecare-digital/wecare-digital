@@ -260,8 +260,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
     const [ catalogId, setCatalogId ] = useState( '' );
     const [ catalogProducts, setCatalogProducts ] = useState( '' );
     const [ catalogBody, setCatalogBody ] = useState( '' );
-    const [ catalogList, setCatalogList ] = useState<any[]>( [] );
-    const [ catalogLoading, setCatalogLoading ] = useState( false );
+    // No catalogList/catalogLoading: they existed only for the removed product picker.
     // Block + mark-unread + click-to-call
     const [ blocking, setBlocking ] = useState( false );
     const [ unreadIds, setUnreadIds ] = useState<Set<string>>( new Set() );
@@ -752,26 +751,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         finally { setSending( false ); }
     }, [ replyTarget, selectedWaba, catalogId, catalogProducts, catalogBody, toast, loadData ] );
 
-    const loadCatalog = useCallback( async () => {
-        if ( !catalogId.trim() ) { toast.error( 'Enter the catalog ID first' ); return; }
-        setCatalogLoading( true );
-        try
-        {
-            const r = await api.getCatalogProducts( { catalogId: catalogId.trim(), phoneNumberId: selectedWaba, limit: 100 } );
-            setCatalogList( r?.products || [] );
-            if ( !r?.products?.length ) toast.error( 'No products found for this catalog' );
-        } catch { toast.error( 'Failed to load catalog products' ); }
-        finally { setCatalogLoading( false ); }
-    }, [ catalogId, selectedWaba, toast ] );
-
-    const toggleCatalogProduct = useCallback( ( rid: string ) => {
-        setCatalogProducts( prev => {
-            const ids = prev.split( ',' ).map( s => s.trim() ).filter( Boolean );
-            const i = ids.indexOf( rid );
-            if ( i >= 0 ) ids.splice( i, 1 ); else ids.push( rid );
-            return ids.join( ', ' );
-        } );
-    }, [] );
+    // `loadCatalog` and `toggleCatalogProduct` were here, along with the product picker
+    // they fed. Removed 2026-10-07: loadCatalog called api.getCatalogProducts, i.e.
+    // /catalog/products, which has no live route. The 404 body came back parsed rather
+    // than thrown, so the picker stayed empty and the operator was told "No products
+    // found for this catalog" — a sentence that blames the catalog for a missing
+    // endpoint. handleSendCatalog above is untouched: it posts over WA_BIZ_BASE, that
+    // route IS live, and an operator can still send by typing retailer ids.
 
     const handleBlockToggle = useCallback( async ( block: boolean ) => {
         const { contactId, phone } = replyTarget;
@@ -1405,26 +1391,11 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             <div className="ui-pay">
                                 <div className="ui-pay-title">Send catalog product</div>
                                 <label className="ui-pay-label">Catalog ID</label>
-                                <div className="ui-pay-row">
-                                    <input className="ui-pay-in" placeholder="Meta catalog ID" value={ catalogId } onChange={ e => setCatalogId( e.target.value ) } />
-                                    <button type="button" className="ui-pay-additem" disabled={ catalogLoading } onClick={ loadCatalog }>{ catalogLoading ? 'Loading…' : 'Load products' }</button>
-                                </div>
-                                { catalogList.length > 0 && (
-                                    <div className="ui-cat-grid">
-                                        { catalogList.map( ( p: any, i: number ) => {
-                                            const rid = p.retailer_id || p.retailerId || p.id || '';
-                                            const sel = catalogProducts.split( ',' ).map( s => s.trim() ).includes( rid );
-                                            return (
-                                                <button type="button" key={ rid || i } className={ `ui-cat-item ${sel ? 'sel' : ''}` } onClick={ () => toggleCatalogProduct( rid ) }>
-                                                    { ( p.image_url || p.imageUrl ) && <img className="ui-cat-img" src={ p.image_url || p.imageUrl } alt="" /> }
-                                                    <span className="ui-cat-name">{ p.name || rid }</span>
-                                                    { p.price && <span className="ui-cat-price">{ p.price }</span> }
-                                                </button>
-                                            );
-                                        } ) }
-                                    </div>
-                                ) }
-                                <label className="ui-pay-label">Product retailer ID(s) — comma-separated (or pick above)</label>
+                                { /* No 'Load products' button and no picker grid: /catalog/products has no
+                                     live route, so browsing is not available on this deployment. Sending is,
+                                     over WA_BIZ_BASE, which is why the id fields below stay. */ }
+                                <input className="ui-pay-in" placeholder="Meta catalog ID" value={ catalogId } onChange={ e => setCatalogId( e.target.value ) } />
+                                <label className="ui-pay-label">Product retailer ID(s) — comma-separated</label>
                                 <input className="ui-pay-in" placeholder="SKU_1, SKU_2, …" value={ catalogProducts } onChange={ e => setCatalogProducts( e.target.value ) } />
                                 <label className="ui-pay-label">Message (optional)</label>
                                 <textarea className="ui-pay-in" rows={ 2 } placeholder="Body text…" value={ catalogBody } onChange={ e => setCatalogBody( e.target.value ) } />
@@ -1483,12 +1454,9 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         .ui-unread-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${colors.primary}; margin-right: 6px; vertical-align: middle; }
         .ui-conv.unread .ui-conv-name { font-weight: 800; }
         .ui-conv.unread { background: #f7fee7; }
-        .ui-cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; max-height: 240px; overflow-y: auto; padding: 4px; border: 1px solid ${colors.borderLight}; border-radius: 10px; }
-        .ui-cat-item { display: flex; flex-direction: column; gap: 4px; align-items: stretch; padding: 6px; border: 1px solid ${colors.border}; border-radius: 9px; background: #fff; cursor: pointer; text-align: left; }
-        .ui-cat-item.sel { border-color: ${colors.primary}; background: #f0fdf4; box-shadow: 0 0 0 2px #bbf7d0; }
-        .ui-cat-img { width: 100%; height: 70px; object-fit: cover; border-radius: 6px; }
-        .ui-cat-name { font-size: 11px; color: ${colors.text}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ui-cat-price { font-size: 11px; font-weight: 600; color: ${colors.primary}; }
+        /* The six .ui-cat-* rules were here. They styled only the removed product picker,
+           and nothing else in the tree references them. Lint does not flag dead CSS, so
+           they would have survived the TSX deletion silently. */
         .ui-summarize { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; background: #f0fdf4; color: ${colors.primary}; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
         .ui-summarize:disabled { opacity: 0.6; cursor: not-allowed; }
         .ui-summary { display: flex; gap: 8px; align-items: flex-start; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 10px 12px; margin: 8px 16px 0; }
