@@ -59,6 +59,7 @@ def module(monkeypatch):
     for name in ('meta-social', 'whatsapp'):
         result.POLICY['connections'][name].pop('registrationEndpoint', None)
         result.POLICY['connections'][name]['clientId'] = 'fixture-client'
+        result.POLICY['connections'][name]['clientMode'] = 'existing-meta-app'
     return result
 
 
@@ -631,3 +632,27 @@ def test_empty_patch_chunk_is_rejected():
     from patch_policy import validate_patch
     with pytest.raises(ValueError, match="Empty patch chunk"):
         validate_patch("diff --git ")
+
+
+@pytest.mark.parametrize('provider,resource', [('meta-social', 'devtools'), ('whatsapp', 'whatsapp_business_tools')])
+def test_meta_cloud_policy_requires_registered_resource_client(provider, resource):
+    policy = json.loads((ROOT / 'config/workspace-mcp.json').read_text())['connections'][provider]
+    assert policy['registrationEndpoint'] == 'https://mcp.facebook.com/.well-known/register/' + resource
+    assert policy['clientMode'] == 'registered-mcp-client'
+    assert 'clientId' not in policy and 'loginConfigId' not in policy
+    assert policy['kind'] == 'remote-mcp'
+
+
+@pytest.mark.parametrize('provider,resource', [('meta-social', 'devtools'), ('whatsapp', 'whatsapp_business_tools')])
+def test_refused_meta_client_never_falls_back_to_graph_login(module, memory, monkeypatch, provider, resource):
+    policy = json.loads((ROOT / 'config/workspace-mcp.json').read_text())['connections'][provider]
+    module.POLICY['connections'][provider] = policy
+    calls = []
+    def refuse(url, payload, **kwargs):
+        calls.append(url)
+        raise module.Refusal('Dynamic registration is not available for this client.')
+    monkeypatch.setattr(module, 'http', refuse)
+    with pytest.raises(module.Refusal, match='client registration is unavailable'):
+        module.oauth_begin('owner', provider)
+    assert calls == [policy['registrationEndpoint']]
+    assert not memory.rows

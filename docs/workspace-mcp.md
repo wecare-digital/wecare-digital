@@ -241,3 +241,12 @@ or provider refresh-token expiry can still require consent. Meta authorization
 errors must be resolved in the approved provider app/client configuration; do not
 mark a callback or ordinary Graph token as a verified remote MCP connection.
 Plivo/Sinch checks confirm documentation discovery, not a live account.
+
+
+The Meta Social/WhatsApp cloud flow requires Meta to accept its resource-specific
+public MCP client registration. An ordinary WECARE Graph-app login is not a fallback
+for this registration. If registration is refused, use the separately authorized
+desktop Meta Social/WhatsApp connectors; do not copy their tokens into AWS. See
+`execution/mcp-connections-20261007.md` for the live provider response and Ads review
+limitations. Connection persistence does not override Meta client acceptance,
+permission review, consent or revocation.

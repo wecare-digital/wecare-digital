@@ -65,3 +65,16 @@ it('shows a validated OAuth link only after the chosen provider starts authoriza
   expect(await screen.findByRole('link', { name: /Continue with Meta/ })).toHaveAttribute('rel', 'noopener noreferrer');
   expect(call).toHaveBeenCalledWith('connection_authorize', { provider: 'whatsapp' });
 });
+
+it('shows a refused Meta client on its card without offering an unusable sign-in link', async () => {
+  call.mockImplementation(async name => {
+    if (name === 'connections_list') return { connections };
+    throw new Error('Meta MCP client registration is unavailable for this cloud callback.');
+  });
+  render(<Page />);
+  const region = await screen.findByRole('region', { name: 'WhatsApp Business Tools' });
+  fireEvent.click(within(region).getByRole('button', { name: 'Connect' }));
+  expect(await within(region).findByRole('alert')).toHaveTextContent('client registration is unavailable');
+  expect(within(region).getByText('Authorization blocked')).toBeInTheDocument();
+  expect(within(region).queryByRole('link', { name: /Continue with Meta/ })).toBeNull();
+});

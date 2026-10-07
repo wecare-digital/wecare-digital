@@ -25,7 +25,7 @@ const statusNames: Record<string, string> = {
   refresh_or_consent_required: 'Check renewal', refresh_pending: 'Automatic renewal available', sdk: 'Ready to check',
   'pending-adapter': 'Adapter pending', 'documentation-only': 'Documentation only',
   documentation_verified: 'Documentation verified',
-  mcp_client_required: 'MCP client sign-in needed',
+  mcp_client_required: 'MCP client required',
   authenticated: 'MCP authenticated · account read pending',
 };
 interface Authorization { url: string; expires: number; }
@@ -82,7 +82,12 @@ export default function MCPConnections({ user, signOut }: { user?: any; signOut?
       const url = metaAuthorizationURL(result.authorizationUrl);
       setAuthorizations(old => ({ ...old, [provider]: { url, expires: Date.now() + Math.min(result.expiresIn, 600) * 1000 } }));
       setChecks(old => { const next = { ...old }; delete next[provider]; return next; });
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to start sign-in.'); }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Unable to start sign-in.';
+      setFailures(old => ({ ...old, [provider]: message }));
+      setChecks(old => ({ ...old, [provider]: 'Authorization blocked' }));
+      setAuthorizations(old => { const next = { ...old }; delete next[provider]; return next; });
+    }
     finally { setBusy(false); }
   };
   return <Layout user={user} onSignOut={signOut}>

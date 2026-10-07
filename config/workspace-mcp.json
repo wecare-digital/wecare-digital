@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "account": "775261844268",
   "region": "us-east-1",
   "repository": "wecare-digital/wecare-digital",
@@ -9,10 +9,9 @@
     "meta-social": {
       "kind": "remote-mcp",
       "endpoint": "https://mcp.facebook.com/devtools",
-      "clientMode": "existing-meta-app",
-      "_note": "The devtools permissions (developer_tools_mcp_app_read / _app_management) are NOT valid as raw OAuth scopes - Meta rejects them with 'Invalid Scopes'. They are only grantable through a Facebook Login for Business configuration, like the meta-ads connection's loginConfigId. To restore full devtools access: create a Login-for-Business config on app 2238810740192680 that includes those devtools permissions, then set loginConfigId below to its id (the handler sends config_id instead of scope). Until then this connection authenticates with business_management only, which covers the app-read tools.",
-      "loginConfigId": "",
+      "clientMode": "registered-mcp-client",
       "scopes": [
+        "developer_tools_mcp_app_read",
         "business_management"
       ],
       "tools": {
@@ -31,22 +30,25 @@
           "deprecations"
         ]
       },
-      "clientId": "2238810740192680"
+      "registrationEndpoint": "https://mcp.facebook.com/.well-known/register/devtools",
+      "_note": "Use the resource-advertised public MCP client registration. The WECARE cloud callback is currently refused by Meta; do not substitute an ordinary Graph app token or report it as connected. The separately authorized desktop connector can still be used."
     },
     "whatsapp": {
       "kind": "remote-mcp",
       "endpoint": "https://mcp.facebook.com/whatsapp_business_tools",
-      "clientMode": "existing-meta-app",
+      "clientMode": "registered-mcp-client",
       "scopes": [
         "business_management",
-        "whatsapp_business_management"
+        "whatsapp_business_management",
+        "whatsapp_business_messaging"
       ],
       "tools": {
         "whatsapp_biz_businesses": [
           "list"
         ]
       },
-      "clientId": "2238810740192680"
+      "registrationEndpoint": "https://mcp.facebook.com/.well-known/register/whatsapp_business_tools",
+      "_note": "Use the resource-advertised public MCP client registration. The WECARE cloud callback is currently refused by Meta; do not substitute an ordinary Graph app token or report it as connected. The separately authorized desktop connector can still be used."
     },
     "aws": {
       "kind": "sdk",
@@ -101,7 +103,8 @@
         "business_management",
         "ads_mcp_management"
       ],
-      "tools": {}
+      "tools": {},
+      "_note": "Existing-app Ads OAuth is supported by Meta documentation, but the current cloud grant returns MCP HTTP 401. App Review reports ads_read and ads_mcp_management rejected with another submission pending; review access before reconnecting. Advertising execution remains disabled."
     },
     "plivo": {
       "kind": "documentation-only",
