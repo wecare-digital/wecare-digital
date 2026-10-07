@@ -250,6 +250,11 @@ RAW_SCAN_ONLY_FILES = [
     ("shared/lambda_utils/ecommerce/service_request_store.py", None),
     ("shared/lambda_utils/ecommerce/service_requests.py", None),
     ("shared/lambda_utils/ecommerce/service_request_dispatch.py", None),
+    # Phase O-2 Drop Docs storage. It decides whether an object is PRIVATE, never whether it
+    # is paid - the gate it owns is `media_paths.is_gated`, and paid-ness is still the
+    # existence of the `PAYMENTATTEMPT#` claim. Scanned so a payment word never creeps into a
+    # storage decision.
+    ("shared/lambda_utils/ecommerce/dropdocs_storage.py", None),
 ]
 
 

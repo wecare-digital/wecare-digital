@@ -64,6 +64,8 @@ from typing import Any, Dict, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
+from lambda_utils import customer_auth, media_paths
+from lambda_utils.ecommerce import dropdocs_storage, service_request_store
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -84,6 +86,12 @@ UPLOAD_PREFIX = SECURE_PREFIX + "u/"
 # object and falls back to a download link. Recording that at upload time beats
 # discovering it at send time, when a customer is already waiting.
 DELIVER_PREFIX = SECURE_PREFIX + "d/"
+# A Drop Docs document promoted out of the public tree. Composed through media_paths
+# rather than concatenated, because this is the one prefix in this file whose keys are
+# written by a module that has no business knowing how the locker spells "secure/". The
+# three constants above are left hand-built on purpose: rewriting them would change keys
+# that are already persisted in SecureFilesTable.
+DROPDOCS_PREFIX = media_paths.secure("u/dropdocs/")
 
 # Types WhatsApp recipients can open inline. Documents may be up to 100MB, images
 # 5MB, which is why the two are distinguished rather than lumped together.
@@ -97,6 +105,11 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_DOCUMENT_BYTES = 100 * 1024 * 1024
 FILES_TABLE = os.environ.get("SECURE_FILES_TABLE", "stack-wecare-digital-SecureFilesTable")
 GRANTS_TABLE = os.environ.get("DOWNLOAD_GRANTS_TABLE", "stack-wecare-digital-DownloadGrantsTable")
+# The Phase O-1 request store. Drop Docs documents are registered against a REQ# row that
+# lives there, not in SecureFilesTable: a Drop Docs document belongs to a paid request,
+# and the locker owns storage and privacy for it rather than its lifecycle.
+SERVICE_REQUESTS_TABLE = os.environ.get(
+    "SERVICE_REQUESTS_TABLE", service_request_store.DEFAULT_TABLE_NAME)
 
 # The customer pool, NOT the admin pool. Tokens must prove they came from here.
 CUSTOMER_POOL_ID = os.environ.get("CUSTOMER_USER_POOL_ID", "us-east-1_46ULYuukt")
@@ -159,6 +172,22 @@ def _payment_enabled() -> bool:
     not much of a switch.
     """
     return str(os.environ.get("SECURE_FILES_PAYMENT_ENABLED", "")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _dropdocs_attach_enabled() -> bool:
+    """Whether the Drop Docs attach route answers at all. Defaults OFF.
+
+    Read per call for the same reason as ``_payment_enabled``: a posture switch that only
+    takes effect once every warm sandbox recycles is not much of a switch. There is no UI
+    for this in Phase O-2 - ``/drop-docs`` sells the service, and the route that registers
+    a document exists but is switched off.
+    """
+    return str(os.environ.get("DROPDOCS_ATTACH_ENABLED", "")).strip().lower() in (
         "1",
         "true",
         "yes",
@@ -244,7 +273,15 @@ def _customer_identity(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not phone:
         return None
     try:
-        return {"username": user.get("Username", ""), "phone": normalise_phone(phone)}
+        return {
+            "username": user.get("Username", ""),
+            "phone": normalise_phone(phone),
+            # The Cognito `sub`, which is what `customer_auth` files every customer-owned
+            # row under. Additive: every existing route here authorises on `phone` and is
+            # unaffected. The Drop Docs arm needs it because a REQ# row's owner IS the sub,
+            # and this pool's Username is the E.164 rather than the sub.
+            "subject": attrs.get("sub", ""),
+        }
     except ValueError:
         return None
 
@@ -1191,6 +1228,131 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     )
 
 
+# ── Drop Docs: make a document private BEFORE it is a document ────────────────
+#
+# A Drop Docs document can arrive over WhatsApp, where `inbound-whatsapp-handler` writes it
+# to `o/stack/whatsapp-media/incoming/` - a prefix CloudFront E2GP22R4BIFGQ3 serves
+# UNAUTHENTICATED. The locker is reused here for storage and privacy only: it promotes the
+# object into `secure/` and the request store refuses to register a document whose key is
+# not gated. Nothing in this arm touches the locker's own (disabled) Razorpay path, and
+# nothing here charges anything - Drop Docs is paid once, on the one checkout.
+#
+# The ordering is the guarantee: promote, prove the destination landed with a HEAD, and only
+# then write the DOC# row. A failed promotion answers 503 and leaves no row at all, so there
+# is no state in which a customer document points at a publicly readable object.
+
+
+def _no_store(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Add ``Cache-Control: no-store`` to a response.
+
+    Document metadata and gated keys must not sit in a shared cache or a browser's disk
+    cache. New here rather than reused: the rest of this file predates the convention and
+    returns `cors_response` directly, and retrofitting it onto the paid-download routes is
+    a separate change with its own blast radius.
+    """
+    headers = dict(response.get("headers") or {})
+    headers["Cache-Control"] = "no-store"
+    return {**response, "headers": headers}
+
+
+def _dropdocs_identity(identity: Dict[str, Any]) -> customer_auth.CustomerIdentity:
+    """The proven customer, in the shape the request store authorises on.
+
+    `_customer_identity` has already done the work that matters - `GetUser` proved the token
+    live, and the issuer pin proved it came from the CUSTOMER pool rather than the admin one.
+    This only re-shapes it. `customer_id` is the Cognito `sub`, matching
+    `customer_auth.customer_id_from_attributes`, so a REQ# row written by the services
+    Lambda and a document attached here agree on who the owner is.
+    """
+    subject = str(identity.get("subject") or "")
+    return customer_auth.CustomerIdentity(
+        customer_id=subject, phone=identity.get("phone", ""), subject=subject)
+
+
+def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: str):
+    """Register one document against the caller's paid Drop Docs request.
+
+    Answers 503 for every storage failure and for a destination that is somehow not gated,
+    because both mean the same thing operationally: nothing was registered, and retrying is
+    the right move. A refusal is never a hint - an unknown request, somebody else's request
+    and a request that is not Drop Docs all produce the identical `NOT_REGISTERED` body this
+    function shares with the paid-download routes.
+    """
+    if not _dropdocs_attach_enabled():
+        # Checked before the body is read, so a request made while the route is off learns
+        # nothing about what the route would have accepted.
+        return _no_store(cors_response(
+            503,
+            {"error": "DROPDOCS_ATTACH_DISABLED",
+             "message": "Attaching documents is not enabled yet."},
+            origin,
+        ))
+
+    proven = _dropdocs_identity(identity)
+    if not proven.customer_id:
+        return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+
+    body = json.loads(event.get("body") or "{}")
+    public_request_id = str(body.get("requestId") or "").strip()
+    source_key = str(body.get("sourceKey") or "").strip()
+    if not public_request_id or not source_key:
+        return _no_store(cors_response(
+            400, {"error": "requestId and sourceKey are required"}, origin))
+
+    try:
+        promoted = dropdocs_storage.promote_to_secure(
+            _s3_client(), bucket=BUCKET, source_key=source_key)
+    except (dropdocs_storage.DocumentPromotionFailed,
+            dropdocs_storage.DocumentNotPrivate) as exc:
+        # type only: a storage error message can echo back a key or a bucket policy detail
+        logger.warning(json.dumps({"event": "dropdocs_promotion_failed",
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503,
+            {"error": "DOCUMENT_NOT_STORED",
+             "message": "The document could not be stored privately. Nothing was attached."},
+            origin,
+        ))
+
+    try:
+        document = service_request_store.attach_document(
+            _table(SERVICE_REQUESTS_TABLE),
+            proven,
+            public_request_id,
+            storage_key=promoted["storageKey"],
+            sha256=promoted["sha256"],
+            content_type=promoted["contentType"],
+            size_bytes=promoted["sizeBytes"],
+            source_key=source_key,
+            public_source_retained=bool(promoted["publicSourceRetained"]),
+        )
+    except customer_auth.CustomerNotAuthorized:
+        return _no_store(_not_registered(origin))
+    except dropdocs_storage.DocumentNotPrivate as exc:
+        # The store re-checks gatedness itself and will not be talked out of it. Reaching
+        # here means the promotion returned a key the store refused, so no row exists.
+        logger.error(json.dumps({"event": "dropdocs_registration_refused",
+                                 "alert": "DROPDOCS_KEY_NOT_GATED",
+                                 "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503,
+            {"error": "DOCUMENT_NOT_STORED",
+             "message": "The document could not be stored privately. Nothing was attached."},
+            origin,
+        ))
+    except service_request_store.ServiceIdentityUnavailable as exc:
+        logger.error(json.dumps({"event": "dropdocs_attach_unavailable",
+                                 "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
+
+    logger.info(json.dumps({"event": "dropdocs_attached", "requestId": public_request_id,
+                            "sha256": document.get("documentId", ""),
+                            "promoted": bool(promoted["promoted"])}))
+    return _no_store(cors_response(201, {"requestId": public_request_id,
+                                         "document": document}, origin))
+
+
 # ── routing ───────────────────────────────────────────────────────────────────
 
 def _path_parts(event: Dict[str, Any]) -> Tuple[str, list]:
@@ -1266,6 +1428,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not identity:
                 return cors_response(401, {"error": "Verification required"}, origin)
             return _customer_list(identity, origin)
+
+        # Drop Docs. A customer-pool token, never require_auth: that one is hardcoded to
+        # the admin pool and would let a customer token fall through to role Viewer.
+        if tail == ["dropdocs", "attach"]:
+            if method != "POST":
+                return _no_store(cors_response(405, {"error": "Method not allowed"}, origin))
+            identity = _customer_identity(event)
+            if not identity:
+                return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+            return _dropdocs_attach(event, identity, origin)
 
         if len(tail) == 2 and tail[1] in ("order", "download", "whatsapp-pay"):
             identity = _customer_identity(event)
