@@ -93,8 +93,9 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness
 from lambda_utils.ecommerce import (
     blog_contribution, cart_v2, checkout_pricing, contact_address, customer_cart, finalization,
-    gift_card_settlement, order_channel, order_creation, order_keys, payment_attempt,
-    purchase_intent, website_checkout, whatsapp_basket, wix_address, wix_writeback)
+    gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
+    payment_attempt, purchase_intent, website_checkout, whatsapp_basket, wix_address,
+    wix_writeback)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -2295,6 +2296,18 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
     owned = (contact_address.from_contact(profile)
              if profile is not None and loader is _load_owned_address
              else (loader(identity) if callable(loader) else None))
+
+    # FEAT-003: storage is international; the India place-of-supply / Wix-mappability rule now
+    # runs HERE, at pay time, through the shared gate. An address the CRM accepted that cannot
+    # price a Razorpay/Wix cart (e.g. a legacy unmappable Indian state) becomes the recoverable
+    # 409 DELIVERY_DETAILS_REQUIRED rather than a 503 or a wrong tax split. A caller-supplied
+    # loader (tests) that returns an already-Wix-shaped dict is left untouched.
+    if owned and loader is _load_owned_address:
+        try:
+            payment_address.for_wix(owned)
+        except payment_address.UnpayableAddress:
+            raise purchase_intent.DeliveryDetailsRequired(
+                "stored address is not payable on the website channel") from None
 
     adapter = cart_v2.CartV2(_wix_request)
     requested, requires_delivery = _v2_catalog_items(line_items)   # GET only, writes nothing

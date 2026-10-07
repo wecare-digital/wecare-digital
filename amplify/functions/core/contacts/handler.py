@@ -44,7 +44,7 @@ from lambda_utils.identity import customer_uuid
 # A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
 # never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
 # so the word `captured` never has to be compared in this handler.
-from lambda_utils.ecommerce import contact_payment_links
+from lambda_utils.ecommerce import contact_address, contact_payment_links
 
 logger = get_logger(__name__)
 
@@ -92,9 +92,16 @@ _lambda_client = None  # built on first use only; see `_provision_customer_login
 # fields: that keeps a checkout-captured address distinguishable from a hand-curated one, needs
 # no migration, and removes the risk of a checkout save overwriting what a human typed.
 #
-# Deliberately NOT in `ALLOWED_UPDATE_FIELDS`. Hand-editing it in the CRM could produce a map
-# `contact_address.from_contact` re-validates to None, which demotes a payable customer to
-# `409 DELIVERY_DETAILS_REQUIRED` at checkout. One writer, and it is the checkout path.
+# The RAW attribute is deliberately NOT in `ALLOWED_UPDATE_FIELDS`: there is no unvalidated path
+# to it. But FEAT-003 lets the CRM WRITE it through the shared validator - `_create` and `_update`
+# accept a top-level `address` dict, run `contact_address.normalize_for_storage` (structural,
+# international), and write `ATTRIBUTE`/`UPDATED_ATTRIBUTE` on success or return 400 naming the
+# field on `UnusableAddress`. Storage is structural only now, so a stored address is no longer
+# guaranteed Wix-mappable; the place-of-supply / payability question moved to `payment_address`
+# and runs at pay time (an unpayable stored address becomes the recoverable
+# `409 DELIVERY_DETAILS_REQUIRED` at checkout, via the shared gate). Two writers now - checkout and
+# the CRM - but both go through the one validator, so a hand-curated address and a checkout-captured
+# one are still structurally identical and still distinguishable by `checkoutAddressUpdatedAt`.
 #
 # THIS CONSTANT IS A TEST ANCHOR, NOT PROJECTION CONFIGURATION. No handler code reads it, and
 # that is deliberate rather than an oversight: `_list_all`, `_read_one` and `_search` return the
@@ -302,6 +309,20 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         'deletedAt': None,
     }
 
+    # FEAT-003: a validated structured address may be written through the shared validator. The
+    # raw attribute is NOT in ALLOWED_UPDATE_FIELDS - this top-level `address` dict is the only
+    # path, and it always goes through normalize_for_storage (structural, international). On a bad
+    # address, refuse the whole create with 400 naming the field, writing nothing.
+    address_in = body.get('address')
+    if address_in is not None:
+        try:
+            stored_address = contact_address.normalize_for_storage(address_in)
+        except contact_address.UnusableAddress as exc:
+            return cors_response(400, {'error': 'Invalid address', 'code': exc.code,
+                                       'field': exc.field}, origin)
+        contact[contact_address.ATTRIBUTE] = stored_address
+        contact[contact_address.UPDATED_ATTRIBUTE] = now
+
     table = dynamodb.Table(CONTACTS_TABLE)
     table.put_item(Item=_to_dynamo(contact))
 
@@ -440,6 +461,19 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         dup = _check_duplicate(check_phone, check_email, exclude_id=contact_id)
         if dup:
             return cors_response(409, {'error': dup}, origin)
+
+    # FEAT-003: a validated structured address, written through the shared validator only. The
+    # raw attribute is not in ALLOWED_UPDATE_FIELDS, so `updates` never carries it from the client;
+    # the top-level `address` dict is the one path and always goes through normalize_for_storage.
+    address_in = body.get('address')
+    if address_in is not None:
+        try:
+            stored_address = contact_address.normalize_for_storage(address_in)
+        except contact_address.UnusableAddress as exc:
+            return cors_response(400, {'error': 'Invalid address', 'code': exc.code,
+                                       'field': exc.field}, origin)
+        updates[contact_address.ATTRIBUTE] = stored_address
+        updates[contact_address.UPDATED_ATTRIBUTE] = int(time.time())
 
     updates['updatedAt'] = int(time.time())
 
