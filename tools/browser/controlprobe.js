@@ -80,11 +80,25 @@ const CART_SEED = [
   },
 ];
 
-/** The three controls, and what each one is. */
+/**
+ * The three controls, and what each one is.
+ *
+ * `.cart-option` MOVED IN BATCH 2f AND THE SELECTOR HAD TO MOVE WITH IT. The variant chooser is
+ * no longer a `<select>`: `.cart-option` is now the className on a `Select`'s FIELD WRAPPER, and
+ * the box this probe measures is the trigger inside it. Left pointing at `.cart-option` the
+ * probe would have measured a bare `<div>` - zero border, zero radius, auto height - and
+ * reported it as a regression on a control that is in fact correct. So the selector names the
+ * trigger, and the present-and-visible gate below now doubles as proof that the MIGRATED
+ * combobox renders at all on the seeded page.
+ *
+ * `.cart-amount-select` IS DELIBERATELY STILL A NATIVE `<select>` - the contribution amount
+ * stays native on the owner's money-safety instruction - so its numbers must come out UNCHANGED
+ * from the batch 1.3a run, which is what makes it the control group here.
+ */
 const CONTROLS = [
-  { sel: '.cart-option', what: 'variant select (merchandise row)' },
+  { sel: '.cart-option .ui-select-trigger', what: 'variant combobox trigger (merchandise row)' },
   { sel: '.cart-qty', what: 'quantity input[type=number]' },
-  { sel: '.cart-amount-select', what: 'contribution amount select' },
+  { sel: '.cart-amount-select', what: 'contribution amount select (still native)' },
 ];
 
 const num = v => {
@@ -153,8 +167,9 @@ async function probeCart ( browser, base ) {
         borderTopLeftRadius: s.borderTopLeftRadius,
         height: el.getBoundingClientRect().height,
         paddingInlineEnd: s.paddingInlineEnd,
-        // Both selects gain a 32px end inset they did not have, so a longer future label must
-        // fail this gate rather than clip quietly.
+        // The native select carries a 32px end inset it did not have before 1.3a, so a longer
+        // future option label must fail this gate rather than clip quietly. The migrated
+        // trigger is excluded below, for the reason the overflow check records.
         scrollWidth: el.scrollWidth,
         clientWidth: el.clientWidth,
         tag: el.tagName.toLowerCase(),
@@ -169,6 +184,11 @@ async function probeCart ( browser, base ) {
         radius: num( g.borderTopLeftRadius ),
         height: num( g.height ),
         paddingInlineEnd: num( g.paddingInlineEnd ),
+        // SELECTS ONLY, and that now means the ONE native select left on this page. The
+        // migrated trigger cannot fail this check by construction: `.ui-select-value` is
+        // `overflow: hidden` with `text-overflow: ellipsis`, so a long label truncates inside
+        // the box and scrollWidth never exceeds clientWidth. Asserting it there would be a gate
+        // that cannot fail, which is worse than no gate.
         overflow: g.tag === 'select' ? ( g.scrollWidth <= g.clientWidth ? 'PASS' : 'FAIL' ) : '-',
       } );
       if ( g.tag === 'select' && g.scrollWidth > g.clientWidth ) {

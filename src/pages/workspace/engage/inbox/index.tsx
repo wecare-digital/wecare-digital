@@ -94,6 +94,24 @@ const SMS_TYPE_OPTIONS: SelectOption[] = [
 /* LAYOUT ONLY - both sit in `.ui-wa-bar`, a flex row, and the box is the trigger's. */
 const WABA_SELECT_STYLE: React.CSSProperties = { flex: '0 1 240px' };
 const SMS_TYPE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 160px' };
+/*
+ * BATCH 2f - THE TWO MONEY CONTROLS IN THE `ui-pay` REQUEST-PAYMENT PANEL, and the last two
+ * selects in this file. They were held back from 2c deliberately: the sender chooser decides
+ * which number a payment request is sent FROM, and the GST chooser sets the rate applied to an
+ * amount, so both are on an India payment path and `whatsapp-payments-india-reference.md`
+ * applies to them. Same values, same order, same visible text as the <option> rows they
+ * replaced - the GST values stay STRINGS because `payItems[].gstRate` is a string and the
+ * panel's own `parseInt` does the only conversion there is. No arithmetic is introduced here.
+ */
+const PAY_PHONE_OPTIONS: SelectOption[] = PAYMENT_PHONES.map( p => ( {
+    value: p.id,
+    label: `${ p.display } (${ p.name })${ p.paymentProtected ? ' [Protected]' : '' }`,
+} ) );
+const PAY_GST_OPTIONS: SelectOption[] = GST_RATES.map(
+    g => ( { value: String( g.value ), label: `GST ${ g.label }` } )
+);
+/* LAYOUT ONLY - `.ui-pay-gst` capped the native control at 110px inside `.ui-pay-row`. */
+const PAY_GST_SELECT_STYLE: React.CSSProperties = { flex: '0 0 110px' };
 
 // Reaction quick-set for the per-message react popover.
 const REACT_EMOJIS = [ '👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '✅' ];
@@ -812,12 +830,13 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
 
                 <div className="ui-toolbar">
                     <input className="ui-search" placeholder="Search conversations…" value={ search } onChange={ e => setSearch( e.target.value ) } />
-                    { /* The first control migrated in this file, in batch 2b. Five of the six
-                         Four of the six that remained have since followed in 2c - the WABA chooser, the India
-                         TRANSACTIONAL/PROMOTIONAL SMS class, and the two voice pickers. The
-                         LAST TWO are still native on purpose: the send-from number and the GST
-                         rate in the "Request payment" panel are money controls on an India
-                         payment path and belong to the payment batch, which is ordered last. */ }
+                    { /* The first control migrated in this file, in batch 2b. Four of the six
+                         that remained followed in 2c - the WABA chooser, the India
+                         TRANSACTIONAL/PROMOTIONAL SMS class, and the two voice pickers - and the
+                         last two followed in 2f: the send-from number and the GST rate in the
+                         "Request payment" panel are money controls on an India payment path, so
+                         they waited for the payment batch rather than riding along with the
+                         filters. No native select is left in this file. */ }
                     <Select ariaLabel="Channel" value={ channelFilter }
                         onChange={ v => setChannelFilter( v ) }
                         options={ CHANNEL_FILTER_OPTIONS } style={ { width: 170 } } />
@@ -1208,10 +1227,24 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                             return (
                                 <div className="ui-pay">
                                     <div className="ui-pay-title">Request payment</div>
+                                    { /* TWO STATEMENTS, IN THIS ORDER, AND THE SECOND ONE IS THE
+                                         WHOLE REASON THIS SITE IS NAMED IN THE BATCH. Changing
+                                         the sender RE-LOCKS the admin-verification gate: a
+                                         protected number requires `Verify Admin access` before
+                                         the panel will send, and a handler that lost
+                                         `setPayUnlocked( false )` would leave the panel unlocked
+                                         after the sender changed - so a verification granted for
+                                         one number would carry over to another. Pinned by
+                                         src/test/InboxPaymentSender.test.tsx, behaviourally and
+                                         in source order, rather than left to a diff review.
+                                         `.ui-pay-in` SKINNED the native control, so it is dropped
+                                         rather than forwarded: a className on a Select lands on
+                                         the field wrapper and would paint a box around the whole
+                                         field. The control is full width either way. */ }
                                     <label className="ui-pay-label">Send from</label>
-                                    <select className="ui-pay-in" value={ payPhone } onChange={ e => { setPayPhone( e.target.value ); setPayUnlocked( false ); } }>
-                                        { PAYMENT_PHONES.map( p => <option key={ p.id } value={ p.id }>{ p.display } ({ p.name }){ p.paymentProtected ? ' [Protected]' : '' }</option> ) }
-                                    </select>
+                                    <Select ariaLabel="Send from" value={ payPhone }
+                                        onChange={ v => { setPayPhone( v ); setPayUnlocked( false ); } }
+                                        options={ PAY_PHONE_OPTIONS } />
                                     { locked && (
                                         <div className="ui-pay-lock">
                                             <button className="ui-pay-unlock" onClick={ unlockPayPhone }>Verify Admin access</button>
@@ -1224,9 +1257,15 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                             <div className="ui-pay-row">
                                                 <input className="ui-pay-in" type="number" min="0" step="0.01" placeholder="₹ Amount" value={ it.amount } onChange={ e => updatePayItem( i, 'amount', e.target.value ) } />
                                                 <input className="ui-pay-in ui-pay-qty" type="number" min="1" placeholder="Qty" value={ it.quantity } onChange={ e => updatePayItem( i, 'quantity', e.target.value ) } />
-                                                <select className="ui-pay-in ui-pay-gst" value={ it.gstRate } onChange={ e => updatePayItem( i, 'gstRate', e.target.value ) }>
-                                                    { GST_RATES.map( g => <option key={ g.value } value={ g.value }>GST { g.label }</option> ) }
-                                                </select>
+                                                { /* The GST rate applied to this line's amount.
+                                                     It had NO accessible name at all - no
+                                                     caption, no aria-label - so `ariaLabel` adds
+                                                     one and changes nothing on screen. The value
+                                                     stays a string and `updatePayItem` receives
+                                                     exactly what the native handler passed it. */ }
+                                                <Select ariaLabel="GST rate" value={ it.gstRate }
+                                                    onChange={ v => updatePayItem( i, 'gstRate', v ) }
+                                                    options={ PAY_GST_OPTIONS } style={ PAY_GST_SELECT_STYLE } />
                                                 { payItems.length > 1 && <button type="button" className="ui-pay-rm" onClick={ () => removePayItem( i ) }>✕</button> }
                                             </div>
                                         </div>

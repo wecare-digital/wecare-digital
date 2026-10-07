@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../../components/Layout';
 import PageShell, { ShellTab } from '../../../../components/PageShell';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import * as api from '../../../../api/client';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest } from '../../../../api/client';
@@ -35,6 +36,25 @@ const STATUS_FILTERS = [
   { id: 'paid', label: 'Paid' },
   { id: 'cancelled', label: 'Cancelled' },
 ];
+/*
+ * BATCH 2f - the payment path. The nine choosers on this page are now our own combobox, and
+ * the one thing that may not change is what they EMIT: the same values, in the same order,
+ * with the same visible text as the <option> rows they replaced. The two fixed lists are
+ * hoisted here; the brand list is built per render from `config.purposes`, which is loaded
+ * state. GOODS_TYPE keeps both literals exactly, because `goodsType` travels into the invoice
+ * request at :217 and a third spelling would be a new value rather than a new control.
+ */
+const GOODS_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'digital-goods', label: 'Digital Goods' },
+  { value: 'physical-goods', label: 'Physical Goods' },
+];
+/* The empty row is a real option, not a `placeholder`, so the DOM still offers "no brand". */
+const BRAND_EMPTY_OPTION: SelectOption = { value: '', label: '\u2014 Select \u2014' };
+/* LAYOUT ONLY - the box is the trigger's. Both sit in flex rows inside the invoice detail
+   panel and the dues table, so each one states its own flex basis rather than a width. */
+const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: 1 };
+const DUES_PHONE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 180px' };
+const DUES_PG_SELECT_STYLE: React.CSSProperties = { flex: '0 0 130px' };
 const badgeClass = ( inv: Invoice ) => inv.status === 'paid' || inv.paymentStatus === 'captured' ? 'success' : inv.status === 'cancelled' ? 'danger' : 'muted';
 const fmtDate = ( ts: number ) => {
   if ( !ts ) return '\u2014';
@@ -238,6 +258,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   // WABA. Both WABAs expose only WECAREDIGITAL (Razorpay) and WECAREUPI.
   const PG_OPTIONS = [
     { id: 'razorpay', label: 'Razorpay' },
+  ];
+  /*
+   * The same two lists in the shape Select takes - `id` becomes `value`, nothing else moves.
+   * Derived here beside the arrays they come from, which are themselves rebuilt per render.
+   * The phone id is the Meta phone-number id the payment link is sent FROM, so the value set
+   * is fixed by the account rather than by this page.
+   */
+  const phoneSelectOptions: SelectOption[] = PHONE_OPTIONS.map( p => ( { value: p.id, label: p.label } ) );
+  const pgSelectOptions: SelectOption[] = PG_OPTIONS.map( pg => ( { value: pg.id, label: pg.label } ) );
+  const brandOptions: SelectOption[] = [
+    BRAND_EMPTY_OPTION,
+    ...config.purposes.map( p => ( { value: p, label: p } ) ),
   ];
   // Map gateway + phone to the correct Meta config name
   // CRITICAL: Each WABA has its own config names — never cross-WABA
@@ -498,33 +530,39 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   </div>
                   <div className="pf-form-grid">
                     <div className="form-group">
+                      { /* The `.form-group` captions on this page are UNASSOCIATED labels - no
+                           `for`, no wrapped control - so they were never a name source and these
+                           controls had no accessible name at all. Each caption stays where it is
+                           and the control takes `ariaLabel`, which adds a name where there was
+                           none and changes nothing on screen. */ }
                       <label>Brand</label>
-                      <select value={ invForm.purpose } onChange={ e => setInvForm( { ...invForm, purpose: e.target.value } ) }>
-                        <option value="">{ '\u2014' } Select { '\u2014' }</option>
-                        { config.purposes.map( p => <option key={ p } value={ p }>{ p }</option> ) }
-                      </select>
+                      <Select ariaLabel="Brand" value={ invForm.purpose }
+                        onChange={ v => setInvForm( { ...invForm, purpose: v } ) }
+                        options={ brandOptions } />
                     </div>
                     <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
                   </div>
                   <div className="pf-form-grid">
                     <div className="form-group">
                       <label>Send From</label>
-                      <select value={ sendPhone } onChange={ e => setSendPhone( e.target.value ) }>
-                        { PHONE_OPTIONS.map( p => <option key={ p.id } value={ p.id }>{ p.label }</option> ) }
-                      </select>
+                      <Select ariaLabel="Send from" value={ sendPhone }
+                        onChange={ v => setSendPhone( v ) }
+                        options={ phoneSelectOptions } />
                     </div>
                     <div className="form-group">
                       <label>Payment Gateway</label>
-                      <select value={ paymentGateway } onChange={ e => setPaymentGateway( e.target.value ) }>
-                        { PG_OPTIONS.map( pg => <option key={ pg.id } value={ pg.id }>{ pg.label }</option> ) }
-                      </select>
+                      <Select ariaLabel="Payment gateway" value={ paymentGateway }
+                        onChange={ v => setPaymentGateway( v ) }
+                        options={ pgSelectOptions } />
                     </div>
                     <div className="form-group">
                       <label>Goods Type</label>
-                      <select value={ goodsType } onChange={ e => setGoodsType( e.target.value as any ) }>
-                        <option value="digital-goods">Digital Goods</option>
-                        <option value="physical-goods">Physical Goods</option>
-                      </select>
+                      { /* The cast is preserved verbatim and the two option values are exactly
+                           the two members of that union - `goodsType` travels into the invoice
+                           request, so the value contract may not be loosened. */ }
+                      <Select ariaLabel="Goods type" value={ goodsType }
+                        onChange={ v => setGoodsType( v as any ) }
+                        options={ GOODS_TYPE_OPTIONS } />
                     </div>
                   </div>
                   { goodsType === 'physical-goods' && !selCustomer?.shippingAddress && (
@@ -652,17 +690,25 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     <div className="pf-action-stack">
                       { ( selInvoice.status === 'created' || selInvoice.status === 'pending_payment' ) && (
                         <>
+                          { /* The two choosers above the Send button. Their inline objects
+                               carried APPEARANCE - a 1.5px dark-green border, an 8px radius,
+                               6px/10px padding, 13px type - and that is now the shared token
+                               box, so only `flex: 1` survives as layout. The dark-green edge
+                               goes with it rather than being reproduced: an inline border on
+                               one page is how the fleet came to have eleven different control
+                               boxes. The caption is an unassociated label, so it stays and the
+                               control takes `ariaLabel`. */ }
                           <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }>
                             <label style={ { fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' } }>From</label>
-                            <select value={ sendPhone } onChange={ e => setSendPhone( e.target.value ) } style={ { flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #1a3a2a', fontSize: 13, background: '#fff' } }>
-                              { PHONE_OPTIONS.map( p => <option key={ p.id } value={ p.id }>{ p.label }</option> ) }
-                            </select>
+                            <Select ariaLabel="Send from" value={ sendPhone }
+                              onChange={ v => setSendPhone( v ) }
+                              options={ phoneSelectOptions } style={ DETAIL_SELECT_STYLE } />
                           </div>
                           <div style={ { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 } }>
                             <label style={ { fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' } }>PG</label>
-                            <select value={ paymentGateway } onChange={ e => setPaymentGateway( e.target.value ) } style={ { flex: 1, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #1a3a2a', fontSize: 13, background: '#fff' } }>
-                              { PG_OPTIONS.map( pg => <option key={ pg.id } value={ pg.id }>{ pg.label }</option> ) }
-                            </select>
+                            <Select ariaLabel="Payment gateway" value={ paymentGateway }
+                              onChange={ v => setPaymentGateway( v ) }
+                              options={ pgSelectOptions } style={ DETAIL_SELECT_STYLE } />
                           </div>
                           <Button variant="primary" size="sm" loading={ actionLoading === 'send' } onClick={ () => doSendPaymentLink( selInvoice ) }>
                             { selInvoice.status === 'pending_payment' ? 'Resend Payment Link' : 'Send Payment Link' }
@@ -743,12 +789,18 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                         <td>{ fmtDate( inv.createdAt ) }</td>
                         <td>
                           <div style={ { display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' } }>
-                            <select value={ sendPhone } onChange={ e => setSendPhone( e.target.value ) } style={ { padding: '4px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 11 } }>
-                              { PHONE_OPTIONS.map( p => <option key={ p.id } value={ p.id }>{ p.label }</option> ) }
-                            </select>
-                            <select value={ paymentGateway } onChange={ e => setPaymentGateway( e.target.value ) } style={ { padding: '4px 6px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 11 } }>
-                              { PG_OPTIONS.map( pg => <option key={ pg.id } value={ pg.id }>{ pg.label }</option> ) }
-                            </select>
+                            { /* The two in-table choosers on the Dues row. These were the
+                                 smallest controls on the page - 4px/6px padding around 11px
+                                 type, well under the 44px tap floor - so they get visibly
+                                 taller, which is the same move every other in-table control in
+                                 this migration made. They state a flex basis because the cell
+                                 is a wrapping flex row and the trigger fills its field. */ }
+                            <Select ariaLabel="Send from" value={ sendPhone }
+                              onChange={ v => setSendPhone( v ) }
+                              options={ phoneSelectOptions } style={ DUES_PHONE_SELECT_STYLE } />
+                            <Select ariaLabel="Payment gateway" value={ paymentGateway }
+                              onChange={ v => setPaymentGateway( v ) }
+                              options={ pgSelectOptions } style={ DUES_PG_SELECT_STYLE } />
                             <Button variant="primary" size="sm" loading={ actionLoading === 'send' } onClick={ () => doSendPaymentLink( inv ) }>Send</Button>
                           </div>
                         </td>
@@ -794,10 +846,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <div className="form-group"><label>Phone</label><input type="tel" value={ editForm.customerPhone } onChange={ e => setEditForm( { ...editForm, customerPhone: e.target.value } ) } /></div>
                   <div className="form-group"><label>Email</label><input type="email" value={ editForm.customerEmail } onChange={ e => setEditForm( { ...editForm, customerEmail: e.target.value } ) } /></div>
                   <div className="form-group"><label>Brand</label>
-                    <select value={ editForm.purpose } onChange={ e => setEditForm( { ...editForm, purpose: e.target.value } ) }>
-                      <option value="">{ '—' } Select { '—' }</option>
-                      { config.purposes.map( p => <option key={ p } value={ p }>{ p }</option> ) }
-                    </select>
+                    <Select ariaLabel="Brand" value={ editForm.purpose }
+                      onChange={ v => setEditForm( { ...editForm, purpose: v } ) }
+                      options={ brandOptions } />
                   </div>
                   <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
                   <div className="form-group"><label>Promo / Discount ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>

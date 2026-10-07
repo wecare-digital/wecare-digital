@@ -1079,3 +1079,157 @@ unsigned-request behaviour is already measured and is pinned by tests, and the o
 the log for real Wix events - a probe would have put another `curl` refusal in the channel the
 diagnostic was removed to clean. The next real Wix product edit will log a single clean
 `wix_webhook_verified` with no `wix_webhook_shape` and no `wix_webhook_claims` beside it.
+
+## 2026-10-06 - Nothing falls back to native browser or OS UI: Layer 1 and Layer 2 complete, on `feat/ui-native-replace`
+
+Fourteen local commits on `feat/ui-native-replace`, **nothing pushed** - the workflow's merge
+step owns the push. Every commit was created with `git commit --only` and explicit paths, with
+`git status --short` run as its own command first, because the git index is shared with other
+sessions (`multi-session-parallel-agents.md` rule 3b).
+
+Frontend source only. **No Lambda, no AWS resource, no payment configuration, no provider call.**
+Payment capture, refund and payment-configuration mutation were prohibited throughout and none
+was attempted.
+
+### Per batch
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | 1.1 scrollbar - `a1cc0d84` - `tokens.css`, `Layout.css`, `Pages.css`, `Header.tsx`, `SupportWidget.tsx`, `designsweep.js` | `ScrollbarDeclarations.test.ts` + `ScrollbarTokens.test.ts`; `designsweep` harvests the token from the page instead of three hardcoded `rgb(26, 58, 42)` literals | revert the commit |
+| `A1_LOCAL` | 1.2 dialogs - `c7af8a25` - the last four native `confirm()` and two `window.prompt()` sites, `usePromptDialog`, the scope-aware ESLint gate | `NativeDialogs.test.tsx`; `npm run lint` 0 errors | revert the commit |
+| `A1_LOCAL` | 1.3a select + date skin - `96da9865` - `form-controls.css` (new, imported last), `tokens.css` FORM CONTROLS block, `inner-ux.css`, `shop/[slug].tsx`, `cart.tsx`, `AddressFields.tsx` styled-jsx, `census_control_skins.py`, `controlprobe.js` (new) | census 85/43 pre -> 83/41 post, committed as `src/test/fixtures/control-skin-census.json`; `controlprobe --cart` measured border 1->2px, radius 8->13px, end inset 12->32px on the cart controls | revert the commit |
+| `A1_LOCAL` | 1.3b colour/range/file - `eadaacf9` | `FormControlsCss.test.ts`; `npm run build` | revert the commit |
+| `A1_LOCAL` | 1.3c checkbox/radio + the restored phone tap floor - `29b6dc6c` | census 20/9 -> 29/10; `controlprobe --post` on a real exported route | revert the commit |
+| `A1_LOCAL` | 2a `Popover` + `Select` - `392ae9f7` - **no call site migrated** | `UiSelect.test.tsx`, including the compile-time labelling union and the dangling-`labelledBy` case | revert the commit |
+| `A1_LOCAL` | 2b 13 read-only filters - `2371caf3` | `vitest`; per-file checklist grep | revert the commit |
+| `A1_LOCAL` | 2c 129 workspace write selects - `aba49e5f`, `37661d35`, `39783efe`, `e047485c` | per-file counts reconciled twice against the generated breakdown; `MCPPlayground.test.tsx` rewritten to the real user action | revert the four commits |
+| `A1_LOCAL` | 2d date/time/colour + 2e the public variant chooser - `0e444c6f`, `f3cba422` | `UiDateField.test.tsx` (29), `UiColorField.test.tsx` (15), `ShopCatalogue.test.tsx` rewritten; `designsweep /shop/merchandise/` PASS | revert the two commits |
+| `A1_LOCAL` | **2f the payment path** - this batch - `pay/flow` (9), `engage/inbox` (2), `pay/records` (1), `pay/link` (1), `PayTab` (1), `cart.tsx` (1), `AddressFields` (1) | full `vitest --run` 97 files / 1257 passed / 2 skipped; `tsc --noEmit` clean; `lint` 0 errors / 205 warnings (the baseline total); `npm run build` green; `controlprobe --cart` PASS with the native contribution select UNCHANGED; `designsweep` PASS on the 20 defaults and on `/shop/merchandise/`; `devicecheck` 390/390; `rtlcheck` 7531/7531; `translatecheck` PASS | revert the commit; per call site, restore the `<select>` from the diff |
+
+### The reconciliation, closed
+
+    2b                13
+    2c               129
+    2d, selects        0   (that batch is the date / time / colour family)
+    2e                 1
+    2f                16   (17 checkout-path elements, 1 of them deliberately native)
+    ---------------------
+    MIGRATED         159
+    DELIBERATELY NATIVE 3
+    ---------------------
+    TOTAL            162   = the measured census
+
+Verified on the finished tree: exactly **three** native `<select>` elements remain in `src/`,
+and they are the three named below. A batch list that does not sum to the census would mean the
+goal is silently not met, so the sum is part of the gate rather than a note.
+
+### The three deliberately-native controls, each with a one-line comment at its own call site
+
+| Control | Why it stays native |
+|---|---|
+| `src/pages/cart.tsx:549` - the contribution amount | **The owner's own money-safety instruction**, which overrides the design's framing. Its own comment records that it replaced a free-text field precisely because a control that can only emit one of three committed values has no draft, no commit moment and no invalid value to produce. A custom listbox would reintroduce the component that decides what gets emitted, in front of money, and `whatsapp-payments-india-reference.md` requires the checkout total to fail closed on a one-paise mismatch. Its element, `id`, external `<label htmlFor>`, handler and comment are untouched; it keeps its Layer-1 skin, so the closed state is already fully ours |
+| `engage/whatsapp/ctwa-ads.tsx:197` - the disabled Pages list | No `value`, no `onChange`; migrating it would mean inventing a value contract |
+| `dashboard/design-reference.tsx:244` - the Select Dropdown specimen | A specimen on the design-reference page, not a surface a custom listbox improves |
+
+### ACCEPTED BEHAVIOUR CHANGE: publishing an ad now requires typing PUBLISH
+
+`ctwa-ads.tsx` routes publish through `useConfirmDanger( 'publish', ... )`, so the operator types
+seven characters where they previously clicked OK. Owner-approved (design section 9, Q7):
+publishing commits ad spend, and `01-standing-authorization.md` lists activating ad spend among
+the actions that must never be casual. Pinned by a test asserting the commit button is DISABLED
+and `marketingAdsApi.publish` has NOT been called until PUBLISH is typed.
+**Rollback:** pass no `confirmInput`, or revert to `useConfirm`.
+
+### ACCEPTED CAPABILITY LOSS: browser address autofill on the checkout state field
+
+`src/components/AddressFields.tsx` carried the **only** `<select>` in the tree with
+`autoComplete` - `address-level1`, on the India state field, on the checkout path. A
+`<button role="combobox">` plus a hidden input **cannot receive browser address autofill**: the
+hidden input is not autofillable and the button is not a form control. Migrating it therefore
+removes one-tap address entry from checkout, which is a capability loss on the conversion path
+for a visual gain on a menu that is open for two seconds.
+
+- **Taken on the owner's override.** Design section 9's Q1 recommended NOT migrating the checkout
+  selects at all, with this as one of its three reasons. The owner asked for Layer 2 across the
+  product, so Q1's override path applies: 2f ran exactly as specified, `AddressFields` went
+  **last within the batch**, and the loss is recorded here.
+- **What is NOT lost:** the five text inputs keep their own `autoComplete` - `address-line1`,
+  `address-line2`, `address-level2`, `postal-code`, `country-name` - asserted at 5 by
+  `AddressFieldsTokens.test.tsx`. The value contract is unchanged, the subdivision list still
+  comes from `src/config/indiaSubdivisions.ts` (which a drift test holds equal to the Python
+  table, because the subdivision is the place of supply and decides the CGST/SGST versus IGST
+  split), and the server's field-level refusal still lands on this control, now as
+  `aria-invalid` on the trigger.
+- **One appearance change beside it:** the invalid border moves from this file's `#8c1d18` to
+  `form-controls.css`'s `var(--danger)` on `.ui-select-trigger[aria-invalid="true"]`.
+- **Rollback: revert this one call site.** Nothing else in the batch depends on it - restore the
+  `<select>` with its `autoComplete`, its wrapping `<label>` and its `aria-invalid`, and delete
+  the two `.address-state` rules. The old test case asserted the attribute was present; the new
+  one asserts it is ABSENT, so a revert has to move that assertion back, deliberately.
+
+### The restored ≤768px checkbox and radio tap floor, with its numbers
+
+`form-controls.css` adds a `@media (max-width: 768px)` block declaring `min-width` and
+`min-height` of `var(--tap-target)` on the checkbox and radio. These are **predictions from the
+cascade, not measurements of any workspace surface**, and are recorded as such:
+
+| viewport | BEFORE (predicted) | AFTER (predicted) |
+|---|---|---|
+| 390px | 44 x 32 | 44 x 44 |
+| 1280px | 28 x 32 | 18 x 18 |
+
+**Two of those four cells were refuted by a synthetic cascade measurement** in Chromium carrying
+exactly the four rules involved, in their real source order:
+
+- **1280px BEFORE is 13 x 32, not 28 x 32.** Blink's style adjuster zeroes an author padding and
+  border on a checkbox and radio specifically, so the UA intrinsic 13px width renders rather than
+  the 28px that `padding: 10px 12px` under border-box would give. The `padding: 0` declaration
+  stays regardless: with `appearance: none` the authored padding LIVES, and `padding: 0` is the
+  one declaration that makes `--control-box` the box.
+- **1280px AFTER is 18 x 32, not 18 x 18 - the desktop checkbox is not square.**
+  `Layout.css:127`'s `min-height: 32px` is unopposed above 768px, and a top-level `min-height` is
+  deliberately forbidden because it would render a 44px tile at 1280px.
+- **The 390px column is confirmed, and corroborated on a public route:** `controlprobe --post`
+  measured the hidden `.bc-radio` at 44 x 32 at 390px and 1 x 32 at 1280px on a real exported
+  page - the same two rules.
+
+### THREE STRUCTURAL VERIFICATION GAPS, stated rather than implied
+
+These are properties of the repo, not of this task, and none of them was closed here.
+
+1. **No workspace route can be browser-verified, at all.** `AuthShell` is
+   `dynamic( ..., { ssr: false } )` at `_app.tsx:57`, so all **113** `src/pages/workspace/**`
+   routes ship an **empty `#__next`** in the static export. Every harness in `tools/browser/`
+   renders nothing to measure on them. So for the 11 of 2f's 16 controls that live under
+   `pay/**`, `engage/inbox` and `PayTab` - and for ~140 workspace selects, 9 date, 3 time and 2
+   datetime-local inputs across the whole task - the evidence is `vitest` + jsdom, `tsc`,
+   `lint`, `build`, the checklist greps, source review, and **the owner's visual pass in a
+   signed-in Chrome**. No screenshot, no computed-style reading and no automated layout or
+   contrast measurement exists for any of them, and none is claimed.
+2. **No WebKit, Safari or iOS result is claimed anywhere in this task.**
+   `~/Library/Caches/ms-playwright` holds `firefox-1543` only, and
+   `tools/browser/lib/browser.js` resolves `/Applications/Google Chrome.app` by path. Every
+   browser number in this record is Chromium at 1280x900 and 390x844.
+3. **`designsweep.js` measures no `<select>`.** It harvests `main input:not([type=hidden])` and
+   `main textarea` and never a select, which is why `controlprobe.js` had to be written for
+   batch 1.3a. Extending designsweep's harvest was rejected by the design and remains **the
+   right follow-up rather than something done here**: its field checks assert the home page's
+   input standard against every route, and a select is a different control with a different
+   radius and a chevron, so widening the harvest would make it fail on correct output. Closing
+   this means giving designsweep a select standard of its own, which is its own change with its
+   own evidence.
+
+### Two harness results worth reading honestly
+
+- **`flowprobe.js` reports 24 ok / 3 FAIL and exits 0.** All three are on `section.home-flow`,
+  the WorkflowTerminal band on the **home page** - a sticky offset, one focusable node in a
+  decorative band, and a text alternative missing four of eight stage names. The harness labels
+  them "the open findings for this band, not a broken harness". They are pre-existing, on a
+  surface no batch in this task touches, and they are **not fixed here**.
+- **`OrdersPage.test.tsx`'s "re-asks exactly once, then stops" failed in 2 of 5 full-suite runs
+  and passes in isolation and in the other 3.** It drives a 5-second re-ask under
+  `vi.useFakeTimers({ shouldAdvanceTime: true })`, where wall-clock time also advances the fake
+  clock, so the assertion is load-sensitive. Recorded as a flake rather than fixed: nothing in
+  this batch touches that page's fetch path, and the final two consecutive full runs were green
+  at 1257 passed / 2 skipped. A real fix means removing `shouldAdvanceTime` from that case, which
+  is a change to a test this batch has no reason to rewrite.

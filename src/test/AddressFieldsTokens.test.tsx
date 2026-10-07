@@ -114,12 +114,44 @@ describe( 'AddressFields uses the shared control tokens', () => {
     expect( styleText() ).toMatch( /\[aria-invalid='true'\][^}]*border-color:\s*#8c1d18/ );
   } );
 
-  it( 'keeps the state field autocompletable', () => {
-    // autoComplete="address-level1" is an attribute, and this batch changes no attribute. The
-    // assertion is here because the styled-jsx rewrite is in the same file, two lines away.
+  it( 'renders the state field as our own combobox, with no native select left', () => {
+    // BATCH 2f. This case used to assert `autoComplete="address-level1"` was present and
+    // untouched, which was correct while Layer 1 only changed how the control LOOKED.
     const { container } = render( <AddressFields value={DRAFT} onChange={vi.fn()} /> );
-    const select = container.querySelector( 'select' );
-    expect( select ).not.toBeNull();
-    expect( select?.getAttribute( 'autocomplete' ) ).toBe( 'address-level1' );
+    expect( container.querySelector( 'select' ) ).toBeNull();
+    const trigger = container.querySelector( '[role="combobox"]' );
+    expect( trigger ).not.toBeNull();
+    expect( trigger?.tagName.toLowerCase() ).toBe( 'button' );
+  } );
+
+  it( 'records the autofill loss rather than implying autofill still works', () => {
+    // THE ASSERTION IS THE LOSS, deliberately, and it is the only honest form this case can
+    // take. A <button role="combobox"> plus a hidden input cannot receive browser address
+    // autofill - the hidden input is not autofillable and the button is not a form control - so
+    // `autoComplete="address-level1"` is gone and one-tap address entry at checkout is gone
+    // with it. Accepted on the owner's override of the design's own recommendation, and
+    // recorded in docs/execution/change-authority-matrix.md with its rollback.
+    //
+    // Deleting the old case instead would have left nothing saying the capability was weighed.
+    // An assertion that the attribute is ABSENT fails the day someone re-adds it to the
+    // trigger believing it will work, which is the mistake worth catching.
+    const { container } = render( <AddressFields value={DRAFT} onChange={vi.fn()} /> );
+    expect( container.querySelector( '[autocomplete="address-level1"]' ) ).toBeNull();
+    // The five text inputs keep theirs: address-line1/2, address-level2, postal-code and
+    // country-name are unaffected, and losing them too would be a much larger regression than
+    // the one accepted here.
+    expect( container.querySelectorAll( 'input[autocomplete]' ).length ).toBe( 5 );
+  } );
+
+  it( 'still marks the state field invalid when the server names it', () => {
+    // The invalid state had to survive the element change, because this is how the server's
+    // field-level refusal reaches the control. The border colour moves from this file's
+    // #8c1d18 to form-controls.css's var(--danger) on the trigger; the WIRING is what matters
+    // and is asserted here.
+    const { container } = render(
+      <AddressFields value={DRAFT} onChange={vi.fn()} invalidField="state" />
+    );
+    const trigger = container.querySelector( '[role="combobox"]' );
+    expect( trigger?.getAttribute( 'aria-invalid' ) ).toBe( 'true' );
   } );
 } );

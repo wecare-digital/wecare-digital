@@ -503,10 +503,20 @@ describe( 'legacy cart option recovery', () => {
     // A variant that exists in the CURRENT catalogue (Merchandise "Men's / XL" on site
     // c993128b). The previous spelling, 00ebbae6-7025-4724-835e-37f4bffc2476, belonged to the
     // retired site and the repair would correctly refuse it now.
-    const select = await screen.findByRole( 'combobox', { name: /Choose option for Merchandise/ } );
-    fireEvent.change( select, {
-      target: { value: '3788a657-9af2-4ecf-8c9b-f218669d753c' },
-    } );
+    //
+    // THE NAME IS AN EXACT STRING, NOT A REGEX, and that is batch 2f's labelling fix landing:
+    // the control passes `label="Choose option"` AND a per-item
+    // `ariaLabel={ 'Choose option for ' + item.name }`, and Select emits `aria-label` rather
+    // than `aria-labelledby` when both are given - so the computed name is exactly these four
+    // words and nothing concatenated. A regex would have passed on the looser name too.
+    //
+    // OPEN THEN CLICK, because the control is a <button role="combobox"> plus a portalled
+    // listbox: `fireEvent.change` does nothing to a button, and this is the one test standing
+    // between the repo and a wrong-amount order, so it has to drive the real user action.
+    const select = await screen.findByRole( 'combobox', { name: 'Choose option for Merchandise' } );
+    fireEvent.click( select );
+    // The label carries a typographic apostrophe (U+2019), which is what the catalogue stores.
+    fireEvent.click( await screen.findByRole( 'option', { name: 'Men\u2019s / XL' } ) );
     expect( await screen.findByText(
       'Product option updated. Continue to secure payment.',
     ) ).toBeTruthy();
@@ -2297,11 +2307,21 @@ describe( 'the request key is scoped to the basket, and rotates once on INTENT_C
  * so the text of the rule is what can be held - and `controlprobe.js --cart` measures the
  * computed value in Chromium, which is the half a browser can settle.
  *
- * SCOPED TO THE THREE MONEY-ROW CONTROLS, deliberately. The file has nine `:focus-visible` rules;
- * the other six are on links, a redeem field and two buttons, which `form-controls.css` does not
- * reach and which have no select to pair with. Widening this to the whole file would mean adding
- * lime rings to six public checkout controls - a visible change to surfaces this batch has no
- * business touching.
+ * SCOPED TO THE MONEY-ROW CONTROLS STILL STYLED IN THIS FILE, deliberately. The file has nine
+ * `:focus-visible` rules; the others are on links, a redeem field and two buttons, which
+ * `form-controls.css` does not reach and which have no select to pair with. Widening this to the
+ * whole file would mean adding lime rings to six public checkout controls - a visible change to
+ * surfaces no batch here has any business touching.
+ *
+ * BATCH 2f TOOK THE COUNT FROM THREE TO TWO, and the property did not move - the third control
+ * did. `.cart-option` is no longer a styled `<select>`: it is the className on a `Select`'s field
+ * wrapper, and its trigger's focus appearance is declared once in `form-controls.css`
+ * (`.ui-select-trigger:focus` sets `box-shadow: var(--focus-ring)` with `outline: none`), where
+ * `FormControlsCss.test.ts` holds it for all 159 migrated controls rather than this file holding
+ * it for one. Keeping the count at three would have meant leaving a `.cart-option:focus-visible`
+ * rule in this template that matches nothing, asserted by a test - a gate pointing at dead CSS,
+ * which is worse than a smaller gate pointing at live CSS. The two that remain are exactly the
+ * two controls this file still paints, and the length assertion still refuses to pass vacuously.
  *
  * THE PROPERTY, NOT ONE SPELLING OF IT, so it survives a reorder or a colour change.
  */
@@ -2309,7 +2329,7 @@ describe( 'the money-row controls pair their focus ring with their focus outline
   it( 'declares a box-shadow wherever a money-row :focus-visible rule sets an outline', () => {
     const source = fs.readFileSync(
       path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
-    const CONTROLS = [ 'cart-option', 'cart-qty', 'cart-amount-select' ];
+    const CONTROLS = [ 'cart-qty', 'cart-amount-select' ];
     const rules = [ ...source.matchAll( /([^{}\n]*:focus-visible[^{]*)\{([^}]*)\}/g ) ];
     const checked: string[] = [];
     for ( const [ , selector, body ] of rules ) {
@@ -2319,7 +2339,23 @@ describe( 'the money-row controls pair their focus ring with their focus outline
       expect( body, `${selector.trim()} sets an outline, so it must set a box-shadow too` )
         .toMatch( /box-shadow\s*:/ );
     }
-    // All three, or the scan found fewer rules than exist and the assertion passed vacuously.
-    expect( checked ).toHaveLength( 3 );
+    // Both, or the scan found fewer rules than exist and the assertion passed vacuously.
+    expect( checked ).toHaveLength( 2 );
+  } );
+
+  it( 'leaves the migrated variant chooser with a ring from the shared file, not a dead rule', () => {
+    // The other half of the same property, asserted where the control actually lives now. A
+    // `.cart-option:focus-visible` rule in cart.tsx would match nothing after 2f, so its
+    // ABSENCE is the assertion, paired with the shared file really declaring the ring.
+    const source = fs.readFileSync(
+      path.resolve( __dirname, '../pages/cart.tsx' ), 'utf8' );
+    const code = source.replace( /\/\*[\s\S]*?\*\//g, '' );
+    expect( code ).not.toMatch( /\.cart-option:focus/ );
+    const shared = fs.readFileSync(
+      path.resolve( __dirname, '../styles/form-controls.css' ), 'utf8' );
+    const focus = /\.ui-select-trigger:focus\s*\{([^}]*)\}/.exec(
+      shared.replace( /\/\*[\s\S]*?\*\//g, '' ) );
+    expect( focus ).not.toBeNull();
+    expect( focus?.[ 1 ] ).toMatch( /box-shadow\s*:\s*var\(\s*--focus-ring\s*\)/ );
   } );
 } );
