@@ -102,6 +102,11 @@ import {
 } from '../lib/cart';
 import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal } from '../lib/serviceRequests';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
+// The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
+// request shape has one definition. See `src/lib/whatsappBasket.ts`.
+import {
+  basketTokenFromUrl, claimBasket, claimMessage, stripBasketParam,
+} from '../lib/whatsappBasket';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import { colors } from '../lib/design-tokens';
 /**
@@ -871,6 +876,17 @@ export default function Cart (): React.ReactElement {
    * throw anywhere in the run cannot leave the page permanently unable to check out.
    */
   const proceedInFlightRef = useRef<boolean>( false );
+  /**
+   * The WhatsApp hand-off claim has been attempted in this page's lifetime.
+   *
+   * A ref and not state because the claim is a SERVER-SIDE SINGLE-USE write: React 19 StrictMode
+   * double-invokes effects in development, and a second POST is refused by design, so a state flag
+   * (a render behind) would surface "this link is no longer available" for a claim that in fact
+   * succeeded a millisecond earlier.
+   */
+  const basketClaimedRef = useRef<boolean>( false );
+  /** The one sentence a non-successful claim leaves on screen, or `null`. */
+  const [ basketClaim, setBasketClaim ] = useState<string | null>( null );
 
   useEffect( () => {
     setItems( readCart() );
@@ -888,6 +904,56 @@ export default function Cart (): React.ReactElement {
       if ( !live || !reply ) return;
       setProfile( profileFrom( reply ) );
       setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ) ) );
+    } )();
+    return () => { live = false; };
+  }, [] );
+
+  /**
+   * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
+   *
+   * ONCE IS ENFORCED BY A REF, NOT BY THE DEPENDENCY LIST. The effect has an empty list, but React
+   * 19's StrictMode double-invokes effects in development and the claim is a SERVER-SIDE
+   * SINGLE-USE write: a second POST is refused by design, so a double invoke would render "this
+   * link is no longer available" over a cart that had just been filled correctly. A synchronous
+   * ref latch is the only guard that holds, for the same reason `proceedInFlightRef` is one.
+   *
+   * NO SESSION MEANS SIGN IN FIRST, AND NOTHING IS REIMPLEMENTED HERE. `SIGN_IN_PATH` already
+   * carries `?return=/cart/`, and the WhatsApp link's own `?basket=` is preserved by sending the
+   * customer to the sign-in page and letting it return them to this URL -- which is why the
+   * parameter is read from `window.location` on arrival rather than captured into state earlier.
+   *
+   * THE PARAMETER IS STRIPPED ON SUCCESS ONLY. On a refusal it is left in place: the sentence
+   * explains what happened, and a customer who reloads sees the same honest answer rather than a
+   * silently different page. See `stripBasketParam`.
+   *
+   * IT FETCHES NOTHING WHEN THE PARAMETER IS ABSENT, which is most visits. That keeps the static
+   * export's no-fetch-at-render property intact -- `src/test/CartRedemption.test.tsx` asserts it.
+   */
+  useEffect( () => {
+    const token = basketTokenFromUrl();
+    if ( !token || basketClaimedRef.current ) return;
+    basketClaimedRef.current = true;
+
+    const session = getSession();
+    if ( !session )
+    {
+      // The sign-in flow returns to `/cart/`, and the token is still in the URL when it does.
+      window.location.assign( `/account/sign-in/?return=${ encodeURIComponent(
+        window.location.pathname + window.location.search ) }` );
+      return;
+    }
+
+    let live = true;
+    void ( async () => {
+      const outcome = await claimBasket( session.accessToken, token );
+      if ( !live ) return;
+      if ( outcome.kind === 'CLAIMED' )
+      {
+        stripBasketParam();
+        setBasketClaim( null );
+        return;
+      }
+      setBasketClaim( claimMessage( outcome ) );
     } )();
     return () => { live = false; };
   }, [] );
@@ -1892,6 +1958,16 @@ export default function Cart (): React.ReactElement {
               <p className="cart-note">
                 The store confirms your final total, including taxes and fees, before payment.
               </p>
+
+              {/* THE WHATSAPP CLAIM, when it did not simply work. One line, no amount, no retry
+                  button: every outcome's own sentence already names the action that helps, and a
+                  button here would re-post a single-use claim. A success says nothing at all -
+                  the items appearing in the list is the message. */}
+              { basketClaim && (
+                <p className="cart-status" role="status" data-wc-basket-claim="true">
+                  { basketClaim }
+                </p>
+              ) }
 
               {/* role is chosen by severity, not by colour: 'status' is polite for a state the
                   shopper can simply retry, 'alert' interrupts for one they cannot. Neither relies

@@ -94,7 +94,7 @@ from lambda_utils import contact_key, customer_auth, customer_session, payment_r
 from lambda_utils.ecommerce import (
     blog_contribution, cart_v2, checkout_pricing, contact_address, customer_cart, finalization,
     gift_card_settlement, order_channel, order_creation, order_keys, payment_attempt,
-    purchase_intent, website_checkout, wix_address, wix_writeback)
+    purchase_intent, website_checkout, whatsapp_basket, wix_address, wix_writeback)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -340,7 +340,7 @@ def _body(event: Dict[str, Any]) -> Dict[str, Any]:
 
 def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     explicit = str(body.get("action") or event.get("action") or "").strip().lower()
-    if explicit in ("create", "status", "prepare", "verify", "profile"):
+    if explicit in ("create", "status", "prepare", "verify", "profile", "claim-basket"):
         return explicit
     path = str(event.get("rawPath") or event.get("path") or "").lower()
     if path.endswith("/status"):
@@ -384,6 +384,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # alone would route a readiness probe into the checkout-CREATE path.
         if action == "profile":
             return _profile_status(identity, origin)
+        # A WhatsApp catalogue basket being adopted by the signed-in customer who sent it. AHEAD
+        # of the `_create` fallback for the same reason `profile` is: the `return _create(...)`
+        # below is this chain's `else`, so an arm in `_action`'s tuple without an arm here would
+        # route a claim into the checkout-CREATE path.
+        if action == "claim-basket":
+            return _claim_basket(identity, body, origin)
         return _create(identity, body, origin)
     except customer_auth.CustomerNotAuthorized:
         # Same opaque 401 as unauthenticated, so the endpoint is not an IDOR oracle.
@@ -632,8 +638,173 @@ def _claimed_handoff(identity: customer_auth.CustomerIdentity,
     DELIBERATELY NOT READ OFF `body`. Attribution the browser can type is attribution a customer
     can forge, and `/orders` reports this word back as fact. The phone binding lives on the row,
     which is why the row - and not the request - is the thing to read.
+
+    IT IS A POINTER READ, NOT A SEARCH. CommerceKeys is keyed on `orderId` alone and carries no
+    customer index, so "this customer's claimed hand-off" is not a query anybody can make - and a
+    Scan is neither in this function's IAM nor acceptable on a checkout path. `_claim_basket`
+    therefore writes one keyed row per customer (`WABASKETCLAIM#<customerId>`) and this reads it.
+
+    NEVER RAISES, and that is load-bearing rather than defensive. This runs on the money path, and
+    the only thing it decides is a LABEL. A DynamoDB blip while reading an attribution pointer must
+    not fail a prepare, so the failure mode is "attributed to the website" - the same asymmetric
+    default `order_channel.canonical` applies, which under-claims the WhatsApp channel rather than
+    mislabelling a website order.
     """
-    return None
+    try:
+        pointer = _keys_table().get_item(
+            Key={"orderId": whatsapp_basket.claim_pointer_key(identity.customer_id)}
+        ).get("Item")
+    except Exception as exc:  # noqa: BLE001 - see the docstring: a label never fails a prepare
+        logger.info(json.dumps({"event": "checkout_channel_pointer_unavailable",
+                                "error": type(exc).__name__}))
+        return None
+    if pointer is not None:
+        # Same ownership check every other customer-scoped row in this table gets. A pointer is
+        # keyed on the customer id, so this cannot normally fail; it is here because a read that
+        # trusts its key is a read that stops being safe the moment the key scheme changes.
+        try:
+            customer_auth.authorize_resource(identity, pointer)
+        except customer_auth.CustomerNotAuthorized:
+            return None
+    return whatsapp_basket.active_claim(pointer, int(time.time()))
+
+
+#: The one refusal every unclaimable basket gets, whatever made it unclaimable.
+#:
+#: ONE ANSWER FOR FOUR DIFFERENT FACTS - no such token, somebody else's token, already claimed,
+#: expired - because distinguishing them turns this endpoint into an existence oracle: a caller
+#: holding a guessed token could learn that it names a real basket, and a caller holding a real
+#: token could learn whose. The copy says what the customer can do about it, which is the same
+#: thing in all four cases.
+_BASKET_REFUSED = {
+    "status": "BASKET_UNAVAILABLE",
+    "message": "This cart link is no longer available. Send your cart again on WhatsApp to get a "
+               "fresh link.",
+}
+
+
+def _claim_basket(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
+                  origin: str) -> Dict[str, Any]:
+    """Adopt a WhatsApp catalogue hand-off into the signed-in customer's own Wix cart.
+
+    `require_customer` has already run in `handler`, so there is a proven session here and no
+    unauthenticated caller reaches this function at all - which is also why the token alone is
+    never sufficient: the claim requires the session's phone to equal the phone the hand-off was
+    written for.
+
+    THIS ACTION QUOTES NOTHING. It merges lines and marks a row; it computes no total, reads no
+    price and returns no money field. The arithmetic stays where it already lives - Wix calculates
+    the collection and `checkout_pricing.compute_quote` turns it into a payable, once, on the
+    following `prepare`. That is the whole reason the WhatsApp leg no longer has a calculator.
+
+    WHAT IT WRITES, in order, and why that order:
+
+      1. the Wix cart, through `CustomerCart.ensure` - resolve before generate, so one purchase has
+         one cart and a retried claim cannot mint a second one on the live site;
+      2. the hand-off row marked claimed, CONDITIONALLY on `attribute_not_exists(claimedAt)`, so a
+         second claim loses the write rather than being refused by a check it could race;
+      3. the channel pointer `_claimed_handoff` reads.
+
+    The cart comes first because `ensure` is idempotent and the mark is not: marking first and
+    failing at Wix would burn a basket that was never merged, which is unrecoverable from the
+    customer's side. Doing it this way means the worst case is a merged cart whose row is still
+    unclaimed - and the second claim then no-ops on `ensure` and completes the mark.
+    """
+    token = str(body.get("basket") or "").strip()
+    # Bounded before it is used as a key. `new_token()` produces 32 URL-safe characters; a value
+    # outside that shape is not a token this system ever issued, and refusing it here keeps a
+    # megabyte of request body out of a DynamoDB key.
+    if not token or len(token) > 100:
+        return cors_response(404, _BASKET_REFUSED, origin)
+
+    keys = _keys_table()
+    now = int(time.time())
+    row = keys.get_item(Key={"orderId": whatsapp_basket.handoff_key(token)}).get("Item")
+
+    # THE PHONE BINDING. `normalize_phone_preserving_country` is the same function
+    # `auth/customer-profile` normalises with, and `whatsapp_basket.e164` is the same E.164 shape
+    # the row was written under, so this is one comparison of two strings rather than two notions
+    # of "the same number". A mismatch takes the SAME refusal a missing row takes.
+    try:
+        presented = customer_identity.normalize_phone_preserving_country(identity.phone)
+    except customer_identity.InvalidPhoneNumber:
+        presented = ""
+    if not whatsapp_basket.claimable(row, presented, now):
+        logger.info(json.dumps({
+            "event": "checkout_basket_claim_refused",
+            # No reason field, deliberately: a reason logged is a reason that gets returned by the
+            # next person to touch this, and the four reasons are what must not be distinguishable.
+            "found": bool(row),
+        }))
+        return cors_response(404, _BASKET_REFUSED, origin)
+
+    items = whatsapp_basket.catalog_items(row)
+    if not items:
+        return cors_response(404, _BASKET_REFUSED, origin)
+
+    carts = customer_cart.CustomerCart(_keys_table(), cart_v2.CartV2(_wix_request))
+    try:
+        cart_id, created = carts.ensure(identity, items)
+    except customer_cart.CartBusy:
+        # A lock means a Wix outcome is unknown. The hand-off is LEFT UNCLAIMED so the customer can
+        # try again, which is the recoverable direction.
+        return cors_response(200, {
+            "status": "CART_RECONCILIATION_REQUIRED",
+            "message": "Your cart is being updated. Please try again shortly.",
+        }, origin)
+
+    if not created:
+        # THE CUSTOMER ALREADY HAS A LIVE WIX CART, AND THIS IS REPORTED RATHER THAN RESOLVED.
+        #
+        # `ensure` is resolve-before-generate: it returns the existing cart and does NOT add to it.
+        # So the hand-off lines did not land, and there are only three honest options - add them
+        # (several Wix writes inside a 20s budget, on a function whose measured timeout already
+        # bounds commands at MAX_RECONCILE_COMMANDS), replace the cart (discarding lines the
+        # customer put there on the website), or say so.
+        #
+        # Saying so is chosen because it loses nothing: the row is LEFT UNCLAIMED and still
+        # claimable until `expiresAt`, so the customer can clear their website cart and open the
+        # same link again. Claiming success here and merging nothing would be the one outcome that
+        # is both silent and wrong.
+        logger.info(json.dumps({"event": "checkout_basket_claim_cart_in_use",
+                                "handoffLines": len(items)}))
+        return cors_response(200, {
+            "status": "BASKET_CART_IN_USE",
+            "channel": order_channel.CHANNEL_WHATSAPP,
+            "handoffLines": len(items),
+            "message": "Your website cart already has items in it. Empty it, then open your "
+                       "WhatsApp cart link again.",
+        }, origin)
+
+    try:
+        keys.update_item(
+            Key={"orderId": row["orderId"]},
+            UpdateExpression="SET claimedAt = :now, claimedBy = :customer",
+            ConditionExpression="attribute_not_exists(claimedAt)",
+            ExpressionAttributeValues={":now": now, ":customer": identity.customer_id})
+    except Exception as error:  # noqa: BLE001 - re-raised unless it is the conditional
+        if (getattr(error, "response", {}).get("Error", {}).get("Code")
+                != "ConditionalCheckFailedException"):
+            raise
+        # Another request claimed it between the read and here. The cart it merged is the same cart
+        # this one resolved, so there is nothing to undo - and the loser must not report success for
+        # a claim it did not make.
+        return cors_response(404, _BASKET_REFUSED, origin)
+
+    # The attribution pointer, LAST, so it can never say `whatsapp` for a claim that did not
+    # complete. An unconditional put: last claim wins, because the channel describes the basket the
+    # customer is about to pay for.
+    keys.put_item(Item=whatsapp_basket.build_claim_pointer(row, identity.customer_id, now=now))
+
+    logger.info(json.dumps({"event": "checkout_basket_claimed",
+                            "handoffId": row["orderId"],
+                            "channel": order_channel.CHANNEL_WHATSAPP,
+                            "mergedLines": len(items)}))
+    return cors_response(200, {
+        "status": "BASKET_CLAIMED",
+        "channel": order_channel.CHANNEL_WHATSAPP,
+        "mergedLines": len(items),
+    }, origin)
 
 
 def _attempt_for_gateway_order(gateway_order_id: str) -> Optional[Dict[str, Any]]:

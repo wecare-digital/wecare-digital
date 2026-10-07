@@ -20,6 +20,7 @@ import hashlib
 import boto3
 import urllib.request
 import urllib.error
+import urllib.parse  # explicit: `_handoff_url` quotes a token into a link
 from typing import Dict, Any, Optional, Tuple
 from decimal import Decimal
 
@@ -39,6 +40,9 @@ from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
+# The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
+# tested without a client, and this handler stays wiring. See `_handle_cart_order`.
+from lambda_utils.ecommerce import whatsapp_basket
 from lambda_utils import live_smoke  # the WA_LIVE_SMOKE_TEST lockdown applies to direct sends too
 from lambda_utils import thread_ownership  # Conversation Routing: derive ownership, never query it
 from botocore.exceptions import ClientError
@@ -99,6 +103,29 @@ OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecar
 
 # WhatsApp Voice Lambda function name (TTS via Amazon Polly)
 WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-whatsapp-voice')
+
+# ── the WhatsApp catalogue-order hand-off (see `_handle_cart_order`) ──────────
+#
+# The commerce-keys table, which holds the `WABASKET#` hand-off row beside `PAYREF#` and
+# `ORDERNO#`. Defaulted through `order_keys.commerce_keys_table_name()` rather than re-typed, so
+# this function and `ecommerce/checkout` cannot end up pointed at two different tables. TTL must
+# stay disabled on it: it holds immutable financial and idempotency records, and the basket's own
+# expiry is enforced in application code for exactly that reason.
+COMMERCE_KEYS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE',
+                                     order_keys.commerce_keys_table_name())
+# OFF unless deliberately switched on, and the only default that is safe: this is the gate in
+# front of a new commerce path that writes a row and sends a customer a message. A SystemConfig
+# row can override it at runtime - see `_catalog_orders_enabled`.
+WA_CATALOG_ORDERS_ENABLED = os.environ.get(
+    'WA_CATALOG_ORDERS_ENABLED', 'false').strip().lower() in ('true', '1', 'yes', 'on')
+# Where the hand-off link points. The public cart page, which already reads a session and owns the
+# claim effect. Trailing slash because the site is a static export and `/cart` would redirect.
+CART_HANDOFF_URL = os.environ.get('CART_HANDOFF_URL', 'https://wecare.digital/cart/')
+# The reply copy. NO PRICE, NO TOTAL, NO ITEM COUNT IN MONEY TERMS - Wix prices the basket when
+# the customer opens it, and a figure here would be a second total with a different authority.
+CART_HANDOFF_BUTTON = 'Open my cart'
+CART_HANDOFF_BODY = ('Your cart is saved. Open it on our website to review it and pay securely. '
+                     'Sign in with this same WhatsApp number and the items will be waiting.')
 
 # Fix #6: Circuit breaker for AI failures  -  skip AI if too many consecutive failures
 _ai_fail_count = 0
@@ -1943,8 +1970,10 @@ def _process_message(
                 logger.warning(json.dumps({'event': 'postpay_nfm_parse_error', 'error': str(_pp_err), 'requestId': request_id}))
 
     # ── Cart order (native catalog checkout) ──
-    # Customer sent a cart from the catalog (message.type='order'). Convert the
-    # product_items into a native order_details (Review & Pay) with GST + convenience.
+    # Customer sent a cart from the catalog (message.type='order'). The product_items become a
+    # phone-bound hand-off row plus a link to /cart/?basket=<token>; the website prices and takes
+    # the payment. No order_details / Review-and-Pay message is built here any more, and no total
+    # is computed - see `_handle_cart_order`. Gated OFF by WA_CATALOG_ORDERS_ENABLED.
     if msg_type == 'order':
         # SEND #6 — the money path. Guarded here AND inside `_send_payment_request`,
         # before the reference_id is minted. The inner guard is the one that matters,
@@ -6036,101 +6065,227 @@ def _fetch_catalog_product_names(catalog_id: str, retailer_ids: list) -> dict:
     return names
 
 
+def _phone_suffix(phone: str) -> str:
+    """The last four digits, which is the only part of a phone number that may be logged.
+
+    The masked suffix is AMBIGUOUS by design and that is cheaper than the alternative: `...0044`
+    could be the owner's QA recipient or the secondary business number. Disambiguate on
+    `direction`, `channel` or a delivery id, never by widening this.
+    """
+    digits = ''.join(character for character in str(phone or '') if character.isdigit())
+    return digits[-4:] if len(digits) >= 4 else ''
+
+
+def _handoff_url(token: str) -> str:
+    """The link the customer opens. `/cart/?basket=<token>` on the public site.
+
+    The token is the only thing in the URL. It names a basket, it is phone-bound on the row, and
+    the claim additionally requires a signed-in session whose phone matches - so a leaked link
+    cannot be redeemed by whoever holds it.
+    """
+    return CART_HANDOFF_URL + '?basket=' + urllib.parse.quote(str(token or ''), safe='')
+
+
+def _catalog_orders_enabled() -> bool:
+    """The WhatsApp catalogue-order hand-off gate. DEFAULT OFF.
+
+    Same two-source shape as `_inbound_order_status_enabled` above - a SystemConfig row wins, the
+    env var is the default - so an owner can turn this on without a deploy and off again in one
+    write.
+
+    OFF MEANS NOTHING HAPPENS AT ALL: no DynamoDB write, no outbound invoke, no reply. Not "reply
+    with a shop link instead", because a silent no-op is the only state provably free of
+    customer-visible effect, and this is the gate in front of a brand-new commerce path. A config
+    READ FAILURE falls through to the env default rather than to True, so an unreachable table is
+    never a way to turn the gate on.
+    """
+    try:
+        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(
+            Key={'id': 'whatsapp_catalog_orders'}).get('Item')
+        if item and 'configValue' in item:
+            return str(item.get('configValue')).lower() in ('true', '1', 'yes', 'on')
+    except Exception:
+        pass
+    return WA_CATALOG_ORDERS_ENABLED
+
+
+def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phone: str,
+                              request_id: str) -> None:
+    """Ask for a delivery address when none is on file. RETAINED, unchanged in behaviour.
+
+    Lifted out of `_handle_cart_order` verbatim rather than rewritten, because it is the one part
+    of the old path that was never wrong and is still needed: the website leg refuses a physical
+    basket with no owned address (`purchase_intent.DeliveryDetailsRequired`), and the India Address
+    Message submission arrives back as `nfm_reply`/`address_message` and is stored by
+    `_handle_address_submission`. So collecting it in chat is what lets the hand-off be payable
+    when the customer arrives on the site.
+    """
+    try:
+        contact = {}
+        if contact_id:
+            contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+                Key={'id': contact_id}).get('Item', {}) or {}
+        if contact.get('shippingAddress'):
+            return
+        values = {'phone_number': '+' + str(sender_phone or '')}
+        name = contact.get('contactBookName', '') or contact.get('name', '') or ''
+        if name:
+            values['name'] = name
+        payload = {'body': json.dumps({
+            'contactId': contact_id, 'phoneNumberId': phone_number_id,
+            'isInteractive': True, 'interactiveType': 'address_message',
+            'interactiveData': {
+                'body': 'To deliver your order, please share your delivery address.',
+                'country': 'IN', 'values': values,
+            },
+        })}
+        lambda_client.invoke(FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
+                             InvocationType='Event', Payload=json.dumps(payload))
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'cart_address_request_error',
+                                   'error': type(error).__name__, 'requestId': request_id}))
+
+
 def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                        phone_number_id: str, request_id: str) -> None:
-    """Native catalog checkout. A customer sent a cart (message.type='order').
-    Convert product_items into a native PHYSICAL-GOODS order_details (Review & Pay)
-    carrying the business's standard 18% GST + 2% convenience fee, with real product
-    names and the saved shipping address as beneficiaries; collect the address via
-    an Address Message if none is on file. Invoice is generated on payment capture."""
+    """Native catalog checkout, handed off to the website to be priced and paid.
+
+    WHAT THIS USED TO DO, AND WHY NONE OF IT IS LEFT
+    ------------------------------------------------
+    It built a native `order_details` (Review & Pay) message out of Meta's own numbers:
+    `item_price` read as a **float**, `gst_rate: 18.0` added to goods Wix had already taxed, supply
+    GST re-added per item inside `_send_payment_request`, a convenience fee logged at **2%**
+    against the 2.5% the rest of the system charges, and every `retailer_id` rewritten to
+    `ITEM_1..n` so a line could never be resolved back to the Wix variant it came from. Five
+    numbers, not one of which agreed with what the website would charge for the same basket.
+
+    It also could not complete. `_send_payment_request` reaches
+    `outbound-whatsapp::_build_payment_settings`, the single per-WABA payment-configuration
+    resolver, which refuses an unmapped name - and this account records ZERO live payment
+    configurations (measured 2026-09-30). So the path computed a wrong total and then failed.
+
+    WHAT IT DOES NOW
+    ----------------
+    Parses the cart into variants and integer quantities, writes a phone-bound HAND-OFF row, and
+    replies with a CTA link to `/cart/?basket=<token>`. The customer signs in with the same
+    WhatsApp OTP they already use, the lines land in their existing website cart, and
+    `checkout_pricing.compute_quote` produces the one and only payable.
+
+    `_send_payment_request` IS NO LONGER REACHABLE FROM A CATALOGUE ORDER. The function itself
+    stays for its other callers; what is gone is this path's call to it, so no `order_details` /
+    Review-and-Pay message is built for a cart, no Meta payment configuration is read, and there
+    is no second payment path in this file. `_fetch_catalog_product_names` is not called either:
+    its only purpose was a display name on that message.
+
+    THE REPLY CARRIES NO PRICE, deliberately. Meta's `item_price` is the customer's client's view;
+    Wix prices the basket at claim time. Quoting a figure here would be a second total with a
+    different authority - the defect being removed, not a feature being kept.
+
+    All the real logic is in `lambda_utils.ecommerce.whatsapp_basket`, which is pure and tested on
+    its own. This function is wiring: a gate, two refusals, two conditional writes and a reply.
+    """
     try:
-        order = message.get('order', {}) or {}
-        product_items = order.get('product_items', []) or []
-        catalog_id = order.get('catalog_id', '')
-
-        # Resolve real product names from the catalog (fixes vague SKU display).
-        rids = [str(pi.get('product_retailer_id') or '') for pi in product_items if pi.get('product_retailer_id')]
-        name_map = _fetch_catalog_product_names(catalog_id, rids)
-
-        items = []
-        subtotal = 0.0
-        for pi in product_items:
-            qty = int(pi.get('quantity', 1) or 1)
-            price = float(pi.get('item_price', 0) or 0)  # currency units (rupees)
-            if price <= 0 or qty <= 0:
-                continue
-            subtotal += price * qty
-            rid = str(pi.get('product_retailer_id') or '')
-            items.append({
-                'name': (name_map.get(rid) or rid or 'Item')[:60],
-                'amount_paise': int(round(price * 100)),
-                'quantity': qty,
-                'gst_rate': 18.0,
-            })
-        if not items:
-            logger.warning(json.dumps({'event': 'cart_order_no_items', 'requestId': request_id}))
+        if not _catalog_orders_enabled():
+            logger.info(json.dumps({
+                'event': 'cart_order_handoff_disabled',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
             return
 
-        # Load contact + structured shipping address (captured via Address Message).
-        ship_addr = ''
-        cust_name = ''
-        ship_info = None
-        try:
-            if contact_id:
-                c = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}).get('Item', {})
-                ship_addr = c.get('shippingAddress', '') or ''
-                cust_name = c.get('contactBookName', '') or c.get('name', '') or ''
-                if ship_addr or c.get('addressLine1'):
-                    ship_info = {'addresses': [{
-                        'name': cust_name or 'Customer',
-                        'address': (c.get('addressLine1') or ship_addr or '')[:100],
-                        'landmark_area': c.get('landmark', '') or '',
-                        'city': c.get('city', '') or '',
-                        'state': c.get('state', '') or '',
-                        'in_pin_code': (c.get('postalCode', '') or '')[:6],
-                    }]}
-        except Exception:
-            pass
+        # BEFORE ANY WRITE AND BEFORE ANY SEND. One of our own numbers can appear as a sender when
+        # a business number messages another, and replying to it would be us messaging ourselves on
+        # a commerce path. `whatsapp_basket` holds the registry copy; a test pins it against
+        # `notifications.events.business_numbers()`.
+        if whatsapp_basket.is_business_sender(sender_phone):
+            logger.warning(json.dumps({
+                'event': 'cart_order_business_sender_refused',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
-        logger.info(json.dumps({
-            'event': 'cart_order_received', 'itemCount': len(items),
-            'subtotal': round(subtotal, 2), 'catalogId': catalog_id,
-            'namesResolved': len(name_map), 'hasAddress': bool(ship_addr),
-            'phone_suffix': sender_phone[-4:] if sender_phone else '', 'requestId': request_id,
-        }))
+        phone = whatsapp_basket.e164(sender_phone)
+        if not phone:
+            logger.warning(json.dumps({
+                'event': 'cart_order_sender_not_e164',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
-        # Native Review & Pay (physical-goods order_details) with GST + convenience.
-        _first_retailer_id = str((product_items[0] or {}).get('product_retailer_id') or '') if product_items else ''
-        _send_payment_request(
-            contact_id=contact_id, phone_number_id=phone_number_id, amount=subtotal,
-            request_id=request_id, gst_rate=18, shipping=0, sender_phone=sender_phone,
-            items=items, payment_purpose='Catalog order',
-            order_id=catalog_id or 'Catalog',
-            customer_name=cust_name, customer_phone=sender_phone,
-            shipping_address=ship_addr, goods_type='physical-goods', shipping_info=ship_info,
-            catalog_retailer_id=_first_retailer_id,
-        )
+        basket = whatsapp_basket.parse_order_message(message)
+        if basket is None:
+            # Nothing in the cart resolves to a Wix variant. The existing conversational paths
+            # still apply; handing over a link to an empty basket would not.
+            logger.info(json.dumps({
+                'event': 'cart_order_no_resolvable_lines',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
-        # Physical goods: collect a shipping address if we don't have one on file.
-        if not ship_addr:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        now = int(time.time())
+
+        # RESOLVE BEFORE GENERATE. Meta redelivers a webhook whenever our acknowledgement is lost,
+        # and a fresh token per delivery would be a second basket for one cart - the same failure
+        # `REFERENCE#<metaReferenceId>` prevents for a replayed payment event. The wamid index is
+        # written FIRST and conditionally, so whichever delivery wins that write owns the token and
+        # every later delivery reads it back instead of minting another.
+        token = whatsapp_basket.new_token()
+        index = whatsapp_basket.build_message_index(basket, token, now)
+        if index is not None:
             try:
-                _vals = {'phone_number': f'+{sender_phone}'}
-                if cust_name:
-                    _vals['name'] = cust_name
-                addr_payload = {'body': json.dumps({
-                    'contactId': contact_id, 'phoneNumberId': phone_number_id,
-                    'isInteractive': True, 'interactiveType': 'address_message',
-                    'interactiveData': {
-                        'body': 'To deliver your order, please share your delivery address.',
-                        'country': 'IN', 'values': _vals,
-                    },
-                })}
-                lambda_client.invoke(FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-                                     InvocationType='Event', Payload=json.dumps(addr_payload))
-            except Exception as _ae:
-                logger.warning(json.dumps({'event': 'cart_address_request_error', 'error': str(_ae), 'requestId': request_id}))
-    except Exception as e:
-        logger.error(json.dumps({'event': 'cart_order_error', 'error': str(e), 'requestId': request_id}))
+                keys.put_item(Item=index, ConditionExpression='attribute_not_exists(orderId)')
+            except ClientError as error:
+                if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                    raise
+                # A redelivery. The basket already exists and the link already went out on the
+                # delivery that won: Meta re-sends when OUR ack was lost, not when our reply was,
+                # so replying again would be a second message to the customer for one cart.
+                existing = keys.get_item(
+                    Key={'orderId': whatsapp_basket.message_key(basket.message_id)}
+                ).get('Item') or {}
+                logger.info(json.dumps({
+                    'event': 'cart_order_handoff_replayed',
+                    'sourceMessageId': basket.message_id,
+                    'resolvedHandoff': str(existing.get('handoffId') or ''),
+                    'phone_suffix': _phone_suffix(sender_phone),
+                    'requestId': request_id,
+                }))
+                return
+
+        row = whatsapp_basket.build_handoff(basket, phone, token=token, now=now)
+        keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+
+        logger.info(json.dumps(dict(
+            {'event': 'cart_order_handoff_written',
+             # `phone_suffix` only. The row stores the full E.164 because that is the claim key; a
+             # log line does not need it, and every other log site in this file masks to four.
+             'phone_suffix': _phone_suffix(sender_phone),
+             'contactId': mask_contact_id(contact_id),
+             'handoffId': row['orderId'],
+             'channel': row['channel'],
+             'requestId': request_id},
+            **basket.log_fields())))
+
+        # IN-WINDOW BY CONSTRUCTION: the customer sent this cart, so the 24-hour customer-service
+        # window is open and no template is needed. A CTA URL button rather than a text link,
+        # because `_send_cta_button` is the path this file already uses for exactly this.
+        _send_cta_button(
+            contact_id=contact_id, phone_number_id=phone_number_id,
+            cta_text=CART_HANDOFF_BUTTON, cta_url=_handoff_url(row['token']),
+            request_id=request_id, body_text=CART_HANDOFF_BODY)
+
+        # Physical goods still need a delivery address, and the website refuses a basket without
+        # one. Retained unchanged; see `_request_shipping_address`.
+        _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id)
+    except Exception as error:
+        # `type(error).__name__`, not `str(error)`: an exception message on this path can carry
+        # request content, and a phone number is request content.
+        logger.error(json.dumps({'event': 'cart_order_error',
+                                 'error': type(error).__name__, 'requestId': request_id}))
 
 
 def _send_payment_request(contact_id: str, phone_number_id: str, amount: float, request_id: str,
