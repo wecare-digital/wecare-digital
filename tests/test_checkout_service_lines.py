@@ -92,11 +92,17 @@ def test_a_non_service_payref_is_unchanged(monkeypatch):
     assert h.handler(prepare_event([kiosk_line(1)]), None)["statusCode"] == 200
     [row] = payrefs(fake)
     assert "serviceLine" not in row
+    # `channel` was added by Phase W (order origin: "website" or "whatsapp"), additively and
+    # without touching how an order settles. It is pinned on its own in
+    # tests/test_order_channel.py. Named here because this assertion is an EQUALITY on the
+    # field set, so an additive field has to be admitted explicitly rather than tolerated --
+    # which is the point of asserting equality, and why this test caught it. The intent being
+    # protected is the line above: a non-service payref carries no `serviceLine`.
     assert set(row) == {"orderId", "kind", "referenceId", "paymentAttemptId", "reservedAt",
                         "customerId", "amountPaise", "payablePaise", "giftCardRedeemPaise",
                         "currency", "checkoutMode", "wixCartId", "cartRevision", "quoteHash",
                         "collectionPaise", "quoteExpiresAt", "policyVersion",
-                        "providerOrderId"}
+                        "providerOrderId", "channel"}
 
 
 def test_a_mixed_basket_is_priced_like_any_order_and_the_line_assertion_holds(monkeypatch):
