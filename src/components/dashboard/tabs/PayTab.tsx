@@ -6,6 +6,7 @@ import Link from 'next/link';
 import * as api from '../../../api/client';
 import Button from '../../../components/ui/Button';
 import Modal from '../../../components/ui/Modal';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import type { DashboardData } from '../../../types/dashboard';
 import { PAYMENT_CONFIG } from '../../../config/constants';
@@ -14,6 +15,19 @@ import type { GatewayCheckResult } from '../../../api/client';
 
 const PAYMENT_PHONE = PAYMENT_CONFIG.phoneDisplay;
 const PAYMENT_NAME = PAYMENT_CONFIG.phoneName;
+/*
+ * BATCH 2f - the status on a payment record in the edit modal. The four values are exactly the
+ * four the <option> rows carried and they are NOT canonicalised here: this control writes
+ * `status` on an edit request, and the paid-versus-captured vocabulary belongs to
+ * `lambda_utils/payment_status.py` on the server. Renaming a value in the browser would send a
+ * spelling the ledger does not use.
+ */
+const PAYMENT_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'captured', label: 'Captured' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'refunded', label: 'Refunded' },
+];
 
 /**
  * The viewable invoice link for a payment row, or '' when there is none.
@@ -294,17 +308,24 @@ const PayTab: React.FC<PayTabProps> = ({ data, onRefresh }) => {
               </div>
             ))}
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', marginBottom: 4, fontWeight: 500 }}>Status</label>
-              <select
+              {/* MIGRATION SHAPE (b) - the <label> is RETAINED with an `id` and the control
+                  points at it with `labelledBy`. Its inline style is the same object the eight
+                  field captions above it use, which `.ui-field-label` does not reproduce, so
+                  moving the caption into the component would leave one caption in the modal a
+                  different size, weight and colour from the rest. The control's own inline
+                  object was APPEARANCE - an 8px radius, a 1.5px grey border, 0.9rem type - and
+                  that is now the shared token box; only `width: 100%` survives as layout. */}
+              <label
+                id="paytab-status-label"
+                style={{ display: 'block', fontSize: '0.8rem', color: '#6b7280', marginBottom: 4, fontWeight: 500 }}
+              >Status</label>
+              <Select
+                labelledBy="paytab-status-label"
                 value={editPayment.status || editPayment.paymentStatus || 'pending'}
-                onChange={e => setEditPayment((prev: any) => ({ ...prev, status: e.target.value }))}
-                style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1.5px solid #d1d5db', fontSize: '0.9rem' }}
-              >
-                <option value="pending">Pending</option>
-                <option value="captured">Captured</option>
-                <option value="failed">Failed</option>
-                <option value="refunded">Refunded</option>
-              </select>
+                onChange={v => setEditPayment((prev: any) => ({ ...prev, status: v }))}
+                options={PAYMENT_STATUS_OPTIONS}
+                style={{ width: '100%' }}
+              />
             </div>
           </div>
         )}

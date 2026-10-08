@@ -12,6 +12,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
 import { RawJsonDrawer } from '../../../../components/wa';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -19,6 +20,18 @@ const PHONES = [
     { key: 'primary', ...WHATSAPP_PHONES.primary },
     { key: 'secondary', ...WHATSAPP_PHONES.secondary },
 ];
+
+/**
+ * The index is the state, so the option value is the index AS A STRING - `value` is always a
+ * string in this contract, and `Number( v )` on the way back is the same conversion the
+ * native handler did.
+ */
+const PHONE_OPTIONS: SelectOption[] = PHONES.map( ( p, i ) => ( {
+    value: String( i ),
+    label: `${ p.name } — ${ p.display } (WABA ${ p.wabaId })`,
+} ) );
+/** Layout only: the margins the shared `input` object carried. The box is drawn by CSS now. */
+const SELECT_LAYOUT: React.CSSProperties = { marginTop: 4, marginBottom: 10 };
 
 const WEBHOOK_FIELDS = [
     { field: 'business_username_updates', desc: 'Business username status changes (reserved → approved/deleted)' },
@@ -124,9 +137,9 @@ const BsuidConsole: React.FC<PageProps> = ( { signOut, user, embedded = false } 
 
             <div style={ card }>
                 <label style={ label }>WABA / phone context</label>
-                <select style={ input } value={ phoneIdx } onChange={ e => setPhoneIdx( Number( e.target.value ) ) }>
-                    { PHONES.map( ( p, i ) => <option key={ p.key } value={ i }>{ p.name } — { p.display } (WABA { p.wabaId })</option> ) }
-                </select>
+                <Select ariaLabel="WABA / phone context" value={ String( phoneIdx ) }
+                    onChange={ v => setPhoneIdx( Number( v ) ) }
+                    options={ PHONE_OPTIONS } style={ SELECT_LAYOUT } />
             </div>
 
             <div style={ card }>

@@ -97,6 +97,17 @@ const ALLOWED: ReadonlySet<string> = new Set( [
   '/cart/',
   '/orders/',
   '/blog/',
+  // Phase O-1: the two service pages send a signed-out customer to sign in and back.
+  '/submit-request/',
+  '/request-amendment/',
+  // Phase O-2: Drop Docs and Vault, ADDED 2026-10-08. Their omission was a real defect, not a
+  // deliberate narrowing: both pages carry the same buy box and the same "Sign in on WhatsApp to
+  // continue" CTA, which returns to `service.path` — so signing in from either one fell back to
+  // `/cart/` and dropped the customer somewhere they had not asked to go. `src/pages/drop-docs.tsx`
+  // and `src/pages/vault.tsx` both exist, so this keeps the contract above: every member has an
+  // exported page.
+  '/drop-docs/',
+  '/vault/',
   '/',
 ] );
 

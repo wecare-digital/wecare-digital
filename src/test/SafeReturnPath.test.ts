@@ -24,6 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { safeLocalReturnPath } from '../lib/safeReturnPath';
+import { SERVICE_CHOICES } from '../config/services';
 
 const DEFAULT = '/cart/';
 
@@ -130,12 +131,17 @@ describe( 'safeLocalReturnPath — absent and malformed input', () => {
     // `/blog/` used to be this test's first example and MOVED to the accepted set on
     // 2026-10-01 when the owner narrowed `ALLOWED` — it resolves, and a plausible return
     // destination that falls back to `/cart/` is a silent wrong answer rather than a safe
-    // one. `/vault/` carries the case instead: local, well-formed, resolves to nothing,
-    // listed nowhere. `/terms/` is the sharper example — it is a real exported page and is
-    // STILL rejected, which is the point: membership is a decision, not a consequence of
-    // existing.
-    expect( safeLocalReturnPath( '/vault/' ) ).toBe( DEFAULT );
+    // one. `/vault/` carried the case next, and MOVED to the accepted set on 2026-10-08 for
+    // exactly the same reason: it is a service page whose buy box sends a signed-out customer
+    // to sign in and back, so its omission was dropping those customers on `/cart/`. That is
+    // the third time this list has been corrected by measuring it against real producers
+    // rather than against intent, which is the pattern worth noticing.
+    //
+    // `/terms/` carries the case now, and it is the sharper example anyway — it is a real
+    // exported page and is STILL rejected, which is the point: membership is a decision, not a
+    // consequence of existing. `/privacy/` beside it, so the case does not rest on one page.
     expect( safeLocalReturnPath( '/terms/' ) ).toBe( DEFAULT );
+    expect( safeLocalReturnPath( '/privacy/' ) ).toBe( DEFAULT );
   } );
 } );
 
@@ -144,7 +150,7 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   // rejection is asserted positively in the inversion block further down, rather than only by
   // absence here.
   it( 'accepts each customer destination in its slashed form', () => {
-    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/' ] ) {
+    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/' ] ) {
       expect( safeLocalReturnPath( ok ) ).toBe( ok );
     }
   } );
@@ -168,7 +174,10 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   } );
 
   it( 'only ever returns a member of the allowed set', () => {
-    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/' ] );
+    // Phase O-1 added the first two service pages, which link signed-out customers to sign in.
+    // Phase O-2's two (`/drop-docs/`, `/vault/`) joined them on 2026-10-08: they carry the same
+    // buy box and the same return, and their absence was sending those customers to `/cart/`.
+    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/' ] );
     const inputs = [
       '/cart', '/cart/', '/', '//evil', '/workspace/access', 'https://evil.example/',
       '%2f%2fevil', '/../x', '', null, undefined, '/terms/', '/cart/#f',
@@ -251,8 +260,17 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     // resolutions were "the entry leaves ALLOWED" or "the page lands"; the page is not landing,
     // because the withdrawal is the owner's instruction, so the entry left and the fallback is
     // asserted below.
+    //
+    // FOUR BECAME SEVEN ON 2026-10-08. The four service pages were never in this loop even
+    // though two of them were already in `ALLOWED`, which is the gap that let `/drop-docs/` and
+    // `/vault/` be missing from `ALLOWED` unnoticed. The loop is now driven off the service
+    // config rather than a hand-typed list, so a fifth service page cannot join `ALLOWED`
+    // without this check covering it.
     expect( fs.existsSync( path.join( PAGES_DIR, 'index.tsx' ) ), '/ must have an exported page' ).toBe( true );
-    for ( const segment of [ 'cart', 'orders', 'blog' ] ) {
+    const serviceSegments = SERVICE_CHOICES.map( choice => choice.slug );
+    expect( serviceSegments ).toEqual(
+      [ 'submit-request', 'request-amendment', 'drop-docs', 'vault' ] );
+    for ( const segment of [ 'cart', 'orders', 'blog', ...serviceSegments ] ) {
       expect( pageExists( segment ), `/${segment}/ must have an exported page` ).toBe( true );
     }
   } );

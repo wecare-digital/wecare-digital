@@ -44,7 +44,8 @@ def check_and_put_dedupe(event_id: Optional[str], ttl: int = 7 * 24 * 60 * 60, s
     return claim_event(event_id, source=source, ttl_days=max(1, ttl // (24 * 60 * 60)))
 
 
-def claim_admin_action(key: str, actor: str, action: str, ttl_seconds: int = 24 * 60 * 60) -> bool:
+def claim_admin_action(key: str, actor: str, action: str, ttl_seconds: int = 24 * 60 * 60,
+                       *, claim_token: str = '') -> bool:
     """Atomically claim an Admin mutation. Duplicate returns False; storage errors raise."""
     if not key or not actor or not action:
         raise ValueError('key, actor, and action are required')
@@ -52,17 +53,34 @@ def claim_admin_action(key: str, actor: str, action: str, ttl_seconds: int = 24 
     expires_at = now + ttl_seconds
     table_name = os.environ.get('WEBHOOK_DEDUP_TABLE', 'stack-wecare-digital-WebhookDedup')
     table = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1')).Table(table_name)
+    item = {'eventId': key, 'source': f'admin:{action}', 'actor': actor,
+            'processedAt': now, 'expiresAt': expires_at, 'ttl': expires_at}
+    kwargs = {'Item': item, 'ConditionExpression': 'attribute_not_exists(eventId)'}
+    if claim_token:
+        item['claimToken'] = claim_token
+        kwargs.update(ConditionExpression='attribute_not_exists(eventId) OR expiresAt < :now',
+                      ExpressionAttributeValues={':now': now})
     try:
-        table.put_item(
-            Item={'eventId': key, 'source': f'admin:{action}', 'actor': actor,
-                  'processedAt': now, 'expiresAt': expires_at, 'ttl': expires_at},
-            ConditionExpression='attribute_not_exists(eventId)',
-        )
+        table.put_item(**kwargs)
         return True
     except ClientError as error:
         if error.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
             return False
         raise
+
+
+def release_admin_audit(key: str, claim_token: str) -> None:
+    """Release only the caller's derived-audit lease; never a durable mutation claim."""
+    if not claim_token:
+        raise ValueError('Audit claim token required')
+    table = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1')).Table(
+        os.environ.get('WEBHOOK_DEDUP_TABLE', 'stack-wecare-digital-WebhookDedup'))
+    try:
+        table.delete_item(Key={'eventId': key}, ConditionExpression='claimToken = :token',
+                          ExpressionAttributeValues={':token': claim_token})
+    except ClientError as error:
+        if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
 
 
 def make_admin_idempotency_key(actor: str, action: str, body_hash: str) -> str:

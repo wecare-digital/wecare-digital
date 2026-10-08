@@ -9,6 +9,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
 import { RawJsonDrawer } from '../../../../components/wa';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -18,6 +19,12 @@ const PHONES = [
 ];
 
 const VERTICALS = [ 'UNDEFINED', 'OTHER', 'AUTO', 'BEAUTY', 'APPAREL', 'EDU', 'ENTERTAIN', 'EVENT_PLAN', 'FINANCE', 'GROCERY', 'GOVT', 'HOTEL', 'HEALTH', 'NONPROFIT', 'PROF_SERVICES', 'RETAIL', 'TRAVEL', 'RESTAURANT', 'NOT_A_BIZ' ];
+
+/** The leading '' row is the placeholder ROW, selectable exactly as the old `<option value="">` was. */
+const VERTICAL_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Select...' },
+  ...VERTICALS.map( v => ( { value: v, label: v.replace( /_/g, ' ' ) } ) ),
+];
 
 const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
@@ -149,11 +156,9 @@ const BusinessProfilePage: React.FC<PageProps> = ( { signOut, user, embedded = f
                 </div>
                 <div>
                   <label style={ { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 } }>Vertical</label>
-                  <select value={ form.vertical } onChange={ e => setForm( { ...form, vertical: e.target.value } ) }
-                    style={ { width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } }>
-                    <option value="">Select...</option>
-                    { VERTICALS.map( v => <option key={ v } value={ v }>{ v.replace( /_/g, ' ' ) }</option> ) }
-                  </select>
+                  <Select ariaLabel="Vertical" value={ form.vertical }
+                    onChange={ v => setForm( { ...form, vertical: v } ) }
+                    options={ VERTICAL_OPTIONS } />
                 </div>
               </div>
               <div>

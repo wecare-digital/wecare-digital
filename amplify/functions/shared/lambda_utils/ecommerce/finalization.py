@@ -20,7 +20,7 @@ import time
 from copy import deepcopy
 from decimal import Decimal, InvalidOperation
 
-from . import payment_attempt, wix_writeback
+from . import order_channel, payment_attempt, wix_writeback
 
 #: Modes whose attempts may become an internal order. 'WEBSITE_RAZORPAY_STANDARD' mirrors
 #: `website_checkout.CHECKOUT_MODE_WEBSITE`; the literal avoids an import cycle between two
@@ -235,7 +235,30 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
              'purchasedSnapshot': deepcopy(snapshot), 'snapshotHash': attempt['snapshotHash'],
              # The record says which flow produced it, rather than hard-coding one of them.
              'checkoutMode': attempt['checkoutMode'], 'paymentStatus': 'PAYMENT_PAID',
+             # WHERE the order came from, beside HOW it settled, and deliberately a SECOND field
+             # rather than a third `checkoutMode`: `checkoutMode` gates finalisation through
+             # `ACCEPTED_CHECKOUT_MODES` above, so a channel spelled into it would be a new
+             # settlement path instead of a label. `order_channel.canonical` is total, so an
+             # attempt row with no channel - which is every attempt written before this landed -
+             # reads as `website`. That default is TRUE and not a guess: no WhatsApp order can
+             # exist, because the hand-off that would create one is gated off.
+             'channel': order_channel.canonical(attempt.get('channel')),
              'finalizationStage': 'INTERNAL_ORDER_CREATED', 'createdAt': int(time.time())}
+    # WHO the order belongs to, in the one form we are willing to print. Copied off the attempt
+    # - never minted here - because this function runs after the money has moved and a write to
+    # ContactsTable for a display field is the wrong trade on that path.
+    #
+    # CONDITIONAL, and that matters twice over. An order row for an attempt with no public id is
+    # byte-identical to one written before this landed, and - decisively - the key is NOT added
+    # to the five-key association-conflict comparison below. That comparison exists to refuse an
+    # idempotent re-entry that would bind one order to different MONEY; the customer id is
+    # attribution, so letting it raise `internal order association conflict` would turn a
+    # harmless redelivery into a paid-but-no-order alarm over a label.
+    if attempt.get('customerUuid'):
+        order['customerUuid'] = attempt['customerUuid']
+    if attempt.get('customerPhone'):
+        # Recorded from the authenticated checkout session, never a browser field.
+        order['customerPhone'] = attempt['customerPhone']
     try:
         orders.put_item(Item=order, ConditionExpression='attribute_not_exists(orderId)')
     except Exception as error:

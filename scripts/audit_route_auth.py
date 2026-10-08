@@ -181,6 +181,13 @@ EXPECTED_PUBLIC_ROUTES = {
     # this line must come out and the route must move behind require_auth.
     "ANY /mcp": "read-only MCP server over public content; no auth possible in-protocol",
     "GET /workspace/mcp/oauth/callback": "provider OAuth callback; exact route, ten-minute principal-bound one-use state and PKCE; no administrative tools exposed",
+    # The live price shown on the four public service pages. A visitor reads it BEFORE signing
+    # in -- the price is what decides whether they sign in at all -- so there is no identity to
+    # authenticate. Narrow by construction: GET only, and the handler arm accepts no path
+    # parameter, no query string and no body, so nothing a caller supplies reaches Wix or a
+    # table. It cannot mutate anything, returns only Wix-live prices in integer paise, and is
+    # edge-cached for 60 seconds. POST on the same path still requires a customer session.
+    "GET /ecommerce/service-prices": "anonymous public price read. There is no customer identity to authenticate on a public service page; the arm accepts no path, query or body input, returns only Wix-live prices in integer paise, cannot mutate anything, and is edge-cached for 60 seconds",
 }
 
 

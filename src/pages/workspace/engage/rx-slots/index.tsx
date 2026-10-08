@@ -10,11 +10,30 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
+import DateField from '../../../../components/ui/DateField';
+import TimeField from '../../../../components/ui/TimeField';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'available', 'booked', 'blocked', 'completed' ];
+
+/* Hoisted option rows. Same order, same values, same visible text, with the filter's ''
+   placeholder row kept first. */
+const STATUS_SELECT_OPTIONS: SelectOption[] = STATUS_OPTIONS.map( s => ( { value: s, label: s } ) );
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_SELECT_OPTIONS,
+];
+
+/* LAYOUT ONLY. The in-table control fills its 120px column; the filter is a flex child
+   beside the date field, and a native select sized itself to its widest option. */
+const CELL_SELECT_STYLE: React.CSSProperties = { width: '100%' };
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
+/* The 14px the wrapping <label> set on the create-modal date/time pair, carried on the field
+   wrapper so the label text and the control keep the type size they render at today. */
+const FIELD_STYLE: React.CSSProperties = { fontSize: 14 };
 
 function statusBadge ( status: string ) {
   const colors: Record<string, { bg: string; fg: string }> = {
@@ -90,9 +109,9 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     },
     {
       key: 'status', header: 'Status', width: '120px', render: ( s: api.RxSlot ) => (
-        <select value={ s.status } onChange={ e => handleStatusUpdate( s.slotId, e.target.value ) } style={ { fontSize: 12, padding: '2px 4px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff' } }>
-          { STATUS_OPTIONS.map( st => <option key={ st } value={ st }>{ st }</option> ) }
-        </select>
+        <Select ariaLabel="Slot status" value={ s.status }
+          onChange={ v => handleStatusUpdate( s.slotId, v ) }
+          options={ STATUS_SELECT_OPTIONS } style={ CELL_SELECT_STYLE } />
       )
     },
   ];
@@ -113,11 +132,15 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
         </div>
 
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <input type="date" value={ dateFilter } onChange={ e => { setDateFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle } />
+          <Select ariaLabel="Slot status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          { /* The date filter. `selectStyle` is gone with it - it only ever skinned the native
+               control, and DateField draws itself from form-controls.css. ISO in, ISO out, so
+               `dateFilter` still holds exactly what `e.target.value` put there. */ }
+          <DateField ariaLabel="Slot date" value={ dateFilter }
+            onChange={ v => { setDateFilter( v ); setPage( 1 ); } }
+            style={ FILTER_STYLE } />
         </div>
 
         { slots.length === 0 && !loading ? (
@@ -151,8 +174,17 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       }>
         <div style={ { display: 'flex', flexDirection: 'column', gap: 14 } }>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 14 } }>Date *<input type="date" value={ form.date } onChange={ e => setForm( f => ( { ...f, date: e.target.value } ) ) } style={ inputStyle } /></label>
-            <label style={ { fontSize: 14 } }>Time *<input type="time" value={ form.time } onChange={ e => setForm( f => ( { ...f, time: e.target.value } ) ) } style={ inputStyle } /></label>
+            { /* SHAPE (a): the wrapping <label> is gone and the component owns the label/control
+                 pair. A <label> around a picker is worse than around a native input - it holds
+                 a text box AND a trigger button, so the name is computed by walking a subtree
+                 that contains both, and a click on the button double-activates. The 14px came
+                 from the label, so it moves to the field's own layout style. */ }
+            <DateField label="Date *" value={ form.date }
+              onChange={ v => setForm( f => ( { ...f, date: v } ) ) }
+              style={ FIELD_STYLE } />
+            <TimeField label="Time *" value={ form.time }
+              onChange={ v => setForm( f => ( { ...f, time: v } ) ) }
+              style={ FIELD_STYLE } />
           </div>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
             <label style={ { fontSize: 14 } }>Duration (min)<input type="number" value={ form.duration } onChange={ e => setForm( f => ( { ...f, duration: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
@@ -165,7 +197,8 @@ const RxSlotsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   );
 };
 
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/* `selectStyle` went with the date filter - its last consumer. It only ever skinned the native
+   control, and the pickers draw themselves from form-controls.css. */
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
 

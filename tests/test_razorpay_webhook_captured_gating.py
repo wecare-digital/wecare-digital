@@ -443,9 +443,11 @@ def test_invoice_image_log_omits_the_image_url(webhook, fake_ddb, caplog):
     lambda_client.invoke.side_effect = _invoke
     with patch.object(webhook, 'lambda_client', lambda_client):
         with caplog.at_level('INFO'):
+            # `amount` and `currency` are gone from this signature: measured, neither name
+            # occurred in the body after the signature, so they were dead parameters carrying a
+            # float on a money path and are deleted rather than retyped.
             webhook._post_payment_handler(
-                TXN, 599.0, 'INR', CONTACT, 'buyer@example.com',
-                'desc', {}, 'req-1')
+                TXN, CONTACT, 'buyer@example.com', 'desc', {}, 'req-1')
 
     lines = [r.getMessage() for r in caplog.records
              if 'invoice_image_generated' in r.getMessage()]

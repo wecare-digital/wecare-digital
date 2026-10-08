@@ -1,0 +1,3742 @@
+{
+  "status": "success",
+  "stdout": "",
+  "return_value": {
+    "account": "775261844268",
+    "region": "us-east-1",
+    "apis": [
+      {
+        "id": "zllr9lrg7j",
+        "name": "wecare-digital-api",
+        "routes": [
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "01i2g8a",
+            "RouteKey": "DELETE /voice-cdr-read",
+            "Target": "integrations/0kznima"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "040mzdj",
+            "RouteKey": "POST /sms/send",
+            "Target": "integrations/xk20h38"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "04tsnf8",
+            "RouteKey": "POST /ai/approvals/status",
+            "Target": "integrations/jkhxmog"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "084wem4",
+            "RouteKey": "GET /wa-business/documents/{documentId}/download",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "09uone7",
+            "RouteKey": "POST /whatsapp/business-api",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "0nkqz0v",
+            "RouteKey": "GET /wa-business/catalog-flow-map",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "0qhoy86",
+            "RouteKey": "GET /wa-business/orders",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "0soox8q",
+            "RouteKey": "POST /store/generate-product-image",
+            "Target": "integrations/ysw4ov8"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "120s2oi",
+            "RouteKey": "GET /wa-business/flow-customer-journey",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "16c16op",
+            "RouteKey": "GET /contacts",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "16p9u6s",
+            "RouteKey": "POST /services/my-requests",
+            "Target": "integrations/m1mre7s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "1emven1",
+            "RouteKey": "OPTIONS /partners/billing/settings",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "1gqdw1n",
+            "RouteKey": "GET /voice-aws/calls",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "1ko486c",
+            "RouteKey": "POST /wa-business/schedules",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "1pirbmg",
+            "RouteKey": "OPTIONS /voice-in/obd/audio-library",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "20lygq7",
+            "RouteKey": "GET /wa-business/throughput",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "23l8b3n",
+            "RouteKey": "POST /waba",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "24i0pcm",
+            "RouteKey": "PUT /contacts",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "24uygz1",
+            "RouteKey": "GET /whatsapp/calling",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "25js2z6",
+            "RouteKey": "OPTIONS /partners/billing/analytics",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "29bobi1",
+            "RouteKey": "OPTIONS /partners/send",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "29i7011",
+            "RouteKey": "POST /whatsapp/inbound",
+            "Target": "integrations/y4fvvye"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2am09lh",
+            "RouteKey": "GET /wa-business/flow-registry",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2dg1jog",
+            "RouteKey": "OPTIONS /rcs/send",
+            "Target": "integrations/wt7876c"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2erwg1m",
+            "RouteKey": "POST /wa-business/documents",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2gjvoef",
+            "RouteKey": "GET /partners/billing/analytics",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2i4va44",
+            "RouteKey": "DELETE /whatsapp/templates",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2j7n8g6",
+            "RouteKey": "POST /plivo/hangup",
+            "Target": "integrations/mk92rna"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2k8ackd",
+            "RouteKey": "OPTIONS /sms-aws/templates",
+            "Target": "integrations/ofcmlqa"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2lhvy8a",
+            "RouteKey": "DELETE /contacts",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2obop7c",
+            "RouteKey": "GET /bulk/jobs",
+            "Target": "integrations/mgkmhgs"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2ot2on7",
+            "RouteKey": "POST /bulk/create",
+            "Target": "integrations/mgkmhgs"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2rchmr8",
+            "RouteKey": "POST /wa-business/rx-slots",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2sctd4b",
+            "RouteKey": "GET /pstn/session",
+            "Target": "integrations/dx56fjq"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2tbnwbi",
+            "RouteKey": "DELETE /contacts/{contactId}",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2vy6fsi",
+            "RouteKey": "DELETE /voice-in/obd/audio-library",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "2ztdb96",
+            "RouteKey": "POST /wa-business/assigned-users",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "35dt9x6",
+            "RouteKey": "GET /wa-business/documents",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3b8rwdm",
+            "RouteKey": "GET /wa-business/bot",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3cuxqxn",
+            "RouteKey": "PUT /ai/fallbacks/{lang}",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3ianwaa",
+            "RouteKey": "GET /partners/messages",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3l0nuet",
+            "RouteKey": "GET /templates/analytics/{templateName}",
+            "Target": "integrations/dx7l2df"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3mpbwp7",
+            "RouteKey": "POST /wa-business/groups/send",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3n6nwx7",
+            "RouteKey": "GET /crm/pipelines",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3tn2bqh",
+            "RouteKey": "POST /docs/scrape",
+            "Target": "integrations/u8df9do"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3twij0r",
+            "RouteKey": "POST /invoices/{invoiceId}/generate-image",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "3w83nvb",
+            "RouteKey": "POST /whatsapp-voice/send",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "41v1ur8",
+            "RouteKey": "POST /contacts",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "462set6",
+            "RouteKey": "DELETE /whatsapp",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "46vkwd1",
+            "RouteKey": "GET /invoices/{invoiceId}",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "4ceualg",
+            "RouteKey": "GET /wa-business/username",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "4cl0k9a",
+            "RouteKey": "GET /whatsapp",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "4hdn5zm",
+            "RouteKey": "GET /voice-in/obd",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "4vexhau",
+            "RouteKey": "GET /wa-business/payment-config/check",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "4xec6lf",
+            "RouteKey": "PUT /wa-business/enterprise-assist/{caseId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "4ybcsiq",
+            "RouteKey": "DELETE /messages/clear-all",
+            "Target": "integrations/g6jq4o3"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "508jgfp",
+            "RouteKey": "POST /ecommerce/checkout",
+            "Target": "integrations/zkb6lxe"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "52e5xee",
+            "RouteKey": "POST /customer/profile",
+            "Target": "integrations/do0swe9"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "54gk2is",
+            "RouteKey": "POST /ecommerce/prepare-checkout",
+            "Target": "integrations/zkb6lxe"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "55lrukf",
+            "RouteKey": "DELETE /messages/{messageId}",
+            "Target": "integrations/g6jq4o3"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "560f498",
+            "RouteKey": "PATCH /crm/opportunities/{opportunityId}",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "560qvif",
+            "RouteKey": "PUT /inbox/meta/{conversationId}",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "58e68tu",
+            "RouteKey": "POST /invoices/{invoiceId}/remark",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5cqc0xc",
+            "RouteKey": "POST /invoices/{invoiceId}/send-payment-link",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5hprky6",
+            "RouteKey": "GET /templates/analytics",
+            "Target": "integrations/dx7l2df"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5ixkxen",
+            "RouteKey": "GET /whatsapp/templates/{templateId}",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5mm7p6o",
+            "RouteKey": "POST /voice-in/obd/create",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5mn5fyn",
+            "RouteKey": "PUT /wa-business/groups",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5sc9zzm",
+            "RouteKey": "GET /partners/tenants",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5xbnus3",
+            "RouteKey": "OPTIONS /inbox/meta/{conversationId}/note",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "5zpyhgm",
+            "RouteKey": "DELETE /bulk/jobs/{jobId}",
+            "Target": "integrations/mgkmhgs"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "611q4a0",
+            "RouteKey": "GET /bulk/control",
+            "Target": "integrations/5s4z6s1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "69hf9v6",
+            "RouteKey": "DELETE /links/{code}",
+            "Target": "integrations/5sm0t1s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6bhk9kf",
+            "RouteKey": "GET /voice/calls",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6f37ky3",
+            "RouteKey": "POST /waba/tags",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6hh681i",
+            "RouteKey": "DELETE /automation/rules/{id}",
+            "Target": "integrations/oz3zmdm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6jxzk93",
+            "RouteKey": "POST /voice-aws/send",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6ll5ucg",
+            "RouteKey": "DELETE /sms-aws/templates",
+            "Target": "integrations/ofcmlqa"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6nx4xui",
+            "RouteKey": "POST /whatsapp/template-from-library",
+            "Target": "integrations/iu734wd"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6ojtn49",
+            "RouteKey": "OPTIONS /site-language/{proxy+}",
+            "Target": "integrations/tipkpon"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6p7ekpr",
+            "RouteKey": "GET /whatsapp/{proxy+}",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6weeqb0",
+            "RouteKey": "PUT /sms-aws/templates",
+            "Target": "integrations/ofcmlqa"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "6y7taeg",
+            "RouteKey": "GET /whatsapp-voice/language-config",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "73rhaof",
+            "RouteKey": "GET /wa-business/faq",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "76o0gb0",
+            "RouteKey": "GET /inbox/meta/{conversationId}",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7aw9zkf",
+            "RouteKey": "POST /wa-business/flows/deprecate",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7c24kxc",
+            "RouteKey": "GET /payments/{paymentId}",
+            "Target": "integrations/x5phi04"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7fdpp2b",
+            "RouteKey": "POST /voice-aws/call",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7i3awte",
+            "RouteKey": "POST /plivo/dial-events",
+            "Target": "integrations/mk92rna"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7iy7t2p",
+            "RouteKey": "GET /voice-cdr-read",
+            "Target": "integrations/0kznima"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7jhytm4",
+            "RouteKey": "POST /wa-business/direct-send/samples",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "7rlxxs6",
+            "RouteKey": "POST /agent-tool",
+            "Target": "integrations/80n4fy4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "86t9lib",
+            "RouteKey": "PATCH /wa-business/orders/{orderId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "87cd62p",
+            "RouteKey": "POST /wa-business/webhooks",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "89kqroe",
+            "RouteKey": "POST /bulk/jobs",
+            "Target": "integrations/mgkmhgs"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8a8qc2i",
+            "RouteKey": "POST /partners/billing/topup",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8bxjbi8",
+            "RouteKey": "GET /wa-business/conversational-automation",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8c2z4vq",
+            "RouteKey": "POST /wa-business/profile",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationScopes": [],
+            "AuthorizationType": "JWT",
+            "AuthorizerId": "iu6ufl",
+            "RequestModels": {},
+            "RouteId": "8kwedrj",
+            "RouteKey": "ANY /workspace/mcp",
+            "Target": "integrations/2ohd122"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8pnh95t",
+            "RouteKey": "GET /wa-business/service/drafts/{flowCode}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8rnv4ei",
+            "RouteKey": "POST /secure-files/upload-init",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8tyxgrh",
+            "RouteKey": "GET /voice-in/obd/audio-library",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "8zc4dfg",
+            "RouteKey": "POST /ecommerce/my-orders",
+            "Target": "integrations/vvyxbal"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "94j9enl",
+            "RouteKey": "GET /wa-business/profile",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "94ng0df",
+            "RouteKey": "DELETE /partners/tenants",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "973k7vj",
+            "RouteKey": "PUT /whatsapp/templates/{templateId}",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "982suo6",
+            "RouteKey": "POST /whatsapp-calling",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "9fhk5ca",
+            "RouteKey": "GET /crm/leads/{leadId}",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "9ixgehg",
+            "RouteKey": "POST /wix-store/{proxy+}",
+            "Target": "integrations/vgnarbr"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "9jiqg4q",
+            "RouteKey": "GET /rcs/send",
+            "Target": "integrations/wt7876c"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "9kyxqze",
+            "RouteKey": "POST /ai/test",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "a18c0y8",
+            "RouteKey": "POST /plivo/answer",
+            "Target": "integrations/mk92rna"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "a19b4cb",
+            "RouteKey": "OPTIONS /partners/embedded-signup",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "a6mojtm",
+            "RouteKey": "POST /partners/billing/settings",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "a9ml22k",
+            "RouteKey": "DELETE /wa-business/webhooks",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "afrqk17",
+            "RouteKey": "PUT /ai/internal/config",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "algws4s",
+            "RouteKey": "POST /invoices/{invoiceId}/send-whatsapp",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "avbnru8",
+            "RouteKey": "GET /partners/me",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "axxnbuq",
+            "RouteKey": "GET /wa-business/calling-settings",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "b1ftyy0",
+            "RouteKey": "DELETE /wa-business/faq/{faqId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "b2dtfke",
+            "RouteKey": "GET /bulk/worker",
+            "Target": "integrations/7e72g6i"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "bi573s9",
+            "RouteKey": "PUT /wa-business/documents/{documentId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "bnqiodo",
+            "RouteKey": "GET /wa-business/assigned-users",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "bpghrkp",
+            "RouteKey": "DELETE /voice-in/c2c/clear-logs",
+            "Target": "integrations/4pgeu48"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationScopes": [],
+            "AuthorizationType": "AWS_IAM",
+            "RequestModels": {},
+            "RouteId": "btu2u41",
+            "RouteKey": "POST /workspace/mcp-iam",
+            "Target": "integrations/2ohd122"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "buaza6s",
+            "RouteKey": "GET /inbox/meta",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "bxx8r2m",
+            "RouteKey": "POST /invoices/clear-all",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "c3plv8j",
+            "RouteKey": "GET /wa-business/submit-requests",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "c9tq8x4",
+            "RouteKey": "POST /razorpay-webhook",
+            "Target": "integrations/dg17ioi"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "cc1rmgk",
+            "RouteKey": "POST /auth/validate",
+            "Target": "integrations/460qt7o"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "cpahqs3",
+            "RouteKey": "POST /pstn/session/events",
+            "Target": "integrations/dx56fjq"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "d5afebv",
+            "RouteKey": "POST /crm/leads",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "d6itddv",
+            "RouteKey": "POST /plivo/fallback",
+            "Target": "integrations/mk92rna"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "d7al5pt",
+            "RouteKey": "GET /ai/config",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "d9ej1th",
+            "RouteKey": "POST /media/cleanup",
+            "Target": "integrations/hwmhkzc"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "df7zha5",
+            "RouteKey": "GET /whatsapp-voice/logs",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "df8m3v6",
+            "RouteKey": "POST /voice-in/obd/tts",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dnydbue",
+            "RouteKey": "GET /crm/contacts/{contactId}/360",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dv6b5xa",
+            "RouteKey": "POST /plivo/events",
+            "Target": "integrations/mk92rna"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dw77pqc",
+            "RouteKey": "POST /scheduled",
+            "Target": "integrations/2wl78f5"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dxzdhb1",
+            "RouteKey": "POST /ai/approvals",
+            "Target": "integrations/jkhxmog"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dxzyrvr",
+            "RouteKey": "PUT /wa-business/reviews/{reviewId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dzdkj9h",
+            "RouteKey": "PUT /wa-business/flow-registry",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "dzrpe26",
+            "RouteKey": "PUT /wa-business/flows",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "e0opn66",
+            "RouteKey": "POST /services/request-intent",
+            "Target": "integrations/m1mre7s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "e1at5fb",
+            "RouteKey": "POST /wa-business/groups/participants",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "e2gl6bm",
+            "RouteKey": "GET /ai/prompts",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "e5sc9a2",
+            "RouteKey": "GET /messages",
+            "Target": "integrations/smpr53n"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "egc39d0",
+            "RouteKey": "POST /wa-business/orders",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "egl6wzi",
+            "RouteKey": "GET /invoices/{invoiceId}/delivery-log",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "eha4o36",
+            "RouteKey": "GET /wa-business/appointments",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "eoawla4",
+            "RouteKey": "POST /pstn/session/presence",
+            "Target": "integrations/dx56fjq"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "epx4n9j",
+            "RouteKey": "GET /wa-business/username/suggestions",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "eqvcp6q",
+            "RouteKey": "POST /whatsapp/voice",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "esu61vn",
+            "RouteKey": "POST /wa-business/phone-settings",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "etn7q0t",
+            "RouteKey": "GET /ai/internal/config",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "exelmi2",
+            "RouteKey": "GET /wa-business/rx-slots",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "f1skhbn",
+            "RouteKey": "POST /wa-business/flow-data",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "f2ahqjr",
+            "RouteKey": "POST /wa-business/service/submit",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "f6vo57p",
+            "RouteKey": "DELETE /invoices/clear-all",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fb4xyof",
+            "RouteKey": "GET /ai/botflow",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fdtw0y9",
+            "RouteKey": "GET /ai/fallbacks",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ff0a7an",
+            "RouteKey": "OPTIONS /partners/messages",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fjtsz0p",
+            "RouteKey": "POST /wa-business/marketing-message",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fkscpnb",
+            "RouteKey": "GET /sms-aws/templates",
+            "Target": "integrations/ofcmlqa"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fn2y3l3",
+            "RouteKey": "DELETE /waba/media/{mediaId}",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fo802ht",
+            "RouteKey": "DELETE /whatsapp-voice/clear-logs",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fsardqp",
+            "RouteKey": "DELETE /sms-aws/clear-logs",
+            "Target": "integrations/fl7xy5m"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "fx5gtla",
+            "RouteKey": "GET /waba/{wabaId}",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "g47juiu",
+            "RouteKey": "POST /auth/email-verification",
+            "Target": "integrations/zd8egr3"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "g4xgu3c",
+            "RouteKey": "POST /wa-business/catalog-flow-map",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "g5cjpp7",
+            "RouteKey": "POST /voice-in/obd/upload-csv",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "g6dxz20",
+            "RouteKey": "PATCH /crm/leads/{leadId}",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "gdpnsg9",
+            "RouteKey": "OPTIONS /inbox/meta",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "gdubdwi",
+            "RouteKey": "GET /whatsapp/business-api",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "gf8siv0",
+            "RouteKey": "GET /automation/rules",
+            "Target": "integrations/oz3zmdm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "gi2dibv",
+            "RouteKey": "POST /ecommerce/checkout/status",
+            "Target": "integrations/zkb6lxe"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "gk6ft3i",
+            "RouteKey": "DELETE /voice-in/obd",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "gyq7z7m",
+            "RouteKey": "OPTIONS /marketing-ads",
+            "Target": "integrations/kxh7jye"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "h4x76k5",
+            "RouteKey": "GET /whatsapp/template-management",
+            "Target": "integrations/iicga6b"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "h6ypowt",
+            "RouteKey": "POST /wa-business/flow-registry",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "h8cbdi4",
+            "RouteKey": "DELETE /whatsapp/{proxy+}",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "hcq7773",
+            "RouteKey": "GET /payments",
+            "Target": "integrations/b18z8sl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "hhubh6a",
+            "RouteKey": "POST /wa-business/appointments",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "hjx3u9a",
+            "RouteKey": "POST /system-cleanup",
+            "Target": "integrations/w98vghk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "hr13bsn",
+            "RouteKey": "POST /partners/billing/topup-order",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationScopes": [],
+            "AuthorizationType": "NONE",
+            "RequestModels": {},
+            "RouteId": "hru3jf3",
+            "RouteKey": "POST /ecommerce/customer-session",
+            "Target": "integrations/fryr558"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "hy21rc1",
+            "RouteKey": "POST /invoices/{invoiceId}/cancel",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "i25xs4j",
+            "RouteKey": "OPTIONS /inbox/meta/{conversationId}",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "i66zshp",
+            "RouteKey": "POST /wa-business/calling-settings",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "i6o58y4",
+            "RouteKey": "GET /ai/fallbacks/{lang}",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ioqd1r1",
+            "RouteKey": "PUT /wa-business/appointments/{appointmentId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "iu8e3ye",
+            "RouteKey": "DELETE /ai/botflow",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "iubselk",
+            "RouteKey": "POST /rcs/send",
+            "Target": "integrations/wt7876c"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "iv2zv37",
+            "RouteKey": "GET /sms-aws/messages",
+            "Target": "integrations/fl7xy5m"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "iwvnhhb",
+            "RouteKey": "GET /faq",
+            "Target": "integrations/bmufv90"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "iz4dv4t",
+            "RouteKey": "POST /site-language/translate",
+            "Target": "integrations/tipkpon"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "j8d2szu",
+            "RouteKey": "POST /whatsapp/calling",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jb86an4",
+            "RouteKey": "GET /wa-business/orders/{orderId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jcyflnh",
+            "RouteKey": "GET /scheduled",
+            "Target": "integrations/njw4vv9"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jg30ai9",
+            "RouteKey": "OPTIONS /system-cleanup",
+            "Target": "integrations/w98vghk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jo7fiqd",
+            "RouteKey": "POST /billing",
+            "Target": "integrations/2dc14fu"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jrz01un",
+            "RouteKey": "DELETE /messages",
+            "Target": "integrations/g6jq4o3"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jxetxy3",
+            "RouteKey": "GET /wa-business/groups",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "jz3ixjl",
+            "RouteKey": "POST /ecommerce/verify-callback",
+            "Target": "integrations/zkb6lxe"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "k09njfu",
+            "RouteKey": "DELETE /wa-business/service/drafts/{flowCode}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "k0dlvzb",
+            "RouteKey": "POST /email/send",
+            "Target": "integrations/9h5khd4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "k4t3t1r",
+            "RouteKey": "POST /partners/send",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "k9b4t84",
+            "RouteKey": "GET /voice-aws/send",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "k9j6bi3",
+            "RouteKey": "GET /webhook/sinch-rcs",
+            "Target": "integrations/ogw2uw0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kakqgk8",
+            "RouteKey": "PUT /ai/prompts/{lang}",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kal7jud",
+            "RouteKey": "GET /waba/media/{mediaId}",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kb7o8an",
+            "RouteKey": "POST /wa-business/flows/publish",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kgl14zb",
+            "RouteKey": "POST /wa-business/direct-send",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "khjd3ru",
+            "RouteKey": "GET /secure-files",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kkak4tr",
+            "RouteKey": "POST /whatsapp/templates/media",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kl5xqrd",
+            "RouteKey": "POST /waba/conversational-components",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kq2vprl",
+            "RouteKey": "POST /invoices/next-sequence",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kuz57fj",
+            "RouteKey": "POST /whatsapp/send",
+            "Target": "integrations/vlz7fmp"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "kwwj8ht",
+            "RouteKey": "POST /wa-business/username",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "l3unjmc",
+            "RouteKey": "GET /wa-business/schedules",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "l5cik7j",
+            "RouteKey": "GET /whatsapp/templates",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "l75vn1i",
+            "RouteKey": "ANY /meta-agent",
+            "Target": "integrations/80n4fy4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "lce8whi",
+            "RouteKey": "GET /store/preview-product-image",
+            "Target": "integrations/ysw4ov8"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "lnrs219",
+            "RouteKey": "GET /wa-business/orders/{orderId}/submissions",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "lofax4v",
+            "RouteKey": "POST /wa-business/flow-clone",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "lpg6nk0",
+            "RouteKey": "POST /inbox/meta/{conversationId}/note",
+            "Target": "integrations/myyl9h0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "lruxco1",
+            "RouteKey": "POST /secure-files/{fileId}/revoke",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "lvdvz2a",
+            "RouteKey": "POST /whatsapp/templates/carousel-media",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "m1523pu",
+            "RouteKey": "POST /invoices/send-pending-by-phone",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "m3ykoq6",
+            "RouteKey": "POST /whatsapp/templates/carousel",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "m59zxm7",
+            "RouteKey": "GET /ai/prompts/{lang}",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "maypgv1",
+            "RouteKey": "GET /wa-business/direct-send/templates",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mddynn9",
+            "RouteKey": "POST /wa-business/service/amend",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mdnkstp",
+            "RouteKey": "PUT /ai/botflow",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mjvv0af",
+            "RouteKey": "POST /secure-files/{fileId}/confirm",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mmycuep",
+            "RouteKey": "DELETE /waba/tags",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mnhw111",
+            "RouteKey": "ANY /mcp",
+            "Target": "integrations/dyeztfv"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mra68n4",
+            "RouteKey": "GET /wa-business/flows",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mwle8ra",
+            "RouteKey": "POST /wa-business/service/drafts",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "myi99ni",
+            "RouteKey": "GET /waba",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "mylycmd",
+            "RouteKey": "GET /ai/interactions",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nea4sv7",
+            "RouteKey": "POST /whatsapp/template-management",
+            "Target": "integrations/a4p9rgr"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ng4q8ej",
+            "RouteKey": "POST /whatsapp",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ni8g3rr",
+            "RouteKey": "POST /whatsapp/templates",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nka0a70",
+            "RouteKey": "GET /whatsapp/voice",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nnllqhh",
+            "RouteKey": "GET /r/{code}",
+            "Target": "integrations/5sm0t1s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nnr7fyt",
+            "RouteKey": "OPTIONS /partners/me",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "npek3s2",
+            "RouteKey": "GET /wa-business/flow-submissions/stats",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nqaq5zd",
+            "RouteKey": "ANY /seo-tools",
+            "Target": "integrations/9968wl5"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nre9ur2",
+            "RouteKey": "GET /ai/languages",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nvgv0k9",
+            "RouteKey": "POST /ai/query",
+            "Target": "integrations/hellyk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "nzj8qzh",
+            "RouteKey": "POST /whatsapp-voice/tts",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "o2qnx4f",
+            "RouteKey": "OPTIONS /auth/email-verification",
+            "Target": "integrations/zd8egr3"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "o43lgff",
+            "RouteKey": "OPTIONS /partners/billing/topup-order",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "o7nojpq",
+            "RouteKey": "GET /secure-files/mine",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "o7qeqyp",
+            "RouteKey": "GET /crm/opportunities",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ohjwpw1",
+            "RouteKey": "DELETE /whatsapp/templates/send-media",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "om86uch",
+            "RouteKey": "POST /templates/analytics",
+            "Target": "integrations/qnn9p37"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "on7ezoa",
+            "RouteKey": "GET /links",
+            "Target": "integrations/5sm0t1s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "oyicbih",
+            "RouteKey": "DELETE /wa-business/assigned-users",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "p00kdjc",
+            "RouteKey": "POST /store/convert-flag",
+            "Target": "integrations/ysw4ov8"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "p5tpymd",
+            "RouteKey": "GET /docs/sources",
+            "Target": "integrations/u8df9do"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "paw8gk3",
+            "RouteKey": "GET /dlq",
+            "Target": "integrations/2m1b2jr"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pb72s24",
+            "RouteKey": "GET /secure-files/{fileId}/download",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pcze4ob",
+            "RouteKey": "OPTIONS /automation/rules/{id}",
+            "Target": "integrations/oz3zmdm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pd4si33",
+            "RouteKey": "POST /bulk/control",
+            "Target": "integrations/q7ru4k4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pee98vd",
+            "RouteKey": "PUT /ai/config",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pfrbohj",
+            "RouteKey": "DELETE /wa-business/groups",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pim2408",
+            "RouteKey": "GET /contacts/search",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pox5bd2",
+            "RouteKey": "PUT /contacts/{contactId}",
+            "Target": "integrations/mhs8lsk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pqw7ye1",
+            "RouteKey": "GET /waba/tags",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ptylnqf",
+            "RouteKey": "PUT /wa-business/faq/{faqId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pva547l",
+            "RouteKey": "POST /webhook/sinch-rcs",
+            "Target": "integrations/ogw2uw0"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "pw0a2hl",
+            "RouteKey": "DELETE /voice/calls",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "q538smr",
+            "RouteKey": "GET /whatsapp-voice/voices",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "q56o9q7",
+            "RouteKey": "GET /wa-business/reviews",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "q5hfc3f",
+            "RouteKey": "POST /invoices/{invoiceId}/generate-pdf",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "q5l20g3",
+            "RouteKey": "POST /whatsapp/templates/send-media",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "q7mfewd",
+            "RouteKey": "POST /ai/agent",
+            "Target": "integrations/ocq769q"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qad48du",
+            "RouteKey": "PUT /links/{code}",
+            "Target": "integrations/5sm0t1s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qdvjg9d",
+            "RouteKey": "GET /wa-business/flow-submissions",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qdyymge",
+            "RouteKey": "POST /wa-business/reviews",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qfek1l4",
+            "RouteKey": "GET /wix-store/{proxy+}",
+            "Target": "integrations/vgnarbr"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qfqc2z7",
+            "RouteKey": "POST /automation/rules",
+            "Target": "integrations/oz3zmdm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qgucsah",
+            "RouteKey": "POST /sms-aws/templates",
+            "Target": "integrations/ofcmlqa"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qi5sd7j",
+            "RouteKey": "POST /wa-business/flow-submissions/update-status",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qld7sso",
+            "RouteKey": "POST /wa-business/flows",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qonvoyi",
+            "RouteKey": "GET /whatsapp/template-library",
+            "Target": "integrations/9dlq9vl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qpoo9qo",
+            "RouteKey": "GET /invoices",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "qx2gq3l",
+            "RouteKey": "DELETE /voice-in/c2c",
+            "Target": "integrations/4pgeu48"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "r14md7b",
+            "RouteKey": "GET /crm/activities",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "r1xnlp8",
+            "RouteKey": "POST /ai/generate",
+            "Target": "integrations/jkhxmog"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "r32918q",
+            "RouteKey": "GET /crm/leads",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "r79qvm9",
+            "RouteKey": "POST /waba/media",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rdnzm09",
+            "RouteKey": "OPTIONS /automation/rules",
+            "Target": "integrations/oz3zmdm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "re0c0gs",
+            "RouteKey": "GET /site-language/languages",
+            "Target": "integrations/tipkpon"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rljoy1j",
+            "RouteKey": "GET /sms-aws/send",
+            "Target": "integrations/fl7xy5m"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rlro3y2",
+            "RouteKey": "ANY /seo-tools/{proxy+}",
+            "Target": "integrations/9968wl5"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rrv8b0r",
+            "RouteKey": "OPTIONS /partners/tenants",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rthz8qm",
+            "RouteKey": "POST /dlq/replay",
+            "Target": "integrations/jsjq5ju"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rvnbrv1",
+            "RouteKey": "GET /pstn/diagnostics",
+            "Target": "integrations/dx56fjq"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "rwqnh2n",
+            "RouteKey": "POST /voice-in/obd",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "s3xo5a8",
+            "RouteKey": "OPTIONS /customer/profile",
+            "Target": "integrations/do0swe9"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "s9jygg6",
+            "RouteKey": "GET /whatsapp/templates/send-media",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "sal1bcl",
+            "RouteKey": "POST /voice-in/obd/audio-library",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "si496de",
+            "RouteKey": "GET /billing",
+            "Target": "integrations/cw5x5dl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "sl7f3uq",
+            "RouteKey": "GET /docs/changelog",
+            "Target": "integrations/u8df9do"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "sleo51k",
+            "RouteKey": "DELETE /voice-aws/calls/{callId}",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "smu9q67",
+            "RouteKey": "POST /links",
+            "Target": "integrations/5sm0t1s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "sua9ayp",
+            "RouteKey": "POST /invoices/from-payment",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "swuks1l",
+            "RouteKey": "POST /wix-catalog-webhook",
+            "Target": "integrations/irbf4zi"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "t83govf",
+            "RouteKey": "GET /dlq/replay",
+            "Target": "integrations/2m1b2jr"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "tg24qte",
+            "RouteKey": "GET /waba/events",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "tgt9urs",
+            "RouteKey": "GET /ai/stats",
+            "Target": "integrations/k52gvfk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "tiq6nc1",
+            "RouteKey": "GET /voice-in/c2c",
+            "Target": "integrations/4pgeu48"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "tredfun",
+            "RouteKey": "DELETE /scheduled",
+            "Target": "integrations/njw4vv9"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "trorllb",
+            "RouteKey": "DELETE /wa-business/flows",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "tv7oytd",
+            "RouteKey": "GET /wa-business/flow-submissions/export",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "u2kakpi",
+            "RouteKey": "POST /whatsapp/{proxy+}",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "u4c0rgp",
+            "RouteKey": "GET /wa-business/enterprise-assist",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "u584dc1",
+            "RouteKey": "POST /wa-business/enterprise-assist",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "u8ycu9a",
+            "RouteKey": "GET /crm/opportunities/{opportunityId}",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "uhpxyck",
+            "RouteKey": "POST /secure-files/{fileId}/order",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "uk6dm14",
+            "RouteKey": "DELETE /wa-business/username",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "upy3fd8",
+            "RouteKey": "GET /push/devices",
+            "Target": "integrations/8unwxg7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "uqr5zqk",
+            "RouteKey": "GET /wa-business/assigned-wabas",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ux966cb",
+            "RouteKey": "POST /wa-business/groups",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "v1v9dc4",
+            "RouteKey": "GET /wa-business/service/track/{orderId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "v4pd3ae",
+            "RouteKey": "DELETE /whatsapp/templates/{templateName}",
+            "Target": "integrations/lr1yfgh"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "v7rxew4",
+            "RouteKey": "DELETE /whatsapp/calling",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vb5ukh6",
+            "RouteKey": "POST /sms-aws/send",
+            "Target": "integrations/fl7xy5m"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vfjdfql",
+            "RouteKey": "GET /links/{code}",
+            "Target": "integrations/5sm0t1s"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vfpnn7h",
+            "RouteKey": "POST /push/send",
+            "Target": "integrations/8unwxg7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vfx28ev",
+            "RouteKey": "POST /secure-files/{fileId}/whatsapp-pay",
+            "Target": "integrations/5fj7vp7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vg8ui0i",
+            "RouteKey": "DELETE /voice-aws/clear-logs",
+            "Target": "integrations/1t8udj4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vh9fc6b",
+            "RouteKey": "PUT /waba",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vkh6gaa",
+            "RouteKey": "PUT /whatsapp-voice/language-config",
+            "Target": "integrations/mlcqpzl"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vrmoud6",
+            "RouteKey": "GET /system-cleanup",
+            "Target": "integrations/w98vghk"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vtc2lwp",
+            "RouteKey": "PUT /waba/{wabaId}/events",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "vtxlvej",
+            "RouteKey": "GET /wa-business/webhooks",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "w24mx5m",
+            "RouteKey": "GET /partners/billing",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "w2ffvx7",
+            "RouteKey": "POST /wa-business/faq",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "w324vgd",
+            "RouteKey": "GET /wa-business/service/history",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "w6g6hql",
+            "RouteKey": "POST /crm/activities",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wbvn8ol",
+            "RouteKey": "OPTIONS /partners/billing",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wcrznjh",
+            "RouteKey": "POST /docs/sources",
+            "Target": "integrations/u8df9do"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wdyd6h2",
+            "RouteKey": "POST /pstn/token",
+            "Target": "integrations/dx56fjq"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationScopes": [],
+            "AuthorizationType": "NONE",
+            "RequestModels": {},
+            "RouteId": "wpy94ev",
+            "RouteKey": "GET /workspace/mcp/oauth/callback",
+            "Target": "integrations/2ohd122"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wqocae5",
+            "RouteKey": "POST /partners/embedded-signup",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wrujyui",
+            "RouteKey": "GET /wa-business/flow-logs",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wsjug5o",
+            "RouteKey": "PUT /wa-business/rx-slots/{slotId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wteflsh",
+            "RouteKey": "OPTIONS /partners/billing/topup",
+            "Target": "integrations/31wj4x4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "wu8cg8b",
+            "RouteKey": "PUT /bulk/jobs/{jobId}",
+            "Target": "integrations/mgkmhgs"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "x8xls04",
+            "RouteKey": "GET /whatsapp-calling",
+            "Target": "integrations/y8rnsk4"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "xevepwn",
+            "RouteKey": "ANY /marketing-ads",
+            "Target": "integrations/kxh7jye"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "xfjqa6g",
+            "RouteKey": "POST /voice-in/obd/upload-audio",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "xhbi9qc",
+            "RouteKey": "GET /wa-business/mm-onboarding-status",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "xjf9yr8",
+            "RouteKey": "DELETE /voice-in/obd/clear-logs",
+            "Target": "integrations/knoivy7"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "xwnvc1l",
+            "RouteKey": "DELETE /whatsapp/template-management",
+            "Target": "integrations/cldl62u"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "y7noakl",
+            "RouteKey": "ANY /wa-business/{proxy+}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "yfm6y7m",
+            "RouteKey": "POST /wa-business/flows/preview",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "yfugs2v",
+            "RouteKey": "GET /wa-business/documents/{documentId}",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "yi4ljht",
+            "RouteKey": "DELETE /invoices/{invoiceId}",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ynq3yhj",
+            "RouteKey": "POST /wa-business/flow-sla-check",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "yswsbv9",
+            "RouteKey": "POST /invoices",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "yy9tvi6",
+            "RouteKey": "PUT /invoices/{invoiceId}",
+            "Target": "integrations/fduftck"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "z1lr5to",
+            "RouteKey": "POST /crm/leads/{leadId}/convert",
+            "Target": "integrations/ytzsvxm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "zcr2f9p",
+            "RouteKey": "POST /wa-business/orders/sync",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "zd2ohz0",
+            "RouteKey": "GET /wa-business/phone-settings",
+            "Target": "integrations/md9yz9g"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "zh3vt6b",
+            "RouteKey": "POST /voice-in/c2c",
+            "Target": "integrations/4pgeu48"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "ziw9p24",
+            "RouteKey": "PUT /automation/rules/{id}",
+            "Target": "integrations/oz3zmdm"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "zjuy3yu",
+            "RouteKey": "GET /waba/phone/{phoneNumberId}",
+            "Target": "integrations/8vks5j1"
+          },
+          {
+            "ApiKeyRequired": false,
+            "AuthorizationType": "NONE",
+            "RouteId": "zoraa26",
+            "RouteKey": "POST /wa-business/interactive-list",
+            "Target": "integrations/md9yz9g"
+          }
+        ],
+        "integrations": [
+          {
+            "id": "0kznima",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-voice-cdr-read:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "1t8udj4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-voice-aws:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "2dc14fu",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-billing:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "2m1b2jr",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-dlq-replay:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "2ohd122",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-workspace-mcp:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "2wl78f5",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-scheduled-messages:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "31wj4x4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-partner-onboarding:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "460qt7o",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-auth-middleware:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "4pgeu48",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-voice-in-c2c:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "5fj7vp7",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "5s4z6s1",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-control:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "5sm0t1s",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:stack-wecare-url-shortener:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "7e72g6i",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-worker:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "80n4fy4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-meta-business-agent:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "8unwxg7",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-push-notifications:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "8vks5j1",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-waba-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "9968wl5",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-seo-tools",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "9dlq9vl",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "9h5khd4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-email:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "a4p9rgr",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "b18z8sl",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-payments-read:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "bmufv90",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-faq-handler:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "cldl62u",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "cw5x5dl",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-billing:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "dg17ioi",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-razorpay-webhook:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "do0swe9",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-profile:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "dx56fjq",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-pstn-softphone:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "dx7l2df",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-template-analytics:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "dyeztfv",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-mcp:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "fduftck",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-invoice-engine:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "fl7xy5m",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-sms-aws:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "fryr558",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-session:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "g6jq4o3",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-messages-delete:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "hellyk4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-query-kb:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "hwmhkzc",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-media-cleanup:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "iicga6b",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "irbf4zi",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-wix-catalog-webhook:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "iu734wd",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-template-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "jkhxmog",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-generate-response:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "jsjq5ju",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-dlq-replay:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "k52gvfk",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-ai-config-management:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "knoivy7",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-voice-in-obd:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "kxh7jye",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-marketing-ads:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "lr1yfgh",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-templates:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "m1mre7s",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-requests:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "md9yz9g",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "mgkmhgs",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-create:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "mhs8lsk",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-contacts:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "mk92rna",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-plivo-answer:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "mlcqpzl",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-voice:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "myyl9h0",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-conversation-meta:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "njw4vv9",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-scheduled-messages:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "ocq769q",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-agent-action-group:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "ofcmlqa",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-sms-aws:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "ogw2uw0",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-rcs-dlr:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "oz3zmdm",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-automation-rules:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "q7ru4k4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-bulk-job-control:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "qnn9p37",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-template-analytics:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "smpr53n",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-messages-read:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "tipkpon",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-site-language:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "u8df9do",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-docs-scraper",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "vgnarbr",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-wix-store:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "vlz7fmp",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "vvyxbal",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-customer-orders:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "w98vghk",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-system-cleanup:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "wt7876c",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-rcs-send:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "x5phi04",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-payments-read:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "xk20h38",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-sms:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "y4fvvye",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-inbound-whatsapp:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "y8rnsk4",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-calling:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "ysw4ov8",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-product-image-gen:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "ytzsvxm",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-crm:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "zd8egr3",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-email-verification:live",
+            "type": "AWS_PROXY"
+          },
+          {
+            "id": "zkb6lxe",
+            "uri": "arn:aws:lambda:us-east-1:775261844268:function:wecare-checkout:live",
+            "type": "AWS_PROXY"
+          }
+        ],
+        "errors": []
+      }
+    ],
+    "functions": [
+      {
+        "name": "wecare-pstn-softphone",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:27.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-waba-management",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:34.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-docs-scraper",
+        "modified": "2026-10-01T07:20:37.000+0000",
+        "memory": 2048,
+        "timeout": 300
+      },
+      {
+        "name": "wecare-notification-worker",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:20.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-email-verification",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:41.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-media-cleanup",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:38.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-whatsapp-templates",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:20.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-ai-generate-response",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:06.000+0000",
+        "handler": "handler.handler",
+        "memory": 1024,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-cognito-custom-message",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:58.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 10
+      },
+      {
+        "name": "wecare-crm",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:15.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-outbound-whatsapp",
+        "runtime": "python3.12",
+        "modified": "2026-10-06T16:32:32.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-contacts",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:00.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-customer-orders",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:53.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-outbound-email",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:59.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-meta-analytics",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:44.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-sla-engine",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:38.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-voice-in-obd",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:13.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-conversation-meta",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:04.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-get-miss-redirect",
+        "runtime": "python3.12",
+        "modified": "2026-09-25T03:25:21.000+0000",
+        "handler": "handler.handler",
+        "memory": 128,
+        "timeout": 5
+      },
+      {
+        "name": "wecare-payments-read",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:47.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-checkout",
+        "runtime": "python3.12",
+        "modified": "2026-10-07T01:36:36.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 20
+      },
+      {
+        "name": "wecare-workspace-mcp",
+        "runtime": "python3.12",
+        "modified": "2026-10-06T13:43:12.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 28
+      },
+      {
+        "name": "wecare-razorpay-webhook",
+        "runtime": "python3.12",
+        "modified": "2026-10-07T01:36:48.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-catalog-management",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:38:13.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-invoice-engine",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:54.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-template-analytics",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:42.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-billing",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:18.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-customer-session",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:33:47.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-whatsapp-template-management",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:23.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-rcs-send",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:30.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-scheduled-messages",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:40.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-outbound-sms",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:56.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-sms-aws",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:02.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-seo-tools",
+        "runtime": "python3.12",
+        "modified": "2026-10-07T01:35:26.000+0000",
+        "handler": "seo_tools_handler.handler",
+        "memory": 512,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-partner-onboarding",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:47.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-system-cleanup",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:41.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 300
+      },
+      {
+        "name": "wecare-plivo-answer",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:23.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-product-image-gen",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T04:29:30.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-automation-rules",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:33:55.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-dlq-replay",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:33.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-service-requests",
+        "runtime": "python3.12",
+        "modified": "2026-10-07T01:36:41.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-url-shortener",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:01.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 10
+      },
+      {
+        "name": "stack-wecare-url-shortener",
+        "runtime": "python3.12",
+        "modified": "2026-10-02T02:27:38.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 10
+      },
+      {
+        "name": "wecare-messages-read",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:26.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-whatsapp-voice",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:14.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-rcs-dlr",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:34.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-agent-action-group",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:13.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-messages-delete",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:21.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-site-language",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:32.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-faq-handler",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:18.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-ai-config-management",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:10.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-ai-query-kb",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:02.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-customer-whatsapp-auth",
+        "runtime": "python3.12",
+        "modified": "2026-10-06T07:22:19.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-whatsapp-business-api",
+        "runtime": "python3.12",
+        "modified": "2026-10-07T02:10:32.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-partner-token-refresh",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:35:51.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-bulk-job-create",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:21.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-push-notifications",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:37.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-inbound-whatsapp",
+        "runtime": "python3.12",
+        "modified": "2026-10-07T02:10:13.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-voice-in-c2c",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:10.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-bulk-job-control",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:24.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-bulk-worker",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:37:29.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 120
+      },
+      {
+        "name": "wecare-secure-files",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:09.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-whatsapp-calling",
+        "runtime": "python3.12",
+        "modified": "2026-10-06T14:16:10.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-meta-business-agent",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:59.000+0000",
+        "handler": "handler.lambda_handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-service-api",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:29.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-mcp",
+        "runtime": "python3.12",
+        "modified": "2026-10-02T04:41:07.000+0000",
+        "handler": "handler.handler",
+        "memory": 512,
+        "timeout": 20
+      },
+      {
+        "name": "wecare-customer-profile",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:34:44.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-auth-middleware",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:33:52.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-marketing-ads",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:53.000+0000",
+        "handler": "handler.lambda_handler",
+        "memory": 256,
+        "timeout": 45
+      },
+      {
+        "name": "wecare-wix-store",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T04:29:30.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      },
+      {
+        "name": "wecare-wix-catalog-webhook",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T23:28:25.000+0000",
+        "handler": "handler.handler",
+        "memory": 128,
+        "timeout": 15
+      },
+      {
+        "name": "wecare-voice-aws",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:05.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-voice-cdr-read",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:16.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 30
+      },
+      {
+        "name": "wecare-ad-attribution",
+        "runtime": "python3.12",
+        "modified": "2026-10-05T02:36:50.000+0000",
+        "handler": "handler.handler",
+        "memory": 256,
+        "timeout": 60
+      }
+    ],
+    "tables": [
+      "stack-wecare-digital-AIInteractionsTable",
+      "stack-wecare-digital-AIProviderPolicyTable",
+      "stack-wecare-digital-AdClickAttributionTable",
+      "stack-wecare-digital-AgentApprovalsTable",
+      "stack-wecare-digital-AmendmentHistoryTable",
+      "stack-wecare-digital-AppointmentTable",
+      "stack-wecare-digital-AuditLogsTable",
+      "stack-wecare-digital-AutomationRulesTable",
+      "stack-wecare-digital-BulkJobsTable",
+      "stack-wecare-digital-BulkRecipientsTable",
+      "stack-wecare-digital-CallNotificationsTable",
+      "stack-wecare-digital-CatalogCacheTable",
+      "stack-wecare-digital-ContactsTable",
+      "stack-wecare-digital-ConversationHistoryTable",
+      "stack-wecare-digital-ConversationMetaTable",
+      "stack-wecare-digital-CrmActivities",
+      "stack-wecare-digital-CrmLeads",
+      "stack-wecare-digital-CrmOpportunities",
+      "stack-wecare-digital-CrmPipelines",
+      "stack-wecare-digital-CrmStages",
+      "stack-wecare-digital-CustomerSessionsTable",
+      "stack-wecare-digital-DLQMessagesTable",
+      "stack-wecare-digital-DLTTemplates",
+      "stack-wecare-digital-DocumentHistoryTable",
+      "stack-wecare-digital-DocumentTable",
+      "stack-wecare-digital-DownloadGrantsTable",
+      "stack-wecare-digital-EnterpriseAssistTable",
+      "stack-wecare-digital-FaqTable",
+      "stack-wecare-digital-FlowDraftTable",
+      "stack-wecare-digital-FlowLogTable",
+      "stack-wecare-digital-FlowRegistryTable",
+      "stack-wecare-digital-FlowSubmissionTable",
+      "stack-wecare-digital-InvoiceAssetsTable",
+      "stack-wecare-digital-InvoiceDeliveryLogTable",
+      "stack-wecare-digital-InvoiceItemsTable",
+      "stack-wecare-digital-InvoiceSequenceTable",
+      "stack-wecare-digital-InvoicesTable",
+      "stack-wecare-digital-LinkClicksTable",
+      "stack-wecare-digital-MediaFilesTable",
+      "stack-wecare-digital-MessagesTable",
+      "stack-wecare-digital-NotificationAttempts",
+      "stack-wecare-digital-NotificationDeliveries",
+      "stack-wecare-digital-NotificationEvents",
+      "stack-wecare-digital-NotificationOutbox",
+      "stack-wecare-digital-OBDCampaigns",
+      "stack-wecare-digital-OrderTable",
+      "stack-wecare-digital-PartnerLedger",
+      "stack-wecare-digital-PartnerWallet",
+      "stack-wecare-digital-PaymentAttemptsTable",
+      "stack-wecare-digital-PaymentsTable",
+      "stack-wecare-digital-PstnSoftphoneSessions",
+      "stack-wecare-digital-PushTokensTable",
+      "stack-wecare-digital-RateLimitTable",
+      "stack-wecare-digital-RazorpayWebhookLogTable",
+      "stack-wecare-digital-RequestStatusHistoryTable",
+      "stack-wecare-digital-ReviewTable",
+      "stack-wecare-digital-RxSlotTable",
+      "stack-wecare-digital-ScheduledMessagesTable",
+      "stack-wecare-digital-SecureFilesTable",
+      "stack-wecare-digital-SeoToolsTable",
+      "stack-wecare-digital-ServiceRequestsTable",
+      "stack-wecare-digital-ShortLinksTable",
+      "stack-wecare-digital-SiteLanguageCache",
+      "stack-wecare-digital-SmsOutboundTable",
+      "stack-wecare-digital-SubmitRequestsTable",
+      "stack-wecare-digital-SystemConfigTable",
+      "stack-wecare-digital-SystemEventTable",
+      "stack-wecare-digital-TemplateAnalyticsTable",
+      "stack-wecare-digital-ThreadOwnershipTable",
+      "stack-wecare-digital-UsersTable",
+      "stack-wecare-digital-VoiceAwsTable",
+      "stack-wecare-digital-VoiceCDRTable",
+      "stack-wecare-digital-VoiceCalls",
+      "stack-wecare-digital-WebhookDedup",
+      "stack-wecare-digital-WhatsAppCallingTable",
+      "stack-wecare-digital-WhatsAppGroupTable",
+      "stack-wecare-digital-WhatsAppInboundTable",
+      "stack-wecare-digital-WhatsAppOutboundTable",
+      "stack-wecare-digital-WhatsAppPhonesTable",
+      "stack-wecare-digital-WhatsAppVoiceTable",
+      "stack-wecare-digital-WixOrderIds",
+      "stack-wecare-digital-WixOrdersCache",
+      "stack-wecare-digital-WixProductsCache",
+      "wecare-workspace-mcp"
+    ],
+    "errors": []
+  },
+  "api_calls": [
+    {
+      "service": "sts",
+      "operation": "GetCallerIdentity",
+      "status": "success"
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetApis",
+      "status": "success",
+      "n_items": {
+        "Items": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListFunctions",
+      "status": "success",
+      "n_items": {
+        "Functions": 74
+      }
+    },
+    {
+      "service": "dynamodb",
+      "operation": "ListTables",
+      "status": "success",
+      "n_items": {
+        "TableNames": 84
+      }
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetRoutes",
+      "status": "success",
+      "n_items": {
+        "Items": 374
+      }
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetIntegrations",
+      "status": "success",
+      "n_items": {
+        "Items": 74
+      }
+    }
+  ]
+}

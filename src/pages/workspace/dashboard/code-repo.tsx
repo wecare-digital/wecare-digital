@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import { useToastContext } from '../../../contexts/ToastContext';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 
 interface PageProps { signOut?: () => void; user?: any; }
@@ -83,6 +84,17 @@ const CODE_ASSETS: CodeAsset[] = [
 
 const CATEGORIES = [...new Set(CODE_ASSETS.map(a => a.category))];
 
+/* Derived from CATEGORIES so the two cannot drift. 'All' is the filter's own sentinel and
+   was its first <option>, so it stays first and keeps its value. */
+const CATEGORY_OPTIONS: SelectOption[] = [
+  { value: 'All', label: 'All Categories' },
+  ...CATEGORIES.map(cat => ({ value: cat, label: cat })),
+];
+
+/* LAYOUT ONLY - the filter is a flex child beside a search input, and a native select sized
+   itself to its widest option while the trigger shows the selected one. */
+const FILTER_STYLE: React.CSSProperties = { width: 190 };
+
 const TYPE_LABELS: Record<string, string> = {
   flow_json: 'Flow JSON',
   lambda: 'Lambda',
@@ -141,16 +153,16 @@ const CodeRepo: React.FC<PageProps> = ({ signOut, user }) => {
             onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, padding: '8px 12px', border: '1px solid #d1f470', borderRadius: 8, fontSize: 13 }}
           />
-          <select
+          {/* The lime border this control carried is NOT reproduced. Lime is the actionable
+              colour in this system and must not become a passive control fill or edge, so the
+              trigger takes the house box like every other migrated control. */}
+          <Select
+            ariaLabel="Category"
             value={selectedCategory}
-            onChange={e => setSelectedCategory(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #d1f470', borderRadius: 8, fontSize: 13, background: '#fff' }}
-          >
-            <option value="All">All Categories</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat} value={cat}>{cat}</option>
-            ))}
-          </select>
+            onChange={v => setSelectedCategory(v)}
+            options={CATEGORY_OPTIONS}
+            style={FILTER_STYLE}
+          />
         </div>
 
         {/* Asset List */}

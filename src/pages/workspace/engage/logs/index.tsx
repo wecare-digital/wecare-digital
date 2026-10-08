@@ -39,6 +39,7 @@ import PageHeader from '../../../../components/PageHeader';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import InfoTooltip from '../../../../components/ui/InfoTooltip';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { describeWaError } from '../../../../lib/wa-errors';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
@@ -89,6 +90,42 @@ const STATUS_BADGES: Record<string, { bg: string; color: string; label: string }
 };
 
 const FAILED_STATUSES = [ 'failed', 'undelivered' ];
+
+/*
+ * The three filter option lists, hoisted so they are not rebuilt per render. Each one holds
+ * exactly the <option> rows it replaced, in the same order and with the same values - the
+ * filters read 'all', not '', so none of these has a placeholder row.
+ */
+const CHANNEL_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All channels' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'sms', label: 'SMS' },
+  { value: 'email', label: 'Email' },
+  { value: 'voice', label: 'Voice' },
+  { value: 'rcs', label: 'RCS' },
+];
+
+const DIRECTION_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All' },
+  { value: 'INBOUND', label: 'Inbound' },
+  { value: 'OUTBOUND', label: 'Outbound' },
+];
+
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'sent', label: 'Sent' },
+  { value: 'delivered', label: 'Delivered' },
+  { value: 'read', label: 'Read' },
+  { value: 'received', label: 'Received' },
+  { value: 'failed', label: 'Failed' },
+];
+
+/*
+ * LAYOUT ONLY - the box is drawn by .ui-select-trigger. One width for all three filters,
+ * because the trigger shows the SELECTED label while a native control sizes itself to its
+ * WIDEST option: without a width the row would re-flow every time a filter was used.
+ */
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
 
 const chBadge = ( c: string ) =>
   CHANNEL_BADGES[ c ] || { bg: '#f9fafb', color: 'rgba(0,0,0,.54)', label: c || 'Unknown' };
@@ -256,38 +293,30 @@ const MessageLogsPage: React.FC<PageProps> = ( { signOut, user, embedded, channe
                dropdown inside a page titled "RCS" can only ever be wrong. */ }
           { !lockedChannel && (
             <div className="filter-group">
-              <label htmlFor="lg-ch">Channel</label>
-              <select id="lg-ch" value={ channelFilter }
-                onChange={ ( e ) => setChannelFilter( e.target.value ) }>
-                <option value="all">All channels</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="sms">SMS</option>
-                <option value="email">Email</option>
-                <option value="voice">Voice</option>
-                <option value="rcs">RCS</option>
-              </select>
+              { /*
+                 * SHAPE (a) - all three filters. Each one had an external label bound to the
+                 * control by id; those labels are GONE and Select owns the pair instead. The
+                 * trigger is a button, and per HTML-AAM a button takes its accessible name
+                 * from its CONTENTS, so an external label bound by id is not a name source
+                 * for it the way it is for a native control. Keeping them would have left
+                 * these three announcing only "WhatsApp", "All" and "All statuses". Select
+                 * renders the visible span and the aria-labelledby wiring itself, so one
+                 * component owns the association instead of two lines that have to agree.
+                 */ }
+              <Select label="Channel" value={ channelFilter }
+                onChange={ ( v ) => setChannelFilter( v ) }
+                options={ CHANNEL_FILTER_OPTIONS } style={ FILTER_STYLE } />
             </div>
           ) }
           <div className="filter-group">
-            <label htmlFor="lg-dir">Direction</label>
-            <select id="lg-dir" value={ directionFilter }
-              onChange={ ( e ) => setDirectionFilter( e.target.value ) }>
-              <option value="all">All</option>
-              <option value="INBOUND">Inbound</option>
-              <option value="OUTBOUND">Outbound</option>
-            </select>
+            <Select label="Direction" value={ directionFilter }
+              onChange={ ( v ) => setDirectionFilter( v ) }
+              options={ DIRECTION_FILTER_OPTIONS } style={ FILTER_STYLE } />
           </div>
           <div className="filter-group">
-            <label htmlFor="lg-st">Status</label>
-            <select id="lg-st" value={ statusFilter }
-              onChange={ ( e ) => setStatusFilter( e.target.value ) }>
-              <option value="all">All statuses</option>
-              <option value="sent">Sent</option>
-              <option value="delivered">Delivered</option>
-              <option value="read">Read</option>
-              <option value="received">Received</option>
-              <option value="failed">Failed</option>
-            </select>
+            <Select label="Status" value={ statusFilter }
+              onChange={ ( v ) => setStatusFilter( v ) }
+              options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
           </div>
           <div className="filter-actions">
             <Button variant="secondary" icon="refresh" onClick={ load }

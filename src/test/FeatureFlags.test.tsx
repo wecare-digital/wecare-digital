@@ -146,7 +146,18 @@ describe( 'the Commerce home is reachable', () => {
   // command palette offers an entry that lands on the home-page fallback.
   it( 'no longer advertises the routes whose pages were deleted', () => {
     const paths = getAllNavItems().map( ( i ) => i.path );
-    for ( const gone of [ '/growth', '/carbon', '/nocode', '/workspace/forms/create', '/workspace/link/create' ] ) {
+    const gonePaths = [
+      '/growth', '/carbon', '/nocode', '/workspace/forms/create', '/workspace/link/create',
+      // The eight SEO screens retired on 2026-10-07 under owner decision B1 = CUT. Every
+      // one of them read from the `wecare-seo-platform` FastAPI service through
+      // `seoFetch`, which threw because `NEXT_PUBLIC_SEO_API_URL` is unset on `stack`.
+      // Listed here because this assertion is the one that catches the specific mistake
+      // of removing a page file while leaving its nav entry or hub tile pointing at it.
+      '/workspace/seo/page', '/workspace/seo/pages', '/workspace/seo/issues',
+      '/workspace/seo/analytics', '/workspace/seo/tracking', '/workspace/seo/schema',
+      '/workspace/seo/properties', '/workspace/seo/sitemaps',
+    ];
+    for ( const gone of gonePaths ) {
       expect( paths, `${gone} was deleted but is still in the nav` ).not.toContain( gone );
     }
   } );

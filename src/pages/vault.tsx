@@ -1,5 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import VaultFilePurchase from '../components/VaultFilePurchase';
 import { customerserviceBySlug } from '../content/customerservice';
 
 /**
@@ -34,6 +35,12 @@ import { customerserviceBySlug } from '../content/customerservice';
  * HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  * trailingSlash means the URL is /vault/.
  */
-const VaultPage: React.FC = () => <ProductPage product={ customerserviceBySlug( 'vault' ) } />;
+// The buy box renders AFTER the shared ProductPage, which is not edited.
+const VaultPage: React.FC = () => (
+  <>
+    <ProductPage product={ customerserviceBySlug( 'vault' ) } />
+    <VaultFilePurchase />
+  </>
+);
 
 export default VaultPage;

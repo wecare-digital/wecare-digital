@@ -20,6 +20,7 @@ import hashlib
 import boto3
 import urllib.request
 import urllib.error
+import urllib.parse  # explicit: `_handoff_url` quotes a token into a link
 from typing import Dict, Any, Optional, Tuple
 from decimal import Decimal
 
@@ -37,8 +38,12 @@ from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the p
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
+from lambda_utils import customer_ideas
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
+# The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
+# tested without a client, and this handler stays wiring. See `_handle_cart_order`.
+from lambda_utils.ecommerce import whatsapp_basket
 from lambda_utils import live_smoke  # the WA_LIVE_SMOKE_TEST lockdown applies to direct sends too
 from lambda_utils import thread_ownership  # Conversation Routing: derive ownership, never query it
 from botocore.exceptions import ClientError
@@ -69,6 +74,11 @@ UNIFIED_MESSAGES_TABLE = os.environ.get('UNIFIED_MESSAGES_TABLE', 'stack-wecare-
 MEDIA_FILES_TABLE = os.environ.get('MEDIA_FILES_TABLE', 'stack-wecare-digital-MediaFilesTable')
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-digital-FlowSubmissionTable')
+# Same table and same `{phone}#{flowCode}` key contract `flows/common.py` uses, named
+# identically there as DRAFTS_TABLE. Phase R parks a review's order reference here under
+# the Phase-R-only `WD_REV_REF` suffix so it survives the hop from this Lambda to the
+# Flow data-exchange callback in `wecare-whatsapp-business-api`.
+FLOW_DRAFTS_TABLE = os.environ.get('DRAFTS_TABLE', 'stack-wecare-digital-FlowDraftTable')
 AI_INTERACTIONS_TABLE = os.environ.get('AI_INTERACTIONS_TABLE', 'stack-wecare-digital-AIInteractionsTable')
 INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
 INBOUND_DLQ_URL = os.environ.get('INBOUND_DLQ_URL', '')
@@ -94,6 +104,29 @@ OUTBOUND_WHATSAPP_FUNCTION = os.environ.get('OUTBOUND_WHATSAPP_FUNCTION', 'wecar
 
 # WhatsApp Voice Lambda function name (TTS via Amazon Polly)
 WHATSAPP_VOICE_FUNCTION = os.environ.get('WHATSAPP_VOICE_FUNCTION', 'wecare-whatsapp-voice')
+
+# ── the WhatsApp catalogue-order hand-off (see `_handle_cart_order`) ──────────
+#
+# The commerce-keys table, which holds the `WABASKET#` hand-off row beside `PAYREF#` and
+# `ORDERNO#`. Defaulted through `order_keys.commerce_keys_table_name()` rather than re-typed, so
+# this function and `ecommerce/checkout` cannot end up pointed at two different tables. TTL must
+# stay disabled on it: it holds immutable financial and idempotency records, and the basket's own
+# expiry is enforced in application code for exactly that reason.
+COMMERCE_KEYS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE',
+                                     order_keys.commerce_keys_table_name())
+# OFF unless deliberately switched on, and the only default that is safe: this is the gate in
+# front of a new commerce path that writes a row and sends a customer a message. A SystemConfig
+# row can override it at runtime - see `_catalog_orders_enabled`.
+WA_CATALOG_ORDERS_ENABLED = os.environ.get(
+    'WA_CATALOG_ORDERS_ENABLED', 'false').strip().lower() in ('true', '1', 'yes', 'on')
+# Where the hand-off link points. The public cart page, which already reads a session and owns the
+# claim effect. Trailing slash because the site is a static export and `/cart` would redirect.
+CART_HANDOFF_URL = os.environ.get('CART_HANDOFF_URL', 'https://wecare.digital/cart/')
+# The reply copy. NO PRICE, NO TOTAL, NO ITEM COUNT IN MONEY TERMS - Wix prices the basket when
+# the customer opens it, and a figure here would be a second total with a different authority.
+CART_HANDOFF_BUTTON = 'Open my cart'
+CART_HANDOFF_BODY = ('Your cart is saved. Open it on our website to review it and pay securely. '
+                     'Sign in with this same WhatsApp number and the items will be waiting.')
 
 # Fix #6: Circuit breaker for AI failures  -  skip AI if too many consecutive failures
 _ai_fail_count = 0
@@ -370,6 +403,16 @@ def _get_routing_config() -> Dict:
     return cfg
 
 
+# General review entry uses the published private v2 Flow. Order-attributed
+# `review <reference>` remains a separate route below the exact keyword loop.
+CUSTOMER_IDEA_KEYWORDS = frozenset({
+    'leave review', 'leave a review', 'review', 'feedback', 'leave feedback',
+    'share feedback', 'share your experience', 'rate', 'rating', 'testimonial',
+    'share an idea', 'share idea', '/idea', '/review', 'feature request',
+    'suggest an idea', 'suggestion', 'suggest a feature', '⭐ leave review',
+})
+
+
 def _is_deterministic_trigger(message: Dict) -> bool:
     """True if the message should be handled by OUR deterministic flows (menu,
     lists, flows, catalog/cart, commands) rather than the Meta AI agent.
@@ -399,7 +442,7 @@ def _is_deterministic_trigger(message: Dict) -> bool:
         prefix = cfg.get('commandPrefix', '/')
         if prefix and body.startswith(prefix):
             return True  # slash commands
-        kws = {k.lower() for k in (cfg.get('keywords') or [])}
+        kws = {k.lower() for k in (cfg.get('keywords') or [])} | CUSTOMER_IDEA_KEYWORDS
         if body in kws or strip_decorative_edges(body) in kws:
             return True
         return any(kw.lower() in body for kw in (cfg.get('contains') or []))
@@ -1318,6 +1361,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                         error_count += 1
+                        if customer_ideas.idea_payload(message) is not None and not isinstance(e, ValueError):
+                            # The record-level recovery path stores normalized work in
+                            # the DLQ. Do not acknowledge an idea storage failure alone.
+                            raise
                 
                 # Process status updates
                 # Same coexistence guard, same reason: `_process_status` writes to both
@@ -1894,6 +1941,20 @@ def _process_message(
     if not sender_name and 'profile' in message:
         sender_name = message.get('profile', {}).get('name', '')
     
+    # Save private ideas before inbox dedup. A retry must repair a failed contact
+    # activity projection even when the inbound message has already been stored.
+    _idea_data = customer_ideas.idea_payload(message)
+    _idea_contact = None
+    if _idea_data is not None:
+        _idea_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        customer_ideas.save_idea(
+            _idea_data, contact_id=_idea_contact.get('contactId') or _idea_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, dynamodb=dynamodb,
+            request_id=request_id)
+
     # Deduplicate using whatsappMessageId.
     # claim_event() is an atomic, strongly-consistent guard that closes the
     # fast-redelivery race window (Meta redelivering within the GSI's eventual-
@@ -1916,7 +1977,7 @@ def _process_message(
         return
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+    contact = _idea_contact or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
     contact_id = contact.get('contactId') or contact.get('id')
     
     # Extract message content based on type
@@ -2236,6 +2297,8 @@ def _process_message(
         # Native Flow Message reply — India Address Message submission arrives here
         # as nfm_reply with name='address_message' (also used by flow completions).
         elif interactive_type == 'nfm_reply':
+            if _idea_data is not None:
+                return  # Persisted above; never route a private idea into auto-replies.
             nfm = interactive.get('nfm_reply', {})
             if nfm.get('name') == 'address_message':
                 # SEND #4.
@@ -2258,8 +2321,10 @@ def _process_message(
                 logger.warning(json.dumps({'event': 'postpay_nfm_parse_error', 'error': str(_pp_err), 'requestId': request_id}))
 
     # ── Cart order (native catalog checkout) ──
-    # Customer sent a cart from the catalog (message.type='order'). Convert the
-    # product_items into a native order_details (Review & Pay) with GST + convenience.
+    # Customer sent a cart from the catalog (message.type='order'). The product_items become a
+    # phone-bound hand-off row plus a link to /cart/?basket=<token>; the website prices and takes
+    # the payment. No order_details / Review-and-Pay message is built here any more, and no total
+    # is computed - see `_handle_cart_order`. Gated OFF by WA_CATALOG_ORDERS_ENABLED.
     if msg_type == 'order':
         # SEND #6 — the money path. Guarded here AND inside `_send_payment_request`,
         # before the reference_id is minted. The inner guard is the one that matters,
@@ -2641,6 +2706,49 @@ def _process_message(
                     flow_key=flow_key,
                 )
                 return  # Skip AI automation  -  flow handles the rest
+
+        # ── `review <REF>` — the attributed half of the website review door (Phase R) ──
+        #
+        # Placed AFTER the exact-match loop so it can never shadow it: `review` on its own
+        # is a `leave_review` keyword and still takes the loop above, unattributed. This
+        # branch only exists for the extra token the website link adds.
+        #
+        # It is a second, tightly-bounded branch rather than extra keywords because the
+        # loop matches `content_lower in keywords` - an EXACT match - so no keyword list
+        # can ever contain a reference. It fires on the literal root `review` only, never
+        # on `rate`, `feedback` or `testimonial`: those are the generic keywords
+        # `docs/whatsapp-experience-structure.md` already flags as a precedence hazard.
+        if _review_attribution_enabled():
+            review_reference = _extract_review_reference(content_lower)
+            if review_reference:
+                review_trigger = (flow_triggers.get('leave_review') or {})
+                if review_trigger.get('enabled', True) and review_trigger.get('flowId') \
+                        and _may_send('leave_review_attributed'):
+                    # The park result is CARRIED INTO THE LOG, not discarded. A park
+                    # failure degrades to an unattributed review, which is the right
+                    # trade - the customer still gets the form - but silently, and a
+                    # recurring DynamoDB problem would look like customers simply not
+                    # using the website door. `attributed` on the one event this branch
+                    # emits makes the failure rate answerable from a single metric filter
+                    # instead of needing a second log line nobody has a filter for.
+                    parked = _park_review_reference(sender_phone, review_reference, request_id)
+                    logger.info(json.dumps({
+                        'event': 'review_attributed_flow_sent',
+                        'reference': review_reference,
+                        'attributed': parked,
+                        'contactId': mask_contact_id(contact_id),
+                        'phone': mask_phone(sender_phone),
+                        'requestId': request_id,
+                    }))
+                    _send_generic_flow(
+                        contact_id=contact_id,
+                        phone_number_id=aws_phone_number_id,
+                        sender_phone=sender_phone,
+                        request_id=request_id,
+                        flow_config=review_trigger,
+                        flow_key='leave_review',
+                    )
+                    return  # Skip AI automation  -  flow handles the rest
 
         # ── Direct "Pay" keyword trigger (LLM-independent, hardcoded) ──
         # Exact matches (content_lower must be exactly one of these)
@@ -5592,6 +5700,122 @@ def _send_subscribe_flow(contact_id: str, phone_number_id: str, sender_phone: st
         }))
 
 
+# ── Attributed review door (Phase R) ──
+#
+# The website's "Leave a review" button opens `wa.me/<WABA1>?text=review <REF>`, so the
+# CUSTOMER messages US with the order they want to review. This is the inbound half of
+# that door: recognise the reference, park it, and send the review Flow the exact same
+# way a bare `review` already does.
+
+#: Anchored and bounded at BOTH ends on purpose. `review` alone keeps taking the existing
+#: exact-match path; prose such as `can i leave a review for my order` must NOT match, or
+#: a generic sentence starts dispatching a Flow. `src/lib/reviewLink.ts` enforces the
+#: identical bound before it will put a reference in the link, so the two ends of this
+#: door cannot disagree about what a reference is.
+_REVIEW_REF_PATTERN = r'^review\s+([A-Za-z0-9][A-Za-z0-9-]{3,39})$'
+
+#: FlowDraftTable suffix, mirrored by `flows/leave_review.REF_DRAFT_CODE`.
+REVIEW_REF_DRAFT_CODE = 'WD_REV_REF'
+
+#: How long a parked review reference stays valid. THIRTY MINUTES, not `save_draft`'s seven
+#: days, and the difference is the whole point of having a separate constant.
+#:
+#: Seven days is right for what `save_draft` holds — a half-finished order form worth
+#: resuming tomorrow. This row holds something with a much shorter natural life: the
+#: reference is only meaningful between the customer's `review <REF>` message and the
+#: submission of the form that message triggered, which is one sitting.
+#:
+#: The hazard a long TTL creates is ABANDONMENT, not storage. `flows/leave_review.handle_init`
+#: reads this row without clearing it, and `handle_review_form` clears it only on a
+#: successful submission, so a customer who opens the attributed door for order A and then
+#: dismisses the Flow leaves the row behind. With a seven-day life, their next bare `review`
+#: — days later, about something else entirely — would be stored against order A, and a
+#: staff member reading the moderation queue would see a confident, wrong attribution with
+#: nothing to flag it.
+#:
+#: Thirty minutes is generous for one sitting and short enough that an abandoned door is
+#: forgotten rather than remembered wrongly. It is carried BOTH as the DynamoDB `ttl` (which
+#: reclaims the row, best-effort and documented to lag up to 48 hours) and as `expiresAt`
+#: inside `formData`, which `flows/leave_review._pending_reference` enforces on read. The
+#: second is the one that actually bounds attribution; the first only bounds storage.
+REVIEW_REF_TTL_SECONDS = 30 * 60
+
+
+def _review_attribution_enabled() -> bool:
+    """Whether `review <REF>` is recognised at all. **Defaults FALSE.**
+
+    OFF is today's exact behaviour: `review WD-ORD-A7K2M9PQ` does not equal any keyword in
+    `DEFAULT_FLOW_TRIGGERS['leave_review']`, the match at the keyword loop is `in`, so it
+    falls through with no reply. With the flag off this branch returns before matching
+    anything and that fall-through is preserved byte for byte.
+
+    It has to default off rather than ship enabled, for the same reason
+    `_standby_reply_enabled` has to default to TODAY'S behaviour: the inbound ingress
+    invokes `wecare-inbound-whatsapp` UNQUALIFIED, so `$LATEST` is production the instant
+    `update-function-code` returns and there is no alias gap in which to verify. The owner
+    flips this after publishing the Flow version on Meta.
+
+    Read per call, never cached at module scope - a module-scope read is frozen for the
+    life of the execution environment, so flipping it would not take effect until every
+    warm sandbox recycled.
+    """
+    return os.environ.get('REVIEW_ATTRIBUTION_ENABLED', 'false').strip().lower() \
+        in ('true', '1', 'yes', 'on')
+
+
+def _extract_review_reference(content_lower: str) -> str:
+    """The order/product reference in a `review <REF>` message, or ''.
+
+    Upper-cased, which is lossless here: the public order-number alphabet
+    (`order_keys.PUBLIC_ORDER_NUMBER_ALPHABET`) and the `WD-ORD-`/`WD-PAY-` prefixes are
+    already upper-case and digits, so recovering the customer's original string from the
+    lowercased `content_lower` needs nothing more than this.
+    """
+    import re
+    match = re.match(_REVIEW_REF_PATTERN, (content_lower or '').strip())
+    return match.group(1).upper() if match else ''
+
+
+def _park_review_reference(sender_phone: str, reference: str, request_id: str) -> bool:
+    """Park the reference for the Flow callback to read back. Key `{phone}#WD_REV_REF`.
+
+    Written in the shape `flows/common.restore_draft` expects - `formData` as a JSON
+    STRING, not a map - because that helper is the reader and it `json.loads` the field.
+
+    `expiresAt` travels INSIDE `formData` rather than beside it, because `restore_draft`
+    returns only `{screen, formData}` and drops every other attribute of the item. The
+    DynamoDB `ttl` is set to the same instant, but TTL deletion is best-effort and can lag
+    by up to 48 hours, so it reclaims the row while `expiresAt` is what actually bounds the
+    attribution. See `REVIEW_REF_TTL_SECONDS` for why that bound is short.
+
+    The reference is logged IN FULL, deliberately. It is neither a secret nor a phone
+    number, and it is the one field that makes a review traceable end to end without
+    unmasking anything - the same reasoning `reference_id` carries on the payment path.
+    """
+    try:
+        now = int(time.time())
+        expires_at = now + REVIEW_REF_TTL_SECONDS
+        dynamodb.Table(FLOW_DRAFTS_TABLE).put_item(Item={
+            'draftKey': f'{sender_phone}#{REVIEW_REF_DRAFT_CODE}',
+            'phone': sender_phone,
+            'flowCode': REVIEW_REF_DRAFT_CODE,
+            'screen': 'REVIEW_FORM',
+            'formData': json.dumps({'reference': reference, 'expiresAt': expires_at}),
+            'updatedAt': Decimal(str(now)),
+            'ttl': expires_at,
+        })
+        return True
+    except Exception as e:
+        logger.warning(json.dumps({
+            'event': 'review_reference_park_failed',
+            'reference': reference,
+            'phone': mask_phone(sender_phone),
+            'error': type(e).__name__,
+            'requestId': request_id,
+        }))
+        return False
+
+
 def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                        request_id: str, flow_config: Dict = None, flow_key: str = '') -> None:
     """
@@ -5634,7 +5858,15 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                     'rx_slot': 'https://wecare.digital/r/rx',
                     'drop_docs': 'https://wecare.digital/r/dd',
                     'enterprise_assist': 'https://wecare.digital/r/ea',
-                    'leave_review': 'https://wecare.digital/r/lr',
+                    # BOTH review doors use the owner's verified short link, not /r/lr.
+                    # /r/lr's live ShortLinksTable row is a `recovery` row that 302s to
+                    # google.com, so it is a dead end for a customer on WABA 2; repairing
+                    # that row is a live data change and is tracked separately. These two
+                    # keys share one Meta flow, so they must not disagree about the
+                    # fallback either - whichever door claims the keyword, the customer
+                    # gets the same destination.
+                    'leave_review': 'https://wa.me/message/ZM74K2H2BIFOA1',
+                    'customer_idea': 'https://wa.me/message/ZM74K2H2BIFOA1',
                     'subscribe': 'https://wecare.digital/r/sub',
                     'order_notes': 'https://wecare.digital/r/on',
                 }
@@ -5673,7 +5905,11 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
         # still called later on data_exchange screens (e.g. REVIEW), so no data is
         # lost. Only order-fetching flows (submit_request, etc.) need data_exchange
         # at open to populate their first screen.
-        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO'}
+        # `leave_review` shares flow 1578178897413815 with `customer_idea`, so it
+        # needs the same entry screen: that flow is endpointless and would fail at
+        # open under data_exchange.
+        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO', 'customer_idea': 'FEEDBACK',
+                                'leave_review': 'FEEDBACK'}
         _entry_screen = STATIC_ENTRY_SCREENS.get(flow_key, '')
         flow_action = 'navigate' if _entry_screen else 'data_exchange'
 
@@ -6192,101 +6428,227 @@ def _fetch_catalog_product_names(catalog_id: str, retailer_ids: list) -> dict:
     return names
 
 
+def _phone_suffix(phone: str) -> str:
+    """The last four digits, which is the only part of a phone number that may be logged.
+
+    The masked suffix is AMBIGUOUS by design and that is cheaper than the alternative: `...0044`
+    could be the owner's QA recipient or the secondary business number. Disambiguate on
+    `direction`, `channel` or a delivery id, never by widening this.
+    """
+    digits = ''.join(character for character in str(phone or '') if character.isdigit())
+    return digits[-4:] if len(digits) >= 4 else ''
+
+
+def _handoff_url(token: str) -> str:
+    """The link the customer opens. `/cart/?basket=<token>` on the public site.
+
+    The token is the only thing in the URL. It names a basket, it is phone-bound on the row, and
+    the claim additionally requires a signed-in session whose phone matches - so a leaked link
+    cannot be redeemed by whoever holds it.
+    """
+    return CART_HANDOFF_URL + '?basket=' + urllib.parse.quote(str(token or ''), safe='')
+
+
+def _catalog_orders_enabled() -> bool:
+    """The WhatsApp catalogue-order hand-off gate. DEFAULT OFF.
+
+    Same two-source shape as `_inbound_order_status_enabled` above - a SystemConfig row wins, the
+    env var is the default - so an owner can turn this on without a deploy and off again in one
+    write.
+
+    OFF MEANS NOTHING HAPPENS AT ALL: no DynamoDB write, no outbound invoke, no reply. Not "reply
+    with a shop link instead", because a silent no-op is the only state provably free of
+    customer-visible effect, and this is the gate in front of a brand-new commerce path. A config
+    READ FAILURE falls through to the env default rather than to True, so an unreachable table is
+    never a way to turn the gate on.
+    """
+    try:
+        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(
+            Key={'id': 'whatsapp_catalog_orders'}).get('Item')
+        if item and 'configValue' in item:
+            return str(item.get('configValue')).lower() in ('true', '1', 'yes', 'on')
+    except Exception:
+        pass
+    return WA_CATALOG_ORDERS_ENABLED
+
+
+def _request_shipping_address(contact_id: str, phone_number_id: str, sender_phone: str,
+                              request_id: str) -> None:
+    """Ask for a delivery address when none is on file. RETAINED, unchanged in behaviour.
+
+    Lifted out of `_handle_cart_order` verbatim rather than rewritten, because it is the one part
+    of the old path that was never wrong and is still needed: the website leg refuses a physical
+    basket with no owned address (`purchase_intent.DeliveryDetailsRequired`), and the India Address
+    Message submission arrives back as `nfm_reply`/`address_message` and is stored by
+    `_handle_address_submission`. So collecting it in chat is what lets the hand-off be payable
+    when the customer arrives on the site.
+    """
+    try:
+        contact = {}
+        if contact_id:
+            contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+                Key={'id': contact_id}).get('Item', {}) or {}
+        if contact.get('shippingAddress'):
+            return
+        values = {'phone_number': '+' + str(sender_phone or '')}
+        name = contact.get('contactBookName', '') or contact.get('name', '') or ''
+        if name:
+            values['name'] = name
+        payload = {'body': json.dumps({
+            'contactId': contact_id, 'phoneNumberId': phone_number_id,
+            'isInteractive': True, 'interactiveType': 'address_message',
+            'interactiveData': {
+                'body': 'To deliver your order, please share your delivery address.',
+                'country': 'IN', 'values': values,
+            },
+        })}
+        lambda_client.invoke(FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
+                             InvocationType='Event', Payload=json.dumps(payload))
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'cart_address_request_error',
+                                   'error': type(error).__name__, 'requestId': request_id}))
+
+
 def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                        phone_number_id: str, request_id: str) -> None:
-    """Native catalog checkout. A customer sent a cart (message.type='order').
-    Convert product_items into a native PHYSICAL-GOODS order_details (Review & Pay)
-    carrying the business's standard 18% GST + 2% convenience fee, with real product
-    names and the saved shipping address as beneficiaries; collect the address via
-    an Address Message if none is on file. Invoice is generated on payment capture."""
+    """Native catalog checkout, handed off to the website to be priced and paid.
+
+    WHAT THIS USED TO DO, AND WHY NONE OF IT IS LEFT
+    ------------------------------------------------
+    It built a native `order_details` (Review & Pay) message out of Meta's own numbers:
+    `item_price` read as a **float**, `gst_rate: 18.0` added to goods Wix had already taxed, supply
+    GST re-added per item inside `_send_payment_request`, a convenience fee logged at **2%**
+    against the 2.5% the rest of the system charges, and every `retailer_id` rewritten to
+    `ITEM_1..n` so a line could never be resolved back to the Wix variant it came from. Five
+    numbers, not one of which agreed with what the website would charge for the same basket.
+
+    It also could not complete. `_send_payment_request` reaches
+    `outbound-whatsapp::_build_payment_settings`, the single per-WABA payment-configuration
+    resolver, which refuses an unmapped name - and this account records ZERO live payment
+    configurations (measured 2026-09-30). So the path computed a wrong total and then failed.
+
+    WHAT IT DOES NOW
+    ----------------
+    Parses the cart into variants and integer quantities, writes a phone-bound HAND-OFF row, and
+    replies with a CTA link to `/cart/?basket=<token>`. The customer signs in with the same
+    WhatsApp OTP they already use, the lines land in their existing website cart, and
+    `checkout_pricing.compute_quote` produces the one and only payable.
+
+    `_send_payment_request` IS NO LONGER REACHABLE FROM A CATALOGUE ORDER. The function itself
+    stays for its other callers; what is gone is this path's call to it, so no `order_details` /
+    Review-and-Pay message is built for a cart, no Meta payment configuration is read, and there
+    is no second payment path in this file. `_fetch_catalog_product_names` is not called either:
+    its only purpose was a display name on that message.
+
+    THE REPLY CARRIES NO PRICE, deliberately. Meta's `item_price` is the customer's client's view;
+    Wix prices the basket at claim time. Quoting a figure here would be a second total with a
+    different authority - the defect being removed, not a feature being kept.
+
+    All the real logic is in `lambda_utils.ecommerce.whatsapp_basket`, which is pure and tested on
+    its own. This function is wiring: a gate, two refusals, two conditional writes and a reply.
+    """
     try:
-        order = message.get('order', {}) or {}
-        product_items = order.get('product_items', []) or []
-        catalog_id = order.get('catalog_id', '')
-
-        # Resolve real product names from the catalog (fixes vague SKU display).
-        rids = [str(pi.get('product_retailer_id') or '') for pi in product_items if pi.get('product_retailer_id')]
-        name_map = _fetch_catalog_product_names(catalog_id, rids)
-
-        items = []
-        subtotal = 0.0
-        for pi in product_items:
-            qty = int(pi.get('quantity', 1) or 1)
-            price = float(pi.get('item_price', 0) or 0)  # currency units (rupees)
-            if price <= 0 or qty <= 0:
-                continue
-            subtotal += price * qty
-            rid = str(pi.get('product_retailer_id') or '')
-            items.append({
-                'name': (name_map.get(rid) or rid or 'Item')[:60],
-                'amount_paise': int(round(price * 100)),
-                'quantity': qty,
-                'gst_rate': 18.0,
-            })
-        if not items:
-            logger.warning(json.dumps({'event': 'cart_order_no_items', 'requestId': request_id}))
+        if not _catalog_orders_enabled():
+            logger.info(json.dumps({
+                'event': 'cart_order_handoff_disabled',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
             return
 
-        # Load contact + structured shipping address (captured via Address Message).
-        ship_addr = ''
-        cust_name = ''
-        ship_info = None
-        try:
-            if contact_id:
-                c = dynamodb.Table(CONTACTS_TABLE).get_item(Key={'id': contact_id}).get('Item', {})
-                ship_addr = c.get('shippingAddress', '') or ''
-                cust_name = c.get('contactBookName', '') or c.get('name', '') or ''
-                if ship_addr or c.get('addressLine1'):
-                    ship_info = {'addresses': [{
-                        'name': cust_name or 'Customer',
-                        'address': (c.get('addressLine1') or ship_addr or '')[:100],
-                        'landmark_area': c.get('landmark', '') or '',
-                        'city': c.get('city', '') or '',
-                        'state': c.get('state', '') or '',
-                        'in_pin_code': (c.get('postalCode', '') or '')[:6],
-                    }]}
-        except Exception:
-            pass
+        # BEFORE ANY WRITE AND BEFORE ANY SEND. One of our own numbers can appear as a sender when
+        # a business number messages another, and replying to it would be us messaging ourselves on
+        # a commerce path. `whatsapp_basket` holds the registry copy; a test pins it against
+        # `notifications.events.business_numbers()`.
+        if whatsapp_basket.is_business_sender(sender_phone):
+            logger.warning(json.dumps({
+                'event': 'cart_order_business_sender_refused',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
-        logger.info(json.dumps({
-            'event': 'cart_order_received', 'itemCount': len(items),
-            'subtotal': round(subtotal, 2), 'catalogId': catalog_id,
-            'namesResolved': len(name_map), 'hasAddress': bool(ship_addr),
-            'phone_suffix': sender_phone[-4:] if sender_phone else '', 'requestId': request_id,
-        }))
+        phone = whatsapp_basket.e164(sender_phone)
+        if not phone:
+            logger.warning(json.dumps({
+                'event': 'cart_order_sender_not_e164',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
-        # Native Review & Pay (physical-goods order_details) with GST + convenience.
-        _first_retailer_id = str((product_items[0] or {}).get('product_retailer_id') or '') if product_items else ''
-        _send_payment_request(
-            contact_id=contact_id, phone_number_id=phone_number_id, amount=subtotal,
-            request_id=request_id, gst_rate=18, shipping=0, sender_phone=sender_phone,
-            items=items, payment_purpose='Catalog order',
-            order_id=catalog_id or 'Catalog',
-            customer_name=cust_name, customer_phone=sender_phone,
-            shipping_address=ship_addr, goods_type='physical-goods', shipping_info=ship_info,
-            catalog_retailer_id=_first_retailer_id,
-        )
+        basket = whatsapp_basket.parse_order_message(message)
+        if basket is None:
+            # Nothing in the cart resolves to a Wix variant. The existing conversational paths
+            # still apply; handing over a link to an empty basket would not.
+            logger.info(json.dumps({
+                'event': 'cart_order_no_resolvable_lines',
+                'phone_suffix': _phone_suffix(sender_phone),
+                'requestId': request_id,
+            }))
+            return
 
-        # Physical goods: collect a shipping address if we don't have one on file.
-        if not ship_addr:
+        keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        now = int(time.time())
+
+        # RESOLVE BEFORE GENERATE. Meta redelivers a webhook whenever our acknowledgement is lost,
+        # and a fresh token per delivery would be a second basket for one cart - the same failure
+        # `REFERENCE#<metaReferenceId>` prevents for a replayed payment event. The wamid index is
+        # written FIRST and conditionally, so whichever delivery wins that write owns the token and
+        # every later delivery reads it back instead of minting another.
+        token = whatsapp_basket.new_token()
+        index = whatsapp_basket.build_message_index(basket, token, now)
+        if index is not None:
             try:
-                _vals = {'phone_number': f'+{sender_phone}'}
-                if cust_name:
-                    _vals['name'] = cust_name
-                addr_payload = {'body': json.dumps({
-                    'contactId': contact_id, 'phoneNumberId': phone_number_id,
-                    'isInteractive': True, 'interactiveType': 'address_message',
-                    'interactiveData': {
-                        'body': 'To deliver your order, please share your delivery address.',
-                        'country': 'IN', 'values': _vals,
-                    },
-                })}
-                lambda_client.invoke(FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-                                     InvocationType='Event', Payload=json.dumps(addr_payload))
-            except Exception as _ae:
-                logger.warning(json.dumps({'event': 'cart_address_request_error', 'error': str(_ae), 'requestId': request_id}))
-    except Exception as e:
-        logger.error(json.dumps({'event': 'cart_order_error', 'error': str(e), 'requestId': request_id}))
+                keys.put_item(Item=index, ConditionExpression='attribute_not_exists(orderId)')
+            except ClientError as error:
+                if error.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                    raise
+                # A redelivery. The basket already exists and the link already went out on the
+                # delivery that won: Meta re-sends when OUR ack was lost, not when our reply was,
+                # so replying again would be a second message to the customer for one cart.
+                existing = keys.get_item(
+                    Key={'orderId': whatsapp_basket.message_key(basket.message_id)}
+                ).get('Item') or {}
+                logger.info(json.dumps({
+                    'event': 'cart_order_handoff_replayed',
+                    'sourceMessageId': basket.message_id,
+                    'resolvedHandoff': str(existing.get('handoffId') or ''),
+                    'phone_suffix': _phone_suffix(sender_phone),
+                    'requestId': request_id,
+                }))
+                return
+
+        row = whatsapp_basket.build_handoff(basket, phone, token=token, now=now)
+        keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
+
+        logger.info(json.dumps(dict(
+            {'event': 'cart_order_handoff_written',
+             # `phone_suffix` only. The row stores the full E.164 because that is the claim key; a
+             # log line does not need it, and every other log site in this file masks to four.
+             'phone_suffix': _phone_suffix(sender_phone),
+             'contactId': mask_contact_id(contact_id),
+             'handoffId': row['orderId'],
+             'channel': row['channel'],
+             'requestId': request_id},
+            **basket.log_fields())))
+
+        # IN-WINDOW BY CONSTRUCTION: the customer sent this cart, so the 24-hour customer-service
+        # window is open and no template is needed. A CTA URL button rather than a text link,
+        # because `_send_cta_button` is the path this file already uses for exactly this.
+        _send_cta_button(
+            contact_id=contact_id, phone_number_id=phone_number_id,
+            cta_text=CART_HANDOFF_BUTTON, cta_url=_handoff_url(row['token']),
+            request_id=request_id, body_text=CART_HANDOFF_BODY)
+
+        # Physical goods still need a delivery address, and the website refuses a basket without
+        # one. Retained unchanged; see `_request_shipping_address`.
+        _request_shipping_address(contact_id, phone_number_id, sender_phone, request_id)
+    except Exception as error:
+        # `type(error).__name__`, not `str(error)`: an exception message on this path can carry
+        # request content, and a phone number is request content.
+        logger.error(json.dumps({'event': 'cart_order_error',
+                                 'error': type(error).__name__, 'requestId': request_id}))
 
 
 def _send_payment_request(contact_id: str, phone_number_id: str, amount: float, request_id: str,
@@ -7121,6 +7483,16 @@ def _generate_and_send_invoice(contact_id: str, phone_number_id: str, amount: fl
 # longer dispatch here — a tapped row gets the menu placeholder — so the one-time
 # "row title without emoji" entries are kept only because people type them.
 DEFAULT_FLOW_TRIGGERS = {
+    'customer_idea': {
+        'keywords': sorted(CUSTOMER_IDEA_KEYWORDS),
+        'flowId': '1578178897413815',
+        'message': {
+            'body': '\u2b50 We’d value your feedback!',
+            'footer': 'WECARE.DIGITAL',
+            'flowCta': 'Leave Review',
+        },
+        'enabled': True,
+    },
     'submit_request': {
         'keywords': [
             'submit request', 'sr', 'raise request', 'submit', 'request',
@@ -7246,12 +7618,27 @@ DEFAULT_FLOW_TRIGGERS = {
         'enabled': True,
     },
     'leave_review': {
+        # KEYWORDS: this exact ordered list is the single source of truth and is
+        # mirrored verbatim in four workspace surfaces (forms/selfservice.tsx,
+        # engage/whatsapp/settings.tsx, engage/whatsapp/scripts.tsx and
+        # dashboard/system-architecture.tsx) so the workspace SHOWS what the
+        # backend answers. tests/test_leave_review_wiring.py asserts all five
+        # agree as an ordered list, so a one-sided edit fails the build.
         'keywords': [
-            'leave review', 'review', 'feedback', 'rate', 'rating', 'testimonial',
-            'leave feedback', 'share your experience',
+            'leave review', 'leave a review', 'review', 'reviews', 'feedback',
+            'leave feedback', 'give feedback', 'share feedback', 'rate', 'rate us',
+            'rate service', 'rating', 'ratings', 'testimonial', 'write a review',
+            'give a review', 'share your experience', 'how was it',
             '\u2b50 leave review',
         ],
-        'flowId': '4423166114671543',
+        # 1578178897413815 = WD_Leave_Review_v2, PUBLISHED on WABA 1. Shared with
+        # `customer_idea` above: one Meta flow, two inbound doors, because Meta has
+        # no per-door flow identity. It is ENDPOINTLESS (no data_api_version, first
+        # screen FEEDBACK carries no `data` block), so it MUST open with NAVIGATE —
+        # see STATIC_ENTRY_SCREENS in _send_generic_flow. Opening it with
+        # data_exchange fails at open. The id this replaced pointed at the
+        # never-published WD_Feedback_v1 draft, which is why the keyword did nothing.
+        'flowId': '1578178897413815',
         'message': {
             'body': '\u2b50 Share your experience with our service.',
             'footer': 'WECARE.DIGITAL',

@@ -12,11 +12,22 @@ import {
     WabaSelector, TemplatePreviewCard, ValidationErrorList, WarningList,
     CurlPreview, RawJsonDrawer, MetaErrorPanel, WABA_OPTIONS,
 } from '../../../../components/wa';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
 const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
+/** Layout only: the two margins `inp` carried. The box comes from form-controls.css now. */
+const selectLayout: React.CSSProperties = { marginTop: 4, marginBottom: 10 };
+/* The old `<option key={ c }>{ c }</option>` had no `value`, so the native value WAS the text -
+   which is why value and label are the same string here. */
+const CATEGORY_OPTIONS: SelectOption[] = [ 'UTILITY', 'MARKETING', 'AUTHENTICATION' ]
+    .map( c => ( { value: c, label: c } ) );
+const HEADER_FORMAT_OPTIONS: SelectOption[] = [ 'NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION' ]
+    .map( f => ( { value: f, label: f } ) );
+// 'Offer' (the LIMITED_TIME_OFFER component, step 5) is kept: the step bodies below render
+// `step === 0` through `step === 8`, so dropping it would orphan a reachable editor.
 const STEPS = [ 'Basics', 'Header', 'Body', 'Footer', 'Buttons', 'Offer', 'Flow button', 'TTL', 'Preview' ];
 
 type BtnType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE';
@@ -162,17 +173,15 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             <label style={ lbl }>Language</label>
                             <input style={ inp } value={ language } onChange={ e => setLanguage( e.target.value ) } />
                             <label style={ lbl }>Category</label>
-                            <select style={ inp } value={ category } onChange={ e => setCategory( e.target.value ) }>
-                                { [ 'UTILITY', 'MARKETING', 'AUTHENTICATION' ].map( c => <option key={ c }>{ c }</option> ) }
-                            </select>
+                            <Select ariaLabel="Category" value={ category } onChange={ v => setCategory( v ) }
+                                options={ CATEGORY_OPTIONS } style={ selectLayout } />
                         </div>
                     ) }
                     { step === 1 && (
                         <div>
                             <label style={ lbl }>Header format</label>
-                            <select style={ inp } value={ headerFormat } onChange={ e => setHeaderFormat( e.target.value ) }>
-                                { [ 'NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION' ].map( f => <option key={ f }>{ f }</option> ) }
-                            </select>
+                            <Select ariaLabel="Header format" value={ headerFormat } onChange={ v => setHeaderFormat( v ) }
+                                options={ HEADER_FORMAT_OPTIONS } style={ selectLayout } />
                             { headerFormat === 'TEXT' && ( <>
                                 <label style={ lbl }>Header text (≤60, ≤1 variable)</label>
                                 <input style={ inp } value={ headerText } maxLength={ 60 } onChange={ e => setHeaderText( e.target.value ) } />

@@ -57,6 +57,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
+import VayuLokFillingGap from '../../components/VayuLokFillingGap';
 import VayuLokLive from '../../components/VayuLokLive';
 
 const VayuLokPage: React.FC = () => {
@@ -186,6 +187,14 @@ const VayuLokPage: React.FC = () => {
           IMMEDIATELY AFTER THAT PAGE'S EXISTING TOP SECTION". VayuLokLive is self-styling
           (styled-jsx under a vl-live- scope) and degrades honestly to the content shell with
           no map and no live panels when NEXT_PUBLIC_GOOGLE_MAPS_KEY is unset. */}
+
+      {/* "FILLING THE GAP" SECTION, ported from docs/mocks/vayulok-filling-gap-mock.html.
+          It sits between the rotating-word hero above and the live-data section below,
+          exactly where the mock's two dashed "out of scope" context placeholders stood in
+          for those neighbours. Self-styling under a vlg- scope with a Canvas-2D dotted
+          globe; no network, no images. Copy and station figures are on-brand placeholder. */}
+      <VayuLokFillingGap />
+
       <VayuLokLive />
 
       <style jsx>{`

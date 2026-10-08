@@ -29,6 +29,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import Pagination from '../../../components/ui/Pagination';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -81,6 +82,13 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
     } );
     return Array.from( set ).sort();
   }, [ rows ] );
+
+  /* Derived from the loaded rows, so it changes as the list does - memoised on `statuses`
+     rather than rebuilt per render. 'all' is a real option, not a placeholder. */
+  const payFilterOptions: SelectOption[] = useMemo( () => [
+    { value: 'all', label: 'All' },
+    ...statuses.map( ( s ) => ( { value: s, label: s } ) ),
+  ], [ statuses ] );
 
   const filtered = useMemo( () => {
     const q = search.trim().toLowerCase();
@@ -167,12 +175,22 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
               onChange={ ( e ) => setSearch( e.target.value ) } />
           </div>
           <div className="fr-fg">
-            <label htmlFor="fr-st">Payment</label>
-            <select id="fr-st" value={ payFilter }
-              onChange={ ( e ) => setPayFilter( e.target.value ) }>
-              <option value="all">All</option>
-              { statuses.map( ( s ) => <option key={ s } value={ s }>{ s }</option> ) }
-            </select>
+            { /*
+               * SHAPE (a): the external label that was bound to this control by id is gone and
+               * Select owns the pair. Left in place it would have named nothing - a button
+               * takes its accessible name from its contents - and the control would have
+               * announced itself as "Paid", which is a payment status and not a field name.
+               * The search input above keeps its own label, which still associates correctly
+               * because that one is a native input.
+               */ }
+            <Select label="Payment" value={ payFilter }
+              onChange={ ( v ) => setPayFilter( v ) }
+              options={ payFilterOptions }
+              /* Layout only. The trigger shows the SELECTED label where a native control
+                 sized itself to its widest option, so an unsized filter re-flows the row
+                 every time it is used - and this list is derived from the loaded rows, so
+                 its widest member is not even knowable at author time. */
+              style={ { width: 180 } } />
           </div>
           <div className="fr-actions">
             <Button variant="secondary" icon="refresh" onClick={ load }

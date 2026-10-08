@@ -92,15 +92,24 @@ import CheckoutProfile from '../components/CheckoutProfile';
 import type { CheckoutProfileMode, CheckoutProfileValue } from '../components/CheckoutProfile';
 import CheckoutIdentityCard from '../components/CheckoutIdentityCard';
 import type { StoredAddress } from '../components/AddressFields';
+import Select from '../components/ui/Select';
 import { getSession, restoreSession } from '../lib/customerAuth';
 import type { CustomerSession } from '../lib/customerAuth';
 import {
   readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
-  isContributionItem, setContribution,
+  isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../lib/cart';
+import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../lib/serviceRequests';
+import { SERVICES_PRODUCT_ID, SERVICE_CHOICES } from '../config/services';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
+// The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
+// request shape has one definition. See `src/lib/whatsappBasket.ts`.
+import {
+  basketTokenFromUrl, claimBasket, claimMessage, rememberBasketToken, stripBasketParam,
+  CLAIM_NOT_SHOWN_MESSAGE,
+} from '../lib/whatsappBasket';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import { colors } from '../lib/design-tokens';
 /**
@@ -335,6 +344,7 @@ type Outcome =
   | { kind: 'CONTRIBUTION_UNAVAILABLE' }
   | { kind: 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' }
   | { kind: 'CONTRIBUTION_NOT_PAYABLE' }
+  | { kind: 'SERVICE_REFUSED'; message: string }
   | { kind: 'CART_RESET_REQUIRED' }
   | { kind: 'CART_NOT_PAYABLE' }
   | { kind: 'CART_RECONCILIATION_REQUIRED' }
@@ -442,7 +452,14 @@ declare global {
  */
 function getCheckoutRequestKey ( lineItems: CheckoutLineItem[] ): string {
   if ( typeof window === 'undefined' ) return '';
-  const fingerprint = basketFingerprint( lineItems );
+  // Phase O-1: a services basket also keys on its intent id, so switching an amendment's target
+  // (same lines, new intent) mints a fresh key instead of resuming the superseded attempt. The
+  // server refuses that resume with INTENT_CHANGED regardless; this saves the round trip. Every
+  // other basket's fingerprint is byte-identical to before.
+  const serviceIntent = serviceIntentFor( lineItems );
+  const fingerprint = serviceIntent
+    ? `${ basketFingerprint( lineItems ) }|intent:${ serviceIntent }`
+    : basketFingerprint( lineItems );
   const minted = window.sessionStorage.getItem( CHECKOUT_REQUEST_BASKET );
   const existing = window.sessionStorage.getItem( CHECKOUT_REQUEST_KEY );
   if ( existing && minted === fingerprint ) return existing;
@@ -551,6 +568,9 @@ function ContributionAmount (
 
   return (
     <>
+      {/* STILL NATIVE AFTER BATCH 2f, BY THE OWNER'S OWN MONEY-SAFETY INSTRUCTION - the element,
+          its id, this external label and the handler are untouched, and the paragraph above is
+          the reason. Its closed state is already fully ours from batch 1.3a. */}
       <label className="cart-qty-label" htmlFor={ inputId }>Contribute amount</label>
       <select
         id={ inputId }
@@ -862,6 +882,17 @@ export default function Cart (): React.ReactElement {
    * throw anywhere in the run cannot leave the page permanently unable to check out.
    */
   const proceedInFlightRef = useRef<boolean>( false );
+  /**
+   * The WhatsApp hand-off claim has been attempted in this page's lifetime.
+   *
+   * A ref and not state because the claim is a SERVER-SIDE SINGLE-USE write: React 19 StrictMode
+   * double-invokes effects in development, and a second POST is refused by design, so a state flag
+   * (a render behind) would surface "this link is no longer available" for a claim that in fact
+   * succeeded a millisecond earlier.
+   */
+  const basketClaimedRef = useRef<boolean>( false );
+  /** The one sentence a non-successful claim leaves on screen, or `null`. */
+  const [ basketClaim, setBasketClaim ] = useState<string | null>( null );
 
   useEffect( () => {
     setItems( readCart() );
@@ -879,6 +910,90 @@ export default function Cart (): React.ReactElement {
       if ( !live || !reply ) return;
       setProfile( profileFrom( reply ) );
       setProfileStatus( deriveStatus( String( reply.status || '' ), Boolean( reply.addressComplete ) ) );
+    } )();
+    return () => { live = false; };
+  }, [] );
+
+  /**
+   * THE WHATSAPP BASKET CLAIM. Runs only when `?basket=` is present, and at most once.
+   *
+   * ONCE IS ENFORCED BY A REF, NOT BY THE DEPENDENCY LIST. The effect has an empty list, but React
+   * 19's StrictMode double-invokes effects in development and the claim is a SERVER-SIDE
+   * SINGLE-USE write: a second POST is refused by design, so a double invoke would render "this
+   * link is no longer available" over a cart that had just been filled correctly. A synchronous
+   * ref latch is the only guard that holds, for the same reason `proceedInFlightRef` is one.
+   *
+   * NO SESSION MEANS SIGN IN FIRST, AND THE TOKEN TRAVELS BESIDE THE URL, NOT INSIDE IT. A link
+   * opened in WhatsApp's in-app browser usually has no session, so this is the normal case rather
+   * than an edge. The `return` value is validated by `safeLocalReturnPath`
+   * (`src/lib/safeReturnPath.ts`), which REJECTS any value carrying a query string and re-emits the
+   * normalised ALLOWLIST member rather than the input -- so `?return=%2Fcart%2F%3Fbasket%3D<token>`
+   * comes back as a bare `/cart/` and the token is gone. That refusal is the control against a
+   * smuggled query and must not be loosened, so `rememberBasketToken` stashes the token in
+   * `sessionStorage` before the redirect and `basketTokenFromUrl()` reads and CLEARS it on arrival.
+   * Single-use on purpose: a stale token could only be refused, and a refusal for a basket already
+   * in the cart is the confusing outcome this whole effect exists to avoid.
+   *
+   * THE PARAMETER IS STRIPPED ON SUCCESS ONLY. On a refusal it is left in place: the sentence
+   * explains what happened, and a customer who reloads sees the same honest answer rather than a
+   * silently different page. See `stripBasketParam`.
+   *
+   * IT FETCHES NOTHING WHEN THE PARAMETER IS ABSENT, which is most visits. That keeps the static
+   * export's no-fetch-at-render property intact -- `src/test/CartRedemption.test.tsx` asserts it.
+   *
+   * THE CLAIMED LINES ARE MERGED INTO THE BROWSER CART, and that is the whole point of the round
+   * trip rather than a nicety. The claim merges them into the SERVER-side Wix cart, but this page
+   * renders `readCart()` and `proceed` posts `toLineItems( currentItems )` from the same storage --
+   * so a claim that returned only a count left the customer looking at an unchanged cart (a
+   * success indistinguishable from a refusal) and the next checkout reconciled the claimed lines
+   * back OUT of the Wix cart, because `_reconcile_saved_cart` makes the Wix cart match the
+   * REQUEST. `mergeClaimedLines` writes them through the same `cart.ts` helpers /shop/ uses.
+   *
+   * ONE RETRY FOR A STALE SAVED CART, AND ONLY WHEN THIS CART IS EMPTY. `BASKET_CART_IN_USE` is
+   * the server's `CUSTOMERCART#<phone>` pointer, which lives thirty days and SURVIVES the payment
+   * that consumed its cart -- `clearCart()` only empties localStorage. So "empty your website cart
+   * and open the link again" was an instruction with no way to follow it for anyone who had
+   * already paid once. With an empty cart here there is nothing of the customer's to lose, so the
+   * retry sends `resetCart: true`, which releases that pointer exactly as the existing "Start a
+   * new cart" control does. With a NON-empty cart the sentence is true as written, and is shown.
+   */
+  useEffect( () => {
+    const token = basketTokenFromUrl();
+    if ( !token || basketClaimedRef.current ) return;
+    basketClaimedRef.current = true;
+
+    const session = getSession();
+    if ( !session )
+    {
+      // The sign-in flow returns to a BARE `/cart/` -- the allowlist strips the query -- so the
+      // token has to be stashed here or it is lost. See the docblock above.
+      rememberBasketToken( token );
+      window.location.assign( `/account/sign-in/?return=${ encodeURIComponent(
+        window.location.pathname + window.location.search ) }` );
+      return;
+    }
+
+    let live = true;
+    void ( async () => {
+      let outcome = await claimBasket( session.accessToken, token );
+      if ( !live ) return;
+      if ( outcome.kind === 'CART_IN_USE' && readCart().length === 0 )
+      {
+        outcome = await claimBasket( session.accessToken, token, { resetCart: true } );
+        if ( !live ) return;
+      }
+      if ( outcome.kind === 'CLAIMED' )
+      {
+        const { items: merged, merged: placed } = mergeClaimedLines( outcome.lines );
+        setItems( merged );
+        // Said out loud only when NOTHING could be placed. A partial merge needs no sentence: the
+        // customer pays for the lines they can see, which the server reconciles the cart down to.
+        setBasketClaim( outcome.lines.length > 0 && placed === 0
+          ? CLAIM_NOT_SHOWN_MESSAGE : null );
+        stripBasketParam();
+        return;
+      }
+      setBasketClaim( claimMessage( outcome ) );
     } )();
     return () => { live = false; };
   }, [] );
@@ -931,6 +1046,22 @@ export default function Cart (): React.ReactElement {
   ): Promise<Outcome> => {
     try
     {
+      let serviceIntent = serviceIntentFor( lineItems );
+      const services = lineItems.filter( line => line.catalogReference.catalogItemId === SERVICES_PRODUCT_ID );
+      const submit = SERVICE_CHOICES.find( choice => choice.kind === 'SUBMIT_REQUEST' )!;
+      if ( !serviceIntent && services.length === 1 && services[ 0 ].quantity === 1
+        && services[ 0 ].catalogReference.options?.variantId === submit.variantId )
+      {
+        const intent = await postRequestIntent( session.accessToken, 'SUBMIT_REQUEST' );
+        if ( intent.kind === 'expired' ) return { kind: 'UNAUTHORIZED' };
+        if ( intent.kind !== 'ok' || intent.intent.variantId !== submit.variantId )
+        {
+          return { kind: 'SERVICE_REFUSED', message: intent.kind === 'refused'
+            ? intent.message : 'We could not prepare your service. Nothing has been charged. Try again.' };
+        }
+        rememberServiceIntent( submit.variantId, intent.intent.intentId );
+        serviceIntent = intent.intent.intentId;
+      }
       const response = await fetch( PREPARE_CHECKOUT_URL, {
         method: 'POST',
         headers: {
@@ -945,6 +1076,9 @@ export default function Cart (): React.ReactElement {
           // what it was. The server reads `body.get("resetCart") is True` -- an identity
           // comparison, no coercion -- so an absent key and a false one are the same thing.
           ...( resetCart ? { resetCart: true } : {} ),
+          // Phase O-1: only a services basket carries its intent id; every other body is
+          // byte-identical to before.
+          ...( serviceIntent ? { serviceIntentId: serviceIntent } : {} ),
         } ),
       } );
 
@@ -1133,6 +1267,11 @@ export default function Cart (): React.ReactElement {
         return { kind: 'CONTRIBUTION_REDEMPTION_NOT_ALLOWED' };
       }
       if ( status === 'CONTRIBUTION_NOT_PAYABLE' ) return { kind: 'CONTRIBUTION_NOT_PAYABLE' };
+      // Phase O-1 service refusals, one sentence each, all before any money moves.
+      if ( isServiceRefusal( status ) )
+      {
+        return { kind: 'SERVICE_REFUSED', message: SERVICE_REFUSAL_MESSAGES[ status ] };
+      }
       // The Cart V2 arms, in the vocabulary `_create` already speaks.
       if ( status === 'CART_RESET_REQUIRED' ) return { kind: 'CART_RESET_REQUIRED' };
       if ( status === 'CART_NOT_PAYABLE' ) return { kind: 'CART_NOT_PAYABLE' };
@@ -1296,6 +1435,14 @@ export default function Cart (): React.ReactElement {
       // rather than a gentle correction. It still does not latch `paymentBlocked` -- no payment
       // was attempted, and a dashboard setting can be fixed between two presses.
       setNotice( { kind: 'error', message: CONTRIBUTION_NOT_PAYABLE_MESSAGE } );
+      return;
+    }
+
+    // Phase O-1: shown as an error and deliberately NOT latched -- nothing was charged, and the
+    // customer (or a dashboard fix) can clear every one of these between two presses.
+    if ( outcome.kind === 'SERVICE_REFUSED' )
+    {
+      setNotice( { kind: 'error', message: outcome.message } );
       return;
     }
 
@@ -1712,6 +1859,25 @@ export default function Cart (): React.ReactElement {
 
   const isEmpty = ready && items.length === 0;
 
+  /**
+   * THE WHATSAPP CLAIM SENTENCE, when the claim did not simply work. One line, no amount, no retry
+   * button: every outcome's own sentence already names the action that helps, and a button here
+   * would re-post a single-use claim. A success says nothing at all - the items appearing in the
+   * list is the message.
+   *
+   * HOISTED OUT OF THE LIST BRANCH because it was unreachable exactly when it mattered most. It
+   * used to live inside `items.length > 0`, so a customer whose cart was EMPTY - which is the
+   * state every refusal arrives in for anyone who has just paid, and the state the stale-saved-cart
+   * retry is for - read nothing at all and was left on "Your cart is empty." with no explanation
+   * of the link they had just opened. Rendered in both branches from one definition, in the same
+   * position within the list branch as before, so nothing moves for a customer who has items.
+   */
+  const basketClaimLine = basketClaim ? (
+    <p className="cart-status" role="status" data-wc-basket-claim="true">
+      { basketClaim }
+    </p>
+  ) : null;
+
   return (
     <>
       <Head>
@@ -1730,6 +1896,10 @@ export default function Cart (): React.ReactElement {
           {isEmpty && (
             <div className="cart-empty">
               <p className="cart-body">Your cart is empty.</p>
+              {/* ABOVE the "Browse the shop" link, because it explains why the cart the customer
+                  was sent a link to is not here - which has to be read before the suggestion to
+                  go and shop instead makes any sense. */}
+              { basketClaimLine }
               <p className="cart-back"><Link href="/shop/">Browse the shop</Link></p>
             </div>
           )}
@@ -1748,20 +1918,37 @@ export default function Cart (): React.ReactElement {
                       {/* DISPLAY ONLY. This Wix passthrough price never reaches the server. */}
                       <p className="cart-price" data-wc-no-translate="true">{ item.formattedPrice }</p>
                       { needsVariantSelection( item ) && (
-                        <label className="cart-option-label">
-                          <span>Choose option</span>
-                          <select
-                            className="cart-option"
-                            aria-label={ `Choose option for ${item.name}` }
-                            value=""
-                            onChange={ e => chooseVariant( item.ref, e.target.value ) }
-                          >
-                            <option value="" disabled>Select fit / size</option>
-                            { availableVariantsForItem( item ).map( variant => (
-                              <option key={ variant.id } value={ variant.id }>{ variant.label }</option>
-                            ) ) }
-                          </select>
-                        </label>
+                        /*
+                         * BOTH LABELLING SOURCES, AND THAT IS THE POINT. The visible text is the
+                         * same two words on every cart row, so it is `label` and the component
+                         * renders and wires it; the accessible name is PER ITEM, so a shopper on
+                         * a screen reader with three unvariant rows can tell the three
+                         * comboboxes apart, and that is `ariaLabel`. Select emits `aria-label`
+                         * and deliberately NOT `aria-labelledby` when both are passed, because
+                         * `aria-labelledby` outranks `aria-label` and the per-item name would be
+                         * lost silently. CartCheckout.test.tsx resolves this control by the EXACT
+                         * string, which is the test standing in front of a wrong-amount order.
+                         *
+                         * The wrapping <label> is gone: a <button role="combobox"> inside a
+                         * <label> still associates, so the name would be computed by walking the
+                         * label subtree and would come out as the caption plus the trigger text.
+                         *
+                         * The '' row stays a REAL option, disabled, rather than becoming a
+                         * `placeholder`, so the row list is exactly what it was.
+                         */
+                        <Select
+                          className="cart-option"
+                          label="Choose option"
+                          ariaLabel={ `Choose option for ${item.name}` }
+                          value=""
+                          onChange={ value => chooseVariant( item.ref, value ) }
+                          options={ [
+                            { value: '', label: 'Select fit / size', disabled: true },
+                            ...availableVariantsForItem( item ).map(
+                              variant => ( { value: variant.id, label: variant.label } )
+                            ),
+                          ] }
+                        />
                       ) }
                     </div>
                     <div className="cart-row-controls">
@@ -1867,6 +2054,10 @@ export default function Cart (): React.ReactElement {
               <p className="cart-note">
                 The store confirms your final total, including taxes and fees, before payment.
               </p>
+
+              {/* The WhatsApp claim sentence. Defined once above, beside the reason it is not
+                  written inline here any more. */}
+              { basketClaimLine }
 
               {/* role is chosen by severity, not by colour: 'status' is polite for a state the
                   shopper can simply retry, 'alert' interrupts for one they cannot. Neither relies
@@ -1984,35 +2175,94 @@ export default function Cart (): React.ReactElement {
             font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;
             color:#1a3a2a;margin:0;font-variant-numeric:tabular-nums;
           }
-          .cart-option-label{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:14px;font-weight:700;color:#1a3a2a}
-          .cart-option{
-            min-height:44px;max-width:260px;padding:0 12px;border:1px solid #cbd5e1;border-radius:8px;
-            background:#fff;color:#1a1a1a;font:inherit;
+          /* THE VARIANT CHOOSER, NOW OUR OWN COMBOBOX (batch 2f). What was a .cart-option-label
+             wrapping a .cart-option select is one Select, so .cart-option is the className on
+             the FIELD WRAPPER and the two rules below are the label-and-field layout the old
+             wrapping label carried: the flex column, the 6px gap, the 12px top margin, and the
+             caption type, inherited by the component label rather than restated on it.
+             :global() IS MANDATORY ON BOTH, for the reason shop/<slug>.tsx records at length:
+             styled-jsx stamps its scope hash only onto the lowercase DOM tags it can see in this
+             file, and a className handed to a component reaches a node it never saw - so without
+             :global() these rules match nothing and the chooser renders unspaced.
+             max-width moves from the control to the wrapper, because the trigger is
+             inline-size:100% of its field; 260px is the number the native control was capped at.
+             THE BOX IS NOW form-controls.css's: the same 2px #e5e7eb, the same 13px radius, the
+             same 44px floor and the same drawn chevron the native control was given in 1.3a, so
+             the closed state does not change. What changes is the OPEN list, which is the one
+             part no stylesheet could reach.
+             THE FOCUS OUTLINE IS NOT REPRODUCED, and that is the one visible loss here: the
+             shared file paints box-shadow var(--focus-ring) on :focus and declares outline none,
+             which is what every other migrated control in the app does, and re-adding a 3px
+             outline for this one control would make the checkout page the odd one out. The
+             pairing rule is still gated - FormControlsCss.test.ts holds the ring on
+             .ui-select-trigger:focus, and CartCheckout.test.tsx holds it on the two controls that
+             are still styled here.
+             NO APOSTROPHE OR STRAY QUOTE IN A CSS COMMENT HERE, deliberately: the census
+             scanner blanks comments with a scanner that treats a quote as a string opener, so a
+             lone apostrophe swallows the rules that follow and the census silently UNDER-counts.
+             That is the one direction a gate must never fail in. */
+          .cart-row-main :global(.cart-option){
+            display:flex;flex-direction:column;gap:6px;margin-top:12px;max-width:260px;
+            font-size:14px;font-weight:700;color:#1a3a2a;
           }
-          .cart-option:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          .cart-row-main :global(.cart-option .ui-field-label){
+            margin-block-end:0;color:inherit;font-size:inherit;font-weight:inherit;
+          }
           .cart-row-controls{display:flex;align-items:center;gap:12px}
           .cart-qty-label{font-size:14px;font-weight:700;color:#1a3a2a}
           /* 44px is the tap-target floor. The site's CTA is 52px; a secondary field is not
              required to match it, only to clear 44. */
           .cart-qty{
-            width:72px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
-            font-family:inherit;font-size:16px;text-align:center;color:#1a1a1a;
+            width:72px;min-height:var(--control-h);padding:0 10px;
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            font-family:inherit;font-size:16px;text-align:center;color:var(--control-fg);
           }
-          .cart-qty:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-          /* The contribution row's amount chooser. Deliberately the SAME box as .cart-qty - the
-             1px #e5e7eb hairline, the 8px radius, the 44px tap floor and the 16px type - because
-             it occupies the same slot in the row and a second control idiom there would read as a
-             different kind of thing. Wider, because "₹250" plus the native disclosure arrow does
-             not fit 72px. The leading rupee mark that used to sit beside the old free-text field
-             went with it: each option already carries its own ₹.
+          /* box-shadow:var(--focus-ring) IS THE PAIRING FIX, not decoration. form-controls.css
+             gives .cart-amount-select that ring with !important, and it CANNOT give it to this
+             control: .cart-qty is a number input and deliberately outside the selector in the
+             shared file, which covers select and the date family only. Without this line the
+             two halves of one row would match on border, radius and height and disagree on focus.
+             :focus-visible rather than :focus, so the ring and the outline appear and disappear
+             together - a ring with no outline on a mouse click would be a third appearance
+             rather than a matched pair. */
+          .cart-qty:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
+          /* The amount chooser on the contribution row. Deliberately the SAME box as .cart-qty -
+             --control-border-w / --control-border, --control-radius, the 44px tap floor and the
+             16px type - because it occupies the same slot in the row and a second control idiom
+             there would read as a different kind of thing. Wider, because a three-digit rupee
+             amount plus the disclosure arrow does not fit 72px. The leading rupee mark that used
+             to sit beside the old free-text field went with it: each option already carries one.
 
-             #1a3a2a is --accent / colors.primary and #e5e7eb is the shared hairline; no new hue is
-             introduced by this phase. */
+             THE PAIR NOW MATCHES ON TOKENS, NOT ON TWO COPIES OF A NUMBER. This rule and
+             .cart-qty above both read --control-border-w / --control-border / --control-radius /
+             --control-h, so the shared skin cannot move one and leave the other behind - which
+             is what would have happened here, since form-controls.css reaches a select and
+             cannot reach a number input.
+
+             TWO PROPERTIES THE PAIR NO LONGER SHARES, both forced by the chevron and both
+             unavoidable: the end inset (32px here from form-controls.css, 10px on .cart-qty) and
+             the appearance reset. A select has an arrow to make room for; a number field has not.
+
+             --accent is #1a3a2a and --control-border is #e5e7eb; no new hue is introduced. */
           .cart-amount-select{
-            min-width:96px;min-height:44px;padding:0 10px;border:1px solid #e5e7eb;border-radius:8px;
-            font-family:inherit;font-size:16px;color:#1a1a1a;background:#fff;
+            min-width:96px;min-height:var(--control-h);
+            padding-block:0;padding-inline-start:var(--control-px);
+            padding-inline-end:var(--control-arrow-pad);
+            border:var(--control-border-w) solid var(--control-border);
+            border-radius:var(--control-radius);
+            font-family:inherit;font-size:16px;color:var(--control-fg);
+            background-color:var(--control-bg);
           }
-          .cart-amount-select:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          /* Outline kept with !important for the reason the .cart-option focus rule records; the
+             ring restated so the focus appearance of the pair is declared where the pair is. */
+          .cart-amount-select:focus-visible{
+            outline:3px solid var(--accent) !important;outline-offset:2px;
+            box-shadow:var(--focus-ring);
+          }
           /* A 44px target, not a 27px one. This was padding:6px around a 15px line, which
              computed to about 27px tall - under the floor devicecheck enforces elsewhere on the
              site and the smallest control on the page. */

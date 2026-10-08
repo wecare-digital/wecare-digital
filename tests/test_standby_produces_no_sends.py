@@ -327,6 +327,25 @@ DETERMINISTIC = [
     pytest.param(SLASH_MENU, id='text_slash_menu'),
 ]
 ALL_MESSAGES = DETERMINISTIC + [pytest.param(FREE_FORM, id='text_free_form')]
+# The DETERMINISTIC fixtures that still produce a reply on the DEFAULT path.
+#
+# CART_ORDER IS DELIBERATELY ABSENT, AND THAT IS A PHASE W DECISION, NOT A GAP. Phase W
+# deleted the inbound handler's in-thread catalogue payment path -- the one that repriced the
+# basket locally with a float 2% convenience fee and sent its own `order_details` Review &
+# Pay -- and replaced it with a hand-off to the website cart, where Wix is the single pricing
+# authority. The replacement is gated behind `WA_CATALOG_ORDERS_ENABLED`, SHIPPED OFF, so a
+# WhatsApp catalogue order is an intentional silent no-op until the owner opens the flag and
+# QAs it. See `_handle_cart_order` and `_catalog_orders_enabled` in the handler, whose
+# docstring states the posture outright: "OFF MEANS NOTHING HAPPENS AT ALL ... Not 'reply
+# with a shop link instead', because a silent no-op is the only state provably free of
+# customer-visible effect."
+#
+# Retired by Phase W; Phase P2 must re-derive its catalogue-order expectations against
+# the website hand-off model, not the old mint+send.
+REPLYING_ON_DEFAULT = [
+    pytest.param(LIST_REPLY, id='interactive_list_reply'),
+    pytest.param(SLASH_MENU, id='text_slash_menu'),
+]
 
 
 # ── the load-bearing assertions ─────────────────────────────────────────────────
@@ -378,19 +397,35 @@ class TestFlagFalseProducesZeroSends:
 class TestFlagTrueIsTodaysBehaviour:
     """The shipped default. If these fail, this release changed production."""
 
-    @pytest.mark.parametrize('message', DETERMINISTIC)
-    def test_default_and_explicit_true_agree(self, h, message):
+    @pytest.mark.parametrize('message, still_replies', [
+        pytest.param(LIST_REPLY, True, id='interactive_list_reply'),
+        # Phase W removed this one's reply entirely while the catalogue gate is closed, so the
+        # equivalence below still holds and only the non-triviality guard is inapplicable.
+        # See REPLYING_ON_DEFAULT for the full reasoning.
+        pytest.param(CART_ORDER, False, id='order_cart'),
+        pytest.param(SLASH_MENU, True, id='text_slash_menu'),
+    ])
+    def test_default_and_explicit_true_agree(self, h, message, still_replies):
         """Flag unset (the shipped default) and STANDBY_REPLY_ENABLED=true must produce
-        the SAME send list, and it must be non-empty — proving the default path still
-        replies rather than trivially matching by both sending nothing."""
+        the SAME send list.
+
+        THE EQUIVALENCE IS THE PROPERTY THIS FILE EXISTS TO PROVE, and it is asserted for
+        every deterministic fixture including the catalogue order -- activating standby
+        suppression must not change what the default path does, whatever that is.
+
+        `still_replies` carries the non-triviality guard: for the fixtures that do reply,
+        equality must not be satisfied by both sides sending nothing. The catalogue order is
+        exempt because Phase W made it send nothing on BOTH sides by design, so the guard
+        would be asserting the deleted behaviour rather than the equivalence."""
         default = _drive(h, _standby_event([message]), flag=None)
         explicit = _drive(h, _standby_event([message]), flag='true')
-        assert default.total_sends > 0, 'the default path stopped replying'
+        if still_replies:
+            assert default.total_sends > 0, 'the default path stopped replying'
         assert default.total_sends == explicit.total_sends
         assert len(default.urlopen_calls) == len(explicit.urlopen_calls)
         assert len(default.invoke_calls) == len(explicit.invoke_calls)
 
-    @pytest.mark.parametrize('message', DETERMINISTIC)
+    @pytest.mark.parametrize('message', REPLYING_ON_DEFAULT)
     def test_the_default_path_replies(self, h, message):
         assert _drive(h, _standby_event([message]), flag=None).total_sends > 0
 
@@ -419,7 +454,18 @@ class TestFlagTrueIsTodaysBehaviour:
 class TestTheMoneyPath:
     """R3. A rejected Review & Pay send after the reference is minted leaves a pending
     row behind, and a customer retry on top of that is the duplicate-paid-order shape
-    .kiro/steering/whatsapp-payments-india-reference.md forbids."""
+    .kiro/steering/whatsapp-payments-india-reference.md forbids.
+
+    READ THE TWO `flag_false` TESTS BELOW AS VACUOUS FOR NOW, AND THAT IS SAID OUT LOUD
+    BECAUSE A VACUOUSLY-PASSING TEST IS A TRAP. Phase W deleted this handler's in-thread
+    catalogue payment path, so with `WA_CATALOG_ORDERS_ENABLED` closed a CART_ORDER mints
+    nothing and sends nothing on EITHER value of STANDBY_REPLY_ENABLED -- the standby guard
+    they were written to prove is no longer the reason they pass. They are kept rather than
+    deleted because they become load-bearing again the moment the catalogue gate is opened,
+    and a test that only matters later is cheaper to keep than to remember to write.
+
+    Retired by Phase W; Phase P2 must re-derive its catalogue-order expectations against
+    the website hand-off model, not the old mint+send."""
 
     def test_flag_false_mints_no_reference(self, h):
         run = _drive(h, _standby_event([CART_ORDER]), flag='false')
@@ -434,14 +480,38 @@ class TestTheMoneyPath:
         written = [str(call.kwargs.get('Item', {})) for call in run.messages_put]
         assert not any('WD-PAY-' in item for item in written)
 
-    def test_flag_true_still_sends_the_order_details(self, h):
-        run = _drive(h, _standby_event([CART_ORDER]), flag=None)
-        assert any('isInteractivePayment' in p for p in run.payloads), \
-            'the catalog checkout stopped producing a Review & Pay'
+    def test_the_default_path_no_longer_mints_or_sends_for_a_catalogue_order(self, h):
+        """RETIRED AND REPLACED BY PHASE W. This used to be two tests --
+        `test_flag_true_still_sends_the_order_details` and
+        `test_flag_true_still_mints_a_reference` -- asserting that a WhatsApp catalogue order
+        on the default path produced an `isInteractivePayment` Review & Pay and minted a
+        `WD-PAY-` reference from inside this handler.
 
-    def test_flag_true_still_mints_a_reference(self, h):
+        THAT PATH WAS DELETED ON PURPOSE, and it is the defect this release set out to
+        remove: it repriced the basket in the handler with a float 2% convenience fee, a
+        second pricing authority disagreeing with Wix over the same cart. Phase W replaced it
+        with a hand-off to the website cart, where Wix prices the basket once, and gated the
+        replacement behind `WA_CATALOG_ORDERS_ENABLED` -- shipped OFF, matching the standing
+        posture that the WhatsApp commerce send surface stays closed until the owner opens
+        the flag and QAs to the nominated QA recipient.
+
+        So a silent no-op here is the correct CLOSED state, not a regression, and this test
+        pins it rather than leaving a hole where the old assertions were. The precondition is
+        asserted explicitly so this cannot invert silently: if the gate is ever opened the
+        expectation becomes the website hand-off reply, which Phase P2 must re-derive
+        against the hand-off model rather than against the old mint+send.
+
+        Retired by Phase W; Phase P2 must re-derive its catalogue-order expectations
+        against the website hand-off model, not the old mint+send."""
+        assert h._catalog_orders_enabled() is False, (
+            'this test describes the gate-CLOSED state; with WA_CATALOG_ORDERS_ENABLED open '
+            'the expectation is the website hand-off reply, not silence')
         run = _drive(h, _standby_event([CART_ORDER]), flag=None)
-        assert any('WD-PAY-' in p for p in run.payloads)
+        assert run.total_sends == 0
+        for payload in run.payloads:
+            assert 'WD-PAY-' not in payload, 'a payment reference reached the wire'
+            assert 'isInteractivePayment' not in payload, \
+                'the deleted in-thread Review & Pay came back'
 
     def test_the_guard_precedes_the_mint_in_source(self, h):
         """Structural, because the ordering is the whole fix and a later edit could move

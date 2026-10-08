@@ -249,4 +249,12 @@ class TestAuditMarkerPolicy:
             # one in audit_route_auth.py both come out and /mcp moves behind
             # require_auth. See docs/ai-discovery-surface.md.
             "ANY /mcp",
+            # Anonymous public price read. There is no customer identity to authenticate on a
+            # public service page -- the live price is what decides whether a visitor signs in
+            # at all -- and the arm accepts no path parameter, no query string and no body, so
+            # nothing a caller supplies reaches Wix or a table. It returns only Wix-live prices
+            # in integer paise, cannot mutate anything, and is edge-cached for 60 seconds. The
+            # exemption is on the METHOD as well as the path: POST /ecommerce/* still requires a
+            # customer session, and tests/test_service_prices_route.py pins both halves.
+            "GET /ecommerce/service-prices",
         }

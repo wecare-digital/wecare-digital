@@ -107,6 +107,11 @@ export const navigationConfig: NavItem[] = [
       // cancel, delete and resend all move money or message a customer.
       { path: '/workspace/pay/records', label: 'Invoice records' },
       { path: '/workspace/pay/flow', label: 'Pay Flow' },
+      // 'Pay Link' (/workspace/pay/link) was a fourth child here. Both the ENTRY and the
+      // PAGE are now gone: the Link tab built a raw upi:// deep link client-side, bypassing
+      // Razorpay, the invoice engine and reconciliation, and WhatsApp payments must route
+      // through the approved order_details template rather than a raw link. pay/index.tsx
+      // no longer imports it, so there is no screen left to reach.
     ],
   },
   {
@@ -169,6 +174,36 @@ export const navigationConfig: NavItem[] = [
     path: '/workspace/task',
     label: 'Tasks',
     icon: 'checklist',
+  },
+  {
+    // Queue-shaped daily work, which is what the governing rule at the top of this
+    // file puts in the sidebar: a source waiting on review, an article waiting on QA,
+    // an approved article waiting to publish.
+    //
+    // These five pages were absent from navigationConfig, settingsConfig AND
+    // moduleHomes, so they were absent from getAllNavItems() and therefore from the
+    // command palette. A 1,790-line production pipeline was reachable only by clicking
+    // a tile on /workspace/seo, or by typing the URL.
+    //
+    // NINTH ON PURPOSE: BottomNav renders navigationConfig.slice( 0, 4 ), so position
+    // nine keeps this off the phone bottom bar, where it does not belong — reviewing a
+    // source is desk work.
+    //
+    // blog-production/batch deliberately gets NO entry: it needs ?id=<batchId> and
+    // renders "No wave was named" without one, which is the menu-entry-leading-to-a-
+    // promise failure this file exists to avoid. It is reached from the wave list at
+    // blog-production/index.tsx:78,178,204, which is where a batch id exists to pass.
+    path: '/workspace/seo/blog-production',
+    label: 'Content',
+    icon: 'document',
+    children: [
+      { path: '/workspace/seo/blog-production', label: 'Production waves' },
+      { path: '/workspace/seo/blog-production/review', label: 'Source review' },
+      { path: '/workspace/seo/blog-production/qa', label: 'QA review' },
+      { path: '/workspace/seo/blog-production/publish', label: 'Publish queue' },
+      // Moved here from the gear's SEO group rather than duplicated — see the note there.
+      { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
+    ],
   },
 ];
 
@@ -284,19 +319,28 @@ export const settingsConfig: SettingsGroup[] = [
     id: 'seo',
     label: 'SEO',
     icon: 'search',
-    hint: 'Pages, schema, sitemaps, tracking',
+    // Seven entries left this group: Pages, Issues, Analytics, Tracking, Schema,
+    // Properties and Sitemaps. They were not slow or half-finished pages — they were
+    // pages that threw on arrival. All seven read through `seoFetch` in
+    // src/api/seo.ts, which throws when NEXT_PUBLIC_SEO_API_URL is unset, and that
+    // variable is absent from the `stack` branch environment. So each of those gear
+    // links led to a thrown error instead of a screen, which is precisely the
+    // menu-entry-leading-to-a-promise failure the Platform comment below set out to
+    // avoid.
+    //
+    // The four that remain are live, on the OTHER half of that client
+    // (`seoToolsFetch`): SEO Dashboard, Tools, Blog SEO and Site Pages SEO. Tools
+    // also reads NEXT_PUBLIC_SEO_API_URL, but through its own fetch, and degrades
+    // gracefully when it is unset rather than throwing.
+    //
+    // 'Blog Studio' also left this group, but it MOVED rather than went: it is a
+    // child of the Content sidebar section now, beside the blog-production queue it
+    // belongs with. It is deliberately not listed in both places.
+    hint: 'SEO dashboard, tools and content SEO',
     items: [
       { path: '/workspace/seo', label: 'SEO Dashboard' },
-      { path: '/workspace/seo/pages', label: 'Pages' },
-      { path: '/workspace/seo/issues', label: 'Issues' },
-      { path: '/workspace/seo/analytics', label: 'Analytics' },
-      { path: '/workspace/seo/tracking', label: 'Tracking' },
-      { path: '/workspace/seo/schema', label: 'Schema' },
-      { path: '/workspace/seo/properties', label: 'Properties' },
-      { path: '/workspace/seo/sitemaps', label: 'Sitemaps' },
       { path: '/workspace/seo/tools', label: 'Tools' },
       { path: '/workspace/seo/blog-manager', label: 'Blog SEO' },
-      { path: '/workspace/seo/blog-studio', label: 'Blog Studio' },
       { path: '/workspace/seo/pages-manager', label: 'Site Pages SEO' },
     ],
   },
@@ -308,7 +352,13 @@ export const settingsConfig: SettingsGroup[] = [
     items: [
       { path: '/workspace/dashboard', label: 'Dashboard Overview' },
       { path: '/workspace/dashboard/mcp-connections', label: 'MCP Connections' },
-      { path: '/workspace/dashboard/system-architecture', label: 'Control Center' },
+      // Labelled 'Control Center' until 2026-10-07, which promised a place you operate
+      // from. It is a static snapshot of the architecture, hand-maintained, and it has
+      // measurably drifted: it lists `wecare-meta-analytics` as an active function on
+      // route /meta-analytics and names a MetaAnalyticsLog table, and the live account
+      // has neither. The label now says what the page is, so a reader treats it as a
+      // document to check rather than a console to trust.
+      { path: '/workspace/dashboard/system-architecture', label: 'Architecture snapshot' },
       { path: '/workspace/dashboard/lambda-functions', label: 'Lambda Functions' },
       { path: '/workspace/dashboard/code-repo', label: 'Code Repo' },
       { path: '/workspace/dashboard/waba-usernames', label: 'WABA Usernames' },

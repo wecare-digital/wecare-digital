@@ -67,8 +67,15 @@ describe( 'SearchModal is derived from navigation.ts', () => {
 
   it( 'can find the destinations the old list could not', () => {
     const paths = getAllNavItems().map( ( i ) => i.path );
+    // '/workspace/seo/sitemaps' was the seventh entry here until 2026-10-07. It went
+    // because the DESTINATION went, not because the palette regressed: that page reads
+    // through seoFetch, which throws when NEXT_PUBLIC_SEO_API_URL is unset, and the
+    // variable is absent from the stack environment — so the nav entry led to a thrown
+    // error. The other six are unchanged and the assertion is still an exact
+    // `toContain` per path rather than a substring match, because the whole point of
+    // this test is that a specific destination is reachable by name.
     for ( const p of [ '/workspace/engage/inbox', '/workspace/engage/sms', '/workspace/engage/rcs', '/workspace/engage/ses',
-      '/workspace/engage/settings', '/workspace/access/security', '/workspace/seo/sitemaps' ] )
+      '/workspace/engage/settings', '/workspace/access/security' ] )
     {
       expect( paths ).toContain( p );
     }
@@ -90,9 +97,16 @@ describe( 'SearchModal behaviour', () => {
   } );
 
   it( 'finds a page the hardcoded list had no entry for', () => {
+    // The example was 'sitemap' -> /Sitemaps/ until 2026-10-07, when that gear entry
+    // was removed because its page throws without NEXT_PUBLIC_SEO_API_URL. The test's
+    // intent is unchanged and so is its strength: /workspace/dashboard/cors-settings
+    // was ALSO absent from the old hardcoded 14 — Navigation.test.tsx names it under
+    // 'picked up routes that were orphaned before the restructure' — so it is the same
+    // claim about the same kind of destination. SearchModal matches on the nav label
+    // (SearchModal.tsx:105), and the label is 'CORS Settings'.
     render( <SearchModal isOpen onClose={ () => undefined } /> );
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'sitemap' } } );
-    expect( screen.getByText( /Sitemaps/i ) ).toBeInTheDocument();
+    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: 'cors' } } );
+    expect( screen.getByText( /CORS Settings/i ) ).toBeInTheDocument();
   } );
 
   it( 'disambiguates same-named pages by their parent section', () => {

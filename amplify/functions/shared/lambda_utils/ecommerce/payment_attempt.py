@@ -137,6 +137,7 @@ def build(*,
           cart_id: str = "",
           wix_checkout_id: str = "",
           retry_of: str = "",
+          customer_uuid: str = "",
           attempt_number: int = 1,
           payment_attempt_id: Optional[str] = None,
           now: Optional[int] = None) -> Dict[str, Any]:
@@ -146,6 +147,12 @@ def build(*,
     difference against the authoritative checkout total has to fail the payment closed, and
     `0.1 + 0.2 != 0.3` in binary floating point, so a rounding artefact would refuse a
     legitimate order. Rejecting the type at the boundary is cheaper than finding out later.
+
+    `customer_uuid` is ATTRIBUTION, not money: the public customer id this attempt belongs to,
+    read off the contact row by the caller and threaded here so `finalization.accept_paid` can
+    copy it onto the order row without a second contacts read on the money path. It is PASSED IN
+    and never derived - this module mints nothing public - and it is emitted only when non-empty,
+    so an attempt built without one is byte-identical to one built before this parameter existed.
     """
     if not customer_id:
         raise ValueError("customer_id is required")
@@ -179,7 +186,7 @@ def build(*,
         "updatedAt": moment,
     }
     for key, value in (("cartId", cart_id), ("wixCheckoutId", wix_checkout_id),
-                       ("retryOf", retry_of)):
+                       ("retryOf", retry_of), ("customerUuid", customer_uuid)):
         if value:
             record[key] = value
     return record
@@ -219,6 +226,11 @@ def next_retry(previous: Dict[str, Any], *, reference_id: str,
         cart_id=str(previous.get("cartId") or ""),
         wix_checkout_id=wix_checkout_id,
         retry_of=str(previous.get("paymentAttemptId") or ""),
+        # CARRIED, unlike the amount. The amount is recalculated because prices move; the
+        # customer does not change between a failed attempt and its retry, and minting a second
+        # public id for one customer is exactly what the `if_not_exists` discipline at the write
+        # sites exists to prevent.
+        customer_uuid=str(previous.get("customerUuid") or ""),
         attempt_number=int(previous.get("attemptNumber") or 1) + 1,
         now=now,
     )

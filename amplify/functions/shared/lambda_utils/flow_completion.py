@@ -121,7 +121,7 @@ FLOW_SUBMISSIONS_TABLE = os.environ.get(
 _DIGEST_CHARS = 32
 
 #: The customer-facing reference keeps 8 hex characters, uppercased. 32 bits over the
-#: submissions of one flow prefix: comfortably unique, and short enough to read aloud.
+#: submissions of one flow prefix. Confirmed collisions use the full digest below.
 _REFERENCE_CHARS = 8
 
 #: One year, matching what `save_flow_submission` already wrote. Long enough to answer a
@@ -313,12 +313,44 @@ def claim_completion(*, flow_token: str, screen: str = '',
     payload = {k: v for k, v in item.items() if v is not None and v != ''}
 
     try:
-        _table().put_item(
+        table = _table()
+        table.put_item(
             Item=payload,
             ConditionExpression='attribute_not_exists(submissionId)',
         )
     except Exception as exc:  # noqa: BLE001 - classified immediately below
         if _is_condition_failure(exc):
+            # Preserve the legacy ID for ordinary retries. Only a proven collision
+            # between full keys gets a deterministic, longer ID. Never rewrite the
+            # winner or split explicitly supplied postpay IDs across transports.
+            if not submission_id:
+                try:
+                    existing = table.get_item(
+                        Key={'submissionId': sub_id}, ConsistentRead=True,
+                    ).get('Item') or {}
+                    existing_key = existing.get('completionKey')
+                    if existing_key and existing_key != key:
+                        collision_id = f'{reference}-{key[_REFERENCE_CHARS:].upper()}'
+                        collision = claim_completion(
+                            flow_token=flow_token, screen=screen, flow_code=flow_code,
+                            flow_type=flow_type, phone=phone, contact_id=contact_id,
+                            sender_name=sender_name, form_data=form_data,
+                            reference_prefix=reference_prefix, submission_id=collision_id,
+                            requires_payment=requires_payment, payment_amount=payment_amount,
+                            payment_ref_id=payment_ref_id, status=status, extra=extra,
+                            ttl_seconds=ttl_seconds, request_id=request_id,
+                        )
+                        collision.reference = collision_id
+                        return collision
+                    if not existing:
+                        raise RuntimeError('Completion winner unavailable after conditional failure')
+                except Exception as read_error:  # fail closed on an uncertain claim
+                    logger.error(json.dumps({'event': 'flow_completion_collision_check_failed',
+                                             'submissionId': sub_id,
+                                             'errorType': type(read_error).__name__}))
+                    return CompletionResult(status='error', submission_id=sub_id,
+                                            reference=reference, key=key, degraded=degraded,
+                                            error='Completion collision check unavailable')
             logger.info(json.dumps({
                 'event': 'flow_completion_duplicate',
                 'submissionId': sub_id, 'flowCode': flow_code,

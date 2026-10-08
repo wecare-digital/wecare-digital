@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Customer checkout Lambda, its four HTTP API routes and a least-privilege role. Payment initiation is OFF: CHECKOUT_INITIATION_ENABLED is absent on purpose, and both readiness inputs are empty so payment_readiness blocks independently of the flag.",
+  "Description": "Customer checkout Lambda, its five HTTP API routes and a least-privilege role. Four POST routes require a customer session; GET /ecommerce/service-prices is the one anonymous arm - see ServicePricesRoute's WECARE::WhyAnonymous. Payment initiation is OFF: CHECKOUT_INITIATION_ENABLED is absent on purpose, and both readiness inputs are empty so payment_readiness blocks independently of the flag.",
   "Metadata": {
     "WECARE::Provisioner": "scripts/provision_checkout.py",
     "WECARE::ReadThisFirst": [
@@ -439,6 +439,74 @@
           "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/prod/POST/ecommerce/verify-callback"
         }
       }
+    },
+    "ServicePricesRoute": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Metadata": {
+        "WECARE::Consumer": "src/lib/servicePricing.ts GETs ${API_BASE}/ecommerce/service-prices from the four public service pages (/submit-request/, /request-amendment/, /drop-docs/, /vault/) so each card shows its own variant's LIVE Wix price. Owner decision 2026-10-08: a price must be changeable in Wix with no deploy.",
+        "WECARE::WhyAnonymous": [
+          "This is the ONE route on this function that is not behind require_customer, and the",
+          "exemption is deliberate rather than an oversight.",
+          "",
+          "A visitor reads the price BEFORE signing in - the price is what decides whether they",
+          "sign in at all - so there is no customer identity available to authenticate. The arm is",
+          "narrow by construction: GET only, one exact path, and handler._service_prices accepts no",
+          "path parameter, no query string and no body, so nothing a caller supplies reaches Wix or",
+          "a table. It returns only Wix-live prices in integer paise and cannot mutate anything.",
+          "",
+          "POST on the same path still requires a session: handler.handler gates the pre-auth arm",
+          "on the method as well as the path, and the SourceArn below pins GET, so the exemption",
+          "cannot widen to POST at the permission layer either.",
+          "",
+          "The exemption is recorded in TWO files by design - scripts/audit_route_auth.py",
+          "EXPECTED_PUBLIC_ROUTES and tests/test_route_auth_enforcement.py's literal set - so",
+          "exempting a route takes two edits rather than one."
+        ],
+        "WECARE::Throttle": [
+          "5 rps sustained / 10 burst, as a RouteSettings entry on the prod stage. Applied by",
+          "scripts/provision_checkout.py (ensure_route_throttle) and read back by its --verify,",
+          "NOT declared here: the prod stage is shared by ~361 routes on an API this template",
+          "only takes as a parameter, so declaring AWS::ApiGatewayV2::Stage would claim ownership",
+          "of configuration belonging to every other function.",
+          "",
+          "WHY IT EXISTS. A cache MISS on this route costs eight Wix calls (get + estimate per",
+          "variant) on the same API key the live checkout prices real baskets with, so anonymous",
+          "traffic here can induce provider throttling that reaches the payment path. The /api/*",
+          "edge was measured caching a public max-age response on 2026-10-08, which keeps origin",
+          "volume to roughly one fill per PoP per minute - but that is someone else's",
+          "configuration and could change silently. This cap does not depend on it.",
+          "",
+          "Exceeding it is a 429, which src/lib/servicePricing.ts already renders as",
+          "'temporarily unavailable' with no pay CTA. It fails closed, never at a guessed price."
+        ]
+      },
+      "Properties": {
+        "ApiId": {
+          "Ref": "ApiId"
+        },
+        "RouteKey": "GET /ecommerce/service-prices",
+        "Target": {
+          "Fn::Sub": "integrations/${CheckoutIntegration}"
+        }
+      }
+    },
+    "ServicePricesInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Metadata": {
+        "WECARE::WhySeparate": "One statement per route, with an EXACT SourceArn and no wildcard. The METHOD in the ARN is load-bearing here: it is what keeps the anonymous exemption to GET.",
+        "WECARE::NoNewIam": "The arm needs nothing the role does not already hold - it reads the Wix key (ReadWixApiKey) and the commerce-keys table (PaymentAttemptAndCommerceKeys) that the checkout path already uses, so no policy statement changes."
+      },
+      "Properties": {
+        "FunctionName": {
+          "Ref": "CheckoutFunction"
+        },
+        "Qualifier": "live",
+        "Action": "lambda:InvokeFunction",
+        "Principal": "apigateway.amazonaws.com",
+        "SourceArn": {
+          "Fn::Sub": "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiId}/prod/GET/ecommerce/service-prices"
+        }
+      }
     }
   },
   "Outputs": {
@@ -464,7 +532,7 @@
       }
     },
     "RouteKeys": {
-      "Value": "POST /ecommerce/checkout, POST /ecommerce/checkout/status"
+      "Value": "POST /ecommerce/checkout, POST /ecommerce/checkout/status, POST /ecommerce/prepare-checkout, POST /ecommerce/verify-callback, GET /ecommerce/service-prices"
     },
     "InitiationEnabled": {
       "Value": "absent (OFF) - owner-only to change, and readiness also blocks"

@@ -10,12 +10,32 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'pending', 'approved', 'hidden', 'flagged' ];
 const SOURCE_OPTIONS = [ 'whatsapp', 'web', 'google', 'manual' ];
+
+/*
+ * The three filter lists, built once from the arrays above so the option TEXT stays exactly
+ * what the <option> rows rendered - the raw status / source string, lowercase, and `${r}+
+ * stars` for the rating. The leading '' row is the "all" choice and it is a real selectable
+ * option rather than a placeholder, which is what keeps clearing a filter possible.
+ */
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const SOURCE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Sources' },
+  ...SOURCE_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const RATING_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Ratings' },
+  ...[ 5, 4, 3, 2, 1 ].map( r => ( { value: String( r ), label: `${r}+ stars` } ) ),
+];
 
 function formatDate ( ts?: number ): string {
   if ( !ts ) return '—';
@@ -34,7 +54,8 @@ function statusBadge ( status: string ) {
   return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ status }</span>;
 }
 
-function stars ( rating: number ) {
+function stars ( rating?: number ) {
+  if (!rating || rating < 1 || rating > 5) return 'Not rated';
   return '★'.repeat( rating ) + '☆'.repeat( 5 - rating );
 }
 
@@ -94,6 +115,30 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
       )
     },
     { key: 'source', header: 'Source', width: '90px', render: ( r: api.Review ) => r.source },
+    {
+      // ATTRIBUTION IN THE LIST, not only in the detail modal. The modal already rendered
+      // `selected.orderId`, so a staff member could see which order a review was about —
+      // but only by opening each row one at a time, which is the opposite of what a
+      // moderation queue is for. Nothing WROTE `orderId` until Phase R, so this column was
+      // not useful before now.
+      //
+      // HEADED "Reference", NOT "Order", and the wire field name is the reason it has to
+      // be. `orderId` is the pre-existing `api.Review` field and renaming it would fork a
+      // shared contract, but what the customer's link actually carries is `/orders/`'s
+      // `copyValue` ladder — `order.orderNumber || order.referenceId` — and
+      // `referenceId` is a `WD-PAY-…` PAYMENT reference. Labelling that "Order" sends a
+      // staff member looking for an order number that does not exist. "Reference" is true
+      // of both shapes, and the prefix tells them which one they are holding.
+      //
+      // `—` rather than blank for an unattributed review: a review left from
+      // /leave-review/ has no reference by design, and an empty cell reads as missing data.
+      key: 'orderId', header: 'Reference', width: '150px',
+      render: ( r: api.Review ) => (
+        <span style={ { fontSize: 13, color: r.orderId ? '#1a1a1a' : '#6b7280' } }>
+          { r.orderId || '—' }
+        </span>
+      ),
+    },
     { key: 'status', header: 'Status', width: '100px', render: ( r: api.Review ) => statusBadge( r.status ) },
     { key: 'createdAt', header: 'Date', width: '100px', render: ( r: api.Review ) => formatDate( r.createdAt ) },
     {
@@ -121,18 +166,23 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
         </div>
 
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ sourceFilter } onChange={ e => { setSourceFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Sources</option>
-            { SOURCE_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ ratingFilter } onChange={ e => { setRatingFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Ratings</option>
-            { [ 5, 4, 3, 2, 1 ].map( r => <option key={ r } value={ r }>{ r }+ stars</option> ) }
-          </select>
+          { /*
+             * No label existed here and none is invented: these three take `ariaLabel`, which
+             * is the one labelling prop that renders nothing. The native selects had no
+             * accessible name at all, so a screen reader announced three comboboxes reading
+             * "All Statuses", "All Sources", "All Ratings" - the second statement, setPage( 1 ),
+             * is preserved in order on all three, because a filter change that left the reader
+             * on page 4 of a shorter list shows an empty table.
+             */ }
+          <Select ariaLabel="Status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ filterStyle } />
+          <Select ariaLabel="Source" value={ sourceFilter }
+            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+            options={ SOURCE_FILTER_OPTIONS } style={ filterStyle } />
+          <Select ariaLabel="Minimum rating" value={ ratingFilter }
+            onChange={ v => { setRatingFilter( v ); setPage( 1 ); } }
+            options={ RATING_FILTER_OPTIONS } style={ filterStyle } />
         </div>
 
         { reviews.length === 0 && !loading ? (
@@ -150,7 +200,7 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
           <div>
             <div style={ { textAlign: 'center', marginBottom: 16 } }>
               <div style={ { color: '#f59e0b', fontSize: 28, letterSpacing: 2 } }>{ stars( selected.rating ) }</div>
-              <div style={ { fontSize: 14, color: '#6b7280', marginTop: 4 } }>{ selected.rating }/5</div>
+              <div style={ { fontSize: 14, color: '#6b7280', marginTop: 4 } }>{ selected.rating ? `${selected.rating}/5` : 'Customer idea' }</div>
             </div>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
               <div><span style={ labelStyle }>Customer</span><div style={ { fontWeight: 500 } }>{ selected.customerName || '—' }</div></div>
@@ -158,7 +208,12 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
               <div><span style={ labelStyle }>Source</span><div>{ selected.source }</div></div>
               <div><span style={ labelStyle }>Status</span><div>{ statusBadge( selected.status ) }</div></div>
               <div><span style={ labelStyle }>Date</span><div>{ formatDate( selected.createdAt ) }</div></div>
-              { selected.orderId && <div><span style={ labelStyle }>Order</span><div>{ selected.orderId }</div></div> }
+              { /* "Reference" for the same reason as the list column above: this field can
+                   hold either a `WD-ORD-…` order number or a `WD-PAY-…` payment reference,
+                   so "Order" is true of only one of them. The label was here before Phase R
+                   but nothing ever wrote the field, so this is the first release in which
+                   it is read by anyone. */ }
+              { selected.orderId && <div><span style={ labelStyle }>Reference</span><div>{ selected.orderId }</div></div> }
             </div>
             { selected.comment && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Comment</span><div style={ { padding: 12, background: '#f9fafb', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.comment }</div></div> }
             { selected.response && <div style={ { marginBottom: 12 } }><span style={ labelStyle }>Response</span><div style={ { padding: 12, background: '#f0fdf4', borderRadius: 8, fontSize: 14, whiteSpace: 'pre-wrap' } }>{ selected.response }</div></div> }
@@ -188,7 +243,14 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   );
 };
 
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/*
+ * LAYOUT ONLY, which is all `style` on a Select is for: appearance - the 2px border, the 13px
+ * radius, the padding, the type - now comes from .ui-select-trigger in form-controls.css, so
+ * the old padding/border/radius/font-size object went with the native control it was skinning.
+ * The width is here because the trigger shows the SELECTED label rather than the widest option,
+ * so three unsized filters would resize as they are used; one width holds the row still.
+ */
+const filterStyle: React.CSSProperties = { width: 160 };
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px' };
 

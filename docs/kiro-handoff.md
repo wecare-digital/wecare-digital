@@ -218,3 +218,39 @@ reverts with
 Route, integration and API restore commands:
 `docs/prohibited-provider-retirement.md`.
 Permissions: `python scripts/apply_unattended_permissions.py --user --restore`.
+
+
+## 2026-10-08 — WhatsApp customer ideas
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | WD_Leave_Review_v2 Flow JSON, inbound handler, customer_ideas helper, Flow Responses display and focused tests | Owner requested required aspirational thought, working Next/Submit and backend/contact saving. 78 Python tests and 1 frontend test pass; TypeScript and production build pass. | Revert this scoped commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp code and live alias | Existing live 79 and code hash captured before update. Built archive preserves all existing live members, replaces handler.py and adds customer_ideas.py only. New version 80 is Active/Successful, live points to 80. Code SHA256 sIO3xStfy05MJw0P8oTD4dYbG3i/t9qd9Ps0L/h+75A=. | Move live alias back to 79 using current revision guard. |
+| A2_REMOTE_CODE | Explicit scoped files on origin/stack | Standing authorization; fetched HEAD and origin/stack both 978eb2c9344fddc22696f90cbaf6e8c3dc139727 before commit. Non-force push. | Revert scoped commit and push stack. |
+| A3_PRODUCTION | Amplify d22dm4b0jn71jw stack automatic build | Read app/branch before push: repository wecare-digital/wecare-digital, platform WEB, auto build enabled, prior active job 1432. No configuration or secret changes. | Revert scoped commit and rebuild. |
+
+Storage: stack-wecare-digital-FlowSubmissionTable holds the authoritative idea; stack-wecare-digital-SubmitRequestsTable holds a stable flow_log contact activity projection. Both already exist, role access verified; no schema/IAM mutation. Trusted webhook sender resolves the contact, never handset-supplied IDs. Duplicate delivery repairs the activity projection. No outbound messaging, public review, payment, or sales-lead creation.
+
+Meta Flow 1578178897413815 remains a saved draft. Interactive preview validates required input, navigation, preserved thought and Submit completion. Removed explicit 500 character limit; native Meta limit still applies. Real WhatsApp-to-storage QA is WAITING_FOR_OWNER: supply an authorised test recipient. Preview completion is not evidence of a production submission. No real customer messages sent.
+
+
+### 2026-10-08 — Balanced Flow brand lockup
+
+A1_LOCAL / A2_REMOTE_CODE: owner supplied website screenshot as the brand proportion reference. Enlarged the Inter ExtraBold wordmark from 43px to 56px, increased the icon-to-wordmark gap, vertically centred both lines, retained the red dot. Updated both embedded Flow banners. Structural comparison confirms all form fields, routing and completion payload remain identical. Meta Run validates zero errors and Save persists the draft. Rollback: revert this asset-only commit. No Lambda or frontend source change.
+
+
+## 2026-10-08 — ReviewTable authority for private customer ideas
+
+Owner requested removal of the optional follow-up checkbox and review-specific storage. Meta draft 1578178897413815 saved schema 4 without opt-in fields or consent caption; saved JSON matches local output and validates zero errors.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | customer_ideas, review listing APIs, contact/review workspace display and Flow JSON | ReviewTable is authoritative, conditional put keeps original content and moderation on retry, FlowSubmission tracking repair follows before inbox dedup. No new SubmitRequestsTable activity writes. 82 focused Python tests pass on source and the exact archived Lambda helper; frontend test passes. | Revert scoped source commits. |
+| A3_PRODUCTION | wecare-inbound-whatsapp live 81 | Prior live 80 captured. Only handler and customer_ideas replaced; remaining archive preserved, role ReviewTable PutItem/GetItem verified allowed, version Active/Successful readback. | Move live to 80 with current revision guard. |
+| A3_PRODUCTION | wecare-whatsapp-business-api live 68, wecare-service-api live 22 | Prior versions 67 / 21 captured. Only _list_reviews function replaced in existing live archive; full pagination, phone-index query, contact filter, pending/submitted translation tested. Both Active/Successful. | Move aliases to 67 / 21 with current revision guards. |
+| A2_REMOTE_CODE | Explicit paths on stack | Concurrent origin ce26a84 merged normally, preserving other changes. Repaired its package-lock mismatch; npm ci succeeds. Non-force push only after final gates. | Revert scoped commits on stack. |
+| A3_PRODUCTION | Amplify d22dm4b0jn71jw stack auto-build | App/branch snapshot from earlier deployment remains applicable; no config changes, auto build enabled. | Revert and rebuild. |
+
+Existing ReviewTable ACTIVE: reviewId key, customerPhone/status indexes. Private ideas have flowId, flowCode, reviewType, trusted contactId/phone, source whatsapp, status submitted and no invented rating. ReviewTable retains the domain record; FlowSubmission remains a compatibility tracking projection. Contacts read review rows directly. No schema/IAM changes, sends, credential reads or public-review requests. Existing WD_IDEA submissions scanned: zero; no historical migration required. Runtime flow_completion retained from live intentionally, including no unrelated rollout of concurrent shared-helper fixes; exact archive tests pass.
+
+WAITING_FOR_OWNER remains real WhatsApp QA: authorised recipient required; Flow is still a draft. Multiple review/idea Flows may share ReviewTable with explicit Flow attribution; service/payment/document domains retain their existing storage.

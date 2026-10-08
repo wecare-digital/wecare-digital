@@ -54,6 +54,7 @@ import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
 import type { ShopProduct, ShopVariant } from '../content/shop';
 import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
+import { SERVICES_PRODUCT_ID, serviceChoice } from '../config/services';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -79,6 +80,19 @@ export interface CartItem {
   /** Wix's own formatted price string, e.g. "₹6,999.00". DISPLAY ONLY - never sent to the server. */
   formattedPrice: string;
   /** How many, always a positive integer. */
+  quantity: number;
+}
+
+/**
+ * One line of a claimed WhatsApp hand-off: a catalogue reference and a quantity.
+ *
+ * Declared HERE rather than beside the claim call, because this module owns the one storage writer
+ * and `mergeClaimedLines` is what consumes the shape; `src/lib/whatsappBasket.ts` imports the type
+ * so there is a single declaration to audit for the absence of a price field.
+ */
+export interface ClaimedLine {
+  productId: string;
+  variantId: string;
   quantity: number;
 }
 
@@ -165,7 +179,7 @@ const CATALOGUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  *     Checkout.
  */
 function droppableUnknown ( item: CartItem ): boolean {
-  if ( isContributionItem( item ) ) return false;
+  if ( isContributionItem( item ) || isServiceItem( item ) ) return false;
   const claimed = [ item.productId, String( item.ref || '' ).split( ':' )[ 0 ] ]
     .map( value => String( value || '' ).trim().toLowerCase() )
     .filter( value => CATALOGUE_ID.test( value ) );
@@ -495,6 +509,67 @@ export function setContribution ( variantId: string ): CartItem[] {
 }
 
 /**
+ * Merge the lines a WhatsApp hand-off claim returned into the cart the customer pays from.
+ *
+ * WHY THIS IS NEEDED AT ALL. The claim merges the lines into the SERVER-side Wix cart, but the
+ * cart this page renders - and the basket `prepare-checkout` is given, because `toLineItems()`
+ * reads the same storage - is the browser cart. Without this the claim succeeded invisibly: the
+ * customer saw no new items, and the next checkout reconciled the claimed lines straight back OUT
+ * of the Wix cart, because `_reconcile_saved_cart` makes the Wix cart match the REQUEST.
+ *
+ * IT ADDS NO SECOND STORAGE PATH. Every write goes through `addItem` or `setContribution`, which
+ * both end at `writeCart` - the one writer - so a claimed line is indistinguishable from a line
+ * added on /shop/ and announces the same `CART_CHANGED_EVENT` for the header badge.
+ *
+ * A LINE THIS BUILD CANNOT PLACE IS SKIPPED, NOT GUESSED AT, and the count says so. A claimed
+ * product can be absent from `SHOP_PRODUCTS` (added in Wix since the committed snapshot was
+ * fetched) or name a variant that snapshot no longer sells; there is no name and no price to show
+ * for either, and inventing a row would put an unidentifiable line in a cart that is about to be
+ * paid for. Skipping is also the safe direction at checkout: the server reconciles the Wix cart
+ * down to what was requested, so the customer pays for exactly the lines they can see. The caller
+ * uses `merged === 0` to say so out loud rather than showing an unchanged cart after a success.
+ *
+ * A CONTRIBUTION GOES THROUGH `setContribution`, which REPLACES rather than increments - there is
+ * exactly one contribution line per cart, and `addItem` would leave two for a customer who had
+ * already chosen an amount here, which is the basket the server refuses as two contributions.
+ */
+export function mergeClaimedLines ( lines: ClaimedLine[] ): { items: CartItem[]; merged: number } {
+  let merged = 0;
+  for ( const line of lines || [] )
+  {
+    const productId = String( line?.productId || '' ).trim();
+    const variantId = String( line?.variantId || '' ).trim();
+    if ( !productId || !variantId ) continue;
+    const quantity = normaliseQuantity( line?.quantity );
+
+    if ( CONTRIBUTION_PRODUCT_ID && productId === CONTRIBUTION_PRODUCT_ID )
+    {
+      // `setContribution` returns the cart unchanged for an unrecognised variant, so the presence
+      // of the chosen line is the honest test of whether anything was placed.
+      const after = setContribution( variantId );
+      if ( after.some( item => isContributionItem( item ) && item.variantId === variantId ) )
+      {
+        merged += 1;
+      }
+      continue;
+    }
+
+    const product = SHOP_PRODUCTS.find( candidate => candidate.id === productId );
+    if ( !product ) continue;
+    try
+    {
+      addItem( product, quantity, variantId );
+      merged += 1;
+    }
+    catch
+    {
+      // `addItem` throws for a variant this snapshot does not sell. Skipped, per the docblock.
+    }
+  }
+  return { items: readCart(), merged };
+}
+
+/**
  * Does this basket need a delivery address? Mirrors the server's rule and is NOT the authority.
  *
  * BOTH SIDES NOW KEY ON IDENTITY, which they did not always: the server used to read Wix's
@@ -511,7 +586,7 @@ export function setContribution ( variantId: string ): CartItem[] {
  * `useCallback(..., [profile, profileStatus])` with `items` deliberately not a dependency.
  */
 export const cartRequiresDelivery = ( items: CartItem[] = readCart() ): boolean =>
-  !( items.length > 0 && items.every( isContributionItem ) );
+  !( items.length > 0 && items.every( item => isContributionItem( item ) || isServiceItem( item ) ) );
 
 /*
  * `cartMixesContribution` WAS HERE AND IS DELETED RATHER THAN LEFT DEAD.
@@ -581,4 +656,87 @@ export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem
   return items
     .filter( item => item.ref && item.quantity > 0 )
     .map( item => ( { catalogReference: { appId: '215238eb-22a5-4c36-9e7b-e7c08025e04e', catalogItemId: item.productId || item.ref, ...( item.variantId ? { options: { variantId: item.variantId } } : {} ) }, quantity: item.quantity } ) );
+}
+
+/* ── Phase O-1 services: Submit Request / Request Amendment ─────────────────────────────────── */
+
+/**
+ * Where the service INTENT pointer lives. NOT on the CartItem: `parseCart` and
+ * `reconcileStoredCart` rebuild every item from a fixed field list, so an extra field would be
+ * silently dropped on the next read. A separate key survives both.
+ */
+const SERVICE_INTENT_KEY = 'wecare.cart.serviceIntent.v1';
+
+/** Attach an authenticated service intent without replacing a claimed catalog basket. */
+export function rememberServiceIntent ( variantId: string, intentId: string ): void {
+  if ( hasWindow() && serviceChoice( variantId ) && intentId )
+  {
+    window.localStorage.setItem( SERVICE_INTENT_KEY, JSON.stringify( { variantId, intentId } ) );
+  }
+}
+
+/** Is this line the services product? On `productId`, like `isContributionItem`. */
+export const isServiceItem = ( item: CartItem ): boolean =>
+  !!SERVICES_PRODUCT_ID && item.productId === SERVICES_PRODUCT_ID;
+
+/**
+ * SET the one service line (replacing any other service line) and remember its intent id.
+ *
+ * Exactly one service per order (the server refuses two), quantity 1, display name and price from
+ * config. An unrecognised variant - including Drop Docs and Vault - writes nothing.
+ */
+export function setServiceLine (
+  variantId: string, intentId: string, linePaise: number,
+): CartItem[] {
+  const choice = serviceChoice( variantId );
+  if ( !SERVICES_PRODUCT_ID || !choice || !intentId ) return readCart();
+  // `linePaise` is WIX'S LIVE price for the variant, passed in by the buy box, which only offers
+  // the line once it has one. There is no figure in `src/config/services.ts` to fall back on any
+  // more (owner decision 2026-10-08: a price is editable in Wix with no deploy), and inventing
+  // one here would put a number on a cart row that the checkout had never priced. A row with no
+  // usable amount is therefore not written at all.
+  if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
+  const items = readCart().filter( item => !isServiceItem( item ) );
+  items.push( {
+    productId: SERVICES_PRODUCT_ID,
+    variantId: choice.variantId,
+    ref: `${ SERVICES_PRODUCT_ID }:${ choice.variantId }`,
+    // Empty, so the cart row does not link to a /shop/ page that deliberately does not exist.
+    slug: '',
+    name: choice.label,
+    // Integer division and modulo, never `linePaise / 100`. Display only: `toLineItems` stays
+    // price-free and the checkout re-prices the line against Wix.
+    formattedPrice: `\u20B9${ Math.trunc( linePaise / 100 ) }`
+      + `.${ String( linePaise % 100 ).padStart( 2, '0' ) }`,
+    quantity: 1,
+  } );
+  if ( hasWindow() )
+  {
+    window.localStorage.setItem(
+      SERVICE_INTENT_KEY, JSON.stringify( { variantId: choice.variantId, intentId } ) );
+  }
+  writeCart( items );
+  return items;
+}
+
+/**
+ * The stored intent id, but ONLY when the basket's single service line is the same variant the
+ * intent was taken for. Anything else - no service line, two of them, a different variant, a
+ * corrupt pointer - answers '' and the server refuses with SERVICE_INTENT_REQUIRED.
+ */
+export function serviceIntentFor ( lineItems: CheckoutLineItem[] ): string {
+  if ( !hasWindow() ) return '';
+  const lines = lineItems.filter( line => line.catalogReference.catalogItemId === SERVICES_PRODUCT_ID );
+  if ( lines.length !== 1 ) return '';
+  try
+  {
+    const stored = JSON.parse( window.localStorage.getItem( SERVICE_INTENT_KEY ) || 'null' ) as
+      { variantId?: unknown; intentId?: unknown } | null;
+    if ( !stored || typeof stored.intentId !== 'string' ) return '';
+    return stored.variantId === lines[ 0 ].catalogReference.options?.variantId ? stored.intentId : '';
+  }
+  catch
+  {
+    return '';
+  }
 }

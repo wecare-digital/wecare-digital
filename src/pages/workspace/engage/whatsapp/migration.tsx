@@ -8,8 +8,14 @@ import Layout from '../../../../components/Layout';
 import Button from '../../../../components/ui/Button';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+
+const OTP_METHOD_OPTIONS: SelectOption[] = [
+  { value: 'SMS', label: 'SMS' },
+  { value: 'VOICE', label: 'Voice Call' },
+];
 
 const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
   const toast = useToastContext();
@@ -170,10 +176,8 @@ const MigrationPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
           </div>
           <div>
             <label style={{ fontSize: 12, fontWeight: 500, display: 'block', marginBottom: 4 }}>OTP Method</label>
-            <select value={otpMethod} onChange={e => setOtpMethod(e.target.value as 'SMS' | 'VOICE')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}>
-              <option value="SMS">SMS</option>
-              <option value="VOICE">Voice Call</option>
-            </select>
+            <Select ariaLabel="OTP Method" value={otpMethod} onChange={v => setOtpMethod(v as 'SMS' | 'VOICE')}
+              options={OTP_METHOD_OPTIONS} />
           </div>
         </div>
 

@@ -16,19 +16,37 @@ jobs:
   sync:
     runs-on: ubuntu-26.04
     steps:
-      - name: Checkout gastronomy-quality
+      - name: Checkout stack
         uses: actions/checkout@v7
         with:
-          ref: gastronomy-quality
+          ref: stack
           fetch-depth: 0
+      - name: Check whether the sync target exists
+        id: target
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --heads origin refs/heads/gastronomy-quality > "$RUNNER_TEMP/gastronomy-ref"; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then
+              exit "$status"
+            fi
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::gastronomy-quality is absent; branch sync skipped."
+            echo "Gastronomy sync skipped: the target branch gastronomy-quality does not exist." >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Configure Git identity
+        if: steps.target.outputs.exists == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Merge latest stack
+        if: steps.target.outputs.exists == 'true'
         run: |
           git fetch origin stack gastronomy-quality
-          git checkout gastronomy-quality
+          git checkout -B gastronomy-quality origin/gastronomy-quality
           git merge --no-edit origin/stack
       - name: Push synchronized branch
+        if: steps.target.outputs.exists == 'true'
         run: git push origin gastronomy-quality

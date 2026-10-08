@@ -7,7 +7,7 @@ import uuid
 from typing import Any, Dict, Optional, Tuple
 
 from lambda_utils.idempotency import (
-    body_hash, claim_admin_action, make_admin_idempotency_key,
+    body_hash, claim_admin_action, make_admin_idempotency_key, release_admin_audit,
 )
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import (
@@ -340,24 +340,40 @@ def _blog_audit(body: Dict[str, Any], actor: str, origin: str):
     slug = str(body.get('slug', '')).strip()
     if not slug:
         raise ValueError('slug is required')
-    duplicate = _claim({'slug': slug}, actor, 'seo.blog.audit', origin)
-    if duplicate:
-        return duplicate
     post = storage.get_blog_post(slug)
     if not post:
         raise LookupError('Blog post not found')
-    audit, log = _run_audit(post, 'blog', force=bool(body.get('force')))
-    return _response(200, {'ok': True, 'audit': audit, 'log': log}, origin)
+    return _guarded_audit(post, 'blog', body, actor, origin)
+
+
+def _guarded_audit(page, page_type, body, actor, origin):
+    # Audits write derived results, not source/payment state. A fenced lease prevents
+    # concurrent model calls without treating a failed audit as a completed mutation.
+    action = f'seo.{page_type}.audit.lease'
+    key = make_admin_idempotency_key(actor, action, body_hash({
+        'path': page.get('slug'), 'sourceHash': seo_freshness.source_hash(page, page_type),
+    }))
+    token = uuid.uuid4().hex
+    try:
+        claimed = claim_admin_action(key, actor, action, ttl_seconds=1800, claim_token=token)
+    except Exception:
+        return _response(503, {'ok': False, 'error': 'Audit guard unavailable'}, origin)
+    if not claimed:
+        return _response(409, {'ok': False, 'error': 'This audit is already running'}, origin)
+    try:
+        audit, log = _run_audit(page, page_type, force=bool(body.get('force')))
+        return _response(200, {'ok': True, 'audit': audit, 'log': log}, origin)
+    finally:
+        try:
+            release_admin_audit(key, token)
+        except Exception:
+            logger.exception('Audit lease release failed; lease expiry permits retry')
 
 
 def _page_audit(body: Dict[str, Any], actor: str, origin: str):
     slug = _slug(body.get('path'))
     page_type = str(body.get('pageType') or 'page').strip().lower()
     stored_type = page_type if page_type in {'product', 'system'} else 'page'
-    claim_body = {**body, 'path': slug}
-    duplicate = _claim(claim_body, actor, f'seo.{stored_type}.audit', origin)
-    if duplicate:
-        return duplicate
     current = wix.page_seo(slug)
     page = {
         **body,
@@ -368,8 +384,7 @@ def _page_audit(body: Dict[str, Any], actor: str, origin: str):
         'url': wix.SITE_BASE + slug,
         'currentSeoTitle': current.get('title', ''),
     }
-    audit, log = _run_audit(page, stored_type, force=bool(body.get('force')))
-    return _response(200, {'ok': True, 'audit': audit, 'log': log}, origin)
+    return _guarded_audit(page, stored_type, body, actor, origin)
 
 
 def _page_clean(body: Dict[str, Any], actor: str, origin: str):
