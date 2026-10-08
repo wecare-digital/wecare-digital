@@ -6566,7 +6566,33 @@ export const aiAgentApi = {
   // Tech Partner upgrade readiness — live measurement of the 4 eligibility gates.
   techPartnerReadiness: () =>
     metaAgent<TechPartnerReadiness>( 'tp_eligibility' ),
+  // ── Conversation Routing thread control ──
+  // Both go through the same POST ${API_BASE}/meta-agent dispatcher as every other
+  // agent action, so no new route is needed. A thread is identified by BSUID where
+  // one is known (that is how a routing event identifies it) with the consumer phone
+  // as the fallback. There is deliberately NO takeThread: the handler answers 409,
+  // because taking control needs this account to be the designated escalation
+  // partner and that designation is an unanswered owner question.
+  releaseThread: ( waba: WabaKey, opts: ThreadControlTarget = {} ) =>
+    metaAgent<ThreadControlResult>( 'thread_control', { waba, action: 'release', ...opts } ),
+  passThread: ( waba: WabaKey, targetRole: string, opts: ThreadControlTarget = {} ) =>
+    metaAgent<ThreadControlResult>( 'thread_control', { waba, action: 'pass', targetRole, ...opts } ),
 };
+export interface ThreadControlTarget {
+  /** Business-scoped user id — preferred, because routing identifies a thread by it. */
+  bsuid?: string;
+  /** Consumer phone in E.164 — the fallback, and what an operator usually has. */
+  to?: string;
+  /** A raw phone-number id, when the caller is not selecting by WABA key. */
+  entityId?: string;
+}
+export interface ThreadControlResult {
+  thread_control: unknown;
+  action: string;
+  entityId: string;
+  bsuid: string;
+  targetRole: string | null;
+}
 
 export interface TechPartnerGate { pass: boolean; label: string; }
 export interface TechPartnerReadiness {

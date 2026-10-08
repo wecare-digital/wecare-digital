@@ -30,6 +30,7 @@ import boto3
 
 from lambda_utils.middleware import require_auth
 from lambda_utils.meta_version import GRAPH_BASE  # one source; validated at import
+from lambda_utils.privacy import mask_phone
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -186,7 +187,19 @@ def _pass_status(status, ok=(200,), success_status=None):
     return 502
 
 
-def _meta_request(method: str, url: str, payload: dict | None):
+def _meta_request(method: str, url: str, payload: dict | None,
+                  api_version: str | None = API_VERSION):
+    """The one transport for every agent-API and Graph call in this module.
+
+    `api_version` exists only so a GRAPH call can suppress `X-API-Version`, which is
+    an agent-API header and has no business on a Graph request where the version
+    already travels in the URL. It defaults to API_VERSION, and every pre-existing
+    call site passes exactly three positional arguments, so none of them moves.
+
+    The `appsecret_proof` appended below is an HMAC-SHA256 of the token under the app
+    secret, NOT the token: api.facebook.com requires it and removing it breaks the
+    call. The token itself travels in the Authorization header and never in the URL.
+    """
     token, secret = _creds()
     if secret:  # api.facebook.com requires appsecret_proof
         sep = "&" if "?" in url else "?"
@@ -195,7 +208,8 @@ def _meta_request(method: str, url: str, payload: dict | None):
     req = urllib.request.Request(url, data=body if method != "GET" else None, method=method)
     req.add_header("Authorization", f"Bearer {token}")
     req.add_header("Content-Type", "application/json")
-    req.add_header("X-API-Version", API_VERSION)
+    if api_version:
+        req.add_header("X-API-Version", api_version)
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
             txt = r.read().decode("utf-8")
@@ -757,40 +771,80 @@ def _provider_status(body: dict):
 # Operate group — thread control, agent events, test, eval.
 # ─────────────────────────────────────────────────────────────────────────
 
+_THREAD_CONTROL_ACTIONS = ("release", "pass", "take")
+
+
+def _thread_control_recipient(bsuid: str, to: str) -> dict:
+    """The thread_control recipient shape, in one place.
+
+    UNVERIFIED. This repository's only PROVEN BSUID-recipient form is FLAT:
+    whatsapp-business-api._send_message:2096-2102 sets message['recipient'] = '<bsuid>'
+    as a bare string, and the _thread_control this replaced sent a flat "to". The
+    nested object below is what Conversation Routing is believed to want, and no live
+    round trip can settle it here because a routing configuration is owner answer O1,
+    which is unanswered.
+
+    So this is the one correction point. The tests read this helper rather than
+    asserting a literal nesting, which means a corrected shape costs one function body
+    and zero test edits -- the same discipline the carousel action key and the MM edge
+    name get.
+    """
+    return {"recipient": {"user_id": bsuid} if bsuid else {"to": to}}
+
+
 def _thread_control(body: dict):
-    """Release thread control back to the Meta Business Agent (Cloud API).
-    POST /business/whatsapp/phone_numbers/{phone_number_id}/thread_control
-    Only 'release' is supported (hands the conversation back to the AI responder).
-    To TAKE control, the app simply sends a message to the conversation.
-    Requires only whatsapp_business_messaging (NOT the enterprise capability)."""
-    phone_id = _entity(body)  # WhatsApp Business Phone Number ID
+    """POST {GRAPH}/{phone_number_id}/thread_control -- Conversation Routing.
+
+    `release` hands the thread back to the responder that passed it to us. `pass`
+    hands it to a named role and requires control_pass.target_role. `take` is REFUSED
+    in code: Meta answers 2494191 unless this account is the designated escalation
+    partner, which is owner answer O3 and is unanswered -- a structured 409 naming O3
+    is more useful to an operator than a Graph 400 they cannot interpret.
+
+    The thread is identified by BSUID where one is known, because that is how a routing
+    event identifies it (see lambda_utils.thread_ownership.parse_handover). `to` is the
+    fallback.
+    """
+    phone_id = _entity(body)
+    bsuid = (body.get("bsuid") or body.get("userId") or "").strip()
     to = (body.get("to") or body.get("recipient") or "").strip()
     action = (body.get("action") or "release").lower()
-    if not phone_id or not to:
-        return _resp(400, {"error": "entityId (phone_number_id) and to (consumer phone/E.164) required"})
-    token, secret = _creds()
-    url = (f"{GRAPH_HOST}/business/whatsapp/phone_numbers/{phone_id}/thread_control"
-           f"?access_token={token}&oauth_token={token}")
-    if secret:
-        url += "&appsecret_proof=" + _appsecret_proof(token, secret)
-    req = urllib.request.Request(url, data=json.dumps(
-        {"messaging_product": "whatsapp", "action": action, "to": to}).encode(), method="POST")
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("X-API-Version", "1.0.0")
-    try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            t = r.read().decode()
-            return _resp(200, {"thread_control": (json.loads(t) if t else {}), "action": action, "to": to})
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode("utf-8", "replace")
-        try:
-            detail = json.loads(detail)
-        except Exception:
-            pass
-        return _resp(_pass_status(e.code, (200,)), {"error": detail, "action": action})
-    except Exception as e:
-        return _resp(502, {"error": str(e)})
+    target_role = (body.get("targetRole") or body.get("target_role") or "").strip()
+
+    if not phone_id:
+        return _resp(400, {"error": "entityId (phone_number_id) required"})
+    if not bsuid and not to:
+        return _resp(400, {"error": "one of bsuid (business-scoped user id) or to "
+                                    "(consumer phone, E.164) required"})
+    if action not in _THREAD_CONTROL_ACTIONS:
+        return _resp(400, {"error": f"action must be one of {list(_THREAD_CONTROL_ACTIONS)}"})
+    if action == "take":
+        return _resp(409, {
+            "error": "take is not available",
+            "reason": ("Taking thread control requires this account to be the designated "
+                       "escalation partner. That designation is owner answer O3 in "
+                       ".agents/tasks/conversation-routing-20261006/findings.md and is "
+                       "unanswered; Meta would answer 2494191."),
+            "ownerAction": "O3",
+            "action": action})
+    if action == "pass" and not target_role:
+        return _resp(400, {"error": "targetRole is required for action=pass"})
+
+    payload = {"messaging_product": "whatsapp", "action": action}
+    payload.update(_thread_control_recipient(bsuid, to))
+    if action == "pass":
+        payload["control_pass"] = {"target_role": target_role}
+
+    status, data = _meta_request("POST", f"{GRAPH}/{phone_id}/thread_control",
+                                 payload, api_version=None)
+    logger.info(json.dumps({
+        "event": "thread_control_requested", "action": action,
+        "phoneNumberId": phone_id, "bsuid": bsuid,
+        "to": mask_phone(to) if to else "",
+        "targetRole": target_role, "httpStatus": status}))
+    return _resp(_pass_status(status, (200,)),
+                 {"thread_control": data, "action": action, "entityId": phone_id,
+                  "bsuid": bsuid, "targetRole": target_role or None})
 
 
 def _agent_event(body: dict):
