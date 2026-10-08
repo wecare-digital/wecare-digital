@@ -2547,6 +2547,49 @@ a token; no credential rotated; no provider mutation; no flag enabled; no paymen
 phone number or S3 bucket touched; no other function, route, table, IAM policy or alarm
 changed; `.kiro/settings/mcp.json` not edited.**
 
+## Staff MFA testing override - 2026-10-07
+
+A3_PRODUCTION, explicit owner instruction in this chat: disable MFA for staff
+workspace password login only; preserve customer WhatsApp OTP for cart/orders.
+Verified pool separation in amplify/auth/resource.ts and live Cognito names.
+Used SetUserPoolMfaConfig on staff us-east-1_cSx0RHCIR with MfaConfiguration OFF;
+no UpdateUserPool or customer write. Staff DescribeUserPool diff: MfaConfiguration
+only. Customer us-east-1_46ULYuukt full pool unchanged; three CUSTOM_AUTH triggers
+retained. GetUserPoolMfaConfig confirms OFF. Before/after snapshots are in the task
+outputs/staff-mfa-before-20261007.json and staff-mfa-after-20261007.json. OFF also
+cleared email/TOTP MFA factor configuration, captured by the dedicated MFA API;
+restore the complete saved MFA payload (OPTIONAL and factor configs) for rollback.
+No user passwords, groups, app clients, tokens, auth triggers or customer behavior
+were changed. No end-to-end password sign-in attempted without owner credentials.
+This is an intentional testing override, not a newly discovered audit defect.
+
+## Deep-review remediation and consolidation research - 2026-10-07
+
+A1_LOCAL/A2_REMOTE_CODE, explicit owner instruction to resolve the review findings
+on a separate branch and research consolidation of 22 active secrets. Isolated
+codex/deep-review-20261007 includes PR242's baseline CI cleanup, collision-safe Flow
+claims, fenced derived-audit leases, bounded partner caches, Standard SSM registry
+writer and open-advisory reporting in both lockfiles. Validation: 8547 full Python
+tests passed on the final merged tree, plus 201 focused tests passed. Owner changes
+through 240bfccd were merged into this branch without changing the shared checkout. See docs/execution/deep-review-fixes-20261007.md for design and rollback.
+
+A0_READ: fresh metadata confirms 22 active secrets, eight marked for deletion today,
+running micro_3_0 voice instance ($7 bundle; nano is $5), and an empty current WhatsApp
+Calling table via consistent COUNT scan. This does not establish historic call/audio
+results. SIP Phase0 handset instructions prepared; no call, send or SIP change made.
+Consolidation research: registry-only $0.40/mo, three config candidates $1.20/mo,
+conditional provider-group scenario $2.80/mo additional to prior eight deletions.
+No other credential group was changed and no secret value entered agent context.
+
+Production preparation: tested merged PR241 workspace MCP artifact uploaded to a
+content-addressed S3 key; prior code/version10 and parameters captured. Native
+CloudFormation registry migration template validated, change set reviewed as one
+SSM parameter addition. asm-exec resolution failed; direct GetSecretValue not used.
+Automatic approval review REJECTED ExecuteChangeSet for registry and CreateChangeSet
+for production MCP update, stating exact live actions lacked explicit authorization.
+Neither rejected action was retried or bypassed. Registry is not moved and no extra
+secret deletion scheduled; workspace MCP live remains version10. Await explicit
+approval of the concrete migration and already-merged backend deployment plans.
 ## 2026-10-07 — Phase O-2 landed: Drop Docs and Vault as fixed-price lines on the one checkout
 
 Class `A2_REMOTE_CODE` + `A3_PRODUCTION`, inside the standing grant. Review verdict
