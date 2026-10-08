@@ -3289,3 +3289,28 @@ Authority: owner asked to use `invoice-sample-real-v6.png`, retain one invoice e
 | A3_PRODUCTION | Existing affected Lambda packages and live aliases | Capture pre-release versions and hashes, validate dependency closure, use revision guards and confirm published code hashes. Deployment evidence is recorded separately after success. | Restore each captured live alias version |
 
 No payment capture/refund, provider configuration change, credential read or live-send flag enabling. Real recipient/device/payment QA remains WAITING_FOR_OWNER until the owner nominates a QA recipient. Coupon/gift-card infrastructure and gift-card settlement are not certified as operational by this release.
+
+## 2026-10-08 — Shared multicolour WhatsApp catalog artwork
+
+Authority: owner's direct "push" request after reviewing the multicolour catalog design, plus standing scoped remote-code authorization.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Live homepage and homepage source | Checked brand treatment and amber/purple/green/red audience palette | Read only |
+| A1_LOCAL | docs/whatsapp/catalog-design | Shared inline-SVG HTML master templates and AI-assisted comparison; same corners, layout and accent sequence; no external asset requests | Remove scoped files or revert commit |
+| A2_REMOTE_CODE | origin/stack | Explicit design paths and this authority entry only; non-force push after structural and diff checks | Follow-up revert commit |
+
+This design-only change does not stage unfinished native catalog payment code or mutate live Meta/Wix catalog records. Product-image export and catalog upload are separate from saving the design source.
+
+## 2026-10-08 - Connected Wix catalog artwork and automatic projection
+
+Authority: owner's direct instruction to use the Wix API connection, automate Wix changes into Meta, retain linked orders, and push the approved UHD artwork.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Wix Services product and variants; Git integration | Live API verified four variant IDs and prices; source audit of catalog webhook/schedule and order writeback | Read only |
+| A1_LOCAL | Meta catalog projection and tests | Preserve per-variant artwork and explicit choice media; include direct WECARE product URL in payload and diff; 116 focused tests passed | Scoped revert |
+| A3_PRODUCTION | Existing Wix Services product media | Two 4096 x 4096 images uploaded with Wix connector; revision 1 to 2; linked to existing Submit Request/Vault choices; all four variant IDs and prices preserved | Read current revision, restore prior media/choice arrays from evidence; never recreate variants |
+| A2_REMOTE_CODE | origin/stack | Scoped non-force push, merge concurrent remote commits; no unrelated unfinished checkout changes staged | Follow-up revert commit |
+
+Evidence and pending deployment checks: docs/whatsapp/catalog-design/connection-status.md and wix-media-update-evidence.json. No manual Meta catalog entries submitted, no live payment or customer message sent. AWS runtime inspection/deployment remains blocked by the earlier workspace-credit automatic-review failure; no alternate AWS path used.
