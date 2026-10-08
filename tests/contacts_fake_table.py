@@ -79,6 +79,8 @@ class FakeContactsTable:
             # `OrderTable.customerId-createdAt-index`, signal 2. No status filter here on
             # purpose - the guard asserts existence, so a fake that filtered would hide that.
             matched = [i for i in self.items if i.get("customerId") == values[":cust"]]
+        elif ":phone" in values and condition.startswith("customerPhone"):
+            matched = [i for i in self.items if i.get("customerPhone") == values[":phone"]]
         else:
             raise AssertionError(
                 f"unsupported key condition {condition!r} with values {sorted(values)}; "

@@ -1,58 +1,9 @@
-"""Whether a contact is tied to money, answered by two indexed queries and no scan.
+"""Retain contacts with payment or order history for both delete modes.
 
-Why this exists
----------------
-A contact that has paid is the provenance record for that payment. Deleting the row destroys
-the only link between a captured payment and the human it belongs to - the same reason a
-short-link is never deleted once it has been resolved. So a contact with any payment or order
-may be ARCHIVED and never hard-deleted, and this module answers the question the archive rule
-turns on: *is there money attached to this row?*
-
-It holds the policy and no AWS client. Every table is injected, matching `payment_attempt.py`
-and `order_creation.py`, so the decision is testable offline and so the word `captured` never
-has to appear in a handler.
-
-The two signals
----------------
-======  ==========================================  ============================  =========================================
-Signal  Table                                       Index                         Blocks when
-======  ==========================================  ============================  =========================================
-1       ``stack-wecare-digital-InvoicesTable``      ``contactId-index``           any invoice at or past the rank of
-                                                                                  `payment_status.CAPTURED`, **or** one
-                                                                                  carrying a non-empty ``paymentId``
-2       ``stack-wecare-digital-OrderTable``         ``customerId-createdAt-index`` **any** row exists for the contact's
-                                                                                  ``checkoutCustomerId``
-======  ==========================================  ============================  =========================================
-
-Both indexes already exist and both are already readable by the shared role
-`wecare-digital-lambda-role`, which holds `dynamodb:Query` on `table/stack-wecare-digital-*`
-and on `/index/*`. `core/crm._payments_for_contact` queries signal 1's index today, and its
-docstring records that PaymentsTable carries only `orderId-index` and `paymentId-index` - which
-is why there is no third signal and nothing to add. **No IAM change is needed for this module.**
-
-Signal 2 deliberately performs no status check. `order_keys`' module docstring states the
-invariant: "an order does not exist until a payment has been authoritatively verified as paid".
-Existence IS the proof, so asking a second question about status could only ever weaken it.
-
-Every status comparison goes through `lambda_utils.payment_status`. Not a style preference: the
-measured defect class is `== 'captured'` missing a row stored as `paid`, and on this path that
-mistake reads as "no payments" and lets the delete through.
-`tests/test_payment_vocabulary_at_decision_points.py` walks this file's AST to keep it that way.
-
-Fail closed, because "cannot determine" is not "no payments"
-------------------------------------------------------------
-Any storage error from either query raises `PaymentLinkageUnknown`, and the caller must refuse
-the hard delete. A guard that answers "probably fine" on a throttled query is not a guard. The
-exception message carries the exception TYPE only, never `str(exc)`: a botocore `ClientError`
-message can echo request content, and this value is logged.
-
-Known residual, recorded rather than hidden
--------------------------------------------
-A contact that paid but carries neither a ``checkoutCustomerId`` nor any InvoicesTable row is
-invisible to both signals. Closing that would need a new GSI or a table scan on a delete path,
-and neither is justified: a paying customer reaches `auth/customer-profile` (which stamps
-``checkoutCustomerId``) or the invoice engine (which writes a row carrying ``contactId``), so
-the uncovered set is empty in practice. Tracked as a LOW gap, not fixed here.
+Queries invoices by contact id, orders by stable checkout customer id, and CRM
+orders by customer phone. Phone variants are used only to prevent deletion,
+never to grant customer access to an order. Unreadable linkage refuses deletion.
+Tables are injected so this policy can be tested without AWS clients.
 """
 
 from __future__ import annotations
@@ -130,6 +81,14 @@ def has_payment_links(*,
             ExpressionAttributeValues={":cid": contact_id},
         )
         invoices = list(response.get("Items") or [])
+        while response.get("LastEvaluatedKey"):
+            response = invoices_table.query(
+                IndexName=invoices_index,
+                KeyConditionExpression="contactId = :cid",
+                ExpressionAttributeValues={":cid": contact_id},
+                ExclusiveStartKey=response["LastEvaluatedKey"],
+            )
+            invoices.extend(response.get("Items") or [])
     except Exception as exc:  # noqa: BLE001 - every failure is "unknown", and unknown blocks
         # `from None` deliberately: chaining would carry the provider's own message into any
         # traceback that gets logged, and a ClientError message can echo request content.
@@ -152,37 +111,46 @@ def has_payment_links(*,
                 "an invoice for this contact carries a provider payment id",
                 tuple(signals))
 
-    # ── Signal 2: orders ──────────────────────────────────────────────────────────────────
+    # Orders may be linked by checkout identity or by the CRM customer phone.
     checkout_customer_id = str((contact_row or {}).get(CHECKOUT_CUSTOMER_ATTRIBUTE) or "").strip()
-    if not checkout_customer_id:
-        # Nothing to query by, so the signal is RECORDED AS SKIPPED rather than counted as a
-        # clean result. The difference matters when reading a log after an argument about
-        # whether a delete should have been allowed.
+    if checkout_customer_id:
+        try:
+            response = orders_table.query(
+                IndexName=orders_index,
+                KeyConditionExpression="customerId = :cust",
+                ExpressionAttributeValues={":cust": checkout_customer_id},
+                Limit=1,
+            )
+        except Exception as exc:
+            raise PaymentLinkageUnknown(
+                f"the order linkage could not be read: {type(exc).__name__}") from None
+        signals.append(SIGNAL_ORDERS)
+        if response.get("Items"):
+            return PaymentLinkage(True, "an order is linked to this customer identity", tuple(signals))
+    else:
         signals.append(SIGNAL_ORDERS_SKIPPED)
-        return PaymentLinkage(
-            False,
-            "no invoice linkage, and no checkoutCustomerId to look orders up by",
-            tuple(signals))
 
-    try:
-        response = orders_table.query(
-            IndexName=orders_index,
-            KeyConditionExpression="customerId = :cust",
-            ExpressionAttributeValues={":cust": checkout_customer_id},
-            Limit=1,
-        )
-        orders = list(response.get("Items") or [])
-    except Exception as exc:  # noqa: BLE001 - see signal 1
-        raise PaymentLinkageUnknown(
-            f"the order linkage could not be read: {type(exc).__name__}") from None
-    signals.append(SIGNAL_ORDERS)
-
-    if orders:
-        # No status check, on purpose. `order_keys`: "an order does not exist until a payment
-        # has been authoritatively verified as paid." Existence is the proof.
-        return PaymentLinkage(
-            True,
-            "an order exists for this contact, and an order is only created after a verified payment",
-            tuple(signals))
-
+    raw_phone = str((contact_row or {}).get("phone") or "").strip()
+    digits = "".join(c for c in raw_phone if c.isdigit())
+    if digits:
+        if len(digits) == 10:
+            digits = "91" + digits
+        variants = [raw_phone, "+" + digits, digits]
+        if len(digits) == 12 and digits.startswith("91"):
+            variants.append(digits[2:])
+        for phone in dict.fromkeys(variants):
+            try:
+                response = orders_table.query(
+                    IndexName="customerPhone",
+                    KeyConditionExpression="customerPhone = :phone",
+                    ExpressionAttributeValues={":phone": phone},
+                    Limit=1,
+                )
+            except Exception as exc:
+                raise PaymentLinkageUnknown(
+                    f"the order phone linkage could not be read: {type(exc).__name__}") from None
+            if response.get("Items"):
+                return PaymentLinkage(True, "an order is linked to this customer phone",
+                                      tuple(signals + ["orders-by-phone"]))
+        signals.append("orders-by-phone")
     return PaymentLinkage(False, "no invoice and no order is linked to this contact", tuple(signals))

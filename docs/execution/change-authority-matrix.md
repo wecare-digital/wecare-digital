@@ -3103,3 +3103,13 @@ Customer URL: https://wa.me/919330994400?text=Share%20an%20idea . The customer s
 A1_LOCAL / A2_REMOTE_CODE: customer_idea invitation body changed to the owner-provided feedback sentence (star prefix), footer WECARE.DIGITAL and CTA Leave Review. Existing keywords, Flow ID, screen, submission schema and other routes remain unchanged. Nineteen focused tests and three exact-archive checks pass.
 
 A3_PRODUCTION: inbound-whatsapp live 83, previous version 82 captured; revision-guarded update and alias move. Archive SHA256 7226a96a08cce5a841501fb02aaf084ef3b4683d1913c57d15df2186c8503e00. Only handler.py changed in the prior live ZIP. Recovery: restore version 82 to both LATEST and live alias. No message sent; copy applies to future invitations.
+
+
+### 2026-10-08 Contact payment/order retention
+
+| Class | Target | Authority and evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | Contacts delete guard, contact payment-link policy, structured dashboard refusal | Owner requested preventing contact deletion after payment. Both soft/hard delete now refuse linked paid invoices or orders; customerPhone index covers CRM orders lacking checkoutCustomerId; invoice linkage fully paginated. Unknown linkage refuses deletion. No customer ownership reassignment, provider send or payment mutation. 49 Python tests on exact Lambda handler package, 8 frontend tests, TypeScript check passed. | Revert explicit source paths. |
+| A3_PRODUCTION | wecare-contacts live 31 to 32 | Existing package preserved, only handler._delete and lambda_utils/ecommerce/contact_payment_links.py replaced. Published hash aol0YdzlAwRKypYOhpQqyz5fFyCkPYdg4k+jB45l/hs=; Active/Successful verified before alias move. | Move live alias back to 31 using current revision guard. |
+
+Previously archived/recreated contacts are not migrated by this change. Invoice delivery continues by invoice/payment reference and stored recipient phone; financial ownership is not rewritten on a phone match. Manual contact lock remains available and blocks both archive and permanent deletion.

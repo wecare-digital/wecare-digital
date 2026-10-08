@@ -124,7 +124,7 @@ def test_a_failed_invoice_does_not_block():
 def test_nothing_at_all_does_not_block():
     result = ask()
     assert not result.blocked
-    assert result.signals == (links.SIGNAL_INVOICES, links.SIGNAL_ORDERS)
+    assert result.signals == (links.SIGNAL_INVOICES, links.SIGNAL_ORDERS, "orders-by-phone")
 
 
 def test_another_contacts_invoice_does_not_block_this_one():
@@ -151,13 +151,13 @@ def test_the_order_signal_is_skipped_and_RECORDED_without_a_checkout_customer_id
         contact_row=CRM_ROW,
     )
     assert not result.blocked
-    assert result.signals == (links.SIGNAL_INVOICES, links.SIGNAL_ORDERS_SKIPPED)
-    assert orders.queries == [], "there is no key to query by, so no query may be made"
+    assert result.signals == (links.SIGNAL_INVOICES, links.SIGNAL_ORDERS_SKIPPED, "orders-by-phone")
+    assert all(q["IndexName"] == "customerPhone" for q in orders.queries)
 
 
 def test_a_blank_checkout_customer_id_counts_as_absent():
     result = ask(contact_row={**CRM_ROW, "checkoutCustomerId": "   "})
-    assert result.signals[-1] == links.SIGNAL_ORDERS_SKIPPED
+    assert links.SIGNAL_ORDERS_SKIPPED in result.signals
 
 
 # ── unknown blocks ────────────────────────────────────────────────────────────────────────
@@ -238,3 +238,21 @@ def test_the_module_imports_no_boto3():
             imported.add((node.module or "").split(".")[0])
     assert "boto3" not in imported
     assert "botocore" not in imported
+
+@pytest.mark.parametrize('stored_phone', ['+918100640044', '918100640044', '8100640044'])
+def test_phone_linked_order_protects_crm_contact(stored_phone):
+    result = ask(contact_row=CRM_ROW, orders=[{'customerPhone': stored_phone, 'orderId': 'ord-crm'}])
+    assert result.blocked
+    assert result.signals[-1] == 'orders-by-phone'
+
+
+def test_paid_invoice_on_later_page_still_blocks():
+    class Pages:
+        def query(self, **kwargs):
+            if kwargs.get('ExclusiveStartKey'):
+                return {'Items': [{'contactId': CONTACT_ID, 'paymentStatus': 'paid'}]}
+            return {'Items': [{'contactId': CONTACT_ID, 'paymentStatus': 'pending'}],
+                    'LastEvaluatedKey': {'invoiceId': 'page-two'}}
+    result = links.has_payment_links(invoices_table=Pages(), orders_table=FakeContactsTable([]),
+                                     contact_row=CRM_ROW)
+    assert result.blocked

@@ -550,10 +550,16 @@ def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> D
     lock_refusal = _locked_delete_refusal(contact_id, hard, request_id, origin)
     if lock_refusal is not None:
         return lock_refusal
+    # Payment/order provenance must survive archiving as well as permanent deletion.
+    # Otherwise re-adding the phone creates a new identity and strands the old links.
+    refusal = _hard_delete_refusal(contact_id, request_id, origin)
+    if refusal is not None:
+        payload = json.loads(refusal['body'])
+        payload['archiveInstead'] = False
+        payload['reason'] = 'Payment or order history must be retained. ' + payload.get('reason', '')
+        refusal['body'] = json.dumps(payload)
+        return refusal
     if hard:
-        refusal = _hard_delete_refusal(contact_id, request_id, origin)
-        if refusal is not None:
-            return refusal
         return _hard_delete(contact_id, request_id, origin)
     return _soft_delete(contact_id, request_id, origin)
 

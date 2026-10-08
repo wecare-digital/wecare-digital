@@ -1941,7 +1941,7 @@ function getEstimatedBilling (): AWSBillingData {
  *                             payments". Retrying later is reasonable; archiving is safe now.
  * `ERROR`                     anything else: a 404, a network failure, a 500.
  */
-export type HardDeleteRefusalCode = 'CONTACT_HAS_PAYMENTS' | 'PAYMENT_LINKAGE_UNKNOWN' | 'ERROR';
+export type HardDeleteRefusalCode = 'CONTACT_HAS_PAYMENTS' | 'PAYMENT_LINKAGE_UNKNOWN' | 'CONTACT_LOCKED' | 'ERROR';
 
 export type HardDeleteResult =
   | { ok: true; messagesDeleted: number; mediaDeleted: number }
@@ -1990,7 +1990,7 @@ export async function hardDeleteContact ( contactId: string ): Promise<HardDelet
 
   const serverCode = typeof data?.error === 'string' ? data.error : '';
   const code: HardDeleteRefusalCode =
-    serverCode === 'CONTACT_HAS_PAYMENTS' || serverCode === 'PAYMENT_LINKAGE_UNKNOWN'
+    serverCode === 'CONTACT_HAS_PAYMENTS' || serverCode === 'PAYMENT_LINKAGE_UNKNOWN' || serverCode === 'CONTACT_LOCKED'
       ? serverCode
       : 'ERROR';
 

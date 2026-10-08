@@ -111,7 +111,7 @@ def test_a_captured_invoice_refuses_the_hard_delete_and_deletes_nothing(monkeypa
     assert response["statusCode"] == 409
     payload = body(response)
     assert payload["error"] == contacts.HARD_DELETE_REFUSED_PAYMENTS == "CONTACT_HAS_PAYMENTS"
-    assert payload["archiveInstead"] is True
+    assert payload["archiveInstead"] is False
     assert not wiring.deleted_anything, "a refusal must not delete a single row"
     assert wiring.contacts.items, "the contact row survives, intact"
 
@@ -155,7 +155,7 @@ def test_an_invoice_query_error_refuses_with_a_DISTINCT_code(monkeypatch):
     assert response["statusCode"] == 409
     payload = body(response)
     assert payload["error"] == contacts.HARD_DELETE_REFUSED_UNKNOWN == "PAYMENT_LINKAGE_UNKNOWN"
-    assert payload["archiveInstead"] is True
+    assert payload["archiveInstead"] is False
     assert not wiring.deleted_anything
 
 
@@ -260,31 +260,37 @@ def test_a_missing_contact_still_answers_404_and_not_409(monkeypatch):
 
 # ── the soft delete, which is what Archive actually is ────────────────────────────────────
 
-def test_the_default_delete_is_soft_and_is_untouched_by_the_guard(monkeypatch):
-    """Archiving reuses `deletedAt` rather than adding an `archivedAt` beside it: one
-    attribute, two vocabularies, and only the UI label moves. So the soft path must not have
-    gained a guard - a paid contact is exactly the contact an operator needs to archive."""
+@pytest.mark.parametrize("hard", [False, True])
+def test_paid_contact_cannot_be_deleted_or_archived(monkeypatch, hard):
     wiring = Wiring(invoices=[{"contactId": CONTACT_ID, "paymentStatus": "paid"}])
     contacts = contacts_module(monkeypatch, wiring)
-
-    response = contacts._delete(CONTACT_ID, False, "req-12")
-
-    assert response["statusCode"] == 200
-    assert body(response)["deleteType"] == "soft"
-    expression = wiring.contacts.updates[-1]["UpdateExpression"]
-    names = wiring.contacts.updates[-1]["ExpressionAttributeNames"]
-    assert "deletedAt" in names.values(), expression
-    assert wiring.invoices.queries == [], "the soft path asks no payment question at all"
+    response = contacts._delete(CONTACT_ID, hard, "req-12")
+    assert response["statusCode"] == 409
+    assert body(response)["archiveInstead"] is False
+    assert not wiring.contacts.updates
     assert not wiring.deleted_anything
 
 
-def test_a_paid_contact_can_be_archived_after_being_refused_a_hard_delete(monkeypatch):
-    """The pair that makes the refusal actionable rather than a dead end."""
-    wiring = Wiring(invoices=[{"contactId": CONTACT_ID, "paymentStatus": "paid"}])
-    contacts = contacts_module(monkeypatch, wiring)
+def test_unpaid_contact_can_still_be_archived(monkeypatch):
+    wiring = Wiring()
+    response = contacts_module(monkeypatch, wiring)._delete(CONTACT_ID, False, "req-13")
+    assert response["statusCode"] == 200
+    assert wiring.contacts.items[0]["deletedAt"] is not None
 
-    assert contacts._delete(CONTACT_ID, True, "req-13")["statusCode"] == 409
-    assert contacts._delete(CONTACT_ID, False, "req-14")["statusCode"] == 200
+
+def test_crm_order_phone_blocks_archiving_without_checkout_id(monkeypatch):
+    wiring = Wiring(orders=[{"customerPhone": "918100640044", "orderId": "ord-crm"}])
+    response = contacts_module(monkeypatch, wiring)._delete(CONTACT_ID, False, "req-14")
+    assert response["statusCode"] == 409
+    assert not wiring.contacts.updates
+
+
+def test_unknown_payment_linkage_blocks_archiving(monkeypatch):
+    wiring = Wiring(invoices_error=RuntimeError("read failed"))
+    response = contacts_module(monkeypatch, wiring)._delete(CONTACT_ID, False, "req-15")
+    assert response["statusCode"] == 409
+    assert body(response)["error"] == "PAYMENT_LINKAGE_UNKNOWN"
+    assert not wiring.contacts.updates
 
 
 # ── wiring ────────────────────────────────────────────────────────────────────────────────

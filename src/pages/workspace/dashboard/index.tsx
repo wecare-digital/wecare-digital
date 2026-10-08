@@ -652,10 +652,13 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
       toast.error( 'Delete failed — please try again' );
       return;
     }
-    const headline = result.code === 'CONTACT_HAS_PAYMENTS'
-      ? 'This contact has payments and cannot be deleted'
-      : 'Payment history could not be checked, so the delete was refused';
+    const headline = result.code === 'CONTACT_LOCKED'
+      ? 'This contact is locked and cannot be deleted or archived'
+      : result.code === 'CONTACT_HAS_PAYMENTS'
+        ? 'This contact has payment or order history and cannot be deleted or archived'
+        : 'Payment history could not be checked, so the delete was refused';
     toast.error( headline );
+    if ( !result.archiveInstead ) return;
     const archive = await confirm( {
       title: 'Archive instead?',
       message: (
