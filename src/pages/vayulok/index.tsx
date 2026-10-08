@@ -57,8 +57,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
-import VayuLokFillingGap from '../../components/VayuLokFillingGap';
-import VayuLokLive from '../../components/VayuLokLive';
+import VayuLokGapGlobe from '../../components/VayuLokGapGlobe';
 
 const VayuLokPage: React.FC = () => {
   // Order is hue rhythm as much as grouping. Air + Pollen are what is in the air,
@@ -180,22 +179,15 @@ const VayuLokPage: React.FC = () => {
         </div>
       </main>
 
-      {/* LIVE CONTENT, APPENDED BELOW THE HERO. The rotating-word hero above is working
-          shipped UI and is KEPT unchanged; the live-wired VayuLok content (the Google map,
-          live air quality / weather / solar / pollen, Subscribe / Contribute / Share) is
-          rendered under it, exactly as the mock documents its block "FOR INSERTION ...
-          IMMEDIATELY AFTER THAT PAGE'S EXISTING TOP SECTION". VayuLokLive is self-styling
-          (styled-jsx under a vl-live- scope) and degrades honestly to the content shell with
-          no map and no live panels when NEXT_PUBLIC_GOOGLE_MAPS_KEY is unset. */}
-
-      {/* "FILLING THE GAP" SECTION, ported from docs/mocks/vayulok-filling-gap-mock.html.
-          It sits between the rotating-word hero above and the live-data section below,
-          exactly where the mock's two dashed "out of scope" context placeholders stood in
-          for those neighbours. Self-styling under a vlg- scope with a Canvas-2D dotted
-          globe; no network, no images. Copy and station figures are on-brand placeholder. */}
-      <VayuLokFillingGap />
-
-      <VayuLokLive />
+      {/* "FILLING THE GAP" SECTION, ported from the approved Option B mock
+          docs/mocks/vayulok-gap-customgl-mock.html. It renders as a NORMAL in-flow
+          block immediately below the hero's <main>, with its own white background and
+          padding. The component is self-styling under a vlg- scope and owns a raw-WebGL
+          dot-matrix globe (no library, no image). It carries NO absolute/fixed
+          positioning that escapes its own stage and NO negative margins, so it cannot
+          collide with the hero above (the earlier overlap bug). The hero markup, state,
+          effects and its <style jsx> below are UNCHANGED. */}
+      <VayuLokGapGlobe />
 
       <style jsx>{`
         /* Header is fixed at 108px, 96px under 767px - the same offsets the home
