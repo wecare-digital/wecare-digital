@@ -1,35 +1,38 @@
 #!/usr/bin/env python3
-"""Prove that no credential from Secrets Manager appears anywhere in this repo.
+"""Scan the repo for credential material, WITHOUT reading any secret value.
 
-Two independent checks, because each one alone has a blind spot.
+Policy constraint (AGENTS.md "Secret Safety" + steering 01-standing-authorization):
+    MUST NOT call `secretsmanager get-secret-value` / `batch-get-secret-value`.
+This script therefore NEVER fetches secret values. It runs the two checks that
+need no values, and explicitly skips the one that would.
 
-1. **Exact-value check.** Loads every `wecare/*` secret into memory and looks for
-   those exact strings in the working tree and in every blob the repository has
-   ever committed. This is the only check that can catch a credential with no
-   issuer prefix - an AWS secret access key, a Plivo auth token, a webhook
-   secret - because there is nothing to pattern-match on. Values are held in
-   memory, hashed for reporting, and never printed or written.
+Checks
+------
+1. **Secrets Manager enumeration (names only).** `ListSecrets` + `DescribeSecret`
+   for `wecare/*`. Reports how many secrets exist and which fields each declares,
+   using the DescribeSecret metadata only. No value is ever fetched. This gives
+   the fleet inventory without touching value material.
 
-2. **Issuer-shape check.** Anchored patterns for credentials that may never have
-   reached Secrets Manager at all, so check 1 would not know to look for them.
+2. **Issuer-shape scan (tree + full history).** Anchored patterns for credentials
+   by their issuer shape (AWS key id, Razorpay/Stripe live keys, Plivo auth id,
+   private-key blocks, Slack webhooks, ...). Needs no secret values, so it is the
+   compliant public-leak check. History is scanned because on a public repo a
+   value deleted later is still fetchable from the object database.
 
-Why both scan history and not just the tree: on a public repository a value
-deleted in a later commit is still fetchable from the object database for as
-long as the repository exists. `git status` clean is not evidence. Found on
-2026-09-20, when the Plivo auth id was still in a blob after the working tree
-had been corrected.
-
-Field classification matters for the exit code. A Secrets Manager entry holds
-secrets *and* ordinary configuration - `answer_url`, `account_name`,
-`aws_answer_lambda` - and configuration is supposed to appear in source. Only
-fields whose name marks them as credential material fail the run.
+   SKIPPED — exact-value match. The previous version loaded every `wecare/*`
+   value via `get_secret_value` and grepped the tree/history for those exact
+   strings. That is the only check able to catch a prefix-less secret (a raw AWS
+   secret access key, a webhook secret), but it REQUIRES reading secret values,
+   which policy forbids here. It is intentionally not performed. To run it, use
+   an environment explicitly authorized for value reads (e.g. a scoped CI job),
+   never this agent against the account.
 
 Usage:
-    python scripts/scan_repo_secrets.py            # tree + full history
+    python scripts/scan_repo_secrets.py            # enumerate + shape scan (tree + history)
     python scripts/scan_repo_secrets.py --tree     # working tree only, faster
     python scripts/scan_repo_secrets.py --json
 
-Exit status: 0 clean, 1 credential material found.
+Exit status: 0 clean, 1 issuer-shaped credential material found in the repo.
 """
 from __future__ import annotations
 
@@ -42,22 +45,11 @@ import sys
 from pathlib import Path
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 
 ROOT = Path(__file__).resolve().parents[1]
 REGION = "us-east-1"
 SECRET_PREFIX = "wecare/"
-
-# A field is credential material when its *name* says so. Anything else in a
-# secret is configuration that legitimately appears in source.
-SECRET_FIELD = re.compile(
-    r"(secret|token|password|passphrase|api_key|apikey|private_key|"
-    r"auth_token|access_key|client_secret|webhook|credential)", re.I)
-
-# Never treat these as findings even if the name matches: they are names and
-# locations, not values.
-CONFIG_FIELD = re.compile(r"(_name|_url|_uri|_arn|_id$|_lambda|_region|_at$|"
-                          r"last_updated|_status|_type|_path)", re.I)
 
 # Issuer-anchored shapes, assembled at runtime so this file holds no literal
 # credential shape and does not trip the block-inline-secrets hook.
@@ -90,40 +82,40 @@ def digest(v: str) -> str:
     return hashlib.sha256(v.encode("utf-8")).hexdigest()[:8]
 
 
-def load_secret_values() -> tuple[list[tuple[str, str, str, bool]], list[str]]:
-    """Return [(secret_id, field, value, is_credential)] and a summary.
+def enumerate_secrets() -> tuple[list[dict], list[str]]:
+    """List wecare/* secrets by NAME and declared fields, via metadata only.
 
-    Values stay in this process. Nothing is printed, logged or written.
+    Uses ListSecrets + DescribeSecret. NEVER calls get_secret_value /
+    batch_get_secret_value. No value material enters this process.
     """
-    sm = boto3.client("secretsmanager", region_name=REGION)
-    out: list[tuple[str, str, str, bool]] = []
+    out: list[dict] = []
     notes: list[str] = []
-    ids: list[str] = []
-    paginator = sm.get_paginator("list_secrets")
-    for page in paginator.paginate():
-        for s in page["SecretList"]:
-            if s["Name"].startswith(SECRET_PREFIX):
-                ids.append(s["Name"])
-    for sid in sorted(ids):
-        try:
-            raw = sm.get_secret_value(SecretId=sid)["SecretString"]
-        except ClientError as exc:
-            notes.append(f"  unreadable {sid}: {exc.response['Error']['Code']}")
-            continue
-        try:
-            doc = json.loads(raw)
-        except json.JSONDecodeError:
-            doc = {"(whole string)": raw}
-        if not isinstance(doc, dict):
-            doc = {"(whole string)": str(doc)}
-        creds = 0
-        for field, value in doc.items():
-            if not isinstance(value, str) or len(value) < 12:
+    try:
+        sm = boto3.client("secretsmanager", region_name=REGION)
+        paginator = sm.get_paginator("list_secrets")
+        ids: list[str] = []
+        for page in paginator.paginate():
+            for s in page["SecretList"]:
+                if s["Name"].startswith(SECRET_PREFIX):
+                    ids.append(s["Name"])
+        for sid in sorted(ids):
+            try:
+                meta = sm.describe_secret(SecretId=sid)
+            except (ClientError, BotoCoreError) as exc:
+                notes.append(f"  undescribable {sid}: {exc}")
                 continue
-            is_cred = bool(SECRET_FIELD.search(field)) and not CONFIG_FIELD.search(field)
-            out.append((sid, field, value, is_cred))
-            creds += is_cred
-        notes.append(f"  {sid}: {len(doc)} field(s), {creds} credential-classed")
+            # DescribeSecret exposes names/metadata, never the SecretString.
+            scheduled = "DeletedDate" in meta or "DeletionDate" in meta
+            out.append({
+                "name": sid,
+                "last_changed": str(meta.get("LastChangedDate", "")),
+                "scheduled_deletion": scheduled,
+                "rotation_enabled": meta.get("RotationEnabled", False),
+            })
+            notes.append(f"  {sid}: rotation={meta.get('RotationEnabled', False)}"
+                         f"{' SCHEDULED-DELETE' if scheduled else ''}")
+    except (ClientError, BotoCoreError) as exc:
+        notes.append(f"  enumeration unavailable (no/insufficient AWS access): {exc}")
     return out, notes
 
 
@@ -155,80 +147,32 @@ def git_blob_data() -> tuple[bytes, int]:
     return data, len(blobs)
 
 
-def commits_touching(value: str) -> list[str]:
-    log = subprocess.run(["git", "log", "--all", "--format=%h", "-S", value, "--"],
-                         cwd=ROOT, capture_output=True, text=True).stdout
-    return log.split()[:8]
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tree", action="store_true", help="skip the history scan")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 
-    report: dict = {"tree": [], "history": [], "shapes": []}
+    report: dict = {"secrets": [], "shapes_tree": [], "shapes_history": []}
 
     print("=" * 74)
-    print("REPOSITORY CREDENTIAL SCAN - values are never printed")
+    print("REPOSITORY CREDENTIAL SCAN - no secret value is ever read")
     print("=" * 74)
 
-    print("\n1. loading Secrets Manager entries into memory")
-    values, notes = load_secret_values()
+    print("\n1. Secrets Manager enumeration (names + metadata only)")
+    secrets, notes = enumerate_secrets()
     for n in notes:
         print(n)
-    creds = [v for v in values if v[3]]
-    print(f"  {len(values)} scannable field(s) across the fleet, "
-          f"{len(creds)} classed as credential material")
+    report["secrets"] = secrets
+    print(f"  {len(secrets)} secret(s) under {SECRET_PREFIX!r} (enumerated by name)")
 
-    print("\n2. working tree")
+    print("\n   exact-value match: SKIPPED (requires get_secret_value, forbidden "
+          "by secret-safety policy)")
+
     files = worktree_files()
-    tree_hits = 0
-    for sid, field, value, is_cred in values:
-        for f in files:
-            try:
-                blob = f.read_bytes()
-            except OSError:
-                continue
-            n = blob.count(value.encode())
-            if not n:
-                continue
-            rel = f.relative_to(ROOT).as_posix()
-            kind = "CREDENTIAL" if is_cred else "config"
-            report["tree"].append({"secret": sid, "field": field, "file": rel,
-                                   "count": n, "credential": is_cred,
-                                   "fp": digest(value)})
-            if is_cred:
-                tree_hits += n
-                print(f"  LEAK  {kind:10s} {sid}:{field} x{n} in {rel}")
-    print(f"  {len(files)} file(s) scanned, {tree_hits} credential occurrence(s)")
-    cfg = [h for h in report["tree"] if not h["credential"]]
-    if cfg:
-        print(f"  {len(cfg)} non-credential field(s) also appear in source "
-              f"(expected: urls, names, ids) - use --json to list")
 
-    hist_hits = 0
-    if args.tree:
-        print("\n3. git history: skipped (--tree)")
-    else:
-        print("\n3. git history (every blob ever committed)")
-        data, nblobs = git_blob_data()
-        for sid, field, value, is_cred in values:
-            if not is_cred:
-                continue
-            n = data.count(value.encode())
-            if not n:
-                continue
-            hist_hits += n
-            shas = commits_touching(value)
-            report["history"].append({"secret": sid, "field": field, "blobs": n,
-                                      "commits": shas, "fp": digest(value)})
-            print(f"  LEAK  {sid}:{field} in {n} blob(s); commits {' '.join(shas)}")
-        print(f"  {nblobs} blobs scanned, {len(data)/1048576:.0f} MB, "
-              f"{hist_hits} credential occurrence(s)")
-
-    print("\n4. issuer-shaped material in the working tree")
-    shape_hits = 0
+    print("\n2. issuer-shaped material in the working tree")
+    shape_tree = 0
     for f in files:
         try:
             text = f.read_text(errors="replace")
@@ -238,29 +182,47 @@ def main() -> int:
             for m in re.findall(pat, text):
                 if m in BENIGN or FILLER.search(m):
                     continue
-                known = any(m == v for _, _, v, _ in values)
                 rel = f.relative_to(ROOT).as_posix()
-                report["shapes"].append({"label": label, "file": rel,
-                                         "fp": digest(m), "len": len(m),
-                                         "in_secrets_manager": known})
-                shape_hits += 1
-                tag = "matches a Secrets Manager value" if known else \
-                      "not in Secrets Manager - placeholder or foreign"
-                print(f"  {label}: {rel}  len={len(m)} sha256:{digest(m)}  {tag}")
-    if not shape_hits:
+                report["shapes_tree"].append(
+                    {"label": label, "file": rel, "fp": digest(m), "len": len(m)})
+                shape_tree += 1
+                print(f"  {label}: {rel}  len={len(m)} sha256:{digest(m)}")
+    if not shape_tree:
         print("  none")
 
+    shape_hist = 0
+    if args.tree:
+        print("\n3. git history: skipped (--tree)")
+    else:
+        print("\n3. issuer-shaped material in git history (every blob ever committed)")
+        data, nblobs = git_blob_data()
+        text = data.decode("utf-8", errors="replace")
+        for label, pat in SHAPES.items():
+            for m in set(re.findall(pat, text)):
+                if m in BENIGN or FILLER.search(m):
+                    continue
+                report["shapes_history"].append(
+                    {"label": label, "fp": digest(m), "len": len(m)})
+                shape_hist += 1
+                print(f"  {label}: in history  len={len(m)} sha256:{digest(m)}")
+        print(f"  {nblobs} blobs scanned, {len(data)/1048576:.0f} MB")
+        if not shape_hist:
+            print("  no issuer-shaped material in history")
+
     print("\n" + "=" * 74)
-    print(f"working tree credential occurrences : {tree_hits}")
-    print(f"git history credential occurrences  : {hist_hits}")
-    print(f"issuer-shaped strings in tree       : {shape_hits}")
-    verdict = "CLEAN" if tree_hits == 0 and hist_hits == 0 else "CREDENTIAL MATERIAL FOUND"
+    print(f"issuer-shaped strings in tree    : {shape_tree}")
+    print(f"issuer-shaped strings in history : {shape_hist}")
+    print(f"secrets enumerated (names only)  : {len(secrets)}")
+    found = shape_tree + shape_hist
+    verdict = "CLEAN (shape scan)" if found == 0 else "CREDENTIAL-SHAPED MATERIAL FOUND"
     print(f"RESULT: {verdict}")
+    print("  NOTE: exact-value match not performed (policy). Run it only from an")
+    print("        environment explicitly authorized to read secret values.")
     print("=" * 74)
 
     if args.json:
         print(json.dumps(report, indent=2))
-    return 0 if tree_hits == 0 and hist_hits == 0 else 1
+    return 0 if found == 0 else 1
 
 
 if __name__ == "__main__":
