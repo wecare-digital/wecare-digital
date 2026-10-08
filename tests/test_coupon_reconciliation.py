@@ -139,19 +139,35 @@ def create_order_stub(payload):
 
 # ── 42: there is no second arithmetic ─────────────────────────────────────────
 
+#: The one coupon-amount function permitted to exist, and only in `coupon_store`.
+#:
+#: On the WEBSITE the discount is still Wix's answer to `Calculate Cart` and this test's name is
+#: still literally true there - nothing below changes what the cart path reads. The exception is
+#: the INVOICE surface, which has no Wix cart and therefore no `Calculate Cart` to defer to, so
+#: one reading of our own definition is unavoidable. It is allowed BY NAME rather than by relaxing
+#: the pattern, so a second amount function still fails this test.
+PERMITTED_AMOUNT_FUNCTIONS = {"coupon_store": {"discount_paise"}}
+
+
 def test_the_coupon_discount_comes_only_from_wix_calculate_cart():
-    """Our store exposes no function that returns a discount amount, and the adapter computes
-    none. One number, read by both sides - a mismatch is not merely detected, it is
-    unrepresentable."""
+    """The ADAPTER computes no discount at all, and the store computes one only for the surface
+    Wix cannot answer for. One number per surface, read rather than re-derived - a mismatch is
+    not merely detected, it is unrepresentable."""
     for module in (cs, wc):
+        permitted = PERMITTED_AMOUNT_FUNCTIONS.get(module.__name__.rsplit(".", 1)[-1], set())
         for name in dir(module):
-            if name.startswith("_"):
+            if name.startswith("_") or name in permitted:
                 continue
             attribute = getattr(module, name)
             if not callable(attribute):
                 continue
             assert "discount" not in name.lower() or "kind" in name.lower(), \
                 f"{module.__name__}.{name} looks like a discount calculator"
+    # The adapter's ban stays absolute: it is the Wix boundary, and a discount computed there
+    # would be a number Wix did not agree to.
+    assert not [name for name in dir(wc)
+                if not name.startswith("_") and callable(getattr(wc, name))
+                and "discount" in name.lower() and "kind" not in name.lower()]
 
     # And no arithmetic on a discount anywhere in either module: the only money operation is the
     # paise -> whole-rupee integer division at the Wix boundary.
