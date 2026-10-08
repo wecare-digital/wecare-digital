@@ -637,8 +637,16 @@ def test_the_store_reuses_money_and_identifiers_rather_than_reimplementing_them(
 
 
 def test_the_store_exposes_no_function_that_returns_a_discount_amount():
-    """Our table records what was PROMISED; it never computes what was DEDUCTED. The amount is
-    Wix's answer to Calculate Cart, and there is deliberately no second arithmetic here."""
+    """Our table records what was PROMISED; on the WEBSITE it never computes what was DEDUCTED,
+    because there the amount is Wix's answer to Calculate Cart.
+
+    `discount_paise` is the one deliberate narrowing of that rule and it is why this test checks
+    NAMES rather than counting functions: the invoice surface has no Wix cart to ask, so one
+    reading of our own definition is unavoidable there. What must stay absent is a general
+    discount ENGINE - a `compute_*` / `calculate_*` / `*discount_amount*` entry point that
+    invites a second arithmetic to grow beside Wix's. `discount_paise` is named for what it
+    returns, takes no cart and no network, and is pinned attribute-for-attribute against
+    `wix_coupons.specification` by `tests/test_wix_coupons_contract.py`."""
     public = [name for name in dir(cs) if not name.startswith("_") and callable(getattr(cs, name))]
     for name in public:
         assert "discount_amount" not in name
@@ -696,3 +704,141 @@ def test_deactivate_marks_inactive_and_never_deletes():
     with pytest.raises(cs.CouponError) as unknown:
         cs.deactivate(store, "NOSUCHCODE", clock=clock())
     assert unknown.value.code == "UNKNOWN_CODE"
+
+
+# ── discount_paise: the one amount this module answers, and only for an invoice ──
+
+def definition(kind, **extra):
+    """A bare definition row, built by hand.
+
+    `discount_paise` is pure and reads only the discount attributes, so a hand-built row is the
+    honest input here - going through `create` would additionally impose the whole-rupee and
+    scope rules, which are issuance concerns and would hide which attribute the arithmetic
+    actually reads.
+    """
+    row = {"discountKind": kind}
+    row.update(extra)
+    return row
+
+
+def test_money_off_is_the_stored_amount_and_percent_off_is_round_half_up():
+    assert cs.discount_paise(definition(cs.MONEY_OFF, moneyOffPaise=100000),
+                             collection_paise=500000) == 100000
+    assert cs.discount_paise(definition(cs.PERCENT_OFF, percentOffBps=1000),
+                             collection_paise=500000) == 50000
+    assert cs.discount_paise(definition(cs.FIXED_PRICE, fixedPricePaise=100000),
+                             collection_paise=250000) == 150000
+
+
+def test_percent_off_rounds_half_up_rather_than_truncating():
+    """`12345 paise * 1500 bps` is `1851.75`, so half-up gives `1852` where truncation gives
+    `1851`. One paise, and `redemption` fails closed on a one-paise mismatch - so the rounding
+    rule has to be the same one `checkout_pricing` uses for the convenience fee, not a second
+    one. That is why this calls `round_half_up` instead of doing its own division."""
+    assert cs.discount_paise(definition(cs.PERCENT_OFF, percentOffBps=1500),
+                             collection_paise=12345) == 1852
+    # The plan's worked example, kept because it pins the exact-half boundary from the other
+    # side: `1543.125` rounds DOWN, so half-up is not "always round up".
+    assert cs.discount_paise(definition(cs.PERCENT_OFF, percentOffBps=1250),
+                             collection_paise=12345) == 1543
+
+
+def test_a_hundred_percent_coupon_discounts_exactly_the_collection():
+    """Exactly, not approximately. `10000 bps` must leave zero payable rather than one paise,
+    because a one-paise remainder is below `RAZORPAY_MIN_LEG_PAISE` and therefore uncollectable:
+    the order would be neither free nor chargeable."""
+    assert cs.discount_paise(definition(cs.PERCENT_OFF, percentOffBps=10000),
+                             collection_paise=12345) == 12345
+
+
+def test_an_oversized_money_off_is_clamped_to_the_collection():
+    """`₹5000 off` on a `₹300` invoice is `₹300` off. A coupon cannot make a total negative, and
+    it is not a credit note for the difference."""
+    assert cs.discount_paise(definition(cs.MONEY_OFF, moneyOffPaise=500000),
+                             collection_paise=30000) == 30000
+
+
+def test_a_fixed_price_above_the_collection_discounts_nothing():
+    """`FIXED_PRICE` names the price that REMAINS, so the discount is the difference - and a
+    fixed price larger than the collection must not inflate the invoice."""
+    assert cs.discount_paise(definition(cs.FIXED_PRICE, fixedPricePaise=500000),
+                             collection_paise=30000) == 0
+
+
+@pytest.mark.parametrize("kind", [cs.FREE_SHIPPING, cs.BUY_X_GET_Y])
+def test_a_kind_that_needs_line_items_is_refused_rather_than_discounted_to_zero(kind):
+    """Refusing is the fail-closed answer. Returning zero would report success for a coupon the
+    customer was promised and the invoice did not honour - the staff member sees it accepted and
+    the full amount is still collected."""
+    with pytest.raises(cs.CouponValidationError) as refusal:
+        cs.discount_paise(definition(kind, buyX=1, buyY=1), collection_paise=500000)
+    assert refusal.value.code == "COUPON_KIND_UNSUPPORTED"
+
+
+def test_an_unmet_minimum_subtotal_is_refused_rather_than_discounting_nothing():
+    row = definition(cs.MONEY_OFF, moneyOffPaise=100000, minimumSubtotalPaise=500000)
+    with pytest.raises(cs.CouponValidationError) as refusal:
+        cs.discount_paise(row, collection_paise=499999)
+    assert refusal.value.code == "MINIMUM_SUBTOTAL"
+    # Exactly at the floor is met, not missed.
+    assert cs.discount_paise(row, collection_paise=500000) == 100000
+
+
+@pytest.mark.parametrize("amount", [True, "100", Decimal("1.5"), 12.5, None, 100.0])
+def test_a_collection_that_is_not_integer_paise_is_refused_by_type(amount):
+    """`True == 1`, so a bool would otherwise be read as one paise. A float is refused rather
+    than rounded, for the reason R6.1 states: `0.1 + 0.2` is not `0.3` in binary floating
+    point."""
+    with pytest.raises(cs.CouponValidationError):
+        cs.discount_paise(definition(cs.MONEY_OFF, moneyOffPaise=100000),
+                          collection_paise=amount)
+
+
+@pytest.mark.parametrize("stored", [True, "100", Decimal("1.5"), 12.5, 0, -1])
+def test_a_stored_amount_that_is_not_integer_paise_is_refused_by_type(stored):
+    with pytest.raises(cs.CouponValidationError):
+        cs.discount_paise(definition(cs.MONEY_OFF, moneyOffPaise=stored),
+                          collection_paise=500000)
+
+
+def test_an_integral_dynamodb_decimal_is_accepted_and_a_fractional_one_is_not():
+    """DynamoDB hands every number back as `Decimal`, so refusing `Decimal` outright would make
+    the function unusable against a real row. An integral one converts; a fractional one is a
+    sub-paise amount that cannot be charged and is refused."""
+    assert cs.discount_paise(definition(cs.MONEY_OFF, moneyOffPaise=Decimal("100000")),
+                             collection_paise=Decimal("500000")) == 100000
+    with pytest.raises(cs.CouponValidationError):
+        cs.discount_paise(definition(cs.MONEY_OFF, moneyOffPaise=Decimal("100000.5")),
+                          collection_paise=500000)
+
+
+def test_discount_paise_returns_an_int_and_constructs_no_float(monkeypatch):
+    def explode(*_args, **_kwargs):
+        raise AssertionError("a float was constructed on the coupon amount path")
+
+    monkeypatch.setitem(cs.__builtins__ if isinstance(cs.__builtins__, dict)
+                        else cs.__builtins__.__dict__, "float", explode)
+    for row, collection in ((definition(cs.MONEY_OFF, moneyOffPaise=100000), 500000),
+                            (definition(cs.PERCENT_OFF, percentOffBps=1500), 12345),
+                            (definition(cs.FIXED_PRICE, fixedPricePaise=100000), 250000)):
+        assert type(cs.discount_paise(row, collection_paise=collection)) is int
+
+
+def test_discount_paise_is_pure_so_it_takes_no_table_and_no_clock():
+    """Asserted on the signature rather than in prose: a table parameter is how a network call
+    gets into the GST invoice-numbering path, and a clock parameter would mean expiry was being
+    decided twice - `evaluate` already owns that question."""
+    function = next(node for node in ast.walk(TREE)
+                    if isinstance(node, ast.FunctionDef) and node.name == "discount_paise")
+    arguments = ([argument.arg for argument in function.args.args]
+                 + [argument.arg for argument in function.args.kwonlyargs])
+    assert arguments == ["definition", "collection_paise"]
+
+
+def test_an_unknown_discount_kind_is_refused():
+    with pytest.raises(cs.CouponValidationError) as refusal:
+        cs.discount_paise(definition("SOMETHING_ELSE"), collection_paise=500000)
+    assert refusal.value.code == "INVALID_DISCOUNT_KIND"
+    with pytest.raises(cs.CouponValidationError) as missing:
+        cs.discount_paise(None, collection_paise=500000)
+    assert missing.value.code == "UNKNOWN_CODE"

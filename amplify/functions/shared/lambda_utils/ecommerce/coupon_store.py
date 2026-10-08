@@ -6,14 +6,21 @@ Design reference: `.agents/tasks/wix-coupons-giftcards-20261001/coupons-20261001
 Two authorities, and the split is the whole point
 -------------------------------------------------
 This table owns **issuance**: what discount was promised, who may use it, how many times it has
-been used, and the audit trail. Wix's `Calculate Cart` owns the **arithmetic**: what a given cart
-is actually reduced by. So nothing in this module returns a discount amount, and nothing in it
-computes one. A coupon reaches a customer's total only by being mirrored into Wix and applied to a
-Wix cart, where Wix reduces `summary.priceSummary.discount` and the smaller total arrives back
-through the existing `cart_v2.calculate` path.
+been used, and the audit trail. On the WEBSITE, Wix's `Calculate Cart` owns the **arithmetic**:
+what a given cart is actually reduced by. A coupon reaches a customer's total there only by being
+mirrored into Wix and applied to a Wix cart, where Wix reduces `summary.priceSummary.discount` and
+the smaller total arrives back through the existing `cart_v2.calculate` path.
 
 That is why `evaluate()` answers with a VERDICT from a closed vocabulary and never a figure. A
 validate endpoint that returned a discount would be a number a browser could quote.
+
+**One narrowing, added deliberately: `discount_paise`.** An earlier revision of this paragraph said
+nothing here returns or computes a discount amount, full stop. That is no longer true, and the
+exception is the invoice surface, which has no Wix cart and therefore no `Calculate Cart` to defer
+to. `discount_paise` answers that one question, from the definition this module already owns, and it
+reads exactly the `KIND_AMOUNT_ATTRIBUTE` attributes `wix_coupons.specification` sends - so it is a
+second RENDERING of one definition, not a second engine. Its own docstring carries the reasoning
+and the alternative that was rejected. `evaluate` is unchanged and still returns no figure.
 
 One partition attribute, four row types
 ---------------------------------------
@@ -65,9 +72,10 @@ from __future__ import annotations
 import re
 import time
 import unicodedata
+from decimal import Decimal
 from typing import Any, Callable, Dict, Optional
 
-from . import money
+from . import checkout_pricing, money
 from .. import identifiers
 
 #: Physical table. Follows `check_data_model_drift.expected_table`'s default rule
@@ -907,6 +915,115 @@ def evaluate(definition: Optional[Dict[str, Any]], *, cart_id: Any = None,
     return ELIGIBLE
 
 
+# ── the amount, for the one surface that has no Wix cart to ask ───────────────
+
+def _amount_paise(value: Any, *, field: str, allow_zero: bool = True,
+                  maximum: int = MAX_PAISE) -> int:
+    """An integer-paise amount, refused BY TYPE rather than coerced.
+
+    Separate from `_whole_rupee_paise`, and the difference is the whole reason this one exists:
+    that helper additionally demands a whole number of rupees, because what it validates is
+    bound for Wix's decimal-rupee money fields. A COLLECTION is not bound for Wix - it is a
+    total we already hold - and `₹123.45` is an ordinary invoice, so applying the whole-rupee
+    rule to it would refuse most real inputs.
+
+    A DynamoDB number arrives as `Decimal`, so an integral `Decimal` is accepted and converted
+    through `int(Decimal(str(value)))`; a fractional one is refused rather than rounded. `bool`
+    is refused first, before any numeric test, because `True == 1` and a flag read as one paise
+    is a wrong price nobody would spot.
+    """
+    if isinstance(value, bool):
+        raise CouponValidationError(field, f"{field} must be integer paise, not a bool")
+    if isinstance(value, Decimal):
+        if not value.is_finite() or value != value.to_integral_value():
+            raise CouponValidationError(
+                field, f"{field} must be an exact integer number of paise")
+        value = int(Decimal(str(value)))
+    if type(value) is not int:
+        raise CouponValidationError(field, f"{field} must be integer paise")
+    if value < 0 or (value == 0 and not allow_zero):
+        raise CouponValidationError(field, f"{field} must be a positive integer paise amount")
+    if value > maximum:
+        raise CouponValidationError(field, f"{field} must not exceed {maximum}")
+    return value
+
+
+def discount_paise(definition: Optional[Dict[str, Any]], *, collection_paise: Any) -> int:
+    """The discount in integer paise this definition applies to one collection total.
+
+    Why this exists at all, given everything above says the amount is not ours
+    -------------------------------------------------------------------------
+    `evaluate` deliberately returns a verdict and never a figure, and that remains correct for
+    the WEBSITE: there, a coupon reaches a customer's total by being mirrored into Wix and
+    applied to a Wix cart, and the amount is Wix's answer to `Calculate Cart`. Two authorities,
+    one of them Wix's, and this module is not it.
+
+    A Pay Flow invoice is NOT a Wix cart. There is no cart id, no catalogue line items and
+    therefore no `Calculate Cart` to ask - so on that surface the question "what is this coupon
+    worth" has no Wix answer to defer to. Minting a throwaway Wix cart per invoice was
+    considered and rejected: it needs line items an invoice does not have, it would invent
+    catalogue entries to carry an arbitrary staff-entered amount, and it would put a
+    third-party network call inside the GST invoice-numbering path, where a timeout burns a
+    sequence number on an invoice that was never raised.
+
+    So the amount is computed here, from the definition this module already owns, and NOWHERE
+    else. That is the point of the location: the attributes read below are exactly
+    `KIND_AMOUNT_ATTRIBUTE`'s values, the same ones `wix_coupons.specification` sends, and
+    `tests/test_wix_coupons_contract.py` pins the two to the same attributes kind for kind. One
+    coupon definition, one reading of it, two renderings - not two discount engines.
+
+    What it refuses, and why refusing is the correct answer
+    ------------------------------------------------------
+    `FREE_SHIPPING` and `BUY_X_GET_Y` raise `COUPON_KIND_UNSUPPORTED`. Both need context an
+    invoice-level collection cannot supply - a shipping charge to waive, or line items to count
+    - so there is no honest number to return. Returning zero would be worse than refusing: the
+    customer was promised a discount, the staff member would see the coupon accepted, and the
+    invoice would collect the full amount. A refusal is visible; a silent zero is not.
+
+    `minimumSubtotalPaise` is enforced here too, as `MINIMUM_SUBTOTAL`, for the same reason: a
+    coupon whose floor is not met has not been earned, and quietly discounting nothing would
+    report success for a coupon that did not apply.
+
+    Pure: no table, no network, no clock. Eligibility (`evaluate`) is a separate question asked
+    separately; this answers only the arithmetic, and only for an already-eligible definition.
+    """
+    if not isinstance(definition, dict):
+        raise CouponValidationError("UNKNOWN_CODE", "a coupon definition row is required")
+    collection = _amount_paise(collection_paise, field="INVALID_COLLECTION")
+
+    minimum = definition.get("minimumSubtotalPaise")
+    if minimum is not None and collection < _amount_paise(
+            minimum, field="INVALID_MINIMUM_SUBTOTAL"):
+        raise CouponValidationError(
+            "MINIMUM_SUBTOTAL",
+            "this coupon requires a larger subtotal than the amount it was applied to")
+
+    kind = definition.get("discountKind")
+    if kind == MONEY_OFF:
+        # Clamped at the collection: a coupon cannot make a total negative, and `₹500 off` on a
+        # `₹300` invoice is `₹300` off, not a `₹200` credit note.
+        return min(_amount_paise(definition.get("moneyOffPaise"), field="INVALID_AMOUNT",
+                                 allow_zero=False), collection)
+    if kind == PERCENT_OFF:
+        bps = _amount_paise(definition.get("percentOffBps"), field="INVALID_PERCENT",
+                            allow_zero=False, maximum=MAX_PERCENT_OFF_BPS)
+        # `round_half_up` on integer paise and integer basis points, never `* rate / 100`. At
+        # 10000 bps this is the whole collection, so the clamp is an identity rather than a cap
+        # - it is there because the clamp must not depend on the rate being well-formed.
+        return min(checkout_pricing.round_half_up(collection, bps), collection)
+    if kind == FIXED_PRICE:
+        # `FIXED_PRICE` names the price that remains, so the discount is the difference. A fixed
+        # price above the collection discounts nothing rather than inflating the invoice.
+        return max(0, collection - _amount_paise(definition.get("fixedPricePaise"),
+                                                 field="INVALID_AMOUNT", allow_zero=False))
+    if kind in (FREE_SHIPPING, BUY_X_GET_Y):
+        raise CouponValidationError(
+            "COUPON_KIND_UNSUPPORTED",
+            f"{kind} needs line-item or shipping context that a collection total cannot supply")
+    raise CouponValidationError("INVALID_DISCOUNT_KIND",
+                                f"discountKind must be one of {DISCOUNT_KINDS}")
+
+
 __all__ = [
     "BUY_X_GET_Y", "CODE_PATTERN", "CREATE_FIELDS", "CURRENCY", "CouponConflict", "CouponError",
     "CouponHeldByAnotherCart", "CouponStoreUnavailable", "CouponValidationError",
@@ -920,7 +1037,8 @@ __all__ = [
     "SCOPE_NAMESPACE", "STATUSES", "STATUS_ACTIVE", "STATUS_ATTRIBUTE", "STATUS_EXHAUSTED",
     "STATUS_INACTIVE", "STATUS_INDEX", "TABLE_ENV_KEY", "UNKNOWN_CODE", "USAGE_LIMIT_REACHED",
     "VERDICTS", "WIX_MIN_TIME_MS", "WIX_MIRROR_INCOMPLETE", "claim", "commit_redemption",
-    "create", "customer_uses", "deactivate", "definition_key", "evaluate", "get_definition",
+    "create", "customer_uses", "deactivate", "definition_key", "discount_paise", "evaluate",
+    "get_definition",
     "hold", "hold_key", "list_by_status", "mark_mirrored", "normalise_code", "redeem_key",
     "redemption", "release", "use_key", "validate_definition",
 ]
