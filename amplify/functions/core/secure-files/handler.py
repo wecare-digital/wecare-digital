@@ -417,6 +417,9 @@ def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
         "status": item.get("status"),
         "createdAt": item.get("createdAt"),
         "downloadCount": item.get("downloadCount", 0),
+        "vaultPaymentStatus": item.get('vaultPaymentStatus'),
+        "vaultOrderNumber": item.get('vaultOrderNumber'),
+        "vaultRequestNumber": item.get('vaultRequestNumber'),
         # "pdf" / "image" arrive as a WhatsApp attachment; "link" goes out as a URL.
         "deliverable": item.get("deliverable", "unknown"),
     }
@@ -907,11 +910,23 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
         ScanIndexForward=False,
         Limit=100,
     )
-    items = [i for i in result.get("Items", []) if i.get("status") == "active"]
+    items = []
+    for projected in result.get('Items', []):
+        i = _table(FILES_TABLE).get_item(Key={'fileId': projected['fileId']}, ConsistentRead=True).get('Item') or {}
+        if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
+                or i.get('ownerCustomerId') not in (None, identity.get('subject'))):
+            continue
+        view = _public_file(i, admin=False)
+        if i.get('vaultAccessGrantId'):
+            grant = _table(GRANTS_TABLE).get_item(Key={'grantId': i['vaultAccessGrantId']}, ConsistentRead=True).get('Item') or {}
+            if grant.get('customerId') == identity.get('subject') and grant.get('fileId') == i['fileId'] and grant.get('paid') and not grant.get('consumed'):
+                view['paidGrantId'] = grant['grantId']
+                view['deliveryStatus'] = 'READY'
+        items.append(view)
     return cors_response(
         200,
         {
-            "files": [_public_file(i, admin=False) for i in items],
+            "files": items,
             "count": len(items),
             "pricePaise": PRICE_PAISE,
         },
@@ -928,6 +943,8 @@ def _owned_active_file(file_id: str, identity: Dict[str, Any]) -> Optional[Dict[
     if not item or item.get("status") != "active":
         return None
     if item.get("ownerPhone") != identity["phone"]:
+        return None
+    if item.get('ownerCustomerId') not in (None, identity.get('subject')):
         return None
     return item
 
@@ -1381,6 +1398,9 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
 
     item = _owned_active_file(file_id, identity)
     if not item:
+        return _not_registered(origin)
+    grant = _table(GRANTS_TABLE).get_item(Key={'grantId': grant_id}, ConsistentRead=True).get('Item') or {}
+    if grant.get('source') == 'wix_vault' and grant.get('customerId') != identity.get('subject'):
         return _not_registered(origin)
 
     try:

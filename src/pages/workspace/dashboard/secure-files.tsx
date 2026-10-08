@@ -351,7 +351,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                             <table className="sf-table">
                                 <thead>
                                     <tr>
-                                        { [ 'File', 'Customer', 'Mobile', 'Size', 'Downloads', 'Status', '' ].map( heading => (
+                                        { [ 'File', 'Customer', 'Mobile', 'Size', 'Downloads', 'Vault purchase', 'Status', '' ].map( heading => (
                                             <th key={ heading } scope="col">{ heading }</th>
                                         ) ) }
                                     </tr>
@@ -370,6 +370,11 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                                                 <td className="sf-mono">{ row.ownerPhoneMasked || '—' }</td>
                                                 <td>{ formatBytes( row.sizeBytes ) }</td>
                                                 <td>{ row.downloadCount ?? 0 }</td>
+                                                <td>
+                                                    <span className="sf-filename">{ row.vaultPaymentStatus === 'PAID' ? 'Paid · Access ready' : 'Awaiting purchase' }</span>
+                                                    { row.vaultOrderNumber && <span className="sf-fileorig">{ row.vaultOrderNumber }</span> }
+                                                    { row.vaultRequestNumber && <span className="sf-fileorig">{ row.vaultRequestNumber }</span> }
+                                                </td>
                                                 <td>
                                                     <span
                                                         className="sf-status"

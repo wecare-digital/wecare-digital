@@ -245,6 +245,12 @@ CONSULTING_FILES = [
     # direction on a path with no undo, which is why the policy lives in a shared module and is
     # listed here rather than being written inline in `core/contacts`.
     ("shared/lambda_utils/ecommerce/contact_payment_links.py", "payment_status"),
+    # The native WhatsApp binding. It genuinely CONSULTS: Meta's payment-lookup status goes
+    # through `payment_status.canonical` before anything is bound, which is the exact defect the
+    # inbound handler already documents - Meta answering `paid` against a raw `captured`
+    # comparison was recorded as REJECTED_MISMATCH and rejected real money. This is the one
+    # decision on the native leg that reads a provider's payment WORD, so it belongs here.
+    ("shared/lambda_utils/integrations/meta_payment_binding.py", "payment_status"),
 ]
 
 #: Files with no payment-status decision of their own, which must still never compare a payment
@@ -282,6 +288,13 @@ RAW_SCAN_ONLY_FILES = [
     # as a consulting file, so an unused import here would weaken that assertion rather than
     # add anything.
     ("core/secure-files/handler.py", None),
+    # The native WhatsApp payment RESERVATION. It reserves identity and validates money, and it
+    # decides no payment STATE at all - paid-ness on that leg is the existence of the
+    # `PAYMENTATTEMPT#` claim, never a word - so it has nothing to consult. Forcing an unused
+    # `payment_status` import on it to satisfy the import assertion would make that assertion
+    # mean less, and the import would not survive the first tidy-up. Scanned so a payment word
+    # never creeps into a reservation decision.
+    ("shared/lambda_utils/ecommerce/wa_payment_request.py", None),
 ]
 
 

@@ -46,7 +46,9 @@ def test_exact_entry_with_dashboard_keyword_config_and_kill_switch():
 def test_new_flow_opens_static_screen_and_preserves_order_review():
     ns, calls = load_entry()
     trigger = ns['DEFAULT_FLOW_TRIGGERS']['customer_idea']
-    assert ns['DEFAULT_FLOW_TRIGGERS']['leave_review']['flowId'] == '4423166114671543'
+    # `leave_review` now shares this same published flow — one Meta flow, two inbound
+    # doors. Pinned in detail by tests/test_leave_review_wiring.py.
+    assert ns['DEFAULT_FLOW_TRIGGERS']['leave_review']['flowId'] == '1578178897413815'
     ns['_send_generic_flow']('fixture-contact', 'phone1', 'fixture-phone', 'fixture-request',
                              flow_config=trigger, flow_key='customer_idea')
     assert len(calls) == 1

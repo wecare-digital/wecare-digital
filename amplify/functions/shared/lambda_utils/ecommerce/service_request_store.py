@@ -67,7 +67,7 @@ from lambda_utils.ecommerce.service_requests import (
     PUBLIC_REQUEST_ID_ENTROPY, PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE,
     REQUEST_AMENDMENT, SERVICE_CURRENCY, SERVICE_KIND_BY_VARIANT, SERVICE_LINE_MAX_PAISE,
     SERVICE_LINE_MIN_PAISE, SERVICE_NOT_OFFERED, SERVICE_UNKNOWN_CHOICE,
-    SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, ServiceRejected)
+    SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, VAULT, ServiceRejected)
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -309,13 +309,16 @@ def _new_intent(*, intent_id: str, owner: str, kind: str, variant_id: str,
     if target is not None:
         intent["targetRequestId"] = str(target[KEY_ATTR])
         intent["targetPublicRequestId"] = str(target.get("publicRequestId") or "")
+    if target is not None and target.get('vaultFileId'):
+        intent.update({k: target[k] for k in ('vaultFileId', 'vaultFileName', 'vaultOwnerPhone')})
     return intent
 
 
 def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: Any,
                    target_public_id: Any = None, *,
                    clock: Optional[Callable[[], float]] = None,
-                   new_id: Callable[[], str] = new_uuid7) -> Dict[str, Any]:
+                   new_id: Callable[[], str] = new_uuid7,
+                   vault_file: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve the caller's one open intent for this service, or mint one. Never charges anything.
 
     Raises ``ServiceRejected`` (unknown or not-offered kind, or a missing/unexpected target),
@@ -336,7 +339,15 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         raise customer_auth.CustomerNotAuthorized("session carries no customer id")
 
     target: Optional[Dict[str, Any]] = None
-    if kind in TARGET_REQUIRED_KINDS:
+    if vault_file is not None:
+        if (kind != VAULT or target_public_id or vault_file.get('ownerCustomerId') != owner
+                or vault_file.get('status') != 'active' or not vault_file.get('fileId')):
+            raise customer_auth.CustomerNotAuthorized('resource does not exist or is not yours')
+        target = {KEY_ATTR: 'FILE#' + str(vault_file['fileId']),
+                  'vaultFileId': str(vault_file['fileId']),
+                  'vaultFileName': str(vault_file.get('displayName') or 'Document'),
+                  'vaultOwnerPhone': str(vault_file.get('ownerPhone') or '')}
+    elif kind in TARGET_REQUIRED_KINDS:
         if not target_public_id:
             raise ServiceRejected("SERVICE_TARGET_REQUIRED")
         target = resolve_public(table, identity, target_public_id)
@@ -540,7 +551,8 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
     if str(intent.get("currency") or "") != SERVICE_CURRENCY:
         return _unmatched("CURRENCY_MISMATCH", reference_id=reference_id, order_id=order_id)
     target_internal = str(intent.get("targetRequestId") or "")
-    if kind in TARGET_REQUIRED_KINDS and not target_internal.startswith(REQUEST_PREFIX):
+    file_bound_vault = kind == VAULT and bool(intent.get('vaultFileId')) and target_internal == 'FILE#' + str(intent['vaultFileId'])
+    if kind in TARGET_REQUIRED_KINDS and not file_bound_vault and not target_internal.startswith(REQUEST_PREFIX):
         # The condition is generic across `TARGET_REQUIRED_KINDS`; the reason code is not,
         # and must not be. ``AMENDMENT_TARGET_MISSING`` is kept verbatim for an amendment
         # because it is what every historical PAID_SERVICE_UNMATCHED alert and any operator
@@ -576,6 +588,9 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
         if kind in TARGET_REQUIRED_KINDS:
             request["targetRequestId"] = target_internal
             request["targetPublicRequestId"] = str(intent.get("targetPublicRequestId") or "")
+        if file_bound_vault:
+            request.update({k: intent[k] for k in ('vaultFileId', 'vaultFileName', 'vaultOwnerPhone')})
+            request['vaultStatus'] = 'AWAITING_ACCESS'
         pointer = {KEY_ATTR: ORDER_PREFIX + order_id, "ownerCustomerId": owner,
                    "targetRequestId": request_internal, "publicRequestId": public_id,
                    "orderNumber": order_number, "kind": kind, "boundAt": now}
@@ -598,7 +613,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
                     ":empty": [], ":oid": [order_id], ":sub": owner}),
             }},
         ]
-        if kind in TARGET_REQUIRED_KINDS:
+        if kind in TARGET_REQUIRED_KINDS and not file_bound_vault:
             items.append({"ConditionCheck": {
                 "TableName": table_name,
                 "Key": _marshal_item({KEY_ATTR: target_internal}),
@@ -675,7 +690,10 @@ def _project(row: Dict[str, Any]) -> Dict[str, Any]:
             "status": str(row.get("status") or ""),
             "createdAt": _int(row.get("createdAt")),
             "orderNumber": str(row.get("orderNumber") or ""),
-            "targetRequestId": str(row.get("targetPublicRequestId") or "") or None}
+            "targetRequestId": str(row.get("targetPublicRequestId") or "") or None,
+            "fileId": str(row.get('vaultFileId') or '') or None,
+            "fileName": str(row.get('vaultFileName') or '') or None,
+            "deliveryStatus": str(row.get('vaultStatus') or '') or None}
 
 
 def list_for_customer(table: Any, identity: customer_auth.CustomerIdentity, *,

@@ -21,7 +21,7 @@ def prov():
     return module
 
 
-def test_the_policy_is_exactly_four_statements(prov):
+def test_the_policy_has_exact_resources_including_selected_vault_files(prov):
     table = f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-ServiceRequestsTable"
     assert prov.expected_role_policy(ACCT) == {"Version": "2012-10-17", "Statement": [
         {"Sid": "ServiceRequestsRW", "Effect": "Allow",
@@ -107,3 +107,10 @@ def test_the_dry_run_makes_no_mutating_call(prov, monkeypatch, capsys):
 def test_the_deploy_map_knows_the_function():
     text = (ROOT / "scripts/deploy_all_lambdas.py").read_text()
     assert '"wecare-service-requests"' in text and '"ecommerce/service-requests"' in text
+
+
+def test_vault_file_selection_is_separate_and_exact(prov):
+    assert prov.expected_vault_file_policy(ACCT) == {"Version": "2012-10-17", "Statement": [{
+        "Sid": "BindSelectedVaultFile", "Effect": "Allow",
+        "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+        "Resource": [f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-SecureFilesTable"]}]}

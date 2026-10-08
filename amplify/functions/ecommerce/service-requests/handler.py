@@ -122,15 +122,27 @@ def _internal(event: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── POST /services/request-intent ─────────────────────────────────────────────
 
-def _request_intent(identity, body: Dict[str, Any], origin: str) -> Dict[str, Any]:
-    if set(body) - {"kind", "targetRequestId"}:
+def _request_intent(identity, body: Dict[str, Any], origin: str, event=None) -> Dict[str, Any]:
+    if set(body) - {"kind", "targetRequestId", "fileId"}:
         return cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin)
     if not rate_limit.check_rate_limit("service-intent", identity.customer_id,
                                        INTENT_RATE_PER_SECOND, table_name=RATE_LIMIT_TABLE):
         return cors_response(429, {"error": "RATE_LIMITED"}, origin)
     try:
+        vault_file = None
+        if body.get('fileId'):
+            if str(body.get('kind') or '').upper() != 'VAULT' or body.get('targetRequestId'):
+                return cors_response(400, {'error': 'INVALID_FILE_CHOICE'}, origin)
+            user = boto3.client('cognito-idp', region_name=REGION).get_user(
+                AccessToken=customer_auth.bearer_token(event or {}))
+            attrs = {a['Name']: a['Value'] for a in user.get('UserAttributes', [])}
+            if (attrs.get('phone_number_verified') != 'true' or attrs.get('sub') != identity.customer_id
+                    or attrs.get('phone_number') != identity.phone):
+                return cors_response(401, {'error': 'PHONE_VERIFICATION_REQUIRED'}, origin)
+            from lambda_utils.ecommerce import vault_access
+            vault_file = vault_access.bind_file(_table(vault_access.FILES_TABLE), identity, body['fileId'])
         intent = store.request_intent(_table(SERVICE_REQUESTS_TABLE), identity,
-                                      body.get("kind"), body.get("targetRequestId"))
+                                      body.get("kind"), body.get("targetRequestId"), vault_file=vault_file)
     except service_requests.ServiceRejected as rejected:
         if rejected.code == service_requests.SERVICE_NOT_OFFERED:
             return cors_response(409, service_requests.refusal(rejected.code), origin)
@@ -211,7 +223,7 @@ def _respond(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
         return _no_store(cors_response(400, {"error": "INVALID_BODY"}, origin))
     path = _path(event)
     if path.endswith("/services/request-intent"):
-        return _no_store(_request_intent(identity, body, origin))
+        return _no_store(_request_intent(identity, body, origin, event))
     if path.endswith("/services/my-requests"):
         return _no_store(_my_requests(identity, body, origin))
     return _no_store(cors_response(404, {"error": "NOT_FOUND"}, origin))

@@ -1086,6 +1086,194 @@ def resolve_gateway_order(table: Any, gateway_order_id: str, *,
     return _read_row(table, key_attr, GATEWAY_ORDER_PREFIX + gateway_order_id)
 
 
+# ── native WhatsApp collection: one live collection per invoice ────────────────
+
+#: At most one live WhatsApp payment collection per invoice. Written as a `Put` entry INSIDE
+#: `wa_payment_request.reserve`'s transaction, so a reservation and its collection claim cannot
+#: disagree. Five independent callers can reach `invoice-engine.send_payment_link` (the operator
+#: UI, the business-API route, a Flow completion, the inbound auto-send and the auto-send chain),
+#: and without this one invoice can receive two payment requests, producing two references, two
+#: captures and two orders.
+#:
+#: NOTE there is deliberately no `claim_invoice_collection` writer here. Per the design's H3
+#: finding, `_claim_row` issues its own `put_item` and therefore cannot be a `TransactItems`
+#: entry, so the claim is composed in `reserve` from this prefix. An unused second writer in this
+#: module would be a future second writer, so only the prefix, the resolver and the release live
+#: here.
+INVOICE_COLLECT_PREFIX = "INVOICECOLLECT#"
+INVOICE_COLLECT_KIND = "INVOICE_COLLECTION"
+
+#: The collection SEQUENCE recorded on the invoice row, which is what makes a cancelled
+#: collection re-raisable without ever deleting a uniqueness reservation.
+#:
+#: The problem it solves: the `REQUESTKEY#` anchor is keyed on the invoice and carries no TTL
+#: (correctly - a uniqueness reservation that expires is an identifier that gets reissued). It
+#: also fingerprints the amount, so an invoice edited after a collection was sent refuses with
+#: `WA_PAY_INTENT_CHANGED`. With nothing carrying a sequence, "cancel and re-raise" is
+#: unreachable: the old anchor survives the cancel, the new amount mismatches it, and the invoice
+#: becomes permanently uncollectable over WhatsApp.
+#:
+#: So `cancel_invoice` records `collectionSeq = seq + 1` and the next collection composes
+#: `INVPAY#<invoiceId>#<seq>` - a DIFFERENT request key. The old reservation stays immutable,
+#: nothing is deleted, nothing is reissued, and the old `PAYREF#` row remains resolvable, which
+#: matters: a customer who pays the message they already hold still settles against the
+#: reservation that message named.
+INVOICE_COLLECT_SEQ_ATTR = "collectionSeq"
+
+
+def resolve_invoice_collection(table: Any, invoice_id: str, *,
+                               key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
+    """The live collection claim for an invoice, or None.
+
+    None means no collection is in flight. Read through `_read_row`, so a storage failure raises
+    rather than answering "nothing is in flight" - which would let a second payment request go
+    out for an invoice that already has one.
+    """
+    if not invoice_id:
+        return None
+    return _read_row(table, key_attr, INVOICE_COLLECT_PREFIX + invoice_id)
+
+
+def release_invoice_collection(table: Any, *, invoice_id: str,
+                               key_attr: str = "orderId") -> bool:
+    """Release an invoice's collection claim. True when a claim was released.
+
+    The ONE permitted delete in this key space, and it is permitted only because a cancelled
+    invoice has no live collection: the row says "a payment request is outstanding", and once the
+    invoice is cancelled that statement is false. Conditional on the row actually being a
+    collection claim, so a key collision can never delete something else.
+
+    This does NOT release the `REQUESTKEY#` anchor, and must not: that row is the identity
+    reservation, and deleting one is how an identifier gets reissued. The sequence bump
+    (`INVOICE_COLLECT_SEQ_ATTR`) is what makes the next collection reachable.
+    """
+    if not invoice_id:
+        return False
+    try:
+        table.delete_item(
+            Key={key_attr: INVOICE_COLLECT_PREFIX + invoice_id},
+            ConditionExpression="attribute_exists(%s) AND kind = :kind" % key_attr,
+            ExpressionAttributeValues={":kind": INVOICE_COLLECT_KIND},
+        )
+        return True
+    except Exception as error:  # noqa: BLE001
+        if _is_conditional_failure(error):
+            return False
+        raise OrderIdentityUnavailable(
+            "could not release the collection claim for %r: %s"
+            % (invoice_id, type(error).__name__)
+        ) from error
+
+
+# ── one WhatsApp invoice delivery per invoice ───────────────────────────────────
+
+#: One delivery of one invoice per channel. Claimed INSIDE `invoice-engine.send_invoice_whatsapp`
+#: rather than at any call site, so the webhook, the operator button and any future caller all
+#: pass through it - a claim written only by the webhook would leave the live operator route able
+#: to send a second GST invoice for one payment, which is a compliance artifact rather than
+#: merely untidy.
+#:
+#: Unlike the reservation rows in `wa_payment_request.reserve` this is a single row with a single
+#: writer, so `_claim_row` is exactly the right primitive and no transaction is needed. No TTL.
+INVOICE_DELIVERY_PREFIX = "INVOICEDELIVERY#"
+INVOICE_DELIVERY_KIND = "INVOICE_DELIVERY"
+
+#: The claim is taken BEFORE the render and the send, so it starts as an INTENT and is only
+#: evidence of delivery once confirmed. That distinction is load-bearing: `send_invoice_whatsapp`
+#: swallows a Meta failure into `wa_status='failed'` and returns 200, so a claim that was never
+#: released on failure would consume the only slot and every non-forced caller thereafter would
+#: get `already_delivered` - silently losing a GST invoice.
+DELIVERY_CLAIMED = "CLAIMED"
+DELIVERY_CONFIRMED = "DELIVERED"
+
+
+def _invoice_delivery_key(invoice_id: str, channel: str) -> str:
+    return INVOICE_DELIVERY_PREFIX + invoice_id + "#" + (channel or "whatsapp")
+
+
+def claim_invoice_delivery(table: Any, *, invoice_id: str, channel: str = "whatsapp",
+                           key_attr: str = "orderId",
+                           extra: Optional[Dict[str, Any]] = None) -> bool:
+    """True when this caller may deliver this invoice on this channel. False when one already did.
+
+    `False` only on a lost race; a throttle raises `OrderIdentityUnavailable`, so the caller fails
+    closed toward NOT sending rather than mistaking an outage for a delivery.
+    """
+    if not invoice_id:
+        raise ValueError("invoice_id is required")
+    item = {
+        "kind": INVOICE_DELIVERY_KIND,
+        "invoiceId": invoice_id,
+        "channel": channel or "whatsapp",
+        "deliveryStatus": DELIVERY_CLAIMED,
+        "claimedAt": int(time.time()),
+    }
+    if extra:
+        item.update(extra)
+    return _claim_row(table, key_attr, _invoice_delivery_key(invoice_id, channel), item)
+
+
+def confirm_invoice_delivery(table: Any, *, invoice_id: str, channel: str = "whatsapp",
+                             wa_message_id: str = "",
+                             key_attr: str = "orderId") -> None:
+    """Advance a delivery claim from CLAIMED to DELIVERED. Never raises.
+
+    The claim becomes evidence only here. Conditional on the row existing, so it cannot create
+    one, and idempotent: a confirmed row re-confirmed is the same row.
+    """
+    if not invoice_id:
+        return
+    try:
+        table.update_item(
+            Key={key_attr: _invoice_delivery_key(invoice_id, channel)},
+            UpdateExpression="SET deliveryStatus = :done, deliveredAt = if_not_exists("
+                             "deliveredAt, :now), waMessageId = :mid",
+            ConditionExpression="attribute_exists(%s)" % key_attr,
+            ExpressionAttributeValues={":done": DELIVERY_CONFIRMED, ":now": int(time.time()),
+                                       ":mid": wa_message_id or ""},
+        )
+    except Exception as error:  # noqa: BLE001
+        # A confirmed delivery that failed to record is a reporting gap, never a money fault: the
+        # document is already in the customer's hands. Logged by type, never raised.
+        logger.info('{"event":"invoice_delivery_confirm_skipped","error":"%s"}',
+                    type(error).__name__)
+
+
+def release_invoice_delivery(table: Any, *, invoice_id: str, channel: str = "whatsapp",
+                             key_attr: str = "orderId") -> bool:
+    """Release a delivery claim that produced no delivery. True when released.
+
+    Conditional on `deliveryStatus = CLAIMED`, so it can NEVER undo a confirmed delivery - which
+    is what stops the release being usable to duplicate a GST invoice. Returns False (rather than
+    raising) when the row is already DELIVERED or absent, because both mean "there is nothing
+    here to take back".
+    """
+    if not invoice_id:
+        return False
+    try:
+        table.delete_item(
+            Key={key_attr: _invoice_delivery_key(invoice_id, channel)},
+            ConditionExpression="attribute_exists(%s) AND deliveryStatus = :claimed" % key_attr,
+            ExpressionAttributeValues={":claimed": DELIVERY_CLAIMED},
+        )
+        return True
+    except Exception as error:  # noqa: BLE001
+        if _is_conditional_failure(error):
+            return False
+        raise OrderIdentityUnavailable(
+            "could not release the delivery claim for %r: %s"
+            % (invoice_id, type(error).__name__)
+        ) from error
+
+
+def resolve_invoice_delivery(table: Any, invoice_id: str, *, channel: str = "whatsapp",
+                             key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
+    """The delivery claim row for an invoice/channel, or None."""
+    if not invoice_id:
+        return None
+    return _read_row(table, key_attr, _invoice_delivery_key(invoice_id, channel))
+
+
 # ── one live payable attempt per cart, and durable per-basket paid memory ───────
 
 #: The customer's most recent PAYABLE attempt for one Cart V2 cart, so a create can resolve
@@ -1885,6 +2073,19 @@ __all__ = [
     "claim_topup_credit",
     "REQUEST_KEY_PREFIX",
     "GATEWAY_ORDER_PREFIX",
+    "INVOICE_COLLECT_PREFIX",
+    "INVOICE_COLLECT_KIND",
+    "INVOICE_COLLECT_SEQ_ATTR",
+    "resolve_invoice_collection",
+    "release_invoice_collection",
+    "INVOICE_DELIVERY_PREFIX",
+    "INVOICE_DELIVERY_KIND",
+    "DELIVERY_CLAIMED",
+    "DELIVERY_CONFIRMED",
+    "claim_invoice_delivery",
+    "confirm_invoice_delivery",
+    "release_invoice_delivery",
+    "resolve_invoice_delivery",
     "reserve_checkout_request_key",
     "resolve_checkout_request_key",
     "bind_gateway_order",

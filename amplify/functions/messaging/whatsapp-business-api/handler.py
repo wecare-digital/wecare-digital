@@ -3246,6 +3246,33 @@ PAYMENT_CONFIGS = {
 }
 
 
+def _flatten_payment_configurations(raw: Dict) -> Dict:
+    """Normalise Meta's `GET /{waba}/payment_configurations` response into the flat
+    `{"data": [ {configuration_name, status, provider_name, provider_mid, ...}, ... ]}`
+    shape `payment_readiness.evaluate` consumes.
+
+    Measured 2026-10-08: the live edge nests the real list one level down as
+    `data[0].payment_configurations[]`, and ONLY when no `fields` filter is sent (sending
+    `fields=configuration_name,status,payment_gateway,...` makes Meta return `data: []`,
+    which is the false-negative that blocked every payment). An `error` object or an already
+    flat list is passed through unchanged so a future shape change degrades to the honest
+    META_UNAVAILABLE / direct-parse path rather than silently dropping configs.
+    """
+    if not isinstance(raw, dict) or raw.get("error"):
+        return raw if isinstance(raw, dict) else {"error": {"message": "non-dict response"}}
+    data = raw.get("data")
+    if not isinstance(data, list):
+        return raw
+    flat = []
+    for element in data:
+        if isinstance(element, dict) and isinstance(element.get("payment_configurations"), list):
+            flat.extend(c for c in element["payment_configurations"] if isinstance(c, dict))
+        elif isinstance(element, dict):
+            # Already a flat configuration object (older shape or a named-lookup result).
+            flat.append(element)
+    return {"data": flat}
+
+
 def _payment_readiness_for(waba_id: str, configuration_name: str) -> Dict:
     """The live verdict on whether a payment could actually be taken, or a reason it cannot.
 
@@ -3264,11 +3291,8 @@ def _payment_readiness_for(waba_id: str, configuration_name: str) -> Dict:
             expected_waba_id=waba_id,
             expected_configuration_name=configuration_name,
             expected_provider_mid=_RAZORPAY_MID,
-            fetch_configurations=lambda wid: _graph_api(
-                f'{wid}/payment_configurations',
-                params={'fields': 'configuration_name,status,payment_gateway,'
-                                  'merchant_category_code,purpose_code'},
-                waba_id=wid),
+            fetch_configurations=lambda wid: _flatten_payment_configurations(
+                _graph_api(f'{wid}/payment_configurations', waba_id=wid)),
         )
         return {
             'ready': verdict.ready,
@@ -5794,6 +5818,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'preparePaidSubmitRequest':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        from flows.paid_submit_request import prepare_and_send
+        return prepare_and_send(event, lambda_client, _get_flow)
+
     # Handle async post-submit actions (invoked by REVIEW screen handler)
     if event.get('_async_action') == 'flow_post_submit':
         return _handle_async_post_submit(event, request_id)
@@ -6175,6 +6205,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             amount_paise = int(body.get('amountPaise', 0))
             speed = body.get('speed', 'normal')
             return _payment_refund(phone_id, reference_id, config_name, amount_paise, speed)
+
+        elif '/payment-config/list' in path:
+            # Flattened live `{data:[config,...]}` for payment_readiness.evaluate. checkout's
+            # readiness fetch calls this; it needs the normalised list, not the human
+            # paymentConfig/liveReadiness view that /payment-config returns.
+            wid = params.get('wabaId') or body.get('wabaId') or WABA1_ID
+            return _resp(200, _flatten_payment_configurations(
+                _graph_api(f'{wid}/payment_configurations', waba_id=wid)))
 
         elif '/payment-config' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')

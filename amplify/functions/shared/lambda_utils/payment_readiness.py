@@ -318,8 +318,16 @@ def evaluate(*,
             waba_id=expected_waba_id, checked_configurations=names,
         )
 
+    # Meta's live `payment_configurations` edge reports the gateway as flat sibling fields
+    # `provider_name`/`provider_mid` on the configuration itself (measured 2026-10-08:
+    # provider_name="Razorpay", provider_mid="acc_TTFSyolquKEZEy", status="Active"). The older
+    # nested `payment_gateway: {type, merchant_id}` shape is still accepted as a fallback so a
+    # future response shape change does not silently drop the MID check.
     gateway_block = match.get("payment_gateway")
-    if isinstance(gateway_block, dict):
+    if match.get("provider_name") or match.get("provider_mid"):
+        gateway = str(match.get("provider_name", "")).strip().lower()
+        reported_mid = str(match.get("provider_mid", "")).strip()
+    elif isinstance(gateway_block, dict):
         gateway = str(gateway_block.get("type", "")).strip().lower()
         reported_mid = str(gateway_block.get("merchant_id", "")).strip()
     else:

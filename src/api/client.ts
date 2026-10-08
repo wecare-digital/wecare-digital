@@ -6790,6 +6790,11 @@ export async function logCapiEvent ( input: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SecureFile {
+  paidGrantId?: string;
+  deliveryStatus?: string;
+  vaultPaymentStatus?: string;
+  vaultOrderNumber?: string;
+  vaultRequestNumber?: string;
   fileId: string;
   displayName: string;
   originalFilename: string;

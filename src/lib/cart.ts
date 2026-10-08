@@ -667,6 +667,14 @@ export function toLineItems ( items: CartItem[] = readCart() ): CheckoutLineItem
  */
 const SERVICE_INTENT_KEY = 'wecare.cart.serviceIntent.v1';
 
+/** Attach an authenticated service intent without replacing a claimed catalog basket. */
+export function rememberServiceIntent ( variantId: string, intentId: string ): void {
+  if ( hasWindow() && serviceChoice( variantId ) && intentId )
+  {
+    window.localStorage.setItem( SERVICE_INTENT_KEY, JSON.stringify( { variantId, intentId } ) );
+  }
+}
+
 /** Is this line the services product? On `productId`, like `isContributionItem`. */
 export const isServiceItem = ( item: CartItem ): boolean =>
   !!SERVICES_PRODUCT_ID && item.productId === SERVICES_PRODUCT_ID;
