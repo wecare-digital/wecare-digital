@@ -237,3 +237,20 @@ Meta Flow 1578178897413815 remains a saved draft. Interactive preview validates 
 ### 2026-10-08 — Balanced Flow brand lockup
 
 A1_LOCAL / A2_REMOTE_CODE: owner supplied website screenshot as the brand proportion reference. Enlarged the Inter ExtraBold wordmark from 43px to 56px, increased the icon-to-wordmark gap, vertically centred both lines, retained the red dot. Updated both embedded Flow banners. Structural comparison confirms all form fields, routing and completion payload remain identical. Meta Run validates zero errors and Save persists the draft. Rollback: revert this asset-only commit. No Lambda or frontend source change.
+
+
+## 2026-10-08 — ReviewTable authority for private customer ideas
+
+Owner requested removal of the optional follow-up checkbox and review-specific storage. Meta draft 1578178897413815 saved schema 4 without opt-in fields or consent caption; saved JSON matches local output and validates zero errors.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | customer_ideas, review listing APIs, contact/review workspace display and Flow JSON | ReviewTable is authoritative, conditional put keeps original content and moderation on retry, FlowSubmission tracking repair follows before inbox dedup. No new SubmitRequestsTable activity writes. 82 focused Python tests pass on source and the exact archived Lambda helper; frontend test passes. | Revert scoped source commits. |
+| A3_PRODUCTION | wecare-inbound-whatsapp live 81 | Prior live 80 captured. Only handler and customer_ideas replaced; remaining archive preserved, role ReviewTable PutItem/GetItem verified allowed, version Active/Successful readback. | Move live to 80 with current revision guard. |
+| A3_PRODUCTION | wecare-whatsapp-business-api live 68, wecare-service-api live 22 | Prior versions 67 / 21 captured. Only _list_reviews function replaced in existing live archive; full pagination, phone-index query, contact filter, pending/submitted translation tested. Both Active/Successful. | Move aliases to 67 / 21 with current revision guards. |
+| A2_REMOTE_CODE | Explicit paths on stack | Concurrent origin ce26a84 merged normally, preserving other changes. Repaired its package-lock mismatch; npm ci succeeds. Non-force push only after final gates. | Revert scoped commits on stack. |
+| A3_PRODUCTION | Amplify d22dm4b0jn71jw stack auto-build | App/branch snapshot from earlier deployment remains applicable; no config changes, auto build enabled. | Revert and rebuild. |
+
+Existing ReviewTable ACTIVE: reviewId key, customerPhone/status indexes. Private ideas have flowId, flowCode, reviewType, trusted contactId/phone, source whatsapp, status submitted and no invented rating. ReviewTable retains the domain record; FlowSubmission remains a compatibility tracking projection. Contacts read review rows directly. No schema/IAM changes, sends, credential reads or public-review requests. Existing WD_IDEA submissions scanned: zero; no historical migration required. Runtime flow_completion retained from live intentionally, including no unrelated rollout of concurrent shared-helper fixes; exact archive tests pass.
+
+WAITING_FOR_OWNER remains real WhatsApp QA: authorised recipient required; Flow is still a draft. Multiple review/idea Flows may share ReviewTable with explicit Flow attribution; service/payment/document domains retain their existing storage.
