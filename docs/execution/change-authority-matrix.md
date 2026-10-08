@@ -3028,3 +3028,25 @@ Owner requested removal of the optional follow-up checkbox and review-specific s
 Existing ReviewTable ACTIVE: reviewId key, customerPhone/status indexes. Private ideas have flowId, flowCode, reviewType, trusted contactId/phone, source whatsapp, status submitted and no invented rating. ReviewTable retains the domain record; FlowSubmission remains a compatibility tracking projection. Contacts read review rows directly. No schema/IAM changes, sends, credential reads or public-review requests. Existing WD_IDEA submissions scanned: zero; no historical migration required. Runtime flow_completion retained from live intentionally, including no unrelated rollout of concurrent shared-helper fixes; exact archive tests pass.
 
 WAITING_FOR_OWNER remains real WhatsApp QA: authorised recipient required; Flow is still a draft. Multiple review/idea Flows may share ReviewTable with explicit Flow attribution; service/payment/document domains retain their existing storage.
+
+## 2026-10-08 — Owner-approved review Flow publication
+
+Owner explicitly confirmed: "Yes, publish this review Flow now" for WD_Leave_Review_v2, Meta Flow 1578178897413815. Published through WhatsApp Manager; readback shows Published and "Your Flow has been published!". JSON has zero errors. The approved schema 4 and private ReviewTable submission route are unchanged.
+
+| Class | Target | Evidence | Recovery |
+|---|---|---|---|
+| Explicit owner provider publication | WD_Leave_Review_v2 / 1578178897413815 | Exact Flow named in owner approval; Meta published status and success modal verified. Initial approval-review block was resolved by this explicit approval. | Revise content through Meta's new-version workflow; publication cannot be treated as a draft rollback. |
+| A0_READ | Lambda live aliases and Amplify deployment | Inbound 81, WhatsApp business API 68, service API 22 remain Active and match the previously tested code. Amplify stack job 1437 BUILD/DEPLOY/VERIFY all SUCCEED. | No runtime changes in this publication step. |
+
+No invitation or customer message sent. A real WhatsApp submission and saved-record/contact-activity verification remain WAITING_FOR_OWNER until an authorised QA recipient is supplied. Publishing does not itself attach a template or broadcast the Flow. Existing-order lookup was confirmed in source by customerPhone index; wiring a customer-scoped selector into the future request Flow is still implementation work.
+
+## 2026-10-08 — Customer link for the published private idea Flow
+
+Owner requested completion of the customer-entry route. Exact `Share an idea`, `share idea` and `/idea` messages route to customer_idea / Flow 1578178897413815. NAVIGATE opens FEEDBACK directly; the legacy leave_review / 4423166114671543 route remains unchanged. Hybrid routing enabled=false and standby ownership/send guards remain effective. Second-WABA fallback uses the first account's customer link.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL / A2_REMOTE_CODE | Inbound handler, routing tests, authority log | 93 focused tests pass; exact archive entry tests pass. Only handler.py changes in the existing live ZIP; all other members preserved. | Revert scoped source commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp version 82 and live alias | Previous version 81 and code hash verified before update; revision-guarded code update and alias move. Archive SHA256 a477a20c1256101c04188fe71dcbf42c7127554dd344b9cb732bca960aaf62d8. | Move live alias to 81 and restore its code to LATEST because ingress can invoke unqualified. |
+
+Customer URL: https://wa.me/919330994400?text=Share%20an%20idea . The customer sends the prefilled message, receives Share an idea, and taps it to open the native Flow. No live-send flag, payment configuration or provider credential changed. No customer message sent by this deployment; real-device and persistence QA still needs an authorised recipient.

@@ -389,6 +389,9 @@ def _get_routing_config() -> Dict:
     return cfg
 
 
+CUSTOMER_IDEA_KEYWORDS = frozenset({'share an idea', 'share idea', '/idea'})
+
+
 def _is_deterministic_trigger(message: Dict) -> bool:
     """True if the message should be handled by OUR deterministic flows (menu,
     lists, flows, catalog/cart, commands) rather than the Meta AI agent.
@@ -418,7 +421,7 @@ def _is_deterministic_trigger(message: Dict) -> bool:
         prefix = cfg.get('commandPrefix', '/')
         if prefix and body.startswith(prefix):
             return True  # slash commands
-        kws = {k.lower() for k in (cfg.get('keywords') or [])}
+        kws = {k.lower() for k in (cfg.get('keywords') or [])} | CUSTOMER_IDEA_KEYWORDS
         if body in kws or strip_decorative_edges(body) in kws:
             return True
         return any(kw.lower() in body for kw in (cfg.get('contains') or []))
@@ -5529,6 +5532,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                     'drop_docs': 'https://wecare.digital/r/dd',
                     'enterprise_assist': 'https://wecare.digital/r/ea',
                     'leave_review': 'https://wecare.digital/r/lr',
+                    'customer_idea': 'https://wa.me/919330994400?text=Share%20an%20idea',
                     'subscribe': 'https://wecare.digital/r/sub',
                     'order_notes': 'https://wecare.digital/r/on',
                 }
@@ -5567,7 +5571,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
         # still called later on data_exchange screens (e.g. REVIEW), so no data is
         # lost. Only order-fetching flows (submit_request, etc.) need data_exchange
         # at open to populate their first screen.
-        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO'}
+        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO', 'customer_idea': 'FEEDBACK'}
         _entry_screen = STATIC_ENTRY_SCREENS.get(flow_key, '')
         flow_action = 'navigate' if _entry_screen else 'data_exchange'
 
@@ -7141,6 +7145,16 @@ def _generate_and_send_invoice(contact_id: str, phone_number_id: str, amount: fl
 # longer dispatch here — a tapped row gets the menu placeholder — so the one-time
 # "row title without emoji" entries are kept only because people type them.
 DEFAULT_FLOW_TRIGGERS = {
+    'customer_idea': {
+        'keywords': sorted(CUSTOMER_IDEA_KEYWORDS),
+        'flowId': '1578178897413815',
+        'message': {
+            'body': 'What would you love us to make possible? Share a feature, improvement or idea privately with our team.',
+            'footer': 'WECARE.DIGITAL',
+            'flowCta': 'Share an idea',
+        },
+        'enabled': True,
+    },
     'submit_request': {
         'keywords': [
             'submit request', 'sr', 'raise request', 'submit', 'request',
