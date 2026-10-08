@@ -1,0 +1,213 @@
+{
+  "status": "success",
+  "stdout": "",
+  "return_value": {
+    "windowStart": "2026-09-30T02:46:17.621214+00:00",
+    "windowEnd": "2026-10-07T02:46:17.621214+00:00",
+    "metrics": [
+      {
+        "function": "wecare-crm",
+        "invocations": 0,
+        "datapoints": 0
+      },
+      {
+        "function": "wecare-service-api",
+        "invocations": 1,
+        "datapoints": 1
+      },
+      {
+        "function": "wecare-faq-handler",
+        "invocations": 0,
+        "datapoints": 0
+      },
+      {
+        "function": "wecare-payments-read",
+        "invocations": 3,
+        "datapoints": 1
+      },
+      {
+        "function": "wecare-url-shortener",
+        "invocations": 0,
+        "datapoints": 0
+      },
+      {
+        "function": "stack-wecare-url-shortener",
+        "invocations": 141,
+        "datapoints": 7
+      }
+    ],
+    "routes": [
+      {
+        "route": "GET /crm/pipelines",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "PATCH /crm/opportunities/{opportunityId}",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "DELETE /links/{code}",
+        "function": "stack-wecare-url-shortener"
+      },
+      {
+        "route": "GET /payments/{paymentId}",
+        "function": "wecare-payments-read"
+      },
+      {
+        "route": "GET /crm/leads/{leadId}",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "POST /crm/leads",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "GET /crm/contacts/{contactId}/360",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "PATCH /crm/leads/{leadId}",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "GET /payments",
+        "function": "wecare-payments-read"
+      },
+      {
+        "route": "GET /faq",
+        "function": "wecare-faq-handler"
+      },
+      {
+        "route": "GET /r/{code}",
+        "function": "stack-wecare-url-shortener"
+      },
+      {
+        "route": "GET /crm/opportunities",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "GET /links",
+        "function": "stack-wecare-url-shortener"
+      },
+      {
+        "route": "PUT /links/{code}",
+        "function": "stack-wecare-url-shortener"
+      },
+      {
+        "route": "GET /crm/activities",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "GET /crm/leads",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "POST /links",
+        "function": "stack-wecare-url-shortener"
+      },
+      {
+        "route": "GET /crm/opportunities/{opportunityId}",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "GET /links/{code}",
+        "function": "stack-wecare-url-shortener"
+      },
+      {
+        "route": "POST /crm/activities",
+        "function": "wecare-crm"
+      },
+      {
+        "route": "POST /crm/leads/{leadId}/convert",
+        "function": "wecare-crm"
+      }
+    ],
+    "alarmCounts": {
+      "metric": 73,
+      "composite": 0
+    },
+    "errors": [],
+    "retirementConclusion": "No retirement proven by these metrics alone. Indirect callers, event sources, IAM and data dependencies remain required."
+  },
+  "api_calls": [
+    {
+      "service": "sts",
+      "operation": "GetCallerIdentity",
+      "status": "success"
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "GetMetricStatistics",
+      "status": "success",
+      "n_items": {
+        "Datapoints": 0
+      }
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "GetMetricStatistics",
+      "status": "success",
+      "n_items": {
+        "Datapoints": 1
+      }
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "GetMetricStatistics",
+      "status": "success",
+      "n_items": {
+        "Datapoints": 0
+      }
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "GetMetricStatistics",
+      "status": "success",
+      "n_items": {
+        "Datapoints": 1
+      }
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "GetMetricStatistics",
+      "status": "success",
+      "n_items": {
+        "Datapoints": 0
+      }
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "GetMetricStatistics",
+      "status": "success",
+      "n_items": {
+        "Datapoints": 7
+      }
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetRoutes",
+      "status": "success",
+      "n_items": {
+        "Items": 374
+      }
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetIntegrations",
+      "status": "success",
+      "n_items": {
+        "Items": 74
+      }
+    },
+    {
+      "service": "cloudwatch",
+      "operation": "DescribeAlarms",
+      "status": "success",
+      "n_items": {
+        "MetricAlarms": 73,
+        "CompositeAlarms": 0,
+        "LogAlarms": 0
+      }
+    }
+  ]
+}

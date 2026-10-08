@@ -13,6 +13,18 @@ const connections = [
 ];
 beforeEach(() => { cleanup(); vi.clearAllMocks(); });
 
+/**
+ * The two playground controls are ui/Select now, so a `fireEvent.change` has nothing to
+ * change: the trigger is a <button role="combobox"> and the rows are <li role="option">.
+ * This is the SAME USER ACTION expressed against the real markup - open the menu, click the
+ * row - and every assertion in this file is untouched, because none of them was ever about
+ * the element type.
+ */
+const choose = (field: string, option: string) => {
+  fireEvent.click(screen.getByRole('combobox', { name: field }));
+  fireEvent.click(screen.getByRole('option', { name: option }));
+};
+
 describe('MCP playground', () => {
   it('runs a connection check and displays actual data with its verified status', async () => {
     request.mockResolvedValue({ provider: 'aws', status: 'verified', read: { account: '775261844268' } });
@@ -33,8 +45,8 @@ describe('MCP playground', () => {
   it('runs a bounded Meta collection read and treats provider errors as failures', async () => {
     request.mockResolvedValue({ isError: true });
     render(<MCPPlayground connections={connections} names={{}} />);
-    fireEvent.change(screen.getByLabelText('Connection'), { target: { value: 'meta-social' } });
-    fireEvent.change(screen.getByLabelText('Read'), { target: { value: 'apps' } });
+    choose('Connection', 'meta-social');
+    choose('Read', 'List authorized Meta apps');
     fireEvent.click(screen.getByRole('button', { name: 'Run read' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('refused');
     expect(request).toHaveBeenCalledWith('provider_read', { provider: 'meta-social', tool: 'devtools_app_list', arguments: { action: 'list', limit: 10 } });
@@ -44,7 +56,7 @@ describe('MCP playground', () => {
     render(<MCPPlayground connections={connections} names={{}} />);
     fireEvent.click(screen.getByRole('button', { name: 'Run read' }));
     await screen.findByLabelText('MCP read result');
-    fireEvent.change(screen.getByLabelText('Connection'), { target: { value: 'whatsapp' } });
+    choose('Connection', 'whatsapp');
     expect(screen.queryByLabelText('MCP read result')).toBeNull();
   });
   it('refuses unlisted operations and binds settings reads to the WECARE app', () => {

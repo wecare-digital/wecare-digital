@@ -20,6 +20,17 @@
  */
 import React, { useState } from 'react';
 import * as api from '../api/client';
+import Select, { type SelectOption } from './ui/Select';
+
+/* The three languages, hoisted. Same order, same values, same visible text. */
+const OTP_LANGUAGE_OPTIONS: SelectOption[] = [
+  { value: 'en', label: 'English' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'en_US', label: 'English (US)' },
+];
+
+/* LAYOUT ONLY. The native control sized itself to "English (US)". */
+const OTP_LANGUAGE_SELECT_STYLE: React.CSSProperties = { width: 200 };
 
 interface OTPTemplateUIProps {
   contactId: string;
@@ -134,13 +145,13 @@ const OTPTemplateUI: React.FC<OTPTemplateUIProps> = ({
         </div>
       )}
       <div>
-        <label className="text-xs text-gray-500 block mb-1" htmlFor="otp-lang">Language</label>
-        <select id="otp-lang" value={language} onChange={e => setLanguage(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm">
-          <option value="en">English</option>
-          <option value="hi">Hindi</option>
-          <option value="en_US">English (US)</option>
-        </select>
+        {/* SHAPE (b), design 5.2 and 1.7(b) - this is the eleventh id-carrying select, the one
+            the earlier audit missed. The external label keeps its own utility classes, gains
+            an id, loses its `for` attribute, and is named by labelledBy; without that this
+            control would announce only "English". */}
+        <label className="text-xs text-gray-500 block mb-1" id="otp-lang-label">Language</label>
+        <Select labelledBy="otp-lang-label" value={language} onChange={v => setLanguage(v)}
+          options={OTP_LANGUAGE_OPTIONS} style={OTP_LANGUAGE_SELECT_STYLE} />
       </div>
       <button onClick={handleSend} disabled={sending}
         className="w-full bg-blue-600 text-white rounded py-2 text-sm hover:bg-blue-700 disabled:opacity-50">

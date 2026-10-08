@@ -26,6 +26,7 @@ import catalog from './wix-catalog.json';
 // The contribution vehicle's identity, so the shop exclusion and the cart line read ONE
 // declaration. src/config/contribution.ts imports nothing from here, so there is no cycle.
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
+import { SERVICES_PRODUCT_ID } from '../config/services';
 
 export interface ShopVariant { id: string; label: string; inStock: boolean; }
 
@@ -158,6 +159,16 @@ const isContributionRow = ( raw: RawProduct ): boolean =>
   || raw.slug === CONTRIBUTION_SLUG;
 
 /**
+ * The services product (Submit Request / Request Amendment, Phase O-1) is a payment VEHICLE too,
+ * excluded from `/shop/` by product id for the same reason as the contribution: its Wix product
+ * carries four variants, two of which (Drop Docs, Vault) are not offered yet, and a shop page
+ * would add a line with no service intent - which checkout refuses. The services are bought from
+ * /submit-request/ and /request-amendment/. It stays in KNOWN_CATALOGUE_PRODUCT_IDS.
+ */
+const isServicesRow = ( raw: RawProduct ): boolean =>
+  String( raw.id || '' ).trim().toLowerCase() === SERVICES_PRODUCT_ID;
+
+/**
  * THE WIX TEMPLATE'S OWN SAMPLE PRODUCTS, which are not this storefront. Owner decision,
  * 2026-10-05, on migrating the catalogue to site `c993128b-26be-41cd-9fcd-904abe23462f`.
  *
@@ -248,7 +259,7 @@ const VISIBLE = ( ( catalog as { products?: RawProduct[] } ).products || [] )
   .filter( raw => raw.visible !== false && !!raw.slug && !!raw.name );
 
 export const SHOP_PRODUCTS: ShopProduct[] = VISIBLE
-  .filter( raw => !isContributionRow( raw ) && !isTemplateSampleRow( raw ) )
+  .filter( raw => !isContributionRow( raw ) && !isServicesRow( raw ) && !isTemplateSampleRow( raw ) )
   .map( project )
   .sort( ( a, b ) => a.name.localeCompare( b.name ) );
 

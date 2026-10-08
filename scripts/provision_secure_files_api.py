@@ -5,7 +5,8 @@ Creates or updates, idempotently:
 
 * IAM role ``wecare-secure-files-role`` with a least-privilege inline policy
 * Lambda ``wecare-secure-files`` (python3.12) + published version + ``live`` alias
-* Seven routes on HTTP API ``zllr9lrg7j``, all pointing at the alias
+* Every route in ``ROUTES`` on HTTP API ``zllr9lrg7j``, all pointing at the alias
+  (the count used to be written out here and went stale twice; read the list)
 * Revocation of ``wecare-razorpay-webhook``'s grants-table access. The webhook used to
   mark grants paid; it no longer may, so the permission is removed rather than granted.
   See ``ensure_webhook_access``.
@@ -13,8 +14,12 @@ Creates or updates, idempotently:
 Two policy choices worth stating, because a wildcard here would be invisible and
 wrong:
 
-* S3 is scoped to ``secure/*`` on the one bucket. The function has no reason to
-  read the open ``o/`` tier and must not be able to rewrite it.
+* S3 writes are scoped to ``secure/*`` on the one bucket. The function may now also
+  **read** exactly one public prefix, ``o/stack/whatsapp-media/incoming/*``, because a
+  Drop Docs document arriving over WhatsApp lands there and ``CopyObject`` needs
+  ``GetObject`` on its source. That grant is read-only and single-prefix: the function
+  still cannot write anywhere under ``o/``, and nothing in this policy can delete an
+  object anywhere.
 * Cognito admin actions are scoped to the **customer** pool ARN only. This role
   must never be able to create or modify a user in the admin pool.
 
@@ -23,8 +28,13 @@ Run after ``provision_secure_file_sharing.py`` (which makes the tables) and
 
 Usage
 -----
-    python scripts/provision_secure_files_api.py --dry-run
-    python scripts/provision_secure_files_api.py
+**A bare invocation is a DRY RUN.** Writing requires ``--apply``, which publishes a
+version and moves the production ``live`` alias. The default used to be the other way
+round and it cost an unauthorized production apply on 2026-10-07; see ``main``.
+
+    python scripts/provision_secure_files_api.py              # dry run (the default)
+    python scripts/provision_secure_files_api.py --dry-run    # the same, said out loud
+    python scripts/provision_secure_files_api.py --apply      # writes; moves live
     python scripts/provision_secure_files_api.py --verify
 """
 
@@ -59,8 +69,15 @@ LAMBDA_UTILS = ROOT / "amplify" / "functions" / "shared" / "lambda_utils"
 
 BUCKET = "wecare-digital-get"
 SECURE_PREFIX = "secure/"
+# The ONE public prefix this role may read, and only to copy out of it. WhatsApp uploads
+# land here (inbound-whatsapp-handler) and CloudFront serves the whole o/ root
+# unauthenticated, so a Drop Docs document has to be copied into secure/ before anything
+# treats it as a customer document. CopyObject needs GetObject on the source; PutObject and
+# HeadObject on secure/* already exist above.
+PUBLIC_WHATSAPP_INCOMING_PREFIX = "o/stack/whatsapp-media/incoming/"
 FILES_TABLE = "stack-wecare-digital-SecureFilesTable"
 GRANTS_TABLE = "stack-wecare-digital-DownloadGrantsTable"
+REQUESTS_TABLE = "stack-wecare-digital-ServiceRequestsTable"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 ADMIN_POOL_ID = "us-east-1_cSx0RHCIR"
 META_WABA_ID = "2094615664435155"
@@ -82,6 +99,12 @@ ROUTES = [
     ("POST", "/secure-files/{fileId}/order"),
     ("POST", "/secure-files/{fileId}/whatsapp-pay"),
     ("GET", "/secure-files/{fileId}/download"),
+    # Drop Docs: promote a document into secure/ and register it against a paid request,
+    # and read back the caller's own documents for one request. Both flag-gated OFF by
+    # DROPDOCS_ATTACH_ENABLED; the routes exist so the flag has something to switch. The
+    # `dropdocs` segment is literal, so neither collides with the {fileId} routes above.
+    ("POST", "/secure-files/dropdocs/attach"),
+    ("GET", "/secure-files/dropdocs/{requestId}/documents"),
 ]
 
 # Lambdas secure-files invokes for WhatsApp delivery.
@@ -115,6 +138,26 @@ def policy_document() -> dict:
                 "Action": ["s3:GetObject", "s3:PutObject", "s3:HeadObject"],
                 # deliberately NOT the whole bucket: the open o/ tier is out of scope
                 "Resource": f"arn:aws:s3:::{BUCKET}/{SECURE_PREFIX}*",
+            },
+            {
+                "Sid": "ReadWhatsAppIncomingToPromote",
+                "Effect": "Allow",
+                # READ ONLY, and one prefix. No PutObject here (a Drop Docs document is
+                # only ever copied OUT of o/) and no DeleteObject anywhere in this policy:
+                # the public original is left to expire under the existing
+                # s3_whatsapp_media_incoming TTL in operations/system-cleanup, which is
+                # recorded as residual exposure rather than papered over.
+                "Action": ["s3:GetObject"],
+                "Resource": f"arn:aws:s3:::{BUCKET}/{PUBLIC_WHATSAPP_INCOMING_PREFIX}*",
+            },
+            {
+                "Sid": "DropDocsRequestRows",
+                "Effect": "Allow",
+                # Enough to resolve the caller's own REQ# row and register a DOC# row, and
+                # nothing more. No Query, no Scan, no DeleteItem, no UpdateItem on the
+                # request table beyond what the attach transaction needs.
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+                "Resource": f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/{REQUESTS_TABLE}",
             },
             {
                 "Sid": "Catalogue",
@@ -267,7 +310,7 @@ def environment(payment_enabled: bool = False) -> dict:
         # Both templates are already APPROVED; nothing here waits on Meta.
         # wecare_pay    [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
         # 01_wecare_doc [DOCUMENT, BODY, FOOTER, BUTTONS(FLOW)]
-        "WA_PAY_TEMPLATE": "wecare_pay",
+        "WA_PAY_TEMPLATE": "wecarepay_wa",
         # wd_file_delivery: APPROVED 2026-09-25. DOCUMENT header, BODY variables for
         # customer and file name, and no buttons. Replaced 01_wecare_doc, which could
         # name neither and carried a stray FLOW button labelled "Subscribe".
@@ -287,6 +330,16 @@ def environment(payment_enabled: bool = False) -> dict:
         # keys; they are provisioned there by provision_customer_whatsapp_auth.py.
         "UPLOAD_URL_TTL_SECONDS": "900",
         "GRANT_TTL_SECONDS": "1800",
+        # The Phase O-1 request store. A Drop Docs document is registered against a REQ#
+        # row there, not in SecureFilesTable.
+        "SERVICE_REQUESTS_TABLE": REQUESTS_TABLE,
+        # Drop Docs document attach. Ships OFF and stays off: there is no upload UI in
+        # Phase O-2, so the only thing turning this on would do is open a route nothing
+        # calls. Read per call in the handler, so flipping it does not need a republish
+        # to be observed - but it DOES need one to reach production, because the HTTP API
+        # invokes the live alias. Separate from SECURE_FILES_PAYMENT_ENABLED and must
+        # never be confused with it: this one stores a document, that one takes money.
+        "DROPDOCS_ATTACH_ENABLED": "false",
         # A secret NAME, never a value. See .kiro/steering/secret-handling.md.
         "RAZORPAY_SECRET_ID": RAZORPAY_SECRET_NAME,
         # Enabling paid downloads is an owner action. While off, the order route
@@ -701,7 +754,26 @@ def verify() -> int:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--dry-run", action="store_true")
+    # DRY RUN IS THE DEFAULT, and `--apply` is the only way to write.
+    #
+    # It used to be the other way round: `--dry-run` was opt-in, so a bare invocation
+    # refreshed the role policy, uploaded code, published a version and MOVED THE LIVE
+    # ALIAS. On 2026-10-07 that is exactly what happened - the command was run from a build
+    # loop with no flag and put unmerged worktree code behind `wecare-secure-files:live`
+    # for about six minutes across ten writes (recorded in
+    # docs/execution/change-authority-matrix.md). Nothing about the script said it would.
+    #
+    # Every other provisioning habit in this repo trains the opposite expectation
+    # (`terraform plan`, `cdk synth`, `sam build`, `deploy_all_lambdas.py --dry-run`), so
+    # the default is now the safe direction and the dangerous one has to be typed.
+    # `--dry-run` is still accepted, and still means what it says, so every recorded
+    # command and every habit keeps working.
+    ap.add_argument("--apply", action="store_true",
+                    help="actually write: refresh the role policy, upload code, publish a "
+                         "version and MOVE THE LIVE ALIAS. Without it this is a dry run.")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="explicitly report the delta and change nothing. The default, "
+                         "kept so an existing command keeps meaning what it meant.")
     ap.add_argument("--verify", action="store_true")
     group = ap.add_mutually_exclusive_group()
     group.add_argument(
@@ -724,19 +796,26 @@ def main(argv=None) -> int:
     if args.disable_payment:
         return set_payment_flag(False)
 
+    if args.apply and args.dry_run:
+        # Refuse rather than pick one. Both flags together means the caller does not know
+        # which they want, and guessing in either direction is worse than stopping.
+        print("--apply and --dry-run contradict each other; pass one")
+        return 2
+    dry_run = not args.apply
+
     print(f"region: {REGION}  api: {API_ID}")
-    print(f"dry run: {args.dry_run}\n")
-    print(f"role: {ensure_role(args.dry_run)}")
+    print(f"dry run: {dry_run}\n")
+    print(f"role: {ensure_role(dry_run)}")
     zip_bytes = package()
     print(f"package: {len(zip_bytes)} bytes")
-    print(f"function: {ensure_function(zip_bytes, args.dry_run)}")
-    print(f"alias: {ensure_alias(args.dry_run)}")
-    for line in ensure_routes(args.dry_run):
+    print(f"function: {ensure_function(zip_bytes, dry_run)}")
+    print(f"alias: {ensure_alias(dry_run)}")
+    for line in ensure_routes(dry_run):
         print(f"route {line}")
-    print(f"webhook: {ensure_webhook_access(args.dry_run)}")
+    print(f"webhook: {ensure_webhook_access(dry_run)}")
 
-    if args.dry_run:
-        print("\ndry run: nothing changed")
+    if dry_run:
+        print("\ndry run: nothing changed  (pass --apply to write)")
         return 0
 
     print("\nread-back verification:")

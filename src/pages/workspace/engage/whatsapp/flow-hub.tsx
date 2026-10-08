@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import * as api from '../../../../api/client';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import Spinner from '../../../../components/ui/Spinner';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { StatusBadge, MaskedPhone } from '../../../../components/wa';
 import MaybeLayout from '../../../../components/MaybeLayout';
 
@@ -15,9 +16,32 @@ const FLOW_TYPES = [ 'form_submit', 'order_management', 'interactive', 'data_col
 const PAYMENT_STATUSES = [ 'none', 'pending', 'captured', 'failed', 'refunded' ];
 const SUBMISSION_STATUSES = [ 'open', 'in_progress', 'resolved', 'closed', 'cancelled' ];
 
+const FLOW_TYPE_OPTIONS: SelectOption[] = FLOW_TYPES.map( t => ( { value: t, label: t } ) );
+const REGISTRY_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'DRAFT', label: 'DRAFT' },
+  { value: 'PUBLISHED', label: 'PUBLISHED' },
+  { value: 'DEPRECATED', label: 'DEPRECATED' },
+];
+/** The leading '' row is the placeholder ROW the old `<option value="">` was. */
+const SUBMISSION_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...SUBMISSION_STATUSES.map( s => ( { value: s, label: s } ) ),
+];
+const PAYMENT_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Payment' },
+  ...PAYMENT_STATUSES.map( s => ( { value: s, label: s } ) ),
+];
+/** Layout only: the filter rows are flex, and the trigger shows the SELECTED label. */
+const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 0 };
+
 function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const toast = useToastContext();
-  const [ activeTab, setActiveTab ] = useState<'registry' | 'submissions' | 'payments' | 'stats' | 'journey' | 'health'>( 'registry' );
+  // A sixth member, 'health', was here until 2026-10-07. The whole tab went, not just
+  // its data: it called /wa-business/flow-version-health, which has no live route, and
+  // the loader's catch swallowed the 404 — so the tab always rendered 'Click "Check
+  // Health" to scan all registered flows' no matter how often you clicked. A tab that
+  // can never populate is worse than no tab, because it reads as a feature.
+  const [ activeTab, setActiveTab ] = useState<'registry' | 'submissions' | 'payments' | 'stats' | 'journey'>( 'registry' );
 
   // Registry state
   const [ registry, setRegistry ] = useState<api.FlowRegistryItem[]>( [] );
@@ -41,17 +65,19 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
   const [ journey, setJourney ] = useState<api.CustomerJourney | null>( null );
   const [ journeyLoading, setJourneyLoading ] = useState( false );
 
-  // Version Health state
-  const [ versionHealth, setVersionHealth ] = useState<api.FlowVersionHealth[]>( [] );
-  const [ healthLoading, setHealthLoading ] = useState( false );
-  const [ recommendedVersion, setRecommendedVersion ] = useState( '' );
-
   // SLA check state
   const [ slaRunning, setSlaRunning ] = useState( false );
   const [ slaResult, setSlaResult ] = useState<any>( null );
 
   // CSV export state
   const [ exporting, setExporting ] = useState( false );
+
+  /* Derived from the FETCHED registry, so memoised on it rather than rebuilt inline. Shared by
+     the submissions filter and the stats filter, which listed the same flows. */
+  const flowFilterOptions: SelectOption[] = useMemo( () => [
+    { value: '', label: 'All Flows' },
+    ...registry.map( f => ( { value: f.flowCode, label: `${ f.flowCode } — ${ f.flowName }` } ) ),
+  ], [ registry ] );
 
   // Register flow form
   const [ showRegForm, setShowRegForm ] = useState( false );
@@ -98,18 +124,6 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
     catch ( e ) { console.error( e ); toast.error( 'Failed to load journey' ); }
     finally { setJourneyLoading( false ); }
   };
-
-  const loadVersionHealth = async () => {
-    setHealthLoading( true );
-    try
-    {
-      const data = await api.checkFlowVersionHealth();
-      if ( data ) { setVersionHealth( data.flows || [] ); setRecommendedVersion( data.recommendedVersion || '' ); }
-    } catch ( e ) { console.error( e ); }
-    finally { setHealthLoading( false ); }
-  };
-
-  useEffect( () => { if ( activeTab === 'health' ) loadVersionHealth(); }, [ activeTab ] );
 
   const handleSlaCheck = async () => {
     setSlaRunning( true );
@@ -163,14 +177,14 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
 
       {/* Tabs */ }
       <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem' } }>
-        { ( [ 'registry', 'submissions', 'payments', 'stats', 'journey', 'health' ] as const ).map( tab => (
+        { ( [ 'registry', 'submissions', 'payments', 'stats', 'journey' ] as const ).map( tab => (
           <button key={ tab } onClick={ () => setActiveTab( tab ) }
             style={ {
               padding: '0.5rem 1rem', border: 'none', borderRadius: '0.375rem 0.375rem 0 0', cursor: 'pointer',
               background: activeTab === tab ? '#0f2a1d' : '#f3f4f6', color: activeTab === tab ? '#fff' : '#374151',
               fontWeight: activeTab === tab ? 600 : 400, fontSize: '0.85rem',
             } }>
-            { tab === 'registry' ? 'Registry' : tab === 'submissions' ? 'Submissions' : tab === 'payments' ? 'Payments' : tab === 'stats' ? 'Analytics' : tab === 'journey' ? 'Journey' : 'Health' }
+            { tab === 'registry' ? 'Registry' : tab === 'submissions' ? 'Submissions' : tab === 'payments' ? 'Payments' : tab === 'stats' ? 'Analytics' : 'Journey' }
           </button>
         ) ) }
       </div>
@@ -212,10 +226,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Flow Type</label>
-                  <select value={ regForm.flowType } onChange={ e => setRegForm( { ...regForm, flowType: e.target.value } ) }
-                    style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-                    { FLOW_TYPES.map( t => <option key={ t } value={ t }>{ t }</option> ) }
-                  </select>
+                  <Select ariaLabel="Flow Type" value={ regForm.flowType || '' }
+                    onChange={ v => setRegForm( { ...regForm, flowType: v } ) }
+                    options={ FLOW_TYPE_OPTIONS } />
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>WABA ID</label>
@@ -229,12 +242,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Status</label>
-                  <select value={ regForm.status || 'DRAFT' } onChange={ e => setRegForm( { ...regForm, status: e.target.value } ) }
-                    style={ { width: '100%', padding: '0.4rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="PUBLISHED">PUBLISHED</option>
-                    <option value="DEPRECATED">DEPRECATED</option>
-                  </select>
+                  <Select ariaLabel="Status" value={ regForm.status || 'DRAFT' }
+                    onChange={ v => setRegForm( { ...regForm, status: v } ) }
+                    options={ REGISTRY_STATUS_OPTIONS } />
                 </div>
                 <div>
                   <label style={ { display: 'block', marginBottom: '0.25rem', fontWeight: 500 } }>Preferred Gateway</label>
@@ -328,21 +338,15 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { activeTab === 'submissions' && (
         <div>
           <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' } }>
-            <select value={ subsFlowFilter } onChange={ e => setSubsFlowFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Flows</option>
-              { registry.map( f => <option key={ f.flowCode } value={ f.flowCode }>{ f.flowCode } — { f.flowName }</option> ) }
-            </select>
-            <select value={ subsStatusFilter } onChange={ e => setSubsStatusFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Statuses</option>
-              { SUBMISSION_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-            </select>
-            <select value={ subsPaymentFilter } onChange={ e => setSubsPaymentFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Payment</option>
-              { PAYMENT_STATUSES.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-            </select>
+            <Select ariaLabel="Filter by flow" value={ subsFlowFilter }
+              onChange={ v => setSubsFlowFilter( v ) }
+              options={ flowFilterOptions } style={ FILTER_SELECT_STYLE } />
+            <Select ariaLabel="Filter by status" value={ subsStatusFilter }
+              onChange={ v => setSubsStatusFilter( v ) }
+              options={ SUBMISSION_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
+            <Select ariaLabel="Filter by payment status" value={ subsPaymentFilter }
+              onChange={ v => setSubsPaymentFilter( v ) }
+              options={ PAYMENT_STATUS_FILTER_OPTIONS } style={ FILTER_SELECT_STYLE } />
             <button onClick={ loadSubmissions } disabled={ subsLoading }
               style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
               { subsLoading ? 'Loading...' : 'Refresh' }
@@ -513,11 +517,9 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
       { activeTab === 'stats' && (
         <div>
           <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem' } }>
-            <select value={ statsFlowFilter } onChange={ e => setStatsFlowFilter( e.target.value ) }
-              style={ { padding: '0.4rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' } }>
-              <option value="">All Flows</option>
-              { registry.map( f => <option key={ f.flowCode } value={ f.flowCode }>{ f.flowCode } — { f.flowName }</option> ) }
-            </select>
+            <Select ariaLabel="Filter by flow" value={ statsFlowFilter }
+              onChange={ v => setStatsFlowFilter( v ) }
+              options={ flowFilterOptions } style={ FILTER_SELECT_STYLE } />
             <button onClick={ loadStats } disabled={ statsLoading }
               style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
               { statsLoading ? 'Loading...' : 'Refresh' }
@@ -616,50 +618,8 @@ function FlowHubPageBody ( { embedded }: FlowHubProps ) {
         </div>
       ) }
 
-      {/* Version Health Tab */ }
-      { activeTab === 'health' && (
-        <div>
-          <div style={ { display: 'flex', gap: '0.5rem', marginBottom: '1rem', alignItems: 'center' } }>
-            <button onClick={ loadVersionHealth } disabled={ healthLoading }
-              style={ { padding: '0.4rem 0.8rem', fontSize: '0.8rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', cursor: 'pointer', background: '#fff' } }>
-              { healthLoading ? 'Checking...' : 'Check Health' }
-            </button>
-            { recommendedVersion && <span style={ { fontSize: '0.8rem', color: '#6b7280' } }>Recommended: v{ recommendedVersion }</span> }
-          </div>
-          { healthLoading && <div style={ { textAlign: 'center', padding: '2rem' } }><Spinner size="lg" /></div> }
-          { !healthLoading && versionHealth.length > 0 && (
-            <div style={ { overflowX: 'auto' } }>
-              <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' } }>
-                <thead><tr style={ { background: '#f9fafb', borderBottom: '2px solid #e5e7eb' } }>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Flow</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Version</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Data API</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Status</th>
-                  <th style={ { padding: '8px 12px', textAlign: 'left' } }>Action</th>
-                </tr></thead>
-                <tbody>{ versionHealth.map( f => (
-                  <tr key={ f.flowId } style={ { borderBottom: '1px solid #e5e7eb', background: f.versionStatus === 'frozen' ? '#fef2f2' : f.versionStatus === 'outdated' ? '#fffbeb' : 'transparent' } }>
-                    <td style={ { padding: '8px 12px' } }><span style={ { fontFamily: 'monospace', fontWeight: 600 } }>{ f.flowCode }</span> — { f.flowName }</td>
-                    <td style={ { padding: '8px 12px', fontFamily: 'monospace' } }>{ f.flowVersion }</td>
-                    <td style={ { padding: '8px 12px', fontFamily: 'monospace' } }>{ f.dataApiVersion }</td>
-                    <td style={ { padding: '8px 12px' } }>
-                      <span style={ {
-                        padding: '2px 8px', borderRadius: '9999px', fontSize: '0.7rem', fontWeight: 600,
-                        background: f.versionStatus === 'ok' ? '#d1fae5' : f.versionStatus === 'frozen' ? '#fee2e2' : '#fef3c7',
-                        color: f.versionStatus === 'ok' ? '#065f46' : f.versionStatus === 'frozen' ? '#991b1b' : '#92400e',
-                      } }>{ f.versionStatus.toUpperCase() }</span>
-                    </td>
-                    <td style={ { padding: '8px 12px', fontSize: '0.75rem', color: '#6b7280' } }>{ f.message }</td>
-                  </tr>
-                ) ) }</tbody>
-              </table>
-            </div>
-          ) }
-          { !healthLoading && versionHealth.length === 0 && (
-            <div style={ { textAlign: 'center', padding: '3rem', color: '#9ca3af' } }>Click &quot;Check Health&quot; to scan all registered flows.</div>
-          ) }
-        </div>
-      ) }
+      {/* The Version Health tab rendered here. Removed with its endpoint — see the
+          note on the activeTab union above. */ }
     </div>
   );
 }

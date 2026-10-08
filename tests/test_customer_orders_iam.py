@@ -66,9 +66,16 @@ def test_the_policy_is_exactly_these_three_statements(provisioner):
                 "Sid": "QueryOwnOrdersByCustomer",
                 "Effect": "Allow",
                 "Action": ["dynamodb:Query"],
+                # TWO index ARNs and still ONE verb. The second is `customerId-createdAt-v2-index`,
+                # which carries `channel` in its projection - a GSI projection is immutable, so it
+                # is a new index rather than a widened one, and the grant has to exist before the
+                # function's `ORDERS_BY_CUSTOMER_INDEX` is repointed onto it. v1 keeps its grant
+                # because v1 keeps serving until that repoint happens.
                 "Resource": [
                     f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/"
-                    f"stack-wecare-digital-OrderTable/index/customerId-createdAt-index"
+                    f"stack-wecare-digital-OrderTable/index/customerId-createdAt-index",
+                    f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/"
+                    f"stack-wecare-digital-OrderTable/index/customerId-createdAt-v2-index",
                 ],
             },
             {
@@ -171,10 +178,16 @@ def test_the_policys_index_name_equals_the_handlers_constant(provisioner):
     name = provisioner.ORDERS_BY_CUSTOMER_INDEX
     assert f'"ORDERS_BY_CUSTOMER_INDEX", "{name}"' in source, (
         f"the handler does not default ORDERS_BY_CUSTOMER_INDEX to {name!r}")
+    # The handler's DEFAULT stays v1, because the serving index is still v1 and a default is what
+    # answers when the env var is absent. The repoint is a deliberate, separately-gated step.
+    assert provisioner.SERVING_INDEX == name
     granted = [resource for statement in _statements(provisioner)
                for resource in statement["Resource"] if "OrderTable" in resource]
     assert granted == [f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/"
-                       f"stack-wecare-digital-OrderTable/index/{name}"]
+                       f"stack-wecare-digital-OrderTable/index/{name}",
+                       f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/"
+                       f"stack-wecare-digital-OrderTable/index/"
+                       f"{provisioner.ORDERS_BY_CUSTOMER_INDEX_V2}"]
 
 
 def test_the_table_name_is_singular(provisioner):
@@ -211,6 +224,69 @@ def test_the_key_attributes_are_not_repeated_in_the_projection(provisioner):
     attributes = provisioner.INDEX_DEFINITION["Projection"]["NonKeyAttributes"]
     for key in ("customerId", "createdAt", "orderId"):
         assert key not in attributes
+
+
+# ── the second index, which exists because the first one's projection is frozen ──
+
+def test_the_second_index_is_an_addition_and_the_first_is_untouched(provisioner):
+    """THE WHOLE REASON THERE ARE TWO. A GSI projection is immutable after creation, so carrying
+    `channel` to `/orders` means a new index; widening v1 would mean deleting and recreating the
+    index every order list is served from, leaving every customer's history partial for the
+    length of a backfill. v1's definition is asserted unchanged, by equality, right here."""
+    assert provisioner.ORDERS_BY_CUSTOMER_INDEX_V2 == "customerId-createdAt-v2-index"
+    assert provisioner.ORDERS_BY_CUSTOMER_INDEX != provisioner.ORDERS_BY_CUSTOMER_INDEX_V2
+    assert provisioner.INDEX_DEFINITION["IndexName"] == "customerId-createdAt-index"
+    assert provisioner.INDEX_DEFINITION["Projection"]["NonKeyAttributes"] == [
+        "orderNumber", "referenceId", "amountPaise", "currency", "paymentStatus"]
+
+
+def test_the_second_index_has_the_same_keys_so_the_repoint_is_not_a_behaviour_change(provisioner):
+    assert (provisioner.INDEX_DEFINITION_V2["KeySchema"]
+            == provisioner.INDEX_DEFINITION["KeySchema"])
+
+
+def test_the_second_index_projects_exactly_the_first_plus_channel(provisioner):
+    projection = provisioner.INDEX_DEFINITION_V2["Projection"]
+    assert projection["ProjectionType"] == "INCLUDE"
+    assert projection["NonKeyAttributes"] == [
+        "orderNumber", "referenceId", "amountPaise", "currency", "paymentStatus", "channel"]
+    # Still minimised. `purchasedSnapshot` is the frozen cart including a delivery address, and
+    # keeping a second copy of it out of the index is what the Query-only grant makes structural.
+    assert "purchasedSnapshot" not in projection["NonKeyAttributes"]
+    assert "snapshotHash" not in projection["NonKeyAttributes"]
+    for key in ("customerId", "createdAt", "orderId"):
+        assert key not in projection["NonKeyAttributes"]
+
+
+def test_the_env_repoint_is_deferred_behind_an_active_check(provisioner):
+    """`SERVING_INDEX` is still v1 and the move is its own command. A Query against a CREATING
+    index raises ResourceNotFoundException, which this handler answers with a 503 and no partial
+    list - so a repoint performed a moment early takes every order history down for a backfill."""
+    assert provisioner.SERVING_INDEX == provisioner.ORDERS_BY_CUSTOMER_INDEX
+    assert (provisioner.expected_environment()["ORDERS_BY_CUSTOMER_INDEX"]
+            == provisioner.ORDERS_BY_CUSTOMER_INDEX)
+    # The override exists, and it is the only way the v2 name reaches the environment.
+    assert (provisioner.expected_environment(
+        provisioner.ORDERS_BY_CUSTOMER_INDEX_V2)["ORDERS_BY_CUSTOMER_INDEX"]
+        == provisioner.ORDERS_BY_CUSTOMER_INDEX_V2)
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "def repoint_serving_index" in source
+    assert "--repoint-serving-index" in source
+    # The refusal is a status comparison against ACTIVE inside that function, not a comment.
+    body = source[source.index("def repoint_serving_index"):]
+    body = body[:body.index("\ndef ")]
+    assert 'status != "ACTIVE"' in body
+    assert "REFUSED" in body
+
+
+def test_the_second_index_is_created_and_is_not_a_mutation_of_the_first(provisioner):
+    """`update_table` may only ever CREATE here. An `Update` or a `Delete` on a GSI in this script
+    would be the delete-and-recreate the module docstring refuses to perform silently."""
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert '{"Create": INDEX_DEFINITION_V2}' in source
+    assert '{"Create": INDEX_DEFINITION}' in source
+    assert '"Delete":' not in source
+    assert '"Update": INDEX_DEFINITION' not in source
 
 
 def test_the_invoke_grant_is_alias_qualified_and_route_specific(provisioner):

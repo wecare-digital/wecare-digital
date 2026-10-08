@@ -35,6 +35,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Spinner from '../../../components/ui/Spinner';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile } from '../../../api/client';
 
@@ -60,6 +61,7 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
 
 export default function SecureFilesPage ( { signOut, user }: PageProps ) {
     const toast = useToastContext();
+    const confirm = useConfirm();
 
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
@@ -183,11 +185,13 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
     };
 
     const handleRevoke = async ( target: SecureFile ) => {
-        const ok = window.confirm(
-            `Revoke "${target.displayName}"?\n\n`
-            + 'The customer will no longer be able to download it. '
-            + 'The record is kept so the history of who was charged survives.',
-        );
+        const ok = await confirm( {
+            title: `Revoke "${target.displayName}"?`,
+            message: 'The customer will no longer be able to download it. '
+                + 'The record is kept so the history of who was charged survives.',
+            confirmText: 'Revoke',
+            danger: true,
+        } );
         if ( !ok ) return;
 
         const result = await api.revokeSecureFile( target.fileId );
@@ -347,7 +351,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                             <table className="sf-table">
                                 <thead>
                                     <tr>
-                                        { [ 'File', 'Customer', 'Mobile', 'Size', 'Downloads', 'Status', '' ].map( heading => (
+                                        { [ 'File', 'Customer', 'Mobile', 'Size', 'Downloads', 'Vault purchase', 'Status', '' ].map( heading => (
                                             <th key={ heading } scope="col">{ heading }</th>
                                         ) ) }
                                     </tr>
@@ -366,6 +370,11 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                                                 <td className="sf-mono">{ row.ownerPhoneMasked || '—' }</td>
                                                 <td>{ formatBytes( row.sizeBytes ) }</td>
                                                 <td>{ row.downloadCount ?? 0 }</td>
+                                                <td>
+                                                    <span className="sf-filename">{ row.vaultPaymentStatus === 'PAID' ? 'Paid · Access ready' : 'Awaiting purchase' }</span>
+                                                    { row.vaultOrderNumber && <span className="sf-fileorig">{ row.vaultOrderNumber }</span> }
+                                                    { row.vaultRequestNumber && <span className="sf-fileorig">{ row.vaultRequestNumber }</span> }
+                                                </td>
                                                 <td>
                                                     <span
                                                         className="sf-status"

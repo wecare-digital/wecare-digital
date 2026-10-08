@@ -99,18 +99,22 @@ def test_a_non_scalar_on_a_required_field_is_field_required_and_not_a_type_error
     assert refusal(address(city=hostile)) == ("FIELD_REQUIRED", "city")
 
 
-def test_an_integer_postal_code_is_validated_as_a_string():
-    # Not "accepted because it is not a string": `_text` stringifies it, so the PIN regex runs.
-    assert refusal(address(postalCode=56001)) == ("INVALID_PIN", "postalCode")
-    out = contact_address.normalize_for_storage(address(postalCode=560001))
-    assert out["postalCode"] == "560001"
+def test_an_integer_postal_code_is_stringified_and_stored():
+    # FEAT-003: storage no longer runs the India PIN regex (that moved to payment_address).
+    # `_text` still stringifies, so an integer postal code is stored as its string form.
+    out = contact_address.normalize_for_storage(address(postalCode=56001))
+    assert out["postalCode"] == "56001"
+    out2 = contact_address.normalize_for_storage(address(postalCode=560001))
+    assert out2["postalCode"] == "560001"
 
 
 def test_an_integer_country_code_defaults_rather_than_raising_attribute_error():
-    # `(raw.get("countryCode") or "IN").strip()` would raise AttributeError on 91. `_text` makes
-    # it the string "91", which is not resolvable, so this is a refusal with a code.
-    code, _field = refusal(address(countryCode=91))
-    assert code == "UNMAPPABLE_STATE"
+    # `_text` makes 91 the string "91". FEAT-003: storage no longer runs the Wix-mappability
+    # check, so this is accepted at storage; the countryCode is coerced to the "91" string,
+    # upper-cased and length-bounded to two chars. The payability of such an address is a
+    # payment_address question, not a storage one.
+    out = contact_address.normalize_for_storage(address(countryCode=91))
+    assert isinstance(out["countryCode"], str)
 
 
 # -- the two step-4-input pins, asserted on the RETURNED VALUE ---------------------------
@@ -126,24 +130,27 @@ def test_a_non_scalar_on_an_optional_field_is_stored_as_empty_not_stringified():
 
 
 def test_a_non_scalar_country_code_defaults_to_in_rather_than_misnaming_state():
-    # With `raw` at step 4 this becomes "{'" and fails step 6 as UNMAPPABLE_STATE/field:"state" —
-    # a 400 naming an input the customer never touched.
+    # A non-scalar countryCode is coerced to "" by `_text`, then defaulted to IN at step 2.
     out = contact_address.normalize_for_storage(address(countryCode={"x": 1}))
     assert out["countryCode"] == "IN"
 
 
-# -- step 3: the India PIN rule, on the DEFAULTED country code ---------------------------
+# -- FEAT-003: the India PIN rule MOVED to payment_address; storage now accepts these -----
 
-def test_an_address_with_no_country_code_still_gets_the_india_pin_rule():
-    # The India-only form posts no countryCode at all. Testing the raw value would compare
-    # "" == "IN", skip the regex, and store an IN address with an unvalidated postal code.
-    assert refusal(address(postalCode="056001", countryCode=None)) == (
-        "INVALID_PIN", "postalCode")
+def test_an_india_address_with_no_country_code_is_stored_without_pin_validation():
+    # The India-only form posts no countryCode. Storage defaults it to IN and stores the given
+    # postal code WITHOUT the PIN regex — the PIN rule is now payment_address.assert_payable's.
+    out = contact_address.normalize_for_storage(address(postalCode="056001", countryCode=None))
+    assert out["countryCode"] == "IN"
+    assert out["postalCode"] == "056001"
 
 
 @pytest.mark.parametrize("pin", ["56001", "5600012", "56000a", "000000", "0560 01"])
-def test_a_six_digit_pin_not_starting_one_to_nine_is_refused(pin):
-    assert refusal(address(postalCode=pin)) == ("INVALID_PIN", "postalCode")
+def test_storage_accepts_any_pin_shape_now_that_the_rule_moved_to_payment(pin):
+    # FEAT-003: these were refused at storage before; now storage keeps them and the India PIN
+    # rule is enforced at pay time by payment_address (covered in test_payment_address.py).
+    out = contact_address.normalize_for_storage(address(postalCode=pin))
+    assert out["postalCode"] == pin.strip() or out["postalCode"] == pin
 
 
 def test_a_non_india_address_is_not_held_to_the_india_pin_rule():
@@ -155,29 +162,35 @@ def test_a_non_india_address_is_not_held_to_the_india_pin_rule():
     assert out["countryCode"] == "US"
 
 
-# -- step 6: the money rule ---------------------------------------------------------------
+# -- FEAT-003: the money/place-of-supply rule MOVED to payment_address --------------------
+# Storage now ACCEPTS these addresses (international); payment_address.assert_payable enforces
+# the India subdivision and non-India ISO-3166-2 rules at pay time (see test_payment_address.py).
 
-def test_an_unresolvable_indian_state_is_unmappable_state():
-    assert refusal(address(state="Bangalore State")) == ("UNMAPPABLE_STATE", "state")
+def test_storage_accepts_an_unresolvable_indian_state_now():
+    out = contact_address.normalize_for_storage(address(state="Bangalore State"))
+    assert out["state"] == "Bangalore State"
 
 
-def test_a_state_alias_the_tax_table_knows_is_accepted():
+def test_a_state_alias_the_tax_table_knows_is_still_wix_mappable():
     out = contact_address.normalize_for_storage(address(state="Orissa", postalCode="751001"))
     assert wix_address.to_wix_address(out)["subdivision"] == "IN-OR"
 
 
-def test_a_non_india_address_without_an_iso_subdivision_is_unmappable_state():
-    assert refusal({
+def test_storage_accepts_a_non_india_address_without_an_iso_subdivision_now():
+    out = contact_address.normalize_for_storage({
         "addressLine1": "1 Market St", "city": "San Francisco",
         "state": "California", "postalCode": "94105", "countryCode": "US",
-    }) == ("UNMAPPABLE_STATE", "state")
+    })
+    assert out["state"] == "California"
+    assert out["countryCode"] == "US"
 
 
-def test_a_non_india_subdivision_belonging_to_another_country_is_refused():
-    assert refusal({
+def test_storage_accepts_a_non_india_subdivision_of_another_country_now():
+    out = contact_address.normalize_for_storage({
         "addressLine1": "1 Market St", "city": "San Francisco",
         "state": "CA-ON", "postalCode": "94105", "countryCode": "US",
-    }) == ("UNMAPPABLE_STATE", "state")
+    })
+    assert out["countryCode"] == "US"
 
 
 # -- step 5: metadata and unknown keys ----------------------------------------------------
@@ -253,12 +266,19 @@ def test_from_contact_returns_none_rather_than_raising(row):
     assert contact_address.from_contact(row) is None
 
 
-def test_from_contact_refuses_a_legacy_row_whose_state_no_longer_maps():
-    # Written before a rule tightened, or hand-edited in the CRM. It must degrade to a
-    # recoverable "confirm your address", never to a priced cart with the wrong tax split.
+def test_from_contact_returns_a_structurally_valid_legacy_row_but_payable_for_refuses_it():
+    # FEAT-003: from_contact is STRUCTURAL only now. An unmappable Indian state is structurally
+    # valid, so from_contact returns it — the place-of-supply refusal moved to payment_address,
+    # surfaced through payable_for, which is what degrades to a recoverable "confirm your address".
+    from lambda_utils.ecommerce import payment_address
     row = {"id": "contact-1",
            contact_address.ATTRIBUTE: address(state="Bangalore State")}
-    assert contact_address.from_contact(row) is None
+    got = contact_address.from_contact(row)
+    assert got is not None and got["state"] == "Bangalore State"
+
+    address_out, err = contact_address.payable_for(row, payment_address.WEBSITE_RAZORPAY)
+    assert address_out is None
+    assert err is not None and err.code == "UNMAPPABLE_STATE" and err.field == "state"
 
 
 def test_whatever_from_contact_returns_is_something_to_wix_address_accepts():

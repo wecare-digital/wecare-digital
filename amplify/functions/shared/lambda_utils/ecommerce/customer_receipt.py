@@ -53,6 +53,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from lambda_utils import media_paths, receipt_links
 from lambda_utils.customer_auth import CustomerIdentity, CustomerNotAuthorized, authorize_resource
+from lambda_utils.ecommerce import order_channel
 from lambda_utils.ecommerce.checkout_pricing import QuoteSnapshot
 
 logger = logging.getLogger(__name__)
@@ -117,13 +118,29 @@ def assert_private_key(key: str) -> str:
 
 def invoice_dict_from_snapshot(snapshot: QuoteSnapshot, *,
                                order_number: str,
-                               invoice_number: str = "") -> Dict[str, Any]:
+                               invoice_number: str = "",
+                               channel: str = "",
+                               customer_uuid: str = "") -> Dict[str, Any]:
     """Build the invoice dict the engine's `_build_invoice_html` expects, from the frozen snapshot.
 
     Every money field is taken from the snapshot's integer-paise components and converted to rupees
     for the engine's rupee-denominated template - the conversion is the only arithmetic, and it is
     exact because paise are integers. Nothing is recomputed from live pricing: the receipt shows what
     was reviewed and paid.
+
+    `invoice_number` and `channel` are PASSED IN, never derived here. The number especially: only
+    `invoice-engine._get_next_invoice_number` may mint one, because issuing a number advances the
+    GST Rule 46(b) consecutive series for the financial year and a number cannot be reassigned once
+    it has reached a customer. A download is a read, so it prints the number the order already has
+    and renders no `Invoice No:` row when there is none - which is the honest answer for a website
+    order that was never invoiced by the engine. `channel` goes through `order_channel.canonical`,
+    so an absent value prints `Source: Website`, true of every order placed so far.
+
+    `customer_uuid` is PASSED IN on exactly the same footing, and for the same reason: the caller
+    holds the order row, so it knows the public customer id; this function must not reach for one
+    and must never mint a substitute. Empty is the honest answer for every order row written
+    before the attribute existed, and the renderers draw no `Customer ID:` row for an empty one
+    rather than a label with nothing after it.
     """
     quote = snapshot.quote
     frozen = dict(snapshot.frozen_data or {})
@@ -148,6 +165,11 @@ def invoice_dict_from_snapshot(snapshot: QuoteSnapshot, *,
         "invoiceNumber": invoice_number,
         "orderId": order_number,
         "referenceId": order_number,
+        "channel": order_channel.canonical(channel),
+        # NOT canonicalised, because there is nothing to canonicalise: unlike `channel`, which
+        # has a true default, an absent customer id has no substitute and must stay absent. The
+        # renderers suppress the row for "".
+        "customerUuid": str(customer_uuid or ""),
         "entryPoint": "website_checkout",
         "status": "paid",
         "paymentStatus": "captured",
@@ -175,6 +197,9 @@ def generate_receipt(*,
                      build_invoice_html: Callable[[Dict[str, Any], List[Dict[str, Any]]], str],
                      bucket: str,
                      fmt: str = "pdf",
+                     invoice_number: str = "",
+                     channel: str = "",
+                     customer_uuid: str = "",
                      ttl_seconds: Optional[int] = None,
                      render: Optional[Callable[[str, str], bytes]] = None,
                      now: Optional[int] = None) -> Dict[str, Any]:
@@ -196,7 +221,15 @@ def generate_receipt(*,
 
     f = _format(fmt)
     key = receipt_key(snapshot, fmt=f)
-    invoice = invoice_dict_from_snapshot(snapshot, order_number=order_number)
+    # Threaded, not invented. The caller holds the order row, so it knows the invoice number (if
+    # the engine ever issued one), the channel and the public customer id; this function must not
+    # reach for any of them, and must never synthesise a number - see invoice_dict_from_snapshot.
+    # All three default to "", which renders no `Invoice No:` row, no `Customer ID:` row and
+    # `Source: Website`.
+    invoice = invoice_dict_from_snapshot(
+        snapshot, order_number=order_number,
+        invoice_number=invoice_number, channel=channel,
+        customer_uuid=customer_uuid)
     html = build_invoice_html(invoice, invoice.get("items", []))
 
     if f == "html":

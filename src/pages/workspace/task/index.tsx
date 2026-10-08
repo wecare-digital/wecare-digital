@@ -33,8 +33,14 @@ import Link from 'next/link';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
+
+/* LAYOUT ONLY - `.tk-filters` is a flex row and `.tk-fg` a column, so the field needs a
+   width of its own: the trigger shows the selected label while a native select sized itself
+   to its widest option, and an assignee name is as wide as the longest person. */
+const ASSIGNEE_SELECT_STYLE: React.CSSProperties = { width: 220 };
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -95,6 +101,16 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
     rows.forEach( ( r ) => set.add( r.assignee?.trim() || UNASSIGNED ) );
     return Array.from( set ).sort();
   }, [ rows ] );
+
+  /* The derived list, memoised. 'all' is the filter's own sentinel and was its first
+     <option>, so it stays first and keeps its value and its text. */
+  const assigneeOptions: SelectOption[] = useMemo(
+    () => [
+      { value: 'all', label: 'Everyone' },
+      ...assignees.map( a => ( { value: a, label: a === UNASSIGNED ? 'Unassigned' : a } ) ),
+    ],
+    [ assignees ]
+  );
 
   const filtered = useMemo( () => rows.filter( ( r ) => {
     if ( statusFilter !== 'all' && r.status !== statusFilter ) return false;
@@ -170,16 +186,19 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
           <div className="tk-filters">
             <div className="tk-fg">
-              <label htmlFor="tk-assignee">Assignee</label>
-              <select id="tk-assignee" value={ assigneeFilter }
-                onChange={ ( e ) => setAssigneeFilter( e.target.value ) }>
-                <option value="all">Everyone</option>
-                { assignees.map( ( a ) => (
-                  <option key={ a } value={ a }>
-                    { a === UNASSIGNED ? 'Unassigned' : a }
-                  </option>
-                ) ) }
-              </select>
+              { /*
+                 * SHAPE (a), design 5.2 and 1.7(b). The external <label> bound by id is GONE,
+                 * along with the id itself, and Select renders the visible span and the
+                 * aria-labelledby wiring instead. Keeping them would have left this control
+                 * announcing only "Everyone" or a person's name: the trigger is a <button>,
+                 * and per HTML-AAM a button takes its accessible name from its CONTENTS, so an
+                 * external label bound by id is not a name source for it the way it is for a
+                 * native control. One component now owns the association instead of two lines
+                 * that have to agree.
+                 */ }
+              <Select label="Assignee" value={ assigneeFilter }
+                onChange={ v => setAssigneeFilter( v ) }
+                options={ assigneeOptions } style={ ASSIGNEE_SELECT_STYLE } />
             </div>
             { statusFilter !== 'all' && (
               <Button variant="secondary" onClick={ () => setStatusFilter( 'all' ) }>
@@ -306,6 +325,12 @@ const TasksPage: React.FC<PageProps> = ( { signOut, user } ) => {
 
           .tk-filters{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin:0 0 20px}
           .tk-fg{display:flex;flex-direction:column;gap:6px}
+          /* These three now match no element: the one select in this file became a
+             ui/Select, whose own box comes from form-controls.css, and its label is a
+             <span class="ui-field-label"> rather than a <label>. Left in place, harmless,
+             rather than deleted in a batch that is only supposed to move controls. The
+             label's type therefore moves from 14px to .ui-field-label's own, which is a
+             deliberate and recorded appearance change. */
           .tk-fg label{font-size:14px;color:rgba(0,0,0,.54)}
           .tk-fg select{
             font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff;

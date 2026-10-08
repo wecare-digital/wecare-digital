@@ -238,6 +238,18 @@ SPECS: List[Spec] = [
         "ecommerce/customer-orders",
         provisioned_by="python scripts/provision_customer_orders.py",
     ),
+    # Phase O-1 service requests (Submit Request / Request Amendment): the pre-payment intent,
+    # the customer's own request list, and activation from the razorpay-webhook hint. It moves
+    # no money - it imports no Razorpay, Wix or cart module and reads no secret. First creation
+    # is owned by scripts/provision_service_requests.py, which also creates its table, two GSIs
+    # and the dedicated least-privilege role. NOT standalone: it imports lambda_utils
+    # customer_auth, customer_session, rate_limit, ecommerce.service_request_store/
+    # service_requests/order_keys, response and logging.
+    Spec(
+        "wecare-service-requests",
+        "ecommerce/service-requests",
+        provisioned_by="python scripts/provision_service_requests.py",
+    ),
     # A customer's own invoice, as a 300-second presigned download. A SEPARATE function from
     # wecare-customer-orders deliberately: this route needs dynamodb:GetItem, s3:GetObject
     # and a second dynamodb:Query, and all three are specifically refused by that function's
@@ -300,6 +312,26 @@ SPECS: List[Spec] = [
         "wecare-wix-catalog-webhook",
         "ecommerce/wix-catalog-webhook",
         provisioned_by="python scripts/provision_wix_catalog_webhook.py --apply",
+    ),
+    # The Wix -> Meta catalogue projection (PHASE W, FEAT-001). Invoked asynchronously by the
+    # webhook above after its verification, with a six-hourly EventBridge schedule as the
+    # backstop. No HTTP API route and no function URL: it has no public surface at all.
+    #
+    # IT WRITES TO A CUSTOMER-VISIBLE META COMMERCE CATALOG - an item created there appears in
+    # WhatsApp - AND IT SHIPS WITH BOTH GATES CLOSED. `META_CATALOG_SYNC_ENABLED` is "false" and
+    # `META_CATALOG_SYNC_DRY_RUN` is "true" - both written out explicitly, so an audit can tell
+    # "deliberately closed" from "never configured" - and a deploy of this function computes and
+    # logs the diff and sends nothing. Opening either is an owner decision, recorded in
+    # config/lambda-env-manifest.json at the safe defaults and asserted by
+    # tests/test_meta_catalog_sync_handler.py.
+    #
+    # Its own least-privilege role: two statements, one GetSecretValue naming two secrets and
+    # CloudWatch Logs. wecare-digital-lambda-role is NOT involved, and
+    # tests/test_meta_catalog_sync_iam.py pins both halves by equality.
+    Spec(
+        "wecare-meta-catalog-sync",
+        "ecommerce/meta-catalog-sync",
+        provisioned_by="python scripts/provision_meta_catalog_sync.py --apply",
     ),
     # Cognito CustomMessage trigger: branded HTML for MFA, verification and
     # recovery email. First creation is owned by

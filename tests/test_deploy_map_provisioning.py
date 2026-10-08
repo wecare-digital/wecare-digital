@@ -114,13 +114,28 @@ def test_exactly_one_spec_is_awaiting_provisioning(deploy_module):
     # tests/test_customer_orders_iam.py. Its absence costs the page NOTHING today:
     # featureFlags.invoiceDownload ships false, so /orders/ renders "No invoice yet" and
     # issues no request to this route at all.
+    # wecare-service-requests added 2026-10-06 (Phase O-1): Submit Request / Request Amendment
+    # intents, the customer's own request list, and activation from the razorpay-webhook hint.
+    # Never created in AWS - its table + two GSIs, its own least-privilege role, its two routes
+    # and its alarm are first-provisioned by scripts/provision_service_requests.py.
+    # wecare-meta-catalog-sync added 2026-10-06 (PHASE W, FEAT-001): the Wix -> Meta catalogue
+    # projection. Never created in AWS - its own least-privilege role (one GetSecretValue naming
+    # two secrets, plus its log group, and nothing else), its six-hourly EventBridge backstop and
+    # the invoke grant on the WEBHOOK's role are all first-provisioned by
+    # scripts/provision_meta_catalog_sync.py. A code update cannot create the schedule, and
+    # without the schedule the sync only ever runs when the webhook fires. It has NO HTTP API
+    # route and no function URL, so there is no route for a deploy to leave unauthenticated.
+    # Its absence costs nothing today: both gates ship closed (META_CATALOG_SYNC_ENABLED absent,
+    # META_CATALOG_SYNC_DRY_RUN true), so even once provisioned it computes and logs the diff and
+    # writes nothing to the customer-visible Meta catalog.
     # Session infrastructure is owned by its CloudFormation template; an account
     # without that stack must provision it rather than report a code-update failure.
     assert waiting == ["wecare-customer-session", "wecare-vayulok-environment", "wecare-customer-whatsapp-auth", "wecare-email-verification",
                        "wecare-customer-profile", "wecare-blog-subscribe", "wecare-customer-registration", "wecare-checkout",
-                       "wecare-customer-orders", "wecare-customer-invoice",
+                       "wecare-customer-orders", "wecare-service-requests",
+                       "wecare-customer-invoice",
                        "wecare-coupons", "wecare-gift-cards", "wecare-wix-giftcard-spi",
-                       "wecare-wix-catalog-webhook"]
+                       "wecare-wix-catalog-webhook", "wecare-meta-catalog-sync"]
 
 
 def test_the_summary_line_reports_the_new_state(deploy_module):

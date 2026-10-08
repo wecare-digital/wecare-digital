@@ -104,7 +104,10 @@ describe( 'CheckoutProfile address mode', () => {
 
     fireEvent.change( screen.getByLabelText( 'Address line 1' ), { target: { value: '12 MG Road' } } );
     fireEvent.change( screen.getByLabelText( 'City' ), { target: { value: 'Bengaluru' } } );
-    fireEvent.change( screen.getByLabelText( 'State' ), { target: { value: 'Karnataka' } } );
+    // Open-then-click: the state field is our own combobox since batch 2f. Same user action,
+    // same emitted value, and every assertion about the Save gate below is untouched.
+    fireEvent.click( screen.getByRole( 'combobox', { name: 'State' } ) );
+    fireEvent.click( screen.getByRole( 'option', { name: 'Karnataka' } ) );
     expect( saveButton() ).toBeDisabled();
 
     // A PIN starting with zero is the one the server refuses as INVALID_PIN, so the mirror has

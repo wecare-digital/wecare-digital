@@ -7,6 +7,10 @@
       "id": "REVIEW_FORM",
       "title": "Leave a Review",
       "data": {
+        "order_ref": {
+          "type": "string",
+          "__example__": "Order WD-ORD-A7K2M9PQ"
+        },
         "ratings": {
           "type": "array",
           "items": { "type": "object", "properties": { "id": { "type": "string" }, "title": { "type": "string" } } },
@@ -24,6 +28,7 @@
           { "type": "Image", "src": "${WD_LOGO_BASE64}", "scale-type": "contain", "alt-text": "WECARE.DIGITAL" },
           { "type": "TextHeading", "text": "Leave a Review" },
           { "type": "TextBody", "text": "Share your experience with our service. Your feedback helps us improve." },
+          { "type": "TextCaption", "text": "${data.order_ref}" },
           { "type": "Dropdown", "name": "rating", "label": "Rating", "required": true, "data-source": "${data.ratings}" },
           { "type": "Dropdown", "name": "category", "label": "Category", "required": true, "data-source": "${data.categories}" },
           { "type": "TextArea", "name": "review_text", "label": "Your Feedback", "required": true, "max-length": 500, "helper-text": "Tell us what went well or what could be better." },

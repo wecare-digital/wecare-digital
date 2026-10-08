@@ -147,6 +147,40 @@ def reader_for(public_pem: str, *, app_id: str | None = APP_ID):
     return read
 
 
+class Invocations:
+    """Records every async Lambda invoke. `calls == []` is the assertion that matters.
+
+    Added by PHASE W FEAT-001, when a verified event gained a SECOND consumer: an
+    `InvocationType='Event'` invoke of `wecare-meta-catalog-sync:live`.
+    """
+
+    def __init__(self, failure: Exception | None = None):
+        self.calls: list[dict] = []
+        self.failure = failure
+
+    def invoke(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.failure:
+            raise self.failure
+        return {"StatusCode": 202}
+
+
+@pytest.fixture(autouse=True)
+def invocations(monkeypatch):
+    """NO TEST IN THIS FILE MAY REACH THE REAL LAMBDA, and this is what guarantees it.
+
+    Autouse rather than opt-in, deliberately. `AWS_PROFILE=wecare-prod` is exported from
+    `~/.zprofile`, so an unpatched `boto3.client("lambda").invoke(...)` in a test run would be a
+    genuine asynchronous invoke of a production function - harmless today only because the sync
+    ships with both gates closed, which is luck rather than design. Patching `_lambda_client` is
+    the one place that covers every path through `handler`, including the ones added before this
+    fixture existed and the ones that will be added after.
+    """
+    recorder = Invocations()
+    monkeypatch.setattr(receiver, "_lambda_client", lambda: recorder)
+    return recorder
+
+
 class Dispatches:
     """Records every outbound dispatch. `calls == []` is the assertion that matters."""
 
@@ -600,12 +634,17 @@ def test_the_verified_log_line_carries_the_catalogue_correlation_fields(keys, mo
     {"body": '{"eventType":"product_created","slug":"attacker"}'},
     {"body": "a.b.c"},
 ])
-def test_an_unsigned_post_gets_401_and_triggers_NO_rebuild(keys, monkeypatch, event):
+def test_an_unsigned_post_gets_401_and_triggers_NO_rebuild(keys, monkeypatch, event,
+                                                           invocations):
     """The case the endpoint exists to refuse.
 
     Each call starts an Amplify production build, so an endpoint that rebuilds on an
     unauthenticated POST is a free denial-of-wallet. `sent.calls == []` is the assertion; the 401
     alone would pass even if the trigger had already fired.
+
+    `invocations.calls == []` is the same assertion for the SECOND consumer added by PHASE W: an
+    unverified body must not reach the Meta catalogue sync either. Two fan-outs now hang off one
+    verification, so "nothing happens on a refusal" has to be checked per fan-out.
     """
     sent = Dispatches()
     monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
@@ -617,6 +656,7 @@ def test_an_unsigned_post_gets_401_and_triggers_NO_rebuild(keys, monkeypatch, ev
     assert answer["statusCode"] == 401
     assert answer["body"] == ""
     assert sent.calls == []
+    assert invocations.calls == []
 
 
 def test_a_refusal_logs_THE_REASON_AND_NOTHING_ELSE(keys, monkeypatch):
@@ -934,3 +974,124 @@ def test_the_verifier_logs_nothing_at_all():
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
     assert "logger" not in names
     assert "print" not in names
+
+
+# ── 6. the second consumer: the Meta catalogue sync (PHASE W, FEAT-001) ─────
+#
+# One verification, two fan-outs. The GitHub dispatch refreshes the committed snapshot and
+# rebuilds the website; the async invoke re-projects the catalogue onto the Meta Commerce catalog
+# that WhatsApp reads. They are independent on purpose - neither can fail the other, and both are
+# backed by a six-hourly schedule, so a failed fan-out costs latency rather than correctness.
+
+
+def test_a_verified_event_invokes_the_sync_ASYNCHRONOUSLY(keys, monkeypatch, invocations):
+    """`InvocationType='Event'`.
+
+    A synchronous invoke would make this receiver wait on a Wix read, a Meta read and a diff
+    before answering Wix - which is how a webhook starts timing out as a catalogue grows. The
+    alias qualifier matters too: `wecare-meta-catalog-sync` has a `live` alias, and a `$LATEST`
+    invoke would run code that was never published.
+    """
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.time, "time", lambda: NOW)
+
+    answer = receiver.handler({"body": token(keys)}, None)
+
+    assert answer["statusCode"] == 200
+    assert len(invocations.calls) == 1
+    call = invocations.calls[0]
+    assert call["FunctionName"] == "wecare-meta-catalog-sync:live"
+    assert call["InvocationType"] == "Event"
+    assert json.loads(call["Payload"].decode("utf-8")) == {
+        "source": "wix-webhook", "entityId": "prod-1"}
+
+
+def test_an_invoke_FAILURE_does_not_change_the_200(keys, monkeypatch):
+    """The sync's EventBridge schedule is the backstop, so a failed invoke is latency.
+
+    A non-2xx would make Wix retry a body that is not the problem, and the GitHub dispatch - which
+    already succeeded - would run twice.
+    """
+    sent = Dispatches()
+    failing = Invocations(failure=RuntimeError("ResourceNotFoundException"))
+    monkeypatch.setattr(receiver, "_lambda_client", lambda: failing)
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.time, "time", lambda: NOW)
+
+    answer = receiver.handler({"body": token(keys)}, None)
+
+    assert answer["statusCode"] == 200
+    assert json.loads(answer["body"]) == {
+        "received": True, "rebuildRequested": True,
+        "eventType": "wix.stores.catalog.v3.product_created"}
+    assert len(failing.calls) == 1, "it was attempted, and the failure was swallowed"
+
+
+def test_an_invoke_failure_logs_the_exception_TYPE_and_nothing_else(keys, monkeypatch):
+    """A boto3 error message can carry an ARN and an account id. The type is the whole report."""
+    lines: list[str] = []
+    sent = Dispatches()
+    failing = Invocations(failure=RuntimeError("a message that must not be logged"))
+    monkeypatch.setattr(receiver, "_lambda_client", lambda: failing)
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.time, "time", lambda: NOW)
+    monkeypatch.setattr(receiver.logger, "error", lambda line: lines.append(line))
+
+    receiver.handler({"body": token(keys)}, None)
+
+    failed = next(json.loads(line) for line in lines
+                  if json.loads(line).get("event") == "meta_catalog_sync_invoke_failed")
+    assert failed["errorType"] == "RuntimeError"
+    assert set(failed) == {"event", "function", "errorType"}
+    for line in lines:
+        assert "a message that must not be logged" not in line
+
+
+def test_the_github_dispatch_is_unaffected_by_the_new_fan_out(keys, monkeypatch, invocations):
+    """The pre-existing behaviour is pinned here as well as above, because the new call sits in
+    the same function: the dispatch still happens exactly once and the body is unchanged."""
+    sent = Dispatches()
+    monkeypatch.setattr(receiver, "_read_secret", reader_for(keys["public_pem"]))
+    monkeypatch.setattr(receiver.urllib.request, "urlopen", sent)
+    monkeypatch.setattr(receiver.time, "time", lambda: NOW)
+
+    answer = receiver.handler({"body": token(keys)}, None)
+
+    assert len(sent.calls) == 1
+    assert sent.calls[0]["body"] == {"event_type": receiver.DISPATCH_EVENT_TYPE}
+    assert json.loads(answer["body"]) == {
+        "received": True, "rebuildRequested": True,
+        "eventType": "wix.stores.catalog.v3.product_created"}
+    assert len(invocations.calls) == 1
+
+
+def test_the_sync_target_is_configuration_and_the_default_is_alias_qualified(monkeypatch):
+    """An env var so the target can be repointed without a code change, and defaulted so the
+    receiver works with no configuration - the same shape `GITHUB_REPOSITORY` uses."""
+    assert receiver.META_CATALOG_SYNC_FUNCTION.endswith(":live")
+
+    recorder = Invocations()
+    monkeypatch.setattr(receiver, "META_CATALOG_SYNC_FUNCTION", "some-other-function:live")
+    receiver._invoke_sync("prod-9", client=recorder)
+    assert recorder.calls[0]["FunctionName"] == "some-other-function:live"
+
+
+def test_the_receiver_still_does_not_import_boto3_at_module_scope():
+    """The new fan-out needs a Lambda client, and it is built INSIDE `_lambda_client`.
+
+    `test_the_handler_cannot_read_the_catalogue_or_write_anything` above asserts the same thing
+    from the other direction; this names the reason, so the next person adding a fan-out knows the
+    rule applies to them too.
+    """
+    tree = ast.parse(HANDLER.read_text(encoding="utf-8"), filename=str(HANDLER))
+    imported = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            imported.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported.add(node.module.split(".")[0])
+    assert "boto3" not in imported

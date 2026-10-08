@@ -145,6 +145,15 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
     (async () => {
       const items: ActivityItem[] = [];
 
+      // Customer ideas are read from their authoritative ReviewTable records.
+      try {
+        const { reviews } = await api.listReviews({ customerPhone: phone, contactId });
+        for (const review of reviews.filter(r => r.reviewType === 'customer_idea' && r.contactId === contactId)) {
+          items.push({ id: review.reviewId, type: 'flow', icon: '↗',
+            title: 'Customer idea shared', meta: review.comment || '', timestamp: review.createdAt });
+        }
+      } catch { /* existing activity remains available if reviews cannot load */ }
+
       // Load flow logs/submissions for this phone
       try {
         const logs = await api.listFlowLogs(phone);
@@ -567,6 +576,13 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         landmark: formLandmark || undefined, houseNumber: formHouseNumber || undefined, buildingName: formBuildingName || undefined,
         towerNumber: formTowerNumber || undefined, floorNumber: formFloorNumber || undefined,
         country: formCountry || undefined,
+        // FEAT-003: validated structured address -> checkoutDeliveryAddress via the shared
+        // server-side validator. Flat fields kept for other readers; collapsing is a follow-up.
+        address: (formAddressLine1 && formCity && formState && formPostalCode) ? {
+          addressLine1: formAddressLine1, addressLine2: formAddressLine2 || undefined,
+          city: formCity, state: formState, postalCode: formPostalCode,
+          country: formCountry || undefined, countryCode: formCountry || undefined,
+        } : undefined,
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
@@ -642,6 +658,13 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
         landmark: formLandmark || undefined, houseNumber: formHouseNumber || undefined, buildingName: formBuildingName || undefined,
         towerNumber: formTowerNumber || undefined, floorNumber: formFloorNumber || undefined,
         country: formCountry || undefined,
+        // FEAT-003: validated structured address -> checkoutDeliveryAddress via the shared
+        // server-side validator. Flat fields kept for other readers; collapsing is a follow-up.
+        address: (formAddressLine1 && formCity && formState && formPostalCode) ? {
+          addressLine1: formAddressLine1, addressLine2: formAddressLine2 || undefined,
+          city: formCity, state: formState, postalCode: formPostalCode,
+          country: formCountry || undefined, countryCode: formCountry || undefined,
+        } : undefined,
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
@@ -654,42 +677,47 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
     finally { setSaving(false); }
   };
 
-  const handleDelete = async (contactId: string, contactName?: string) => {
+  // ARCHIVE, not delete. `api.deleteContact` has always been the SOFT delete: it sets
+  // `deletedAt`, and `_list_all` / `_search` / `_read_one` hide those rows. So the record, the
+  // messages and every payment link stay intact. The old copy said "delete" in the title and
+  // the button and "will be archived" in the body — one of those was wrong, and it was the
+  // scary one. Nothing about the call changed; only the words an operator reads.
+  const handleArchive = async (contactId: string, contactName?: string) => {
     const ok = await confirm({
-      title: 'Delete Contact',
-      message: `Are you sure you want to delete ${contactName ? `"${contactName}"` : 'this contact'}? The contact will be archived and can be recovered by an admin.`,
-      confirmText: 'Delete',
-      danger: true,
+      title: 'Archive Contact',
+      message: `Archive ${contactName ? `"${contactName}"` : 'this contact'}? It will be hidden from the contacts list. The record, its messages and any payment links are kept, and an admin can restore it.`,
+      confirmText: 'Archive',
     });
     if (!ok) return;
     setDeleting(true);
     try {
       const result = await api.deleteContact(contactId);
       if (result) {
-        toast.success('Contact deleted');
+        toast.success('Contact archived');
         setSelectedIds(prev => { const next = new Set(prev); next.delete(contactId); return next; });
         await loadContacts();
       }
-      else toast.error('Failed to delete contact');
-    } catch { toast.error('Failed to delete contact'); }
+      else toast.error('Failed to archive contact');
+    } catch { toast.error('Failed to archive contact'); }
     finally { setDeleting(false); }
   };
 
-  // Bulk delete — Fix #6: Use batched Promise.all instead of sequential
-  const handleBulkDelete = async () => {
+  // Bulk archive — Fix #6: Use batched Promise.all instead of sequential.
+  // Same soft call as `handleArchive`, so the same word.
+  const handleBulkArchive = async () => {
     if (selectedIds.size === 0) return;
     const count = selectedIds.size;
-    if (!(await confirm(`Delete ${count} contact${count > 1 ? 's' : ''}?`))) return;
-    let deleted = 0;
+    if (!(await confirm(`Archive ${count} contact${count > 1 ? 's' : ''}? They will be hidden from the list and can be restored by an admin.`))) return;
+    let archived = 0;
     const ids = Array.from(selectedIds);
     const BATCH = 5;
     for (let i = 0; i < ids.length; i += BATCH) {
       const batch = ids.slice(i, i + BATCH);
       const results = await Promise.all(batch.map(id => api.deleteContact(id).catch(() => false)));
-      deleted += results.filter(Boolean).length;
+      archived += results.filter(Boolean).length;
     }
     setSelectedIds(new Set());
-    toast.success(`Deleted ${deleted} contact${deleted > 1 ? 's' : ''}`);
+    toast.success(`Archived ${archived} contact${archived > 1 ? 's' : ''}`);
     await loadContacts();
   };
 
@@ -736,10 +764,27 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       toast.warning('Invalid phone number format');
       return;
     }
+    // THE DIAL CODE IS COMPOSED HERE, with the same expression `handleCreate` and `handleUpdate`
+    // already use. `contacts/handler.py::_e164_or_error` REFUSES a number carrying no dial code
+    // with 400 PHONE_COUNTRY_CODE_REQUIRED rather than guessing +91 — correct, because guessing
+    // would send an OTP to an unrelated Indian subscriber for a ten-digit foreign number and
+    // reserve the wrong identity permanently. But `isValidPhone` above accepts a bare
+    // `9876543210`, so the commonest inline edit an operator makes — retyping a national number
+    // — would be refused by the server. The dialog form never hit this because it composes the
+    // code first; the inline cell PUT the raw cell value. Normalisation stays the server's job;
+    // this only supplies the dial code the form supplies.
+    const outgoing = field === 'phone' && value
+      ? (value.startsWith('+') ? value : `${formCountryCode}${value.replace(/^0+/, '')}`)
+      : value;
     setInlineEdit(null);
     try {
-      const result = await api.updateContact(id, { [field]: value });
-      if (result) { toast.success(`${field} updated`); await loadContacts(); }
+      // `updateContactResult`, not `updateContact`: the latter collapses a 400 to null, and by
+      // this line the editor has already closed, so the old code re-rendered the stale value
+      // with no toast, no reload and no explanation — the refusal was invisible and the save
+      // looked like it had worked. The failure message is the server's own and is safe to show.
+      const result = await api.updateContactResult(id, { [field]: outgoing });
+      if (result.ok) { toast.success(`${field} updated`); await loadContacts(); }
+      else toast.error(`Could not update ${field} — ${result.failure.message}`);
     } catch { toast.error('Failed to update'); }
   };
 
@@ -1038,7 +1083,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
             <button onClick={handleBulkExport} title="Export selected" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', background: '#fff', border: '2px solid #f3f4f6', borderRadius: 13, cursor: 'pointer' }}>
               <ExportIcon />
             </button>
-            <button onClick={handleBulkDelete} title="Delete selected" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', background: '#fff', border: '2px solid #1a3a2a', borderRadius: 13, cursor: 'pointer' }}>
+            <button onClick={handleBulkArchive} title="Archive selected" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '6px', background: '#fff', border: '2px solid #1a3a2a', borderRadius: 13, cursor: 'pointer' }}>
               <DeleteIcon size={14} />
             </button>
             <button onClick={() => setSelectedIds(new Set())} style={{ marginLeft: 'auto', fontSize: 12, color: '#9ca3af', background: 'none', border: 'none', cursor: 'pointer' }}>Clear selection</button>
@@ -1225,7 +1270,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                         <td style={{ padding: '10px', borderBottom: '1px solid #f3f4f6', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
                             <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><EditIcon size={18} /></button>
-                            <button onClick={() => handleDelete(c.contactId, c.name)} title="Delete" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><DeleteIcon size={18} /></button>
+                            <button onClick={() => handleArchive(c.contactId, c.name)} title="Archive" style={{ padding: 6, background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}><DeleteIcon size={18} /></button>
                           </div>
                         </td>
                       </tr>
@@ -1275,7 +1320,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                       </div>
                       <div className="contact-card-actions" onClick={e => e.stopPropagation()}>
                         <button onClick={() => handleEdit(c)} title="Edit" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><EditIcon size={20} /></button>
-                        <button onClick={() => handleDelete(c.contactId, c.name)} title="Delete" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><DeleteIcon size={20} /></button>
+                        <button onClick={() => handleArchive(c.contactId, c.name)} title="Archive" style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer' }}><DeleteIcon size={20} /></button>
                       </div>
                     </div>
                     {((contactTags[c.contactId] || []).length > 0 || c.phoneVerifiedAt || c.emailVerifiedAt) && (
@@ -1388,7 +1433,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                   <button onClick={() => { handleEdit(detailContact); setDetailContact(null); }} style={{ flex: 1, padding: '8px 12px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Edit</button>
-                  <button onClick={() => { const c = detailContact; setDetailContact(null); handleDelete(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: '#1a3a2a', border: '2px solid #1a3a2a', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Delete</button>
+                  <button onClick={() => { const c = detailContact; setDetailContact(null); handleArchive(c.contactId, c.name); }} style={{ flex: 1, padding: '8px 12px', background: '#fff', color: '#1a3a2a', border: '2px solid #1a3a2a', borderRadius: 13, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Archive</button>
                 </div>
 
                 {/* Activity Timeline */}

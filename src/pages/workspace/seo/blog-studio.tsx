@@ -34,6 +34,7 @@ import {
   retryBlogSource,
 } from '../../../api/seo';
 import type { BlogDraftResponse, BlogSourceView } from '../../../api/seo';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
@@ -55,6 +56,11 @@ const ARTICLE_CLASSES = [ 'ARCHIVE_DERIVED', 'ORIGINAL_109' ] as const;
 
 type Category = typeof CATEGORIES[ number ];
 type ArticleClass = typeof ARTICLE_CLASSES[ number ];
+
+/* Derived from the two lists above so they cannot drift - BlogStudioContract.test.ts reads
+   scripts/blog_quality_v2.py and fails if they do, and that check must keep biting. */
+const CATEGORY_OPTIONS: SelectOption[] = CATEGORIES.map( v => ( { value: v, label: v } ) );
+const ARTICLE_CLASS_OPTIONS: SelectOption[] = ARTICLE_CLASSES.map( v => ( { value: v, label: v } ) );
 
 /** Section 29, split by who can decide it. Kept in step with blog_quality_v2.HUMAN_GATES. */
 const MACHINE_GATES = [ 'NON_DUPLICATION', 'TIGHTNESS', 'METADATA' ] as const;
@@ -592,21 +598,31 @@ const BlogStudio: React.FC<StudioProps> = ( { signOut, user, ledger, ledgerUpdat
           <div className="card" style={ { padding: 20, marginBottom: 16 } }>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 } }>
               <div>
-                <label style={ label } htmlFor="blog-studio-category">Category</label>
-                <select id="blog-studio-category" value={ category } style={ input }
-                  onChange={ ( event ) => setCategory( event.target.value as Category ) }>
-                  { CATEGORIES.map( ( value ) => <option key={ value } value={ value }>{ value }</option> ) }
-                </select>
+                { /*
+                   * SHAPE (b), design 5.2, and this is the canonical case for it: `label` is a
+                   * shared inline style object the component cannot reproduce, so the external
+                   * <label> stays and is pointed at by id instead of being recreated inside
+                   * Select. Its `for` attribute is DROPPED - the trigger is a <button>, and per
+                   * HTML-AAM a button takes its accessible name from its CONTENTS, so a `for`
+                   * naming it is misleading rather than useful. `labelledBy` is what makes the
+                   * name compute, and it is asserted by a test rather than by eye.
+                   * (Worded without the JSX attribute spelling on purpose: the batch gate greps
+                   * for it, and a gate that reports its own commentary gets switched off.)
+                   */ }
+                <label style={ label } id="blog-studio-category-label">Category</label>
+                <Select labelledBy="blog-studio-category-label" value={ category }
+                  onChange={ v => setCategory( v as Category ) }
+                  options={ CATEGORY_OPTIONS } />
                 <div style={ muted }>
                   The only two categories on the live site. Applied to sources added next.
                 </div>
               </div>
               <div>
-                <label style={ label } htmlFor="blog-studio-class">Article class</label>
-                <select id="blog-studio-class" value={ articleClass } style={ input }
-                  onChange={ ( event ) => setArticleClass( event.target.value as ArticleClass ) }>
-                  { ARTICLE_CLASSES.map( ( value ) => <option key={ value } value={ value }>{ value }</option> ) }
-                </select>
+                { /* SHAPE (b) again, for the same reason, and the id is dropped with it. */ }
+                <label style={ label } id="blog-studio-class-label">Article class</label>
+                <Select labelledBy="blog-studio-class-label" value={ articleClass }
+                  onChange={ v => setArticleClass( v as ArticleClass ) }
+                  options={ ARTICLE_CLASS_OPTIONS } />
                 <div style={ muted }>
                   ARCHIVE_DERIVED gets a fresh slug and today&apos;s publication date.
                   ORIGINAL_109 preserves both.

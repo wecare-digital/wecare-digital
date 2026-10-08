@@ -292,7 +292,8 @@ def test_wix_public_blog_never_uses_admin_request_path(seo_handler):
 
 
 def test_blog_audit_reads_aws_post_not_wix(seo_handler):
-    with patch.object(seo_handler, '_claim', return_value=None), \
+    with patch.object(seo_handler, 'claim_admin_action', return_value=True), \
+            patch.object(seo_handler, 'release_admin_audit'), \
             patch.object(seo_handler.storage, 'get_blog_post', return_value={
                 'id': 'blog-1', 'slug': 'hello', 'title': 'Hello',
             }) as get_post, \
@@ -302,4 +303,3 @@ def test_blog_audit_reads_aws_post_not_wix(seo_handler):
         response = seo_handler._blog_audit({'slug': 'hello'}, 'server-admin', '')
     assert response['statusCode'] == 200
     get_post.assert_called_once_with('hello')
-

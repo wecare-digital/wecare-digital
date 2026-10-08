@@ -54,7 +54,7 @@ describe( 'the bar is derived, not hardcoded', () => {
     expect( screen.getAllByRole( 'button' ) ).toHaveLength( 5 );
   } );
 
-  it( 'does not try to show all eight streams', () => {
+  it( 'does not try to show all nine streams', () => {
     render( <BottomNav onMore={ () => {} } /> );
     // The fifth stream must NOT be on the bar; it lives in the drawer.
     const fifth = navigationConfig[ 4 ];
@@ -95,7 +95,11 @@ describe( 'behaviour', () => {
   } );
 
   it( 'marks nothing current on a page outside the four', () => {
-    pathname = '/workspace/seo/schema';
+    // Was '/workspace/seo/schema' until 2026-10-07, when that page was retired under
+    // B1 = CUT. The test only needs *a* route outside the first four sections, so it now
+    // cites a live one: naming a route that no longer exists reads as if the absence of
+    // aria-current were caused by the page being gone, which is not the property here.
+    pathname = '/workspace/seo/tools';
     render( <BottomNav onMore={ () => {} } /> );
     const current = screen.getAllByRole( 'button' )
       .filter( ( b ) => b.getAttribute( 'aria-current' ) === 'page' );

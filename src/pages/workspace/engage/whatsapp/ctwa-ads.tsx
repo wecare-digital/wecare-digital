@@ -11,11 +11,13 @@
  * publish an ad (which then goes to Meta review). Uses the ads_management,
  * ads_read, pages_manage_ads, pages_read_engagement, pages_show_list permissions.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
 import { useToastContext } from '../../../../contexts/ToastContext';
+import { useConfirmDanger } from '../../../../components/wa';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import {
     marketingAdsApi,
     type AdAccount, type FbPage, type AdEntity, type MarketingAdInput, type WabaKey,
@@ -32,8 +34,19 @@ const WABAS: { key: WabaKey; label: string }[] = [
     { key: 'WABA2', label: 'WABA2 · +91 99033 00044' },
 ];
 
+const WABA_OPTIONS: SelectOption[] = WABAS.map( w => ( { value: w.key, label: w.label } ) );
+const OBJECTIVE_OPTIONS: SelectOption[] = [
+    { value: 'OUTCOME_ENGAGEMENT', label: 'Engagement' },
+    { value: 'OUTCOME_LEADS', label: 'Leads' },
+    { value: 'OUTCOME_SALES', label: 'Sales' },
+    { value: 'OUTCOME_TRAFFIC', label: 'Traffic' },
+];
+/** Layout only: the marginBottom the shared `input` object carried. */
+const SELECT_LAYOUT: React.CSSProperties = { marginBottom: 10 };
+
 const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
+    const confirmDanger = useConfirmDanger();
 
     const [ accounts, setAccounts ] = useState<AdAccount[]>( [] );
     const [ pages, setPages ] = useState<FbPage[]>( [] );
@@ -52,6 +65,12 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     const [ greeting, setGreeting ] = useState( 'Hi! How can WECARE.DIGITAL help you today?' );
     const [ autofill, setAutofill ] = useState( 'Hi, I would like more information.' );
     const [ imageHash, setImageHash ] = useState( '' );
+
+    /* Fetched, so memoised on `accounts` rather than rebuilt inline every render. */
+    const accountOptions: SelectOption[] = useMemo(
+        () => accounts.map( a => ( { value: a.account_id, label: `${ a.name } · ${ a.currency }` } ) ),
+        [ accounts ]
+    );
 
     const loadAccountsPages = useCallback( async () => {
         setBusy( 'meta' );
@@ -116,7 +135,19 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
     };
 
     const doPublish = async ( adId: string ) => {
-        if ( !confirm( 'Publish this ad? It goes to Meta review and, once approved, will start spending your daily budget.' ) ) return;
+        // DELIBERATE, OWNER-APPROVED BEHAVIOUR CHANGE, and the only one in this batch.
+        // useConfirmDanger sets confirmInput from VERB.publish, so the operator now TYPES
+        // PUBLISH where they previously clicked OK. That friction is the point: publishing
+        // commits ad spend, and activating ad spend is one of the actions that must never be
+        // casual. Do not "simplify" this back to a 1:1 confirm({ ... danger: true }) — the
+        // alternative was offered and the typing requirement was chosen. It stays on
+        // useConfirmDanger rather than useConfirm so the next spend-committing action
+        // inherits the same friction from one place.
+        if ( !( await confirmDanger(
+            'publish',
+            'It goes to Meta review and, once approved, will start spending your daily budget.',
+            { title: 'Publish this ad?' },
+        ) ) ) return;
         setBusy( 'pub' + adId );
         try
         {
@@ -153,12 +184,16 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                 <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
                     <div>
                         <label style={ label }>Ad account</label>
-                        <select style={ input } value={ acct } onChange={ e => setAcct( e.target.value ) }>
-                            { accounts.map( a => <option key={ a.account_id } value={ a.account_id }>{ a.name } · {a.currency}</option> ) }
-                        </select>
+                        <Select ariaLabel="Ad account" value={ acct } onChange={ v => setAcct( v ) }
+                            options={ accountOptions } style={ SELECT_LAYOUT } />
                     </div>
                     <div>
                         <label style={ label }>Facebook Page</label>
+                        { /* DELIBERATELY STILL NATIVE - design section 5.2, "sites that are not controlled
+                             today". It is unconditionally disabled, supplies neither value nor onChange,
+                             and only displays the Pages it was handed, so there is no value contract to
+                             preserve and migrating it would mean inventing one. Layer 1 already skinned
+                             its closed state, which is the whole visible win. */ }
                         <select style={ input } disabled>
                             { pages.map( p => <option key={ p.id } value={ p.id }>{ p.name }</option> ) }
                             { pages.length === 0 && <option>No pages</option> }
@@ -174,18 +209,19 @@ const CtwaAdsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
                 <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
                     <div>
                         <label style={ label }>WhatsApp number (destination)</label>
-                        <select style={ input } value={ waba } onChange={ e => setWaba( e.target.value as WabaKey ) }>
-                            { WABAS.map( w => <option key={ w.key } value={ w.key }>{ w.label }</option> ) }
-                        </select>
+                        <Select ariaLabel="WhatsApp number (destination)" value={ waba }
+                            onChange={ v => setWaba( v as WabaKey ) }
+                            options={ WABA_OPTIONS } style={ SELECT_LAYOUT } />
                     </div>
                     <div>
                         <label style={ label }>Objective</label>
-                        <select style={ input } value={ objective } onChange={ e => setObjective( e.target.value as MarketingAdInput['objective'] ) }>
-                            <option value="OUTCOME_ENGAGEMENT">Engagement</option>
-                            <option value="OUTCOME_LEADS">Leads</option>
-                            <option value="OUTCOME_SALES">Sales</option>
-                            <option value="OUTCOME_TRAFFIC">Traffic</option>
-                        </select>
+                        { /* `objective` is optional on MarketingAdInput, and `value` is always a
+                             string here - `?? ''` is a type narrowing with no runtime effect,
+                             since the state starts at OUTCOME_ENGAGEMENT and only ever takes a
+                             committed option value. */ }
+                        <Select ariaLabel="Objective" value={ objective ?? '' }
+                            onChange={ v => setObjective( v as MarketingAdInput['objective'] ) }
+                            options={ OBJECTIVE_OPTIONS } style={ SELECT_LAYOUT } />
                     </div>
                     <div><label style={ label }>Campaign name</label><input style={ input } value={ name } onChange={ e => setName( e.target.value ) } /></div>
                     <div><label style={ label }>Daily budget (₹)</label><input style={ input } type="number" value={ dailyBudgetRs } onChange={ e => setDailyBudgetRs( e.target.value ) } /></div>

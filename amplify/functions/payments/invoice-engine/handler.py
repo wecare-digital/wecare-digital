@@ -38,6 +38,18 @@ from lambda_utils import media_paths
 # Aliased: `payment_status` is a local parameter in the invoice renderers below, holding the raw
 # stored word. `pay_status` is the module that says what the word means.
 from lambda_utils import payment_status as pay_status
+# Attribution, not mechanics: which surface the order was placed from. One module owns the two
+# literals and the one total coercion, so the three render sites below cannot disagree about what
+# `channel` means - the same discipline `pay_status` applies to payment words.
+from lambda_utils.ecommerce import order_channel
+# Identity reservation for a native WhatsApp collection, and the key prefixes it reserves on.
+# `send_payment_link` reserves BEFORE it sends, so a retried send re-sends the same
+# `reference_id` instead of minting a second one for one invoice.
+from lambda_utils.ecommerce import order_keys, wa_payment_request
+# The PUBLIC customer id, and the validator that keeps a junk one off a tax invoice. Only
+# `is_customer_uuid` and `ATTRIBUTE` are used here: the engine NEVER mints one, the same rule
+# that stops a renderer minting an invoice number.
+from lambda_utils.identity import customer_uuid
 
 logger = get_logger(__name__)
 
@@ -46,6 +58,23 @@ IST_OFFSET = 5 * 3600 + 30 * 60  # UTC+5:30
 def _ist_strftime(fmt: str, epoch) -> str:
     """Format epoch timestamp in IST (UTC+5:30)."""
     return time.strftime(fmt, time.gmtime(int(epoch) + IST_OFFSET))
+
+
+def _money_display(value) -> str:
+    """A rupee figure as a STRING, for a money value crossing a Lambda or HTTP boundary.
+
+    Deliberately not a float. Every float rupee value in this tree began as a display conversion
+    that then got compared, summed or stored - including an invoice match on
+    `abs(inv_total - amount_rupees) < 0.02`. A string cannot be arithmetic'd by accident, which
+    is the point.
+
+    Falls back to the stored repr for a figure that is not exactly expressible in paise, because
+    this is a display field: refusing here would fail a response over a value nothing compares.
+    """
+    try:
+        return pay_status.rupees_str(wa_payment_request.exact_paise(value))
+    except Exception:  # noqa: BLE001
+        return str(value if value is not None else 0)
 
 dynamodb = boto3.resource('dynamodb', region_name='us-east-1')
 s3 = boto3.client('s3', region_name='us-east-1')
@@ -60,6 +89,43 @@ PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-Payments
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
 SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+
+# ── the two money tables this engine now reserves identity in ──
+# Declared here rather than relied on from a code default, so the manifest describes the
+# dependency instead of the default hiding it. `reserve` writes both from this function, which
+# has never touched either before.
+PAYMENT_ATTEMPTS_TABLE = os.environ.get('PAYMENT_ATTEMPTS_TABLE',
+                                        'stack-wecare-digital-PaymentAttemptsTable')
+COMMERCE_KEYS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE',
+                                     order_keys.commerce_keys_table_name())
+
+#: The approved WhatsApp payment template, with ONE home.
+#:
+#: A payment travels in `wecarepay_wa` carrying `order_details`, or it does not travel. Env-read
+#: so a pre-flight checks the same string the send uses - a gate that checks a different string
+#: from the one the send uses can pass while the send fails - and so the value can change without
+#: a code deploy if Meta's template registration ever needs it to.
+WA_PAY_TEMPLATE = os.environ.get('WA_PAY_TEMPLATE', 'wecarepay_wa')
+
+#: The Meta payment configuration this function collects against when neither the request nor
+#: the invoice names one.
+#:
+#: Env-indirected so the name has one home; DEFAULTED because the long-standing empty-string path
+#: must keep working. Both routed callers can legitimately supply empty - the HTTP dispatch reads
+#: `body.get('paymentConfiguration', '')` and `send_pending_by_phone` passes `'' or ''` - and
+#: `payment_attempt.build` refuses an empty configuration outright, so a required-with-no-default
+#: field here would turn a send that works today into a 409.
+#:
+#: This is NOT a resolution of which configuration a SENDER may use. That stays wholly inside
+#: `outbound-whatsapp._build_payment_settings`, which owns the configuration maps. This is a
+#: default for a required field on OUR reservation row.
+WA_PAY_CONFIG_NAME = os.environ.get('WA_PAY_CONFIG_NAME', 'WECAREDIGITAL')
+
+#: The authoritative Razorpay merchant id, as resolved by the owner and recorded in
+#: `payment_readiness`. Required on the reservation because "we did not compare the merchant id"
+#: must never read the same as "the merchant id matched".
+WA_PAY_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', 'acc_TTFSyolquKEZEy')
+
 # Keys in this handler are rooted, never bare. See lambda_utils/media_paths: the merge moved
 # `<X>` to `o/<X>`, so an un-rooted key read one level above the data and returned NoSuchKey —
 # which is exactly what happened to the logo and the font. Those shared assets stay PUBLIC and
@@ -123,6 +189,9 @@ origin = ''
 # Env vars allow override without a redeploy.
 COMPANY = {
     'name': 'WECARE.DIGITAL',
+    # The registered legal name printed as the invoice heading (owner mockup 2026-10-07).
+    # `name` stays the brand, shown as the fixed "Brand: WECARE.DIGITAL" line beneath it.
+    'legal_name': 'WECARE.DIGITAL BHARATWORKS',
     'gstin': os.environ.get('COMPANY_GSTIN', '19AAFFW7196L1Z8'),
     'pan': os.environ.get('COMPANY_PAN', 'AAFFW7196L'),
     'address': 'The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7, Phears Ln, Kolkata, WB 700012',
@@ -244,7 +313,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
             phone = body.get('toWhatsAppNumber')
             phone_number_id = body.get('phoneNumberId')
-            return send_invoice_whatsapp(inv_id, phone, phone_number_id, request_id)
+            # `force` is threaded from the body because the function has no `body` in scope.
+            # Absent means False, which is the idempotent direction.
+            return send_invoice_whatsapp(inv_id, phone, phone_number_id, request_id,
+                                         force=bool(body.get('force')))
 
         # POST /invoices/{id}/send-payment-link — send WhatsApp interactive payment message
         if method == 'POST' and 'send-payment-link' in path:
@@ -467,7 +539,10 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 return _resp(200, {
                     'invoiceId': existing_id,
                     'invoiceNumber': inv.get('invoiceNumber', ''),
-                    'total': float(inv.get('total', 0)),
+                    # A money value crossing a Lambda boundary, on the native leg's COMMON path
+                    # (dedup is the usual case there). A STRING, so the unit ambiguity cannot be
+                    # arithmetic'd by a reader who misses which unit it is in.
+                    'total': _money_display(inv.get('total', 0)),
                     'referenceId': inv.get('referenceId', ''),
                     'deduplicated': True,
                 })
@@ -522,7 +597,8 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
             return _resp(200, {
                 'invoiceId': invoice_id,
                 'invoiceNumber': existing_inv.get('invoiceNumber', ''),
-                'total': float(existing_inv.get('total', 0)),
+                # Same boundary, same reason as the dedup-hit response above.
+                'total': _money_display(existing_inv.get('total', 0)),
                 'referenceId': existing_inv.get('referenceId', reference_id),
                 'deduplicated': True,
             })
@@ -638,9 +714,26 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'orderId': body.get('orderId', ''),
         'referenceId': reference_id,
         'entryPoint': entry_point,
+        # Where the customer placed the order, so the invoice can print its own Source line
+        # (GST Rule 46 carries no such requirement; this is for the customer and for support).
+        # `entryPoint` is NOT a substitute: it records which internal flow minted the invoice
+        # (`pay_flow`, `webhook`, `manual`), and a WhatsApp-origin catalogue order is settled by
+        # the website leg, so its entryPoint is a website one. Canonicalised on the way in, so the
+        # stored word is already one of exactly two and no reader has to coerce it again. Never
+        # empty, so the put_item filter below cannot drop it.
+        'channel': order_channel.canonical(body.get('channel')),
         'status': status,
         'paymentStatus': payment_status,
         # Customer
+        # VALIDATED, not canonicalised, and the difference is the point. `channel` above has a
+        # true default so junk degrades to `website`; a customer id has no substitute, so junk
+        # must become ABSENT. `is_customer_uuid` refuses a non-canonical spelling and refuses a
+        # uuid7 (which would print the customer's record-creation time on the document), so a bad
+        # value is dropped here and the renderers draw no Customer ID row - rather than printing
+        # whatever arrived on a request body onto a tax invoice.
+        customer_uuid.ATTRIBUTE: (
+            body.get(customer_uuid.ATTRIBUTE, '')
+            if customer_uuid.is_customer_uuid(body.get(customer_uuid.ATTRIBUTE, '')) else ''),
         'contactId': body.get('contactId', ''),
         'customerName': body.get('customerName', ''),
         'customerPhone': customer_phone,
@@ -756,6 +849,17 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'orderId': payment.get('orderId', ''),
         'referenceId': payment.get('referenceId', ''),
         'entryPoint': body.get('entryPoint', 'webhook'),
+        # Pass through, not decide: the caller (razorpay-webhook / the post-payment handler) knows
+        # the order's channel because it holds the attempt row that carries it. An absent value
+        # reaches `create_invoice` as '' and canonicalises to `website`, which is true of every
+        # payment that can exist today - no WhatsApp-origin order is reachable yet.
+        'channel': body.get('channel', ''),
+        # Pass through on the same terms. Taken off the REQUEST BODY (which the webhook filled
+        # from its own `PAYREF#` row) and never from the contact the lookup above returned: a
+        # contact read here would answer "who has this phone now", and a ported number would
+        # move a paid order's customer id to whoever received it next. `create_invoice`
+        # re-validates it before storing.
+        customer_uuid.ATTRIBUTE: body.get(customer_uuid.ATTRIBUTE, ''),
         'status': 'paid',
         'paymentStatus': 'captured',
         'paidAt': int(float(payment.get('createdAt', time.time()))),
@@ -916,6 +1020,46 @@ def list_invoices(params: Dict, request_id: str) -> Dict:
 # ─── Invoice Rendering (POS Receipt Style Image + PDF) ───
 
 
+def _source_label(invoice: Dict) -> str:
+    """The word the Source line prints: `Website` or `WhatsApp`.
+
+    One function for all three render sites (HTML/PDF, PNG, WhatsApp caption) so a customer
+    cannot be shown two different origins for one order - the same reason `/orders` derives its
+    table tag and its detail rung from a single local.
+
+    The stored value is already canonical (`create_invoice` coerces on the way in), but this
+    coerces again rather than trusting it: a row written before this field existed carries no
+    `channel` at all, and `order_channel.canonical` is total, so an absent or junk value prints
+    `Website` instead of raising inside a renderer. Title-cased here and canonical in storage,
+    because this is prose for a human and the stored word is a key for a machine.
+    """
+    if order_channel.canonical(invoice.get('channel')) == order_channel.CHANNEL_WHATSAPP:
+        return 'WhatsApp'
+    return 'Website'
+
+
+def _customer_id(invoice: Dict) -> str:
+    """The public customer id to print, or `''` meaning PRINT NO ROW AT ALL.
+
+    One function for the same three render sites as `_source_label`, for the same reason - but
+    note the opposite default. `_source_label` always answers, because every order genuinely has
+    an origin and `website` is true of every row written so far. A customer id has NO true
+    default: a row that carries none belongs to a contact created before this attribute existed,
+    and the honest rendering is silence.
+
+    So every caller must suppress its whole line on `''`. A label with nothing after it reads as
+    a broken renderer, and a MINTED substitute would be worse still: it would print an id on a
+    document that matches no record anywhere, which is precisely the failure
+    `tests/test_invoice_number_is_rendered.py` pins for the invoice number.
+
+    `from_contact` is reused as the validator because it never raises and re-checks the stored
+    value, so a uuid7 or a non-canonical spelling written by some future caller is suppressed
+    rather than printed. Reusing it also means there is one definition of "a usable customer id"
+    across the CRM, the checkout, the webhook and this engine.
+    """
+    return customer_uuid.from_contact(invoice)
+
+
 def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     """Build POS receipt style HTML matching the PNG receipt design.
     Single delivery address (billing = same), no Order ID shown,
@@ -1002,7 +1146,28 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
         <div class="total-row b"><span>Total Tax</span><span>{tax:,.2f}</span></div>'''
 
     reference_id = invoice.get('referenceId', '')
-    ref_id_html = f'<div class="info-row"><span>Ref: {reference_id}</span></div>' if reference_id else ''
+    # Ref line removed from the customer copy (owner decision 2026-10-07): it duplicated the
+    # Order id. The reference still lives on the stored invoice record; it is simply not printed.
+    ref_id_html = ''
+
+    # GST Rule 46(b): the invoice number is a mandatory particular of a tax invoice. `inv_num` has
+    # been assigned at the top of this function since the renderer was written and was printed
+    # NOWHERE, so every document this engine has ever produced was missing it. Empty renders no
+    # row rather than `Invoice No: ` with nothing after it - an unnumbered invoice should look
+    # unnumbered, not look like a rendering fault. Only `_get_next_invoice_number` may mint one;
+    # a renderer that invented a substitute would advance the GST series from a read path.
+    inv_num_html = f'<div class="info-row"><span>Invoice No: {inv_num}</span></div>' if inv_num else ''
+    # Source always renders, because every order has an origin: absent means website, and that is
+    # measured rather than assumed (see order_channel - no WhatsApp-origin order exists yet).
+    source_html = f'<div class="info-row"><span>Source: {_source_label(invoice)}</span></div>'
+    # The public customer id, in the Bill To block rather than the meta block: it identifies the
+    # person being billed, so it belongs beside their name and not beside the invoice number.
+    # Empty renders NO row - see `_customer_id`. Safe to print IN FULL, unlike the phone on the
+    # next line: it is ours, opaque, carries no timestamp and is not a credential, which is what
+    # lets a support agent quote it instead of reading a number back.
+    cust_id = _customer_id(invoice)
+    cust_id_html = (f'<div class="addr">Customer ID: {cust_id}</div>'
+                    if cust_id else '')
 
     # Status
     status_upper = payment_status.upper()
@@ -1040,8 +1205,10 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="header-row">
     <div class="header-logo">{logo_html}</div>
     <div class="header-text">
-        <h1>{COMPANY['name']}</h1>
+        <h1>{COMPANY['legal_name']}</h1>
+        <div class="subtitle">Brand: {COMPANY['name']}</div>
         <div class="subtitle">GSTIN: {COMPANY['gstin']}</div>
+        <div class="subtitle">PAN: {COMPANY['pan']}</div>
         <div class="subtitle">The W.B.S.I.D.C. Building, Unit 1/20,</div>
         <div class="subtitle">81/2/7, Phears Ln, Kolkata, WB 700012</div>
         <div class="subtitle">one@wecare.digital | +91 93309 94400</div>
@@ -1050,13 +1217,15 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="divider2"></div>
 <div class="center" style="margin:4px 0"><span style="font-size:13px;font-weight:bold;letter-spacing:1px">TAX INVOICE</span></div>
 <div class="divider"></div>
+{inv_num_html}
 <div class="info-row"><span>Date: {date_str}</span><span>{time_str}</span></div>
 {ref_id_html}
-{f'<div class="info-row"><span>Brand: {purpose}</span></div>' if purpose else ''}
+{source_html}
 {f'<div class="info-row b"><span>PAID: {paid_str}</span></div>' if status_upper == 'CAPTURED' and paid_str else ''}
 <div class="divider"></div>
 <div class="section-title">Bill To</div>
 <div style="font-size:11px;font-weight:bold;color:#000">{cust_name}</div>
+{cust_id_html}
 <div class="addr">{cust_phone}{(' | ' + cust_email) if cust_email else ''}</div>
 {f'<div class="section-title">Address</div><div class="addr">{ship_addr}</div>' if ship_addr else ''}
 <div class="divider"></div>
@@ -1415,11 +1584,17 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         x = tx + max(0, (avail_w - tw) // 2)
         draw.text((x, y), txt, fill=color, font=font)
 
-    # Company name — centered in header area, bold
-    _hdr_center(COMPANY['name'], FLG)
+    # Legal name — centered in header area, bold (owner-approved mockup 2026-10-07)
+    _hdr_center(COMPANY['legal_name'], FLG)
     y += 22
+    # Fixed brand line, always "WECARE.DIGITAL", never derived from entryPoint.
+    _hdr_center(f"Brand: {COMPANY['name']}", FSM)
+    y += LINE_H
     # GSTIN — regular, grey
     _hdr_center(f"GSTIN: {COMPANY['gstin']}", FSM, CLR_GRY)
+    y += LINE_H
+    # PAN — regular, grey (GST Rule / owner mockup: PAN under GSTIN)
+    _hdr_center(f"PAN: {COMPANY['pan']}", FSM, CLR_GRY)
     y += LINE_H
     # Address — 2 fixed lines, regular, grey
     _hdr_center("The W.B.S.I.D.C. Building, Unit 1/20,", FSM, CLR_GRY)
@@ -1437,25 +1612,26 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     _sep()
 
     # ═══ INVOICE META ═══
+    # GST Rule 46(b) first: the invoice number leads the meta block, which is where a reader
+    # looks for it. The PNG never read `invoiceNumber` at all before this, so the image sent to
+    # the customer on WhatsApp carried no number. Read here rather than in the extraction block
+    # above so this line and the two render sites that match it stay in one place.
+    # `str(... or '')` because DynamoDB hands back whatever was stored and an f-string would
+    # happily print `None`.
+    inv_num = str(invoice.get('invoiceNumber', '') or '')
+    if inv_num:
+        _left(f"Invoice No: {inv_num}", FB)
+        y += LINE_H
     _lr(f"Date: {date_str}", time_str, F)
     y += LINE_H
-    if reference_id:
-        _left(f"Ref: {reference_id}", F)
-        y += LINE_H
-    # Brand: all customerservice/flow invoices → "Customer service"
-    # Pay flow / WhatsApp payment → "Pay"
-    # Manual / admin → no brand line
-    entry_point = invoice.get('entryPoint', '')
-    brand_label = ''
-    if entry_point in ('submit_request_flow', 'flow_payment'):
-        brand_label = 'Customer service'
-    elif entry_point in ('pay_flow', 'whatsapp_payment'):
-        brand_label = 'Pay'
-    elif entry_point == 'manual':
-        brand_label = ''
-    if brand_label:
-        _left(f"Brand: {brand_label}", F)
-        y += LINE_H
+    # Ref line removed (owner decision 2026-10-07): it duplicated the Order id on the customer
+    # copy. Order id is shown below; the reference still lives on the stored record.
+    # Source per docs/invoice-layout.md section 2. Unconditional: every order has an origin, and
+    # `_source_label` is total, so there is no empty-label case to guard.
+    _left(f"Source: {_source_label(invoice)}", F)
+    y += LINE_H
+    # Brand is now the FIXED header line "Brand: WECARE.DIGITAL" (set in the header block),
+    # never derived from entryPoint. The old entryPoint-derived Brand line is removed.
     # Note line: show request/submission reference (clean format, no #)
     notes = invoice.get('notes', '')
     if notes:
@@ -1480,6 +1656,14 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     y += LINE_H
     _left(f"  {cust_name}", F)
     y += LINE_H
+    # The public customer id, between the name and the phone, exactly as in the HTML - one
+    # layout, two renderers. Skipped entirely when absent (see `_customer_id`), which is why the
+    # `y += LINE_H` is inside the branch: advancing the cursor for a line that was never drawn
+    # would leave a blank gap in the receipt.
+    _cust_id = _customer_id(invoice)
+    if _cust_id:
+        _left(f"  Customer ID: {_cust_id}", FSM)
+        y += LINE_H
     contact_line = f"  {cust_phone}"
     if cust_email:
         contact_line += f" | {cust_email}"
@@ -2114,12 +2298,23 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             logger.error(json.dumps({
                 'event': 'invoice_phone_mismatch_blocked',
                 'invoiceId': invoice_id,
-                'invoicePhone': customer_phone,
-                'requestedPhone': verify_phone,
+                # MASKED, both of them. This log used to carry two full E.164 numbers, eight
+                # lines from the code this change edits. Its purpose - which invoice, which
+                # request, that a mismatch occurred - survives masking intact, and the two
+                # masked suffixes still distinguish the mismatch it exists to record.
+                'invoicePhone': mask_phone(customer_phone),
+                'requestedPhone': mask_phone(verify_phone),
                 'requestId': request_id,
             }))
             return _resp(403, {'error': 'Invoice does not belong to this customer'})
 
+    # The invoice's own reference. ADOPTED by the reservation below, never replaced: every
+    # invoice gets one at `create_invoice` time, so on the live path the id already exists before
+    # collection is raised, and replacing it would strand every payment request already in a
+    # customer's hands - their tap produces a capture whose reference resolves nowhere.
+    #
+    # This 400 is load-bearing and stays exactly as it is: an invoice with no reference cannot
+    # reach collection at all.
     reference_id = invoice.get('referenceId', '')
     if not reference_id:
         return _resp(400, {'error': 'No referenceId on invoice'})
@@ -2131,58 +2326,89 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     )
     items = sorted(items_resp.get('Items', []), key=lambda x: int(x.get('itemIndex', 0)))
 
-    # Build order items for WhatsApp interactive message (amounts in paise)
-    # NOTE: Do NOT add convenience fee here — the outbound-whatsapp handler
-    # auto-calculates and adds it as a line item (2% + 18% GST).
+    # Build order items for WhatsApp interactive message (amounts in INTEGER PAISE).
+    #
+    # Every money read below goes through `_paise`, which is `Decimal(str(v)) * 100` plus an
+    # integral check - no `round()`, no `float()`, no epsilon. The reason is specific rather than
+    # stylistic: the figure computed here is RESERVED as the attempt's `amountPaise`, and a
+    # capture is compared against it with exact integer equality. So a rounding artefact would
+    # not be cosmetic, it would refuse a legitimate payment - and a total carrying sub-paise
+    # noise cannot be compared exactly at all, so it fails closed here rather than truncating
+    # 599.999 to 59999 and matching a rounded-down expectation.
+    #
+    # The convenience fee IS added here, as a transparent line item. The old comment claiming
+    # "the outbound-whatsapp handler auto-calculates and adds it" is wrong for this path -
+    # measured, `skipConvenienceFee` is read only in the native-interactive branch, not in the
+    # checkout-template branch this send reaches.
     # Green Packing & Notification Fee are pushed to the end of the items list.
+    _paise = wa_payment_request.exact_paise
     CHARGE_ITEM_NAMES = {'green packing', 'notification fee', 'notification/alert fee'}
     regular_items = []
     charge_items = []
-    gst_rate = float(invoice.get('gstRate', 18))
-    for item in items:
-        amt_rupees = float(item.get('amount', 0))
-        qty = int(item.get('quantity', 1))
-        amt_paise = int(amt_rupees * 100)
-        item_gst = float(item.get('gstRate', gst_rate))
-        entry = {
-            'name': item.get('name', 'Item'),
-            'amount': {'value': amt_paise, 'offset': 100},
-            'quantity': qty,
-        }
-        if item.get('name', '').strip().lower() in CHARGE_ITEM_NAMES:
-            charge_items.append(entry)
-        else:
-            regular_items.append(entry)
-    # Merge: regular items first, then charge items (Green Packing, Notification Fee) last
-    merged_items = regular_items + charge_items
-    order_items = []
-    subtotal_paise = 0
-    for i, entry in enumerate(merged_items):
-        entry['retailer_id'] = f'ITEM_{i+1}'
-        line_paise = entry['amount']['value'] * entry['quantity']
-        subtotal_paise += line_paise
-        order_items.append(entry)
+    # A RATE, not money. It takes part in no arithmetic in this function - the tax AMOUNT comes
+    # off the invoice's own `tax` field - and Meta strips per-item `gstRate` from the
+    # `order_details` item schema anyway, so this value is informational on our side of the wire.
+    # Carried as a `Decimal` so it is exact, and emitted below as an integer when it is integral
+    # (every live Indian GST rate is) or as an exact string when it is not. Either way no float
+    # appears on a payment payload.
+    try:
+        gst_rate = Decimal(str(invoice.get('gstRate', 18) or 0))
+    except Exception:  # noqa: BLE001
+        gst_rate = Decimal('18')
+    gst_rate_wire = (int(gst_rate) if gst_rate == gst_rate.to_integral_value()
+                     else str(gst_rate))
+    try:
+        for item in items:
+            qty = int(item.get('quantity', 1))
+            amt_paise = _paise(item.get('amount', 0))
+            entry = {
+                'name': item.get('name', 'Item'),
+                'amount': {'value': amt_paise, 'offset': 100},
+                'quantity': qty,
+            }
+            if item.get('name', '').strip().lower() in CHARGE_ITEM_NAMES:
+                charge_items.append(entry)
+            else:
+                regular_items.append(entry)
+        # Merge: regular items first, then charge items (Green Packing, Notification Fee) last
+        merged_items = regular_items + charge_items
+        order_items = []
+        subtotal_paise = 0
+        for i, entry in enumerate(merged_items):
+            entry['retailer_id'] = f'ITEM_{i+1}'
+            line_paise = entry['amount']['value'] * entry['quantity']
+            subtotal_paise += line_paise
+            order_items.append(entry)
 
-    discount_paise = int(round(float(invoice.get('discount', 0)) * 100))
-    shipping_paise = int(round(float(invoice.get('shipping', 0)) * 100))
-    # GST (tax) and convenience fee are already computed on the invoice. The
-    # checkout-template send path does NOT recompute them, so we MUST populate the
-    # order_details here — otherwise the customer sees only the bare item price
-    # (missing GST + convenience fee, and a total that mismatches the invoice).
-    gst_paise = int(round(float(invoice.get('tax', 0)) * 100))
-    conv_paise = int(round(float(invoice.get('convenienceFee', 0)) * 100))
-    # Meta's order_details has no dedicated fee field, so add the convenience fee as
-    # a transparent line item (its own GST is already baked into convenienceFee).
-    if conv_paise > 0:
-        order_items.append({
-            'name': 'Convenience Fee (2% + GST)',
-            'amount': {'value': conv_paise, 'offset': 100},
-            'quantity': 1,
-            'retailer_id': f'ITEM_{len(order_items) + 1}',
-        })
-        subtotal_paise += conv_paise
-    # Internally-consistent total (Meta validates total == subtotal + tax + shipping - discount).
-    total_paise = subtotal_paise + gst_paise + shipping_paise - discount_paise
+        discount_paise = _paise(invoice.get('discount', 0))
+        shipping_paise = _paise(invoice.get('shipping', 0))
+        # GST (tax) and convenience fee are already computed on the invoice. The
+        # checkout-template send path does NOT recompute them, so we MUST populate the
+        # order_details here — otherwise the customer sees only the bare item price
+        # (missing GST + convenience fee, and a total that mismatches the invoice).
+        gst_paise = _paise(invoice.get('tax', 0))
+        conv_paise = _paise(invoice.get('convenienceFee', 0))
+        # Meta's order_details has no dedicated fee field, so add the convenience fee as
+        # a transparent line item (its own GST is already baked into convenienceFee).
+        if conv_paise > 0:
+            order_items.append({
+                'name': 'Convenience Fee (2% + GST)',
+                'amount': {'value': conv_paise, 'offset': 100},
+                'quantity': 1,
+                'retailer_id': f'ITEM_{len(order_items) + 1}',
+            })
+            subtotal_paise += conv_paise
+        # Internally-consistent total, as an INTEGER SUM (Meta validates
+        # total == subtotal + tax + shipping - discount).
+        total_paise = subtotal_paise + gst_paise + shipping_paise - discount_paise
+    except wa_payment_request.PaymentRequestRefused as refused:
+        # The FIELD NAME and the invoice id, never the value. An invoice total that cannot be
+        # expressed in exact paise has to be corrected before it can be collected against.
+        logger.error(json.dumps({
+            'event': 'payment_link_money_unreadable', 'invoiceId': invoice_id,
+            'code': refused.code, 'detail': refused.detail, 'requestId': request_id,
+        }))
+        return _resp(refused.status_code, {'error': refused.message, 'code': refused.code})
 
     order_id = invoice.get('orderId', 'Offline')
 
@@ -2230,6 +2456,86 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
                         'identity; never to the admin-gated secondary.',
             }))
 
+    # ══ RESERVE BEFORE SEND ══════════════════════════════════════════════════════════════
+    #
+    # Four conditional writes in ONE transaction, before the sender is invoked: the
+    # `REQUESTKEY#` resolve-before-generate anchor, the `PAYREF#` row the webhook reconciles on,
+    # the `INVOICECOLLECT#` interlock, and the PaymentAttempt that holds the authoritative money
+    # fields. A retried send resolves the anchor and re-sends the SAME `reference_id`; it never
+    # mints a second one.
+    #
+    # The interlock matters because five independent callers reach this function - the operator
+    # UI, the business-API route, a Flow completion, the inbound auto-send and the auto-send
+    # chain - and without it one pending invoice can receive a payment request from two of them
+    # concurrently, producing two references, two captures and two orders.
+    configuration_name = (payment_configuration
+                          or invoice.get('paymentConfiguration', '')
+                          or WA_PAY_CONFIG_NAME)
+    customer_id = str(invoice.get('contactId') or invoice.get('customerId') or contact_id or '')
+    # The COLLECTION SEQUENCE, so a cancelled collection is re-raisable. `cancel_invoice`
+    # records `seq + 1`, which makes the next collection compose a different request key: the old
+    # reservation stays immutable and the old `PAYREF#` row stays resolvable.
+    collection_seq = int(invoice.get(order_keys.INVOICE_COLLECT_SEQ_ATTR, 0) or 0)
+    # E.164 for validation. The recipient comes off the INVOICE row and never from the request -
+    # that is the real control on who receives a payment request, and it is unconditional.
+    _digits = ''.join(ch for ch in str(customer_phone) if ch.isdigit())
+    if len(_digits) == 10:
+        _digits = '91' + _digits
+    phone_e164 = '+' + _digits
+
+    keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    attempts_table = dynamodb.Table(PAYMENT_ATTEMPTS_TABLE)
+    try:
+        reservation = wa_payment_request.build_request(
+            invoice_id=invoice_id, customer_id=customer_id,
+            customer_uuid=str(invoice.get(customer_uuid.ATTRIBUTE) or ''),
+            phone_e164=phone_e164, phone_number_id=phone_number_id,
+            amount_paise=total_paise, configuration_name=configuration_name,
+            provider_mid=WA_PAY_PROVIDER_MID,
+            item_name=(order_items[0]['name'] if order_items else 'Payment')[
+                :wa_payment_request.MAX_ITEM_NAME_LENGTH],
+            collection_seq=collection_seq, now=int(time.time()))
+        attempt, freshly_reserved = wa_payment_request.reserve(
+            dynamodb.meta.client, keys_table, attempts_table,
+            keys_name=COMMERCE_KEYS_TABLE, attempts_name=PAYMENT_ATTEMPTS_TABLE,
+            request=reservation, invoice_reference_id=reference_id)
+    except wa_payment_request.PaymentRequestRefused as refused:
+        # Codes only. Nothing was written and nothing was sent.
+        logger.info(json.dumps({
+            'event': 'wa_payment_request_refused', 'invoiceId': invoice_id,
+            'code': refused.code, 'requestId': request_id,
+        }))
+        return _resp(refused.status_code, {'error': refused.message, 'code': refused.code})
+    except Exception as e:  # noqa: BLE001
+        logger.error(json.dumps({
+            'event': 'wa_payment_reserve_error', 'invoiceId': invoice_id,
+            'error': type(e).__name__, 'requestId': request_id,
+        }))
+        return _resp(503, {'error': wa_payment_request.REFUSAL_MESSAGES[
+            wa_payment_request.WA_PAY_IDENTITY_UNAVAILABLE],
+            'code': wa_payment_request.WA_PAY_IDENTITY_UNAVAILABLE})
+
+    # The RESERVED reference is what travels, replacing the invoice read. On the adopt path they
+    # are the same string; the reservation is nonetheless the authority, because it is the row
+    # the webhook resolves against.
+    reference_id = str(attempt['referenceId'])
+    payment_attempt_id = str(attempt['paymentAttemptId'])
+
+    # The durable boundary BEFORE the sender is invoked. A loser never sends: a second
+    # `order_details` message for one reservation would show the customer two payment requests.
+    if not wa_payment_request.claim_send(attempts_table,
+                                         payment_attempt_id=payment_attempt_id):
+        logger.info(json.dumps({
+            'event': 'wa_payment_send_already_claimed', 'invoiceId': invoice_id,
+            'referenceId': reference_id, 'paymentAttemptId': payment_attempt_id,
+            'requestId': request_id,
+        }))
+        # 200, not 409. A 409 reads as "nothing happened" and invites a retry, and a second
+        # invoke is the one thing this claim exists to prevent. `sendStatus` is resolved by
+        # reading the OutboundTable row, never by sending again.
+        return _resp(200, {'invoiceId': invoice_id, 'referenceId': reference_id,
+                           'status': 'send_in_progress', 'deduplicated': True})
+
     # Build payload for outbound-whatsapp Lambda
     # Determine goods type: use stored value from invoice creation.
     # Default to digital-goods — physical-goods should only be set explicitly by the admin.
@@ -2247,13 +2553,18 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     order_type = 'physical-goods' if goods_type == 'physical-goods' else 'digital-goods'
 
     order_details_obj = {
+        # The RESERVED reference, not the invoice read. Those are the same string on the adopt
+        # path, and the reservation is still the one that travels, because it is the row the
+        # webhook resolves against.
         'reference_id': reference_id,
         'type': order_type,
-        'payment_configuration': payment_configuration or invoice.get('paymentConfiguration', ''),
+        # The SAME string the reservation recorded, by construction - which is what makes the
+        # attempt's `configurationName` usable as the Meta binding's configuration source.
+        'payment_configuration': configuration_name,
         'currency': 'INR',
         'itemName': order_items[0]['name'] if order_items else 'Payment',
         'quantity': 1,
-        'gstRate': gst_rate,
+        'gstRate': gst_rate_wire,
         'gstin': invoice.get('gstin', COMPANY['gstin']),
         'orderId': order_id,
         'total_amount': {'value': total_paise, 'offset': 100},
@@ -2305,16 +2616,19 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             'contactId': contact_id,
             'recipientPhone': customer_phone,
             'phoneNumberId': phone_number_id,
-            # ALWAYS use checkout button template (wecare_pay) for ALL payments.
+            # ALWAYS use checkout button template (wecarepay_wa) for ALL payments.
             # This enables: address display, coupon support, real-time pricing.
             # Meta confirmed checkout endpoint is enabled — no separate linking needed.
             # Set physical-goods to enable shipping_info + address collection.
             'isCheckoutTemplate': True,
             'isTemplate': True,
-            'templateName': 'wecare_pay',
-            'templateParams': [],  # wecare_pay has no body variables
+            # ONE home for the approved template name, read from the environment. A gate that
+            # checks a different string from the one the send uses can pass while the send fails.
+            'templateName': WA_PAY_TEMPLATE,
+            'templateParams': [],  # wecarepay_wa has no body variables
             'checkoutOrderDetails': order_details_obj,
-            'headerImageUrl': 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
+            # FIXED company-logo header on EVERY payment. Do not vary per order.
+            'headerImageUrl': 'https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png',
         })
     }
 
@@ -2329,28 +2643,73 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         if wa_status_code >= 400:
             logger.error(json.dumps({'event': 'payment_link_outbound_error', 'invoiceId': invoice_id, 'statusCode': wa_status_code, 'body': wa_result.get('body', ''), 'requestId': request_id}))
     except Exception as e:
-        logger.error(f"Payment link send error: {e}")
-        return _resp(500, {'error': f'Failed to send payment link: {e}'})
+        # The reservation exists and no send happened, so `sendStatus` stays PENDING and is NOT
+        # auto-replayed: network acceptance cannot be inferred from a timeout, and a second
+        # message would show the customer two payment requests.
+        logger.error(json.dumps({
+            'event': 'wa_payment_send_unknown', 'invoiceId': invoice_id,
+            'referenceId': reference_id, 'error': type(e).__name__, 'requestId': request_id,
+        }))
+        return _resp(502, {'error': 'Failed to send payment link',
+                           'referenceId': reference_id, 'sendStatus': 'PENDING'})
+
+    # The attempt advances only after a send Meta accepted. Monotonic by condition, and a failure
+    # to advance is logged rather than raised: the customer already has the message.
+    if wa_status_code in (200, 202):
+        wa_payment_request.record_sent(attempts_table,
+                                       payment_attempt_id=payment_attempt_id,
+                                       now=int(time.time()))
 
     # Update invoice status to pending_payment
     try:
         # Persist the sending business phone id on the invoice so the Razorpay
         # webhook can reply + open the post-payment flow from the SAME WABA
         # (never cross-WABA). This is the most reliable phone source.
-        _upd_expr = 'SET #st = :st, #ua = :now'
+        #
+        # `referenceId` is written with `if_not_exists` under an equality-or-absent condition, so
+        # this path can NEVER overwrite an invoice's reference even if the adopt branch above is
+        # later bypassed. On the adopt path it is a no-op that proves the two agree; on the mint
+        # path it is the first assignment.
         _upd_names = {'#st': 'status', '#ua': 'updatedAt'}
-        _upd_vals = {':st': 'pending_payment', ':now': int(time.time())}
+        _upd_vals = {':st': 'pending_payment', ':now': int(time.time()), ':ref': reference_id}
+        if collection_seq > 0:
+            # A RE-RAISE after a cancel. The reservation minted a fresh reference (the old
+            # `PAYREF#` row is retained and still resolvable, carrying the pre-edit amount), so
+            # the invoice must now name the new one or the invoice-dedup join points at the
+            # superseded request.
+            #
+            # The overwrite is permitted EXACTLY when `collectionSeq` on the row equals the
+            # sequence this collection reserved against - i.e. when `cancel_invoice` recorded it.
+            # So an ordinary send can still never overwrite a reference: at sequence 0 the
+            # `if_not_exists` arm below applies instead.
+            _upd_expr = 'SET #st = :st, #ua = :now, referenceId = :ref, previousReferenceId = :prev'
+            _upd_vals[':prev'] = str(invoice.get('referenceId') or '')
+            _upd_vals[':seq'] = collection_seq
+            _upd_names['#seq'] = order_keys.INVOICE_COLLECT_SEQ_ATTR
+            _condition = '#seq = :seq'
+        else:
+            _upd_expr = ('SET #st = :st, #ua = :now, '
+                         'referenceId = if_not_exists(referenceId, :ref)')
+            _condition = 'attribute_not_exists(referenceId) OR referenceId = :ref'
         if phone_number_id:
             _upd_expr += ', awsPhoneNumberId = :ph'
             _upd_vals[':ph'] = phone_number_id
         table.update_item(
             Key={'invoiceId': invoice_id},
             UpdateExpression=_upd_expr,
+            ConditionExpression=_condition,
             ExpressionAttributeNames=_upd_names,
             ExpressionAttributeValues=_upd_vals,
         )
     except Exception as e:
-        logger.error(f'Failed to update invoice {invoice_id} status to pending_payment: {e}')
+        # The `PAYREF#` row is what the webhook reconciles on, so a failed write-back does not
+        # break settlement - it only breaks the invoice-dedup join, which degrades to creating a
+        # second invoice row rather than losing a payment. ERROR so it is repaired rather than
+        # discovered.
+        logger.error(json.dumps({
+            'event': 'invoice_reference_writeback_failed', 'invoiceId': invoice_id,
+            'referenceId': reference_id, 'error': type(e).__name__, 'requestId': request_id,
+        }))
 
     # NOTE: Do NOT send invoice image here — receipt with PAID stamp
     # is generated and sent AFTER payment is captured (in inbound handler).
@@ -2372,16 +2731,26 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
 
     logger.info(json.dumps({
         'event': 'payment_link_sent', 'invoiceId': invoice_id,
+        # `referenceId` is logged IN FULL, deliberately: it is not a secret and not a phone
+        # number, it is the correlation id that lets this money path be traced with no masked
+        # field. The phone is masked on the same line.
         'referenceId': reference_id, 'toPhone': mask_phone(customer_phone),
-        'total': float(invoice.get('total', 0)), 'requestId': request_id,
+        'paymentAttemptId': payment_attempt_id,
+        'freshlyReserved': freshly_reserved,
+        # INTEGER paise and a display STRING. A string cannot be arithmetic'd by accident.
+        'totalPaise': total_paise, 'total': pay_status.rupees_str(total_paise),
+        'requestId': request_id,
     }))
 
     return _resp(200, {
         'invoiceId': invoice_id,
         'referenceId': reference_id,
+        'paymentAttemptId': payment_attempt_id,
         'status': 'payment_link_sent',
+        'deduplicated': not freshly_reserved,
         'toPhone': customer_phone,
-        'total': float(invoice.get('total', 0)),
+        'totalPaise': total_paise,
+        'total': pay_status.rupees_str(total_paise),
     })
 
 
@@ -2420,29 +2789,60 @@ def cancel_invoice(invoice_id: str, reason: str, request_id: str) -> Dict:
         cancel_note = f"Cancelled: {reason}" if reason else 'Cancelled by admin'
         new_notes = f"{existing_notes}\n{cancel_note}".strip() if existing_notes else cancel_note
 
+        # The SEQUENCE bump rides in the same write as the cancel, so the two cannot disagree.
+        #
+        # This is what makes "cancel and re-raise" actually reachable. The `REQUESTKEY#` anchor
+        # fingerprints the amount and carries no TTL (correctly - a uniqueness reservation that
+        # expires is an identifier that gets reissued), so an invoice edited after a collection
+        # was sent refuses with `WA_PAY_INTENT_CHANGED` forever unless the next collection
+        # composes a DIFFERENT key. Recording `seq + 1` does exactly that: the old reservation
+        # stays immutable, nothing is deleted, nothing is reissued, and the old `PAYREF#` row
+        # stays resolvable - which matters, because a customer who pays the message they already
+        # hold must still settle against the reservation that message named.
+        next_seq = int(invoice.get(order_keys.INVOICE_COLLECT_SEQ_ATTR, 0) or 0) + 1
         table.update_item(
             Key={'invoiceId': invoice_id},
-            UpdateExpression='SET #st = :st, #ps = :ps, #ua = :now, #notes = :notes',
+            UpdateExpression=('SET #st = :st, #ps = :ps, #ua = :now, #notes = :notes, '
+                              '#seq = :seq'),
             ExpressionAttributeNames={
                 '#st': 'status', '#ps': 'paymentStatus',
                 '#ua': 'updatedAt', '#notes': 'notes',
+                '#seq': order_keys.INVOICE_COLLECT_SEQ_ATTR,
             },
             ExpressionAttributeValues={
                 ':st': 'cancelled',
                 ':ps': 'cancelled',
                 ':now': int(time.time()),
                 ':notes': new_notes,
+                ':seq': next_seq,
             },
         )
     except Exception as e:
         return _resp(500, {'error': str(e)})
 
+    # Release the collection claim. The invoice is now cancelled, so the row saying "a payment
+    # request is outstanding" is false - and this is the ONE permitted delete in that key space,
+    # for exactly that reason. It runs AFTER the status write so the release can never precede
+    # the fact that justifies it. Never raises: an unreleased claim blocks a future collection,
+    # which is recoverable, while a failed cancel is not.
+    released = False
+    try:
+        released = order_keys.release_invoice_collection(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), invoice_id=invoice_id)
+    except Exception as e:  # noqa: BLE001
+        logger.error(json.dumps({
+            'event': 'invoice_collection_release_failed', 'invoiceId': invoice_id,
+            'error': type(e).__name__, 'requestId': request_id,
+        }))
+
     logger.info(json.dumps({
         'event': 'invoice_cancelled', 'invoiceId': invoice_id,
-        'reason': reason, 'requestId': request_id,
+        'reason': reason, 'collectionSeq': next_seq, 'collectionReleased': released,
+        'requestId': request_id,
     }))
 
-    return _resp(200, {'invoiceId': invoice_id, 'status': 'cancelled'})
+    return _resp(200, {'invoiceId': invoice_id, 'status': 'cancelled',
+                       'collectionSeq': next_seq})
 
 
 # ─── Delete Invoice (hard delete + sequence adjustment) ───
@@ -2584,7 +2984,13 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
 
     remark_type = body.get('type', 'remark')  # remark | refund | credit_note
     text = body.get('text', '')
-    amount = float(body.get('amount', 0))
+    # A refund or credit-note amount is MONEY OF RECORD: it is persisted onto the invoice and
+    # becomes `refundAmount` / `creditNoteAmount`. So it is read as exact integer paise and a
+    # figure that cannot be expressed in paise is a 400 rather than a silent float.
+    try:
+        amount_paise = wa_payment_request.exact_paise(body.get('amount', 0))
+    except wa_payment_request.PaymentRequestRefused:
+        return _resp(400, {'error': 'amount must be an exact rupee figure (two decimal places)'})
     author = body.get('author', 'admin')
 
     if not text and remark_type == 'remark':
@@ -2601,7 +3007,9 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
         'id': str(uuid.uuid4())[:8],
         'type': remark_type,
         'text': text,
-        'amount': amount,
+        # INTEGER paise is the stored fact; the rupee figure beside it is a display STRING.
+        'amountPaise': amount_paise,
+        'amount': pay_status.rupees_str(amount_paise),
         'author': author,
         'createdAt': now,
     }
@@ -2620,13 +3028,19 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
 
     # For refund/credit note, also update status
     if remark_type == 'refund':
-        update_expr += ', refundAmount = :ra, refundAt = :rat, paymentStatus = :ps'
-        expr_values[':ra'] = _dec(amount)
+        # The rupee column stays for the existing readers, derived EXACTLY from the integer
+        # rather than from a float; the paise column beside it is the comparable one.
+        update_expr += (', refundAmount = :ra, refundAmountPaise = :rap, refundAt = :rat, '
+                        'paymentStatus = :ps')
+        expr_values[':ra'] = Decimal(amount_paise) / 100
+        expr_values[':rap'] = amount_paise
         expr_values[':rat'] = now
         expr_values[':ps'] = 'refunded'
     elif remark_type == 'credit_note':
-        update_expr += ', creditNoteAmount = :cna, creditNoteAt = :cnt'
-        expr_values[':cna'] = _dec(amount)
+        update_expr += (', creditNoteAmount = :cna, creditNoteAmountPaise = :cnap, '
+                        'creditNoteAt = :cnt')
+        expr_values[':cna'] = Decimal(amount_paise) / 100
+        expr_values[':cnap'] = amount_paise
         expr_values[':cnt'] = now
 
     try:
@@ -2640,7 +3054,8 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
 
     logger.info(json.dumps({
         'event': f'invoice_{remark_type}_added', 'invoiceId': invoice_id,
-        'remarkType': remark_type, 'amount': amount, 'requestId': request_id,
+        'remarkType': remark_type, 'amountPaise': amount_paise,
+        'amount': pay_status.rupees_str(amount_paise), 'requestId': request_id,
     }))
 
     return _resp(200, {
@@ -2652,12 +3067,75 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
 
 # ─── Send Invoice on WhatsApp ───
 
-def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str, request_id: str) -> Dict:
-    """Send invoice image via WhatsApp. Calls outbound-whatsapp Lambda."""
+def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
+                          request_id: str, *, force: bool = False) -> Dict:
+    """Send invoice image via WhatsApp. Calls outbound-whatsapp Lambda.
+
+    `force` is KEYWORD-ONLY and defaults to `False`, and that shape is the whole safety property:
+    a caller that has never heard of `force` gets the idempotent behaviour, which is every caller
+    today including the operator UI. An operator genuinely does sometimes need to resend - the
+    customer deleted the chat, the first send failed at Meta - so the escape exists, but it is an
+    explicit decision with a WARNING log behind it rather than the default.
+
+    A customer receiving two identical GST invoices for one payment is a compliance artifact, not
+    merely untidy, which is why the claim lives HERE rather than at any call site: the webhook,
+    the operator button and any future caller all pass through this function.
+    """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
     if not to_phone:
         return _resp(400, {'error': 'toWhatsAppNumber required'})
+
+    # ── the delivery claim, taken BEFORE any render ──
+    keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+    if not force:
+        try:
+            claimed = order_keys.claim_invoice_delivery(
+                keys_table, invoice_id=invoice_id, channel='whatsapp',
+                extra={'requestId': request_id})
+        except order_keys.OrderIdentityUnavailable:
+            # Fails CLOSED toward NOT sending, and that direction is correct: an undelivered
+            # invoice is recoverable by resending, a duplicate GST invoice is not.
+            logger.error(json.dumps({
+                'event': 'invoice_delivery_claim_unavailable', 'invoiceId': invoice_id,
+                'requestId': request_id,
+            }))
+            return _resp(503, {'error': 'Delivery claim unavailable; nothing was sent'})
+        if not claimed:
+            logger.info(json.dumps({
+                'event': 'invoice_delivery_already_claimed', 'invoiceId': invoice_id,
+                'channel': 'whatsapp', 'requestId': request_id,
+            }))
+            return _resp(200, {'invoiceId': invoice_id, 'status': 'already_delivered',
+                               'deduplicated': True})
+    else:
+        logger.warning(json.dumps({
+            'event': 'invoice_delivery_forced', 'invoiceId': invoice_id,
+            'channel': 'whatsapp', 'requestId': request_id,
+        }))
+
+    def _release_claim(why: str) -> None:
+        """Give the slot back when the claim produced no delivery.
+
+        Conditional on `deliveryStatus = CLAIMED` inside `order_keys`, so it can never undo a
+        CONFIRMED delivery - which is what stops this being usable to duplicate an invoice. Not
+        taken on the `force` path, because no claim was taken there.
+        """
+        if force:
+            return
+        try:
+            order_keys.release_invoice_delivery(keys_table, invoice_id=invoice_id,
+                                                channel='whatsapp')
+        except Exception as exc:  # noqa: BLE001
+            logger.error(json.dumps({
+                'event': 'invoice_delivery_release_failed', 'invoiceId': invoice_id,
+                'error': type(exc).__name__, 'requestId': request_id,
+            }))
+            return
+        logger.error(json.dumps({
+            'event': 'invoice_delivery_failed_claim_released', 'invoiceId': invoice_id,
+            'why': why, 'requestId': request_id,
+        }))
 
     # Ensure image exists, generate if not
     assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
@@ -2669,9 +3147,13 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str, 
 
     if not asset or not asset.get('url'):
         # Generate image first
+        # NOTE: an absent asset row is NOT a refusal. The engine renders it here and proceeds -
+        # that behaviour is correct and must not be "fixed" into a refusal, because it is what
+        # makes a perfectly deliverable invoice deliverable.
         gen_result = generate_invoice_image(invoice_id, request_id)
         gen_body = json.loads(gen_result.get('body', '{}'))
         if gen_result.get('statusCode') != 200:
+            _release_claim('render_failed')
             return _resp(500, {'error': 'Failed to generate invoice image', 'detail': gen_body})
         image_url = gen_body.get('imageUrl', '')
         s3_key = gen_body.get('s3Key', '')
@@ -2687,18 +3169,47 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str, 
     # URL but no key passed the check and sent a message with no media, and a row with a key but
     # no URL was refused despite being perfectly deliverable.
     if not s3_key:
+        _release_claim('no_image_key')
         return _resp(500, {'error': 'No invoice image available'})
 
     # Fetch invoice for caption
     table = dynamodb.Table(INVOICES_TABLE)
     inv_resp = table.get_item(Key={'invoiceId': invoice_id})
     invoice = inv_resp.get('Item', {})
-    total = float(invoice.get('total', 0))
+    # Rendered through integer paise and a display STRING, so the caption figure cannot be
+    # arithmetic'd by a later reader. A total that is not exactly expressible in paise falls back
+    # to the stored value rather than refusing: this is a caption, not a comparison.
+    try:
+        total_display = pay_status.rupees_str(wa_payment_request.exact_paise(
+            invoice.get('total', 0)))
+    except wa_payment_request.PaymentRequestRefused:
+        total_display = str(invoice.get('total', 0))
     order_id = invoice.get('orderId', '')
     reference_id = invoice.get('referenceId', '')
+    invoice_number = str(invoice.get('invoiceNumber', '') or '')
     order_line = f"\nOrder: {order_id}" if order_id and order_id != 'Offline' else ''
     ref_line = f"\nRef: {reference_id}" if reference_id else ''
-    caption = f"Invoice \u20b9{total:,.2f}{order_line}{ref_line}\nThank you for your payment!"
+    # The caption is the only part of this message a customer can search, forward or read without
+    # opening the image, so the invoice number belongs in it as well as on the document. Omitted
+    # entirely when absent, like the Order and Ref lines above - a label with nothing after it
+    # reads as a bug.
+    invoice_line = f"\nInvoice: {invoice_number}" if invoice_number else ''
+    # Every line here is an identifier or a label. NO PERSONAL DATA: no phone, no name, no
+    # address. A WhatsApp caption is rendered in notification previews and in forwards, so it is
+    # the least private surface this engine writes to, and the document inside the image already
+    # carries the bill-to details for the one recipient entitled to them.
+    source_line = f"\nOrdered on: {_source_label(invoice)}"
+    # The public customer id belongs here and the phone does not, and that distinction is the
+    # whole rule this caption is written to: the id is OURS, opaque, carries no timestamp and
+    # identifies nobody to a stranger reading a notification preview, whereas the phone, the name
+    # and the address identify the recipient to whoever is holding the handset. So this line is
+    # an identifier joining the ones already here, not an exception to the no-personal-data
+    # property. Omitted when absent, like the Invoice, Order and Ref lines above.
+    customer_id = _customer_id(invoice)
+    customer_id_line = f"\nCustomer ID: {customer_id}" if customer_id else ''
+    caption = (f"Invoice \u20b9{total_display}{invoice_line}{order_line}{ref_line}{source_line}"
+               f"{customer_id_line}"
+               f"\nThank you for your payment!")
 
     # Look up contact by phone
     contact = _lookup_contact_by_phone(to_phone)
@@ -2750,8 +3261,23 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str, 
         'error': '' if wa_status != 'failed' else 'WhatsApp send failed',
     })
 
+    # ── the claim becomes EVIDENCE only here ──
+    #
+    # It was taken before the render as an INTENT. `send_invoice_whatsapp` swallows a Meta
+    # failure into `wa_status='failed'` and still returns 200, so a claim never released on
+    # failure would consume the only slot and every non-forced caller thereafter would get
+    # `already_delivered` - silently losing a GST invoice with nothing above INFO in the logs.
+    delivered = wa_status in ('sent', 'delivered')
+    if delivered:
+        if not force:
+            order_keys.confirm_invoice_delivery(
+                keys_table, invoice_id=invoice_id, channel='whatsapp',
+                wa_message_id=wa_message_id)
+    else:
+        _release_claim('send_failed')
+
     # Update invoice status
-    if wa_status in ('sent', 'delivered'):
+    if delivered:
         table.update_item(
             Key={'invoiceId': invoice_id},
             UpdateExpression='SET #st = :st, #ua = :now',

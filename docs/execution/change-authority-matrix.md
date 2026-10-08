@@ -1,5 +1,164 @@
 # Change authority matrix
 
+## 2026-10-07 — UNAUTHORIZED APPLY of `provision_secure_files_api.py`, and the alias rolled back
+
+**This entry records a mistake, not a change that was decided.** It is first in the file
+because the next person to run that script needs to read it before they do.
+
+### The footgun, stated before the consequence
+
+At the time of the incident, `scripts/provision_secure_files_api.py` **applied by default.**
+`--dry-run` was opt-in:
+
+```python
+ap.add_argument("--dry-run", action="store_true")
+```
+
+The Phase O-2 convergence gate list names the script with the comment `# DRY RUN ONLY`. The
+agent ran it with no flag. Every other provisioner habit in this repo — `terraform plan`,
+`cdk synth`, `sam build`, `deploy_all_lambdas.py --dry-run` — trains the opposite
+expectation, and the script's own `--help` line at the top of its docstring showed the
+`--dry-run` spelling, which reads as documentation of the default rather than of an option.
+
+**Closed 2026-10-07, in the pass after the remediation.** Dry run is now the default and
+writing requires `--apply`; passing both contradictory flags exits 2 rather than picking
+one. `--dry-run` is still accepted and still means what it says, so every command recorded
+in this file and in the task artefacts keeps working. The deferral in the original entry —
+"editing a provisioner while remediating an accidental provision is how one mistake becomes
+two" — was the right call *during* the remediation and the wrong place to leave it
+afterwards: the alias rollback was verified by API read before this change was made.
+`tests/test_secure_files.py::test_the_provisioner_requires_an_explicit_apply` pins it, so
+the default cannot drift back to apply without a test failing.
+
+### A0_READ → A3_PRODUCTION without authority: what the run actually wrote
+
+Account `775261844268`, `us-east-1`, 2026-10-07 **08:57:51–08:58:11 UTC**
+(14:27:51–14:28:11 IST). Every row confirmed in CloudTrail by name-indexed
+`lookup-events`, with event ids, rather than inferred from the script's stdout:
+
+| Time (UTC) | Event | Event id | Target / effect |
+|---|---|---|---|
+| 08:57:51 | `PutRolePolicy` | `7473f1d5-14e0-4478-89da-6cbde81cdddb` | `wecare-secure-files-role` / `wecare-secure-files` — gained `ReadWhatsAppIncomingToPromote` (`s3:GetObject` on `o/stack/whatsapp-media/incoming/*`) and `DropDocsRequestRows` (item-level `GetItem`/`PutItem`/`UpdateItem` on `stack-wecare-digital-ServiceRequestsTable`) |
+| 08:57:55 | `UpdateFunctionCode20150331v2` | `720f7dfb-4d44-4cba-8886-c6f5d68de6ff` | `wecare-secure-files` `$LATEST` — code replaced with a build from the **unmerged** `feat/phase-o2` worktree |
+| 08:57:58 | `UpdateFunctionConfiguration20150331v2` | `b3225b82-f89d-4547-a993-707938af7c94` | `wecare-secure-files` — gained `DROPDOCS_ATTACH_ENABLED="false"` and `SERVICE_REQUESTS_TABLE` |
+| 08:58:01 | `PublishVersion20150331` | `a424eced-4126-44ab-9b4e-e2ce7f045f1d` | version **25** published from that `$LATEST` |
+| 08:58:01 | `UpdateAlias20150331` | `624dbf09-51ab-4a6e-9e12-bb4346c51022` | `live` **24 → 25** |
+| 08:58:04 | `CreateIntegration` | `d8be4cbe-8485-4997-baea-6d901eb19ec7` | one HTTP API integration on `zllr9lrg7j` |
+| 08:58:05–07 | `UpdateRoute` ×7 | `d0dd8be3`, `e1c77d03`, `0feaec3b`, `70186f66`, `e70a2105`, `52bd414f`, `7e818a7e`, `c6b06987` | the pre-existing `/secure-files/*` routes retargeted onto that integration |
+| 08:58:08 | `CreateRoute` ×2 | `5f29acb9-31b0-42c1-ac64-ba55dd88b17b`, `cd6eedbd-a3b4-4044-ac75-c04a245eb3eb` | `POST /secure-files/dropdocs/attach` and `GET /secure-files/dropdocs/{requestId}/documents` created |
+| 08:58:11 | `PutRolePolicy` | `0e684660-86ef-4909-b795-6f7c13d862dc` | `wecare-digital-lambda-role` / `wecare-invoke-secure-files` — re-put (the webhook's invoke grant) |
+
+`UpdateFunctionCode` is logged as **`UpdateFunctionCode20150331v2`**, not the `...20150630v2`
+spelling the first four lookups tried. Four name variants were queried before the event
+surfaced. Worth recording: a name-indexed lookup that returns zero is **not** evidence the
+call did not happen, and a `--start-time`/`--end-time` range lookup over the same window
+returned only one unrelated `CreateLogStream`. Only the correct event name finds it.
+
+### What bounded the damage, measured
+
+- `DROPDOCS_ATTACH_ENABLED="false"` and `SECURE_FILES_PAYMENT_ENABLED="false"` on the live
+  alias throughout. Both new routes refuse; nothing could be attached and nothing charged.
+- The code that shipped **appears to have contained the fix for the review's one blocking
+  finding** (`DROPDOCS-SOURCE-UNOWNED`) — the source allow-list, the size ceiling and the
+  digest cap. **Corrected 2026-10-07, and the correction matters more than the claim:** an
+  earlier version of this line said those were "committed before the run". They were not.
+  The apply window is 08:57:51–08:58:11 UTC and `c14db8b3` carries author and committer
+  date 14:31:50 +0530 = **09:01:50 UTC**, about four minutes later. What is true is weaker
+  and is all that can be said: `package()` zips files from the **worktree**, not from git,
+  so the fix bytes could have been present uncommitted when the zip was built — and the
+  review ran the full suite against the fixed tree afterwards. What is *not* available is
+  proof. v25's `CodeSha256` cannot settle it, because `package()` writes each file with
+  `ZipFile.write`, which embeds its mtime, so the archive is ordered-deterministic but not
+  byte-reproducible; a rebuild would differ even from an identical tree. Read this bullet as
+  "probably the remediated version, unproven", never as a measurement.
+- The IAM delta is additive, read-only on one public prefix, item-level on one table. No
+  `s3:DeleteObject`, no `dynamodb:DeleteItem`, no wildcard.
+- No Razorpay mutation, no capture, no refund, no payment-configuration change, no live
+  WhatsApp send, no `get-secret-value`, no credential on a command line, no bucket created,
+  no object deleted.
+- The full suite passed against the exact tree that shipped, including
+  `tests/test_secure_files.py`'s pre-existing invariants.
+
+None of that makes it authorized. It was a production deployment of unmerged code, and the
+locker's existing admin and paid-download routes ran it for six minutes.
+
+### Remediation — owner-approved `YES 1 plus 4`
+
+Presented as a four-option queue; the owner approved rolling the alias back and
+**retaining** the routes and IAM.
+
+| # | Action | Decision |
+|---|---|---|
+| 1 | `update-alias --function-version 24` | **YES — done** |
+| 2 | Delete the two new routes | **NO** — destructive churn with no safety benefit; they are inert and the land step provisions exactly these |
+| 3 | Revert the IAM statements | **NO** — additive and read-only |
+| 4 | Leave routes + IAM in place | **YES** |
+
+One write performed, and only one:
+
+| Time (UTC) | Event | Event id | Effect |
+|---|---|---|---|
+| 09:04:13 | `UpdateAlias20150331` | `c18b5718-268c-4e5f-b553-74c8c243eb2e` | `wecare-secure-files` `live` **25 → 24** |
+
+Verified by API read, not by the command's own exit code:
+
+```
+live FunctionVersion = 24   RevisionId fd5817ef-8f74-4bd1-a548-65a232546782
+live CodeSha256       = yesZfNnlePj1g1GEQzJuwnZIqdBcFEYFI8LFzx3HPxk=   (v24, 2026-10-05)
+live env              DROPDOCS_ATTACH_ENABLED  null
+                      SERVICE_REQUESTS_TABLE   null
+                      SECURE_FILES_PAYMENT_ENABLED  "false"
+```
+
+The two Drop Docs env keys read `null` **at the alias** because a published version freezes
+its configuration — v24 predates them. So the rollback restored the configuration as well
+as the code, and the live function now has no Drop Docs code and no Drop Docs environment.
+A name-indexed `UpdateAlias` lookup from 08:59 returns exactly one event, `c18b5718`, which
+is the confirmation that no second write slipped in. CloudTrail lag was ~4 minutes; the API
+read was authoritative in the interim.
+
+### Rollback version for v25
+
+**`alias restored to 24; v25 remains published but unreferenced`.** v25 is not deleted — a
+`delete-function-version` is a destructive AWS operation and deleting it buys nothing once
+nothing points at it.
+
+### Two residual states, both deliberate, both must be known before the land step
+
+1. **`$LATEST` still holds the unmerged worktree build** (`CodeSha256
+   Nt7KL+1OMx8b8Tp3xOZFVEB1Y0M85O3At5GYnaPEVQs=`), because the remediation moved the alias
+   and nothing else. `wecare-secure-files` is invoked **through its `live` alias**, so
+   `$LATEST` is not production for it — but anything that publishes from `$LATEST` without
+   rebuilding would re-ship the unmerged code. It was left dirty on purpose: cleaning it
+   means another `update-function-code` against production, which is the class of write
+   that caused this.
+2. **The two new routes resolve to v24, which has no `dropdocs` arm.** They are still
+   inert, but for a different reason than the flag: v24's router has no
+   `tail == ["dropdocs", "attach"]` branch, so a request falls through to
+   `require_auth(event, "Operator")` and earns an auth refusal rather than the
+   `DROPDOCS_ATTACH_DISABLED` 503 the flag would produce. No side effect either way. They
+   become flag-gated 503s when the merged build lands.
+
+### Land step — binding note
+
+**The land step must publish a NEW version from the rebased-onto-`stack` tree and move the
+alias to that. It must NOT reuse v25.** v25 was built from the unmerged worktree; promoting
+it would land phase code without the merge. And any provisioning in the land step runs
+`--dry-run` first, with the printed delta read, before `--apply`. **That is now the
+script's own shape too** — a bare invocation changes nothing, so this instruction no longer
+depends on the caller remembering it.
+
+Re-verified by API read in the convergence pass that followed (no write performed):
+`wecare-secure-files:live` is still version **24** at RevisionId
+`fd5817ef-8f74-4bd1-a548-65a232546782`, unchanged from the rollback above, and a bare
+`provision_secure_files_api.py` printed `dry run: True` / `nothing changed`.
+
+**No secret read, placed on a command line, or logged; no `get-secret-value` /
+`batch-get-secret-value`; no Razorpay mutation, capture, refund or payment-configuration
+change; no live WhatsApp send; no credential rotated; no flag enabled; no route or
+integration deleted; no IAM statement removed; no table, queue, alarm, bucket or object
+deleted; no push.**
+
 ## 2026-10-07 Conversation Routing — standby suppression ACTIVATED (`STANDBY_REPLY_ENABLED=false`)
 
 - Scope: **one environment variable.** No code change, no in-code default change, no
@@ -2387,3 +2546,704 @@ A deny rule blocks the agent from that file, so this is owner-only.
 a token; no credential rotated; no provider mutation; no flag enabled; no payment, WABA,
 phone number or S3 bucket touched; no other function, route, table, IAM policy or alarm
 changed; `.kiro/settings/mcp.json` not edited.**
+
+## Workspace audit and redesign research — 2026-10-07
+
+| Class | Target | Action and evidence | Rollback |
+|---|---|---|---|
+| A0_READ | origin/stack, pages, API helpers, handlers | Refreshed stack a82ff4c9; inventoried 149 route patterns and 80 handler sources; preserved concurrent working directories. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | GetApis/GetRoutes/GetIntegrations/ListFunctions/ListTables/ListAliases/GetApp/GetBranch/GetJob. 74 functions, 374 routes, 84 tables; Amplify job 1423 succeeded at audited SHA. Metadata only. | Read only |
+| A1_LOCAL | codex/workspace-audit-redesign-20261007 | Research report, every-page decisions, metadata evidence, local prototype and repeatable inventory/DOM checks. No production application code changed. | Remove research commit or branch |
+| A0_READ | Local artifact preview | In-app browser rejected file URL under security policy. No URL/browser workaround. File opened in Codex; DOM checks passed. Visual/mobile render unverified. | No external change |
+| A2_REMOTE_CODE | Separate research branch | Non-force feature-branch push of explicit documentation/tool/prototype paths; no stack merge or production deployment. | Delete research branch after review |
+
+Prior pending registry migration and workspace MCP production deployment are not authorized by this research request and were not executed.
+
+## Pasted investigation reconciliation — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Current stack, page/API/deployment source | Verified service-request source/Spec entry, contextual Blog Production links, non-stub API consumers; no missing registered pages; module-home tests 31 passed. | Read only |
+| A0_READ | AWS authorizers/routes/Cognito/alarms/metrics | Verified 372 NONE, 1 JWT, 1 IAM route; both MFA OFF, customer challenge triggers preserved; 73 metric alarms; six-function seven-day invocation evidence. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Research branch / PR244 | Added corrections and metadata; no deletion or auth change inferred from another assistant’s report. | Revert research update |
+
+## Internal agent autonomy phase plan — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Existing internal assistant, governance and workspace MCP | Traced custom Converse dispatch, disabled APPLY tools, plans/approvals, fail-open receipts, static settings catalog and worker-identity gap. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | Successful GetCallerIdentity, ListFunctions, ListStateMachines, ListQueues, ListAgents and three ListAliases calls. AI live 38, MCP live 10, action group live 28; classic agent NOT_PREPARED; zero state machines. No model invocation, secrets or customer reads. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added seven implementation phases, ten-area capability matrix and metadata evidence. Checked phase/gate coverage, CSV structure, source references and API-call success. | Revert documentation commit |
+
+This request creates the implementation plan. It does not activate autonomous production actions, change staff/customer authentication, lift protected-path restrictions or execute previously blocked production changes.
+
+## Final workspace inner-page layout — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Owner-pasted report and reconciled page audit | Used current confirmed wiring/gaps; retained corrections to stub/orphan claims. Refreshed official resource-index and consistent-navigation references. No new AWS inventory claimed. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added 14 text diagrams, ten inner-page specifications, backend upgrade/release matrix, and all 113 workspace routes mapped to 14 proposed destination groups. Validated unique route coverage, destination count, source existence and whitespace. | Revert documentation commit |
+
+Destination consolidation is a design target, not approval to delete routes/backends. Public/customer flows, authentication, production resources and application behavior remain unchanged.
+
+## WhatsApp coverage audit integration — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Pasted WhatsApp audit and relevant repository source | Corrected Embedded Signup stub claim via shared component/API; checked legacy thread-control shape, group storage/helper, revoke limitation, OTP controls and website-only payment policy. Official Meta docs refresh failed (inaccessible/429); no replacement API contract claimed. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added twelve-area preservation matrix, dispositions for all 25 reported gaps and six staged batches; validated coverage and component/helper references. No app tests run for documentation-only change. | Revert documentation commit |
+
+No live provider requests, credential reads, PIN/number operations, payment reactivation, send activation, AWS changes or source behavior changes were made. Pasted recommendations are classified research inputs, not blanket execution authority.
+## Staff MFA testing override - 2026-10-07
+
+A3_PRODUCTION, explicit owner instruction in this chat: disable MFA for staff
+workspace password login only; preserve customer WhatsApp OTP for cart/orders.
+Verified pool separation in amplify/auth/resource.ts and live Cognito names.
+Used SetUserPoolMfaConfig on staff us-east-1_cSx0RHCIR with MfaConfiguration OFF;
+no UpdateUserPool or customer write. Staff DescribeUserPool diff: MfaConfiguration
+only. Customer us-east-1_46ULYuukt full pool unchanged; three CUSTOM_AUTH triggers
+retained. GetUserPoolMfaConfig confirms OFF. Before/after snapshots are in the task
+outputs/staff-mfa-before-20261007.json and staff-mfa-after-20261007.json. OFF also
+cleared email/TOTP MFA factor configuration, captured by the dedicated MFA API;
+restore the complete saved MFA payload (OPTIONAL and factor configs) for rollback.
+No user passwords, groups, app clients, tokens, auth triggers or customer behavior
+were changed. No end-to-end password sign-in attempted without owner credentials.
+This is an intentional testing override, not a newly discovered audit defect.
+
+## Deep-review remediation and consolidation research - 2026-10-07
+
+A1_LOCAL/A2_REMOTE_CODE, explicit owner instruction to resolve the review findings
+on a separate branch and research consolidation of 22 active secrets. Isolated
+codex/deep-review-20261007 includes PR242's baseline CI cleanup, collision-safe Flow
+claims, fenced derived-audit leases, bounded partner caches, Standard SSM registry
+writer and open-advisory reporting in both lockfiles. Validation: 8547 full Python
+tests passed on the final merged tree, plus 201 focused tests passed. Owner changes
+through 240bfccd were merged into this branch without changing the shared checkout. See docs/execution/deep-review-fixes-20261007.md for design and rollback.
+
+A0_READ: fresh metadata confirms 22 active secrets, eight marked for deletion today,
+running micro_3_0 voice instance ($7 bundle; nano is $5), and an empty current WhatsApp
+Calling table via consistent COUNT scan. This does not establish historic call/audio
+results. SIP Phase0 handset instructions prepared; no call, send or SIP change made.
+Consolidation research: registry-only $0.40/mo, three config candidates $1.20/mo,
+conditional provider-group scenario $2.80/mo additional to prior eight deletions.
+No other credential group was changed and no secret value entered agent context.
+
+Production preparation: tested merged PR241 workspace MCP artifact uploaded to a
+content-addressed S3 key; prior code/version10 and parameters captured. Native
+CloudFormation registry migration template validated, change set reviewed as one
+SSM parameter addition. asm-exec resolution failed; direct GetSecretValue not used.
+Automatic approval review REJECTED ExecuteChangeSet for registry and CreateChangeSet
+for production MCP update, stating exact live actions lacked explicit authorization.
+Neither rejected action was retried or bypassed. Registry is not moved and no extra
+secret deletion scheduled; workspace MCP live remains version10. Await explicit
+approval of the concrete migration and already-merged backend deployment plans.
+## 2026-10-07 — Phase O-2 landed: Drop Docs and Vault as fixed-price lines on the one checkout
+
+Class `A2_REMOTE_CODE` + `A3_PRODUCTION`, inside the standing grant. Review verdict
+APPROVED, 6 non-blocking findings. Full record:
+`.agents/tasks/phase-o2-dropdocs-vault-20261002/land-report.md`.
+
+**Git.** `feat/phase-o2` rebased onto `origin/stack` (15 upstream commits, one conflict
+in `config/lambda-env-manifest.json` resolved by keeping both sides' header arithmetic
+at 69 functions / 419 variables, verified against the file's own content). Pushed
+non-force, fast-forward: **`779fb640..652d6f8a`** → `stack`.
+
+**Gates re-run on the rebased tree** (a rebase invalidates earlier verification):
+pytest 9213 passed / 1 failed, vitest 1287 passed, `tsc --noEmit` 0, `npm run build` 0
+(1411 sitemap URLs), `deploy_all_lambdas.py --dry-run` `failed=0 would_update=3`.
+The single failure is `test_checkout_faq_sources`, pre-existing — its three inputs are
+byte-identical to the base. O-1's other 4 base failures were fixed upstream.
+
+**Rollback versions, re-measured by API before any write** rather than read from the
+stale figures in `verification.md` and the 2026-10-07 incident entry above (review
+finding LIVE-STATE-RECORD-STALE): `wecare-secure-files` v26, `wecare-service-requests`
+v1, `wecare-checkout` v26.
+
+**AWS changed.** `provision_secure_files_api.py --apply`: `wecare-secure-files-role`
+inline policy refreshed with `s3:GetObject` on exactly
+`arn:aws:s3:::wecare-digital-get/o/stack/whatsapp-media/incoming/*` and DynamoDB
+Get/Put/Query on `stack-wecare-digital-ServiceRequestsTable`; env gained
+`DROPDOCS_ATTACH_ENABLED="false"` and `SERVICE_REQUESTS_TABLE`; all 10 `/secure-files*`
+routes retargeted; alias moved v26 → v27; 21/21 read-back PASS. The two dropdocs routes
+already existed as inert residue of the 2026-10-07 unauthorized provision, so this was a
+retarget, not a create. The script's `wecare-download-grants` revoke on the **shared**
+`wecare-digital-lambda-role` was a no-op — `list-role-policies` was checked read-only
+first and the policy was already absent. Then `deploy_all_lambdas.py` for three
+functions, `updated=3 failed=0`:
+
+| Function | live before | live after | Rollback |
+|---|---|---|---|
+| `wecare-secure-files` | v26 | **v28** | `update-alias --name live --function-version 26` |
+| `wecare-service-requests` | v1 | **v2** | `update-alias --name live --function-version 1` |
+| `wecare-checkout` | v26 | **v27** | `update-alias --name live --function-version 26` |
+
+Published from the merged tree. **v25 was deliberately not reused** (review finding
+AWS-WRITE-IN-BUILD-LOOP).
+
+**Verified after deploy.** All three aliases Active/Successful with live `CodeSha256`
+equal to the uploaded sha. Both dropdocs routes present on `zllr9lrg7j` via integration
+`r8781n0` → `wecare-secure-files:live`. `DROPDOCS_ATTACH_ENABLED` and
+`SECURE_FILES_PAYMENT_ENABLED` both read **`"false"`** on the deployed alias
+configuration. Inert unauthenticated probes of both routes returned **401 Verification
+required**. Zero ERROR/Traceback/import events in all three log groups.
+
+**No live-send flag enabled; `DROPDOCS_ATTACH_ENABLED` and
+`SECURE_FILES_PAYMENT_ENABLED` both shipped and verified `false`; no payment capture,
+refund or payment-configuration mutation; no provider credential read or rotated; no
+secret on a command line or in a log; no force push and no history rewrite; no
+`git add .`/`-A`/`-u`; no `s3:DeleteObject` added anywhere; no bucket created; no table,
+queue, alarm, secret or Cognito resource created, modified or deleted; no live QA send,
+so no number was messaged.**
+
+## 2026-10-06 - Nothing falls back to native browser or OS UI: Layer 1 and Layer 2 complete, on `feat/ui-native-replace`
+
+Fourteen local commits on `feat/ui-native-replace`, **nothing pushed** - the workflow's merge
+step owns the push. Every commit was created with `git commit --only` and explicit paths, with
+`git status --short` run as its own command first, because the git index is shared with other
+sessions (`multi-session-parallel-agents.md` rule 3b).
+
+Frontend source only. **No Lambda, no AWS resource, no payment configuration, no provider call.**
+Payment capture, refund and payment-configuration mutation were prohibited throughout and none
+was attempted.
+
+### Per batch
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | 1.1 scrollbar - `a1cc0d84` - `tokens.css`, `Layout.css`, `Pages.css`, `Header.tsx`, `SupportWidget.tsx`, `designsweep.js` | `ScrollbarDeclarations.test.ts` + `ScrollbarTokens.test.ts`; `designsweep` harvests the token from the page instead of three hardcoded `rgb(26, 58, 42)` literals | revert the commit |
+| `A1_LOCAL` | 1.2 dialogs - `c7af8a25` - the last four native `confirm()` and two `window.prompt()` sites, `usePromptDialog`, the scope-aware ESLint gate | `NativeDialogs.test.tsx`; `npm run lint` 0 errors | revert the commit |
+| `A1_LOCAL` | 1.3a select + date skin - `96da9865` - `form-controls.css` (new, imported last), `tokens.css` FORM CONTROLS block, `inner-ux.css`, `shop/[slug].tsx`, `cart.tsx`, `AddressFields.tsx` styled-jsx, `census_control_skins.py`, `controlprobe.js` (new) | census 85/43 pre -> 83/41 post, committed as `src/test/fixtures/control-skin-census.json`; `controlprobe --cart` measured border 1->2px, radius 8->13px, end inset 12->32px on the cart controls | revert the commit |
+| `A1_LOCAL` | 1.3b colour/range/file - `eadaacf9` | `FormControlsCss.test.ts`; `npm run build` | revert the commit |
+| `A1_LOCAL` | 1.3c checkbox/radio + the restored phone tap floor - `29b6dc6c` | census 20/9 -> 29/10; `controlprobe --post` on a real exported route | revert the commit |
+| `A1_LOCAL` | 2a `Popover` + `Select` - `392ae9f7` - **no call site migrated** | `UiSelect.test.tsx`, including the compile-time labelling union and the dangling-`labelledBy` case | revert the commit |
+| `A1_LOCAL` | 2b 13 read-only filters - `2371caf3` | `vitest`; per-file checklist grep | revert the commit |
+| `A1_LOCAL` | 2c 129 workspace write selects - `aba49e5f`, `37661d35`, `39783efe`, `e047485c` | per-file counts reconciled twice against the generated breakdown; `MCPPlayground.test.tsx` rewritten to the real user action | revert the four commits |
+| `A1_LOCAL` | 2d date/time/colour + 2e the public variant chooser - `0e444c6f`, `f3cba422` | `UiDateField.test.tsx` (29), `UiColorField.test.tsx` (15), `ShopCatalogue.test.tsx` rewritten; `designsweep /shop/merchandise/` PASS | revert the two commits |
+| `A1_LOCAL` | **2f the payment path** - this batch - `pay/flow` (9), `engage/inbox` (2), `pay/records` (1), `pay/link` (1), `PayTab` (1), `cart.tsx` (1), `AddressFields` (1) | full `vitest --run` 98 files / 1257 passed / 2 skipped; `tsc --noEmit` clean; `lint` 0 errors / 205 warnings (the baseline total); `npm run build` green; `controlprobe --cart` PASS with the native contribution select UNCHANGED; `designsweep` PASS on the 20 defaults and on `/shop/merchandise/`; `devicecheck` 390/390; `rtlcheck` 7531/7531; `translatecheck` PASS | revert the commit; per call site, restore the `<select>` from the diff |
+
+### The reconciliation, closed
+
+    2b                13
+    2c               129
+    2d, selects        0   (that batch is the date / time / colour family)
+    2e                 1
+    2f                16   (17 checkout-path elements, 1 of them deliberately native)
+    ---------------------
+    MIGRATED         159
+    DELIBERATELY NATIVE 3
+    ---------------------
+    TOTAL            162   = the measured census
+
+Verified on the finished tree: exactly **three** native `<select>` elements remain in `src/`,
+and they are the three named below. A batch list that does not sum to the census would mean the
+goal is silently not met, so the sum is part of the gate rather than a note.
+
+### The three deliberately-native controls, each with a one-line comment at its own call site
+
+| Control | Why it stays native |
+|---|---|
+| `src/pages/cart.tsx:549` - the contribution amount | **The owner's own money-safety instruction**, which overrides the design's framing. Its own comment records that it replaced a free-text field precisely because a control that can only emit one of three committed values has no draft, no commit moment and no invalid value to produce. A custom listbox would reintroduce the component that decides what gets emitted, in front of money, and `whatsapp-payments-india-reference.md` requires the checkout total to fail closed on a one-paise mismatch. Its element, `id`, external `<label htmlFor>`, handler and comment are untouched; it keeps its Layer-1 skin, so the closed state is already fully ours |
+| `engage/whatsapp/ctwa-ads.tsx:197` - the disabled Pages list | No `value`, no `onChange`; migrating it would mean inventing a value contract |
+| `dashboard/design-reference.tsx:244` - the Select Dropdown specimen | A specimen on the design-reference page, not a surface a custom listbox improves |
+
+### ACCEPTED BEHAVIOUR CHANGE: publishing an ad now requires typing PUBLISH
+
+`ctwa-ads.tsx` routes publish through `useConfirmDanger( 'publish', ... )`, so the operator types
+seven characters where they previously clicked OK. Owner-approved (design section 9, Q7):
+publishing commits ad spend, and `01-standing-authorization.md` lists activating ad spend among
+the actions that must never be casual. Pinned by a test asserting the commit button is DISABLED
+and `marketingAdsApi.publish` has NOT been called until PUBLISH is typed.
+**Rollback:** pass no `confirmInput`, or revert to `useConfirm`.
+
+### ACCEPTED CAPABILITY LOSS: browser address autofill on the checkout state field
+
+`src/components/AddressFields.tsx` carried the **only** `<select>` in the tree with
+`autoComplete` - `address-level1`, on the India state field, on the checkout path. A
+`<button role="combobox">` plus a hidden input **cannot receive browser address autofill**: the
+hidden input is not autofillable and the button is not a form control. Migrating it therefore
+removes one-tap address entry from checkout, which is a capability loss on the conversion path
+for a visual gain on a menu that is open for two seconds.
+
+- **Taken on the owner's override.** Design section 9's Q1 recommended NOT migrating the checkout
+  selects at all, with this as one of its three reasons. The owner asked for Layer 2 across the
+  product, so Q1's override path applies: 2f ran exactly as specified, `AddressFields` went
+  **last within the batch**, and the loss is recorded here.
+- **What is NOT lost:** the five text inputs keep their own `autoComplete` - `address-line1`,
+  `address-line2`, `address-level2`, `postal-code`, `country-name` - asserted at 5 by
+  `AddressFieldsTokens.test.tsx`. The value contract is unchanged, the subdivision list still
+  comes from `src/config/indiaSubdivisions.ts` (which a drift test holds equal to the Python
+  table, because the subdivision is the place of supply and decides the CGST/SGST versus IGST
+  split), and the server's field-level refusal still lands on this control, now as
+  `aria-invalid` on the trigger.
+- **One appearance change beside it:** the invalid border moves from this file's `#8c1d18` to
+  `form-controls.css`'s `var(--danger)` on `.ui-select-trigger[aria-invalid="true"]`.
+- **Rollback: revert this one call site.** Nothing else in the batch depends on it - restore the
+  `<select>` with its `autoComplete`, its wrapping `<label>` and its `aria-invalid`, and delete
+  the two `.address-state` rules. The old test case asserted the attribute was present; the new
+  one asserts it is ABSENT, so a revert has to move that assertion back, deliberately.
+
+### The restored ≤768px checkbox and radio tap floor, with its numbers
+
+`form-controls.css` adds a `@media (max-width: 768px)` block declaring `min-width` and
+`min-height` of `var(--tap-target)` on the checkbox and radio. These are **predictions from the
+cascade, not measurements of any workspace surface**, and are recorded as such:
+
+| viewport | BEFORE (predicted) | AFTER (predicted) |
+|---|---|---|
+| 390px | 44 x 32 | 44 x 44 |
+| 1280px | 28 x 32 | 18 x 18 |
+
+**Two of those four cells were refuted by a synthetic cascade measurement** in Chromium carrying
+exactly the four rules involved, in their real source order:
+
+- **1280px BEFORE is 13 x 32, not 28 x 32.** Blink's style adjuster zeroes an author padding and
+  border on a checkbox and radio specifically, so the UA intrinsic 13px width renders rather than
+  the 28px that `padding: 10px 12px` under border-box would give. The `padding: 0` declaration
+  stays regardless: with `appearance: none` the authored padding LIVES, and `padding: 0` is the
+  one declaration that makes `--control-box` the box.
+- **1280px AFTER is 18 x 32, not 18 x 18 - the desktop checkbox is not square.**
+  `Layout.css:127`'s `min-height: 32px` is unopposed above 768px, and a top-level `min-height` is
+  deliberately forbidden because it would render a 44px tile at 1280px.
+- **The 390px column is confirmed, and corroborated on a public route:** `controlprobe --post`
+  measured the hidden `.bc-radio` at 44 x 32 at 390px and 1 x 32 at 1280px on a real exported
+  page - the same two rules.
+
+### THREE STRUCTURAL VERIFICATION GAPS, stated rather than implied
+
+These are properties of the repo, not of this task, and none of them was closed here.
+
+1. **No workspace route can be browser-verified, at all.** `AuthShell` is
+   `dynamic( ..., { ssr: false } )` at `_app.tsx:57`, so all **113** `src/pages/workspace/**`
+   routes ship an **empty `#__next`** in the static export. Every harness in `tools/browser/`
+   renders nothing to measure on them. So for the 11 of 2f's 16 controls that live under
+   `pay/**`, `engage/inbox` and `PayTab` - and for ~140 workspace selects, 9 date, 3 time and 2
+   datetime-local inputs across the whole task - the evidence is `vitest` + jsdom, `tsc`,
+   `lint`, `build`, the checklist greps, source review, and **the owner's visual pass in a
+   signed-in Chrome**. No screenshot, no computed-style reading and no automated layout or
+   contrast measurement exists for any of them, and none is claimed.
+2. **No WebKit, Safari or iOS result is claimed anywhere in this task.**
+   `~/Library/Caches/ms-playwright` holds `firefox-1543` only, and
+   `tools/browser/lib/browser.js` resolves `/Applications/Google Chrome.app` by path. Every
+   browser number in this record is Chromium at 1280x900 and 390x844.
+3. **`designsweep.js` measures no `<select>`.** It harvests `main input:not([type=hidden])` and
+   `main textarea` and never a select, which is why `controlprobe.js` had to be written for
+   batch 1.3a. Extending designsweep's harvest was rejected by the design and remains **the
+   right follow-up rather than something done here**: its field checks assert the home page's
+   input standard against every route, and a select is a different control with a different
+   radius and a chevron, so widening the harvest would make it fail on correct output. Closing
+   this means giving designsweep a select standard of its own, which is its own change with its
+   own evidence.
+
+### Two harness results worth reading honestly
+
+- **`flowprobe.js` reports 24 ok / 3 FAIL and exits 0.** All three are on `section.home-flow`,
+  the WorkflowTerminal band on the **home page** - a sticky offset, one focusable node in a
+  decorative band, and a text alternative missing four of eight stage names. The harness labels
+  them "the open findings for this band, not a broken harness". They are pre-existing, on a
+  surface no batch in this task touches, and they are **not fixed here**.
+- **`OrdersPage.test.tsx`'s "re-asks exactly once, then stops" failed in 2 of 5 full-suite runs
+  and passed in isolation and in the other 3.** It drives a 5-second re-ask under
+  `vi.useFakeTimers({ shouldAdvanceTime: true })`, where wall-clock time also advances the fake
+  clock, so the assertion was load-sensitive. 2f recorded it as a flake rather than fixing it,
+  on the grounds that the fix meant removing `shouldAdvanceTime` from a test the batch had no
+  reason to rewrite. **FIXED in the integration pass instead, and it was not a timer-option
+  problem.** The root cause is a missing synchronisation point: `orders.tsx:256` registers the
+  one-shot re-ask only once `view === 'empty'`, which needs the first fetch to have resolved and
+  set state, so advancing the clock before that happens advances past a timer that does not yet
+  exist and the re-ask never fires. The two sibling cases in the same describe block always
+  awaited the "Checking for recent orders…" line - which renders on that exact condition - and
+  never flaked, which is what identified it. One `await screen.findByText( /Checking for recent
+  orders/ )` before the advance; `shouldAdvanceTime` is KEPT, because it is what lets
+  `renderSignedIn`'s own awaits settle. Every assertion is unchanged (1 fetch, then 2, then
+  still 2), the fix is mutation-checked (breaking the re-ask effect still fails the case), and
+  the suite ran green **six consecutive times** at 98 files / 1257 passed / 2 skipped.
+  Layer 2 is why this surfaced now: 2f added a `Select` to this page's render tree via
+  `CheckoutProfile` → `AddressFields`, which lengthened the window the assertion was racing.
+
+### The cross-batch integration pass: the census fixture was stale for five batches, and is not now
+
+The ten batches each verified themselves. Nobody had verified the seams between them, and one
+seam was genuinely open: `src/test/fixtures/control-skin-census.json` was last regenerated on
+1.3a's tree, and batches 2b, 2c, 2d, 2e and 2f each recorded - correctly, and in their own
+findings - that they were leaving it stale rather than editing this gate's frozen numbers inside
+a batch that moved elements instead of stylesheets.
+
+**That deferral was right per batch and wrong in aggregate.** `FormControlsCss.test.ts` asserts
+literals against the committed fixture, so for as long as the fixture was not regenerated the
+no-new-skins gate was comparing a snapshot to itself: it could not have failed on anything
+batches 2b-2f did. The property was not broken, it was unverified, which is the worse of the two
+to leave undocumented.
+
+Regenerated once here, on the finished tree, and the literals moved with it:
+
+| | 1.3a (frozen) | finished tree | delta |
+|---|---:|---:|---:|
+| select rule sets | 83 | **67** | -16 |
+| files skinning a select | 29 | **22** | -7 |
+| geometry rule sets | 41 | **29** | -12 |
+| B-styledjsx | 38 in 18 | **22 in 11** | -16 / -7 |
+| A-global | 42 in 9 | **42 in 9** | unchanged |
+| C-injected | 3 in 2 | **3 in 2** | unchanged |
+| pairings | 21 | **21** | unchanged |
+| checkbox/radio census | 29 in 10 | **29 in 10** | unchanged |
+
+**A falling count is this task succeeding, and the evidence that it is not something else is
+that mechanism A did not move.** 15 of the 16 departed rule sets are mode-`class` hits counted
+only because a `<select>` wore the class - the scanner's `classnames_on_select()` matches
+`<select` literally, so such a rule stops being a select skin when the element becomes a
+`<button role="combobox">`, whether or not the rule was touched. The sixteenth,
+`.shopd-options select`, is a `select`-token rule batch 2e deleted with the control it dressed.
+Only 12 of the 16 set a box property, which is why geometry fell by 12 and not 16; the other
+four are `:focus`/`:focus-visible`/`:hover` state rules. The global stylesheets - the only
+mechanism whose rules can win the cascade - are byte-for-byte the set 1.3a froze, and
+`form-controls.css` still contributes exactly 5 select and 9 checkbox/radio rule sets.
+
+**Mutation-checked in both arms, so the regenerated gate is known non-vacuous rather than merely
+green.** Planting `.mutation-probe select{border:1px;border-radius:3px;padding:9px}` in
+`Pages.css` (an already-allowed file) and regenerating fails assertion 3 on the count (68 vs 67)
+AND assertion 8 by file and line on both the 1px and the 3px. Planting a conforming rule in
+`flex-layout.css` (not on the list) fails the allow-list arm naming the new file. Both probes
+were reverted and both files are byte-identical to the commit.
+
+**One correction to batch 2d/2e's findings, recorded because it is now false:** FEAT-009 states
+that `.shopd-options select` was left in place as a dead rule so `shop/[slug].tsx` would stay in
+the frozen allow-list. Measured on the finished tree, the rule is gone and the file has left the
+list - and the call-site comment in `shop/[slug].tsx` says so explicitly ("The .shopd-options
+select rule is gone with the native control"). The deletion is the correct outcome; it is the
+findings sentence that was stale. Trust the scanner over the prose.
+
+### What the integration pass re-measured, and what it did not
+
+Re-ran on the finished tree, all green and all matching the figures the batches recorded:
+`npm run lint` 0 errors / 205 warnings · `tsc --noEmit` clean · `vitest --run` **98 files / 1257
+passed / 2 skipped** (the 2f row above said 97 files; that was a typo and is corrected) ·
+`npm run build` green at 1411 sitemap URLs / 1323 posts / 462 kB search index.
+
+Chromium harnesses, **public routes only**: `designsweep` PASS on the 20 defaults and PASS on
+`/shop/merchandise/` · `controlprobe --cart` PASS with the migrated trigger at 2px / 13px / 44px
+/ 32px and the native contribution select unchanged in every cell · `controlprobe --post` PASS ·
+`devicecheck` 390/390 · `uicheck` 96/96 · `rtlcheck` 7531/7531 · `translatecheck` PASS over 1530
+routes · `flowprobe` 24 ok / 3 FAIL exit 0, the same three pre-existing `section.home-flow`
+findings named above.
+
+The reconciliation was re-derived from the tree rather than from the batch arithmetic: 161
+`<Select>` JSX tags in non-test source, **minus the 2 internal to `TimeField.tsx`** (the
+picker's own hour and minute controls, which are not migrated call sites) = **159 migrated**,
+plus exactly **3** native `<select>` elements = **162**. The 17 date/time/colour call sites are
+a separate family and are intact at 9 + 3 + 2 + 3; no native `type="date"`, `type="time"`,
+`type="datetime-local"` or `type="color"` survives outside tests.
+
+**Two harness-reliability notes, recorded because they cost time and will again.**
+`translatecheck.js` sweeps 1530 routes with no per-route error handling, so a single Playwright
+navigation timeout leaves the browser open and the process HANGS rather than exiting - it looks
+like a slow run, not a failure. It failed that way twice under load and passed on the third run,
+PASS over all 1530. `rtlcheck.js` did the same once during 2f. Neither is caused by anything in
+this task; both are worth a `try`/`catch` per route, which is the harness's own change.
+
+**A TRAP WORTH KNOWING BEFORE READING A SKIP COUNT HERE: `StyledJsxBuildScope.test.ts` compares
+source mtimes against `out/` and SELF-SKIPS its 7 cases when any source file is newer**, naming
+the file and the lag ("`src/pages/orders.tsx` is newer than the export by 13690s - run
+`npm run build` first"). Touching a source file's timestamp is enough; the content does not have
+to change. Reverting a probe by rewriting the file does exactly that, so three full-suite runs
+read `97 passed | 1 skipped` and `1250 passed | 9 skipped` against the baseline's
+`98 passed` / `1257 passed | 2 skipped` - **seven tests silently not run, with the total still
+1259.** The guard is right to fail closed rather than verify scope hashes against a stale
+export, and the fix is simply `npm run build` before the suite. **Read the skip count, not just
+the pass count:** a green run with 9 skips is not the same evidence as a green run with 2.
+
+**The verification gaps are unchanged and none was closed here.** No workspace route can be
+browser-verified, no WebKit/Safari/iOS result is claimed anywhere, and `designsweep` still
+measures no `<select>`. Audited across every task artifact: every sentence pairing a harness
+with a workspace path is a statement that the harness can measure nothing there, and every
+WebKit/Safari/iOS mention is an explicit disclaimer. The owner's visual pass in a signed-in
+Chrome remains the appearance evidence for ~145 workspace controls.
+
+### Review pass 2: Tab dismissal dropped keyboard focus on `<body>` in DateField and ColorField
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| `A1_LOCAL` | `src/components/ui/{DateField,ColorField,Popover}.tsx`, `src/test/Ui{DateField,ColorField}.test.tsx` | 6 new vitest cases, 4 of them RED on a mutation probe that restored the pre-fix code and GREEN after; full suite 98 files / **1269 passed / 2 skipped** | revert the commit; the three components are self-contained and no call site passes anything new |
+
+**The defect.** `Select` keeps DOM focus on its trigger, so `Popover` can let Tab's default
+action stand and focus moves to the next control exactly as a native `<select>` does.
+`DateField` and `ColorField` are the other pattern: both run roving focus **inside** the
+portalled panel - on `.ui-date-day[tabindex="0"]` and `.ui-color-swatch[tabindex="0"]` - and
+both reduced dismissal to one statement that discarded the `reason` it was handed. So Tab
+unmounted the panel with the focused node inside it, the browser computed the next tab stop
+from a node no longer in the document, and the operator was left on `<body>` with no keyboard
+route back. Measured in jsdom on both components before the fix: `activeElement` is the day
+button / the swatch before the key and `BODY` after, panel closed. Escape never had this
+problem because `Popover`'s `'escape'` arm already calls `anchorRef.current?.focus()` - which
+is why both files carried a passing "Esc closes and RESTORES FOCUS TO THE TRIGGER" case while
+the Tab path went unguarded. `'outside'` had the same hole.
+
+Scope: `DateField`'s 9 call sites plus the 3 reached through `DateTimeField`, and `ColorField`'s
+3. `TimeField` is unaffected - it composes two `Select`s and owns no panel. `Select` is
+untouched, and `UiSelect.test.tsx`'s assertion that its Tab event is **not** cancelled still
+passes, which is the guard that stops this fix leaking into the control it would break.
+
+**ACCEPTED BEHAVIOUR DELTA: Tab out of an open calendar or palette costs one extra keypress.**
+The fix cancels Tab inside the panel and returns focus to the trigger, so the operator presses
+Tab once to close and again to move on; a native picker closes and moves in one. Cancelling is
+what makes the second press a normal move from a node that exists, and the alternative -
+computing the next tab stop ourselves and focusing it - means reimplementing the browser's
+tab-order algorithm, which is a larger and more fragile change than the problem warrants.
+Trading one keypress for never stranding focus is the right side of that trade, and the trigger
+sits after the text input in `DateField`, so the onward move is where the operator expects it.
+Tab **discards** in `DateField` (its arrows only move the roving focus; Enter commits) and emits
+nothing of its own in `ColorField` (its arrows already commit as they move) - both pinned by a
+test, so a revert has to move the assertion back deliberately. `'route'` is deliberately NOT
+given focus-restore: the page is navigating and the trigger is on its way out too.
+
+`Popover` itself is unchanged in behaviour - only its Tab comment, which now records why the
+cancel cannot live there: the primitive cannot know where focus should return to, and
+cancelling for every consumer would break `Select`. The `reason` is reported and the consumer
+decides, which is what the signature was written for.
+
+**No new browser evidence, and none is claimable.** All 12 `DateField` and 3 `ColorField` call
+sites are workspace surfaces behind `AuthShell`, which is `dynamic(..., { ssr: false })`, so
+every one of those routes ships an empty `#__next` in the static export and no Chromium harness
+can reach them. The focus evidence here is jsdom plus the mutation probe. The public harnesses
+were re-run to prove nothing regressed, not to evidence this fix: `designsweep` PASS on the 20
+defaults and on `/shop/merchandise/` · `controlprobe --cart` PASS with the migrated trigger
+still at 2px / 13px / 44px / 32px and the native contribution select unchanged · `controlprobe
+--post` PASS · `devicecheck` 390/390 · `uicheck` 96/96 · `rtlcheck` 7531/7531 ·
+`translatecheck` PASS over its full route sweep · `flowprobe` 24 ok / 3 FAIL exit 0, the same
+three pre-existing `section.home-flow` findings. `npm run lint` 0 errors / 205 warnings ·
+`tsc --noEmit` clean · `npm run build` green at 1411 sitemap URLs / 1323 posts / 462 kB index.
+No WebKit, Safari or iOS result is claimed, here or anywhere in the task.
+
+**The reconciliation is unchanged and was re-derived rather than carried forward:** 161 `<Select`
+tags in non-test `src`, minus the 2 internal to `TimeField.tsx`, = **159 migrated**, plus exactly
+3 native `<select>` elements - `cart.tsx:549`, `ctwa-ads.tsx:197`,
+`design-reference.tsx:244` - = **162**. Zero `type="date"`, `"time"`, `"datetime-local"` or
+`"color"` attributes survive outside `src/test`, and
+`scripts/census_control_skins.py --json` is still object-equal to
+`src/test/fixtures/control-skin-census.json`.
+
+**One harness note, the same one recorded above and worth re-recording because it recurred:**
+`translatecheck.js` hung on its first run of this pass with no output and had to be killed at
+the 30-minute mark, leaving a stranded Playwright process. It has no per-route error handling
+across its route sweep, so one navigation timeout hangs the process rather than failing it -
+indistinguishable from a slow run. It passed on the second run after the stranded browser was
+cleared. Not caused by anything in this change; a `try`/`catch` per route is the harness's own
+fix.
+# Workspace rescan and final plan — 2026-10-08
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | origin/stack 57ff0e03 and GitHub checks | Fresh source checkout; 141 routes/81 handler sources; five current failed Actions logs diagnosed; PR243/244 remain open. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | Successful discovery of 75 functions, 376 routes, 76 integrations, 84 tables, 73 alarms, 16 metric filters; sampled aliases/pools and Amplify job1429 source match. No credentials/customer records or provider effects. | Read only |
+| A1_LOCAL | codex/workspace-rescan-20261008 | Final plan/flows, 105-route migration map, 36-case test matrix, sanitized metadata and repeatable static inventory. Bulk graphs stay in task outputs. | Remove research files |
+| A0_READ | Current-tree offline tests | 538 governance/catalog/module Python +411 checkout/document/order Python +245 frontend tests passed. 81 handler ASTs parsed. Reused dependency runtime; no full local suite/build claimed. | No production change |
+| A2_REMOTE_CODE | Separate rescan research branch | Explicit-path non-force documentation/evidence push and draft review. No production merge/deploy, MFA/provider/sends/payments/secret/SIP change. | Close draft/revert research commit |
+
+Current CI red checks remain release gates; this research does not bypass them or infer authorization from pasted retirement/API suggestions.
+
+
+## 2026-10-08 — WhatsApp customer ideas
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | WD_Leave_Review_v2 Flow JSON, inbound handler, customer_ideas helper, Flow Responses display and focused tests | Owner requested required aspirational thought, working Next/Submit and backend/contact saving. 78 Python tests and 1 frontend test pass; TypeScript and production build pass. | Revert this scoped commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp code and live alias | Existing live 79 and code hash captured before update. Built archive preserves all existing live members, replaces handler.py and adds customer_ideas.py only. New version 80 is Active/Successful, live points to 80. Code SHA256 sIO3xStfy05MJw0P8oTD4dYbG3i/t9qd9Ps0L/h+75A=. | Move live alias back to 79 using current revision guard. |
+| A2_REMOTE_CODE | Explicit scoped files on origin/stack | Standing authorization; fetched HEAD and origin/stack both 978eb2c9344fddc22696f90cbaf6e8c3dc139727 before commit. Non-force push. | Revert scoped commit and push stack. |
+| A3_PRODUCTION | Amplify d22dm4b0jn71jw stack automatic build | Read app/branch before push: repository wecare-digital/wecare-digital, platform WEB, auto build enabled, prior active job 1432. No configuration or secret changes. | Revert scoped commit and rebuild. |
+
+Storage: stack-wecare-digital-FlowSubmissionTable holds the authoritative idea; stack-wecare-digital-SubmitRequestsTable holds a stable flow_log contact activity projection. Both already exist, role access verified; no schema/IAM mutation. Trusted webhook sender resolves the contact, never handset-supplied IDs. Duplicate delivery repairs the activity projection. No outbound messaging, public review, payment, or sales-lead creation.
+
+Meta Flow 1578178897413815 remains a saved draft. Interactive preview validates required input, navigation, preserved thought and Submit completion. Removed explicit 500 character limit; native Meta limit still applies. Real WhatsApp-to-storage QA is WAITING_FOR_OWNER: supply an authorised test recipient. Preview completion is not evidence of a production submission. No real customer messages sent.
+
+
+### 2026-10-08 — Balanced Flow brand lockup
+
+A1_LOCAL / A2_REMOTE_CODE: owner supplied website screenshot as the brand proportion reference. Enlarged the Inter ExtraBold wordmark from 43px to 56px, increased the icon-to-wordmark gap, vertically centred both lines, retained the red dot. Updated both embedded Flow banners. Structural comparison confirms all form fields, routing and completion payload remain identical. Meta Run validates zero errors and Save persists the draft. Rollback: revert this asset-only commit. No Lambda or frontend source change.
+
+
+## 2026-10-08 — ReviewTable authority for private customer ideas
+
+Owner requested removal of the optional follow-up checkbox and review-specific storage. Meta draft 1578178897413815 saved schema 4 without opt-in fields or consent caption; saved JSON matches local output and validates zero errors.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | customer_ideas, review listing APIs, contact/review workspace display and Flow JSON | ReviewTable is authoritative, conditional put keeps original content and moderation on retry, FlowSubmission tracking repair follows before inbox dedup. No new SubmitRequestsTable activity writes. 82 focused Python tests pass on source and the exact archived Lambda helper; frontend test passes. | Revert scoped source commits. |
+| A3_PRODUCTION | wecare-inbound-whatsapp live 81 | Prior live 80 captured. Only handler and customer_ideas replaced; remaining archive preserved, role ReviewTable PutItem/GetItem verified allowed, version Active/Successful readback. | Move live to 80 with current revision guard. |
+| A3_PRODUCTION | wecare-whatsapp-business-api live 68, wecare-service-api live 22 | Prior versions 67 / 21 captured. Only _list_reviews function replaced in existing live archive; full pagination, phone-index query, contact filter, pending/submitted translation tested. Both Active/Successful. | Move aliases to 67 / 21 with current revision guards. |
+| A2_REMOTE_CODE | Explicit paths on stack | Concurrent origin ce26a84 merged normally, preserving other changes. Repaired its package-lock mismatch; npm ci succeeds. Non-force push only after final gates. | Revert scoped commits on stack. |
+| A3_PRODUCTION | Amplify d22dm4b0jn71jw stack auto-build | App/branch snapshot from earlier deployment remains applicable; no config changes, auto build enabled. | Revert and rebuild. |
+
+Existing ReviewTable ACTIVE: reviewId key, customerPhone/status indexes. Private ideas have flowId, flowCode, reviewType, trusted contactId/phone, source whatsapp, status submitted and no invented rating. ReviewTable retains the domain record; FlowSubmission remains a compatibility tracking projection. Contacts read review rows directly. No schema/IAM changes, sends, credential reads or public-review requests. Existing WD_IDEA submissions scanned: zero; no historical migration required. Runtime flow_completion retained from live intentionally, including no unrelated rollout of concurrent shared-helper fixes; exact archive tests pass.
+
+WAITING_FOR_OWNER remains real WhatsApp QA: authorised recipient required; Flow is still a draft. Multiple review/idea Flows may share ReviewTable with explicit Flow attribution; service/payment/document domains retain their existing storage.
+
+## 2026-10-08 — Owner-approved review Flow publication
+
+Owner explicitly confirmed: "Yes, publish this review Flow now" for WD_Leave_Review_v2, Meta Flow 1578178897413815. Published through WhatsApp Manager; readback shows Published and "Your Flow has been published!". JSON has zero errors. The approved schema 4 and private ReviewTable submission route are unchanged.
+
+| Class | Target | Evidence | Recovery |
+|---|---|---|---|
+| Explicit owner provider publication | WD_Leave_Review_v2 / 1578178897413815 | Exact Flow named in owner approval; Meta published status and success modal verified. Initial approval-review block was resolved by this explicit approval. | Revise content through Meta's new-version workflow; publication cannot be treated as a draft rollback. |
+| A0_READ | Lambda live aliases and Amplify deployment | Inbound 81, WhatsApp business API 68, service API 22 remain Active and match the previously tested code. Amplify stack job 1437 BUILD/DEPLOY/VERIFY all SUCCEED. | No runtime changes in this publication step. |
+
+No invitation or customer message sent. A real WhatsApp submission and saved-record/contact-activity verification remain WAITING_FOR_OWNER until an authorised QA recipient is supplied. Publishing does not itself attach a template or broadcast the Flow. Existing-order lookup was confirmed in source by customerPhone index; wiring a customer-scoped selector into the future request Flow is still implementation work.
+
+## 2026-10-08 — Customer link for the published private idea Flow
+
+Owner requested completion of the customer-entry route. Exact `Share an idea`, `share idea` and `/idea` messages route to customer_idea / Flow 1578178897413815. NAVIGATE opens FEEDBACK directly; the legacy leave_review / 4423166114671543 route remains unchanged. Hybrid routing enabled=false and standby ownership/send guards remain effective. Second-WABA fallback uses the first account's customer link.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL / A2_REMOTE_CODE | Inbound handler, routing tests, authority log | 93 focused tests pass; exact archive entry tests pass. Only handler.py changes in the existing live ZIP; all other members preserved. | Revert scoped source commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp version 82 and live alias | Previous version 81 and code hash verified before update; revision-guarded code update and alias move. Archive SHA256 a477a20c1256101c04188fe71dcbf42c7127554dd344b9cb732bca960aaf62d8. | Move live alias to 81 and restore its code to LATEST because ingress can invoke unqualified. |
+
+Customer URL: https://wa.me/919330994400?text=Share%20an%20idea . The customer sends the prefilled message, receives Share an idea, and taps it to open the native Flow. No live-send flag, payment configuration or provider credential changed. No customer message sent by this deployment; real-device and persistence QA still needs an authorised recipient.
+
+## 2026-10-08 — Owner-requested review invitation copy
+
+A1_LOCAL / A2_REMOTE_CODE: customer_idea invitation body changed to the owner-provided feedback sentence (star prefix), footer WECARE.DIGITAL and CTA Leave Review. Existing keywords, Flow ID, screen, submission schema and other routes remain unchanged. Nineteen focused tests and three exact-archive checks pass.
+
+A3_PRODUCTION: inbound-whatsapp live 83, previous version 82 captured; revision-guarded update and alias move. Archive SHA256 7226a96a08cce5a841501fb02aaf084ef3b4683d1913c57d15df2186c8503e00. Only handler.py changed in the prior live ZIP. Recovery: restore version 82 to both LATEST and live alias. No message sent; copy applies to future invitations.
+
+
+### 2026-10-08 Contact payment/order retention
+
+| Class | Target | Authority and evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | Contacts delete guard, contact payment-link policy, structured dashboard refusal | Owner requested preventing contact deletion after payment. Both soft/hard delete now refuse linked paid invoices or orders; customerPhone index covers CRM orders lacking checkoutCustomerId; invoice linkage fully paginated. Unknown linkage refuses deletion. No customer ownership reassignment, provider send or payment mutation. 49 Python tests on exact Lambda handler package, 8 frontend tests, TypeScript check passed. | Revert explicit source paths. |
+| A3_PRODUCTION | wecare-contacts live 31 to 32 | Existing package preserved, only handler._delete and lambda_utils/ecommerce/contact_payment_links.py replaced. Published hash aol0YdzlAwRKypYOhpQqyz5fFyCkPYdg4k+jB45l/hs=; Active/Successful verified before alias move. | Move live alias back to 31 using current revision guard. |
+
+Previously archived/recreated contacts are not migrated by this change. Invoice delivery continues by invoice/payment reference and stored recipient phone; financial ownership is not rewritten on a phone match. Manual contact lock remains available and blocks both archive and permanent deletion.
+## 2026-10-08 — Wix is the live price authority for the four WECARE.DIGITAL services
+
+Owner instruction: "price 49 or 99 can change any time so make dynamic wsyin with wix". Branch
+`feat/wix-service-pricing`, base `e8c2ddfc`. Nothing deployed from this change.
+
+**Two iterations.** The rows below carry both: iteration 1 built the feature; iteration 2 answered
+a review that found seven defects, two of them blocking. The last four rows and the corrected test
+counts are iteration 2's, and where iteration 1 recorded something that turned out to be false
+(the edge-cache claim, the pass counts, "eight Wix calls per minute") it is corrected in place
+rather than left standing beside the correction.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | New `lambda_utils/ecommerce/service_pricing.py`; `GET /ecommerce/service-prices` arm in `ecommerce/checkout/handler.py`; new `src/lib/servicePricing.ts`; `src/components/ServiceRequestPurchase.tsx` reads the live price | Price resolved through the SAME path the cart uses (`cart_v2.CartV2.create`/`get`/`estimate`), so there is no second pricing code path. **Counts re-measured at iteration 2, because iteration 1's were wrong:** 9,517 Python tests collected, 9,507 pass, 6 skipped, 3 xfailed, 1 failed — the one failure is `test_crm_customer_login::test_a_conflict_is_treated_as_success[UsernameExistsException]`, pre-existing and proven so by an EMPTY `git diff --stat origin/stack...feat/wix-service-pricing -- tests/test_crm_customer_login.py amplify/functions/core/secure-files`. Iteration 1 claimed "9525 pass"; the tree at `b7fb66c9` collects **9,498** (measured by stashing iteration 2's edits), so that figure was never right. Frontend: 1,528 collected, 1,525 pass, 2 skipped, 1 failed — `src/test/VayuLokLive.test.tsx:515`, also pre-existing on an empty diff. `npx tsc --noEmit` clean. | Revert the scoped commit. |
+| A1_LOCAL | **Charging authority moved from a committed constant to Wix.** `SERVICE_CHOICES_PAISE` deleted; `SERVICE_KIND_BY_VARIANT` replaces it | A Wix price edit previously answered `409 SERVICE_PRICE_CHANGED` until somebody deployed — the page could show a figure the checkout refused. Wix's own line price is now charged, bounded by ONE catastrophe rail: `SERVICE_LINE_MIN_PAISE = 1`, `SERVICE_LINE_MAX_PAISE = 5_000_000` (Rs.50,000). Not a price lock: 49 -> 149 -> 999 pass with no deploy. **Owner-visible limit:** a service genuinely priced above Rs.50,000 is refused until that constant is raised. Four tests INVERTED rather than deleted so the change is visible in the diff. | Restore the constant and the equality check from `e8c2ddfc`. |
+| A1_LOCAL | Public-route exemption, two files | `GET /ecommerce/service-prices` added to `EXPECTED_PUBLIC_ROUTES` (`scripts/audit_route_auth.py`) and to the literal set in `tests/test_route_auth_enforcement.py`, both with the justification sentence. Deliberately two edits in two files — exempting a route from authentication is not a one-line change. GET only; POST on the same path still requires a customer session, pinned by `tests/test_service_prices_route.py`. | Remove both lines and the handler arm. |
+| A1_LOCAL | `scripts/provision_checkout.py` ROUTE_KEYS and `amplify/infra/checkout.json` | IaC updated in the SAME change. Route targets the `:live` alias through the existing `AWS_PROXY` integration, with a per-route invoke permission whose ARN pins `GET`. `provision_checkout.py --dry-run` reports `would create GET /ecommerce/service-prices` as the only addition and `dry run: nothing changed`. No IAM statement changes: the arm reads the Wix key and the commerce-keys table the checkout path already holds. | Delete the route and the `apigateway-invoke-get-ecommerce-service-prices` statement. |
+| A1_LOCAL | Four permanent `SERVICEPRICECART#<variantId>` pointer rows on `stack-wecare-digital-WixOrderIds` | Bounds unauthenticated Wix cart CREATION to four carts for the lifetime of the feature; without the pointer a public endpoint would create a cart per cache miss. Pointer is reused on every read; `cart_v2.CartGone` discards it and mints a fresh cart. Rows are pointers, not expiring uniqueness claims, so permanent is correct and the table's TTL stays DISABLED as `order_keys` requires. No table, schema or IAM change. | Delete the four rows; the next read recreates them. |
+| A1_LOCAL | One-login flow: `safeReturnPath.ALLOWED` gains `/drop-docs/` and `/vault/`; the sign-in CTA routes through `serviceEntry.goToServiceAction` | Two real defects. `ALLOWED` held only the two Phase O-1 pages, so signing in from Drop Docs or Vault landed on `/cart/` instead of back on the page. The CTA hand-built `/account/sign-in/?return=...` instead of using the one gate. The CTA stays an `<a>` with a real `href`, so the accessible role, open-in-new-tab and the no-JS path survive. `SafeReturnPath.test.ts`'s page-existence loop is now driven off `SERVICE_CHOICES`, which is the gap that let the two pages go missing. | Revert the scoped commit. |
+| A0_READ | **The `/api/*` edge DOES cache a `public, max-age` response — measured 2026-10-08, and it settles a question row 297 left open** | Iteration 1 asserted the edge absorbs the anonymous price traffic with nothing behind it, and row 297 (above) recorded three `Miss from cloudfront` through the same `/api/<*>` rewrite. Measured against `wecare.digital/api/seo-tools/blog-public?fields=slug` — the one OTHER public `max-age` response behind that rewrite, so the header is the only variable: four identical GETs answered `Miss` (18.17s), then `Hit` age 2 (0.071s), `Hit` age 4 (0.035s), `Hit` age 7 (0.047s). **Row 297 is not contradicted:** it states the API was sending `cache-control: no-store`, which nothing may cache. **Second finding in the same run, and it is a live fault:** the origin's `Vary: Origin` is STRIPPED (`vary: Accept-Encoding` reaches the client), and on a fresh cache entry a request carrying `Origin: https://www.wecare.digital` was served the cached apex `Access-Control-Allow-Origin: https://wecare.digital`. A browser rejects that. Read-only `curl`; nothing changed. | n/a — a measurement. |
+| A1_LOCAL | `Access-Control-Allow-Origin: *` and `Vary: Origin` on the price response only | Forced by the measurement above: `Vary: Origin` alone is inert at that edge, so a `www` visitor would read "temporarily unavailable" with no way to buy. `*` is legal and safe for THIS body and no other in the handler — a public price list with no customer data, no credential and no cookie, fetched without credentials. `tests/test_service_prices_route.py::test_only_the_cacheable_arm_widens_cors` pins that the 503 arm keeps the reflected origin, so the widening cannot drift onto a response that carries something. | Restore `cors_response`'s headers verbatim; `www` visitors lose the price again. |
+| A1_LOCAL | Per-route throttle on `GET /ecommerce/service-prices`: **5 rps / 10 burst** | The second bound on Wix READS, and the one that does not depend on someone else's edge configuration. A cache miss costs eight Wix calls (`get` + `estimate` per variant) on the same API key the live checkout prices real baskets with, so anonymous traffic here could induce provider throttling that reaches the payment path. Applied by `provision_checkout.ensure_route_throttle` and FAILED ON by its `--verify` (4 parametrised cases: absent, loosened rate, loosened burst, capped on the wrong route). `UpdateStage` MERGES `RouteSettings`, so only this script's own key is ever sent; a stale key for a deleted route is REPORTED, not deleted — `deploy_mcp_server` owns `DeleteRouteSettings`. The `prod` stage is NOT declared in `checkout.json` because ~361 other routes share it; the cap is recorded in the route's `WECARE::Throttle` metadata instead. `--dry-run` against the live API: `would set 5.0 rps / 10 burst`, `dry run: nothing changed`. | `delete_route_settings` for that one key; the route then falls back to the stage default. |
+| A1_LOCAL | A reused price cart is checked to hold its own variant (`service_pricing._holds_only`); `payref_extra(line_paise=...)` is now required | Two iteration-1 defects. (1) `estimate()["itemSubtotalPaise"]` is the CART subtotal, not a named line's price, and nothing re-established that on a cart read back from a pointer row — a valid id for the wrong cart would have published one service's price under another slug, the exact fault the owner reported. A failing cart is now discarded and reminted rather than refused, so a bad pointer repairs itself instead of taking a service off sale. Variant match is strict; the quantity check is tolerant of an unreadable field and strict on a readable one that is not 1, because the variant shape is proven live by the working checkout and the quantity field on a plain cart READ is not measured in this repo. (2) `line_paise` defaulted to `None`, so an omission wrote `paise: None` on a `PAYREF#` row, which `activate` refuses as `AMOUNT_MISMATCH` -> `PAID_SERVICE_UNMATCHED` *after* money moved; it is now a `TypeError` at test time. | Revert the scoped commit. |
+
+**Price staleness window: up to ~120 seconds.** `service_pricing.CACHE_SECONDS = 60` holds the
+payload in a warm sandbox and the response carries `Cache-Control: public, max-age=60`, which the
+`/api/*` edge honours (measured above), so the two windows stack. DISPLAY only — the checkout
+re-prices the line against Wix at the moment of payment, so a stale card cannot produce a stale
+charge.
+
+**Fail closed, with no fallback figure anywhere.** An unresolvable slug reports
+`{"available": false}` with no `paise` key; the card then shows "This service may be temporarily
+unavailable." and renders NEITHER call to action, so no path reaches payment on a guessed price.
+One slug failing leaves the other three on sale. INR is compared EXPLICITLY against Wix's own
+`businessInfo`/`customerInfo`/`paymentInfo` `currencyCode` on both the fresh-cart and the reuse
+path — never `estimate()["currency"]`, which is a literal inside `CartV2._not_payable`. Integer
+paise throughout; no float arithmetic, including the rupee display.
+
+**Deviation from the plan, recorded because it prevented a regression.** Plan item 6 called for
+suppressing both CTAs when the committed catalogue says the variant is out of stock. Measured
+first: `src/content/wix-catalog.json` records ALL FOUR service variants as `inStock: false` while
+all four are on sale, and that hint has always been non-blocking here ("checkout's 409 is the
+authority"). Following the plan would have taken every service off sale on a stale snapshot. The
+sentence still shows for it; only an unresolved LIVE PRICE suppresses the CTAs.
+
+**Not live until the alias moves** (`.kiro/steering/lambda-snapstart-deploy.md`). Deployer runs
+`scripts/deploy_all_lambdas.py wecare-checkout`, then `scripts/provision_checkout.py`, then
+`scripts/snapstart_publish.py wecare-checkout` if the deploy was by hand.
+
+**Runtime checks outstanding**, and they cannot be done before the route is deployed: load all
+four pages and confirm four DISTINCT live amounts (the owner's "each is a different item"
+report); then change one price in Wix and confirm the card follows within ~60s AND that a
+checkout at the new price is ACCEPTED rather than refused with `SERVICE_PRICE_CHANGED`.
+
+No live-send flag enabled. No payment capture, refund or payment-configuration mutation. No
+credential read outside the existing by-reference lazy read in `wix_ecom._request`. No new
+bucket, table or IAM grant. Razorpay remains the only gateway.
+
+## 2026-10-08 — Published private review entry and Leave Review aliases
+
+Owner requested the public Leave Review page button use the supplied WhatsApp short link and keyword routing/workspace displays agree with WD_Leave_Review_v2. Read-only browser inspection confirmed ZM74K2H2BIFOA1 targets +919330994400 with Leave Review prefilled; live page previously linked Contact. No SystemConfig flow_triggers_config override row exists.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | Public review CTA; shared workspace review identity; inbound customer_idea keyword aliases | 19 exact aliases select published Flow 1578178897413815 at FEEDBACK in the preserved live package. Four Python entry checks pass; 19 frontend review tests pass; TypeScript check passes. Legacy attributed review reference route preserved. | Revert scoped commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp live routing | Preserve version 83 package, patch only CUSTOMER_IDEA_KEYWORDS and second-account customer entry fallback. No customer send or feature flag change. | Restore live alias to version 83 using current revision guard. |
+
+## 2026-10-08 — One Leave Review door: the published Flow, one keyword set, backend and workspace agreed
+Owner reported that the `/leave-review/` page button and the `Leave Review` keyword did nothing,
+and asked for the keyword set expanded and the workspace to SHOW the same thing the backend
+answers. Three independent causes, each sufficient on its own to produce that symptom. (1) The
+`leave_review` trigger pointed at an unpublished draft Flow. (2) Even with the right id it would
+still have failed: Flow 1578178897413815 is ENDPOINTLESS, so it must open with NAVIGATE, and
+`leave_review` was absent from `STATIC_ENTRY_SCREENS`. (3) The page CTA was gated behind
+`featureFlags.reviewCta`, which is set nowhere, so the button went to `/contact/`. Four workspace
+surfaces separately advertised a Flow id that is not present on the WABA at all, and a three-word
+keyword list. No live-send flag, payment path, credential or provider configuration touched.
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | `DEFAULT_FLOW_TRIGGERS['leave_review']` flowId -> `1578178897413815`, plus the 19-keyword ordered set | 1578178897413815 = WD_Leave_Review_v2, read PUBLISHED on WABA1 during planning. Shares one Meta Flow with `customer_idea` because Meta has no per-door flow identity. REBASED ONTO 8927a81c, which independently expanded `CUSTOMER_IDEA_KEYWORDS` with review aliases, so 11 of the 19 are now claimed by `customer_idea` first — dispatch is exact-match over dict insertion order. That overlap is HARMLESS and is asserted to be, not assumed: `test_the_customer_idea_overlap_resolves_to_the_same_door` pins both triggers to the same flowId, the same `STATIC_ENTRY_SCREENS` screen and the same WABA2 fallback link, so either door yields an identical open. Every other trigger is still asserted to hold zero overlap. | Revert the scoped commit. |
+| A1_LOCAL | `STATIC_ENTRY_SCREENS` gains `'leave_review': 'FEEDBACK'` | The load-bearing line. The Flow declares no `data_api_version` and its first screen carries no `data` block, so `data_exchange` fails at open and looks identical to a wrong flow id. Pinned by `test_leave_review_opens_with_navigate_on_the_static_entry_screen`, which is the assertion that would have caught this change shipping half-done. | Revert the scoped commit; the keyword silently stops working again. |
+| A1_LOCAL | `/leave-review/` CTA becomes the owner's `https://wa.me/message/ZM74K2H2BIFOA1`, unconditional | The owner named this link twice. Verified during planning to resolve to WABA1 `919330994400` with prefill `Leave Review`, which lowercases to the first keyword, so the customer's own message opens the Flow. Chosen over flipping `NEXT_PUBLIC_ENABLE_REVIEW_CTA` because that would also switch on the per-order review row in `/orders/` — a behaviour change nobody asked for — and would yield a different URL. `featureFlags.reviewCta` is NOT removed and still governs `/orders/` only. NOTHING SENDS: a `wa.me` link composes a message the visitor still has to send. | Restore the ternary; the button returns to `/contact/`. |
+| A1_LOCAL | Four workspace surfaces repointed and the keyword cell un-sliced | `forms/selfservice.tsx` (flowId, status `published`, its stale and prefill-less `wa.me/message` short link replaced with the owner's, keywords, and `.slice(0,3)` removed so the table shows the real set), `engage/whatsapp/settings.tsx`, `engage/whatsapp/scripts.tsx`, `dashboard/system-architecture.tsx`. The id they carried is absent from the live WABA list entirely, so their `Draft` status described a Flow that does not exist. | Revert the scoped commit. |
+| A1_LOCAL | `src/lib/reviewEntry.ts` is the ONE TypeScript source; `tests/test_leave_review_wiring.py` is the cross-language drift guard | 8927a81c introduced `reviewEntry.ts`; this rebase adopts it rather than keeping per-file literals, and its `REVIEW_ENTRY_KEYWORDS` now holds the owner's ordered 19. TS cannot be imported into pytest, so the list is encoded ONCE in the test, compared to `reviewEntry.ts` and to the Python handler as an ORDERED list, and each of the five TS surfaces is asserted to REFERENCE the constants rather than restate them — a literal keyword list or flow id reappearing at any site fails the suite. Proven to bite, not just to pass: reordering one keyword in `reviewEntry.ts` fails `test_the_typescript_source_matches_the_backend`, and replacing a site's constant with a literal fails that site's reference assertion. | Delete the file; the five sites can then drift silently. |
+Deliberately NOT done, recorded so it is not read as missed: `_STANDBY_TEXT_TRIGGERS` and
+`_DETERMINISTIC_CONTAINS` were not widened — they already hold `leave review`, which is the short
+link's prefill, and widening them changes which inbound messages the bot takes from the Meta AI
+agent during standby. The `wd_review` menu row id and leaf link are unchanged. `flows/leave_review.py`,
+the `review <REF>` attribution branch and `REVIEW_ATTRIBUTION_ENABLED` are left in place: they are
+the v1 attribution path, v1 was never published so none of it is on this route, and
+`_review_attribution_enabled()` defaults false and is set nowhere. The other ~8 stale `flowId`s in
+those same three workspace files are real drift against `DEFAULT_FLOW_TRIGGERS` and were left alone
+as out of scope.
+`https://wecare.digital/r/lr` — the WABA2 fallback that `leave_review` used to carry — 302s to
+`https://www.google.com/` from a live `recovery` row. Repairing that ROW is a live data change and
+is still NOT part of this commit, but the rebase made the dead end reachable from the 8 keywords
+`customer_idea` does not claim, so `leave_review`'s fallback in `_send_generic_flow` is now the
+verified `https://wa.me/message/ZM74K2H2BIFOA1` — the same link `customer_idea` already used. That
+is a one-string code change that routes WABA2 around the broken row rather than through it; the row
+itself remains the orchestrator's to take or drop.
+**Not live until deployed.** `wecare-inbound-whatsapp` is invoked UNQUALIFIED by the ingress, so
+`$LATEST` becomes production the moment `update-function-code` returns; there is no alias gap to
+verify in. Not deployed here.
+
+
+## 2026-10-08 — Paid Submit Request draft and all-order customer directory
+
+Authority: owner "go ahead" plus standing authorization. Latest owner clarification requires all order types linked to the customer WhatsApp number in one table.
+
+| Class | Target | Change and evidence | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Wix variant, OrderTable, live Lambda packages and aliases | Exact service variant/INR99 verified; central and Wix order reads returned zero orders; live archives captured | Read only |
+| A1_LOCAL | Paid Flow handlers, shared activation dispatch, checkout phone, cart intent, tests and Flow JSON | Foreign-order rejection, once-only transactional save, verified phone persistence for all types, missing-order paid preservation; exact-package tests green | Git revert scoped commit |
+| A3_PRODUCTION | Existing Lambda live aliases | checkout 32, business API 72, Razorpay webhook 53; narrow patches preserve baseline archives; SnapStart off | Restore aliases to checkout31/business69/webhook52 |
+| A3_PRODUCTION | Shared Lambda role inline policy paid-submit-request-recipient | Additive exact-resource ListUsers and ConditionCheckItem; IAM simulation allowed; policy tracked in scripts/iam-paid-submit-request.json | Restore captured role state/remove only this new inline policy after confirming readers no longer need it |
+| A3_PRODUCTION | Existing Meta Flow1107164111921876 draft and registry | WD_Submit_Request_Paid_v1 JSON upload validated with zero errors; remains DRAFT and invite guard suppresses sends | Restore prior saved draft JSON/name/registry |
+| A2_REMOTE_CODE | origin/stack | Explicit scoped paths after passing tests; non-force push | Follow-up revert commit |
+
+No payment capture/refund, provider configuration mutation, credential read, or customer QA send. Publication of the requested sample draft remains pending; outside-window approved Submit Request template and a nominated QA recipient also remain pending. See docs/whatsapp/paid-submit-request.md for the complete A/B/P/R record model and operational gaps.
+
+
+## 2026-10-08 — File-bound paid Vault access and approved notifications
+
+Authority: owner's direct request to connect Vault payment, uploaded file delivery, approved `wecare_share_pdf`, review follow-up, frontend and workspace tables; standing scoped deployment grant.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Meta templates, Vault service/secure-file packages, IAM and tables | Both owner-named templates APPROVED; share_pdf header is IMAGE with fixed Vault URL; existing independent secure payment disabled | Read only |
+| A1_LOCAL | Vault file-bound intent, ownership/grant helper, notification chain, public Vault page, Orders and workspace file table | 16 new tests and 109 focused exact-package tests green; 40 frontend tests, typecheck, production build green | Scoped Git revert |
+| A3_PRODUCTION | Service-request role vault-file-selection | GetItem/UpdateItem only on SecureFilesTable, exact-resource IAM simulation allowed; provisioner and scripts/iam-vault-file-selection.json updated | Remove this additive policy after reader rollback |
+| A3_PRODUCTION | Existing Lambda packages/aliases | Narrow live-archive patches; rollback snapshots captured; original secure-file payment flag remains false; no unrelated provider template mutation | business API72, service requests2, secure files30 |
+| A2_REMOTE_CODE | origin/stack | Named paths and non-force push after gates; preserve concurrent remote changes | Follow-up revert commit |
+
+No customer QA send or payment capture/refund. New automatic sends are scoped to a verified paid file-bound Vault request and the exact owner-named ready/review messages; ordinary PDF attachment additionally requires a recent inbound service window. See docs/whatsapp/paid-vault.md for accepted versus delivered semantics and the remaining live recipient/file QA requirement.

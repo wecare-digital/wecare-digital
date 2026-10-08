@@ -663,12 +663,12 @@ def test_t5a_an_ordinary_basket_still_pays_the_fee(monkeypatch):
 def test_t5a_an_unresolvable_stored_address_still_reaches_intra_state_true(monkeypatch):
     """The reachable `intra_state is None` case, written against the state that can occur.
 
-    NOT "a contribution has no address": every checkout identity has one, because
-    `auth/customer-profile` refuses an addressless create. The producible case is a LEGACY contact
-    row whose stored address no longer resolves -- `contact_address.from_contact` rejects it --
-    so `owned` is falsy and `exempt_quote` normalises the unknown to intra-state. `split_gst`
-    treats `None` as falsy and would store `intraState: false`, a value that changes no total but
-    is printed on a receipt and is covered by `basket_hash`.
+    FEAT-003: `from_contact` is now structural, so `owned` is truthy for this legacy address -- but
+    the delivery-payability gate is delivery-gated and a contribution needs no delivery, so it is
+    not refused. The address's state ("Nowhere Pradesh") still has no GST subdivision, so
+    `gst_state_code(owned)` is None, `intra_state` normalises to True, and the exempt split is
+    stored as `intraState: true` -- a value that changes no total but is printed on a receipt and
+    covered by `basket_hash`.
     """
     h, fake, _wix = make_env(
         monkeypatch, real_loader=True,

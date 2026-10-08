@@ -1,3 +1,4 @@
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_URL, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
 /**
  * Customer-Service Hub — All WhatsApp Flow forms accessible from the admin dashboard.
  * Shows all flow submissions, allows resending flows, and manages flow configurations.
@@ -6,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -22,7 +24,7 @@ const FLOW_TYPES = [
   { key: 'rx_slot', label: 'RX Slot', icon: '💊', flowId: '895208030185211', paid: false, price: 'Free', status: 'draft', confirmation: 'Slot confirmation' },
   { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: '1211063631104445', paid: false, price: 'Free', status: 'draft', confirmation: 'Document registered' },
   { key: 'enterprise_assist', label: 'Enterprise Assist', icon: '🏢', flowId: '1707170524029465', paid: false, price: 'Free', status: 'draft', confirmation: 'Enquiry acknowledgement' },
-  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: '4423166114671543', paid: false, price: 'Free', status: 'draft', confirmation: 'Review submitted' },
+  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'published', confirmation: 'Private review saved' },
   { key: 'order_notes', label: 'Order Notes', icon: '📝', flowId: '1434731571172691', paid: false, price: 'Free', status: 'draft', confirmation: 'Notes saved' },
 ];
 
@@ -35,11 +37,20 @@ const MESSAGE_LINKS: Record<string, string> = {
   drop_docs: 'https://wa.me/message/OD6YW34USZKDI1',
   enterprise_assist: 'https://wa.me/message/TDFJNUEY3KY7A1',
   schedule_appointment: 'https://wa.me/message/BQQ4GNN7CRLPL1',
-  leave_review: 'https://wa.me/message/F35I7EOSRPUII1',
+  // Owner-managed short link, from src/lib/reviewEntry.ts. Resolves to WABA 1
+  // (919330994400) with the prefill "Leave Review", which lowercases to the first keyword
+  // below, so the customer's own message opens the published flow. Same constant as the
+  // /leave-review/ page CTA, so the two cannot diverge.
+  leave_review: REVIEW_ENTRY_URL,
   order_notes: 'https://wa.me/message/ZVMYMOK37GWCH1',
   pay: 'https://wa.me/message/UUJ6P5HGADBAC1',
   faq: 'https://wa.me/message/U3ENEHLR7CICJ1',
 };
+/* The submissions filter, built from FLOW_TYPES so a new flow appears here for free. */
+const FLOW_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All Flows' },
+  ...FLOW_TYPES.map(f => ({ value: f.key, label: f.label })),
+];
 
 const fmtDate = (ts: number) => {
   if (!ts) return '—';
@@ -127,11 +138,11 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
         {activeTab === 'submissions' && (
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-              <select value={filterKey} onChange={e => setFilterKey(e.target.value)}
-                      style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12 }}>
-                <option value="all">All Flows</option>
-                {FLOW_TYPES.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-              </select>
+              {/* The old inline padding/border/radius/font-size object skinned the native
+                  control and is gone: .ui-select-trigger draws the box now. Only the width
+                  stays, which is layout. */}
+              <Select ariaLabel="Flow" value={filterKey} onChange={v => setFilterKey(v)}
+                      options={FLOW_FILTER_OPTIONS} style={{ width: 200 }} />
               <Button variant="secondary" size="sm" loading={loading} onClick={loadSubmissions}>Refresh</Button>
               <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length} submissions</span>
             </div>
@@ -187,7 +198,10 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
                           Copy
                         </button>
                       </td>
-                      <td style={{ fontSize: 12, color: '#6b7280' }}>{getKeywords(key).slice(0, 3).join(', ')}</td>
+                      {/* Full set, not a slice: the workspace has to SHOW what the
+                          backend actually answers, so an operator can tell a customer
+                          which words work. Wraps rather than widening the table. */}
+                      <td style={{ fontSize: 12, color: '#6b7280', wordBreak: 'break-word' }}>{getKeywords(key).join(', ')}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -210,7 +224,11 @@ function getKeywords(flowKey: string): string[] {
     drop_docs: ['drop docs', 'documents', 'upload docs'],
     enterprise_assist: ['enterprise assist', 'enterprise', 'b2b'],
     schedule_appointment: ['schedule appointment', 'appointment', 'meeting'],
-    leave_review: ['leave review', 'review', 'feedback'],
+    // Mirrors DEFAULT_FLOW_TRIGGERS['leave_review'].keywords in
+    // amplify/functions/messaging/inbound-whatsapp-handler/handler.py, as the same
+    // ordered list, via src/lib/reviewEntry.ts. tests/test_leave_review_wiring.py fails if
+    // the two diverge.
+    leave_review: REVIEW_ENTRY_KEYWORDS,
     order_notes: ['order notes', 'special instructions'],
     pay: ['pay', 'payment', 'invoice', 'bill'],
     faq: ['faq', 'help'],

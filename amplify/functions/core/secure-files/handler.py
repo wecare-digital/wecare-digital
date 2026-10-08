@@ -64,6 +64,9 @@ from typing import Any, Dict, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
+from lambda_utils import customer_auth, media_paths
+from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
+from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -84,6 +87,12 @@ UPLOAD_PREFIX = SECURE_PREFIX + "u/"
 # object and falls back to a download link. Recording that at upload time beats
 # discovering it at send time, when a customer is already waiting.
 DELIVER_PREFIX = SECURE_PREFIX + "d/"
+# A Drop Docs document promoted out of the public tree. Composed through media_paths
+# rather than concatenated, because this is the one prefix in this file whose keys are
+# written by a module that has no business knowing how the locker spells "secure/". The
+# three constants above are left hand-built on purpose: rewriting them would change keys
+# that are already persisted in SecureFilesTable.
+DROPDOCS_PREFIX = media_paths.secure("u/dropdocs/")
 
 # Types WhatsApp recipients can open inline. Documents may be up to 100MB, images
 # 5MB, which is why the two are distinguished rather than lumped together.
@@ -97,14 +106,108 @@ MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_DOCUMENT_BYTES = 100 * 1024 * 1024
 FILES_TABLE = os.environ.get("SECURE_FILES_TABLE", "stack-wecare-digital-SecureFilesTable")
 GRANTS_TABLE = os.environ.get("DOWNLOAD_GRANTS_TABLE", "stack-wecare-digital-DownloadGrantsTable")
+# The Phase O-1 request store. Drop Docs documents are registered against a REQ# row that
+# lives there, not in SecureFilesTable: a Drop Docs document belongs to a paid request,
+# and the locker owns storage and privacy for it rather than its lifecycle.
+SERVICE_REQUESTS_TABLE = os.environ.get(
+    "SERVICE_REQUESTS_TABLE", service_request_store.DEFAULT_TABLE_NAME)
 
 # The customer pool, NOT the admin pool. Tokens must prove they came from here.
 CUSTOMER_POOL_ID = os.environ.get("CUSTOMER_USER_POOL_ID", "us-east-1_46ULYuukt")
 CUSTOMER_POOL_ISSUER = f"https://cognito-idp.{REGION}.amazonaws.com/{CUSTOMER_POOL_ID}"
 PARTNER_GROUP = os.environ.get("PARTNER_GROUP", "Partner")
-# The OTP trigger refuses a user whose WABA scope does not match, so new users
-# must be stamped with the same value the auth Lambda expects.
-META_WABA_ID = os.environ.get("META_WABA_ID", "2094615664435155")
+
+# ── which WABA a customer belongs to ─────────────────────────────────────────
+#
+# `custom:partner_waba_id` decides which business number a customer's sign-in code
+# can ever arrive from: `auth/customer-whatsapp-auth` looks the attribute up in
+# `OTP_WABA_MAP` and raises PermissionError on a miss. An unknown value and a
+# missing value are indistinguishable there - both deny, both are permanent, and the
+# only trace is one denial line in that trigger's log. So this function must write a
+# WABA id the gate maps, or write nothing at all. A hardcoded WABA1 literal was the
+# third option, and it is the one that misroutes a real customer.
+#
+# The phone-id -> WABA mapping is NOT restated here. `lambda_utils.direct_send` is its
+# single home and already fails closed on an unknown id by returning `''`.
+# `wecare-secure-files` is not packaged `standalone`, so the module is bundled into the
+# zip and importable - unlike `customer-whatsapp-auth`, whose standalone packaging is
+# the documented reason it carries the map as a JSON env var instead.
+KNOWN_WABA_IDS = frozenset(META_PHONE_TO_WABA.values())
+# The same default `whatsapp_delivery` uses, so the stamp and the sender cannot drift.
+DEFAULT_SENDER_PHONE_ID = "1016149501586345"
+
+
+class UnsafeWabaStamp(RuntimeError):
+    """Raised when stamping a WABA would be a guess rather than a fact.
+
+    Two cases, both refusing the upload instead of inventing WABA1: the sender phone
+    id does not resolve to a known WABA, and an existing user's current stamp could
+    not be read. See `_sender_waba` and `_existing_stamp`.
+    """
+
+
+def _loggable_waba(value) -> str:
+    """A Meta id that is safe to print, or `"invalid"`.
+
+    The same structural rule as `customer-whatsapp-auth._loggable_waba`, deliberately:
+    E.164 permits at most 15 digits, so an all-ASCII-digit value of 16 or more
+    characters cannot be a phone number. Both WABA ids and both Meta phone-number ids
+    in this account are 16 digits, so the rule covers either kind of id - which is why
+    it also guards the `senderPhoneId` field below.
+
+    It matters here specifically because a masked phone suffix is ambiguous in this
+    account (`+918100640044` the QA recipient vs `+919903300044` a business sender), so
+    a mistyped env value must never be echoed as though it were an id.
+
+    Not imported from that handler because it is packaged `standalone=True` and nothing
+    is importable from it. Only this print guard is restated; the mapping itself is
+    shared.
+
+    `ch in "0123456789"` rather than `str.isdigit()`, for the same reason
+    `normalise_phone` uses it: `isdigit()` is true for 128 non-ASCII codepoints, and a
+    digit-shaped lookalike is not a safe id to print.
+    """
+    text = str(value or "")
+    if len(text) >= 16 and all(ch in "0123456789" for ch in text):
+        return text
+    return "invalid"
+
+
+def _sender_phone_id() -> str:
+    return str(os.environ.get("META_PHONE_NUMBER_ID", DEFAULT_SENDER_PHONE_ID)).strip()
+
+
+def _sender_waba() -> str:
+    """The WABA this function actually delivers from, or `''` when undeterminable.
+
+    Derived from the Meta phone id every secure-file send leaves from
+    (`whatsapp_delivery.META_PHONE_NUMBER_ID`), through the shared map. Deriving rather
+    than hardcoding is what makes repointing this function at WABA2's number move the
+    stamp with it, instead of leaving customers stamped WABA1 and waiting for a code
+    from a number they have never messaged.
+
+    `META_WABA_ID` survives as an override - production sets it, the manifest declares
+    it, and `provision_secure_files_api.py` writes it - but a *validated* one. An
+    override the shared map does not recognise is a misconfiguration, not an
+    instruction, so it is logged and ignored rather than stamped.
+
+    Read per call, not captured at import, for the same reason `_payment_enabled` is: a
+    repoint that only takes effect once every warm sandbox recycles is not a repoint.
+    """
+    derived = waba_for_meta_phone(_sender_phone_id())
+    override = str(os.environ.get("META_WABA_ID", "")).strip()
+    if override and override != derived:
+        if override in KNOWN_WABA_IDS:
+            return override
+        logger.warning(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_override_rejected",
+                    "wabaId": _loggable_waba(override),
+                }
+            )
+        )
+    return derived
 
 PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
@@ -159,6 +262,22 @@ def _payment_enabled() -> bool:
     not much of a switch.
     """
     return str(os.environ.get("SECURE_FILES_PAYMENT_ENABLED", "")).strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def _dropdocs_attach_enabled() -> bool:
+    """Whether the Drop Docs attach route answers at all. Defaults OFF.
+
+    Read per call for the same reason as ``_payment_enabled``: a posture switch that only
+    takes effect once every warm sandbox recycles is not much of a switch. There is no UI
+    for this in Phase O-2 - ``/drop-docs`` sells the service, and the route that registers
+    a document exists but is switched off.
+    """
+    return str(os.environ.get("DROPDOCS_ATTACH_ENABLED", "")).strip().lower() in (
         "1",
         "true",
         "yes",
@@ -244,7 +363,15 @@ def _customer_identity(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not phone:
         return None
     try:
-        return {"username": user.get("Username", ""), "phone": normalise_phone(phone)}
+        return {
+            "username": user.get("Username", ""),
+            "phone": normalise_phone(phone),
+            # The Cognito `sub`, which is what `customer_auth` files every customer-owned
+            # row under. Additive: every existing route here authorises on `phone` and is
+            # unaffected. The Drop Docs arm needs it because a REQ# row's owner IS the sub,
+            # and this pool's Username is the E.164 rather than the sub.
+            "subject": attrs.get("sub", ""),
+        }
     except ValueError:
         return None
 
@@ -290,6 +417,9 @@ def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
         "status": item.get("status"),
         "createdAt": item.get("createdAt"),
         "downloadCount": item.get("downloadCount", 0),
+        "vaultPaymentStatus": item.get('vaultPaymentStatus'),
+        "vaultOrderNumber": item.get('vaultOrderNumber'),
+        "vaultRequestNumber": item.get('vaultRequestNumber'),
         # "pdf" / "image" arrive as a WhatsApp attachment; "link" goes out as a URL.
         "deliverable": item.get("deliverable", "unknown"),
     }
@@ -301,6 +431,88 @@ def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
 
 
 # ── admin: create the customer and the upload slot ────────────────────────────
+
+def _existing_stamp(client, username: str) -> str:
+    """The `custom:partner_waba_id` already on this user, or `''` if it has none.
+
+    A read failure raises `UnsafeWabaStamp` instead of defaulting either way, because
+    both defaults are wrong. Treating an unread value as absent re-creates the bug -
+    it stamps this function's own WABA over a customer who belongs to the other one.
+    Treating it as present leaves a user who may have no stamp at all, which the OTP
+    gate denies permanently. Not knowing is a reason to stop, not to pick.
+    """
+    try:
+        user = client.admin_get_user(UserPoolId=CUSTOMER_POOL_ID, Username=username)
+    except Exception as exc:  # noqa: BLE001
+        # type only: an exception message can carry data we did not construct
+        logger.error(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_stamp_unreadable",
+                    "error": type(exc).__name__,
+                }
+            )
+        )
+        raise UnsafeWabaStamp("existing customer's WABA stamp could not be read") from exc
+    for attr in user.get("UserAttributes") or []:
+        if attr.get("Name") == "custom:partner_waba_id":
+            return str(attr.get("Value") or "").strip()
+    return ""
+
+
+def _attrs_for_existing(client, username: str, attrs: list, sender_waba: str) -> list:
+    """The attribute list to send to an EXISTING customer - stamp preserved if valid.
+
+    `attrs` is the create-path list; everything except the WABA stamp carries over
+    unchanged. The stamp is decided here:
+
+    * already a WABA the shared map knows -> **left untouched**, by omitting the
+      attribute from the update entirely. `admin_update_user_attributes` only writes
+      what it is given, so omission is the preserve.
+    * absent, empty, or a value the map does not know -> stamped with `sender_waba`.
+      An unrecognised value is already a permanent OTP denial, so replacing it with a
+      mapped id strictly improves that customer's position and cannot misroute
+      anything that was working.
+    """
+    keep = [a for a in attrs if a["Name"] != "custom:partner_waba_id"]
+    existing = _existing_stamp(client, username)
+
+    if existing in KNOWN_WABA_IDS:
+        logger.info(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_stamp_preserved",
+                    "wabaId": _loggable_waba(existing),
+                }
+            )
+        )
+        if existing != sender_waba:
+            # Correct, and must stay visible rather than be "repaired". The file and
+            # payment request leave from this function's only sender; the customer's
+            # sign-in code rightly stays on their own WABA. Rewriting their identity
+            # so the two agree is exactly the defect being fixed.
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "secure_files_cross_waba_delivery",
+                        "customerWaba": _loggable_waba(existing),
+                        "senderWaba": _loggable_waba(sender_waba),
+                    }
+                )
+            )
+        return keep
+
+    logger.info(
+        json.dumps(
+            {
+                "event": "secure_files_waba_stamp_applied",
+                "wabaId": _loggable_waba(sender_waba),
+                "reason": "existing_stamp_unusable",
+            }
+        )
+    )
+    return keep + [{"Name": "custom:partner_waba_id", "Value": sender_waba}]
+
 
 def _ensure_customer_user(phone: str, name: str) -> str:
     """Create or update the phone-keyed customer so WhatsApp OTP can reach them.
@@ -317,15 +529,41 @@ def _ensure_customer_user(phone: str, name: str) -> str:
       returned - putting it in a log or a response would turn a passwordless
       design into a credential leak.
     * ``custom:partner_waba_id`` - the OTP trigger raises ``PermissionError`` if
-      this does not match its configured WABA, so an unstamped user could never
-      receive a code.
+      this value is not one its ``OTP_WABA_MAP`` knows, so an unstamped user could
+      never receive a code. It is derived from the sender (``_sender_waba``), and
+      on an **existing** user an already-valid stamp is preserved rather than
+      overwritten. That second half is the whole point: a customer
+      ``partner-onboarding`` legitimately provisioned on WABA2 used to be converted
+      to WABA1 by one operator upload, after which their sign-in code arrived from a
+      business number they have never messaged.
+
+    Raises ``UnsafeWabaStamp`` rather than guessing a WABA. Creating the user anyway
+    would mint a CONFIRMED, phone-keyed, group-joined identity that can never receive
+    a code, while the upload appears to succeed and the customer reaches a code screen
+    no code will satisfy - a state visible from no surface we have. Refusing the
+    upload is recoverable in seconds.
     """
     client = _cognito_client()
     e164 = "+" + phone
+
+    sender_waba = _sender_waba()
+    if not sender_waba:
+        # Checked BEFORE admin_create_user, not repaired afterwards: the stamp is one
+        # element of a single create call, so there is no "stamp it later" here.
+        logger.error(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_undeterminable",
+                    "senderPhoneId": _loggable_waba(_sender_phone_id()),
+                }
+            )
+        )
+        raise UnsafeWabaStamp("sender phone id does not resolve to a known WABA")
+
     attrs = [
         {"Name": "phone_number", "Value": e164},
         {"Name": "phone_number_verified", "Value": "true"},
-        {"Name": "custom:partner_waba_id", "Value": META_WABA_ID},
+        {"Name": "custom:partner_waba_id", "Value": sender_waba},
     ]
     if name:
         attrs.append({"Name": "name", "Value": name[:128]})
@@ -344,10 +582,21 @@ def _ensure_customer_user(phone: str, name: str) -> str:
             Password=pysecrets.token_urlsafe(24) + "aA1!",
             Permanent=True,
         )
+        logger.info(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_stamp_applied",
+                    "wabaId": _loggable_waba(sender_waba),
+                    "reason": "new_user",
+                }
+            )
+        )
     except client.exceptions.UsernameExistsException:
         username = e164
         client.admin_update_user_attributes(
-            UserPoolId=CUSTOMER_POOL_ID, Username=username, UserAttributes=attrs
+            UserPoolId=CUSTOMER_POOL_ID,
+            Username=username,
+            UserAttributes=_attrs_for_existing(client, username, attrs, sender_waba),
         )
 
     try:
@@ -359,6 +608,55 @@ def _ensure_customer_user(phone: str, name: str) -> str:
             json.dumps({"event": "customer_group_add_failed", "error": type(exc).__name__})
         )
     return username
+
+
+def provision_customer_login(e164: str) -> Tuple[bool, str]:
+    """Create the Cognito login for a CRM-created contact. Idempotent. `(ok, detail)`.
+
+    Reached ONLY by async invoke from `core/contacts`, which is gated by
+    `CRM_PROVISION_CUSTOMER_LOGIN` (default off). It exists here rather than there because THIS
+    role already holds `cognito-idp:AdminCreateUser` scoped to the customer pool
+    (`scripts/provision_secure_files_api.py`, Sid `CustomerPoolOnly`), and the CRM's role is
+    shared across the fleet - widening it would widen every other function too.
+
+    IT REUSES `_ensure_customer_user` RATHER THAN RESTATING IT. Three details there are
+    load-bearing and easy to get wrong in a second copy: `MessageAction=SUPPRESS` (no SMS invite
+    on a user with no email), a permanent random password from `secrets` so the user is CONFIRMED
+    rather than stuck in FORCE_CHANGE_PASSWORD and CUSTOM_AUTH can run, and
+    `custom:partner_waba_id`, without which the OTP trigger raises `PermissionError` and the code
+    never arrives. A fork of that function is a fork of all three.
+
+    A CONFLICT IS SUCCESS. The whole point is that a contact can be saved twice: `AliasExists`
+    and `UsernameExists` both mean the login this call was asked to guarantee already exists.
+    `_ensure_customer_user` already absorbs `UsernameExistsException` itself (it updates the
+    attributes instead); `AliasExistsException` is caught here because a phone alias can collide
+    with a DIFFERENT username, which that function does not handle.
+
+    USER-LEVEL ADMIN APIS ONLY - no `UpdateUserPool` anywhere in this path. See
+    `core/contacts._provision_customer_login` for the 2026-09-28 incident that makes that
+    sentence worth writing down.
+    """
+    text = str(e164 or "")
+    digits = text[1:] if text.startswith("+") else text
+    # ASCII only, deliberately: `str.isdigit()` is true for an Arabic-Indic digit, which would
+    # reach `Username` and reserve an identity indistinguishable to a human from the real one.
+    if not digits or not all(ch in "0123456789" for ch in digits):
+        return False, "not an E.164 phone"
+    if not 8 <= len(digits) <= 15:
+        return False, "not an E.164 phone"
+
+    client = _cognito_client()
+    try:
+        _ensure_customer_user(digits, "")
+    except (client.exceptions.AliasExistsException,
+            client.exceptions.UsernameExistsException):
+        return True, "exists"
+    except Exception as exc:  # noqa: BLE001
+        # Type only: a Cognito error message can echo the username, which is the phone number.
+        logger.error(json.dumps({"event": "customer_login_provision_failed",
+                                 "error": type(exc).__name__}))
+        return False, type(exc).__name__
+    return True, "provisioned"
 
 
 def _safe_extension(filename: str) -> str:
@@ -395,7 +693,20 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             400, {"error": f"sizeBytes must be between 1 and {MAX_UPLOAD_BYTES}"}, origin
         )
 
-    username = _ensure_customer_user(phone, name)
+    try:
+        username = _ensure_customer_user(phone, name)
+    except UnsafeWabaStamp:
+        # Already logged with the reason. Refuse the upload rather than provision a
+        # customer who could never receive a sign-in code. The body is generic: which
+        # WABA is misconfigured is an operator-console fact, not a browser one.
+        return cors_response(
+            503,
+            {
+                "error": "CUSTOMER_PROVISIONING_UNAVAILABLE",
+                "message": "Customer provisioning is unavailable. Please retry shortly.",
+            },
+            origin,
+        )
 
     file_id = f"{uuid.uuid4().hex}-{uuid.uuid4().hex}"
     basename = f"wecare-digital-{file_id}{_safe_extension(filename)}"
@@ -599,11 +910,23 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
         ScanIndexForward=False,
         Limit=100,
     )
-    items = [i for i in result.get("Items", []) if i.get("status") == "active"]
+    items = []
+    for projected in result.get('Items', []):
+        i = _table(FILES_TABLE).get_item(Key={'fileId': projected['fileId']}, ConsistentRead=True).get('Item') or {}
+        if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
+                or i.get('ownerCustomerId') not in (None, identity.get('subject'))):
+            continue
+        view = _public_file(i, admin=False)
+        if i.get('vaultAccessGrantId'):
+            grant = _table(GRANTS_TABLE).get_item(Key={'grantId': i['vaultAccessGrantId']}, ConsistentRead=True).get('Item') or {}
+            if grant.get('customerId') == identity.get('subject') and grant.get('fileId') == i['fileId'] and grant.get('paid') and not grant.get('consumed'):
+                view['paidGrantId'] = grant['grantId']
+                view['deliveryStatus'] = 'READY'
+        items.append(view)
     return cors_response(
         200,
         {
-            "files": [_public_file(i, admin=False) for i in items],
+            "files": items,
             "count": len(items),
             "pricePaise": PRICE_PAISE,
         },
@@ -620,6 +943,8 @@ def _owned_active_file(file_id: str, identity: Dict[str, Any]) -> Optional[Dict[
     if not item or item.get("status") != "active":
         return None
     if item.get("ownerPhone") != identity["phone"]:
+        return None
+    if item.get('ownerCustomerId') not in (None, identity.get('subject')):
         return None
     return item
 
@@ -1074,6 +1399,9 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+    grant = _table(GRANTS_TABLE).get_item(Key={'grantId': grant_id}, ConsistentRead=True).get('Item') or {}
+    if grant.get('source') == 'wix_vault' and grant.get('customerId') != identity.get('subject'):
+        return _not_registered(origin)
 
     try:
         updated = _table(GRANTS_TABLE).update_item(
@@ -1142,6 +1470,234 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     )
 
 
+# ── Drop Docs: make a document private BEFORE it is a document ────────────────
+#
+# A Drop Docs document can arrive over WhatsApp, where `inbound-whatsapp-handler` writes it
+# to `o/stack/whatsapp-media/incoming/` - a prefix CloudFront E2GP22R4BIFGQ3 serves
+# UNAUTHENTICATED. The locker is reused here for storage and privacy only: it promotes the
+# object into `secure/` and the request store refuses to register a document whose key is
+# not gated. Nothing in this arm touches the locker's own (disabled) Razorpay path, and
+# nothing here charges anything - Drop Docs is paid once, on the one checkout.
+#
+# The ordering is the guarantee: promote, prove the destination landed with a HEAD, and only
+# then write the DOC# row. A failed promotion answers 503 and leaves no row at all, so there
+# is no state in which a customer document points at a publicly readable object.
+
+
+def _no_store(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Add ``Cache-Control: no-store`` to a response.
+
+    Document metadata and gated keys must not sit in a shared cache or a browser's disk
+    cache. New here rather than reused: the rest of this file predates the convention and
+    returns `cors_response` directly, and retrofitting it onto the paid-download routes is
+    a separate change with its own blast radius.
+    """
+    headers = dict(response.get("headers") or {})
+    headers["Cache-Control"] = "no-store"
+    return {**response, "headers": headers}
+
+
+def _dropdocs_identity(identity: Dict[str, Any]) -> customer_auth.CustomerIdentity:
+    """The proven customer, in the shape the request store authorises on.
+
+    `_customer_identity` has already done the work that matters - `GetUser` proved the token
+    live, and the issuer pin proved it came from the CUSTOMER pool rather than the admin one.
+    This only re-shapes it. `customer_id` is the Cognito `sub`, matching
+    `customer_auth.customer_id_from_attributes`, so a REQ# row written by the services
+    Lambda and a document attached here agree on who the owner is.
+    """
+    subject = str(identity.get("subject") or "")
+    return customer_auth.CustomerIdentity(
+        customer_id=subject, phone=identity.get("phone", ""), subject=subject)
+
+
+def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: str):
+    """Register one document against the caller's paid Drop Docs request.
+
+    Answers 503 for every storage failure and for a destination that is somehow not gated,
+    because both mean the same thing operationally: nothing was registered, and retrying is
+    the right move. A refusal is never a hint - an unknown request, somebody else's request
+    and a request that is not Drop Docs all produce the identical `NOT_REGISTERED` body this
+    function shares with the paid-download routes.
+
+    THE TARGET REQUEST IS RESOLVED BEFORE ANY BYTE MOVES. An ownership refusal that arrives
+    after the promotion would leave an object in ``secure/u/dropdocs/`` with no ``DOC#`` row
+    naming it, which no role may delete (`s3:DeleteObject` is granted nowhere, deliberately)
+    and which no `system-cleanup` TTL covers - a permanent orphan of up to
+    ``MAX_DOCUMENT_BYTES`` minted by a request that was refused. So the order is: prove the
+    request is the caller's paid Drop Docs request, THEN copy, THEN register. The
+    registration re-resolves it anyway and that re-check stays the authority; this one only
+    makes the common refusal free.
+    """
+    if not _dropdocs_attach_enabled():
+        # Checked before the body is read, so a request made while the route is off learns
+        # nothing about what the route would have accepted.
+        return _no_store(cors_response(
+            503,
+            {"error": "DROPDOCS_ATTACH_DISABLED",
+             "message": "Attaching documents is not enabled yet."},
+            origin,
+        ))
+
+    proven = _dropdocs_identity(identity)
+    if not proven.customer_id:
+        return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+
+    body = json.loads(event.get("body") or "{}")
+    public_request_id = str(body.get("requestId") or "").strip()
+    source_key = str(body.get("sourceKey") or "").strip()
+    if not public_request_id or not source_key:
+        return _no_store(cors_response(
+            400, {"error": "requestId and sourceKey are required"}, origin))
+
+    request_table = _table(SERVICE_REQUESTS_TABLE)
+    try:
+        # One GetItem pair, before S3 is touched at all. A refusal here transfers nothing
+        # and so cannot leave an undeletable orphan in the gated tree.
+        service_request_store.resolve_dropdocs_request(
+            request_table, proven, public_request_id)
+    except customer_auth.CustomerNotAuthorized:
+        return _no_store(_not_registered(origin))
+    except service_request_store.ServiceIdentityUnavailable as exc:
+        logger.error(json.dumps({"event": "dropdocs_attach_unavailable",
+                                 "stage": "resolve", "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
+
+    try:
+        promoted = dropdocs_storage.promote_to_secure(
+            _s3_client(), bucket=BUCKET, source_key=source_key)
+    except document_errors.DocumentRejected as exc:
+        # 400, not 503. `sourceKey` is caller-supplied, and the one prefix this route
+        # accepts is the WhatsApp arrival tree - naming anything else (another customer's
+        # gated upload included) is permanently invalid, not a transient storage failure.
+        # The message never names the allowed prefix: a refusal must not teach the caller
+        # what would have been accepted.
+        logger.warning(json.dumps({"event": "dropdocs_source_refused",
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            400,
+            {"error": "DOCUMENT_SOURCE_REFUSED",
+             "message": "That document cannot be attached. Nothing was attached."},
+            origin,
+        ))
+    except (dropdocs_storage.DocumentPromotionFailed,
+            dropdocs_storage.DocumentNotPrivate) as exc:
+        # type only: a storage error message can echo back a key or a bucket policy detail
+        logger.warning(json.dumps({"event": "dropdocs_promotion_failed",
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503,
+            {"error": "DOCUMENT_NOT_STORED",
+             "message": "The document could not be stored privately. Nothing was attached."},
+            origin,
+        ))
+
+    try:
+        document = service_request_store.attach_document(
+            request_table,
+            proven,
+            public_request_id,
+            storage_key=promoted["storageKey"],
+            sha256=promoted["sha256"],
+            content_type=promoted["contentType"],
+            size_bytes=promoted["sizeBytes"],
+            source_key=source_key,
+            public_source_retained=bool(promoted["publicSourceRetained"]),
+        )
+    except customer_auth.CustomerNotAuthorized:
+        return _no_store(_not_registered(origin))
+    except document_errors.DocumentRejected as exc:
+        # Shape, not privacy: a digest or byte count the store will never accept. 400,
+        # because retrying the identical request cannot succeed.
+        logger.warning(json.dumps({"event": "dropdocs_document_refused",
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            400,
+            {"error": "DOCUMENT_SOURCE_REFUSED",
+             "message": "That document cannot be attached. Nothing was attached."},
+            origin,
+        ))
+    except document_errors.DocumentLimitReached as exc:
+        # A stated ceiling, answered readably. Without it the DynamoDB 400 KB item limit
+        # eventually turns every further attach into an unreadable validation error.
+        logger.warning(json.dumps({"event": "dropdocs_document_limit_reached",
+                                   "requestId": public_request_id,
+                                   "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            409,
+            {"error": "DOCUMENT_LIMIT_REACHED",
+             "message": "This request already holds the maximum number of documents.",
+             "limit": service_request_store.MAX_DOCUMENTS_PER_REQUEST},
+            origin,
+        ))
+    except dropdocs_storage.DocumentNotPrivate as exc:
+        # The store re-checks gatedness itself and will not be talked out of it. Reaching
+        # here means the promotion returned a key the store refused, so no row exists.
+        logger.error(json.dumps({"event": "dropdocs_registration_refused",
+                                 "alert": "DROPDOCS_KEY_NOT_GATED",
+                                 "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503,
+            {"error": "DOCUMENT_NOT_STORED",
+             "message": "The document could not be stored privately. Nothing was attached."},
+            origin,
+        ))
+    except service_request_store.ServiceIdentityUnavailable as exc:
+        # ``stage`` distinguishes this from the pre-flight failure above: a table failure
+        # before the promotion transferred nothing, one here means an object was copied and
+        # no row names it. Same answer to the caller, different thing to investigate.
+        logger.error(json.dumps({"event": "dropdocs_attach_unavailable",
+                                 "stage": "register", "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
+
+    logger.info(json.dumps({"event": "dropdocs_attached", "requestId": public_request_id,
+                            "sha256": document.get("documentId", ""),
+                            "promoted": bool(promoted["promoted"])}))
+    return _no_store(cors_response(201, {"requestId": public_request_id,
+                                         "document": document}, origin))
+
+
+def _dropdocs_list(public_request_id: str, identity: Dict[str, Any], origin: str):
+    """The caller's own documents for one paid Drop Docs request.
+
+    Here rather than held back for a future UI, so `list_documents` has a caller and runs
+    under this phase's tests instead of first running in production. Gated by the same
+    `DROPDOCS_ATTACH_ENABLED` flag as the write, so the pair switches on together, and the
+    refusal is the same `NOT_REGISTERED` body - a list route that answered differently for
+    "no such request" and "not yours" would re-open the oracle the attach route closes.
+
+    No key under ``o/`` can appear in the response: `service_request_store._document_view`
+    omits ``sourceKey`` and every ``storageKey`` it returns is gated by construction.
+    """
+    if not _dropdocs_attach_enabled():
+        return _no_store(cors_response(
+            503,
+            {"error": "DROPDOCS_ATTACH_DISABLED",
+             "message": "Attaching documents is not enabled yet."},
+            origin,
+        ))
+
+    proven = _dropdocs_identity(identity)
+    if not proven.customer_id:
+        return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+
+    try:
+        documents = service_request_store.list_documents(
+            _table(SERVICE_REQUESTS_TABLE), proven, public_request_id)
+    except customer_auth.CustomerNotAuthorized:
+        return _no_store(_not_registered(origin))
+    except service_request_store.ServiceIdentityUnavailable as exc:
+        logger.error(json.dumps({"event": "dropdocs_list_unavailable",
+                                 "error": type(exc).__name__}))
+        return _no_store(cors_response(
+            503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
+
+    return _no_store(cors_response(200, {"requestId": public_request_id,
+                                         "documents": documents}, origin))
+
+
 # ── routing ───────────────────────────────────────────────────────────────────
 
 def _path_parts(event: Dict[str, Any]) -> Tuple[str, list]:
@@ -1182,6 +1738,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
         return {"ok": ok, "detail": detail}
 
+    # Internal async dispatch from the CRM (`core/contacts`), gated THERE by
+    # CRM_PROVISION_CUSTOMER_LOGIN which defaults off. Same `requestContext`-absence guard as the
+    # two branches above, for the same reason: an event arriving through API Gateway always
+    # carries a requestContext, so no HTTP caller can reach this.
+    #
+    # Worth being precise about what an attacker who could reach it would gain: a phone-keyed
+    # customer in the customer pool, with no email and no credential anybody knows. Signing in as
+    # that user still requires a WhatsApp OTP delivered to the number itself, so the capability is
+    # "create a login for a phone you already control", not "log in as someone".
+    if event.get("internalAction") == "provisionCustomerLogin" and not event.get("requestContext"):
+        ok, detail = provision_customer_login(str(event.get("phone") or ""))
+        logger.info(
+            json.dumps({"event": "customer_login_provision_result", "ok": ok, "detail": detail})
+        )
+        return {"ok": ok, "detail": detail}
+
     origin = extract_origin(event)
     rc = event.get("requestContext", {})
     method = (
@@ -1201,6 +1773,27 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not identity:
                 return cors_response(401, {"error": "Verification required"}, origin)
             return _customer_list(identity, origin)
+
+        # Drop Docs. A customer-pool token, never require_auth: that one is hardcoded to
+        # the admin pool and would let a customer token fall through to role Viewer.
+        if tail == ["dropdocs", "attach"]:
+            if method != "POST":
+                return _no_store(cors_response(405, {"error": "Method not allowed"}, origin))
+            identity = _customer_identity(event)
+            if not identity:
+                return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+            return _dropdocs_attach(event, identity, origin)
+
+        # The read side of the same pair. A literal `dropdocs` segment, so it cannot be
+        # confused with the `{fileId}` routes below, and matched before them for the same
+        # reason.
+        if len(tail) == 3 and tail[0] == "dropdocs" and tail[2] == "documents":
+            if method != "GET":
+                return _no_store(cors_response(405, {"error": "Method not allowed"}, origin))
+            identity = _customer_identity(event)
+            if not identity:
+                return _no_store(cors_response(401, {"error": "Verification required"}, origin))
+            return _dropdocs_list(tail[1], identity, origin)
 
         if len(tail) == 2 and tail[1] in ("order", "download", "whatsapp-pay"):
             identity = _customer_identity(event)
