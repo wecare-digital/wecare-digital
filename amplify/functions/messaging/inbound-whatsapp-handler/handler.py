@@ -866,6 +866,80 @@ PAYMENT_PHONE_NUMBER_ID = 'phone-number-id-waba1-direct-1016149501586345'
 SUBMIT_REQUEST_FLOW_ID = os.environ.get('SUBMIT_REQUEST_FLOW_ID', '1235100738173254')
 
 
+# ── Coexistence: the owner running the WhatsApp Business APP on the same number as the
+# Cloud API. NOT adopted on this deployment. Both fields are audited and counted and
+# nothing else — see the `messaging_handovers` arm in `handler` for the same discipline
+# and the same reason: structured parse, NO decision taken from it. `smb_message_echoes`
+# carries copies of messages the owner sent from the app, so writing them to the inbox
+# would duplicate the owner's own messages into the CRM timeline on a deployment that has
+# no coexistence configured. `COEXISTENCE_INGEST_ENABLED` is the seam a future adoption
+# would open; it defaults false, and false means audit-only.
+#
+# This is a MODULE-LEVEL frozenset, deliberately a different convention from the
+# `_SYSTEM_EVENT_FIELDS` set beside its membership test. That set looks like a module
+# constant but is a set literal rebuilt INSIDE the per-`change` webhook loop in `handler`,
+# with its membership test immediately below it. `_process_coexistence_event` is a
+# module-level function and needs these names too, so a loop-local set would have to be
+# passed in or duplicated. Rebuilding a 10-element set per webhook change is harmless;
+# duplicating a field-name list is not. The asymmetry is recorded rather than resolved:
+# normalising `_SYSTEM_EVENT_FIELDS` to module scope would touch a loop nine existing
+# fields depend on, for no behavioural gain.
+_COEXISTENCE_FIELDS = frozenset({'smb_app_state_sync', 'smb_message_echoes'})
+
+
+def _coexistence_ingest_enabled() -> bool:
+    """Whether coexistence ingest is requested. Defaults FALSE; false means audit-only.
+
+    Read per call rather than cached at module scope, following `_standby_reply_enabled`:
+    a module-scope read is frozen for the life of the execution environment, so a
+    configuration change would not take effect until every warm sandbox recycled.
+    """
+    return os.environ.get('COEXISTENCE_INGEST_ENABLED', 'false').strip().lower() \
+        in ('1', 'true', 'yes', 'on')
+
+
+def _process_coexistence_event(field: str, value: Dict, request_id: str) -> None:
+    """Audit and count a coexistence webhook. Writes NO message row and sends nothing.
+
+    `_store_system_event` is used exactly as the nine informational fields use it, so the
+    raw envelope is inspectable in SystemConfigTable without any inbox change.
+    `phone_number_id` is NOT a phone number and is logged in full; recipient phones go
+    through `mask_phone`.
+    """
+    _store_system_event(field, value, request_id)
+    if field == 'smb_message_echoes':
+        echoes = value.get('message_echoes') or value.get('messages') or []
+        if not isinstance(echoes, list):
+            echoes = []
+        logger.info(json.dumps({
+            'event': 'smb_message_echoes_received',
+            'echoCount': len(echoes),
+            'types': sorted({str((e or {}).get('type', '')) for e in echoes if isinstance(e, dict)}),
+            'phoneNumberId': str((value.get('metadata') or {}).get('phone_number_id') or ''),
+            'recipients': [mask_phone(str((e or {}).get('to') or '')) for e in echoes
+                           if isinstance(e, dict)][:10],
+            'ingested': False,
+            'requestId': request_id,
+        }))
+    else:
+        state = value.get('state') or value.get(field) or {}
+        logger.info(json.dumps({
+            'event': 'smb_app_state_sync_received',
+            'contactCount': len(state.get('contacts') or []) if isinstance(state, dict) else 0,
+            'chatCount': len(state.get('chats') or []) if isinstance(state, dict) else 0,
+            'phoneNumberId': str((value.get('metadata') or {}).get('phone_number_id') or ''),
+            'ingested': False,
+            'requestId': request_id,
+        }))
+    if _coexistence_ingest_enabled():
+        # Deliberately not implemented. A flag whose enabled path silently does nothing is
+        # worse than no flag: reaching here means somebody set the flag without building
+        # the ingest, so say so loudly rather than quietly acting on half a feature.
+        logger.warning(json.dumps({
+            'event': 'coexistence_ingest_requested_but_absent', 'field': field,
+            'requestId': request_id}))
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Process inbound WhatsApp messages from SNS.
@@ -1176,8 +1250,23 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     if user_id:
                         contacts_map[user_id] = entry
                 
+                # ── A coexistence change never enters normal message processing ──
+                # MEASURED, not hypothetical: `smb_message_echoes` may carry its copies
+                # under `messages` (which is why `_process_coexistence_event` reads that
+                # key as a fallback), and this loop runs BEFORE the `_COEXISTENCE_FIELDS`
+                # arm below. Driven with that payload shape, the handler wrote a row to
+                # WhatsAppInboundTable, auto-created a contact, called `put_message` and
+                # attempted a welcome send — i.e. it ingested the owner's own outbound
+                # copies as inbound CUSTOMER messages and replied to them. Coexistence is
+                # not adopted here, so the field is audited and counted and nothing else.
+                # Guarding with a computed list rather than a `continue` keeps the audit
+                # arm below reachable; the four group arms it sits beside use no
+                # `continue` either. Inert for every other field.
+                _coexistence_change = _wh_field in _COEXISTENCE_FIELDS
+                _inbound_messages = [] if _coexistence_change else value.get('messages', [])
+                
                 # Process incoming messages
-                for message in value.get('messages', []):
+                for message in _inbound_messages:
                     try:
                         # Timeout guard: skip remaining messages if <15s left
                         if context and context.get_remaining_time_in_millis() < 15000:
@@ -1231,8 +1320,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         error_count += 1
                 
                 # Process status updates
+                # Same coexistence guard, same reason: `_process_status` writes to both
+                # message tables, and a coexistence envelope must reach neither.
                 _status_waba_id = (meta_waba_ids[0] if meta_waba_ids else '')
-                for status in value.get('statuses', []):
+                for status in ([] if _coexistence_change else value.get('statuses', [])):
                     try:
                         _process_status(status, request_id, contacts_map=contacts_map, waba_id=_status_waba_id)
                     except Exception as e:
@@ -1370,6 +1461,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                 
+                # ── Coexistence (WhatsApp Business app on a Cloud API number) ──
+                # Audited and counted, never acted on — see `_process_coexistence_event`.
+                # NO `continue` here, matching the four group arms above: they are
+                # sequential `if field == '...'` blocks that fall through to the
+                # `_SYSTEM_EVENT_FIELDS` membership test below. Falling through is safe
+                # because neither coexistence field is in that set, so the fall-through
+                # reaches no second handler.
+                if field in _COEXISTENCE_FIELDS:
+                    try:
+                        _process_coexistence_event(field, value, request_id)
+                    except Exception as e:
+                        logger.error(json.dumps({
+                            'event': 'coexistence_event_error',
+                            'field': field,
+                            'error': type(e).__name__,
+                            'requestId': request_id
+                        }))
+                
                 # ── Additional Meta webhook fields (per official docs) ──
                 # These are informational/system-level events that we log to SystemEvent
                 # for audit trail and operational awareness.
@@ -1379,6 +1488,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'business_capability_update', 'history',
                     'message_template_components_update',
                     'message_template_quality_update',
+                    'partner_solutions',                      # Multi-Partner Solutions; audit only
                     'payment_configuration_update',
                     'phone_number_name_update', 'security',
                     'template_category_update',
