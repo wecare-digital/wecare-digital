@@ -80,6 +80,9 @@ def prepare_and_send(event, lambda_client, get_flow):
     pointer = requests.get_item(Key={'requestId': 'ORDER#' + oid}, ConsistentRead=True).get('Item') or {}
     target = pointer.get('targetRequestId', '')
     candidate = requests.get_item(Key={'requestId': target}, ConsistentRead=True).get('Item') or {}
+    if candidate.get('kind') == 'VAULT':
+        from .paid_vault import prepare_and_send as vault_send
+        return vault_send(event, lambda_client)
     if candidate.get('kind') != 'SUBMIT_REQUEST':
         return {'outcome': 'NOT_SUBMIT_REQUEST'}
     row, token = paid.prepare(requests, keys, target)

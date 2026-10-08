@@ -3232,3 +3232,18 @@ Authority: owner "go ahead" plus standing authorization. Latest owner clarificat
 | A2_REMOTE_CODE | origin/stack | Explicit scoped paths after passing tests; non-force push | Follow-up revert commit |
 
 No payment capture/refund, provider configuration mutation, credential read, or customer QA send. Publication of the requested sample draft remains pending; outside-window approved Submit Request template and a nominated QA recipient also remain pending. See docs/whatsapp/paid-submit-request.md for the complete A/B/P/R record model and operational gaps.
+
+
+## 2026-10-08 — File-bound paid Vault access and approved notifications
+
+Authority: owner's direct request to connect Vault payment, uploaded file delivery, approved `wecare_share_pdf`, review follow-up, frontend and workspace tables; standing scoped deployment grant.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Meta templates, Vault service/secure-file packages, IAM and tables | Both owner-named templates APPROVED; share_pdf header is IMAGE with fixed Vault URL; existing independent secure payment disabled | Read only |
+| A1_LOCAL | Vault file-bound intent, ownership/grant helper, notification chain, public Vault page, Orders and workspace file table | 16 new tests and 109 focused exact-package tests green; 40 frontend tests, typecheck, production build green | Scoped Git revert |
+| A3_PRODUCTION | Service-request role vault-file-selection | GetItem/UpdateItem only on SecureFilesTable, exact-resource IAM simulation allowed; provisioner and scripts/iam-vault-file-selection.json updated | Remove this additive policy after reader rollback |
+| A3_PRODUCTION | Existing Lambda packages/aliases | Narrow live-archive patches; rollback snapshots captured; original secure-file payment flag remains false; no unrelated provider template mutation | business API72, service requests2, secure files30 |
+| A2_REMOTE_CODE | origin/stack | Named paths and non-force push after gates; preserve concurrent remote changes | Follow-up revert commit |
+
+No customer QA send or payment capture/refund. New automatic sends are scoped to a verified paid file-bound Vault request and the exact owner-named ready/review messages; ordinary PDF attachment additionally requires a recent inbound service window. See docs/whatsapp/paid-vault.md for accepted versus delivered semantics and the remaining live recipient/file QA requirement.

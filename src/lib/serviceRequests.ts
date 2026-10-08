@@ -63,6 +63,9 @@ export interface ServiceRequestRow {
   requestId: string;
   kind: ServiceKind | string;
   status: string;
+  fileId?: string | null;
+  fileName?: string | null;
+  deliveryStatus?: string | null;
   /** INT epoch seconds, UTC. */
   createdAt: number | null;
   orderNumber: string;
@@ -92,14 +95,14 @@ const headers = ( token: string ) => ( {
 
 /** Ask the server for (or resume) the caller's open intent for one service. */
 export async function postRequestIntent (
-  token: string, kind: ServiceKind, targetRequestId?: string,
+  token: string, kind: ServiceKind, targetRequestId?: string, fileId?: string,
 ): Promise<IntentOutcome> {
   try
   {
     const response = await fetch( REQUEST_INTENT_URL, {
       method: 'POST',
       headers: headers( token ),
-      body: JSON.stringify( targetRequestId ? { kind, targetRequestId } : { kind } ),
+      body: JSON.stringify( fileId ? { kind, fileId } : targetRequestId ? { kind, targetRequestId } : { kind } ),
     } );
     if ( response.status === 401 ) return { kind: 'expired' };
     if ( response.status === 429 ) return { kind: 'rate' };

@@ -1,6 +1,6 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
-import ServiceRequestPurchase from '../components/ServiceRequestPurchase';
+import VaultFilePurchase from '../components/VaultFilePurchase';
 import { customerserviceBySlug } from '../content/customerservice';
 
 /**
@@ -39,7 +39,7 @@ import { customerserviceBySlug } from '../content/customerservice';
 const VaultPage: React.FC = () => (
   <>
     <ProductPage product={ customerserviceBySlug( 'vault' ) } />
-    <ServiceRequestPurchase kind="VAULT" />
+    <VaultFilePurchase />
   </>
 );
 
