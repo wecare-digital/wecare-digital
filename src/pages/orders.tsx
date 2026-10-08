@@ -89,6 +89,20 @@ interface OrderRow {
    * read below already treats anything that is not `'whatsapp'` as the website.
    */
   channel: string;
+  /**
+   * The public customer id — a uuid4 the server mints, re-validated server-side by
+   * `lambda_utils.identity.customer_uuid` before it reaches the wire, so a junk or uuid7 value
+   * arrives as `''` rather than being displayed.
+   *
+   * ALWAYS PRESENT, `''` when the order's customer has none (every contact created before the
+   * attribute existed). Typed `string` and not optional for the same reason `currencyUnexpected`
+   * is always present: a field that appears only when it has a value forces every reader to
+   * handle `undefined` as well as the empty case.
+   *
+   * Shown IN FULL, unlike a phone. It is opaque, carries no timestamp, and is not a credential —
+   * so it is the value a customer can safely read out to support.
+   */
+  customerUuid: string;
 }
 
 interface ProfilePayload {
@@ -1081,6 +1095,20 @@ export default function OrdersPage (): React.ReactElement {
                                       { order.referenceId
                                         ? <span data-wc-no-translate>{ order.referenceId }</span>
                                         : 'Not available' }
+                                    </dd>
+                                    { /* The public customer id, beside the other two identifiers
+                                         and treated exactly like them: `data-wc-no-translate`,
+                                         because a translator rewriting a uuid would produce an
+                                         id that matches nothing, and an explicit sentence rather
+                                         than a blank when there is none — the same honest
+                                         'Not assigned' the order number uses, since an absent id
+                                         is a real state and not a loading one. The rung renders
+                                         unconditionally so the panel's row count is stable. */ }
+                                    <dt>Customer ID</dt>
+                                    <dd>
+                                      { order.customerUuid
+                                        ? <span data-wc-no-translate>{ order.customerUuid }</span>
+                                        : 'Not assigned' }
                                     </dd>
                                     <dt>Placed</dt>
                                     <dd>{ dateTimeLabel( order.createdAt ) }</dd>

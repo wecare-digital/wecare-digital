@@ -42,6 +42,10 @@ from lambda_utils import payment_status as pay_status
 # literals and the one total coercion, so the three render sites below cannot disagree about what
 # `channel` means - the same discipline `pay_status` applies to payment words.
 from lambda_utils.ecommerce import order_channel
+# The PUBLIC customer id, and the validator that keeps a junk one off a tax invoice. Only
+# `is_customer_uuid` and `ATTRIBUTE` are used here: the engine NEVER mints one, the same rule
+# that stops a renderer minting an invoice number.
+from lambda_utils.identity import customer_uuid
 
 logger = get_logger(__name__)
 
@@ -93,6 +97,9 @@ origin = ''
 # Env vars allow override without a redeploy.
 COMPANY = {
     'name': 'WECARE.DIGITAL',
+    # The registered legal name printed as the invoice heading (owner mockup 2026-10-07).
+    # `name` stays the brand, shown as the fixed "Brand: WECARE.DIGITAL" line beneath it.
+    'legal_name': 'WECARE.DIGITAL BHARATWORKS',
     'gstin': os.environ.get('COMPANY_GSTIN', '19AAFFW7196L1Z8'),
     'pan': os.environ.get('COMPANY_PAN', 'AAFFW7196L'),
     'address': 'The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7, Phears Ln, Kolkata, WB 700012',
@@ -619,6 +626,15 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         'status': status,
         'paymentStatus': payment_status,
         # Customer
+        # VALIDATED, not canonicalised, and the difference is the point. `channel` above has a
+        # true default so junk degrades to `website`; a customer id has no substitute, so junk
+        # must become ABSENT. `is_customer_uuid` refuses a non-canonical spelling and refuses a
+        # uuid7 (which would print the customer's record-creation time on the document), so a bad
+        # value is dropped here and the renderers draw no Customer ID row - rather than printing
+        # whatever arrived on a request body onto a tax invoice.
+        customer_uuid.ATTRIBUTE: (
+            body.get(customer_uuid.ATTRIBUTE, '')
+            if customer_uuid.is_customer_uuid(body.get(customer_uuid.ATTRIBUTE, '')) else ''),
         'contactId': body.get('contactId', ''),
         'customerName': body.get('customerName', ''),
         'customerPhone': customer_phone,
@@ -739,6 +755,12 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         # reaches `create_invoice` as '' and canonicalises to `website`, which is true of every
         # payment that can exist today - no WhatsApp-origin order is reachable yet.
         'channel': body.get('channel', ''),
+        # Pass through on the same terms. Taken off the REQUEST BODY (which the webhook filled
+        # from its own `PAYREF#` row) and never from the contact the lookup above returned: a
+        # contact read here would answer "who has this phone now", and a ported number would
+        # move a paid order's customer id to whoever received it next. `create_invoice`
+        # re-validates it before storing.
+        customer_uuid.ATTRIBUTE: body.get(customer_uuid.ATTRIBUTE, ''),
         'status': 'paid',
         'paymentStatus': 'captured',
         'paidAt': int(float(payment.get('createdAt', time.time()))),
@@ -917,6 +939,28 @@ def _source_label(invoice: Dict) -> str:
     return 'Website'
 
 
+def _customer_id(invoice: Dict) -> str:
+    """The public customer id to print, or `''` meaning PRINT NO ROW AT ALL.
+
+    One function for the same three render sites as `_source_label`, for the same reason - but
+    note the opposite default. `_source_label` always answers, because every order genuinely has
+    an origin and `website` is true of every row written so far. A customer id has NO true
+    default: a row that carries none belongs to a contact created before this attribute existed,
+    and the honest rendering is silence.
+
+    So every caller must suppress its whole line on `''`. A label with nothing after it reads as
+    a broken renderer, and a MINTED substitute would be worse still: it would print an id on a
+    document that matches no record anywhere, which is precisely the failure
+    `tests/test_invoice_number_is_rendered.py` pins for the invoice number.
+
+    `from_contact` is reused as the validator because it never raises and re-checks the stored
+    value, so a uuid7 or a non-canonical spelling written by some future caller is suppressed
+    rather than printed. Reusing it also means there is one definition of "a usable customer id"
+    across the CRM, the checkout, the webhook and this engine.
+    """
+    return customer_uuid.from_contact(invoice)
+
+
 def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     """Build POS receipt style HTML matching the PNG receipt design.
     Single delivery address (billing = same), no Order ID shown,
@@ -1003,7 +1047,9 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
         <div class="total-row b"><span>Total Tax</span><span>{tax:,.2f}</span></div>'''
 
     reference_id = invoice.get('referenceId', '')
-    ref_id_html = f'<div class="info-row"><span>Ref: {reference_id}</span></div>' if reference_id else ''
+    # Ref line removed from the customer copy (owner decision 2026-10-07): it duplicated the
+    # Order id. The reference still lives on the stored invoice record; it is simply not printed.
+    ref_id_html = ''
 
     # GST Rule 46(b): the invoice number is a mandatory particular of a tax invoice. `inv_num` has
     # been assigned at the top of this function since the renderer was written and was printed
@@ -1015,6 +1061,14 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     # Source always renders, because every order has an origin: absent means website, and that is
     # measured rather than assumed (see order_channel - no WhatsApp-origin order exists yet).
     source_html = f'<div class="info-row"><span>Source: {_source_label(invoice)}</span></div>'
+    # The public customer id, in the Bill To block rather than the meta block: it identifies the
+    # person being billed, so it belongs beside their name and not beside the invoice number.
+    # Empty renders NO row - see `_customer_id`. Safe to print IN FULL, unlike the phone on the
+    # next line: it is ours, opaque, carries no timestamp and is not a credential, which is what
+    # lets a support agent quote it instead of reading a number back.
+    cust_id = _customer_id(invoice)
+    cust_id_html = (f'<div class="addr">Customer ID: {cust_id}</div>'
+                    if cust_id else '')
 
     # Status
     status_upper = payment_status.upper()
@@ -1052,8 +1106,10 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="header-row">
     <div class="header-logo">{logo_html}</div>
     <div class="header-text">
-        <h1>{COMPANY['name']}</h1>
+        <h1>{COMPANY['legal_name']}</h1>
+        <div class="subtitle">Brand: {COMPANY['name']}</div>
         <div class="subtitle">GSTIN: {COMPANY['gstin']}</div>
+        <div class="subtitle">PAN: {COMPANY['pan']}</div>
         <div class="subtitle">The W.B.S.I.D.C. Building, Unit 1/20,</div>
         <div class="subtitle">81/2/7, Phears Ln, Kolkata, WB 700012</div>
         <div class="subtitle">one@wecare.digital | +91 93309 94400</div>
@@ -1066,11 +1122,11 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="info-row"><span>Date: {date_str}</span><span>{time_str}</span></div>
 {ref_id_html}
 {source_html}
-{f'<div class="info-row"><span>Brand: {purpose}</span></div>' if purpose else ''}
 {f'<div class="info-row b"><span>PAID: {paid_str}</span></div>' if status_upper == 'CAPTURED' and paid_str else ''}
 <div class="divider"></div>
 <div class="section-title">Bill To</div>
 <div style="font-size:11px;font-weight:bold;color:#000">{cust_name}</div>
+{cust_id_html}
 <div class="addr">{cust_phone}{(' | ' + cust_email) if cust_email else ''}</div>
 {f'<div class="section-title">Address</div><div class="addr">{ship_addr}</div>' if ship_addr else ''}
 <div class="divider"></div>
@@ -1422,11 +1478,17 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         x = tx + max(0, (avail_w - tw) // 2)
         draw.text((x, y), txt, fill=color, font=font)
 
-    # Company name — centered in header area, bold
-    _hdr_center(COMPANY['name'], FLG)
+    # Legal name — centered in header area, bold (owner-approved mockup 2026-10-07)
+    _hdr_center(COMPANY['legal_name'], FLG)
     y += 22
+    # Fixed brand line, always "WECARE.DIGITAL", never derived from entryPoint.
+    _hdr_center(f"Brand: {COMPANY['name']}", FSM)
+    y += LINE_H
     # GSTIN — regular, grey
     _hdr_center(f"GSTIN: {COMPANY['gstin']}", FSM, CLR_GRY)
+    y += LINE_H
+    # PAN — regular, grey (GST Rule / owner mockup: PAN under GSTIN)
+    _hdr_center(f"PAN: {COMPANY['pan']}", FSM, CLR_GRY)
     y += LINE_H
     # Address — 2 fixed lines, regular, grey
     _hdr_center("The W.B.S.I.D.C. Building, Unit 1/20,", FSM, CLR_GRY)
@@ -1456,27 +1518,14 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         y += LINE_H
     _lr(f"Date: {date_str}", time_str, F)
     y += LINE_H
-    if reference_id:
-        _left(f"Ref: {reference_id}", F)
-        y += LINE_H
-    # Source after Ref, per docs/invoice-layout.md section 2. Unconditional: every order has an
-    # origin, and `_source_label` is total, so there is no empty-label case to guard.
+    # Ref line removed (owner decision 2026-10-07): it duplicated the Order id on the customer
+    # copy. Order id is shown below; the reference still lives on the stored record.
+    # Source per docs/invoice-layout.md section 2. Unconditional: every order has an origin, and
+    # `_source_label` is total, so there is no empty-label case to guard.
     _left(f"Source: {_source_label(invoice)}", F)
     y += LINE_H
-    # Brand: all customerservice/flow invoices → "Customer service"
-    # Pay flow / WhatsApp payment → "Pay"
-    # Manual / admin → no brand line
-    entry_point = invoice.get('entryPoint', '')
-    brand_label = ''
-    if entry_point in ('submit_request_flow', 'flow_payment'):
-        brand_label = 'Customer service'
-    elif entry_point in ('pay_flow', 'whatsapp_payment'):
-        brand_label = 'Pay'
-    elif entry_point == 'manual':
-        brand_label = ''
-    if brand_label:
-        _left(f"Brand: {brand_label}", F)
-        y += LINE_H
+    # Brand is now the FIXED header line "Brand: WECARE.DIGITAL" (set in the header block),
+    # never derived from entryPoint. The old entryPoint-derived Brand line is removed.
     # Note line: show request/submission reference (clean format, no #)
     notes = invoice.get('notes', '')
     if notes:
@@ -1501,6 +1550,14 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     y += LINE_H
     _left(f"  {cust_name}", F)
     y += LINE_H
+    # The public customer id, between the name and the phone, exactly as in the HTML - one
+    # layout, two renderers. Skipped entirely when absent (see `_customer_id`), which is why the
+    # `y += LINE_H` is inside the branch: advancing the cursor for a line that was never drawn
+    # would leave a blank gap in the receipt.
+    _cust_id = _customer_id(invoice)
+    if _cust_id:
+        _left(f"  Customer ID: {_cust_id}", FSM)
+        y += LINE_H
     contact_line = f"  {cust_phone}"
     if cust_email:
         contact_line += f" | {cust_email}"
@@ -2683,7 +2740,16 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str, 
     # the least private surface this engine writes to, and the document inside the image already
     # carries the bill-to details for the one recipient entitled to them.
     source_line = f"\nOrdered on: {_source_label(invoice)}"
+    # The public customer id belongs here and the phone does not, and that distinction is the
+    # whole rule this caption is written to: the id is OURS, opaque, carries no timestamp and
+    # identifies nobody to a stranger reading a notification preview, whereas the phone, the name
+    # and the address identify the recipient to whoever is holding the handset. So this line is
+    # an identifier joining the ones already here, not an exception to the no-personal-data
+    # property. Omitted when absent, like the Invoice, Order and Ref lines above.
+    customer_id = _customer_id(invoice)
+    customer_id_line = f"\nCustomer ID: {customer_id}" if customer_id else ''
     caption = (f"Invoice \u20b9{total:,.2f}{invoice_line}{order_line}{ref_line}{source_line}"
+               f"{customer_id_line}"
                f"\nThank you for your payment!")
 
     # Look up contact by phone

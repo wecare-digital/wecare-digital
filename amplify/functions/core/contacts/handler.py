@@ -37,6 +37,14 @@ from lambda_utils import contact_key  # `id` is the physical key; `contactId` is
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.privacy import mask_phone  # a phone reaches a log masked, or not at all
 from lambda_utils.identity import customer as customer_identity
+# The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
+# uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
+# would publish a value derived from the Cognito subject.
+from lambda_utils.identity import customer_uuid
+# A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
+# never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
+# so the word `captured` never has to be compared in this handler.
+from lambda_utils.ecommerce import contact_address, contact_lock, contact_payment_links
 
 logger = get_logger(__name__)
 
@@ -47,6 +55,13 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+
+# READ-ONLY, and only on the hard-delete path. These two tables answer "does this contact owe
+# its existence to a payment", through `contact_payment_links`. The defaults match
+# `config/lambda-env-manifest.json` exactly, so the recorded-but-not-yet-deployed variables are
+# inert: whichever way round the deploy lands, the guard reads the same two tables.
+INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
+ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
 
 # The function that ALREADY holds `cognito-idp:AdminCreateUser` on the customer pool
 # `us-east-1_46ULYuukt` (`scripts/provision_secure_files_api.py`, Sid `CustomerPoolOnly`). The CRM
@@ -77,9 +92,16 @@ _lambda_client = None  # built on first use only; see `_provision_customer_login
 # fields: that keeps a checkout-captured address distinguishable from a hand-curated one, needs
 # no migration, and removes the risk of a checkout save overwriting what a human typed.
 #
-# Deliberately NOT in `ALLOWED_UPDATE_FIELDS`. Hand-editing it in the CRM could produce a map
-# `contact_address.from_contact` re-validates to None, which demotes a payable customer to
-# `409 DELIVERY_DETAILS_REQUIRED` at checkout. One writer, and it is the checkout path.
+# The RAW attribute is deliberately NOT in `ALLOWED_UPDATE_FIELDS`: there is no unvalidated path
+# to it. But FEAT-003 lets the CRM WRITE it through the shared validator - `_create` and `_update`
+# accept a top-level `address` dict, run `contact_address.normalize_for_storage` (structural,
+# international), and write `ATTRIBUTE`/`UPDATED_ATTRIBUTE` on success or return 400 naming the
+# field on `UnusableAddress`. Storage is structural only now, so a stored address is no longer
+# guaranteed Wix-mappable; the place-of-supply / payability question moved to `payment_address`
+# and runs at pay time (an unpayable stored address becomes the recoverable
+# `409 DELIVERY_DETAILS_REQUIRED` at checkout, via the shared gate). Two writers now - checkout and
+# the CRM - but both go through the one validator, so a hand-curated address and a checkout-captured
+# one are still structurally identical and still distinguishable by `checkoutAddressUpdatedAt`.
 #
 # THIS CONSTANT IS A TEST ANCHOR, NOT PROJECTION CONFIGURATION. No handler code reads it, and
 # that is deliberate rather than an oversight: `_list_all`, `_read_one` and `_search` return the
@@ -169,6 +191,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _read_one(contact_id, request_id, origin)
             return _list_all(query_params, request_id, origin)
 
+        # POST .../{id}/lock and .../{id}/unlock — dedicated lock state, before generic create.
+        # `locked` is NOT in ALLOWED_UPDATE_FIELDS, so these endpoints are the ONLY way to flip
+        # it: a generic update can neither lock nor silently unlock a legally-retained contact.
+        if method == 'POST' and resource.rstrip('/').endswith('/lock'):
+            if not contact_id:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            body = json.loads(event.get('body', '{}') or '{}')
+            return _lock_contact(contact_id, body.get('reason', 'manual'), request_id, origin)
+        if method == 'POST' and resource.rstrip('/').endswith('/unlock'):
+            if not contact_id:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            return _unlock_contact(contact_id, request_id, origin)
+
         # POST [retired public path] — Fix #14: rate limited
         if method == 'POST':
             source_ip = (event.get('requestContext', {}).get('identity', {}) or {}).get('sourceIp', 'unknown')
@@ -236,6 +271,17 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
 
     contact = {
         **contact_key.contact_item_keys(contact_id),
+        # THE PUBLIC CUSTOMER ID, minted inline and never read back first. This IS the resolve
+        # half of resolve-before-generate and it needs no extra read: `_check_duplicate` ran
+        # above and returned `None`, so no live row exists on this phone or this email - there is
+        # nothing to resolve TO. The update path cannot make that claim and so uses
+        # `if_not_exists` instead.
+        #
+        # Taken from the body is exactly what it is NOT. The client never supplies this: it is
+        # absent from `ALLOWED_UPDATE_FIELDS` and never read out of `body` here, so a request
+        # carrying `customerUuid` is ignored rather than honoured. A customer-chosen public id
+        # would let one customer claim another's identifier on an invoice.
+        customer_uuid.ATTRIBUTE: customer_uuid.new_customer_uuid(),
         'name': body.get('name', '').strip(),
         'phone': phone,
         'email': email,
@@ -275,6 +321,20 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         'updatedAt': now,
         'deletedAt': None,
     }
+
+    # FEAT-003: a validated structured address may be written through the shared validator. The
+    # raw attribute is NOT in ALLOWED_UPDATE_FIELDS - this top-level `address` dict is the only
+    # path, and it always goes through normalize_for_storage (structural, international). On a bad
+    # address, refuse the whole create with 400 naming the field, writing nothing.
+    address_in = body.get('address')
+    if address_in is not None:
+        try:
+            stored_address = contact_address.normalize_for_storage(address_in)
+        except contact_address.UnusableAddress as exc:
+            return cors_response(400, {'error': 'Invalid address', 'code': exc.code,
+                                       'field': exc.field}, origin)
+        contact[contact_address.ATTRIBUTE] = stored_address
+        contact[contact_address.UPDATED_ATTRIBUTE] = now
 
     table = dynamodb.Table(CONTACTS_TABLE)
     table.put_item(Item=_to_dynamo(contact))
@@ -415,6 +475,19 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         if dup:
             return cors_response(409, {'error': dup}, origin)
 
+    # FEAT-003: a validated structured address, written through the shared validator only. The
+    # raw attribute is not in ALLOWED_UPDATE_FIELDS, so `updates` never carries it from the client;
+    # the top-level `address` dict is the one path and always goes through normalize_for_storage.
+    address_in = body.get('address')
+    if address_in is not None:
+        try:
+            stored_address = contact_address.normalize_for_storage(address_in)
+        except contact_address.UnusableAddress as exc:
+            return cors_response(400, {'error': 'Invalid address', 'code': exc.code,
+                                       'field': exc.field}, origin)
+        updates[contact_address.ATTRIBUTE] = stored_address
+        updates[contact_address.UPDATED_ATTRIBUTE] = int(time.time())
+
     updates['updatedAt'] = int(time.time())
 
     set_parts, names, values = [], {}, {}
@@ -422,6 +495,23 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         set_parts.append(f'#n{i} = :v{i}')
         names[f'#n{i}'] = k
         values[f':v{i}'] = Decimal(str(v)) if isinstance(v, (int, float)) and not isinstance(v, bool) else v
+
+    # THE PUBLIC CUSTOMER ID, backfilled onto a hand-updated contact. This is the requirement's
+    # "a manually updated contact becomes a real customer with an id we can print".
+    #
+    # Added AFTER the loop and through its own placeholder, deliberately NOT via
+    # `ALLOWED_UPDATE_FIELDS`: that set is the list of fields the CLIENT may set, and this one it
+    # may not. Routing the mint through `updates` would put a customer-supplied `customerUuid`
+    # straight onto the row.
+    #
+    # `if_not_exists` rather than a read-then-write. A fresh uuid4 is minted locally on every
+    # update and DISCARDED by DynamoDB whenever the row already has one - that costs no network
+    # call, and it makes "an existing customer keeps its id" an atomic database guarantee instead
+    # of a race window between the read and the write. Two concurrent updates therefore cannot
+    # issue two ids for one customer.
+    set_parts.append(
+        f'{customer_uuid.ATTRIBUTE} = if_not_exists({customer_uuid.ATTRIBUTE}, :vcustuuid)')
+    values[':vcustuuid'] = customer_uuid.new_customer_uuid()
 
     table = dynamodb.Table(CONTACTS_TABLE)
     try:
@@ -444,10 +534,177 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
 
 # ─── DELETE (soft / hard) ───────────────────────────────────────────────────
 
+#: The two refusals, distinct on the wire so the UI can say WHICH happened rather than offering
+#: one vague "could not delete". Both carry `archiveInstead: True`, because the soft delete is
+#: always still available and is what the operator actually wants.
+HARD_DELETE_REFUSED_PAYMENTS = 'CONTACT_HAS_PAYMENTS'
+HARD_DELETE_REFUSED_UNKNOWN = 'PAYMENT_LINKAGE_UNKNOWN'
+#: A LOCKED contact is legally retained: it refuses BOTH hard and soft delete. Unlike the
+#: payment guard (which blocks hard delete but still offers archive), a lock blocks archive too,
+#: so `archiveInstead` is False here — the record is kept, not archivable.
+DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
+
+
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
+    # A lock blocks EVERY delete, hard or soft, before anything else.
+    lock_refusal = _locked_delete_refusal(contact_id, hard, request_id, origin)
+    if lock_refusal is not None:
+        return lock_refusal
     if hard:
+        refusal = _hard_delete_refusal(contact_id, request_id, origin)
+        if refusal is not None:
+            return refusal
         return _hard_delete(contact_id, request_id, origin)
     return _soft_delete(contact_id, request_id, origin)
+
+
+def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Lock a contact for legal retention. Operator-driven; auto-lock-on-pay uses contact_lock.
+
+    Idempotent: locking an already-locked contact succeeds and refreshes the reason/timestamp.
+    """
+    reason = (str(reason or 'manual').strip().lower() or 'manual')[:40]
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #locked = :t, #reason = :r, #at = :ts, #u = :ts',
+            ExpressionAttributeNames={
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
+                '#reason': contact_lock.LOCKED_REASON_ATTRIBUTE,
+                '#at': contact_lock.LOCKED_AT_ATTRIBUTE,
+                '#u': 'updatedAt',
+            },
+            ExpressionAttributeValues={':t': True, ':r': reason, ':ts': int(time.time())},
+            ConditionExpression='attribute_exists(id)',
+            ReturnValues='ALL_NEW',
+        )
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+    log_event(logger, 'contact_locked', contactId=contact_id, reason=reason, requestId=request_id)
+    return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
+
+
+def _unlock_contact(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Unlock a contact. Staff may unlock even a 'paid' auto-lock, but the paid-contact
+    hard-delete guard still prevents destroying a record with payments, so legal retention
+    survives an unlock. The unlock is logged with the prior reason for the audit trail.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #locked = :f, #u = :ts REMOVE #reason, #at',
+            ExpressionAttributeNames={
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
+                '#reason': contact_lock.LOCKED_REASON_ATTRIBUTE,
+                '#at': contact_lock.LOCKED_AT_ATTRIBUTE,
+                '#u': 'updatedAt',
+            },
+            ExpressionAttributeValues={':f': False, ':ts': int(time.time())},
+            ConditionExpression='attribute_exists(id)',
+            ReturnValues='ALL_OLD',
+        )
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+    prior = resp.get('Attributes', {})
+    log_event(logger, 'contact_unlocked', contactId=contact_id,
+              priorReason=str(prior.get(contact_lock.LOCKED_REASON_ATTRIBUTE) or ''),
+              requestId=request_id)
+    return cors_response(200, {'id': contact_id, 'locked': False}, origin)
+
+
+def _locked_delete_refusal(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+    """`None` when the contact is not locked (delete may proceed); otherwise the 409 to return.
+
+    A locked contact is retained for legal records and refuses both hard and soft delete.
+
+    On an UNREADABLE row the behaviour differs by delete kind, deliberately, so this guard does
+    not change an existing tested contract: for a HARD delete, return None and let
+    `_hard_delete_refusal` (which runs next and already fail-closes on an unreadable row with
+    `PAYMENT_LINKAGE_UNKNOWN`) own that refusal. For a SOFT delete there is no later guard, so an
+    unreadable row fail-closes HERE with `CONTACT_LOCKED`. A missing row returns None so the
+    delete paths own their own 404.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        row = table.get_item(Key={'id': contact_id}).get('Item')
+    except Exception as exc:  # noqa: BLE001 - cannot read, so cannot prove unlocked
+        if hard:
+            return None  # the payment guard below owns the unreadable-row refusal for hard delete
+        return cors_response(409, {
+            'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
+            'reason': f'the contact row could not be read to check its lock: {type(exc).__name__}',
+        }, origin)
+    if not row:
+        return None
+    if contact_lock.is_locked(row):
+        return cors_response(409, {
+            'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
+            'lockedReason': str(row.get(contact_lock.LOCKED_REASON_ATTRIBUTE) or ''),
+            'reason': 'this contact is locked for legal records and cannot be deleted or archived',
+        }, origin)
+    return None
+
+
+def _hard_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+    """`None` when the hard delete may proceed; otherwise the 409 response to return.
+
+    Runs BEFORE `_hard_delete`, which is the only ordering that helps: `_hard_delete` deletes
+    every message and every S3 object first and the contact row last, so a check made partway
+    through would already have destroyed the history the guard exists to protect.
+
+    Fail-closed in three places, not one. An unreadable contact row, an unreadable index, and a
+    row with no usable key all refuse, because none of them is evidence of "no payments".
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        row = table.get_item(Key={'id': contact_id}).get('Item') or {}
+    except Exception as exc:  # noqa: BLE001 - cannot read the row, so cannot read its linkage
+        log_event(logger, 'contact_hard_delete_linkage_unknown', contactId=contact_id,
+                  reason=f'contact row unreadable: {type(exc).__name__}', requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_UNKNOWN, 'archiveInstead': True,
+            'reason': f'the contact row could not be read: {type(exc).__name__}',
+        }, origin)
+
+    if not row:
+        # Not a refusal. `_hard_delete` owns the 404 and already answers it, and duplicating
+        # that answer here would be two places deciding what "not found" looks like.
+        return None
+
+    try:
+        linkage = contact_payment_links.has_payment_links(
+            invoices_table=dynamodb.Table(INVOICES_TABLE),
+            orders_table=dynamodb.Table(ORDERS_TABLE),
+            contact_row=row,
+        )
+    except contact_payment_links.PaymentLinkageUnknown as exc:
+        # `str(exc)` is safe HERE and only here: the module builds that message itself from a
+        # fixed phrase plus `type(exc).__name__`, so it carries no provider text.
+        log_event(logger, 'contact_hard_delete_linkage_unknown', contactId=contact_id,
+                  reason=str(exc), requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_UNKNOWN, 'archiveInstead': True, 'reason': str(exc),
+        }, origin)
+
+    # `contactId` and the signal names are the whole log line. The phone is deliberately absent
+    # rather than masked: nothing here needs it, and the contact id is the correlation key.
+    if linkage.blocked:
+        log_event(logger, 'contact_hard_delete_refused', contactId=contact_id,
+                  signals=list(linkage.signals), reason=linkage.reason, requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_PAYMENTS, 'archiveInstead': True,
+            'reason': linkage.reason, 'signals': list(linkage.signals),
+        }, origin)
+
+    log_event(logger, 'contact_hard_delete_allowed', contactId=contact_id,
+              signals=list(linkage.signals), requestId=request_id)
+    return None
 
 
 def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:

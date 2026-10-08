@@ -60,6 +60,7 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import customer_auth, customer_session, dynamo_reads, payment_status, rate_limit
 from lambda_utils.ecommerce import contact_address, order_channel
 from lambda_utils.identity import customer as customer_identity
+from lambda_utils.identity import customer_uuid
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
 
@@ -422,6 +423,17 @@ def _project(row: Dict[str, Any]) -> Dict[str, Any]:
         # every row written before the index was widened - reads as `website`, which is true
         # because no WhatsApp order can exist.
         "channel": order_channel.canonical(row.get("channel")),
+        # The PUBLIC customer id, and ALWAYS PRESENT defaulting to `''` for exactly the reason
+        # `currencyUnexpected` above is always present: a field that appears only when it has a
+        # value forces every reader to handle `undefined` as well as the empty case, and the
+        # browser's one job here is to show the row or not show it. `from_contact` re-validates,
+        # so a junk or uuid7 value stored by some future writer reaches the page as `''` rather
+        # than being displayed - and it never raises, which keeps this function's
+        # degrade-never-raise property intact.
+        #
+        # Safe on the wire and safe in a log, unlike the phone beside it: it is ours, opaque,
+        # carries no timestamp, and is not a credential. Same standing as `referenceId`.
+        customer_uuid.ATTRIBUTE: customer_uuid.from_contact(row),
     }
 
 

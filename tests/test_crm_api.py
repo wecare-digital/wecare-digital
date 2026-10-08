@@ -44,6 +44,7 @@ CONTACTS_HANDLER_PATH = ROOT / "amplify" / "functions" / "core" / "contacts" / "
 #: Imported AFTER the `sys.path` setup above - `--import-mode=importlib` does not put a test's own
 #: directory on the path, so this module is only importable once that loop has run.
 from contacts_fake_table import FakeContactsResource, FakeContactsTable  # noqa: E402
+from lambda_utils.identity import customer_uuid  # noqa: E402
 
 
 def code_only(path: Path) -> str:
@@ -479,3 +480,181 @@ class TestContactPhoneIsStoredAsE164:
         contacts = _contacts_module(monkeypatch, table)
         response = contacts._create({"name": "Asha Sen", "email": "asha@example.com"}, "req-7")
         assert response["statusCode"] == 201
+
+
+class TestEveryContactGetsAPublicCustomerUuid:
+    """A CRM-created or CRM-updated contact is a real customer with an id we can print.
+
+    The requirement in the owner's words: a contact added by hand in the workspace must be
+    treated as a registered customer, and must carry a unique customer id that shows on their
+    invoice and on their order pages.
+
+    Two halves, and the second is the one that is easy to get wrong:
+
+      * CREATE mints inline. Correct by construction - `_check_duplicate` has already proven no
+        live row exists on this phone or email, so there is nothing to resolve to.
+      * UPDATE must NOT mint unconditionally. A customer whose id is already printed on an issued
+        invoice would otherwise get a second id on the next hand-edit, and the document in their
+        possession would stop matching the record. `if_not_exists` is what makes that an atomic
+        database guarantee rather than a read-then-write race, and the assertion below is on the
+        EXPRESSION rather than on the stored value, because the fake deliberately does not
+        evaluate DynamoDB's expression language (see `contacts_fake_table`).
+    """
+
+    def test_a_created_contact_carries_a_valid_uuid4(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._create({"name": "Asha Sen", "phone": "+919876543210"}, "req-u1")
+
+        assert response["statusCode"] == 201
+        stored = table.puts[0][customer_uuid.ATTRIBUTE]
+        assert customer_uuid.is_customer_uuid(stored)
+        # And it reaches the client in the create response, so the CRM can show it immediately
+        # rather than needing a second read.
+        assert json.loads(response["body"])[customer_uuid.ATTRIBUTE] == stored
+
+    def test_the_uuid_is_not_the_row_id(self, monkeypatch):
+        """Separate attributes, separate values. `auth/customer-profile` mints the row `id` as
+        uuid5 of the Cognito sub, so reusing `id` here would publish a value derived from the
+        Cognito subject for every signed-in customer."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        contacts._create({"name": "Asha Sen", "phone": "+919876543210"}, "req-u2")
+
+        stored = table.puts[0]
+        assert stored[customer_uuid.ATTRIBUTE] != stored["id"]
+        assert stored[customer_uuid.ATTRIBUTE] != stored["contactId"]
+
+    def test_two_contacts_get_two_different_uuids(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        contacts._create({"name": "A", "phone": "+919876543210"}, "req-u3")
+        contacts._create({"name": "B", "phone": "+919876543211"}, "req-u4")
+
+        first, second = (p[customer_uuid.ATTRIBUTE] for p in table.puts)
+        assert first != second
+
+    def test_a_client_supplied_uuid_on_create_is_IGNORED(self, monkeypatch):
+        """The id is ours. Honouring a request-supplied one would let a caller claim another
+        customer's printed identifier, which is the whole point of minting it server-side."""
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        claimed = "00000000-0000-4000-8000-000000000001"
+        contacts._create({"name": "Asha Sen", "phone": "+919876543210",
+                          customer_uuid.ATTRIBUTE: claimed}, "req-u5")
+
+        assert table.puts[0][customer_uuid.ATTRIBUTE] != claimed
+
+    def test_an_update_assigns_the_uuid_only_if_it_is_absent(self, monkeypatch):
+        """THE resolve-before-generate property, asserted on the expression that reaches
+        DynamoDB. `if_not_exists` means the minted value is discarded server-side whenever the
+        row already has one, so an existing customer keeps the id already on their invoice."""
+        table = FakeContactsTable(
+            [{"id": "contact-1", "contactId": "contact-1", "name": "Asha"}])
+        contacts = _contacts_module(monkeypatch, table)
+        response = contacts._update("contact-1", {"name": "Asha Sen"}, "req-u6")
+
+        assert response["statusCode"] == 200
+        expression = table.updates[-1]["UpdateExpression"]
+        attribute = customer_uuid.ATTRIBUTE
+        assert f"{attribute} = if_not_exists({attribute}, :vcustuuid)" in expression
+        assert customer_uuid.is_customer_uuid(
+            table.updates[-1]["ExpressionAttributeValues"][":vcustuuid"])
+
+    def test_an_update_never_writes_the_uuid_unconditionally(self, monkeypatch):
+        """The negative form of the test above, and the one that would catch the obvious
+        'simplification' of routing the mint through `updates` like every other field. A bare
+        `customerUuid = :v` assignment would replace a printed id on every hand-edit."""
+        table = FakeContactsTable(
+            [{"id": "contact-1", "contactId": "contact-1", "name": "Asha"}])
+        contacts = _contacts_module(monkeypatch, table)
+        contacts._update("contact-1", {"name": "Asha Sen"}, "req-u7")
+
+        attribute = customer_uuid.ATTRIBUTE
+        clauses = [c.strip() for c
+                   in table.updates[-1]["UpdateExpression"][4:].split(",")]
+        for clause in clauses:
+            if clause.startswith(attribute):
+                assert "if_not_exists(" in clause, clause
+
+    def test_a_client_supplied_uuid_on_update_is_IGNORED(self, monkeypatch):
+        """It is absent from `ALLOWED_UPDATE_FIELDS`, so the request value is filtered out before
+        the expression is composed - and the mint is appended afterwards, outside `updates`,
+        which is why routing it through the allowlist would reopen this hole."""
+        table = FakeContactsTable(
+            [{"id": "contact-1", "contactId": "contact-1", "name": "Asha"}])
+        contacts = _contacts_module(monkeypatch, table)
+        claimed = "00000000-0000-4000-8000-000000000002"
+        contacts._update("contact-1",
+                         {"name": "Asha Sen", customer_uuid.ATTRIBUTE: claimed}, "req-u8")
+
+        update = table.updates[-1]
+        assert claimed not in update["ExpressionAttributeValues"].values()
+        assert customer_uuid.ATTRIBUTE not in (
+            update.get("ExpressionAttributeNames") or {}).values()
+
+    def test_the_attribute_is_not_in_the_client_allowlist(self):
+        """Stated structurally as well as behaviourally: the allowlist IS the list of fields a
+        client may set, so the public id must never appear in it."""
+        contacts = importlib.util.spec_from_file_location(
+            "wecare_contacts_allowlist_under_test", CONTACTS_HANDLER_PATH)
+        module = importlib.util.module_from_spec(contacts)
+        contacts.loader.exec_module(module)
+        assert customer_uuid.ATTRIBUTE not in module.ALLOWED_UPDATE_FIELDS
+
+
+# ===========================================================================
+# ContactLock: explicit lock, locked-delete refusal, lock/unlock endpoints
+# ===========================================================================
+
+class TestContactLock:
+    """A locked contact is retained for legal records and refuses every delete."""
+
+    def test_lock_sets_the_flag_reason_and_timestamp(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha"})
+        resp = contacts._lock_contact("c1", "legal-hold", "req-lock")
+        assert resp["statusCode"] == 200
+        row = next(r for r in table.items if r["id"] == "c1")
+        assert row["locked"] is True
+        assert row["lockedReason"] == "legal-hold"
+
+    def test_lock_of_a_missing_contact_is_404(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        resp = contacts._lock_contact("nope", "manual", "req-lock")
+        assert resp["statusCode"] == 404
+
+    def test_a_locked_contact_refuses_hard_delete(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha", "locked": True, "lockedReason": "paid"})
+        resp = contacts._delete("c1", True, "req-del")
+        assert resp["statusCode"] == 409
+        body = json.loads(resp["body"])
+        assert body["error"] == contacts.DELETE_REFUSED_LOCKED
+        assert body["archiveInstead"] is False
+        assert table.deletes == [], "a locked contact must never be deleted"
+
+    def test_a_locked_contact_refuses_soft_delete_too(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha", "locked": True, "lockedReason": "paid"})
+        resp = contacts._delete("c1", False, "req-del")
+        assert resp["statusCode"] == 409
+        assert json.loads(resp["body"])["error"] == contacts.DELETE_REFUSED_LOCKED
+
+    def test_an_unlocked_contact_still_deletes_or_archives_normally(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha", "locked": False})
+        # No payment links on this fake row, so a hard delete may proceed.
+        resp = contacts._delete("c1", True, "req-del")
+        assert resp["statusCode"] in (200, 204), json.loads(resp["body"]) if resp.get("body") else resp
+
+    def test_locked_is_not_in_allowed_update_fields(self):
+        """The dedicated endpoints are the ONLY way to flip lock; a generic update cannot."""
+        code = code_only(CONTACTS_HANDLER_PATH)
+        block = code[code.index("ALLOWED_UPDATE_FIELDS"):code.index("ALLOWED_UPDATE_FIELDS") + 400]
+        assert "'locked'" not in block and '"locked"' not in block

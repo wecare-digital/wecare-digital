@@ -38,6 +38,7 @@ from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the p
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
 from lambda_utils import wa_internal_event  # typed ingress -> worker contract
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
+from lambda_utils import customer_ideas
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 from lambda_utils.ecommerce import order_keys  # reference_id contract; never truncate a join key
 # The catalogue-order hand-off: lines and quantities, no money. Pure, so every rule it holds is
@@ -1247,6 +1248,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                         error_count += 1
+                        if customer_ideas.idea_payload(message) is not None and not isinstance(e, ValueError):
+                            # The record-level recovery path stores normalized work in
+                            # the DLQ. Do not acknowledge an idea storage failure alone.
+                            raise
                 
                 # Process status updates
                 _status_waba_id = (meta_waba_ids[0] if meta_waba_ids else '')
@@ -1617,6 +1622,20 @@ def _process_message(
     if not sender_name and 'profile' in message:
         sender_name = message.get('profile', {}).get('name', '')
     
+    # Save private ideas before inbox dedup. A retry must repair a failed contact
+    # activity projection even when the inbound message has already been stored.
+    _idea_data = customer_ideas.idea_payload(message)
+    _idea_contact = None
+    if _idea_data is not None:
+        _idea_contact = _get_or_create_contact(
+            sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username,
+            contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+        customer_ideas.save_idea(
+            _idea_data, contact_id=_idea_contact.get('contactId') or _idea_contact.get('id'),
+            phone=sender_phone, sender_name=sender_name,
+            message_id=whatsapp_message_id, dynamodb=dynamodb,
+            activity_table=SUBMIT_REQUESTS_TABLE, request_id=request_id)
+
     # Deduplicate using whatsappMessageId.
     # claim_event() is an atomic, strongly-consistent guard that closes the
     # fast-redelivery race window (Meta redelivering within the GSI's eventual-
@@ -1639,7 +1658,7 @@ def _process_message(
         return
     
     # Lookup or create contact with sender name, BSUID, parent BSUID, and username
-    contact = _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
+    contact = _idea_contact or _get_or_create_contact(sender_phone, sender_name, bsuid=msg_bsuid, username=sender_username, contact_book_name=sender_contact_book_name, parent_bsuid=msg_parent_bsuid)
     contact_id = contact.get('contactId') or contact.get('id')
     
     # Extract message content based on type
@@ -1948,6 +1967,8 @@ def _process_message(
         # Native Flow Message reply — India Address Message submission arrives here
         # as nfm_reply with name='address_message' (also used by flow completions).
         elif interactive_type == 'nfm_reply':
+            if _idea_data is not None:
+                return  # Persisted above; never route a private idea into auto-replies.
             nfm = interactive.get('nfm_reply', {})
             if nfm.get('name') == 'address_message':
                 # SEND #4.

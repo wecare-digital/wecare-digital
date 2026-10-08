@@ -285,12 +285,12 @@ def test_the_png_draws_the_number_before_the_date(engine):
         i for i, t in enumerate(drawn) if t.startswith("Date:"))
 
 
-def test_the_png_draws_source_after_ref(engine):
-    """Per docs/invoice-layout.md section 2: `Source:` sits after `Ref:`."""
+def test_the_png_draws_no_ref_line(engine):
+    """The approved mockup removes `Ref:` from the customer-facing receipt (Ref == Order ID,
+    internal only). `Source:` stays and now carries the channel on its own."""
     drawn = _drawn_text(engine, _invoice(channel=order_channel.CHANNEL_WHATSAPP))
     assert "Source: WhatsApp" in drawn
-    ref = next(i for i, t in enumerate(drawn) if t.startswith("Ref:"))
-    assert drawn.index("Source: WhatsApp") > ref
+    assert not [t for t in drawn if t.startswith("Ref:")]
 
 
 def test_the_png_source_reads_website_for_a_website_order(engine):
@@ -412,8 +412,16 @@ def test_the_caption_contains_no_personal_data(engine):
     assert "Kolkata" not in caption
     assert "customer@example.com" not in caption
     # Positively: every line is a label, an amount or one of our own identifiers.
+    #
+    # `Customer ID:` was added to this tuple when the public customer uuid landed, and it belongs
+    # here rather than being an exception to the property above: the uuid is ours, opaque, carries
+    # no timestamp and identifies nobody to a stranger reading a notification preview. The phone,
+    # the name and the address do, which is why they stay out.
+    # `tests/test_customer_uuid_on_the_invoice.py` asserts the same no-personal-data property with
+    # a uuid actually present, which this fixture deliberately has none of.
     for line in caption.splitlines():
-        assert line.startswith(("Invoice", "Order:", "Ref:", "Ordered on:", "Thank you")), line
+        assert line.startswith(("Invoice", "Order:", "Ref:", "Ordered on:",
+                                "Customer ID:", "Thank you")), line
 
 
 # ══════════════════════════════════════════════════════════════════════════════

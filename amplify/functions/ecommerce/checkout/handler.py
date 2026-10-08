@@ -93,8 +93,9 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness
 from lambda_utils.ecommerce import (
     blog_contribution, cart_v2, checkout_pricing, contact_address, customer_cart, finalization,
-    gift_card_settlement, order_channel, order_creation, order_keys, payment_attempt,
-    purchase_intent, website_checkout, whatsapp_basket, wix_address, wix_writeback)
+    gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
+    payment_attempt, purchase_intent, website_checkout, whatsapp_basket, wix_address,
+    wix_writeback)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -116,6 +117,7 @@ from lambda_utils import wix_ecom
 # instance and raise `AttributeError` inside `_checkout_profile`'s `except Exception: raise` --
 # a 500 on every checkout.
 from lambda_utils.identity import customer as customer_identity
+from lambda_utils.identity import customer_uuid
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
 
@@ -496,6 +498,27 @@ def _load_owned_address(
 
 #: See the docblock above `_dynamodb` for why this is a seam and what its signature means.
 LOAD_OWNED_ADDRESS = _load_owned_address
+
+
+def _owned_for_supply(owned: Optional[Dict[str, Any]],
+                      requires_delivery: bool) -> Optional[Dict[str, Any]]:
+    """What to hand `build_intent_with_calculation` as `owned_address` for GST place-of-supply.
+
+    FEAT-003 made storage international, so `from_contact` now returns a structurally-valid
+    address whose state may not resolve to a GST subdivision. The place-of-supply derivation in
+    `purchase_intent` raises `UnmappableAddress` on such a value, which is CORRECT for a delivery
+    basket (and already pre-empted by the `for_wix` gate upstream) but WRONG for a no-delivery
+    contribution, which has no place of supply at all. For a no-delivery basket, an address whose
+    state is not GST-resolvable is passed as `None` so the quote falls back to the documented
+    intra-state default - exactly the pre-FEAT-003 behaviour, when `from_contact` returned None.
+    A delivery basket's address is passed through unchanged (it is already proven payable).
+    """
+    if owned and not requires_delivery:
+        try:
+            wix_address.gst_state_code(owned)
+        except wix_address.UnmappableAddress:
+            return None
+    return owned or None
 
 
 def _hardened(response: Dict[str, Any]) -> Dict[str, Any]:
@@ -930,6 +953,13 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
     # second finalisation path rather than a label on one.
     channel = order_channel.canonical((_claimed_handoff(identity, body) or {}).get("channel"))
 
+    # THE PUBLIC CUSTOMER ID, read off the SAME row `_checkout_profile` already returned - so
+    # this costs no extra contacts Query, and the money path below never has to read
+    # ContactsTable at all. `from_contact` never raises and answers "" for a row that has none,
+    # which is every row written before this attribute existed; "" then suppresses the field
+    # everywhere downstream rather than printing a placeholder on an invoice.
+    public_customer_uuid = customer_uuid.from_contact(profile)
+
     now = int(time.time())
     keys = _keys_table()
     try:
@@ -989,6 +1019,21 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     # Phase O-1: `{"serviceLine": {...}}` for a services basket, `{}` otherwise,
                     # so every other PAYREF# row is byte-identical to before.
                     **service_requests.payref_extra(line_items, body),
+                    # THE PUBLIC CUSTOMER ID, on this row as well as on the attempt, and that is
+                    # not redundant: the webhook lineage reads attribution off the `PAYREF#` row
+                    # (`razorpay-webhook._load_attempt`) while the finalisation lineage reads it
+                    # off the ATTEMPT row (`finalization.accept_paid`). Writing it to only one
+                    # would give one order's invoice a customer id on one settlement path and
+                    # nothing on the other.
+                    #
+                    # Spread conditionally, in the same shape as `payref_extra` above and for the
+                    # same reason: a contact with no id - every contact created before the
+                    # attribute existed - produces a row whose KEY SET is byte-identical to
+                    # today's, which `test_checkout_service_lines` asserts by equality. A key
+                    # present with `''` would be a different row shape for no gain, since `''`
+                    # suppresses every downstream render anyway.
+                    **({customer_uuid.ATTRIBUTE: public_customer_uuid}
+                       if public_customer_uuid else {}),
                 })
 
         prepared = website_checkout.prepare_checkout(
@@ -1012,8 +1057,21 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             # channel-agnostic and this edit is one wrapper instead of a new parameter threaded
             # through six call sites. `reserve_attempt` is the single sink that writes the attempt
             # row, so there is no second path the stamp could miss.
+            #
+            # The public customer id rides the SAME wrapper, and that is not laziness - it is the
+            # measured answer. `payment_attempt.build` is called from `_bind_and_ready`, a
+            # module-level helper reached from FOUR sites through two more helpers, so a
+            # `customer_uuid=` parameter on `prepare_checkout` would have to be threaded through
+            # all of them; the first attempt at exactly that produced a `NameError` inside a
+            # money path's `except Exception` and a 503 on every checkout. One sink, one stamp.
+            #
+            # `**({...} if v else {})` rather than a plain key, so an attempt for a contact with
+            # no public id is byte-identical to one written before this landed - the same
+            # conditional-emit rule `payment_attempt.build` applies to `cartId` and `retryOf`.
             reserve_attempt=lambda attempt: _reserve_website_attempt(
-                dict(attempt, channel=channel)),
+                dict(attempt, channel=channel,
+                     **({customer_uuid.ATTRIBUTE: public_customer_uuid}
+                        if public_customer_uuid else {}))),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
             # can tell a basket has a recorded attempt but not whether that attempt was paid.
             attempts_table=_attempts_table(),
@@ -2265,6 +2323,20 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
     if requires_delivery and not owned:
         raise purchase_intent.DeliveryDetailsRequired("no owned delivery address on file")
 
+    # FEAT-003: storage is international; the India place-of-supply / Wix-mappability rule now
+    # runs HERE, at pay time, through the shared gate -- but ONLY when the basket REQUIRES
+    # delivery. A fee-exempt contribution or any no-delivery basket must not be refused for an
+    # unmappable stored address it never ships to. For a delivery basket, an address the CRM
+    # accepted that cannot price a Razorpay/Wix cart (e.g. a legacy unmappable Indian state)
+    # becomes the recoverable 409 DELIVERY_DETAILS_REQUIRED rather than a 503 or a wrong tax
+    # split. A caller-supplied loader (tests) returning an already-Wix-shaped dict is left alone.
+    if requires_delivery and owned and loader is _load_owned_address:
+        try:
+            payment_address.for_wix(owned)
+        except payment_address.UnpayableAddress:
+            raise purchase_intent.DeliveryDetailsRequired(
+                "stored address is not payable on the website channel") from None
+
     # ONE CustomerCart, so ONE `now` and one lock protocol own `ensure`, `abandon` and the
     # reconcile. `self.now` drives both `expiresAt = now + CART_LIFETIME` and the QUOTE_LIFETIME
     # expiry check, so a second instance would carry a second clock.
@@ -2368,7 +2440,17 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
             # `None` rather than a falsy dict. `purchase_intent` tests `is not None`, because `{}`
             # is a placeholder address that must still raise `UnmappableAddress` rather than be
             # laundered into a price; only a true `None` means "no place of supply to resolve".
-            owned_address=owned or None, now=int(time.time()), site=wix_ecom.WIX_SITE_ID,
+            #
+            # FEAT-003: for a DELIVERY basket, `owned` is already proven payable by the `for_wix`
+            # gate above, so it resolves here. For a NO-DELIVERY basket (a contribution), storage
+            # is now international and `from_contact` returns a structurally-valid but possibly
+            # GST-unresolvable address (e.g. a legacy "Nowhere Pradesh"); a payment with no
+            # delivery has no place of supply, so such an address is passed as `None` rather than
+            # raising `UnmappableAddress` inside the quote. This preserves the pre-FEAT-003
+            # behaviour exactly (the intra-state default) now that `from_contact` no longer
+            # returns None for it. The laundering guard for delivery baskets is unchanged.
+            owned_address=(_owned_for_supply(owned, requires_delivery)),
+            now=int(time.time()), site=wix_ecom.WIX_SITE_ID,
             # The fee-exempt calculator, substituted at an EXISTING seam rather than branching
             # inside the calculator every other basket shares. OWNER DECISION [PHASE2-FEE-001]:
             # a contribution collects exactly the amount chosen. `build_intent_with_calculation`
