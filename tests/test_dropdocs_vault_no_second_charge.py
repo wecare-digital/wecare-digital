@@ -127,7 +127,10 @@ def test_a_a_vault_request_makes_zero_provider_calls(monkeypatch):
         intent = store.request_intent(table, _identity(), VAULT, PUBLIC_ID)
 
     assert intent["kind"] == VAULT
-    assert intent["amountPaise"] == 4900
+    # `None`, since 2026-10-08: Wix prices the line at checkout, so an intent carries no amount.
+    # Which strengthens this test's own point rather than weakening it -- there is now no figure
+    # anywhere on the pre-payment path that could be mistaken for something that was charged.
+    assert intent["amountPaise"] is None
     assert intent["currency"] == "INR"
     assert provider.calls == []
     assert not [k for k in table.rows if str(k).startswith("ORDER#")]

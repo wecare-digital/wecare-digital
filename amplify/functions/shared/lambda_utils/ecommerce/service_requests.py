@@ -15,13 +15,14 @@ separately on purpose so the browser cannot widen the trusted set;
 
 WHAT IS OFFERED, AND WHAT IS REFUSED
 ------------------------------------
-FOUR services, all four variants of the one Wix product: Submit Request and Request Amendment at
-Rs.99, Drop Docs at Rs.350 and Vault at Rs.49. Drop Docs and Vault were refused by name in O-1
-(``SERVICE_NOT_OFFERED``) because nothing could deliver them; O-2 adds them to
-``SERVICE_CHOICES_PAISE`` instead, which is the whole of the change -- no second payment path, no
-new ownership machinery, and the same per-line price assertion.
+FOUR services, all four variants of the one Wix product: Submit Request, Request Amendment,
+Drop Docs and Vault. Drop Docs and Vault were refused by name in O-1 (``SERVICE_NOT_OFFERED``)
+because nothing could deliver them; O-2 added them to the allow-list instead, which was the
+whole of that change -- no second payment path and no new ownership machinery.
 
-``NOT_OFFERED_VARIANT_IDS`` and ``NOT_OFFERED_KINDS`` are now EMPTY, and the refusal code, its
+**No price appears in this module any more.** See "WIX IS THE PRICE AUTHORITY" below.
+
+``NOT_OFFERED_VARIANT_IDS`` and ``NOT_OFFERED_KINDS`` are EMPTY, and the refusal code, its
 message and the not-offered branch in ``service_line`` all deliberately remain. They are the guard
 for the NEXT variant somebody adds in Wix: naming it here refuses it by name rather than letting it
 through as an ordinary product line, which would charge for a service nothing can deliver.
@@ -32,15 +33,39 @@ document held against one of your requests". A target-free Drop Docs would let a
 Rs.350 to attach documents to nothing. The target is resolved and owned-checked in
 ``service_request_store`` BEFORE money moves.
 
+WIX IS THE PRICE AUTHORITY (owner decision 2026-10-08)
+------------------------------------------------------
+This module used to hold ``SERVICE_CHOICES_PAISE``, ``{variant: (kind, committed paise)}``, and
+``assert_service_line_price`` refused any Wix line price that was not EQUAL to the committed
+figure. That had a consequence worth stating plainly, because it is the reason the constant is
+gone: **editing a price in Wix did not change what the page charged, it refused the purchase.**
+A card showing the live Rs.149 would answer ``SERVICE_PRICE_CHANGED`` on every attempt until
+somebody deployed. The owner's requirement is that a price be changeable in Wix with no deploy,
+so the authority moved to Wix and the constant could not stay.
+
+What that costs, and what replaces it. The equality check was the only thing standing between a
+Wix catalogue typo and a charge, so its removal leaves exactly one rail:
+``SERVICE_LINE_MIN_PAISE``/``SERVICE_LINE_MAX_PAISE``. That is **not a price lock** -- 49 -> 149
+-> 999 all pass untouched, which is the point -- it refuses only a figure of the Rs.99,999
+shape, where the likeliest explanation is a mistyped Wix field rather than a pricing decision.
+
+Every STRUCTURAL check survives unchanged, and they are what keep this safe: exactly one service
+line, an allow-listed variant of the one services product, ``confirmedQuantity == 1``, the
+summary line found and readable, and -- on a services-only basket -- delivery, tax and
+additionalFees all exactly zero. A per-line assertion is also what makes this work in a mixed
+basket and under a coupon: line totals are pre-discount and sum to the subtotal
+(`cart_v2.calculate` enforces that).
+
+`lambda_utils.ecommerce.service_pricing` reads the SAME figure through the SAME adapter for the
+public service pages, so the price a page promises and the price the checkout charges come from
+one source and cannot drift.
+
 PRICING IS ORDINARY ORDER PRICING
 ---------------------------------
 Unlike a contribution, a service is NOT fee-exempt: `cart_v2.calculate` prices the line and
 `checkout_pricing.compute_quote` adds the 2.5% convenience fee and 18% GST on that fee, exactly
-as for any single order. The committed paise figure below is therefore not a total -- it is the
-expected LINE price, asserted per line by ``assert_service_line_price`` so that a Wix price edit
-refuses the purchase (``SERVICE_PRICE_CHANGED``) instead of charging a figure the page did not
-promise. A per-line assertion is what makes this work in a mixed basket and under a coupon: line
-totals are pre-discount and sum to the subtotal (`cart_v2.calculate` enforces that).
+as for any single order. That is why every page says "a convenience fee is added at checkout"
+beside its amount.
 
 Integer paise throughout. No float, no division, no rounding happens in this module.
 """
@@ -75,13 +100,37 @@ REQUEST_AMENDMENT = "REQUEST_AMENDMENT"
 DROP_DOCS = "DROP_DOCS"
 VAULT = "VAULT"
 
-#: THE ONLY FOUR SERVICES THAT CAN BE BOUGHT, as ``{variant id: (kind, line paise)}``.
-#: Mirrored in src/config/services.ts as SERVICE_CHOICES.
-SERVICE_CHOICES_PAISE: Mapping[str, Tuple[str, int]] = MappingProxyType({
-    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": (SUBMIT_REQUEST, 9900),        # Rs.99
-    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": (REQUEST_AMENDMENT, 9900),     # Rs.99
-    "db166bc8-a763-41ec-9f65-0f718f18155a": (DROP_DOCS, 35000),            # Rs.350
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4": (VAULT, 4900),                 # Rs.49
+#: THE ONLY FOUR SERVICES THAT CAN BE BOUGHT, as ``{variant id: kind}``. NO PRICE: the mapping is
+#: stable catalogue identity, the price is Wix's and is read live. Mirrored in
+#: src/config/services.ts as SERVICE_CHOICES.
+SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({
+    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": SUBMIT_REQUEST,
+    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": REQUEST_AMENDMENT,
+    "db166bc8-a763-41ec-9f65-0f718f18155a": DROP_DOCS,
+    "dcff995e-448c-493a-9259-f6a82ccdc2b4": VAULT,
+})
+
+#: THE CATASTROPHE RAIL, and the only bound on a service line now that Wix owns the price.
+#:
+#: Deliberately wide. A rail narrow enough to be a price check would reintroduce the deploy the
+#: owner removed -- an ordinary edit from Rs.49 to Rs.999 must pass with nobody's involvement.
+#: Rs.50,000 is far above any plausible service price and far below the Rs.99,999-shaped figure a
+#: mistyped Wix field produces, which is the single failure this is here to refuse. The minimum is
+#: 1 paise, not 0: a free service line would charge a convenience fee on nothing.
+#:
+#: Owner-visible limit: a service genuinely priced above Rs.50,000 in Wix will be refused with
+#: ``SERVICE_PRICE_CHANGED`` until this figure is raised, and that requires a deploy.
+SERVICE_LINE_MIN_PAISE = 1
+SERVICE_LINE_MAX_PAISE = 5_000_000
+
+#: The four PUBLIC PAGE SLUGS, ``{slug: kind}``. One owner for the slug vocabulary, shared by the
+#: public price endpoint (`service_pricing.resolve_all`) and mirrored in src/config/services.ts as
+#: each choice's ``slug``. A slug is a URL path segment, never an identifier Wix sees.
+SERVICE_KIND_BY_SLUG: Mapping[str, str] = MappingProxyType({
+    "submit-request": SUBMIT_REQUEST,
+    "request-amendment": REQUEST_AMENDMENT,
+    "drop-docs": DROP_DOCS,
+    "vault": VAULT,
 })
 
 #: The services that cannot exist without a target Submit Request of the CALLER'S OWN. One
@@ -99,9 +148,13 @@ NOT_OFFERED_VARIANT_IDS: FrozenSet[str] = frozenset()
 #: EMPTY for the same reason, and kept for the same reason.
 NOT_OFFERED_KINDS: FrozenSet[str] = frozenset()
 
-#: ``{kind: variant id}`` for the four offered services.
+#: ``{kind: variant id}`` for the four offered services. Derived, so the two cannot drift.
 SERVICE_VARIANT_BY_KIND: Mapping[str, str] = MappingProxyType(
-    {kind: variant for variant, (kind, _paise) in SERVICE_CHOICES_PAISE.items()})
+    {kind: variant for variant, kind in SERVICE_KIND_BY_VARIANT.items()})
+
+#: ``{kind: public page slug}``, derived from ``SERVICE_KIND_BY_SLUG`` for the same reason.
+SERVICE_SLUG_BY_KIND: Mapping[str, str] = MappingProxyType(
+    {kind: slug for slug, kind in SERVICE_KIND_BY_SLUG.items()})
 
 #: A pre-payment intent id: a canonical lowercase UUIDv7 (`identifiers.new_uuid7`).
 INTENT_ID_RE = re.compile(
@@ -165,11 +218,18 @@ class ServiceNotPayable(cart_v2.CartContractError):
 
 @dataclass(frozen=True)
 class ServiceLine:
-    """The one service line in a basket: which kind, which variant, and its committed line paise."""
+    """The one service line in a basket: which kind, which variant, and what Wix priced it at.
+
+    ``paise`` is ``None`` from ``service_line``, because a basket is read BEFORE Wix prices it and
+    this module no longer holds a figure to assume. It carries an integer only where the caller
+    obtained one from Wix -- `assert_service_line_price` returns it and `payref_extra` records it.
+    ``None`` therefore means "not priced yet", which is a different fact from "free", and keeping
+    the two distinguishable is what stops an unpriced line being recorded as a zero charge.
+    """
 
     kind: str
     variant_id: str
-    paise: int
+    paise: Optional[int] = None
 
 
 def refusal(code: str) -> Dict[str, str]:
@@ -215,7 +275,7 @@ def service_line(line_items: Any) -> Optional[ServiceLine]:
         if variant_id in NOT_OFFERED_VARIANT_IDS:
             logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_NOT_OFFERED}))
             raise ServiceRejected(SERVICE_NOT_OFFERED)
-        if variant_id not in SERVICE_CHOICES_PAISE:
+        if variant_id not in SERVICE_KIND_BY_VARIANT:
             logger.info(json.dumps({"event": "service_refused", "reason": SERVICE_UNKNOWN_CHOICE}))
             raise ServiceRejected(SERVICE_UNKNOWN_CHOICE)
         quantity = line.get("quantity")
@@ -224,8 +284,9 @@ def service_line(line_items: Any) -> Optional[ServiceLine]:
             logger.info(json.dumps({"event": "service_refused",
                                     "reason": SERVICE_INVALID_QUANTITY}))
             raise ServiceRejected(SERVICE_INVALID_QUANTITY)
-        kind, paise = SERVICE_CHOICES_PAISE[variant_id]
-        found.append(ServiceLine(kind=kind, variant_id=variant_id, paise=paise))
+        # No price: Wix prices the line, and nothing here may presume what that will be.
+        found.append(ServiceLine(kind=SERVICE_KIND_BY_VARIANT[variant_id],
+                                 variant_id=variant_id, paise=None))
     if not found:
         return None
     if len(found) != 1:
@@ -285,18 +346,26 @@ def checkout_preflight(line_items: Any, body: Any, *,
     return None
 
 
-def payref_extra(line_items: Any, body: Any) -> Dict[str, Any]:
+def payref_extra(line_items: Any, body: Any, *,
+                 line_paise: Optional[int] = None) -> Dict[str, Any]:
     """``{}`` for a non-service basket, else ``{"serviceLine": {kind, variantId, paise, intentId}}``.
 
     This is the join (plan D3): checkout writes it onto the ``PAYREF#`` reservation it already
     makes, and the service-requests Lambda reads it back after the order exists. Checkout gains
     no table and no IAM change. Called only after ``checkout_preflight`` passed.
+
+    ``line_paise`` is WIX'S OWN figure for the line, as returned by
+    ``assert_service_line_price``, and the caller must pass it. The key set is unchanged -- a
+    ``paise`` was always recorded here -- but its source moved from a committed constant to the
+    calculation that priced the thing being charged, which is the only figure that can honestly
+    claim to be what the customer paid for. ``None`` records ``None``, so an unpriced row is
+    visibly unpriced rather than silently zero, and ``service_request_store.activate`` refuses it.
     """
     line = service_line(line_items)
     if line is None:
         return {}
     return {"serviceLine": {"kind": line.kind, "variantId": line.variant_id,
-                            "paise": line.paise, "intentId": _intent_id(body)}}
+                            "paise": line_paise, "intentId": _intent_id(body)}}
 
 
 def intent_rebound(payref: Optional[Mapping[str, Any]], body: Any) -> bool:
@@ -330,16 +399,44 @@ def _variant_id(cart_line: Dict[str, Any]) -> str:
         if isinstance(options, dict) else ""
 
 
-def _mismatch(expected: int, actual: Any, reason: str) -> None:
+def _mismatch(actual: Any, reason: str) -> None:
     logger.error(json.dumps({"event": "service_price_mismatch", "reason": reason,
-                             "expectedPaise": expected,
+                             "minPaise": SERVICE_LINE_MIN_PAISE,
+                             "maxPaise": SERVICE_LINE_MAX_PAISE,
                              "linePaise": actual if type(actual) is int else None}))
-    raise ServicePriceChanged("service line is not priced at its committed paise")
+    raise ServicePriceChanged("service line price is outside what may be charged")
+
+
+def observed_service_line_paise(calculated: Dict[str, Any]) -> Optional[int]:
+    """Wix's price for the one service line in a calculation, in integer paise, or ``None``.
+
+    PURE and non-raising, so the figure can be re-read where the assertion has already passed
+    without re-running it -- `checkout/handler.py` needs it in `_allocate_reference`, several
+    frames away from `_v2_snapshot`. ``None`` whenever the shape is not readable; the assertion,
+    not this, is what refuses a basket.
+    """
+    cart_lines = [line for line in ((calculated.get("cart") or {}).get("lineItems") or [])
+                  if isinstance(line, dict) and is_service_product(_catalog_item_id(line))]
+    if len(cart_lines) != 1:
+        return None
+    summary_lines = [line for line in ((calculated.get("summary") or {}).get("lineItems") or [])
+                     if isinstance(line, dict)
+                     and line.get("lineItemId") == cart_lines[0].get("id")]
+    if len(summary_lines) != 1:
+        return None
+    try:
+        return Money.from_wix((summary_lines[0].get("totalPrice") or {}).get("amount")).paise
+    except ValueError:
+        return None
 
 
 def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
-                              delivery_required: bool) -> None:
-    """The service line Wix priced IS the committed paise figure, to the paise, at quantity 1.
+                              delivery_required: bool) -> Optional[int]:
+    """Wix's own line price for the one service, at quantity 1, inside the catastrophe rail.
+
+    RETURNS that figure in integer paise (``None`` for a non-service basket), because it is what
+    will be charged and the caller has to record it. See the module docstring for why this no
+    longer compares against a committed constant, and what the rail does and does not cover.
 
     Per LINE, not on the total, because the total legitimately carries other lines, a coupon and
     (in a mixed basket) delivery. ``summary.lineItems[].totalPrice`` is pre-discount and
@@ -352,24 +449,27 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
     """
     committed = service_line(line_items)
     if committed is None:
-        return
+        return None
     cart_lines = [line for line in ((calculated.get("cart") or {}).get("lineItems") or [])
                   if isinstance(line, dict) and is_service_product(_catalog_item_id(line))]
     if len(cart_lines) != 1 or _variant_id(cart_lines[0]) != committed.variant_id:
-        _mismatch(committed.paise, None, "SERVICE_LINE_NOT_FOUND")
+        _mismatch(None, "SERVICE_LINE_NOT_FOUND")
     cart_line = cart_lines[0]
     if ((cart_line.get("quantityInfo") or {}).get("confirmedQuantity")) != 1:
-        _mismatch(committed.paise, None, "SERVICE_LINE_QUANTITY")
+        _mismatch(None, "SERVICE_LINE_QUANTITY")
     summary_lines = [line for line in ((calculated.get("summary") or {}).get("lineItems") or [])
                      if isinstance(line, dict) and line.get("lineItemId") == cart_line.get("id")]
     if len(summary_lines) != 1:
-        _mismatch(committed.paise, None, "SERVICE_SUMMARY_LINE_NOT_FOUND")
+        _mismatch(None, "SERVICE_SUMMARY_LINE_NOT_FOUND")
     try:
         line_paise = Money.from_wix((summary_lines[0].get("totalPrice") or {}).get("amount")).paise
     except ValueError:
-        _mismatch(committed.paise, None, "SERVICE_LINE_UNREADABLE")
-    if line_paise != positive_paise(committed.paise):
-        _mismatch(committed.paise, line_paise, "SERVICE_LINE_PRICE")
+        _mismatch(None, "SERVICE_LINE_UNREADABLE")
+    if not SERVICE_LINE_MIN_PAISE <= line_paise <= SERVICE_LINE_MAX_PAISE:
+        _mismatch(line_paise, "SERVICE_LINE_OUT_OF_BOUNDS")
+    # Re-asserted through the money core even though the bounds already imply it, so the one
+    # figure that leaves this function has been through the same gate as every other amount.
+    positive_paise(line_paise)
     if not delivery_required:
         # A services-only basket (nothing ships, so nothing else is in it but services). Every
         # component Wix can add on top of the lines must be exactly zero, or the payable rises
@@ -382,16 +482,18 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
                                   ("additionalFees", "SERVICE_FEES_CHARGED")):
             value = components.get(component)
             if type(value) is not int or value != 0:
-                _mismatch(committed.paise, line_paise, reason)
+                _mismatch(line_paise, reason)
+    return line_paise
 
 
 __all__ = [
     "DROP_DOCS", "INTENT_ID_RE", "NOT_OFFERED_KINDS", "NOT_OFFERED_VARIANT_IDS",
-    "PUBLIC_REQUEST_ID_RE", "REQUEST_AMENDMENT", "SERVICE_CHOICES_PAISE", "SERVICE_CURRENCY",
-    "SERVICE_MESSAGES", "SERVICE_PRODUCT_IDS", "SERVICE_VARIANT_BY_KIND", "SUBMIT_REQUEST",
-    "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
+    "PUBLIC_REQUEST_ID_RE", "REQUEST_AMENDMENT", "SERVICE_CURRENCY", "SERVICE_KIND_BY_SLUG",
+    "SERVICE_KIND_BY_VARIANT", "SERVICE_LINE_MAX_PAISE", "SERVICE_LINE_MIN_PAISE",
+    "SERVICE_MESSAGES", "SERVICE_PRODUCT_IDS", "SERVICE_SLUG_BY_KIND", "SERVICE_VARIANT_BY_KIND",
+    "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected", "assert_service_line_price",
     "checkout_preflight", "has_service_line", "intent_rebound", "is_service_product",
-    "payref_extra", "refusal",
+    "observed_service_line_paise", "payref_extra", "refusal",
     "service_line",
 ]

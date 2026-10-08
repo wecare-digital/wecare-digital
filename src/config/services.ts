@@ -7,11 +7,18 @@
  * quantity 1 and paid on the one live checkout path (`POST /ecommerce/prepare-checkout`). There is
  * no second payment implementation for a service.
  *
- * THE SERVER IS THE AUTHORITY. Nothing declared here is treated as approved to charge. The
- * browser names a CHOICE; `cart_v2.calculate` prices the line, and the server asserts that line
- * against its OWN committed copy of these figures
- * (amplify/functions/shared/lambda_utils/ecommerce/service_requests.py, SERVICE_CHOICES_PAISE), so
- * a Wix price edit refuses the purchase rather than charging a figure this page did not promise.
+ * NO PRICE IS DECLARED HERE, SINCE 2026-10-08. Owner decision: "price 49 or 99 can change any
+ * time so make dynamic". Each page reads its own variant's LIVE Wix price from
+ * `GET /ecommerce/service-prices` (src/lib/servicePricing.ts), so a price edited in Wix appears
+ * on the page within about a minute with no deploy. What survives here is stable catalogue
+ * IDENTITY — which variant each service buys — which is exactly the part that does not change
+ * when a price does.
+ *
+ * THE SERVER IS STILL THE AUTHORITY, and now so is Wix. The browser names a CHOICE;
+ * `cart_v2.calculate` prices the line and
+ * amplify/functions/shared/lambda_utils/ecommerce/service_requests.py asserts WIX'S OWN line
+ * price inside a wide catastrophe rail rather than against a committed figure — so a Wix price
+ * edit is CHARGED instead of refusing the purchase, which is what it used to do.
  * tests/test_service_requests.py fails if the two declarations drift.
  *
  * PRICING IS ORDINARY ORDER PRICING. Unlike a contribution, a service is NOT fee-exempt: the
@@ -43,17 +50,22 @@ export const SERVICES_PRODUCT_ID: string = 'df976a0a-f582-4535-b2e1-d532f348bd27
 
 export type ServiceKind = 'SUBMIT_REQUEST' | 'REQUEST_AMENDMENT' | 'DROP_DOCS' | 'VAULT';
 
-/** One purchasable service: its kind, the Wix variant it buys, its label and its line price. */
+/** The four public page slugs. The key the live-price payload is read by. */
+export type ServiceSlug = 'submit-request' | 'request-amendment' | 'drop-docs' | 'vault';
+
+/** One purchasable service: its kind, the Wix variant it buys, its label and its page. NO PRICE. */
 export interface ServiceChoice {
   readonly kind: ServiceKind;
   /** The Wix variant id. This is what travels in the cart line's `catalogReference.options`. */
   readonly variantId: string;
   /** The label on the page and the cart row. */
   readonly label: string;
-  /** Whole rupees, for display only. */
-  readonly rupees: number;
-  /** The same amount in integer paise, the unit the server and the money core speak. */
-  readonly paise: number;
+  /**
+   * The slug this service's live price is published under, mirroring the server's
+   * SERVICE_KIND_BY_SLUG. Each page reads ITS OWN slug, which is what keeps four pages showing
+   * four prices rather than one.
+   */
+  readonly slug: ServiceSlug;
   /** The page a customer buys this service from. */
   readonly path: string;
   /** Does this service need a target Submit Request of the caller's own? */
@@ -64,22 +76,22 @@ export interface ServiceChoice {
 export const SERVICE_CHOICES: readonly ServiceChoice[] = [
   {
     kind: 'SUBMIT_REQUEST', variantId: 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b',
-    label: 'Submit Request', rupees: 99, paise: 9900, path: '/submit-request/',
+    label: 'Submit Request', slug: 'submit-request', path: '/submit-request/',
     needsTarget: false,
   },
   {
     kind: 'REQUEST_AMENDMENT', variantId: '864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b',
-    label: 'Request Amendment', rupees: 99, paise: 9900, path: '/request-amendment/',
+    label: 'Request Amendment', slug: 'request-amendment', path: '/request-amendment/',
     needsTarget: true,
   },
   {
     kind: 'DROP_DOCS', variantId: 'db166bc8-a763-41ec-9f65-0f718f18155a',
-    label: 'Drop Docs', rupees: 350, paise: 35000, path: '/drop-docs/',
+    label: 'Drop Docs', slug: 'drop-docs', path: '/drop-docs/',
     needsTarget: true,
   },
   {
     kind: 'VAULT', variantId: 'dcff995e-448c-493a-9259-f6a82ccdc2b4',
-    label: 'Vault', rupees: 49, paise: 4900, path: '/vault/',
+    label: 'Vault', slug: 'vault', path: '/vault/',
     needsTarget: true,
   },
 ] as const;

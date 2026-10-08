@@ -46,20 +46,40 @@ def _ts(path: str) -> str:
 
 
 def test_the_server_choices_mirror_the_frontend_contract():
+    """Identity only: variant, slug and needsTarget. NO PRICE on either side any more."""
     source = _ts("src/config/services.ts")
     product = re.search(r"SERVICES_PRODUCT_ID: string = '([0-9a-f-]{36})'", source)
     assert product and {product.group(1)} == set(sr.SERVICE_PRODUCT_IDS)
     choices = re.findall(
-        r"kind: '(\w+)', variantId: '([0-9a-f-]{36})',\s*label: '[^']+', rupees: (\d+), "
-        r"paise: (\d+), path: '[^']+',\s*needsTarget: (true|false),", source)
+        r"kind: '(\w+)', variantId: '([0-9a-f-]{36})',\s*label: '[^']+', "
+        r"slug: '([a-z-]+)', path: '[^']+',\s*needsTarget: (true|false),", source)
     assert len(choices) == 4
-    assert {variant: (kind, int(paise)) for kind, variant, _rupees, paise, _t in choices} == \
-        dict(sr.SERVICE_CHOICES_PAISE)
-    for _kind, _variant, rupees, paise, _t in choices:
-        assert int(rupees) * 100 == int(paise)
+    assert {variant: kind for kind, variant, _slug, _t in choices} == \
+        dict(sr.SERVICE_KIND_BY_VARIANT)
+    # The slug vocabulary is the key the live-price payload is read by, so a drift here would show
+    # one page another page's price -- the exact fault the owner reported.
+    assert {slug: kind for kind, _v, slug, _t in choices} == dict(sr.SERVICE_KIND_BY_SLUG)
     # `needsTarget` mirrors TARGET_REQUIRED_KINDS, which is the rule the server enforces.
-    assert {kind for kind, _v, _r, _p, needs in choices if needs == "true"} == \
+    assert {kind for kind, _v, _s, needs in choices if needs == "true"} == \
         set(sr.TARGET_REQUIRED_KINDS)
+
+
+def test_the_frontend_declares_no_price_at_all():
+    """The owner's requirement, asserted on the DECLARATION rather than on the whole file.
+
+    Scoped to the `SERVICE_CHOICES` block and to the `ServiceChoice` interface, because the
+    docblock legitimately quotes the owner's instruction ("price 49 or 99 can change any time")
+    and a file-wide digit scan would fail on the sentence explaining why the digits left.
+    """
+    source = _ts("src/config/services.ts")
+    assert "rupees" not in source and "paise" not in source
+    for start, end in (("export interface ServiceChoice", "\n}"),
+                       ("export const SERVICE_CHOICES", "] as const;")):
+        block = source[source.index(start):]
+        block = block[:block.index(end)]
+        # Every GUID is stripped first: a variant id is catalogue identity, not a price, and it
+        # is the one place digits belong in this declaration.
+        assert not re.search(r"\d", re.sub(r"'[0-9a-f-]{36}'", "", block)), start
     block = source[source.index("export const NOT_OFFERED_SERVICE_VARIANT_IDS"):]
     block = block[:block.index("] as const")]
     assert set(re.findall(r"'([0-9a-f-]{36})'", block)) == set(sr.NOT_OFFERED_VARIANT_IDS) \
@@ -75,15 +95,27 @@ def test_the_refusal_sentences_mirror_the_frontend():
         assert declared.get(code) == message, code
 
 
-def test_exactly_four_services_are_offered_at_their_committed_paise():
-    assert set(sr.SERVICE_CHOICES_PAISE) == {SUBMIT, AMEND, DROP_DOCS, VAULT}
-    assert sr.SERVICE_CHOICES_PAISE[SUBMIT] == ("SUBMIT_REQUEST", 9900)
-    assert sr.SERVICE_CHOICES_PAISE[AMEND] == ("REQUEST_AMENDMENT", 9900)
-    assert sr.SERVICE_CHOICES_PAISE[DROP_DOCS] == ("DROP_DOCS", 35000)
-    assert sr.SERVICE_CHOICES_PAISE[VAULT] == ("VAULT", 4900)
-    for _kind, paise in sr.SERVICE_CHOICES_PAISE.values():
-        assert type(paise) is int
+def test_exactly_four_services_are_offered_and_the_map_carries_no_price():
+    """Was `..._at_their_committed_paise`. The committed paise are gone; Wix owns the price."""
+    assert dict(sr.SERVICE_KIND_BY_VARIANT) == {
+        SUBMIT: "SUBMIT_REQUEST", AMEND: "REQUEST_AMENDMENT",
+        DROP_DOCS: "DROP_DOCS", VAULT: "VAULT"}
+    assert all(isinstance(kind, str) for kind in sr.SERVICE_KIND_BY_VARIANT.values())
+    assert dict(sr.SERVICE_VARIANT_BY_KIND) == {
+        kind: variant for variant, kind in sr.SERVICE_KIND_BY_VARIANT.items()}
     assert sr.SERVICE_CURRENCY == "INR"
+    assert not hasattr(sr, "SERVICE_CHOICES_PAISE")
+
+
+def test_the_catastrophe_rail_is_wide_enough_not_to_be_a_price_lock():
+    """A rail narrow enough to be a price check would reintroduce the deploy this removed."""
+    assert sr.SERVICE_LINE_MIN_PAISE == 1
+    assert sr.SERVICE_LINE_MAX_PAISE == 5_000_000
+    assert type(sr.SERVICE_LINE_MIN_PAISE) is int
+    assert type(sr.SERVICE_LINE_MAX_PAISE) is int
+    # Every price the owner might plausibly set passes without anybody deploying.
+    for paise in (4900, 9900, 14900, 35000, 99900, 499900):
+        assert sr.SERVICE_LINE_MIN_PAISE <= paise <= sr.SERVICE_LINE_MAX_PAISE
 
 
 def test_nothing_is_refused_by_name_any_more_but_the_guard_is_still_there():
@@ -115,22 +147,25 @@ def test_every_refusal_sentence_says_nothing_was_charged():
 
 # ── the allow-list ────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("variant,expected", [(DROP_DOCS, ("DROP_DOCS", 35000)),
-                                              (VAULT, ("VAULT", 4900))])
-def test_drop_docs_and_vault_are_offered_and_priced(variant, expected):
-    kind, paise = expected
-    assert sr.service_line([line(variant)]) == sr.ServiceLine(kind, variant, paise)
+@pytest.mark.parametrize("variant,kind", [(DROP_DOCS, "DROP_DOCS"), (VAULT, "VAULT")])
+def test_drop_docs_and_vault_are_offered(variant, kind):
+    """`paise` is None: a basket is read BEFORE Wix prices it, so there is nothing to presume."""
+    assert sr.service_line([line(variant)]) == sr.ServiceLine(kind, variant, None)
     assert sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT},
                                  v2_enabled=True) is None
 
 
-@pytest.mark.parametrize("variant,expected", [(DROP_DOCS, ("DROP_DOCS", 35000)),
-                                              (VAULT, ("VAULT", 4900))])
-def test_drop_docs_and_vault_are_allowed_beside_an_ordinary_product(variant, expected):
-    kind, paise = expected
+@pytest.mark.parametrize("variant,kind", [(DROP_DOCS, "DROP_DOCS"), (VAULT, "VAULT")])
+def test_drop_docs_and_vault_are_allowed_beside_an_ordinary_product(variant, kind):
     basket = [kiosk(), line(variant)]
-    assert sr.service_line(basket) == sr.ServiceLine(kind, variant, paise)
+    assert sr.service_line(basket) == sr.ServiceLine(kind, variant, None)
     assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}, v2_enabled=True) is None
+
+
+def test_an_unpriced_line_is_distinguishable_from_a_free_one():
+    """`None` means "not priced yet". A `0` would mean "free", and nothing here may claim that."""
+    assert sr.service_line([line()]).paise is None
+    assert sr.ServiceLine("SUBMIT_REQUEST", SUBMIT).paise is None
 
 
 @pytest.mark.parametrize("variant", ["00000000-0000-4000-8000-000000000001",
@@ -201,17 +236,26 @@ def test_a_contribution_basket_is_not_a_service_basket():
 def test_a_mixed_basket_is_recognised_and_allowed():
     basket = [kiosk(), line(AMEND)]
     assert sr.has_service_line(basket)
-    assert sr.service_line(basket) == sr.ServiceLine("REQUEST_AMENDMENT", AMEND, 9900)
+    assert sr.service_line(basket) == sr.ServiceLine("REQUEST_AMENDMENT", AMEND, None)
     assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}, v2_enabled=True) is None
 
 
-def test_payref_extra_carries_exactly_the_join():
-    assert sr.payref_extra([line()], {"serviceIntentId": INTENT}) == {"serviceLine": {
-        "kind": "SUBMIT_REQUEST", "variantId": SUBMIT, "paise": 9900, "intentId": INTENT}}
+def test_payref_extra_carries_exactly_the_join_with_wixs_own_figure():
+    """The key set is byte-identical to before; only the SOURCE of `paise` moved to Wix."""
+    assert sr.payref_extra([line()], {"serviceIntentId": INTENT}, line_paise=14900) == {
+        "serviceLine": {"kind": "SUBMIT_REQUEST", "variantId": SUBMIT, "paise": 14900,
+                        "intentId": INTENT}}
+
+
+def test_payref_extra_records_an_unpriced_line_as_none_rather_than_zero():
+    row = sr.payref_extra([line()], {"serviceIntentId": INTENT})["serviceLine"]
+    assert row["paise"] is None
+    assert set(row) == {"kind", "variantId", "paise", "intentId"}
 
 
 def test_recognition_is_case_insensitive_on_the_ids():
-    assert sr.service_line([line(SUBMIT.upper(), product=PRODUCT.upper())]).paise == 9900
+    read = sr.service_line([line(SUBMIT.upper(), product=PRODUCT.upper())])
+    assert read == sr.ServiceLine("SUBMIT_REQUEST", SUBMIT, None)
 
 
 # ── the per-line price assertion ──────────────────────────────────────────────
@@ -237,14 +281,46 @@ def calculated(line_paise=9900, *, delivery=0, discount=0, extra_line_paise=None
                                 "total": subtotal - discount + delivery}}
 
 
-def test_the_assertion_passes_at_exactly_9900():
-    sr.assert_service_line_price(calculated(9900), [line()], delivery_required=False)
+def test_the_assertion_returns_wixs_own_figure():
+    assert sr.assert_service_line_price(
+        calculated(9900), [line()], delivery_required=False) == 9900
+    assert sr.assert_service_line_price(None, [kiosk()], delivery_required=False) is None
 
 
-@pytest.mark.parametrize("paise", [9899, 9901, 4900, 35000])
-def test_a_one_paise_disagreement_fails_closed(paise):
+@pytest.mark.parametrize("paise", [1, 4900, 9899, 9901, 14900, 35000, 999900, 5_000_000])
+def test_a_wix_price_edit_is_now_CHARGED_rather_than_refused(paise):
+    """THE BEHAVIOUR INVERSION, 2026-10-08, stated as a test so the change is visible.
+
+    Every one of these figures used to raise ``ServicePriceChanged`` -- which is to say a price
+    edited in Wix refused the purchase until somebody deployed. The owner's requirement is that a
+    price be changeable in Wix with no deploy, so Wix's figure is now what is charged, and the
+    assertion returns it.
+    """
+    assert sr.assert_service_line_price(
+        calculated(paise), [line()], delivery_required=False) == paise
+
+
+@pytest.mark.parametrize("paise", [5_000_001, 9_999_900, 100_000_000])
+def test_a_figure_above_the_rail_still_fails_closed(paise):
+    """The one thing the rail is for: a Wix typo of the Rs.99,999 shape, not a price decision."""
     with pytest.raises(sr.ServicePriceChanged):
         sr.assert_service_line_price(calculated(paise), [line()], delivery_required=False)
+
+
+def test_a_zero_line_fails_closed():
+    """A free service line would charge a convenience fee on nothing."""
+    with pytest.raises(sr.ServicePriceChanged):
+        sr.assert_service_line_price(calculated(0), [line()], delivery_required=False)
+
+
+def test_observed_service_line_paise_reads_the_same_figure_without_asserting():
+    assert sr.observed_service_line_paise(calculated(14900)) == 14900
+    # Non-raising on every unreadable shape: the assertion, not this, is what refuses a basket.
+    assert sr.observed_service_line_paise({"cart": {}, "summary": {}}) is None
+    assert sr.observed_service_line_paise(calculated(5_000_001)) == 5_000_001
+    broken = calculated()
+    broken["summary"]["lineItems"][0]["totalPrice"] = {"amount": "not-money"}
+    assert sr.observed_service_line_paise(broken) is None
 
 
 def test_the_assertion_is_a_cart_contract_error_so_create_answers_409_not_500():

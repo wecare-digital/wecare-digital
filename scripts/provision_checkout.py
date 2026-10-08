@@ -104,6 +104,11 @@ ROUTE_KEYS = (
     "POST /ecommerce/checkout/status",
     "POST /ecommerce/prepare-checkout",
     "POST /ecommerce/verify-callback",
+    # The ONE anonymous arm: the four public service pages read their live Wix price from it
+    # before a visitor has signed in. GET only, no input of any kind, and allow-listed by name in
+    # `scripts/audit_route_auth.py` with its justification. `handler.handler` routes it ahead of
+    # `require_customer`; every other method on this path still requires a session.
+    "GET /ecommerce/service-prices",
 )
 
 #: Superseded statement ids, removed only once the per-route statements are in place.

@@ -141,9 +141,27 @@ def _nothing_reserved(h, fake):
     assert payrefs(fake) == []
 
 
-@pytest.mark.parametrize("rupees", [98, 100])
-def test_a_wix_price_edit_refuses_with_nothing_reserved(monkeypatch, rupees):
+@pytest.mark.parametrize("rupees", [98, 100, 149, 999])
+def test_a_wix_price_edit_is_CHARGED_at_the_new_figure(monkeypatch, rupees):
+    """INVERTED 2026-10-08. This used to assert 409 SERVICE_PRICE_CHANGED.
+
+    Wix is the price authority now, so an edited price is charged rather than refusing the
+    purchase, and the `PAYREF#` row records WIX'S figure. That is the whole of the owner's
+    requirement: a price changes in Wix, with no deploy, and the next checkout honours it.
+    """
     h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch, rupees=rupees))
+    response = prepare(h, [service()])
+    assert response["statusCode"] == 200, body_of(response)
+    [attempt] = fake.all_rows(ATTEMPTS_TABLE)
+    assert int(attempt["amountPaise"]) == cp.compute_quote(rupees * 100).total_payable_paise
+    [row] = payrefs(fake)
+    assert row["serviceLine"]["paise"] == rupees * 100
+    assert type(row["serviceLine"]["paise"]) is int
+
+
+def test_a_figure_above_the_catastrophe_rail_still_refuses_with_nothing_reserved(monkeypatch):
+    """The rail, measured at the handler: Rs.99,999 is a Wix typo shape, not a price decision."""
+    h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch, rupees=99_999))
     response = prepare(h, [service()])
     assert (response["statusCode"], body_of(response)["error"]) == (409, "SERVICE_PRICE_CHANGED")
     assert body_of(response)["message"].endswith("Nothing has been charged.")
@@ -183,14 +201,17 @@ def test_drop_docs_and_vault_prepare_at_ordinary_order_pricing(monkeypatch, vari
                                   "paise": rupees * 100, "intentId": INTENT}
 
 
-@pytest.mark.parametrize("variant,rupees", [(DROP_DOCS, 349), (DROP_DOCS, 351),
-                                            (VAULT, 48), (VAULT, 50)])
-def test_a_wix_price_edit_on_a_new_service_refuses_with_nothing_reserved(monkeypatch, variant,
-                                                                        rupees):
+@pytest.mark.parametrize("variant,rupees,kind", [(DROP_DOCS, 349, "DROP_DOCS"),
+                                                 (DROP_DOCS, 351, "DROP_DOCS"),
+                                                 (VAULT, 48, "VAULT"), (VAULT, 50, "VAULT")])
+def test_a_wix_price_edit_on_a_new_service_is_also_CHARGED(monkeypatch, variant, rupees, kind):
+    """INVERTED with the case above, and for the same reason. All four services behave alike."""
     h, fake, _wix = make_env(monkeypatch, wix=services_wix(monkeypatch, rupees=rupees))
     response = prepare(h, [service(variant)])
-    assert (response["statusCode"], body_of(response)["error"]) == (409, "SERVICE_PRICE_CHANGED")
-    _nothing_reserved(h, fake)
+    assert response["statusCode"] == 200, body_of(response)
+    [row] = payrefs(fake)
+    assert row["serviceLine"] == {"kind": kind, "variantId": variant,
+                                  "paise": rupees * 100, "intentId": INTENT}
 
 
 def test_a_fifth_variant_of_the_same_product_is_still_refused_before_any_wix_call(monkeypatch):

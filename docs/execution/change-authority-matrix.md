@@ -3113,3 +3113,49 @@ A3_PRODUCTION: inbound-whatsapp live 83, previous version 82 captured; revision-
 | A3_PRODUCTION | wecare-contacts live 31 to 32 | Existing package preserved, only handler._delete and lambda_utils/ecommerce/contact_payment_links.py replaced. Published hash aol0YdzlAwRKypYOhpQqyz5fFyCkPYdg4k+jB45l/hs=; Active/Successful verified before alias move. | Move live alias back to 31 using current revision guard. |
 
 Previously archived/recreated contacts are not migrated by this change. Invoice delivery continues by invoice/payment reference and stored recipient phone; financial ownership is not rewritten on a phone match. Manual contact lock remains available and blocks both archive and permanent deletion.
+## 2026-10-08 — Wix is the live price authority for the four WECARE.DIGITAL services
+
+Owner instruction: "price 49 or 99 can change any time so make dynamic wsyin with wix". Branch
+`feat/wix-service-pricing`, base `e8c2ddfc`. Nothing deployed from this change.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | New `lambda_utils/ecommerce/service_pricing.py`; `GET /ecommerce/service-prices` arm in `ecommerce/checkout/handler.py`; new `src/lib/servicePricing.ts`; `src/components/ServiceRequestPurchase.tsx` reads the live price | Price resolved through the SAME path the cart uses (`cart_v2.CartV2.create`/`get`/`estimate`), so there is no second pricing code path. 9525 Python tests pass (1 pre-existing unrelated failure in `test_crm_customer_login`, files byte-identical to HEAD); 1509 frontend tests pass (1 pre-existing unrelated `VayuLokLive` failure); `npx tsc --noEmit` clean; full build chain green via `next build --webpack`. | Revert the scoped commit. |
+| A1_LOCAL | **Charging authority moved from a committed constant to Wix.** `SERVICE_CHOICES_PAISE` deleted; `SERVICE_KIND_BY_VARIANT` replaces it | A Wix price edit previously answered `409 SERVICE_PRICE_CHANGED` until somebody deployed — the page could show a figure the checkout refused. Wix's own line price is now charged, bounded by ONE catastrophe rail: `SERVICE_LINE_MIN_PAISE = 1`, `SERVICE_LINE_MAX_PAISE = 5_000_000` (Rs.50,000). Not a price lock: 49 -> 149 -> 999 pass with no deploy. **Owner-visible limit:** a service genuinely priced above Rs.50,000 is refused until that constant is raised. Four tests INVERTED rather than deleted so the change is visible in the diff. | Restore the constant and the equality check from `e8c2ddfc`. |
+| A1_LOCAL | Public-route exemption, two files | `GET /ecommerce/service-prices` added to `EXPECTED_PUBLIC_ROUTES` (`scripts/audit_route_auth.py`) and to the literal set in `tests/test_route_auth_enforcement.py`, both with the justification sentence. Deliberately two edits in two files — exempting a route from authentication is not a one-line change. GET only; POST on the same path still requires a customer session, pinned by `tests/test_service_prices_route.py`. | Remove both lines and the handler arm. |
+| A1_LOCAL | `scripts/provision_checkout.py` ROUTE_KEYS and `amplify/infra/checkout.json` | IaC updated in the SAME change. Route targets the `:live` alias through the existing `AWS_PROXY` integration, with a per-route invoke permission whose ARN pins `GET`. `provision_checkout.py --dry-run` reports `would create GET /ecommerce/service-prices` as the only addition and `dry run: nothing changed`. No IAM statement changes: the arm reads the Wix key and the commerce-keys table the checkout path already holds. | Delete the route and the `apigateway-invoke-get-ecommerce-service-prices` statement. |
+| A1_LOCAL | Four permanent `SERVICEPRICECART#<variantId>` pointer rows on `stack-wecare-digital-WixOrderIds` | Bounds unauthenticated Wix cart CREATION to four carts for the lifetime of the feature; without the pointer a public endpoint would create a cart per cache miss. Pointer is reused on every read; `cart_v2.CartGone` discards it and mints a fresh cart. Rows are pointers, not expiring uniqueness claims, so permanent is correct and the table's TTL stays DISABLED as `order_keys` requires. No table, schema or IAM change. | Delete the four rows; the next read recreates them. |
+| A1_LOCAL | One-login flow: `safeReturnPath.ALLOWED` gains `/drop-docs/` and `/vault/`; the sign-in CTA routes through `serviceEntry.goToServiceAction` | Two real defects. `ALLOWED` held only the two Phase O-1 pages, so signing in from Drop Docs or Vault landed on `/cart/` instead of back on the page. The CTA hand-built `/account/sign-in/?return=...` instead of using the one gate. The CTA stays an `<a>` with a real `href`, so the accessible role, open-in-new-tab and the no-JS path survive. `SafeReturnPath.test.ts`'s page-existence loop is now driven off `SERVICE_CHOICES`, which is the gap that let the two pages go missing. | Revert the scoped commit. |
+
+**Price staleness window: ~60 seconds.** `service_pricing.CACHE_SECONDS = 60` holds the payload in
+a warm sandbox and the response carries `Cache-Control: public, max-age=60`, so a Wix edit appears
+on the page within about a minute. DISPLAY only — the checkout re-prices the line against Wix at
+the moment of payment, so a stale card cannot produce a stale charge.
+
+**Fail closed, with no fallback figure anywhere.** An unresolvable slug reports
+`{"available": false}` with no `paise` key; the card then shows "This service may be temporarily
+unavailable." and renders NEITHER call to action, so no path reaches payment on a guessed price.
+One slug failing leaves the other three on sale. INR is compared EXPLICITLY against Wix's own
+`businessInfo`/`customerInfo`/`paymentInfo` `currencyCode` on both the fresh-cart and the reuse
+path — never `estimate()["currency"]`, which is a literal inside `CartV2._not_payable`. Integer
+paise throughout; no float arithmetic, including the rupee display.
+
+**Deviation from the plan, recorded because it prevented a regression.** Plan item 6 called for
+suppressing both CTAs when the committed catalogue says the variant is out of stock. Measured
+first: `src/content/wix-catalog.json` records ALL FOUR service variants as `inStock: false` while
+all four are on sale, and that hint has always been non-blocking here ("checkout's 409 is the
+authority"). Following the plan would have taken every service off sale on a stale snapshot. The
+sentence still shows for it; only an unresolved LIVE PRICE suppresses the CTAs.
+
+**Not live until the alias moves** (`.kiro/steering/lambda-snapstart-deploy.md`). Deployer runs
+`scripts/deploy_all_lambdas.py wecare-checkout`, then `scripts/provision_checkout.py`, then
+`scripts/snapstart_publish.py wecare-checkout` if the deploy was by hand.
+
+**Runtime checks outstanding**, and they cannot be done before the route is deployed: load all
+four pages and confirm four DISTINCT live amounts (the owner's "each is a different item"
+report); then change one price in Wix and confirm the card follows within ~60s AND that a
+checkout at the new price is ACCEPTED rather than refused with `SERVICE_PRICE_CHANGED`.
+
+No live-send flag enabled. No payment capture, refund or payment-configuration mutation. No
+credential read outside the existing by-reference lazy read in `wix_ecom._request`. No new
+bucket, table or IAM grant. Razorpay remains the only gateway.

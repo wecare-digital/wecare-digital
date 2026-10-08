@@ -45,7 +45,15 @@ export interface ServiceIntent {
   intentId: string;
   kind: ServiceKind;
   variantId: string;
-  amountPaise: number;
+  /**
+   * ALWAYS `null` since 2026-10-08: PRICED AT CHECKOUT, by Wix. An intent is pre-payment, and
+   * the server stores no amount on it (service_request_store `_new_intent`), because a stored
+   * figure would be a guess — and a guess on a money row is what later gets compared against
+   * reality and refuses an honest payment. The key is kept on the wire so the payload stays a
+   * superset of what this module reads, and `null` says "not priced yet" where a `0` would have
+   * claimed the service is free. Read the live price from `src/lib/servicePricing.ts` instead.
+   */
+  amountPaise: number | null;
   currency: string;
   targetRequestId: string | null;
 }

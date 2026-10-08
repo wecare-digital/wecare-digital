@@ -6,28 +6,41 @@ import {
 import { isServiceRefusal, SERVICE_REFUSAL_MESSAGES } from '../lib/serviceRequests';
 
 describe( 'the services config', () => {
-  it( 'declares the one product, INR, and exactly four offered services in integer paise', () => {
+  it( 'declares the one product, INR, and exactly four offered services with NO price', () => {
     expect( SERVICES_PRODUCT_ID ).toBe( 'df976a0a-f582-4535-b2e1-d532f348bd27' );
     expect( SERVICES_CURRENCY ).toBe( 'INR' );
     expect( SERVICE_CHOICES.map( c => c.kind ) ).toEqual(
       [ 'SUBMIT_REQUEST', 'REQUEST_AMENDMENT', 'DROP_DOCS', 'VAULT' ] );
+    // NO `rupees` AND NO `paise`, since 2026-10-08. Owner decision: a price must be changeable
+    // in Wix with no deploy, so the only price a page shows is the live one it fetches. Asserted
+    // on the objects themselves rather than only in the type, because a type error is not a
+    // runtime guarantee and this file is also what `tests/test_service_requests.py` mirrors.
     for ( const choice of SERVICE_CHOICES )
     {
-      expect( choice.rupees * 100 ).toBe( choice.paise );
-      expect( Number.isInteger( choice.paise ) ).toBe( true );
+      expect( Object.keys( choice ).sort() ).toEqual(
+        [ 'kind', 'label', 'needsTarget', 'path', 'slug', 'variantId' ] );
+    }
+    // The slug vocabulary is the key the live-price payload is read by. Four pages, four slugs.
+    expect( SERVICE_CHOICES.map( c => c.slug ) ).toEqual(
+      [ 'submit-request', 'request-amendment', 'drop-docs', 'vault' ] );
+    expect( new Set( SERVICE_CHOICES.map( c => c.slug ) ).size ).toBe( 4 );
+    // Each slug matches its own page path, so a card cannot request another page's price.
+    for ( const choice of SERVICE_CHOICES )
+    {
+      expect( choice.path ).toBe( `/${ choice.slug }/` );
     }
     expect( SERVICES_CONFIGURED ).toBe( true );
   } );
 
-  it( 'offers Drop Docs at 35000 paise and Vault at 4900, both needing a target', () => {
+  it( 'offers Drop Docs and Vault, both needing a target, neither carrying a price', () => {
     expect( NOT_OFFERED_SERVICE_VARIANT_IDS ).toHaveLength( 0 );
     expect( serviceByKind( 'DROP_DOCS' ) ).toMatchObject( {
       variantId: 'db166bc8-a763-41ec-9f65-0f718f18155a', label: 'Drop Docs',
-      rupees: 350, paise: 35000, path: '/drop-docs/', needsTarget: true,
+      slug: 'drop-docs', path: '/drop-docs/', needsTarget: true,
     } );
     expect( serviceByKind( 'VAULT' ) ).toMatchObject( {
       variantId: 'dcff995e-448c-493a-9259-f6a82ccdc2b4', label: 'Vault',
-      rupees: 49, paise: 4900, path: '/vault/', needsTarget: true,
+      slug: 'vault', path: '/vault/', needsTarget: true,
     } );
     expect( serviceByKind( 'SUBMIT_REQUEST' )?.needsTarget ).toBe( false );
     expect( serviceByKind( 'REQUEST_AMENDMENT' )?.needsTarget ).toBe( true );

@@ -104,9 +104,11 @@ def submitted(table, keys, customer=ALICE):
 def test_an_intent_is_not_a_request(table):
     intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
     assert sr.INTENT_ID_RE.match(intent["intentId"])
+    # `amountPaise` is None: an intent is pre-payment, and Wix prices the line at checkout.
     assert intent == {"intentId": intent["intentId"], "kind": "SUBMIT_REQUEST",
-                      "variantId": SUBMIT, "amountPaise": 9900, "currency": "INR",
+                      "variantId": SUBMIT, "amountPaise": None, "currency": "INR",
                       "targetRequestId": None}
+    assert "amountPaise" not in table.rows["INTENT#" + intent["intentId"]]
     assert rows(table, "REQ#") == [] and rows(table, "REQNO#") == []
 
 
@@ -148,15 +150,14 @@ def test_a_different_amendment_target_supersedes_the_open_intent(table, keys):
     assert claim["targetIntentId"] == second["intentId"] and claim["isConsumed"] is False
 
 
-@pytest.mark.parametrize("kind,variant,paise", [("DROP_DOCS", DROP_DOCS, 35000),
-                                                ("VAULT", VAULT, 4900)])
-def test_drop_docs_and_vault_mint_an_intent_against_a_target(table, keys, kind, variant, paise):
+@pytest.mark.parametrize("kind,variant", [("DROP_DOCS", DROP_DOCS), ("VAULT", VAULT)])
+def test_drop_docs_and_vault_mint_an_intent_against_a_target(table, keys, kind, variant):
     target, _ = submitted(table, keys)
     intent = store.request_intent(table, who(), kind, target.request_public_id)
     assert intent == {"intentId": intent["intentId"], "kind": kind, "variantId": variant,
-                      "amountPaise": paise, "currency": "INR",
+                      "amountPaise": None, "currency": "INR",
                       "targetRequestId": target.request_public_id}
-    assert type(table.rows["INTENT#" + intent["intentId"]]["amountPaise"]) is int
+    assert "amountPaise" not in table.rows["INTENT#" + intent["intentId"]]
     # Its own OPEN# claim, per service, so one does not displace another.
     assert table.rows[f"OPEN#{ALICE}#{variant}"]["isConsumed"] is False
 
@@ -290,9 +291,9 @@ def test_a_stale_consume_leaves_a_claim_that_has_since_moved_alone(table):
     _seed_claim(table, "01928f3e-7b2a-7c3d-8e4f-000000000000")
     moved_to = "01928f3e-7b2a-7c3d-8e4f-111111111111"
     table.seed({"requestId": "INTENT#" + moved_to, "ownerCustomerId": ALICE,
-                "kind": "SUBMIT_REQUEST", "variantId": SUBMIT, "amountPaise": 9900,
+                "kind": "SUBMIT_REQUEST", "variantId": SUBMIT,
                 "currency": "INR", "status": "OPEN", "statusRank": 0,
-                "intentFingerprint": store._fingerprint("SUBMIT_REQUEST", SUBMIT, 9900, "")})
+                "intentFingerprint": store._fingerprint("SUBMIT_REQUEST", SUBMIT, "")})
     original_put = table.put_item
     state = {"moved": False}
 
@@ -456,7 +457,14 @@ def test_an_abandoned_intent_paid_later_still_activates(table, keys):
 @pytest.mark.parametrize("override,reason", [
     ({"customer": BOB}, "CUSTOMER_MISMATCH"),
     ({"variant": AMEND, "kind": "REQUEST_AMENDMENT"}, "VARIANT_MISMATCH"),
-    ({"paise": 9901}, "AMOUNT_MISMATCH"),
+    # AMOUNT_MISMATCH is now a SHAPE failure, not a value disagreement: Wix owns the price, so
+    # there is no committed figure left to differ from. `9901` used to be the case here and is
+    # now a perfectly ordinary price. What still refuses is a recorded amount that cannot have
+    # been charged -- absent, zero, or outside the catastrophe rail. The reason code is kept
+    # verbatim so existing PAID_SERVICE_UNMATCHED alerts and runbooks still match.
+    ({"paise": None}, "AMOUNT_MISMATCH"),
+    ({"paise": 0}, "AMOUNT_MISMATCH"),
+    ({"paise": 5_000_001}, "AMOUNT_MISMATCH"),
 ])
 def test_customer_mismatch_variant_mismatch_and_amount_mismatch_create_no_request_and_alert(
         table, keys, caplog, override, reason):

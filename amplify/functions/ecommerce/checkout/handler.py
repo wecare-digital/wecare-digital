@@ -108,6 +108,9 @@ from lambda_utils.ecommerce.blog_contribution import (
 # per-line price assertion. All logic lives in the module; this file only calls it.
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.ecommerce.service_requests import ServiceNotPayable, ServicePriceChanged
+# The LIVE Wix price of each service, for the four public service pages. Same adapter, same cart,
+# same figure the checkout charges -- see `_service_prices` below for why this arm lives here.
+from lambda_utils.ecommerce import service_pricing
 from lambda_utils.integrations import razorpay_orders, razorpay_verify
 from lambda_utils import wix_ecom
 # Aliased `customer_identity`, NEVER `identity`: `identity` is a parameter name in nearly every
@@ -354,6 +357,55 @@ def _action(event: Dict[str, Any], body: Dict[str, Any]) -> str:
     return "create"
 
 
+#: The one error code the public price arm can answer with. No detail: an anonymous caller learns
+#: that prices are unavailable, which is all it needs to render the honest unavailable state.
+SERVICE_PRICES_UNAVAILABLE = "SERVICE_PRICES_UNAVAILABLE"
+
+
+def _service_prices(origin: str) -> Dict[str, Any]:
+    """`GET /ecommerce/service-prices` -> every service's LIVE Wix price, in integer paise.
+
+    WHY THIS LIVES IN THE CHECKOUT LAMBDA. It is the only function carrying `WIX_API_KEY_SECRET`
+    *and* the live `WIX_SITE_ID` *and* `WIX_CART_V2_ENABLED`, and it already owns `_wix_request`
+    and the `cart_v2` adapter. `wecare-service-requests` is structurally barred from Wix (it
+    imports no Wix module and reads no secret, and `scripts/provision_service_requests.py`
+    enforces that in its role policy), so putting the call there would break a guarantee a test
+    enumerates. `wecare-wix-store`'s site id is fingerprinted rather than recorded in the
+    manifest, so which site it points at is UNVERIFIED -- and pricing against the wrong site is
+    precisely the drift this endpoint exists to remove.
+
+    FAILS CLOSED, TWICE OVER. With Cart V2 off there is no pricing path at all, so this answers
+    503 rather than an empty payload a browser might read as "free". If Wix prices nothing, it
+    answers 503 for the same reason. A PARTIAL result is served at 200: the slugs that resolved
+    carry their price and the rest carry `{"available": false}` with no `paise` key, because one
+    service Wix cannot price is no reason to take the other three off sale.
+
+    Logs counts only. No credential, no cart id, no provider message.
+    """
+    if not cart_v2.is_enabled():
+        logger.warning(json.dumps({"event": "service_prices_disabled"}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    try:
+        payload = service_pricing.resolve_all(cart_v2.CartV2(_wix_request), _keys_table())
+    except Exception as exc:  # noqa: BLE001 -- `type(exc).__name__` only, never provider text
+        logger.error(json.dumps({"event": "service_prices_failed",
+                                 "error": type(exc).__name__}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    priced = sum(1 for price in payload["prices"].values() if price.get("available"))
+    if not priced:
+        logger.error(json.dumps({"event": "service_prices_none_resolved",
+                                 "slugs": len(payload["prices"])}))
+        return cors_response(503, {"error": SERVICE_PRICES_UNAVAILABLE}, origin)
+    logger.info(json.dumps({"event": "service_prices_served", "priced": priced,
+                            "slugs": len(payload["prices"])}))
+    response = cors_response(200, payload, origin)
+    # Post-processed because `cors_response` takes no header argument. The edge in front of
+    # `/api/*` then absorbs the anonymous traffic, so a warm sandbox performs at most one Wix
+    # round per minute -- the same window `service_pricing.CACHE_SECONDS` holds.
+    response["headers"]["Cache-Control"] = f"public, max-age={service_pricing.CACHE_SECONDS}"
+    return response
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # FIRST, before any branch, so every frame below can ask how much of the invocation is left
     # without the context being threaded through four signatures. See `_set_deadline`.
@@ -363,6 +415,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method = rc.get("http", {}).get("method", event.get("httpMethod", "")).upper()
     if method == "OPTIONS":
         return options_response(origin)
+
+    # THE ONE PRE-AUTH ARM, and it is deliberately the narrowest shape that can exist: GET only,
+    # on one exact path, taking no path parameter, no query string and no body. Nothing a caller
+    # supplies reaches Wix or a table, which is what makes an anonymous route safe here. Mirrors
+    # how `wix-store/handler.py` routes `/wix-store/cart` ahead of `require_auth`.
+    #
+    # It must come BEFORE `require_customer`, because a visitor reading a public service page has
+    # no session yet and the price is the thing that decides whether they sign in at all. Any
+    # other method or path falls straight through to the authenticated chain unchanged.
+    if method == "GET" and str(event.get("rawPath") or event.get("path") or "") \
+            .rstrip("/").lower().endswith("/ecommerce/service-prices"):
+        return _service_prices(origin)
 
     # Every checkout action requires a proven customer session. Unlike registration/email-OTP,
     # this endpoint is NOT public: by the time a customer reaches checkout they have signed in, and
@@ -1018,7 +1082,17 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
                     "policyVersion": snapshot.policy_version,
                     # Phase O-1: `{"serviceLine": {...}}` for a services basket, `{}` otherwise,
                     # so every other PAYREF# row is byte-identical to before.
-                    **service_requests.payref_extra(line_items, body),
+                    #
+                    # `line_paise` is WIX'S OWN price for the service line, re-read from the
+                    # same `calculated` that `_v2_snapshot` already asserted, never a committed
+                    # constant (see service_requests' "WIX IS THE PRICE AUTHORITY"). It is
+                    # `None` when there is no calculation -- the V1 branch, which
+                    # `checkout_preflight` refuses for a services basket with 503 before
+                    # reaching here -- so an unpriced row cannot be minted by this path.
+                    **service_requests.payref_extra(
+                        line_items, body,
+                        line_paise=(service_requests.observed_service_line_paise(calculated)
+                                    if calculated is not None else None)),
                     # THE PUBLIC CUSTOMER ID, on this row as well as on the attempt, and that is
                     # not redundant: the webhook lineage reads attribution off the `PAYREF#` row
                     # (`razorpay-webhook._load_attempt`) while the finalisation lineage reads it

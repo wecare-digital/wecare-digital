@@ -677,9 +677,17 @@ export const isServiceItem = ( item: CartItem ): boolean =>
  * Exactly one service per order (the server refuses two), quantity 1, display name and price from
  * config. An unrecognised variant - including Drop Docs and Vault - writes nothing.
  */
-export function setServiceLine ( variantId: string, intentId: string ): CartItem[] {
+export function setServiceLine (
+  variantId: string, intentId: string, linePaise: number,
+): CartItem[] {
   const choice = serviceChoice( variantId );
   if ( !SERVICES_PRODUCT_ID || !choice || !intentId ) return readCart();
+  // `linePaise` is WIX'S LIVE price for the variant, passed in by the buy box, which only offers
+  // the line once it has one. There is no figure in `src/config/services.ts` to fall back on any
+  // more (owner decision 2026-10-08: a price is editable in Wix with no deploy), and inventing
+  // one here would put a number on a cart row that the checkout had never priced. A row with no
+  // usable amount is therefore not written at all.
+  if ( !Number.isSafeInteger( linePaise ) || linePaise <= 0 ) return readCart();
   const items = readCart().filter( item => !isServiceItem( item ) );
   items.push( {
     productId: SERVICES_PRODUCT_ID,
@@ -688,7 +696,10 @@ export function setServiceLine ( variantId: string, intentId: string ): CartItem
     // Empty, so the cart row does not link to a /shop/ page that deliberately does not exist.
     slug: '',
     name: choice.label,
-    formattedPrice: `\u20B9${ choice.rupees }.00`,
+    // Integer division and modulo, never `linePaise / 100`. Display only: `toLineItems` stays
+    // price-free and the checkout re-prices the line against Wix.
+    formattedPrice: `\u20B9${ Math.trunc( linePaise / 100 ) }`
+      + `.${ String( linePaise % 100 ).padStart( 2, '0' ) }`,
     quantity: 1,
   } );
   if ( hasWindow() )

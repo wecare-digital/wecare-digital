@@ -75,16 +75,28 @@ def test_no_environment_value_looks_like_a_credential(provisioner):
 
 # ── routes and the alias-qualified invoke ─────────────────────────────────────
 
-def test_exactly_four_route_keys_and_no_proxy(provisioner):
+def test_exactly_five_route_keys_and_no_proxy(provisioner):
+    """Five since 2026-10-08, and the fifth is the only GET.
+
+    `GET /ecommerce/service-prices` is the anonymous live-price read the four public service
+    pages make before a visitor has signed in. It is allow-listed by name in
+    `scripts/audit_route_auth.py` and in `tests/test_route_auth_enforcement.py` -- two edits in
+    two files, which is the gate on exempting a route from authentication. The method matters as
+    much as the path, so the per-key assertion below is method-aware rather than being relaxed
+    to "any method": a POST to this path must stay behind `require_customer`.
+    """
     assert provisioner.ROUTE_KEYS == (
         "POST /ecommerce/checkout",
         "POST /ecommerce/checkout/status",
         "POST /ecommerce/prepare-checkout",
         "POST /ecommerce/verify-callback",
+        "GET /ecommerce/service-prices",
     )
+    public = {"GET /ecommerce/service-prices"}
     for key in provisioner.ROUTE_KEYS:
         assert "{" not in key, f"{key} is a greedy/path-parameter route"
-        assert key.startswith("POST "), f"{key} widens the surface past POST"
+        assert key.startswith("GET " if key in public else "POST "), \
+            f"{key} widens the surface past its intended method"
 
 
 def test_the_integration_targets_the_live_alias(provisioner):
@@ -171,6 +183,12 @@ def test_the_source_arn_holds_no_wildcard_at_all(provisioner, monkeypatch):
         "POST /ecommerce/verify-callback":
             "arn:aws:execute-api:us-east-1:775261844268:zllr9lrg7j/prod/POST/ecommerce/"
             "verify-callback",
+        # The anonymous price read. Its ARN pins GET: the statement authorises API Gateway to
+        # invoke this function for GET on this one path and for nothing else, so the public
+        # exemption cannot silently widen to POST at the permission layer either.
+        "GET /ecommerce/service-prices":
+            "arn:aws:execute-api:us-east-1:775261844268:zllr9lrg7j/prod/GET/ecommerce/"
+            "service-prices",
     }
     for key, arn in rendered.items():
         assert "*" not in arn, f"{key} -> {arn} still carries a wildcard"
@@ -188,7 +206,8 @@ def test_one_statement_id_per_route_and_they_are_distinct(provisioner):
     assert ids == ["apigateway-invoke-post-ecommerce-checkout",
                    "apigateway-invoke-post-ecommerce-checkout-status",
                    "apigateway-invoke-post-ecommerce-prepare-checkout",
-                   "apigateway-invoke-post-ecommerce-verify-callback"]
+                   "apigateway-invoke-post-ecommerce-verify-callback",
+                   "apigateway-invoke-get-ecommerce-service-prices"]
     assert len(set(ids)) == len(ids), "two routes would share one statement"
     # Lambda accepts [a-zA-Z0-9-_]+ only; a '/' or ' ' here is a ValidationException at runtime.
     for sid in ids:
@@ -739,18 +758,24 @@ def test_the_verdict_is_never_anonymous(provisioner):
 
 # ── the IaC declaration matches what the script creates ───────────────────────
 
-def test_the_template_declares_the_same_four_routes():
-    """`ROUTE_KEYS` has held four since the website path landed; the template declared two.
+def test_the_template_declares_the_same_routes_the_script_creates(provisioner):
+    """`ROUTE_KEYS` and the template, held equal rather than at a fixed count.
 
-    That mismatch is not cosmetic: the template is the declaration of record, and two of the four
-    routes the script grants had no declaration at all -- including
-    POST /ecommerce/verify-callback, which is the route a paying browser returns to.
+    The original of this test pinned four literal POST routes, and the mismatch it caught was not
+    cosmetic: the template is the declaration of record and two of the routes the script grants
+    had no declaration at all -- including POST /ecommerce/verify-callback, which is the route a
+    paying browser returns to. Derived from `ROUTE_KEYS` now, because the fifth route arriving on
+    2026-10-08 (`GET /ecommerce/service-prices`) showed that a fixed list has to be edited in
+    two places to express one fact; the property worth asserting is that the two AGREE.
     """
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     keys = sorted(r["Properties"]["RouteKey"] for r in template["Resources"].values()
                   if r["Type"] == "AWS::ApiGatewayV2::Route")
-    assert keys == ["POST /ecommerce/checkout", "POST /ecommerce/checkout/status",
-                    "POST /ecommerce/prepare-checkout", "POST /ecommerce/verify-callback"]
+    assert keys == sorted(provisioner.ROUTE_KEYS)
+    # The method vocabulary is still pinned literally: exactly one GET, and it is the public
+    # price read. Anything else arriving as a GET on this function is a widening to notice.
+    assert [key for key in keys if key.startswith("GET ")] == \
+        ["GET /ecommerce/service-prices"]
 
 
 def test_the_template_keeps_the_gate_absent():
@@ -762,11 +787,12 @@ def test_the_template_keeps_the_gate_absent():
     assert env["EXPECTED_PROVIDER_MID"] == ""
 
 
-def test_the_template_qualifies_every_invoke_permission():
+def test_the_template_qualifies_every_invoke_permission(provisioner):
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     permissions = {name: r["Properties"] for name, r in template["Resources"].items()
                    if r["Type"] == "AWS::Lambda::Permission"}
-    assert len(permissions) == 4, "one statement per route - see WhyOneStatementPerRoute"
+    assert len(permissions) == len(provisioner.ROUTE_KEYS), \
+        "one statement per route - see WhyOneStatementPerRoute"
     for name, permission in permissions.items():
         assert permission["Qualifier"] == "live", name
         assert permission["Principal"] == "apigateway.amazonaws.com", name

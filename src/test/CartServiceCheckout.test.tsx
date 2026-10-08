@@ -18,6 +18,15 @@ import Cart from '../pages/cart';
 
 const [ SUBMIT ] = SERVICE_CHOICES;
 const INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f';
+/**
+ * The LIVE Wix price, injected. `setServiceLine` takes the line paise explicitly since
+ * 2026-10-08: `src/config/services.ts` no longer declares a price (owner decision — a price is
+ * editable in Wix with no deploy), so the cart row's displayed amount has to come from the live
+ * figure the buy box resolved. One constant here rather than a number per call, and deliberately
+ * NOT 9900: a figure that happens to match the old constant could pass for the wrong reason.
+ */
+const LIVE_PAISE = 14900;
+
 const CTA = /Pay securely|Proceed|Try again|Preparing/;
 const ADDRESS = {
   addressLine1: '12 MG Road', addressLine2: '', locality: '', city: 'Bengaluru',
@@ -66,7 +75,7 @@ afterEach( () => {
 describe( 'the prepare body', () => {
   it( 'carries serviceIntentId for a services basket', async () => {
     stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } } ] );
-    cart.setServiceLine( SUBMIT.variantId, INTENT );
+    cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
     render( <Cart /> );
     fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
     await waitFor( () => expect( prepareBodies ).toHaveLength( 1 ) );
@@ -101,7 +110,7 @@ describe( 'the request key keys on the service intent (review AMEND-INTENT-RESUM
 
   it( 'keeps the same key for the same lines and the same intent', async () => {
     stub( [ DISABLED ] );
-    cart.setServiceLine( AMEND.variantId, INTENT );
+    cart.setServiceLine( AMEND.variantId, INTENT, LIVE_PAISE );
     const first = await prepareOnce();
     const second = await prepareOnce();
     expect( prepareBodies ).toHaveLength( 2 );
@@ -110,9 +119,9 @@ describe( 'the request key keys on the service intent (review AMEND-INTENT-RESUM
 
   it( 'mints a fresh key when the amendment target changes the intent, lines unchanged', async () => {
     stub( [ DISABLED ] );
-    cart.setServiceLine( AMEND.variantId, INTENT );
+    cart.setServiceLine( AMEND.variantId, INTENT, LIVE_PAISE );
     const first = await prepareOnce();
-    cart.setServiceLine( AMEND.variantId, INTENT_B );
+    cart.setServiceLine( AMEND.variantId, INTENT_B, LIVE_PAISE );
     const second = await prepareOnce();
     expect( prepareBodies ).toHaveLength( 2 );
     expect( second.serviceIntentId ).toBe( INTENT_B );
@@ -126,7 +135,7 @@ describe( 'service refusals', () => {
   {
     it( `${ code } renders its sentence and does not latch`, async () => {
       stub( [ { status: 409, body: { error: code, message } } ] );
-      cart.setServiceLine( SUBMIT.variantId, INTENT );
+      cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
       render( <Cart /> );
       fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
       await waitFor( () => expect( screen.getByText( message ) ).toBeInTheDocument() );

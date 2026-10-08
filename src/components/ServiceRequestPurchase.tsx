@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/router';
 import PillButton from './PillButton';
 import { SERVICES_PRODUCT_ID, serviceByKind } from '../config/services';
 import type { ServiceKind } from '../config/services';
 import { setServiceLine } from '../lib/cart';
 import { getSession, restoreSession } from '../lib/customerAuth';
+import { SIGN_IN_PATH, goToServiceAction } from '../lib/serviceEntry';
+import { fetchServicePrices } from '../lib/servicePricing';
+import type { ServicePrice } from '../lib/servicePricing';
 import { fetchMyRequests, postRequestIntent } from '../lib/serviceRequests';
 import type { ServiceRequestRow } from '../lib/serviceRequests';
 import { colors, fontSize, radius, space } from '../lib/design-tokens';
@@ -24,11 +28,25 @@ import catalog from '../content/wix-catalog.json';
  * correctly for all three. The server is the authority either way
  * (service_requests.py TARGET_REQUIRED_KINDS); this flag only decides what the form asks for.
  *
- * Amount and label come from src/config/services.ts and nothing else; no figure is typed here.
+ * THE AMOUNT IS WIX'S, READ LIVE, AND NO FIGURE IS TYPED ANYWHERE IN THIS FILE. Owner decision
+ * 2026-10-08: a price must be changeable in Wix with no deploy. `fetchServicePrices()` is called
+ * on mount, INDEPENDENTLY of the session fetch, because an anonymous visitor has to be able to
+ * read the price — it is what decides whether they sign in at all. Each page asks for its OWN
+ * slug (`service.slug`), which is what keeps four pages showing four prices.
+ *
+ * WHEN THE PRICE IS UNKNOWN, NOTHING CAN BE BOUGHT. While loading, a neutral placeholder rather
+ * than a number. If the live price cannot be resolved the card shows "This service may be
+ * temporarily unavailable." and BOTH calls to action are suppressed, so no path reaches payment
+ * with a guessed price. The separate committed-catalogue stock hint remains NON-BLOCKING, as it
+ * always has been — see the comment on `unavailable` below for why that distinction is kept.
+ *
  * The control is disabled only while a request is in flight, never frozen.
  */
 
 type Phase = 'checking' | 'signedOut' | 'ready' | 'busy';
+
+/** 'loading' until the one price call answers; then the slug's own live price, or unavailable. */
+type PriceState = 'loading' | ServicePrice;
 
 interface Props {
   kind: ServiceKind;
@@ -45,13 +63,27 @@ function catalogueSaysUnavailable ( variantId: string ): boolean {
 
 const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
   const service = serviceByKind( kind );
+  const router = useRouter();
   const [ phase, setPhase ] = useState<Phase>( 'checking' );
   const [ token, setToken ] = useState( '' );
   const [ status, setStatus ] = useState( '' );
   const [ targets, setTargets ] = useState<ServiceRequestRow[] | null>( null );
   const [ chosen, setChosen ] = useState( '' );
+  const [ price, setPrice ] = useState<PriceState>( 'loading' );
   const live = useRef( true );
   useEffect( () => () => { live.current = false; }, [] );
+
+  // The price, on its own effect and its own fetch. Deliberately NOT inside the session effect:
+  // a signed-out visitor must see the amount, and `fetchServicePrices` never throws and never
+  // returns a partial map, so this needs no error branch of its own.
+  useEffect( () => {
+    ( async () => {
+      const prices = await fetchServicePrices();
+      if ( !live.current ) return;
+      const slug = serviceByKind( kind )?.slug;
+      setPrice( ( slug && prices[ slug ] ) || { available: false } );
+    } )();
+  }, [ kind ] );
 
   useEffect( () => {
     ( async () => {
@@ -80,12 +112,25 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
   }, [ kind ] );
 
   if ( !service ) return null;
-  const returnPath = service.path;
-  const unavailable = catalogueSaysUnavailable( service.variantId );
   const needsTarget = service.needsTarget;
+  const priced = price !== 'loading' && price.available ? price : null;
+  const priceUnavailable = price !== 'loading' && !price.available;
+  // Two reasons to show the one honest sentence, and they are NOT equally blocking.
+  //
+  // `catalogueSaysUnavailable` reads the COMMITTED snapshot in src/content/wix-catalog.json, and
+  // that snapshot currently records all four variants as out of stock while all four are on sale.
+  // It has always been a non-blocking hint here — "checkout's 409 is the authority" — and it
+  // stays one: suppressing the CTA on it would take every service off sale on a stale file, which
+  // is a far worse failure than showing a cautious sentence.
+  //
+  // An UNRESOLVED LIVE PRICE is different, and it does block. There is no committed figure to
+  // fall back on any more, so with no price there is nothing honest to charge, and the only safe
+  // answer is to offer no way to pay at all.
+  const unavailable = catalogueSaysUnavailable( service.variantId ) || priceUnavailable;
+  const sellable = priced !== null;
 
   const buy = async () => {
-    if ( !token || phase === 'busy' ) return;
+    if ( !token || phase === 'busy' || !priced ) return;
     if ( needsTarget && !chosen )
     {
       setStatus( `Choose the request this ${ service.label } is for.` );
@@ -98,7 +143,10 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
     switch ( outcome.kind )
     {
       case 'ok':
-        setServiceLine( outcome.intent.variantId, outcome.intent.intentId );
+        // Wix's live paise, so the cart row reads the same figure the card promised. The
+        // checkout re-prices the line against Wix anyway; this is display continuity, not the
+        // amount that will be charged.
+        setServiceLine( outcome.intent.variantId, outcome.intent.intentId, priced.paise );
         window.location.assign( '/cart/' );
         return;
       case 'notFound':
@@ -125,18 +173,40 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
     <section className="srp" aria-labelledby="srp-title">
       <h2 className="srp-title" id="srp-title">{ service.label }</h2>
       <p className="srp-price">
-        <span className="srp-amount">{ `\u20B9${ service.rupees }` }</span>
+        <span className="srp-amount" data-wc-no-translate>
+          { priced ? `\u20B9${ priced.rupees }` : '\u2014' }
+        </span>
+        { /* Unchanged wording, and still truthful: the fee and the 18% GST on it are added by
+             the backend checkout (checkout_pricing), never by this card. */ }
         <span className="srp-note"> + a convenience fee, added at checkout</span>
       </p>
       { unavailable && (
         <p className="srp-hint">This service may be temporarily unavailable.</p>
       ) }
 
-      { phase === 'signedOut' && (
+      { /* THE ONE LOGIN. The click now routes through `goToServiceAction` — the single gate every
+           service/product/contribute CTA uses — instead of this component hand-building a
+           `?return=` URL, so one place owns the signed-in/signed-out decision and the pending
+           action is stashed out of band. It stays an <a> with a real `href`: the accessible role,
+           open-in-new-tab, and the no-JS path all survive, and the handler only takes over when
+           JavaScript is running. The visible copy is unchanged.
+           Rendered only when the service is sellable — a sign-in that leads to a price we could
+           not resolve is a dead end. */ }
+      { phase === 'signedOut' && sellable && (
         <PillButton
           as="a"
-          href={ `/account/sign-in/?return=${ returnPath }` }
+          href={ `${ SIGN_IN_PATH }?return=${ encodeURIComponent( service.path ) }` }
           action="Sign in on WhatsApp to continue"
+          onClick={ event => {
+            event.preventDefault();
+            void goToServiceAction( router, {
+              destination: service.path,
+              action: {
+                kind: service.slug, productId: SERVICES_PRODUCT_ID,
+                variantId: service.variantId, label: service.label,
+              },
+            } );
+          } }
         />
       ) }
 
@@ -171,7 +241,9 @@ const ServiceRequestPurchase: React.FC<Props> = ( { kind } ) => {
           )
       ) }
 
-      { ( phase === 'ready' || phase === 'busy' )
+      { /* `sellable` is the new condition, and it is the fail-closed rail: with no live price
+           there is no "Continue to pay", so no path can reach the checkout on a guessed figure. */ }
+      { sellable && ( phase === 'ready' || phase === 'busy' )
         && !( needsTarget && ( targets === null || targets.length === 0 ) ) && (
         <PillButton
           action={ `Continue to pay for ${ service.label }` }

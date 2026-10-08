@@ -65,9 +65,9 @@ from lambda_utils.ecommerce.document_errors import (
 from lambda_utils.ecommerce.service_requests import (
     DROP_DOCS, INTENT_ID_RE, NOT_OFFERED_KINDS, PUBLIC_REQUEST_ID_ALPHABET,
     PUBLIC_REQUEST_ID_ENTROPY, PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE,
-    REQUEST_AMENDMENT, SERVICE_CHOICES_PAISE, SERVICE_CURRENCY, SERVICE_NOT_OFFERED,
-    SERVICE_UNKNOWN_CHOICE, SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS,
-    ServiceRejected)
+    REQUEST_AMENDMENT, SERVICE_CURRENCY, SERVICE_KIND_BY_VARIANT, SERVICE_LINE_MAX_PAISE,
+    SERVICE_LINE_MIN_PAISE, SERVICE_NOT_OFFERED, SERVICE_UNKNOWN_CHOICE,
+    SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS, ServiceRejected)
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -234,17 +234,29 @@ def mint_public_request_id() -> str:
     return PUBLIC_REQUEST_ID_PREFIX + tail
 
 
-def _fingerprint(kind: str, variant_id: str, amount_paise: int, target_request_id: str) -> str:
-    material = "|".join([kind, variant_id, str(int(amount_paise)), SERVICE_CURRENCY,
-                         target_request_id])
+def _fingerprint(kind: str, variant_id: str, target_request_id: str) -> str:
+    """What makes two intents for the same thing the same intent.
+
+    NO AMOUNT, since 2026-10-08. Wix owns the price now, so an amount in here would mean a Wix
+    price edit between two visits produced a DIFFERENT fingerprint for the same request -- and
+    the customer's one open intent would be superseded by an identical one for no reason the
+    customer caused. The identity of an intent is what service it is and what it is for.
+    """
+    material = "|".join([kind, variant_id, SERVICE_CURRENCY, target_request_id])
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def _intent_view(intent: Dict[str, Any]) -> Dict[str, Any]:
+    """The intent on the wire. ``amountPaise`` is ``None``: PRICED AT CHECKOUT, by Wix.
+
+    The key stays in the payload rather than being dropped, so the shape remains a superset of
+    what `src/lib/serviceRequests.ts` reads, and ``None`` says "not priced yet" where a ``0``
+    would have claimed the service is free.
+    """
     return {"intentId": str(intent[KEY_ATTR])[len(INTENT_PREFIX):],
             "kind": str(intent.get("kind") or ""),
             "variantId": str(intent.get("variantId") or ""),
-            "amountPaise": _int(intent.get("amountPaise")),
+            "amountPaise": None,
             "currency": str(intent.get("currency") or ""),
             "targetRequestId": str(intent.get("targetPublicRequestId") or "") or None}
 
@@ -281,11 +293,16 @@ def _mint_items(table_name: str, *, intent: Dict[str, Any], open_key: str,
     ]
 
 
-def _new_intent(*, intent_id: str, owner: str, kind: str, variant_id: str, amount: int,
+def _new_intent(*, intent_id: str, owner: str, kind: str, variant_id: str,
                 target: Optional[Dict[str, Any]], fingerprint: str, now: int) -> Dict[str, Any]:
+    """The stored intent. NO ``amountPaise``: an intent is pre-payment and Wix prices the line.
+
+    Storing a figure here would be storing a guess, and a guess on a money row is the thing that
+    later gets compared against reality and refuses an honest payment.
+    """
     intent: Dict[str, Any] = {
         KEY_ATTR: INTENT_PREFIX + intent_id, "ownerCustomerId": owner, "kind": kind,
-        "variantId": variant_id, "amountPaise": amount, "currency": SERVICE_CURRENCY,
+        "variantId": variant_id, "currency": SERVICE_CURRENCY,
         "intentFingerprint": fingerprint, "status": INTENT_OPEN, "statusRank": INTENT_OPEN_RANK,
         "consumedOrderIds": [], "createdAt": now, "updatedAt": now,
     }
@@ -328,9 +345,8 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
     elif target_public_id:
         raise ServiceRejected("SERVICE_TARGET_UNEXPECTED")
 
-    amount = SERVICE_CHOICES_PAISE[variant_id][1]
     target_internal = str(target[KEY_ATTR]) if target is not None else ""
-    fingerprint = _fingerprint(kind, variant_id, amount, target_internal)
+    fingerprint = _fingerprint(kind, variant_id, target_internal)
     open_key = f"{OPEN_PREFIX}{owner}#{variant_id}"
     table_name = table.name
 
@@ -340,7 +356,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         try:
             if claim is None or claim.get("isConsumed") is True:
                 intent = _new_intent(intent_id=new_id(), owner=owner, kind=kind,
-                                     variant_id=variant_id, amount=amount, target=target,
+                                     variant_id=variant_id, target=target,
                                      fingerprint=fingerprint, now=now)
                 _transact(table, _mint_items(table_name, intent=intent, open_key=open_key,
                                              owner=owner, fingerprint=fingerprint, now=now))
@@ -381,7 +397,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
 
             # A different target request: SUPERSEDE, in ONE transaction.
             intent = _new_intent(intent_id=new_id(), owner=owner, kind=kind,
-                                 variant_id=variant_id, amount=amount, target=target,
+                                 variant_id=variant_id, target=target,
                                  fingerprint=fingerprint, now=now)
             new_claim = {KEY_ATTR: open_key, "ownerCustomerId": owner,
                          "targetIntentId": intent[KEY_ATTR][len(INTENT_PREFIX):],
@@ -501,10 +517,9 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
 
     intent_id = str(line.get("intentId") or "")
     variant_id = str(line.get("variantId") or "")
-    committed = SERVICE_CHOICES_PAISE.get(variant_id)
-    if not INTENT_ID_RE.match(intent_id) or committed is None:
+    kind = SERVICE_KIND_BY_VARIANT.get(variant_id)
+    if not INTENT_ID_RE.match(intent_id) or kind is None:
         return _unmatched("SERVICE_LINE_INVALID", reference_id=reference_id, order_id=order_id)
-    kind, committed_paise = committed
     intent = _get(table, INTENT_PREFIX + intent_id)
     if intent is None:
         return _unmatched("INTENT_MISSING", reference_id=reference_id, order_id=order_id)
@@ -513,7 +528,14 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
     if (str(intent.get("variantId") or "") != variant_id
             or str(intent.get("kind") or "") != kind or str(line.get("kind") or "") != kind):
         return _unmatched("VARIANT_MISMATCH", reference_id=reference_id, order_id=order_id)
-    if not (_int(intent.get("amountPaise")) == _int(line.get("paise")) == committed_paise):
+    # WHAT WAS CHARGED IS WHAT WIX PRICED, so there is no committed figure left to agree with.
+    # The check is therefore on the SHAPE of the recorded amount, not on its value: a positive
+    # integer inside the same catastrophe rail `assert_service_line_price` applied at checkout.
+    # ``AMOUNT_MISMATCH`` is kept verbatim as the reason code -- every historical
+    # PAID_SERVICE_UNMATCHED alert and any operator runbook already matches that string, and a
+    # rename would silently stop matching them.
+    paid_paise = _int(line.get("paise"))
+    if paid_paise is None or not SERVICE_LINE_MIN_PAISE <= paid_paise <= SERVICE_LINE_MAX_PAISE:
         return _unmatched("AMOUNT_MISMATCH", reference_id=reference_id, order_id=order_id)
     if str(intent.get("currency") or "") != SERVICE_CURRENCY:
         return _unmatched("CURRENCY_MISMATCH", reference_id=reference_id, order_id=order_id)
@@ -546,7 +568,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
             KEY_ATTR: request_internal, "kind": kind, "publicRequestId": public_id,
             "customerId": owner, "createdAt": now, "updatedAt": now,
             "status": REQUEST_SUBMITTED, "statusRank": REQUEST_SUBMITTED_RANK,
-            "serviceVariantId": variant_id, "amountPaise": committed_paise,
+            "serviceVariantId": variant_id, "amountPaise": paid_paise,
             "currency": SERVICE_CURRENCY, "orderId": order_id, "orderNumber": order_number,
             "paymentAttemptId": attempt_id, "referenceId": reference_id, "intentId": intent_id,
             "paidAt": now,

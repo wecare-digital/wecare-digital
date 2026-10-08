@@ -124,16 +124,18 @@ def test_an_unknown_body_key_is_400(env, path, body):
 def test_the_intent_happy_path(env):
     status, body, _ = call(env, "/services/request-intent", {"kind": "SUBMIT_REQUEST"})
     assert status == 200
-    assert body["amountPaise"] == 9900 and body["currency"] == "INR"
+    # `amountPaise` is None: PRICED AT CHECKOUT, by Wix. The key stays in the payload so the wire
+    # shape remains a superset of what src/lib/serviceRequests.ts reads, and None says "not priced
+    # yet" where a 0 would have claimed the service is free.
+    assert body["amountPaise"] is None and body["currency"] == "INR"
     assert body["variantId"] == "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 
 
-@pytest.mark.parametrize("kind,variant,paise", [
-    ("DROP_DOCS", "db166bc8-a763-41ec-9f65-0f718f18155a", 35000),
-    ("VAULT", "dcff995e-448c-493a-9259-f6a82ccdc2b4", 4900),
+@pytest.mark.parametrize("kind,variant", [
+    ("DROP_DOCS", "db166bc8-a763-41ec-9f65-0f718f18155a"),
+    ("VAULT", "dcff995e-448c-493a-9259-f6a82ccdc2b4"),
 ])
-def test_drop_docs_and_vault_are_offered_against_one_of_the_callers_requests(env, kind, variant,
-                                                                            paise):
+def test_drop_docs_and_vault_are_offered_against_one_of_the_callers_requests(env, kind, variant):
     ref = paid_submit(env)
     _s, listed, _h = call(env, "/services/my-requests", {"referenceIds": [ref]})
     public = listed["requests"][0]["requestId"]
@@ -141,7 +143,7 @@ def test_drop_docs_and_vault_are_offered_against_one_of_the_callers_requests(env
                            {"kind": kind, "targetRequestId": public})
     assert status == 200, body
     assert (body["kind"], body["variantId"], body["amountPaise"], body["currency"]) == \
-        (kind, variant, paise, "INR")
+        (kind, variant, None, "INR")
     assert body["targetRequestId"] == public
 
 

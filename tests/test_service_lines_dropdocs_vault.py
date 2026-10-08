@@ -161,7 +161,18 @@ def test_the_assertion_passes_at_exactly_the_committed_paise(variant):
 
 @pytest.mark.parametrize("variant,priced", [(DROP_DOCS, 34999), (DROP_DOCS, 35001),
                                             (VAULT, 4899), (VAULT, 4901)])
-def test_a_one_paise_disagreement_in_either_direction_fails_closed(variant, priced):
+def test_a_one_paise_edit_in_either_direction_is_now_CHARGED(variant, priced):
+    """INVERTED 2026-10-08: Wix owns the price, so its figure is charged, not refused.
+
+    The structural checks below (zero delivery/tax/fees, quantity 1, the right variant) are what
+    still protect this basket; see the module docstring in `service_requests`.
+    """
+    assert sr.assert_service_line_price(calculated(variant, priced), [service(variant)],
+                                        delivery_required=False) == priced
+
+
+@pytest.mark.parametrize("variant,priced", [(DROP_DOCS, 5_000_001), (VAULT, 0)])
+def test_a_figure_outside_the_catastrophe_rail_still_fails_closed(variant, priced):
     with pytest.raises(sr.ServicePriceChanged):
         sr.assert_service_line_price(calculated(variant, priced), [service(variant)],
                                      delivery_required=False)
@@ -177,13 +188,23 @@ def test_any_non_zero_component_on_a_services_only_basket_fails_closed(variant, 
 
 
 @pytest.mark.parametrize("variant", list(NEW_SERVICES))
-def test_the_other_variants_price_is_not_accepted_for_this_one(variant):
-    """Four services share one product, so a line priced as its SIBLING must refuse."""
+def test_the_line_asserted_is_this_variants_own_line_and_not_a_siblings(variant):
+    """Four services share ONE Wix product, so the assertion has to be variant-scoped.
+
+    It can no longer be demonstrated by pricing this variant at its sibling's figure -- Wix owns
+    the price, so any figure inside the rail is legitimate for any variant, and refusing one
+    would be refusing a price edit. What is still demonstrable, and is the property that
+    mattered, is that the assertion reads THIS variant's line: a calculation carrying the
+    sibling's variant id is refused outright rather than silently priced.
+    """
     other = next(key for key in NEW_SERVICES if key != variant)
-    _kind, _paise, _f, _g, _p = NEW_SERVICES[variant]
     sibling_paise = NEW_SERVICES[other][1]
+    # Same figure, right variant: accepted, and returned.
+    assert sr.assert_service_line_price(calculated(variant, sibling_paise), [service(variant)],
+                                        delivery_required=False) == sibling_paise
+    # Wix returned the SIBLING's line for a basket that asked for this variant.
     with pytest.raises(sr.ServicePriceChanged):
-        sr.assert_service_line_price(calculated(variant, sibling_paise), [service(variant)],
+        sr.assert_service_line_price(calculated(other, sibling_paise), [service(variant)],
                                      delivery_required=False)
 
 
@@ -237,12 +258,19 @@ def test_a_currency_other_than_the_exact_string_inr_is_unmatched(variant, curren
 
 @pytest.mark.parametrize("variant", list(NEW_SERVICES))
 def test_the_store_records_the_exact_string_inr(variant):
-    kind, line_paise, _f, _g, _p = NEW_SERVICES[variant]
+    kind, _line_paise, _f, _g, _p = NEW_SERVICES[variant]
     requests = RequestTable()
     target = _seed_target(requests)
     intent = store.request_intent(requests, _identity(), kind, target)
     assert intent["currency"] == "INR" == sr.SERVICE_CURRENCY
-    assert requests.rows["INTENT#" + intent["intentId"]]["amountPaise"] == line_paise
+    # NO `amountPaise` ON THE STORED INTENT, since 2026-10-08. An intent is pre-payment and Wix
+    # prices the line at checkout, so a figure here would be a stored guess -- and a stored guess
+    # on a money row is what later gets compared against reality and refuses an honest payment.
+    # The currency IS recorded, because it is not a guess: INR is the only currency offered.
+    row = requests.rows["INTENT#" + intent["intentId"]]
+    assert "amountPaise" not in row
+    assert row["currency"] == "INR"
+    assert intent["amountPaise"] is None
 
 
 # ── (e) replay safety: four deliveries, one of everything ────────────────────
