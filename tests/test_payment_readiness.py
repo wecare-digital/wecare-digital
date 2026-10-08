@@ -367,3 +367,44 @@ def test_the_template_readback_accepts_both_graph_shapes():
                             payment_template_name='wecare_pay',
                             fetch_templates=lambda _w, s=shape: s)
         assert verdict.state == pr.PAYMENT_READY
+
+
+# ── the REAL live Meta shape (measured 2026-10-08 via a raw probe of the live edge) ──────────
+#
+# The config lives one level down under `data[].payment_configurations[]`, and the gateway is
+# reported as flat `provider_name`/`provider_mid` siblings — NOT the nested
+# `payment_gateway: {type, merchant_id}` the fixtures above use. The business-api handler
+# flattens the nesting before calling evaluate; evaluate itself must read provider_mid.
+
+def _live_configuration(**overrides):
+    """The exact object Meta returns for WECAREDIGITAL (flattened out of its data[] wrapper)."""
+    base = {
+        'configuration_name': CONFIG,
+        'merchant_category_code': {'code': '7392', 'description': 'Management, consulting'},
+        'purpose_code': {'code': '03', 'description': 'Travel'},
+        'status': 'Active',          # capital A, as Meta sends it
+        'provider_mid': MID,
+        'provider_name': 'Razorpay',
+    }
+    base.update(overrides)
+    return base
+
+
+def test_the_real_live_provider_mid_shape_is_accepted():
+    """Regression for the false negative that blocked every payment on 2026-10-08: a config
+    carrying provider_name/provider_mid (not payment_gateway.merchant_id) must read as READY."""
+    verdict = _evaluate({'data': [_live_configuration()]})
+    assert verdict.ready is True
+    assert verdict.state == pr.PAYMENT_READY
+
+
+def test_a_live_shape_mid_mismatch_still_fails_closed():
+    verdict = _evaluate({'data': [_live_configuration(provider_mid='acc_SOMEONE_ELSE')]})
+    assert verdict.ready is False
+    assert verdict.state == pr.RAZORPAY_MID_MISMATCH
+
+
+def test_a_live_shape_inactive_config_still_fails_closed():
+    verdict = _evaluate({'data': [_live_configuration(status='Deactivated')]})
+    assert verdict.ready is False
+    assert verdict.state == pr.PAYMENT_CONFIG_INACTIVE

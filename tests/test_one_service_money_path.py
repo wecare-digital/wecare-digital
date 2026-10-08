@@ -77,8 +77,21 @@ def test_a_the_new_modules_import_no_money_mover(relative):
     invokes = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
                and isinstance(n.func, ast.Attribute) and n.func.attr == "invoke"]
     if relative.endswith("service_request_dispatch.py"):
-        assert len(invokes) == 1
+        # TWO hints, written out by target rather than counted loosely. The second
+        # (`preparePaidSubmitRequest`) arrived with the paid Submit Request form, and this
+        # assertion is what surfaced it: an invoke added to a money-path dispatcher is a
+        # decision somebody has to make on purpose, so the targets are named here and a third
+        # one fails this test until it is named too.
+        assert len(invokes) == 2, len(invokes)
         assert "wecare-service-requests:live" in literals
+        assert "wecare-whatsapp-business-api:live" in literals
+        # Both fire-and-forget: a dispatch failure must not fail the webhook, because a non-2xx
+        # makes Razorpay retry the whole captured payment.
+        assert sum(1 for node in invokes
+                   for kw in node.keywords
+                   if kw.arg == "InvocationType"
+                   and isinstance(kw.value, ast.Constant)
+                   and kw.value.value == "Event") == 2
     else:
         assert invokes == []
 
@@ -165,7 +178,20 @@ class RecordingRazorpay:
 
 
 class LambdaToReceiver:
-    """The webhook's lambda client, delivering each hint synchronously to the real receiver."""
+    """The webhook's lambda client, delivering the SERVICE hint synchronously to the real receiver.
+
+    Routed by `FunctionName`, and that routing is the point rather than tidiness.
+    `dispatch_activation` now fires TWO hints per reconciled order - `activateServiceRequest` to
+    `wecare-service-requests:live` and `preparePaidSubmitRequest` to
+    `wecare-whatsapp-business-api:live`. Handing both to the service-requests handler, as this
+    fixture used to, delivers an action that function does not own to a receiver that was never
+    written to answer it: whatever it returned would be an artefact of the fixture, not of the
+    path. The second hint's receiver is a different Lambda with its own tests, so it is RECORDED
+    here and not executed.
+    """
+
+    #: The only hint this fixture is entitled to execute.
+    SERVICE_TARGET = "wecare-service-requests:live"
 
     def __init__(self, receiver):
         self.receiver = receiver
@@ -173,8 +199,13 @@ class LambdaToReceiver:
 
     def invoke(self, **kwargs):
         self.calls.append(kwargs)
-        self.receiver.handler(json.loads(kwargs["Payload"].decode("utf-8")), None)
+        if kwargs.get("FunctionName") == self.SERVICE_TARGET:
+            self.receiver.handler(json.loads(kwargs["Payload"].decode("utf-8")), None)
         return {"StatusCode": 202}
+
+    def targets(self):
+        """Every hint target, so the enumeration states what the path invokes."""
+        return [call.get("FunctionName") for call in self.calls]
 
 
 def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(monkeypatch):
@@ -242,7 +273,12 @@ def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(
     assert len(claims) == 1
     assert len([k for k in requests.rows if str(k).startswith("REQ#")]) == 1
     assert len([k for k in requests.rows if str(k).startswith("ORDER#")]) == 1
-    assert len(lam.calls) == 3
+    # SIX hints across three deliveries: two per reconciled order, enumerated by target rather
+    # than as a bare total. Three deliveries still produce ONE claim, ONE order and ONE request
+    # above - the hints are idempotent because the receiver re-reads every id, not because the
+    # webhook sends fewer of them.
+    assert lam.targets() == ["wecare-service-requests:live",
+                             "wecare-whatsapp-business-api:live"] * 3, lam.targets()
     # Every provider request the path made, at the HTTP seam: reads of the one payment only.
     assert set(razorpay.calls) == {("GET", "/payments/pay_LIVE0000000001")}, razorpay.calls
 

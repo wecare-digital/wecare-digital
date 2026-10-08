@@ -23,6 +23,7 @@ import json
 import hmac
 import hashlib
 import logging
+import time
 import boto3
 from typing import Dict, Any, Optional
 from decimal import Decimal
@@ -31,6 +32,9 @@ from lambda_utils.response import cors_response, cors_headers, options_response,
 from lambda_utils.logging import get_logger
 from lambda_utils import payment_status  # monotonic status, one vocabulary, dedup key
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
+# Module scope, matching `invoice-engine`, because `COMMERCE_KEYS_TABLE` below is resolved from
+# it. Import-safe: `order_keys` creates no client and reads no secret at import.
+from lambda_utils.ecommerce import order_keys
 
 logger = get_logger(__name__)
 
@@ -79,6 +83,31 @@ def _get_webhook_secret() -> str:
 
 PAYMENTS_TABLE = os.environ.get('PAYMENTS_TABLE', 'stack-wecare-digital-PaymentsTable')
 INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
+#: The first PaymentAttempts WRITE this handler has ever made. Declared explicitly rather than
+#: relied on from a code default, because a default name is not a permission and a silent
+#: `AccessDeniedException` inside a `try` on a money path is the failure this names rather than
+#: hides.
+PAYMENT_ATTEMPTS_TABLE = os.environ.get('PAYMENT_ATTEMPTS_TABLE',
+                                        'stack-wecare-digital-PaymentAttemptsTable')
+#: Already accessed via the code default; made explicit so the manifest describes the dependency
+#: instead of the default hiding it.
+#:
+#: Resolved through `order_keys.commerce_keys_table_name()` and NEVER through a second literal.
+#: This constant previously defaulted to `stack-wecare-digital-CommerceKeys`, which is not a
+#: provisioned table in this account -- so with the env var absent (its live state) `reconcile`
+#: read the reservation from `WixOrderIds` via the resolver at one call site while the delivery
+#: and review claims below addressed a table that does not exist. Two spellings of one dependency
+#: inside one handler is the defect; the resolver is the single home for it.
+COMMERCE_KEYS_TABLE = order_keys.commerce_keys_table_name()
+
+#: WABA1's phone id, hoisted to a module constant so it stops appearing twice in this file. It is
+#: the PRIMARY identity and the correct fallback: WABA2 is `paymentProtected` and the UI gates it
+#: behind an admin authorization step, so defaulting to it server-side bypassed that check.
+WABA1_PHONE_ID = 'phone-number-id-waba1-direct-1016149501586345'
+
+#: The approved post-payment feedback template. ONE home, env-read, and FAIL-OPEN at the call
+#: site: a feedback send that fails must never block or reverse the invoice or the paid state.
+WA_REVIEW_TEMPLATE = os.environ.get('WA_REVIEW_TEMPLATE', 'wecare_leave_review')
 MESSAGES_TABLE = os.environ.get('MESSAGES_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 WEBHOOK_LOG_TABLE = os.environ.get('WEBHOOK_LOG_TABLE', 'stack-wecare-digital-RazorpayWebhookLogTable')
 
@@ -447,9 +476,10 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
     Razorpay retry the whole event and the lease above already handles recovery.
     """
     try:
-        from lambda_utils.ecommerce import order_channel, order_creation, order_keys
+        from lambda_utils.ecommerce import (order_channel, order_creation, order_keys,
+                                            wa_payment_request)
         from lambda_utils.identity import customer_uuid
-        from lambda_utils.integrations import razorpay_verify
+        from lambda_utils.integrations import meta_payment_binding, razorpay_verify
 
         payment_id = str(payment.get('id') or '')
         order_id = str(payment.get('order_id') or '')
@@ -482,6 +512,51 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             # Razorpay `notes` could set would be an id a customer could forge onto someone
             # else's tax invoice.
             attribution['customerUuid'] = row.get('customerUuid', '')
+            # Carried on the same footing as the two above, and for the paid-state write and the
+            # invoice-delivery gate below: read off OUR row, noted on the way past, and kept OUT
+            # of the narrowed dict because `reconcile_payment` does not read them and a key it
+            # never reads would only suggest it did.
+            attribution['checkoutMode'] = row.get('checkoutMode', '')
+            attribution['paymentAttemptId'] = row.get('paymentAttemptId', '')
+            attribution['invoiceId'] = row.get('invoiceId', '')
+
+            # ── NATIVE WHATSAPP LEG ONLY: bind the gateway order, from META ──
+            #
+            # On the website leg WE create the Razorpay order and store its id before the browser
+            # sees checkout options, so `verifier_for_event` has a binding to key on. On this leg
+            # Meta creates it when the customer taps Pay, so an unbound native attempt fails
+            # closed with PROVIDER_UNAVAILABLE - correct behaviour, wrong outcome.
+            #
+            # The binding comes from an authenticated Meta lookup and NEVER from this event body.
+            # The webhook signing secret is in this repository's git history, so a signature
+            # proves only that somebody read the history; accepting the event's own `order_id`
+            # would let a forged event name any Razorpay order and bind it to any reference.
+            #
+            # Three gates, each deliberate:
+            #   * on `checkoutMode`, so the website leg cannot acquire a Meta lookup. This is the
+            #     ONE place the field is read on this leg, and it selects a binding SOURCE - not
+            #     a finalisation path.
+            #   * on the binding being ABSENT, so a redelivery after a successful bind makes no
+            #     Graph call at all and the external-call count does not grow with redeliveries.
+            #   * inside `_load_attempt`, so `verify_payment` and `load_attempt` both see the
+            #     same bound row.
+            if (row.get('checkoutMode') == wa_payment_request.WA_NATIVE_CHECKOUT_MODE
+                    and not row.get('providerOrderId')
+                    and not row.get('providerPaymentId')):
+                meta_payment_binding.bind_attempt(
+                    table, reference_id=ref,
+                    phone_number_id=str(row.get('phoneId') or ''),
+                    config_name=str(row.get('configurationName') or ''),
+                    payment_attempt_id=str(row.get('paymentAttemptId') or ''),
+                    invoice_id=str(row.get('invoiceId') or ''),
+                    amount_paise=row.get('amountPaise'),
+                    now=int(time.time()))
+                # Re-read rather than patching the dict in memory, so the value `verify_payment`
+                # and `load_attempt` both see is the value that is actually STORED.
+                # `resolve_payment_reference` reads consistently, so this is the one place a
+                # strongly consistent read matters.
+                row = order_keys.resolve_payment_reference(table, ref) or row
+
             return {
                 'paymentAttemptId': row['paymentAttemptId'],
                 'customerId': row.get('customerId', ''),
@@ -508,6 +583,82 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             'referenceId': reference_id,
             'requestId': request_id,
         }))
+
+        # ── write PAID STATE onto a native attempt ──────────────────────────────────────────
+        #
+        # `reconcile_payment` SYNTHESISES the paid status for its eligibility check -
+        # `{**attempt, 'status': PAYMENT_PAID}` - and writes nothing back. It has no attempts
+        # table and no writer for one. The website leg advances the attempt twice outside
+        # `reconcile_payment`; the native leg did neither, so a paid native attempt stayed at
+        # `PAYMENT_READINESS_CHECKED` - a member of `IN_FLIGHT_STATES` - permanently. An attempt
+        # that reads as in-flight is the state most likely to produce a second payment request,
+        # and no `verifiedCapturedPaise` existed anywhere durable on this leg.
+        #
+        # THE GATE IS ON THE OUTCOME **AND** ON EVIDENCE BEING PRESENT, and that second half is
+        # not belt-and-braces. `ReconciliationOutcome.verified_captured_paise` defaults to 0 and
+        # is omitted on THREE paths that report `has_order`: the idempotent short-circuit (which
+        # answers before the provider is contacted), and both `_finish_numbering` returns. So
+        # gating on `has_order` alone would call `record_paid` with 0 on every ordinary
+        # redelivery, its nested condition would fail against the stored real amount, and we
+        # would log an ERROR saying two verified amounts disagree when nothing is wrong. Worse:
+        # if the FIRST processed delivery landed on a `_finish_numbering` path, zero would become
+        # the authoritative evidence and the later correct amount would then be refused by the
+        # same condition.
+        #
+        # So: a real readback writes evidence; an absent readback is a clean idempotent INFO
+        # no-op, never an evidence conflict.
+        native = (attribution.get('checkoutMode')
+                  == wa_payment_request.WA_NATIVE_CHECKOUT_MODE)
+        if native and outcome.has_order:
+            if (outcome.outcome == order_creation.ORDER_CREATED
+                    and outcome.verified_captured_paise > 0
+                    and outcome.provider_payment_id):
+                from botocore.exceptions import ClientError
+                from lambda_utils.ecommerce import finalization
+                try:
+                    finalization.record_paid(
+                        # A WRITE-only handle, created here and never used to read. The read
+                        # path above still makes exactly one table handle - the commerce-keys
+                        # one - so no attempts-table READ is added to the money path.
+                        dynamodb.Table(PAYMENT_ATTEMPTS_TABLE),
+                        # Both fields `record_paid` conditions on: its ConditionExpression is
+                        # `attribute_exists(paymentAttemptId) AND referenceId = :ref AND (...)`,
+                        # and `:ref` is taken from the dict. A KeyError on either is impossible
+                        # because `_load_attempt` already refused a row without an attempt id.
+                        {'paymentAttemptId': attribution.get('paymentAttemptId', ''),
+                         'referenceId': reference_id},
+                        # The PROVIDER's figure, never the order total. Passing the expectation
+                        # in place of the evidence would make the stored evidence unfalsifiable.
+                        outcome.provider_payment_id,
+                        outcome.verified_captured_paise)
+                    logger.info(json.dumps({
+                        'event': 'native_attempt_paid_recorded',
+                        'referenceId': reference_id,
+                        'verifiedCapturedPaise': outcome.verified_captured_paise,
+                        'requestId': request_id}))
+                except ClientError as exc:
+                    if not order_keys.is_conditional_failure(exc):
+                        raise
+                    # TWO DIFFERENT verified amounts, or two different provider payment ids, for
+                    # one attempt. That is a reconciliation incident and a human has to look at
+                    # it. The order already exists and is numbered, so this does not undo
+                    # anything: the attempt's paid state is the RECORD of the order, not its
+                    # cause.
+                    logger.error(json.dumps({
+                        'event': 'native_attempt_paid_evidence_conflict',
+                        'referenceId': reference_id,
+                        'verifiedCapturedPaise': outcome.verified_captured_paise,
+                        'requestId': request_id}))
+            else:
+                # A redelivery, or a resumed numbering run. This outcome carries no provider
+                # readback because `reconcile_payment` answered before contacting the provider;
+                # the evidence was written by the delivery that DID contact it. Nothing to
+                # record, and explicitly NOT a conflict.
+                logger.info(json.dumps({
+                    'event': 'native_attempt_paid_evidence_already_recorded',
+                    'outcome': outcome.outcome,
+                    'referenceId': reference_id,
+                    'requestId': request_id}))
 
         if outcome.has_order:
             # Phase O-1: a hint only (ids, fire-and-forget, never raises); the receiver re-reads
@@ -542,6 +693,11 @@ def _create_order_for_captured_payment(payment: Dict, reference_id: str,
             **outcome.as_dict(),
             'channel': order_channel.canonical(attribution.get('channel')),
             'customerUuid': customer_uuid.from_contact(attribution),
+            # MECHANICS, beside the channel's attribution. Read off the `PAYREF#` row, never from
+            # the event. Absent on the legacy settlement path, where there is no `PAYREF#` row at
+            # all - which closes the invoice-delivery gate below, the fail-closed direction.
+            'checkoutMode': str(attribution.get('checkoutMode') or ''),
+            'invoiceId': str(attribution.get('invoiceId') or ''),
         }
 
     except Exception as e:  # noqa: BLE001
@@ -1072,8 +1228,12 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     """Handle payment.captured — the main success event. Store payment + mark invoice paid + trigger invoice."""
     payment = event_data.get('payment', {}).get('entity', {})
     payment_id = payment.get('id', '')
-    amount_paise = int(payment.get('amount', 0))
-    amount_rupees = amount_paise / 100
+    # INTEGER PAISE is the single value. `amount_rupees` is gone: it was a float derived by
+    # division and then passed into four other functions, two of which persisted it.
+    amount_paise = payment_status.paise(payment.get('amount', 0))
+    # A display STRING beside it. A string cannot be arithmetic'd by accident, which is the
+    # whole reason `payment_status.rupees_str` returns one.
+    amount_display = payment_status.rupees_str(amount_paise)
     currency = payment.get('currency', 'INR')
     order_id = payment.get('order_id', '')
     method = payment.get('method', '')
@@ -1237,14 +1397,27 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
     # `customerUuid` rides the same outcome dict for the same reason, and is absent on the
     # legacy settlement path where no `PAYREF#` row exists - which prints no Customer ID row
     # rather than a placeholder.
-    _post_payment_handler(payment_id, amount_rupees, currency, contact, email, description, notes, request_id,
+    # ── the originating phone, resolved ONCE and BEFORE the post-payment call ──
+    #
+    # It used to be resolved inside the `if contact and reference_id:` block further down, which
+    # runs AFTER `_post_payment_handler` returns - so the invoice delivery that call now performs
+    # had no sender to use. Resolved here instead, so the GST invoice returns from the SAME
+    # number that collected the payment, and the WABA1 default travels WITH the resolution.
+    originating_phone_id = _resolve_originating_phone(reference_id) or WABA1_PHONE_ID
+
+    _post_payment_handler(payment_id, contact, email, description, notes, request_id,
                           channel=str((outcome or {}).get('channel') or ''),
-                          customer_uuid=str((outcome or {}).get('customerUuid') or ''))
+                          customer_uuid=str((outcome or {}).get('customerUuid') or ''),
+                          # MECHANICS. Defaulting to '' is the fail-closed direction: an absent
+                          # value closes the invoice-delivery gate.
+                          checkout_mode=str((outcome or {}).get('checkoutMode') or ''),
+                          originating_phone_id=originating_phone_id,
+                          reference_id=reference_id)
 
     # Conversions API: if this conversation started from a Click-to-WhatsApp ad,
     # log a Purchase event to Meta so the ad campaign can optimize/measure. No-op
     # (returns 400, just logged) for non-ad conversations. Fire-and-forget.
-    _log_ctwa_purchase(contact, amount_rupees, currency, order_id, notes, request_id)
+    _log_ctwa_purchase(contact, amount_paise, currency, order_id, notes, request_id)
 
     # Send order_status message to customer (GAP FIX: Razorpay webhook was not sending this)
     if contact and reference_id:
@@ -1253,8 +1426,8 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
             if not clean_phone.startswith('91') and len(clean_phone) == 10:
                 clean_phone = f'91{clean_phone}'
 
-            # Resolve which phone sent the original payment — look up from invoice
-            originating_phone_id = ''
+            # The phone is already resolved above. The invoice-row read below can still REFINE
+            # it, but only as an upgrade - see the block further down.
             originating_invoice_id = ''
             order_display_number = reference_id
             order_product = 'Your order'
@@ -1300,10 +1473,17 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
             # Guessing from paymentConfiguration is unreliable for catalog orders
             # (they carry no 'WECARE-' config) and caused WABA1 payments to reply
             # from WABA2. Fall back to the config guess only if the lookup fails.
+            # The invoice row is the authority `_resolve_originating_phone`'s own layer 1 names,
+            # so it is permitted to REFINE the value resolved above - but only as an UPGRADE,
+            # never as a replacement by a weaker source. A disagreement is logged so it is
+            # visible rather than silent.
             resolved_phone = _resolve_originating_phone(reference_id, _inv)
-            if resolved_phone:
+            if resolved_phone and resolved_phone != originating_phone_id:
+                logger.info(json.dumps({
+                    'event': 'razorpay_phone_refined', 'referenceId': reference_id,
+                    'phoneId': resolved_phone, 'requestId': request_id}))
                 originating_phone_id = resolved_phone
-            else:
+            elif not resolved_phone and originating_phone_id == WABA1_PHONE_ID:
                 # All three authoritative lookups failed. There is no second
                 # signal to fall back on: the payment configuration name used to
                 # identify the WABA (WABA1 was hyphenated, WABA2 was not), but
@@ -1312,11 +1492,10 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                 # 'WECARE-'/'UPIVPA' substring test therefore matched nothing and
                 # always landed on Phone 2 - it only looked like a decision.
                 #
-                # The fall-through is now the PRIMARY identity. Phone 2 is
+                # The fall-through is the PRIMARY identity. Phone 2 is
                 # marked `paymentProtected: true` and the UI gates it behind an
                 # admin authorization step before payments may be sent from it,
                 # so defaulting to it server-side bypassed that check.
-                originating_phone_id = 'phone-number-id-waba1-direct-1016149501586345'
                 logger.warning(json.dumps({
                     'event': 'razorpay_phone_unresolved_using_primary',
                     'referenceId': reference_id, 'phoneId': originating_phone_id,
@@ -1336,8 +1515,14 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                     'orderStatusDetails': {
                         'reference_id': reference_id,
                         'order_status': 'completed',
-                        'amount': amount_rupees,
-                        'description': f'Payment of \u20b9{amount_rupees:.2f} received via Razorpay. Thank you!'
+                        # `amountPaise` is the new integer key. `amount` is KEPT for one release
+                        # because the sender accepts both and the OTHER producer
+                        # (inbound-whatsapp-handler) still sends only the rupee key - dropping it
+                        # here while the sender was tightened would have been fine, but keeping
+                        # both makes the sender's dual read provable from either side.
+                        'amountPaise': amount_paise,
+                        'amount': amount_display,
+                        'description': f'Payment of \u20b9{amount_display} received via Razorpay. Thank you!'
                     }
                 })
             }
@@ -1355,7 +1540,7 @@ def _handle_payment_captured(event_data: Dict, request_id: str) -> None:
                                        request_id, invoice_id=originating_invoice_id,
                                        display={'order_number': str(order_display_number),
                                                 'payment_id': str(payment_id or ''),
-                                                'amount': f'\u20b9{amount_rupees:.2f}',
+                                                'amount': f'\u20b9{amount_display}',
                                                 'product': str(order_product)})
         except Exception as e:
             # A17: type only. A ClientError message can echo request content.
@@ -1400,7 +1585,7 @@ def _phone_from_payment_reference_table(table_name: str, reference_id: str) -> s
     return ''
 
 
-def _log_ctwa_purchase(contact: str, amount_rupees: float, currency: str,
+def _log_ctwa_purchase(contact: str, amount_paise: int, currency: str,
                        order_id: str, notes: Dict, request_id: str) -> None:
     """Fire a Click-to-WhatsApp Purchase conversion event via the Conversions API.
     Delegates to wecare-whatsapp-business-api (which owns the dataset + ctwa_clid
@@ -1414,7 +1599,10 @@ def _log_ctwa_purchase(contact: str, amount_rupees: float, currency: str,
         payload = {
             'eventName': 'Purchase',
             'phone': phone,
-            'value': round(float(amount_rupees or 0), 2),
+            # Built ONCE from integer paise, as a string. Meta's Conversions API takes a decimal
+            # value; deriving it exactly from paise is what keeps a reported conversion value
+            # from drifting from the amount actually captured.
+            'value': payment_status.rupees_str(amount_paise),
             'currency': currency or 'INR',
             'orderId': order_id or (notes or {}).get('referenceId', ''),
         }
@@ -1431,7 +1619,7 @@ def _log_ctwa_purchase(contact: str, amount_rupees: float, currency: str,
             Payload=json.dumps(event),
         )
         logger.info(json.dumps({'event': 'ctwa_purchase_event_dispatched',
-                                'phone': phone[-4:], 'amount': amount_rupees,
+                                'phone': phone[-4:], 'amountPaise': amount_paise,
                                 'requestId': request_id}))
     except Exception as e:  # noqa: BLE001
         logger.warning(f'ctwa purchase event dispatch failed (non-blocking): {e}')
@@ -1770,8 +1958,7 @@ def _store_payment_record(payment: Dict, status: str, request_id: str) -> None:
     if not payment_id:
         return
 
-    amount_paise = int(payment.get('amount') or 0)
-    amount_rupees = amount_paise / 100
+    amount_paise = payment_status.paise(payment.get('amount') or 0)
 
     def _safe_int(val):
         """Safely convert to int, handling None."""
@@ -1788,8 +1975,11 @@ def _store_payment_record(payment: Dict, status: str, request_id: str) -> None:
         'orderId': payment.get('order_id') or '',
         'referenceId': (payment.get('notes') or {}).get('referenceId', '') or (payment.get('notes') or {}).get('ref', ''),
         'status': status,
-        'amount': Decimal(str(amount_paise)),
-        'amountInRupees': Decimal(str(amount_rupees)),
+        'amount': Decimal(amount_paise),
+        # A STRING, so the unit ambiguity `payment_status.paise`'s docstring records - "one item,
+        # two units, no field name saying which" - cannot be arithmetic'd even by a reader who
+        # misses it. `amount` above is the comparable figure.
+        'amountInRupees': payment_status.rupees_str(amount_paise),
         'currency': payment.get('currency') or 'INR',
         'method': payment.get('method') or '',
         'contact': payment.get('contact') or '',
@@ -2133,16 +2323,19 @@ def _mark_invoice_paid_by_phone_and_amount(phone: str, amount_rupees: float,
 # ═══════════════════════════════════════════════════════════════════
 
 
-def _post_payment_handler(payment_id: str, amount: float, currency: str, contact: str,
+def _post_payment_handler(payment_id: str, contact: str,
                           email: str, description: str, notes: Dict, request_id: str,
-                          *, channel: str = '', customer_uuid: str = '') -> None:
+                          *, channel: str = '', customer_uuid: str = '',
+                          checkout_mode: str = '', originating_phone_id: str = '',
+                          reference_id: str = '') -> None:
     """
     After payment captured (Razorpay webhook path):
     This is the BACKUP path — WhatsApp inbound handler is the primary invoice generator.
     1. Invoke invoice-engine to create invoice from payment (dedup will return existing if WhatsApp path already created it)
     2. Generate invoice image (POS receipt style) — for internal reference
     3. Generate PDF (async) — for internal reference
-    4. NO WhatsApp send — WhatsApp path handles customer delivery
+    4. Deliver the GST invoice on WhatsApp — NATIVE WhatsApp origin only
+    5. Ask for a review — after the invoice, and fail-open
 
     `channel` is WHERE the order came from (`website` / `whatsapp`), read off the `PAYREF#` row by
     the reconciliation above. KEYWORD-ONLY and defaulted so the legacy callers that pass eight
@@ -2153,6 +2346,14 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
     defaulted for the identical reason, and - unlike the channel - an omission has no default
     beyond empty: the invoice simply prints no Customer ID row, which is the honest answer for a
     payment whose reference row carries none.
+
+    `checkout_mode` is MECHANICS - how the money settled - and together with `channel` it gates
+    step 4. Defaulting to `''` is the fail-closed direction: an absent value closes the gate, so
+    a legacy settlement (which has no `PAYREF#` row at all) sends no document.
+
+    `amount` and `currency` are GONE from this signature rather than retyped. Measured, neither
+    name occurred anywhere in the body after the signature - they were dead parameters carrying
+    a float on a money path.
     """
     logger.info(json.dumps({'event': 'post_payment_start', 'paymentId': payment_id, 'path': 'webhook_backup', 'requestId': request_id}))
 
@@ -2172,10 +2373,16 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
                 # dropped rather than printed on a tax invoice.
                 'customerUuid': customer_uuid,
                 'itemName': description or notes.get('itemName', 'Payment'),
-                'gstRate': float(notes.get('gstRate', 18)),
-                'shipping': float(notes.get('shipping', 0)),
-                'discount': float(notes.get('discount', 0)),
-                'convenienceFee': float(notes.get('convenienceFee', 0)),
+                # ── the `notes` money quartet is DROPPED, not re-derived ──
+                #
+                # `gstRate`, `shipping`, `discount` and `convenienceFee` used to be read off
+                # Razorpay `notes` as floats. The event body is not evidence and `notes` are
+                # REQUEST CONTENT a caller can set, so these were four caller-settable money
+                # figures travelling into a GST invoice. The authoritative values live on the
+                # `PAYREF#`/attempt row for a native payment and on the invoice itself for a
+                # legacy one, and `create_invoice_from_payment` already defaults `gstRate` to 18
+                # and the three money fields to 0. Re-deriving them from the attempt was the
+                # alternative and is more code for a value the invoice already holds.
                 'purpose': notes.get('purpose', description or ''),
             }),
             'rawPath': '/invoices/from-payment',
@@ -2206,11 +2413,69 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
         logger.error(json.dumps({'event': 'invoice_create_empty', 'paymentId': payment_id, 'response': str(inv_body), 'requestId': request_id}))
         return
 
-    # If deduplicated (WhatsApp path already created it), image/PDF already exist — skip
-    if deduplicated:
-        logger.info(json.dumps({'event': 'post_payment_dedup_skip', 'paymentId': payment_id, 'invoiceId': invoice_id, 'requestId': request_id}))
-        return
+    # If deduplicated (WhatsApp path already created it), image/PDF already exist — skip THOSE
+    # TWO STEPS ONLY.
+    #
+    # This used to `return`, and with delivery added below that would skip delivery for exactly
+    # the case where the invoice already existed - which is the COMMON case on the native leg,
+    # because `send_payment_link` wrote `referenceId` onto the invoice, so
+    # `create_invoice_from_payment` dedups onto it and reports `deduplicated: True` on the very
+    # first capture. The delivery CLAIM is the idempotency control for step 4, and a claim is
+    # strictly better than inferring delivery from invoice novelty.
+    if not deduplicated:
+        _generate_invoice_assets(invoice_id, request_id)
+    else:
+        logger.info(json.dumps({'event': 'post_payment_dedup_skip_assets',
+                                'paymentId': payment_id, 'invoiceId': invoice_id,
+                                'requestId': request_id}))
 
+    # ── Step 4: deliver the GST invoice to the customer on WhatsApp ──
+    #
+    # NATIVE WHATSAPP ORIGIN ONLY, and the two conditions are not redundant:
+    #   channel      == whatsapp            → ATTRIBUTION: the customer transacted over WhatsApp
+    #   checkoutMode == WHATSAPP_NATIVE_PG  → MECHANICS: Meta collected it, so WE owe the receipt
+    #
+    # A catalogue-origin order is `channel=whatsapp` but settles through the WEBSITE leg, whose
+    # own receipt path owns delivery; a website order's receipt is likewise not ours to send.
+    # Sending a WhatsApp document for either would be an unrequested message to a customer who
+    # receives none today - so gating on the channel ALONE would silently change an existing
+    # live leg's behaviour.
+    #
+    # Async (`Event`) because a delivery failure must not fail the webhook and make Razorpay
+    # retry a whole captured payment. Placed after the asset step so a synchronous render does
+    # not happen inside an async delivery invoke, where a render failure would be invisible here.
+    delivered = False
+    if (channel == 'whatsapp'
+            and checkout_mode == 'WHATSAPP_NATIVE_PG'
+            and contact and invoice_id):
+        delivered = _deliver_invoice_on_whatsapp(
+            invoice_id, contact, originating_phone_id, request_id)
+
+    # ── Step 5: ask for a review, AFTER the invoice and FAIL-OPEN ──
+    #
+    # Gated on CONFIRMED-PAID only, which is already established by reaching this function at
+    # all: `_handle_payment_captured` returns before calling it unless a provider readback
+    # produced a verified order or a verified legacy invoice. So BOTH legs ask - WhatsApp and
+    # website - which is deliberate and is the one place this differs from step 4. Step 4 is a
+    # GST document we owe only where we collected the money; a review request is about the
+    # service, which is the same service either way.
+    #
+    # Ordering and failure posture are both deliberate. It runs AFTER the invoice because the
+    # receipt is what the customer is being asked to review the service behind, and it is
+    # FAIL-OPEN because a feedback send is the least important thing on this path: it must never
+    # block or reverse the invoice or the paid state. Idempotent on the invoice, so a redelivered
+    # capture asks once.
+    if contact and invoice_id:
+        _request_review_on_whatsapp(invoice_id, contact, originating_phone_id,
+                                    reference_id, request_id)
+
+    logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,
+                            'invoiceId': invoice_id, 'invoiceDelivered': delivered,
+                            'path': 'webhook_backup', 'requestId': request_id}))
+
+
+def _generate_invoice_assets(invoice_id: str, request_id: str) -> None:
+    """Steps 2 and 3: render the invoice image and PDF. Internal reference only."""
     # ── Step 2: Generate invoice image (internal reference only) ──
     try:
         img_payload = {
@@ -2252,8 +2517,143 @@ def _post_payment_handler(payment_id: str, amount: float, currency: str, contact
     except Exception as e:
         logger.error(json.dumps({'event': 'invoice_pdf_error', 'invoiceId': invoice_id, 'error': str(e), 'requestId': request_id}))
 
-    # NO WhatsApp send — WhatsApp inbound handler is the primary path for customer delivery
-    logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id, 'invoiceId': invoice_id, 'path': 'webhook_backup', 'requestId': request_id}))
+
+def _deliver_invoice_on_whatsapp(invoice_id: str, contact: str, phone_number_id: str,
+                                 request_id: str) -> bool:
+    """Step 4: hand the already-rendered GST invoice to the engine for delivery.
+
+    It sends NO `force`, deliberately: the engine's own delivery claim is the idempotency
+    control, and `force` defaults to False there, so a redelivered capture gets
+    `already_delivered` and sends nothing. Exactly-once is by claim rather than by hope, and the
+    claim is inside the engine so the operator button passes through it too.
+
+    `deliveryReason` is NOT in the payload. Nothing reads it, and an unread payload key is
+    self-documentation that a log line already does better.
+    """
+    clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
+    if not clean_phone.startswith('91') and len(clean_phone) == 10:
+        clean_phone = '91' + clean_phone
+
+    # ── a DISPATCH claim, which answers a different question from the engine's ──
+    #
+    # Two claims, two questions, and they are not redundant:
+    #
+    #   `#whatsapp-dispatch` (here)  "have I already asked the engine to deliver this?"
+    #   `#whatsapp`          (engine) "may I send this document?"
+    #
+    # The ENGINE's claim is the authority on sending, and it has to live there so the operator
+    # button and any future caller pass through it. But Razorpay redelivers, and with only that
+    # claim every redelivery fans out another async invoke that can do nothing but be refused -
+    # four deliveries, four invokes, one send. A conditional write here makes the dispatch count
+    # match the send count.
+    #
+    # Fails toward DISPATCHING on a storage error: a duplicate invoke is refused downstream,
+    # whereas a skipped one is a GST invoice that never went.
+    try:
+        from lambda_utils.ecommerce import order_keys
+        if not order_keys.claim_invoice_delivery(
+                dynamodb.Table(COMMERCE_KEYS_TABLE), invoice_id=invoice_id,
+                channel='whatsapp-dispatch', extra={'requestId': request_id}):
+            logger.info(json.dumps({'event': 'invoice_delivery_already_dispatched',
+                                    'invoiceId': invoice_id, 'requestId': request_id}))
+            return False
+    except Exception as e:  # noqa: BLE001
+        logger.info(json.dumps({'event': 'invoice_delivery_dispatch_claim_skipped',
+                                'invoiceId': invoice_id, 'error': type(e).__name__,
+                                'requestId': request_id}))
+
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-invoice-engine',
+            InvocationType='Event',
+            Payload=json.dumps({
+                'rawPath': f'/invoices/{invoice_id}/send-whatsapp',
+                'requestContext': {'http': {'method': 'POST'}},
+                'pathParameters': {'invoiceId': invoice_id},
+                'body': json.dumps({
+                    'invoiceId': invoice_id,
+                    'toWhatsAppNumber': f'+{clean_phone}',
+                    'phoneNumberId': phone_number_id or WABA1_PHONE_ID,
+                }),
+            }),
+        )
+    except Exception as e:  # noqa: BLE001
+        # Type only, and never raised: a delivery failure must not fail the webhook and make
+        # Razorpay retry a whole captured payment. The invoice stays deliverable, because the
+        # engine releases its claim when a send does not land.
+        logger.error(json.dumps({'event': 'invoice_delivery_dispatch_error',
+                                 'invoiceId': invoice_id, 'error': type(e).__name__,
+                                 'requestId': request_id}))
+        return False
+    logger.info(json.dumps({'event': 'invoice_delivery_dispatched', 'invoiceId': invoice_id,
+                            'phoneId': phone_number_id, 'requestId': request_id}))
+    return True
+
+
+def _request_review_on_whatsapp(invoice_id: str, contact: str, phone_number_id: str,
+                                reference_id: str, request_id: str) -> bool:
+    """Step 5: send the approved `wecare_leave_review` template, ONCE, and never block on it.
+
+    Three properties, each load-bearing:
+
+    **Once.** Claimed on `INVOICEDELIVERY#<invoiceId>#review` through the same conditional-write
+    primitive the invoice delivery uses, so a redelivered capture asks once. A second review
+    request for one payment is a nuisance message, which is cheap - but it is also the kind of
+    thing that accumulates silently, so it is claimed rather than hoped for.
+
+    **WABA1 only.** The template is approved on WABA1, and payments only ever come from WABA1
+    anyway. An unresolved sender falls back to the primary identity, never to the admin-gated
+    secondary.
+
+    **FAIL-OPEN.** Every failure path here returns False and logs; none raises. The invoice and
+    the paid state are already correct at this point, and a feedback send is the least important
+    thing on this path - so it must never be able to reverse either. That is the opposite posture
+    from the invoice claim, which fails CLOSED toward not sending, and the asymmetry is correct:
+    a missing review request costs nothing, a duplicate GST invoice is a compliance artifact.
+    """
+    clean_phone = (contact or '').replace('+', '').replace(' ', '').replace('-', '')
+    if not clean_phone.startswith('91') and len(clean_phone) == 10:
+        clean_phone = '91' + clean_phone
+    if not clean_phone:
+        return False
+    try:
+        from lambda_utils.ecommerce import order_keys
+        keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        if not order_keys.claim_invoice_delivery(
+                keys_table, invoice_id=invoice_id, channel='review',
+                extra={'referenceId': reference_id or '', 'requestId': request_id}):
+            logger.info(json.dumps({'event': 'review_request_already_sent',
+                                    'invoiceId': invoice_id, 'requestId': request_id}))
+            return False
+    except Exception as e:  # noqa: BLE001
+        # Could not claim. FAIL-OPEN means we do not send rather than send unclaimed: an
+        # unclaimed send is the duplicate this claim exists to prevent, and skipping it costs
+        # nothing. "Fail-open" is about not blocking the payment path, not about sending anyway.
+        logger.warning(json.dumps({'event': 'review_request_claim_unavailable',
+                                   'invoiceId': invoice_id, 'error': type(e).__name__,
+                                   'requestId': request_id}))
+        return False
+    try:
+        lambda_client.invoke(
+            FunctionName=os.environ.get('OUTBOUND_FUNCTION', 'wecare-outbound-whatsapp'),
+            InvocationType='Event',
+            Payload=json.dumps({'body': json.dumps({
+                'recipientPhone': f'+{clean_phone}',
+                'phoneNumberId': phone_number_id or WABA1_PHONE_ID,
+                'isTemplate': True,
+                'templateName': WA_REVIEW_TEMPLATE,
+                'templateParams': [],
+            })}),
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'review_request_send_failed',
+                                   'invoiceId': invoice_id, 'error': type(e).__name__,
+                                   'requestId': request_id}))
+        return False
+    logger.info(json.dumps({'event': 'review_request_sent', 'invoiceId': invoice_id,
+                            'referenceId': reference_id, 'template': WA_REVIEW_TEMPLATE,
+                            'requestId': request_id}))
+    return True
 
 
 
@@ -2405,13 +2805,71 @@ def _handle_downtime(event_type: str, event_data: Dict, request_id: str) -> None
 # ═══════════════════════════════════════════════════════════════════
 
 def _handle_settlement(event_type: str, event_data: Dict, request_id: str) -> None:
-    """Handle settlement.processed event."""
-    settlement = event_data.get('settlement', {}).get('entity', {})
-    settlement_id = settlement.get('id', '')
-    amount = int(settlement.get('amount', 0)) / 100
+    """Record a settlement as reconciliation evidence. Creates no paid state.
+
+    A settlement is the BANK TRANSFER of money already captured, arriving days later in a batch
+    covering many payments. The money became ours at `payment.captured`, which is the only event
+    permitted to move an order forward - so this writes a settlement record and touches no order,
+    no invoice and no customer message.
+
+    It deliberately does NOT finalize an order, mark an invoice paid, send a message, or move any
+    payment status. Doing so would either be a no-op or, worse, a SECOND write path to paid state.
+    The honest fix for this handler was integer money plus a durable record, not a finalisation it
+    has no business performing.
+    """
+    # `extract_entity` rather than a hand-dug `event_data['settlement']['entity']`:
+    # `payment_status.ENTITY_KEYS` exists because `event_data.get('downtime')` never matched for
+    # 607 live events, and a settlement is in exactly that family of nested containers.
+    _, settlement = payment_status.extract_entity(event_data)
+    settlement_id = str(settlement.get('id') or '')
+    try:
+        amount_paise = payment_status.paise(settlement.get('amount'))
+    except (ValueError, ArithmeticError, TypeError):
+        logger.error(json.dumps({'event': 'settlement_amount_unreadable',
+                                 'settlementId': settlement_id, 'requestId': request_id}))
+        return
+    # Compared EXPLICITLY, never inferred from the amount.
+    if str(settlement.get('currency') or 'INR') != 'INR':
+        logger.error(json.dumps({'event': 'settlement_currency_unexpected',
+                                 'settlementId': settlement_id, 'requestId': request_id}))
+        return
     logger.info(json.dumps({
-        'event': event_type, 'settlementId': settlement_id, 'amount': amount, 'requestId': request_id,
+        'event': event_type, 'settlementId': settlement_id,
+        'amountPaise': amount_paise,                               # INTEGER
+        'amountRupees': payment_status.rupees_str(amount_paise),    # STRING, display only
+        'status': str(settlement.get('status') or ''),
+        'requestId': request_id,
     }))
+    _store_settlement_record(settlement_id, amount_paise, settlement, request_id)
+
+
+def _store_settlement_record(settlement_id: str, amount_paise: int, settlement: Dict,
+                             request_id: str) -> None:
+    """A durable settlement row, conditional so a redelivery is a no-op.
+
+    Carries `amountPaise` as an integer and NO customer identifier: a settlement is about the
+    business bank account, not about any one customer.
+    """
+    if not settlement_id:
+        return
+    try:
+        dynamodb.Table(PAYMENTS_TABLE).put_item(
+            Item={'id': 'SETTLEMENT#' + settlement_id,
+                  'recordType': 'SETTLEMENT',
+                  'settlementId': settlement_id,
+                  'amountPaise': Decimal(amount_paise),
+                  'currency': 'INR',
+                  'settlementStatus': str(settlement.get('status') or ''),
+                  'createdAt': Decimal(int(time.time()))},
+            ConditionExpression='attribute_not_exists(id)')
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            logger.info(json.dumps({'event': 'settlement_record_exists',
+                                    'settlementId': settlement_id, 'requestId': request_id}))
+            return
+        logger.error(json.dumps({'event': 'settlement_record_error',
+                                 'settlementId': settlement_id,
+                                 'error': type(e).__name__, 'requestId': request_id}))
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -2434,13 +2892,24 @@ def _handle_subscription_event(event_type: str, event_data: Dict, request_id: st
 # ═══════════════════════════════════════════════════════════════════
 
 def _handle_payout_event(event_type: str, event_data: Dict, request_id: str) -> None:
-    """Handle payout.* events."""
-    payout = event_data.get('payout', {}).get('entity', {})
-    payout_id = payout.get('id', '')
-    amount = int(payout.get('amount', 0)) / 100
-    status = payout.get('status', '')
+    """Handle payout.* events. Integer paise, and it finalizes nothing.
+
+    A payout is money LEAVING the business account. It has no order at all, so there is nothing
+    here to move forward and the only correctness question is the arithmetic.
+    """
+    _, payout = payment_status.extract_entity(event_data)
+    payout_id = str(payout.get('id') or '')
+    try:
+        amount_paise = payment_status.paise(payout.get('amount'))
+    except (ValueError, ArithmeticError, TypeError):
+        logger.error(json.dumps({'event': 'payout_amount_unreadable',
+                                 'payoutId': payout_id, 'requestId': request_id}))
+        return
     logger.info(json.dumps({
-        'event': event_type, 'payoutId': payout_id, 'amount': amount, 'status': status, 'requestId': request_id,
+        'event': event_type, 'payoutId': payout_id,
+        'amountPaise': amount_paise,                              # INTEGER
+        'amountRupees': payment_status.rupees_str(amount_paise),   # STRING, display only
+        'status': str(payout.get('status') or ''), 'requestId': request_id,
     }))
 
 

@@ -99,6 +99,7 @@ const RequestsPanel: React.FC<Props> = ( { accessToken, paidReferenceIds, onExpi
                   { row.orderNumber ? ' · Order ' : '' }
                   { row.orderNumber && <span data-wc-no-translate>{ row.orderNumber }</span> }
                 </p>
+                { row.fileName && <p className="rqp-meta">{ row.fileName } · { row.deliveryStatus === 'READY' ? 'Paid · Access ready' : 'Preparing your file' }</p> }
                 { row.targetRequestId && (
                   <p className="rqp-meta">
                     Amends <span data-wc-no-translate>{ row.targetRequestId }</span>

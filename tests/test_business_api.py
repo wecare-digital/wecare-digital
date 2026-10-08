@@ -915,3 +915,36 @@ class TestUpdateCallingSettings:
         # An empty {} voicemail should not be forwarded, and with no other fields → 400
         resp = self.update('123', {'voicemail': {}})
         assert resp['statusCode'] == 400
+
+
+class TestFlattenPaymentConfigurations:
+    """The live `GET /{waba}/payment_configurations` edge nests configs one level down under
+    data[].payment_configurations[]. _flatten_payment_configurations must normalise that to the
+    flat {data:[config,...]} shape payment_readiness.evaluate consumes. Measured 2026-10-08."""
+
+    def _handler(self):
+        from handler import _flatten_payment_configurations
+        return _flatten_payment_configurations
+
+    def test_flattens_the_real_nested_live_shape(self):
+        flat = self._handler()({
+            'data': [{'payment_configurations': [
+                {'configuration_name': 'WECAREUPI', 'status': 'Active'},
+                {'configuration_name': 'WECAREDIGITAL', 'status': 'Active',
+                 'provider_mid': 'acc_TTFSyolquKEZEy', 'provider_name': 'Razorpay'},
+            ]}]
+        })
+        names = [c['configuration_name'] for c in flat['data']]
+        assert names == ['WECAREUPI', 'WECAREDIGITAL']
+        assert flat['data'][1]['provider_mid'] == 'acc_TTFSyolquKEZEy'
+
+    def test_passes_an_error_response_through_unchanged(self):
+        err = {'error': {'message': 'boom', 'code': 100}}
+        assert self._handler()(err) == err
+
+    def test_already_flat_list_is_preserved(self):
+        flat = self._handler()({'data': [{'configuration_name': 'WECAREDIGITAL'}]})
+        assert flat['data'] == [{'configuration_name': 'WECAREDIGITAL'}]
+
+    def test_empty_data_stays_empty(self):
+        assert self._handler()({'data': []}) == {'data': []}

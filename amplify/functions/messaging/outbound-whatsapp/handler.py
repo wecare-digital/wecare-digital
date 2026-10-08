@@ -19,7 +19,7 @@ import boto3
 import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional, Tuple
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 # Configure logging
 from lambda_utils.logging import get_logger
@@ -425,10 +425,25 @@ PHONE_PAYMENT_CONFIG = {
 }
 
 # Razorpay is the only gateway. PayU was removed from both WABAs on Meta.
+#
+# WABA2 is REMOVED from this map. It is not the control - see `PAYMENT_SENDERS` below and the
+# guard inside `_build_payment_settings` - but the map and the guard must agree, or the next
+# reader concludes WABA2 is a permitted payment sender because the map says so.
 PHONE_PAYMENT_GATEWAYS = {
     PHONE_NUMBER_ID_1: {'razorpay': 'WECAREDIGITAL'},     # +919330994400 (WABA1)
-    PHONE_NUMBER_ID_2: {'razorpay': 'WECAREDIGITAL'},     # +919903300044 (WABA2)
 }
+
+#: The ONLY sender permitted to take a payment.
+#:
+#: Removing WABA2 from `PHONE_PAYMENT_GATEWAYS` alone does NOT close the hole, which is why this
+#: exists as a separate check: `explicit_config` is read BEFORE `config_name` is computed, and
+#: `'WECAREDIGITAL'` is a valid name on both WABAs - so a caller naming one would otherwise
+#: resolve for either sender regardless of the map.
+#:
+#: Pinned equal to `wa_payment_request.PAYMENT_SENDERS` by test. A literal rather than an import
+#: because the resolver must not depend on the `ecommerce` package, and because this is the layer
+#: no caller can bypass.
+PAYMENT_SENDERS = frozenset({PHONE_NUMBER_ID_1})
 
 
 class PaymentConfigurationUnresolved(ValueError):
@@ -452,6 +467,52 @@ def _build_payment_settings(phone_number_id: str, order_details: dict) -> list:
     Meta allows ONE payment_setting per review_and_pay message."""
     explicit_config = order_details.get('payment_configuration', '')
     ref_id = order_details.get('reference_id', '')
+
+    # ══ Two refusals, placed AHEAD of every other branch. The ordering is the control. ═══════
+    #
+    # ── 1. Only WABA1 may take payments. ──
+    #
+    # Checked before the explicit-configuration override, because an explicit
+    # `payment_configuration` is a CHOICE OF CONFIGURATION, not a grant of permission: both WABAs
+    # expose the identical pair WECAREDIGITAL/WECAREUPI, so a caller naming one would otherwise
+    # resolve for either sender. Removing WABA2 from the map above is agreement, not the control.
+    #
+    # It lives in the RESOLVER and not only in the caller-side module, because a refusal in a new
+    # module protects callers that use the new module - and `invoice-engine.send_payment_link`
+    # has three internal Lambda callers that are exactly such callers today. This is the one
+    # place no caller can bypass.
+    #
+    # Note what this does NOT do: no Meta payment configuration is created, deleted or mutated.
+    # Both WABAs keep whatever Meta holds. This is purely which sender THIS CODE will compose a
+    # payment for.
+    if phone_number_id not in PAYMENT_SENDERS:
+        raise PaymentConfigurationUnresolved(
+            f'sender {phone_number_id!r} may not take payments; an explicit '
+            'payment_configuration does not grant it')
+
+    # ── 2. WhatsApp payments are TEMPLATE-ONLY. A link path is refused, never silently taken. ──
+    #
+    # `wecarepay_wa` carrying `order_details` is the ONE way this business collects a WhatsApp
+    # payment. The two link modes below `return` BEFORE the PG deep-integration mode, so a caller
+    # setting either key bypasses `configuration_name` entirely - and with it the payment
+    # configuration, the readiness verdict and the approved template. Measured, NOTHING in this
+    # repository sets either key; this refusal exists so that stays true, which makes it a pure
+    # tightening with zero behavioural change today.
+    #
+    # Refusing `upi_intent_link` does NOT refuse UPI. `WECAREUPI` stays reachable exactly as it
+    # should be - as a `configuration_name` through Mode 3, where Meta owns the UPI collection
+    # inside the template. Mode 2 is a different mechanism: a raw UPI deep link that bypasses
+    # `configuration_name`, and therefore bypasses the merchant-id verification that proves the
+    # money lands in our Razorpay account. So this refuses UPI OUTSIDE the verified configuration.
+    #
+    # It raises the EXISTING exception rather than inventing one, so it is fail-closed for every
+    # caller on day one: a new type would need every caller updated before it refused anything.
+    for _forbidden in ('payment_link_uri', 'upi_intent_link'):
+        if order_details.get(_forbidden):
+            raise PaymentConfigurationUnresolved(
+                f'{_forbidden} is not permitted on the WhatsApp payment path; payments must '
+                'travel in the approved order_details template. Refusing rather than sending '
+                'a link.')
 
     # ── Mode 1: Enhanced Payment Links (Gap 9) ──
     payment_link_uri = order_details.get('payment_link_uri', '')
@@ -1154,24 +1215,35 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         # Sanitize reference_id to remove duplicate WD prefixes
         reference_id = _sanitize_reference_id(raw_reference_id)
         order_status = order_status_details.get('order_status', 'completed')
-        amount = order_status_details.get('amount', 0)  # Amount in rupees
-        
+
+        # ── `orderStatusDetails.amount` has TWO producers, so this read accepts BOTH keys ──
+        #
+        # `razorpay-webhook` now sends `amountPaise` (an integer); `inbound-whatsapp-handler`
+        # sends `amount` in rupees and is deliberately left untouched - the retirement block in
+        # that file is the thing this change most needs not to reach into.
+        #
+        # Reading only the new key would resolve `0` for an inbound-origin confirmation, fall
+        # through to the `description` default, and lose the figure with NO error anywhere - on
+        # the one message that tells a paying customer their money arrived. So: prefer the
+        # integer, accept the legacy rupee key, and convert it EXACTLY rather than coercing it
+        # with `float()`. The legacy KEY is accepted; the legacy ARITHMETIC is not.
+        amount_paise = order_status_details.get('amountPaise')
+        if amount_paise is None:
+            amount_paise = _paise_from_rupees(order_status_details.get('amount'))
+        elif isinstance(amount_paise, bool) or not isinstance(amount_paise, int):
+            # `bool` excluded explicitly: `isinstance(True, int)` is True in Python, so `True`
+            # would otherwise pass as one paise.
+            raise ValueError('amountPaise must be an integer')
+        amount_display = pay_status.rupees_str(amount_paise) if amount_paise else ''
+
         # Log the received order_status_details for debugging
         logger.info(json.dumps({
             'event': 'order_status_details_received',
-            'orderStatusDetails': order_status_details,
             'rawReferenceId': raw_reference_id,
             'sanitizedReferenceId': reference_id,
-            'amount': amount,
-            'amountType': type(amount).__name__,
+            'amountPaise': amount_paise,
             'requestId': request_id
         }))
-        
-        # Ensure amount is a float
-        try:
-            amount = float(amount) if amount else 0.0
-        except (ValueError, TypeError):
-            amount = 0.0
         
         # Generate appropriate message based on status.
         #
@@ -1183,8 +1255,8 @@ def _handle_order_status_send(message_id: str, contact_id: str, recipient_phone:
         payment_state = pay_status.canonical(order_status)
         if payment_state == pay_status.CAPTURED:
             # Use description from inbound handler if amount is 0 (fallback)
-            if amount > 0:
-                body_text = f"Payment of ₹{amount:.2f} received successfully! Thank you ✅"
+            if amount_paise > 0:
+                body_text = f"Payment of ₹{amount_display} received successfully! Thank you ✅"
             else:
                 # Use the description passed from inbound handler which may have the amount
                 body_text = order_status_details.get('description', 'Payment received successfully! Thank you ✅')
@@ -1516,6 +1588,22 @@ def _handle_checkout_template_send(
             whatsapp_message_id=whatsapp_message_id,
             phone_number_id=phone_number_id,
             recipient_bsuid=recipient_bsuid,
+            # ── the two fields that make this row RESOLVABLE by payment reference ──
+            #
+            # This branch used to pass nothing payment-shaped, so the outbound row for a
+            # checkout-template send carried no `paymentReferenceId`. The consequence was not
+            # cosmetic: `razorpay-webhook._resolve_originating_phone` queries
+            # `paymentReferenceId-index` as its layer 2, and the InboundTable `payment_request`
+            # row its layer 3 reads is written only in the interactive branch - so BOTH layers
+            # missed for a native send, the resolution fell through to the WABA1 fallback, and
+            # `razorpay_phone_unresolved_using_primary` would fire at WARNING on EVERY native
+            # capture. That is noise on the exact signal that exists to catch a cross-WABA
+            # mistake.
+            #
+            # `total_amount.value` is integer paise by construction on this path.
+            payment_reference_id=ref_id,
+            payment_amount_paise=order_details_action.get(
+                'total_amount', {}).get('value') or None,
         )
 
         _emit_delivery_metric('success', is_template=True)
@@ -1997,7 +2085,7 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             pass
         
         payment_ref_id = None
-        payment_amount = None
+        payment_amount_paise = None
         stored_content = content
         # Templates: guarantee a displayable content string so the sent template
         # shows in the conversation thread (the empty-content guard below would
@@ -2009,19 +2097,29 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             # Calculate total amount in rupees from order_details
             order_data = order_details.get('order', {})
             total_amt = order_data.get('total_amount', {})
+            # INTEGER PAISE throughout, with no multiply and no divide. This value is PERSISTED
+            # by `_store_message_record` and is read back on confirmation, so it is money of
+            # record rather than a display figure - the two divisions that used to be here made
+            # it a float on the way in and a float on the way out.
             if not total_amt:
                 # total_amount may be at parameters level in built payload
-                subtotal_val = order_data.get('subtotal', {}).get('value', 0)
-                discount_val = order_data.get('discount', {}).get('value', 0)
-                shipping_val = order_data.get('shipping', {}).get('value', 0)
-                tax_val = order_data.get('tax', {}).get('value', 0)
-                total_paise = subtotal_val - discount_val + shipping_val + tax_val
-                payment_amount = total_paise / 100
+                subtotal_val = int(order_data.get('subtotal', {}).get('value', 0) or 0)
+                discount_val = int(order_data.get('discount', {}).get('value', 0) or 0)
+                shipping_val = int(order_data.get('shipping', {}).get('value', 0) or 0)
+                tax_val = int(order_data.get('tax', {}).get('value', 0) or 0)
+                payment_amount_paise = subtotal_val - discount_val + shipping_val + tax_val
             else:
-                payment_amount = total_amt.get('value', 0) / total_amt.get('offset', 100)
+                # Refused rather than divided by `offset`. Meta's `order_details` amounts are
+                # minor units with `offset: 100`, so the value IS paise; dividing it was what
+                # introduced the float in the first place.
+                raw_value = total_amt.get('value', 0)
+                if isinstance(raw_value, bool) or not isinstance(raw_value, int):
+                    raise ValueError('order_details total_amount.value must be integer paise')
+                payment_amount_paise = raw_value
             # Build rich content for inbox display
             item_name = order_details.get('itemName', 'Payment')
-            stored_content = f'[Payment: ₹{payment_amount:.2f} | {item_name} | Ref: {payment_ref_id}]'
+            stored_content = (f'[Payment: ₹{pay_status.rupees_str(payment_amount_paise)} | '
+                              f'{item_name} | Ref: {payment_ref_id}]')
         
         # Requirement 5.11: Store message record
         _store_message_record(
@@ -2035,7 +2133,7 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             s3_key=s3_key,
             phone_number_id=phone_number_id,
             payment_reference_id=payment_ref_id,
-            payment_amount=payment_amount,
+            payment_amount_paise=payment_amount_paise,
             recipient_bsuid=recipient_bsuid,
             # Template header media (public link) → shows the attachment in the inbox
             media_url=(resolved_header_media if (is_template and template_header_media
@@ -2055,14 +2153,16 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                 shipping_val = order_data.get('shipping', {}).get('value', 0)
                 tax_val = order_data.get('tax', {}).get('value', 0)
                 
-                # Calculate per-item GST total for gstRate field
-                total_gst_rate = 0
+                # Calculate per-item GST total for gstRate field. `Decimal` rather than a
+                # `float()` round-trip: this value is persisted as `paymentGstRate` and a GST
+                # rate on a tax record is not a display figure.
+                total_gst_rate = Decimal('0')
                 if items_list:
-                    weighted_sum = 0
+                    weighted_sum = Decimal('0')
                     total_value = 0
                     for it in items_list:
                         it_val = int(it.get('amount', {}).get('value', 0)) * int(it.get('quantity', 1))
-                        it_rate = float(it.get('gstRate', 0))
+                        it_rate = Decimal(str(it.get('gstRate', 0) or 0))
                         weighted_sum += it_val * it_rate
                         total_value += it_val
                     if total_value > 0:
@@ -2096,7 +2196,7 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                     'paymentGstRate': Decimal(str(total_gst_rate)),
                     'paymentGstAmount': Decimal(str(tax_val)),
                     'paymentShipping': Decimal(str(shipping_val)),
-                    'paymentTotal': Decimal(str(int((payment_amount or 0) * 100))),
+                    'paymentTotal': Decimal(payment_amount_paise or 0),
                     'paymentGstin': order_details.get('gstin', '19AAFFW7196L1Z8'),
                     'paymentSource': 'inbox_ui',
                     'paymentOrderId': order_details.get('orderId', 'Offline'),
@@ -2907,6 +3007,30 @@ def _normalize_phone_number(phone: str) -> str:
     return digits_only
 
 
+def _paise_from_rupees(value) -> int:
+    """Exact integer paise from a rupee figure. No `float()`, no `round()`, no epsilon.
+
+    This is the LEGACY-KEY arm of the `orderStatusDetails` read: `inbound-whatsapp-handler`
+    produces `amount` in rupees and is deliberately left untouched, so the rupee key is accepted
+    here - but the rupee ARITHMETIC is not. `Decimal(str(x)) * 100` is exact where `float(x) * 100`
+    is not, and this figure reaches a message that tells a paying customer their money arrived.
+
+    Returns 0 for an absent or unreadable value, because a missing amount on a confirmation falls
+    back to the caller's `description` rather than failing the send.
+    """
+    if value in (None, ''):
+        return 0
+    if isinstance(value, bool):
+        return 0
+    try:
+        minor = Decimal(str(value)) * 100
+    except (InvalidOperation, ValueError, TypeError):
+        return 0
+    if minor != minor.to_integral_value() or minor < 0:
+        return 0
+    return int(minor)
+
+
 class ReferenceIdTooLong(ValueError):
     """A reference_id exceeded Meta's 35-character limit and was NOT truncated.
 
@@ -3124,10 +3248,14 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
             item_line_total = item_amount * item_qty
             item_total_paise += item_line_total
             
-            # Per-item GST rate
-            item_gst_rate = float(item.get('gstRate', 0))
+            # Per-item GST rate. `Decimal(str(...))` DIRECTLY - the `float()` round-trip that
+            # used to sit in front of it was pointless and lossy: the value was immediately
+            # re-wrapped as `Decimal(str(rate))`, so the float existed only long enough to lose
+            # precision. This figure multiplies a paise line total into the GST the customer is
+            # charged, so it is money of record.
+            item_gst_rate = Decimal(str(item.get('gstRate', 0) or 0))
             if item_gst_rate > 0:
-                gst_paise += round_paise(Decimal(item_line_total) * Decimal(str(item_gst_rate)) / Decimal("100"))
+                gst_paise += round_paise(Decimal(item_line_total) * item_gst_rate / Decimal("100"))
             
             items_for_whatsapp.append({
                 'retailer_id': item.get('retailer_id', f'ITEM_{i+1}'),
@@ -4025,7 +4153,8 @@ def _store_message_record(message_id: str, contact_id: str, content: str, status
                           is_template: bool = False, whatsapp_message_id: str = None,
                           media_id: str = None, s3_key: str = None,
                           error_details: Dict = None, phone_number_id: str = None,
-                          payment_reference_id: str = None, payment_amount: float = None,
+                          payment_reference_id: str = None,
+                          payment_amount_paise: Optional[int] = None,
                           recipient_bsuid: str = None, media_url: str = None,
                           error_code: int = None, is_direct_send: bool = False) -> None:
     """Store message record in DynamoDB with WABA tracking.
@@ -4112,8 +4241,10 @@ def _store_message_record(message_id: str, contact_id: str, content: str, status
         'expiresAt': Decimal(str(expires_at)),
         # Payment tracking fields (for amount lookup on confirmation)
         'paymentReferenceId': payment_reference_id,
-        'paymentAmount': Decimal(str(payment_amount * 100)) if payment_amount else None,  # Store in paise
-        'paymentOffset': Decimal('100') if payment_amount else None,
+        # INTEGER PAISE, taken directly from the caller. The `Decimal(str(x * 100))` float
+        # round-trip that used to be here is what made a persisted money field inexact.
+        'paymentAmount': Decimal(payment_amount_paise) if payment_amount_paise else None,
+        'paymentOffset': Decimal('100') if payment_amount_paise else None,
         # BSUID recipient tracking (for BSUID-only sends)
         'recipientBsuid': recipient_bsuid or None,
         # True only when the send carried a Direct Send `category`. None (and so

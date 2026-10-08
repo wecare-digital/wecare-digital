@@ -93,7 +93,7 @@ def _code(exc: ClientError) -> str:
 # ── pure builders (tests/test_service_requests_iam.py holds these EQUAL) ──────
 
 def expected_role_policy(acct: str | None = None) -> dict:
-    """The one inline policy. No logs (the managed policy owns that), no DeleteItem, no Scan, no
+    """The canonical request policy. No logs (the managed policy owns that), no DeleteItem, no Scan, no
     BatchWrite, no secretsmanager/kms/lambda/s3/sns/ses: this role cannot move money, read a
     secret, message anyone, or delete a request."""
     acct = acct or account_id()
@@ -118,6 +118,15 @@ def expected_role_policy(acct: str | None = None) -> dict:
              "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{RATE_LIMIT_TABLE}"]},
         ],
     }
+
+
+def expected_vault_file_policy(acct: str | None = None) -> dict:
+    """Separate additive policy, matching the deployed vault-file-selection policy."""
+    acct = acct or account_id()
+    return {"Version": "2012-10-17", "Statement": [{
+        "Sid": "BindSelectedVaultFile", "Effect": "Allow",
+        "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+        "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/stack-wecare-digital-SecureFilesTable"]}]}
 
 
 def expected_managed_policies() -> list:
@@ -249,6 +258,8 @@ def ensure_role(dry_run: bool) -> str:
     iam.attach_role_policy(RoleName=ROLE_NAME, PolicyArn=MANAGED_POLICY_ARN)
     iam.put_role_policy(RoleName=ROLE_NAME, PolicyName=INLINE_POLICY_NAME,
                         PolicyDocument=json.dumps(expected_role_policy()))
+    iam.put_role_policy(RoleName=ROLE_NAME, PolicyName="vault-file-selection",
+                        PolicyDocument=json.dumps(expected_vault_file_policy()))
     return "reconciled" if exists else "created"
 
 
@@ -394,6 +405,10 @@ def verify() -> int:
                                          PolicyName=INLINE_POLICY_NAME)["PolicyDocument"]
         if live != expected_role_policy():
             problems.append("inline policy drift")
+        vault_policy = _c("iam").get_role_policy(RoleName=ROLE_NAME,
+                                                PolicyName="vault-file-selection")["PolicyDocument"]
+        if vault_policy != expected_vault_file_policy():
+            problems.append("vault file selection policy drift")
         attached = [p["PolicyArn"] for p in _c("iam").list_attached_role_policies(
             RoleName=ROLE_NAME)["AttachedPolicies"]]
         if sorted(attached) != expected_managed_policies():

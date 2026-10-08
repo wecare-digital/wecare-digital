@@ -49,6 +49,13 @@ function stub ( prepare: Array<{ status: number; body: unknown }> ) {
     {
       return { ok: true, status: 200, json: async () => PROFILE_READY };
     }
+    if ( body.kind === 'SUBMIT_REQUEST' )
+    {
+      return { ok: true, status: 200, json: async () => ( {
+        intentId: INTENT, kind: 'SUBMIT_REQUEST', variantId: SUBMIT.variantId,
+        amountPaise: null, currency: 'INR', targetRequestId: null,
+      } ) };
+    }
     prepareBodies.push( body );
     const next = queue.length > 1 ? queue.shift()! : queue[ 0 ];
     return { ok: next.status < 400, status: next.status, json: async () => next.body };
@@ -73,6 +80,36 @@ afterEach( () => {
 } );
 
 describe( 'the prepare body', () => {
+  it( 'prepares a Submit Request intent for a catalog basket without replacing its lines', async () => {
+    stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } } ] );
+    cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
+    window.localStorage.removeItem( 'wecare.cart.serviceIntent.v1' );
+    const before = cart.toLineItems();
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    await waitFor( () => expect( prepareBodies ).toHaveLength( 1 ) );
+    expect( prepareBodies[ 0 ].serviceIntentId ).toBe( INTENT );
+    expect( prepareBodies[ 0 ].lineItems ).toEqual( before );
+    expect( cart.toLineItems() ).toEqual( before );
+  } );
+
+  it( 'does not start payment if creating the catalog service intent fails', async () => {
+    stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED' } } ] );
+    const fetcher = globalThis.fetch as ReturnType<typeof vi.fn>;
+    const fallback = fetcher.getMockImplementation()! as ( url: unknown, init: unknown ) => Promise<unknown>;
+    fetcher.mockImplementation( async ( url, init ) => {
+      const body = JSON.parse( String( init?.body || '{}' ) );
+      if ( body.kind === 'SUBMIT_REQUEST' ) return { ok: false, status: 503, json: async () => ( {} ) };
+      return fallback( url, init );
+    } );
+    cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );
+    window.localStorage.removeItem( 'wecare.cart.serviceIntent.v1' );
+    render( <Cart /> );
+    fireEvent.click( await screen.findByRole( 'button', { name: CTA } ) );
+    await screen.findByText( 'We could not prepare your service. Nothing has been charged. Try again.' );
+    expect( prepareBodies ).toHaveLength( 0 );
+  } );
+
   it( 'carries serviceIntentId for a services basket', async () => {
     stub( [ { status: 200, body: { status: 'PAYMENT_INITIATION_DISABLED', paymentAttemptId: 'a' } } ] );
     cart.setServiceLine( SUBMIT.variantId, INTENT, LIVE_PAISE );

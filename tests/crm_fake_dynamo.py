@@ -50,8 +50,16 @@ class FakeClientError(_BotoClientError):
     makes both styles of error handling testable.
     """
 
-    def __init__(self, code: str) -> None:
-        super().__init__({"Error": {"Code": code, "Message": code}}, "FakeOperation")
+    def __init__(self, code: str, cancellation_reasons=None) -> None:
+        response = {"Error": {"Code": code, "Message": code}}
+        if cancellation_reasons is not None:
+            # The shape `wa_payment_request.reserve`'s reason branch reads, and the shape
+            # `coupon_fake_dynamo` already produces. Carried on BOTH the attribute and the
+            # response dict because botocore populates the attribute and some callers read the
+            # envelope.
+            response["CancellationReasons"] = list(cancellation_reasons)
+        super().__init__(response, "FakeOperation")
+        self.cancellation_reasons = list(cancellation_reasons or [])
 
 
 _ATTR_EXISTS = re.compile(r"attribute_exists\(\s*([#\w]+)\s*\)")
@@ -383,6 +391,20 @@ class FakeTable:
         self.parent.calls.append((self.name, f"query:{IndexName}"))
         self._fail_if_armed("query")
         if not IndexName:
+            if self.name in self.parent.base_query_tables:
+                # An OPT-IN, declared per table, not a relaxation of the guard below.
+                #
+                # The refusal exists because `crm.store` never queries a base table, so a
+                # missing IndexName there really does mean a scan crept in. But some tables are
+                # genuinely keyed `(partition, sort)` and are queried on the partition by
+                # design - `InvoiceItemsTable` is keyed `(invoiceId, itemIndex)` and
+                # `invoice-engine` reads a whole invoice's lines that way. Declaring those
+                # tables keeps the guard meaningful everywhere it was meaningful before.
+                field, value = _key_condition_parts(KeyConditionExpression)
+                items = [dict(row) for row in self.rows.values() if row.get(field) == value]
+                if Limit:
+                    items = items[:Limit]
+                return {"Items": items, "Count": len(items)}
             raise AssertionError("crm.store never queries the base table; "
                                  "a missing IndexName means a scan crept in")
         declared = self.parent.indexes.get(self.name, {})
@@ -407,6 +429,102 @@ class FakeTable:
         return {"Items": items, "Count": len(items)}
 
 
+class UnsupportedFakeOperation(AssertionError):
+    """A transaction item shape this fake cannot represent.
+
+    Raised rather than ignored, deliberately. A fake that silently skipped a `Put` it did not
+    understand would let `wa_payment_request.reserve` pass a test having written three of its
+    four rows - and the fourth is the collection claim, which is the whole interlock.
+    """
+
+
+class FakeDynamoClient:
+    """The CLIENT surface, for `transact_write_items` only.
+
+    `wa_payment_request.reserve` issues FOUR `Put`s across TWO tables in one transaction, and the
+    atomicity is the reason the design chose a transaction over sequential writes - so without a
+    fixture that can represent it, the central new mechanism has no proving ground.
+
+    Conditions are evaluated against current state FIRST and nothing mutates unless all of them
+    hold. On failure it raises a `TransactionCanceledException` carrying per-item
+    `CancellationReasons`, so a caller can distinguish a conditional failure on one row from a
+    throttle - which is exactly the distinction that keeps an outage from being read as "already
+    claimed".
+    """
+
+    def __init__(self, parent: "FakeDynamo") -> None:
+        self.parent = parent
+
+    def _deserialize(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        from boto3.dynamodb.types import TypeDeserializer
+        deserializer = TypeDeserializer()
+        return {key: deserializer.deserialize(value) for key, value in item.items()}
+
+    def transact_write_items(self, TransactItems=None, **_):  # noqa: N803 - boto3's spelling
+        self.parent.calls.append(("__client__", "transact_write_items"))
+        armed = self.parent.fail_on.pop(("__client__", "transact_write_items"), None)
+        if armed:
+            raise armed
+
+        planned = []
+        reasons = []
+        failed = False
+        for entry in TransactItems or []:
+            if "Put" in entry:
+                spec = entry["Put"]
+                table_name = spec["TableName"]
+                if table_name not in self.parent.keys:
+                    raise UnsupportedFakeOperation(
+                        f"unknown table {table_name!r}; declare its key in the fake")
+                key_attr = self.parent.keys[table_name]
+                item = self._deserialize(spec["Item"])
+                if key_attr not in item:
+                    raise UnsupportedFakeOperation(
+                        f"{table_name} item is missing its key {key_attr}")
+                rows = self.parent.tables.setdefault(table_name, {})
+                existing = rows.get(item[key_attr])
+                holds = _evaluate_condition(
+                    spec.get("ConditionExpression"), existing,
+                    {k: self._deserialize({"v": v})["v"] for k, v in
+                     (spec.get("ExpressionAttributeValues") or {}).items()},
+                    spec.get("ExpressionAttributeNames") or {})
+                if holds:
+                    reasons.append({"Code": "None"})
+                    planned.append((rows, item[key_attr], item))
+                else:
+                    reasons.append({"Code": "ConditionalCheckFailed"})
+                    failed = True
+            elif "Update" in entry:
+                spec = entry["Update"]
+                table_name = spec["TableName"]
+                if table_name not in self.parent.keys:
+                    raise UnsupportedFakeOperation(f"unknown table {table_name!r}")
+                key_attr = self.parent.keys[table_name]
+                key = self._deserialize(spec["Key"])[key_attr]
+                rows = self.parent.tables.setdefault(table_name, {})
+                existing = rows.get(key)
+                values = {k: self._deserialize({"v": v})["v"] for k, v in
+                          (spec.get("ExpressionAttributeValues") or {}).items()}
+                names = spec.get("ExpressionAttributeNames") or {}
+                if _evaluate_condition(spec.get("ConditionExpression"), existing, values, names):
+                    reasons.append({"Code": "None"})
+                    base = dict(existing) if existing else {key_attr: key}
+                    planned.append((rows, key,
+                                    _apply_update(spec["UpdateExpression"], base, values, names)))
+                else:
+                    reasons.append({"Code": "ConditionalCheckFailed"})
+                    failed = True
+            else:
+                raise UnsupportedFakeOperation(
+                    f"this fake implements Put and Update items only, got {sorted(entry)}")
+
+        if failed:
+            raise FakeClientError("TransactionCanceledException", reasons)
+        for rows, key, item in planned:
+            rows[key] = item
+        return {}
+
+
 class FakeDynamo:
     """A resource whose `.Table(name)` returns a `FakeTable`.
 
@@ -418,9 +536,14 @@ class FakeDynamo:
     """
 
     def __init__(self, keys: Dict[str, str],
-                 indexes: Optional[Dict[str, Dict[str, tuple]]] = None) -> None:
+                 indexes: Optional[Dict[str, Dict[str, tuple]]] = None,
+                 base_query_tables: Optional[set] = None) -> None:
         self.keys = dict(keys)
         self.indexes = {k: dict(v) for k, v in (indexes or {}).items()}
+        #: Tables whose BASE table may legitimately be queried on its partition key, because
+        #: they are keyed `(partition, sort)`. Declared rather than assumed, so the "a missing
+        #: IndexName means a scan crept in" guard still holds for every table that is not here.
+        self.base_query_tables = set(base_query_tables or ())
         self.tables: Dict[str, Dict[Any, Dict[str, Any]]] = {}
         self.calls: List[tuple] = []
         self.fail_on: Dict[tuple, Exception] = {}
@@ -429,6 +552,10 @@ class FakeDynamo:
         if name not in self.keys:
             raise AssertionError(f"unknown table {name!r}; declare its key in the fake")
         return FakeTable(self, name, self.keys[name])
+
+    def client(self) -> FakeDynamoClient:
+        """The client surface, for transactions. Shares the same rows as `.Table()`."""
+        return FakeDynamoClient(self)
 
     # -- test affordances ------------------------------------------------
     def arm_failure(self, table: str, operation: str, exc: Exception) -> None:

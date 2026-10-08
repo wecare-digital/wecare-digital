@@ -5538,7 +5538,14 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                     'rx_slot': 'https://wecare.digital/r/rx',
                     'drop_docs': 'https://wecare.digital/r/dd',
                     'enterprise_assist': 'https://wecare.digital/r/ea',
-                    'leave_review': 'https://wecare.digital/r/lr',
+                    # BOTH review doors use the owner's verified short link, not /r/lr.
+                    # /r/lr's live ShortLinksTable row is a `recovery` row that 302s to
+                    # google.com, so it is a dead end for a customer on WABA 2; repairing
+                    # that row is a live data change and is tracked separately. These two
+                    # keys share one Meta flow, so they must not disagree about the
+                    # fallback either - whichever door claims the keyword, the customer
+                    # gets the same destination.
+                    'leave_review': 'https://wa.me/message/ZM74K2H2BIFOA1',
                     'customer_idea': 'https://wa.me/message/ZM74K2H2BIFOA1',
                     'subscribe': 'https://wecare.digital/r/sub',
                     'order_notes': 'https://wecare.digital/r/on',
@@ -5578,7 +5585,11 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
         # still called later on data_exchange screens (e.g. REVIEW), so no data is
         # lost. Only order-fetching flows (submit_request, etc.) need data_exchange
         # at open to populate their first screen.
-        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO', 'customer_idea': 'FEEDBACK'}
+        # `leave_review` shares flow 1578178897413815 with `customer_idea`, so it
+        # needs the same entry screen: that flow is endpointless and would fail at
+        # open under data_exchange.
+        STATIC_ENTRY_SCREENS = {'subscribe': 'PERSONAL_INFO', 'customer_idea': 'FEEDBACK',
+                                'leave_review': 'FEEDBACK'}
         _entry_screen = STATIC_ENTRY_SCREENS.get(flow_key, '')
         flow_action = 'navigate' if _entry_screen else 'data_exchange'
 
@@ -7287,12 +7298,27 @@ DEFAULT_FLOW_TRIGGERS = {
         'enabled': True,
     },
     'leave_review': {
+        # KEYWORDS: this exact ordered list is the single source of truth and is
+        # mirrored verbatim in four workspace surfaces (forms/selfservice.tsx,
+        # engage/whatsapp/settings.tsx, engage/whatsapp/scripts.tsx and
+        # dashboard/system-architecture.tsx) so the workspace SHOWS what the
+        # backend answers. tests/test_leave_review_wiring.py asserts all five
+        # agree as an ordered list, so a one-sided edit fails the build.
         'keywords': [
-            'leave review', 'review', 'feedback', 'rate', 'rating', 'testimonial',
-            'leave feedback', 'share your experience',
+            'leave review', 'leave a review', 'review', 'reviews', 'feedback',
+            'leave feedback', 'give feedback', 'share feedback', 'rate', 'rate us',
+            'rate service', 'rating', 'ratings', 'testimonial', 'write a review',
+            'give a review', 'share your experience', 'how was it',
             '\u2b50 leave review',
         ],
-        'flowId': '4423166114671543',
+        # 1578178897413815 = WD_Leave_Review_v2, PUBLISHED on WABA 1. Shared with
+        # `customer_idea` above: one Meta flow, two inbound doors, because Meta has
+        # no per-door flow identity. It is ENDPOINTLESS (no data_api_version, first
+        # screen FEEDBACK carries no `data` block), so it MUST open with NAVIGATE —
+        # see STATIC_ENTRY_SCREENS in _send_generic_flow. Opening it with
+        # data_exchange fails at open. The id this replaced pointed at the
+        # never-published WD_Feedback_v1 draft, which is why the keyword did nothing.
+        'flowId': '1578178897413815',
         'message': {
             'body': '\u2b50 Share your experience with our service.',
             'footer': 'WECARE.DIGITAL',
