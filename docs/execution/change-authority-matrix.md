@@ -3327,3 +3327,16 @@ Authority: direct owner instruction DO THAT, use APIs, automate Wix changes, ret
 | A3_PRODUCTION | Meta catalog 1607047307067517 | API-created Submit Request/Vault using stable Wix retailer IDs and CDN UHD artwork; live readback converged zero diff; foreign item preserved | Set scoped variants out of stock (already held), disable sync; do not delete identifiers held by carts |
 
 No payment capture/refund/config mutation, credential retrieval, or customer send. Native purchase/writeback remains pending owner QA and contract verification. Previous workspace-credit block is superseded by successful AWS MCP operations. Evidence: docs/whatsapp/catalog-design/catalog-live-evidence.json.
+
+## 2026-10-08 - Canonical Wix/workspace order binding
+
+Authority: owner asks automated Wix/WhatsApp order linkage and all customer orders in one table.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A1_LOCAL | Shared finalizer/order_links and Wix store sync | Conditional durable forward/reverse binding; canonical UUID/public number preserved; six replay/conflict/partial-failure tests; 83 focused checkout/writeback/package tests green | Scoped revert |
+| A3_PRODUCTION | wecare-checkout live 32 -> 33 | Deployed handler and finalizer compared with repository base; overlay only finalizer and new order_links on existing archive; Active version; OPTIONS smoke 200 | Move live alias back to 32 |
+| A3_PRODUCTION | wecare-wix-store live 36 -> 37 | Deployed handler compared with repository base; overlay only handler and order_links; canonical rows bypass legacy order allocation; Active version; OPTIONS smoke 200 | Move live alias back to 36 |
+| A1_LOCAL | Unfinished native checkout in main workspace | Finalization response now checks persisted PAID/Wix ID/cart-completed state before unlock; five new boundary tests plus paid flow fixtures, 36 passed; not included in production patch | Revert only new completion check and helper |
+
+No live-send flag or Wix writeback flag enabled. No payment/provider configuration changed. Native paid purchase and fulfillment await QA recipient and Wix external-write contract validation. Public deployment evidence: order-link-live-evidence.json.
