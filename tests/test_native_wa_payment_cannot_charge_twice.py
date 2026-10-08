@@ -27,15 +27,19 @@ function, which is what makes the enumeration meaningful rather than a mock asse
 """
 from __future__ import annotations
 
+import ast
 import importlib
 import json
 import os
+import pathlib
 import sys
 from unittest.mock import patch
 
 import pytest
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT = pathlib.Path(REPO)
+FUNCTIONS = ROOT / 'amplify' / 'functions'
 sys.path.insert(0, os.path.join(REPO, 'amplify', 'functions', 'shared'))
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -114,10 +118,29 @@ SERVICE_REQUEST_HINT = 'wecare-service-requests:live'
 
 #: A SECOND fire-and-forget hint from the same `dispatch_activation`, and the reason this file
 #: earns its keep: it arrived on `stack` (`preparePaidSubmitRequest`, the paid Submit Request
-#: draft) while this branch was in review, and the rebase surfaced it as three precise failures
-#: rather than as a silently widened payment path. Admitted deliberately, on the same grounds as
-#: the hint above - `InvocationType="Event"`, ids only, never raises, and the receiver re-reads
-#: every id before acting, so it cannot move money. Written out, never filtered.
+#: form) while this branch was in review, and the rebase surfaced it as three precise failures
+#: rather than as a silently widened payment path.
+#:
+#: **Admitted, but NOT on the grounds that it cannot reach the customer - it can.** The earlier
+#: wording here claimed the same inertness as the hint above, and that is only half true.
+#: Measured, `flows/paid_submit_request.prepare_and_send` ends in an
+#: `outbound-whatsapp:live` invoke carrying "Payment received. Complete the details for your
+#: Submit Request." So the honest statement of what is being permitted is narrower:
+#:
+#:   * **it cannot move money.** `InvocationType='Event'`, four id fields, no amount, no
+#:     currency and no provider id; the receiver re-reads `PAYREF#` -> `PAYMENTATTEMPT#` ->
+#:     `INTENT#` before acting. Asserted by `test_the_dispatch_hints_carry_ids_only`.
+#:   * **it cannot send an unsolicited message.** The receiver refuses outside the 24-hour
+#:     window the CUSTOMER opened (`AWAITING_CUSTOMER_MESSAGE`), and claims a one-shot
+#:     `attribute_not_exists(flowInviteStatus)` so an ambiguous network result is never
+#:     retried into a second message. Asserted by
+#:     `test_the_paid_request_receiver_cannot_send_unsolicited_or_twice`.
+#:   * **the webhook cannot choose what the customer is told.** The message body is a literal
+#:     inside the receiver; nothing from this payment path reaches it.
+#:
+#: And it is deliberately NOT gated on `checkoutMode` - see
+#: `test_the_paid_request_hint_is_deliberately_not_mode_gated` for why gating it would break the
+#: feature outright.
 PAID_REQUEST_FLOW_HINT = 'wecare-whatsapp-business-api:live'
 
 PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
@@ -170,6 +193,8 @@ class Recorder:
         self.meta = []
         self.wix = []
         self.lambdas = []
+        #: `(label, payload, invocation_type)` per Lambda invoke.
+        self.payloads = []
 
     # -- the HTTP seam -------------------------------------------------------
     def urlopen(self, request, timeout=None):
@@ -216,6 +241,11 @@ class Recorder:
                 if path:
                     label += ' POST ' + _normalise_engine_path(path)
                 recorder.lambdas.append(label)
+                # The PAYLOAD too, not only the label. Admitting a hint whose receiver can
+                # message a customer is only defensible if the hint itself carries nothing that
+                # could decide an amount or a recipient - so that has to be assertable here
+                # rather than asserted in a comment.
+                recorder.payloads.append((label, raw, kwargs.get('InvocationType', '')))
                 body = json.dumps({'statusCode': 200, 'body': json.dumps({
                     'invoiceId': invoice_id, 'invoiceNumber': 'WD/26-27/0001',
                     'deduplicated': deduplicated, 'status': send_status,
@@ -421,9 +451,129 @@ def test_the_replay_drive_makes_exactly_the_permitted_calls(webhook, fake):
     assert set(recorder.wix) == PERMITTED_WIX_CALLS
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# the two `dispatch_activation` hints: what makes them safe to permit
+# ══════════════════════════════════════════════════════════════════════════════
+
+def test_the_dispatch_hints_carry_ids_only(webhook, fake):
+    """IDS ONLY, and this is the property that lets a hint be permitted at all.
+
+    `preparePaidSubmitRequest`'s receiver CAN end in a customer message, so what matters is that
+    this payment path cannot influence it: no amount, no currency, no provider payment id, no
+    phone and no message text leave here. The receiver re-derives everything it acts on.
+
+    A money figure appearing in one of these payloads would mean the webhook had started telling
+    a downstream function what to charge, which is the shape this whole file exists to refuse.
+    """
+    recorder = Recorder()
+    drive_capture(webhook, fake, recorder)
+
+    hints = [(label, payload, kind) for label, payload, kind in recorder.payloads
+             if label in (SERVICE_REQUEST_HINT, PAID_REQUEST_FLOW_HINT)]
+    assert len(hints) == 2, [h[0] for h in hints]
+
+    for label, payload, invocation_type in hints:
+        # Fire-and-forget: a dispatch failure must not fail the webhook, because a non-2xx makes
+        # Razorpay retry the whole captured payment.
+        assert invocation_type == 'Event', label
+        assert set(payload) == {'internalAction', 'referenceId', 'paymentAttemptId',
+                                'orderId'}, (label, sorted(payload))
+        # Nothing money-shaped, and nothing recipient-shaped.
+        flat = json.dumps(payload).lower()
+        for forbidden in ('amount', 'paise', 'currency', 'phone', 'contact', 'total',
+                          'providerpayment', 'razorpay'):
+            assert forbidden not in flat, (label, forbidden)
+
+
+def test_the_paid_request_receiver_cannot_send_unsolicited_or_twice():
+    """The second half of why the hint is permitted, asserted over the RECEIVER.
+
+    The hint is admitted into the enumeration even though its receiver can message a customer.
+    That is only defensible because the receiver refuses to message outside the 24-hour window
+    the CUSTOMER opened, and claims a one-shot marker so an ambiguous network result is never
+    retried into a second message. Both are asserted here rather than trusted, because they are
+    the conditions under which the admission above is true.
+    """
+    source = (FUNCTIONS / 'messaging' / 'whatsapp-business-api' / 'flows'
+              / 'paid_submit_request.py').read_text(encoding='utf-8')
+    tree = ast.parse(source)
+    sender = next(node for node in ast.walk(tree)
+                  if isinstance(node, ast.FunctionDef) and node.name == 'prepare_and_send')
+    literals = {node.value for node in ast.walk(sender)
+                if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+
+    # The customer-opened window. 86400 seconds, refused as AWAITING_CUSTOMER_MESSAGE.
+    assert 'AWAITING_CUSTOMER_MESSAGE' in literals
+    assert 86400 in {node.value for node in ast.walk(sender)
+                     if isinstance(node, ast.Constant) and isinstance(node.value, int)}
+
+    # The one-shot claim, so a send is never automatically repeated.
+    assert any('attribute_not_exists(flowInviteStatus)' in text for text in literals)
+    assert 'INVITATION_ALREADY_CLAIMED' in literals
+
+    # And the ownership chain it re-reads before any of that.
+    for refusal in ('ORDER_MISMATCH', 'NOT_SUBMIT_REQUEST', 'CONTACT_LINK_UNAVAILABLE',
+                    'VERIFIED_RECIPIENT_UNAVAILABLE'):
+        assert refusal in literals, refusal
+
+
+def test_the_paid_request_hint_is_deliberately_not_mode_gated():
+    """Why option (b) was REJECTED, written as a test so nobody re-derives it as a tidy-up.
+
+    The obvious reading of T-C11's intent is "a website-mode capture should make no business-api
+    call", and gating `dispatch_activation`'s second invoke on `WHATSAPP_NATIVE_PG` would satisfy
+    it in one line.
+
+    It would also break the feature outright. A paid Submit Request is sold on the WEBSITE -
+    `service_requests.SERVICE_MESSAGES[SERVICE_WEBSITE_ONLY]` says "Services can only be paid
+    for on the website" - so every paid Submit Request order settles as
+    `WEBSITE_RAZORPAY_STANDARD`. Mode-gating the hint would mean NO paid Submit Request customer
+    ever receives their form again, which is the one population the hint exists for.
+
+    So the hint is mode-independent on purpose, and this test fails if someone gates it.
+    """
+    from lambda_utils.ecommerce import service_requests
+
+    # The premise: services are website-only, so their orders are website-mode.
+    assert 'website' in service_requests.SERVICE_MESSAGES[
+        service_requests.SERVICE_WEBSITE_ONLY].lower()
+
+    dispatch_source = (ROOT / 'amplify' / 'functions' / 'shared' / 'lambda_utils'
+                       / 'ecommerce' / 'service_request_dispatch.py').read_text(encoding='utf-8')
+    tree = ast.parse(dispatch_source)
+    func = next(node for node in ast.walk(tree)
+                if isinstance(node, ast.FunctionDef) and node.name == 'dispatch_activation')
+
+    # No checkout-mode reasoning inside the dispatcher: it hints for every reconciled order and
+    # the RECEIVER decides, which is what keeps the webhook free of service knowledge.
+    names = {node.id for node in ast.walk(func) if isinstance(node, ast.Name)}
+    names |= {node.attr for node in ast.walk(func) if isinstance(node, ast.Attribute)}
+    assert 'checkout_mode' not in names and 'checkoutMode' not in names
+    assert 'WHATSAPP_NATIVE_PG' not in {
+        node.value for node in ast.walk(func)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+
+    # Both hints are still there, and both are fire-and-forget. Counted by AST, not by text:
+    # the docstring explaining the rule quotes `InvocationType="Event"`, so a textual count
+    # reads 3 and flags its own explanation - the same trap this file avoids elsewhere.
+    event_invokes = [
+        node for node in ast.walk(func)
+        if isinstance(node, ast.Call)
+        and any(kw.arg == 'InvocationType' and isinstance(kw.value, ast.Constant)
+                and kw.value.value == 'Event' for kw in node.keywords)]
+    assert len(event_invokes) == 2, len(event_invokes)
+
+
 def test_the_catalogue_capture_drive_sends_no_whatsapp_invoice(webhook, fake):
     """T-C11. A `channel=whatsapp`, `checkoutMode=WEBSITE_RAZORPAY_STANDARD` capture behaves
-    exactly as it does today: no document, and no Meta lookup either."""
+    exactly as it does today: no GST document, and no Meta lookup either.
+
+    Note what this does NOT claim. The two `dispatch_activation` hints DO fire here, because
+    they fire for every reconciled order and the receiver decides - see
+    `test_the_paid_request_hint_is_deliberately_not_mode_gated` for why mode-gating them would
+    break paid Submit Request. What the drive pins is the pair that genuinely must not happen on
+    a website-settled order: the invoice document, and the Meta payment lookup.
+    """
     recorder = Recorder()
     drive_capture(webhook, fake, recorder, mode='WEBSITE_RAZORPAY_STANDARD')
 
