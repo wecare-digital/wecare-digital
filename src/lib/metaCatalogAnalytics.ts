@@ -46,7 +46,7 @@ function pixel (): Pixel | null {
     queue.queue = []; queue.push = queue; queue.loaded = true; queue.version = '2.0';
     w.fbq = queue; w._fbq = queue;
     const script = document.createElement( 'script' );
-    script.id = 'wecare-meta-pixel'; script.async = true;
+    script.id = 'catalog-analytics-script'; script.async = true;
     script.src = 'https://connect.facebook.net/en_US/fbevents.js';
     document.head.appendChild( script );
     queue( 'set', 'autoConfig', false, META_PIXEL_ID );
