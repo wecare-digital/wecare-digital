@@ -57,7 +57,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
-import VayuLokGapGlobe from '../../components/VayuLokGapGlobe';
 
 const VayuLokPage: React.FC = () => {
   // Order is hue rhythm as much as grouping. Air + Pollen are what is in the air,
@@ -178,16 +177,6 @@ const VayuLokPage: React.FC = () => {
           </h1>
         </div>
       </main>
-
-      {/* "FILLING THE GAP" SECTION, ported from the approved Option B mock
-          docs/mocks/vayulok-gap-customgl-mock.html. It renders as a NORMAL in-flow
-          block immediately below the hero's <main>, with its own white background and
-          padding. The component is self-styling under a vlg- scope and owns a raw-WebGL
-          dot-matrix globe (no library, no image). It carries NO absolute/fixed
-          positioning that escapes its own stage and NO negative margins, so it cannot
-          collide with the hero above (the earlier overlap bug). The hero markup, state,
-          effects and its <style jsx> below are UNCHANGED. */}
-      <VayuLokGapGlobe />
 
       <style jsx>{`
         /* Header is fixed at 108px, 96px under 767px - the same offsets the home
