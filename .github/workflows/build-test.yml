@@ -75,6 +75,9 @@ jobs:
       - name: Gate - Python sources compile
         run: python -m compileall -q tests scripts amplify/functions
 
+      - name: Report open braces advisory in both install roots
+        run: python scripts/check_braces_advisory.py
+
       # `npm ci` AT LAST, AND THE PROBE THAT USED TO SIT HERE IS GONE WITH IT.
       #
       # This step was `npm install` for a long time, with a comment explaining that `npm ci`
