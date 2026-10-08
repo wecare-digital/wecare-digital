@@ -18,7 +18,7 @@ TARGETS = [
     "scripts/verify_secret_hook.py",
     "scripts/verify_no_secrets_in_tree.py",
     ".kiro/hooks/block-inline-secrets.json",
-    "docs/CREDENTIAL-ROTATION-RUNBOOK.md",
+    "docs/operations.md",
 ]
 
 # Long-tailed, issuer-anchored shapes only, so prose like `rzp_live_...` in docs
