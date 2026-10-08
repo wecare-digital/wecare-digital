@@ -83,6 +83,7 @@ import FloatingAgent from '../components/FloatingAgent';
 // floating widget holding BOTH the WhatsApp contact button and the translate control. The
 // external wecare-wa-widget.js that used to inject the WhatsApp button is retired with it.
 import SupportWidget from '../components/SupportWidget';
+import CatalogAnalyticsConsent from '../components/CatalogAnalyticsConsent';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -1152,24 +1153,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and
             no direct gtag.js accompanies it. */}
-        {/* Facebook SDK for JavaScript */ }
-        <Script id="facebook-sdk-init-public" strategy="afterInteractive">
-          { `
-            window.fbAsyncInit = function() {
-              FB.init({
-                appId: '${process.env.NEXT_PUBLIC_FB_APP_ID || ''}',
-                cookie: true,
-                xfbml: true,
-                version: 'v25.0'
-              });
-              FB.AppEvents.logPageView();
-            };
-          `}
-        </Script>
-        <Script src="https://connect.facebook.net/en_US/sdk.js" strategy="afterInteractive" id="facebook-jssdk-public" />
         <Header />
         <Component { ...pageProps } />
         <Footer />
+        <CatalogAnalyticsConsent />
         {/* WhatsApp contact + page translation. This comment used to read "translation +
             read-aloud, public pages only, and deliberately not on the authenticated
             dashboard" and both halves are now wrong, which is why it is rewritten rather
@@ -1287,4 +1274,3 @@ export default function App ( { Component, pageProps }: AppProps ) {
     </ErrorBoundary>
   );
 }
-

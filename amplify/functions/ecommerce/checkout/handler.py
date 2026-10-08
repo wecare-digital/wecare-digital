@@ -92,7 +92,7 @@ from boto3.dynamodb.conditions import Key
 
 from lambda_utils import contact_key, customer_auth, customer_session, payment_readiness
 from lambda_utils.ecommerce import (
-    blog_contribution, cart_v2, checkout_pricing, contact_address, customer_cart, finalization,
+    blog_contribution, cart_v2, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
     payment_attempt, purchase_intent, website_checkout, whatsapp_basket, wix_address,
     wix_writeback)
@@ -2982,6 +2982,9 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # failed one to the "Payment failed — no order created" label. It is the exact customer-facing
     # projection the status UI needs.
     entry = payment_attempt.payment_history_entry(owned, order_number=order_number)
+    catalog_event = catalog_analytics.purchase_facts(owned)
+    if catalog_event:
+        entry['catalogEvent'] = catalog_event
     return cors_response(200, {"status": entry.get("status"), "attempt": entry}, origin)
 
 
