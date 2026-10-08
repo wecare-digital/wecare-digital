@@ -39,6 +39,7 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from coupon_fake_dynamo import FakeClientError, FakeTable  # noqa: E402
+from lambda_utils.ecommerce import gift_card_settlement as gcs  # noqa: E402
 from lambda_utils.ecommerce import gift_card_store as gc  # noqa: E402
 
 MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/gift_card_store.py"
@@ -1410,3 +1411,50 @@ def test_a_card_resolves_by_our_own_id_through_a_pointer_row():
     resolved = gc.get_card_by_id(store, gift_card_id=issued["card"]["giftCardId"])
     assert resolved[gc.KEY_ATTRIBUTE] == gc.PREFIX_CARD + digest_of()
     assert gc.get_card_by_id(store, gift_card_id="00000000-0000-7000-8000-000000000000") is None
+
+
+def test_an_invoice_create_reads_a_card_and_writes_no_evidence_onto_the_ledger():
+    """DECISION 3, from the ledger's side: an invoice VERIFIES and records; it never debits.
+
+    `invoice-engine.create_invoice` writes `giftCardRequiredPaise` / `giftCardCodeHash` /
+    `giftCardRedeemedPaise` onto the INVOICE row, which is a different table. This asserts the
+    consequence here, where the liability lives: everything that path does to a card is a read, so
+    `balancePaise` is byte-for-byte unchanged, no hold attribute appears, and no transaction row is
+    written.
+
+    It matters because an invoice can sit unpaid for days. A hold or a debit taken at create would
+    strand a customer's balance against a document nobody ever paid, and `is_fully_settled` would
+    then read a `GC_HELD` stage that no producer ever advances - which is the same failure that
+    keeps `POST /gift-cards/hold` from existing at all.
+    """
+    store = table()
+    issued = issue(store, value_paise=50000)
+    key = issued["card"][gc.KEY_ATTRIBUTE]
+    before = dict(store.rows[key])
+
+    # Exactly what the invoice path does: resolve the card by HMAC, check it is spendable, compare
+    # the currency explicitly, read the balance.
+    digest = gc.code_hash(issued["code"], pepper=PEPPER)
+    card = gc.get_card(store, code_hash=digest)
+    spendable = gc.assert_spendable(card, now_ms=NOW_MS)
+    gc.assert_currency(spendable.get("currency"))
+    assert int(spendable["balancePaise"]) == 50000
+
+    # The evidence the invoice stores, built from the attribute names the settlement ladder owns.
+    # It is a mapping destined for another table; nothing here writes it to the ledger.
+    evidence = {
+        gcs.CODE_HASH_ATTR: digest,
+        gcs.REQUIRED_PAISE_ATTR: 30000,
+        gcs.REDEEMED_PAISE_ATTR: 0,
+    }
+    assert set(evidence) <= gcs.EVIDENCE_KEYS
+    assert evidence[gcs.REDEEMED_PAISE_ATTR] == 0, "nothing has been redeemed at create"
+
+    assert store.rows[key] == before
+    assert store.rows[key]["balancePaise"] == 50000
+    assert gc.HOLD_ATTEMPT_ATTRIBUTE not in store.rows[key]
+    assert gc.CLAIM_ATTEMPT_ATTRIBUTE not in store.rows[key]
+    assert _markers_on(store, gc.PREFIX_TRANSACTION) == []
+    assert _markers_on(store, gc.PREFIX_HOLD) == []
+    # And every access was a read.
+    assert {name for name, _ in store.calls} == {"get_item"}

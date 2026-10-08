@@ -1,0 +1,53 @@
+{
+  "captured": "2026-10-07",
+  "purpose": "Rollback point before repointing WABA2 Meta WhatsApp Calling SIP target from sip.wecare.digital (Lightsail Asterisk) to Plivo for a reversible parallel test. Owner superseded bw-crm.md:632 for this test on 2026-10-07.",
+  "account": "775261844268",
+  "region": "us-east-1",
+  "note": "sip_user_password is redacted by the handler (_redact_sip_credentials) and shown only as a presence flag + fingerprint. The real credential lives in Meta and is not reproduced here. Rollback = POST the same servers[0] hostname=sip.wecare.digital port=5061 back onto calling.sip.servers for the affected phone id.",
+  "WABA1": {
+    "phoneId": "1016149501586345",
+    "display": "+91 93309 94400",
+    "calling": {
+      "status": "ENABLED",
+      "call_icon_visibility": "DEFAULT",
+      "callback_permission_status": "ENABLED",
+      "call_hours": { "status": "DISABLED", "timezone_id": "" },
+      "srtp_key_exchange_protocol": "SDES",
+      "sip": {
+        "status": "ENABLED",
+        "servers": [
+          {
+            "app_id": 2238810740192680,
+            "hostname": "sip.wecare.digital",
+            "port": 5061,
+            "sip_user_password_set": true,
+            "sip_user_password_fingerprint": "sha256:553416acd214"
+          }
+        ]
+      }
+    }
+  },
+  "WABA2": {
+    "phoneId": "1055232054343117",
+    "display": "+91 99033 00044",
+    "calling": {
+      "status": "ENABLED",
+      "call_icon_visibility": "DEFAULT",
+      "callback_permission_status": "ENABLED",
+      "call_hours": { "status": "DISABLED", "timezone_id": "" },
+      "srtp_key_exchange_protocol": "SDES",
+      "sip": {
+        "status": "ENABLED",
+        "servers": [
+          {
+            "app_id": 2238810740192680,
+            "hostname": "sip.wecare.digital",
+            "port": 5061,
+            "sip_user_password_set": true,
+            "sip_user_password_fingerprint": "sha256:846022a537fe"
+          }
+        ]
+      }
+    }
+  }
+}

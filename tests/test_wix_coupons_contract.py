@@ -454,3 +454,79 @@ def test_the_adapter_holds_no_boto3_client_and_reads_no_secret():
     # The request callable really is injected: the constructor takes it and stores it.
     adapter = wc.WixCoupons(Wix())
     assert callable(adapter.request)
+
+
+# ── the no-parallel-system proof ──────────────────────────────────────────────
+
+#: Which `specification` field each priced kind emits. Declared here and asserted against
+#: `coupon_store.KIND_AMOUNT_ATTRIBUTE` below, so this map cannot silently fall behind the kinds.
+_SPECIFICATION_FIELD = {
+    cs.MONEY_OFF: "moneyOffAmount",
+    cs.PERCENT_OFF: "percentOffRate",
+    cs.FIXED_PRICE: "fixedPriceAmount",
+}
+
+#: Two values per kind, both legal at issuance (whole rupees, whole percent), so moving one
+#: stored attribute is observable on BOTH sides without tripping a validation rule.
+_BASE_VALUE = {cs.MONEY_OFF: 123400, cs.PERCENT_OFF: 500, cs.FIXED_PRICE: 50000}
+_MOVED_VALUE = {cs.MONEY_OFF: 246800, cs.PERCENT_OFF: 1000, cs.FIXED_PRICE: 100000}
+
+#: Comfortably above the fixture's `minimumSubtotalPaise`, so the floor is never the reason a
+#: probe refuses.
+_COLLECTION_PAISE = 1_000_000
+
+
+def _priced_row(kind, value):
+    """A validated definition row of `kind` carrying exactly its own amount attribute."""
+    return definition(**{"discountKind": kind, "moneyOffPaise": None, "percentOffBps": None,
+                         "fixedPricePaise": None, cs.KIND_AMOUNT_ATTRIBUTE[kind]: value})
+
+
+def test_the_discount_amount_and_the_wix_specification_read_the_same_attributes():
+    """One coupon definition, two renderings - not two discount engines.
+
+    This is the assertion behind the whole "one coupon system" claim, and it is written as a
+    property rather than as a list of expected numbers. Two things are pinned:
+
+    * the set of kinds `coupon_store.discount_paise` will price is EXACTLY
+      `coupon_store.KIND_AMOUNT_ATTRIBUTE` - the same three kinds that have a stored magnitude
+      for `specification` to send. A fourth kind gaining an amount function, or losing one, fails
+      here rather than drifting into production;
+    * for each of those kinds, moving the ONE stored attribute named by
+      `KIND_AMOUNT_ATTRIBUTE` moves both the Wix-bound field and our computed discount, and
+      REMOVING it makes both refuse. Two readers of one attribute cannot disagree about what the
+      coupon was; two readers of two attributes eventually do, and the customer sees one number
+      in the cart and a different one on the invoice.
+    """
+    assert set(_SPECIFICATION_FIELD) == set(cs.KIND_AMOUNT_ATTRIBUTE)
+
+    # Every amount attribute is populated on the probe, so the only thing selecting which one is
+    # read is `discountKind` itself.
+    probe = {"moneyOffPaise": 123400, "percentOffBps": 500, "fixedPricePaise": 50000,
+             "buyX": 2, "buyY": 1}
+    priced = set()
+    for kind in cs.DISCOUNT_KINDS:
+        try:
+            amount = cs.discount_paise({**probe, "discountKind": kind},
+                                       collection_paise=_COLLECTION_PAISE)
+        except cs.CouponValidationError as refusal:
+            assert refusal.code == "COUPON_KIND_UNSUPPORTED", kind
+            continue
+        assert type(amount) is int
+        priced.add(kind)
+    assert priced == set(cs.KIND_AMOUNT_ATTRIBUTE)
+
+    for kind in sorted(priced):
+        attribute = cs.KIND_AMOUNT_ATTRIBUTE[kind]
+        field = _SPECIFICATION_FIELD[kind]
+        base, moved = _priced_row(kind, _BASE_VALUE[kind]), _priced_row(kind, _MOVED_VALUE[kind])
+
+        assert wc.specification(base)[field] != wc.specification(moved)[field], kind
+        assert (cs.discount_paise(base, collection_paise=_COLLECTION_PAISE)
+                != cs.discount_paise(moved, collection_paise=_COLLECTION_PAISE)), kind
+
+        stripped = {key: value for key, value in base.items() if key != attribute}
+        with pytest.raises(wc.WixCouponError):
+            wc.specification(stripped)
+        with pytest.raises(cs.CouponValidationError):
+            cs.discount_paise(stripped, collection_paise=_COLLECTION_PAISE)

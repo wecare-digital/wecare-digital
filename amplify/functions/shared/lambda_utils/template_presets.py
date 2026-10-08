@@ -10,6 +10,8 @@ before submitting.
 """
 from typing import Any, Dict, List, Optional
 
+from .whatsapp_types import LTO_COMPONENT_TYPE
+
 
 def _preset_seasonal_promotion() -> Dict[str, Any]:
     return {
@@ -27,6 +29,35 @@ def _preset_seasonal_promotion() -> Dict[str, Any]:
             {'type': 'BUTTONS', 'buttons': [
                 {'type': 'URL', 'text': 'Shop now', 'url': 'https://wecare.digital/shop'},
                 {'type': 'QUICK_REPLY', 'text': 'Not interested'},
+            ]},
+        ],
+    }
+
+
+def _preset_limited_time_offer() -> Dict[str, Any]:
+    """A limited-time-offer (LTO) starting point.
+
+    The offer code is a Meta coupon-code string, not a payment instrument: no amount
+    and no discount arithmetic live here. The expiry is NOT part of the template -- it
+    travels per message as `ltoExpirationTimeMs` on the send request.
+    """
+    return {
+        'name': 'limited_time_offer',
+        'language': 'en',
+        'category': 'MARKETING',
+        'message_send_ttl_seconds': 86400,
+        'components': [
+            {'type': 'HEADER', 'format': 'IMAGE',
+             'example': {'header_url': ['https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png']}},
+            {'type': 'BODY',
+             'text': 'Hi {{1}}, your offer on {{2}} ends soon. Use the code below to claim it.',
+             'example': {'body_text': [['Asha', 'studio sessions']]}},
+            {'type': LTO_COMPONENT_TYPE,
+             'limited_time_offer': {'text': 'Expiring offer!', 'has_expiration': True}},
+            {'type': 'FOOTER', 'text': 'Reply STOP to opt out'},
+            {'type': 'BUTTONS', 'buttons': [
+                {'type': 'COPY_CODE', 'example': 'SUMMER20'},
+                {'type': 'URL', 'text': 'Shop now', 'url': 'https://wecare.digital/shop'},
             ]},
         ],
     }
@@ -128,6 +159,7 @@ def _preset_flow_support_request() -> Dict[str, Any]:
 
 _PRESETS = {
     'seasonal_promotion': _preset_seasonal_promotion,
+    'limited_time_offer': _preset_limited_time_offer,
     'order_confirmation': _preset_order_confirmation,
     'order_delivery_update': _preset_order_delivery_update,
     'flow_lead_generation': _preset_flow_lead_generation,
