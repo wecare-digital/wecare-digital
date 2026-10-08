@@ -115,6 +115,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
   const flowCodeOptions: SelectOption[] = useMemo( () => [
     { value: '', label: 'All Flows' },
     ...registry.map( f => ( { value: f.flowCode, label: `${ f.flowCode } — ${ f.flowName }` } ) ),
+    ...(registry.some(f => f.flowCode === 'WD_IDEA') ? [] : [{ value: 'WD_IDEA', label: 'Customer ideas' }]),
   ], [ registry ] );
 
   const loadRequests = useCallback( async () => {
@@ -266,7 +267,20 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                           <span style={ { background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 9999, fontSize: 11 } }>{ s.flowCode }</span>
                         </td>
                         <td style={ { padding: '8px 10px', fontFamily: 'monospace', fontSize: 11 } }>{ s.submissionNumber || '-' }</td>
-                        <td style={ { padding: '8px 10px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ s.subject || s.requestType || '-' }</td>
+                        <td style={ { padding: '8px 10px', maxWidth: 280 } }>
+                          {s.flowType === 'customer_idea' ? (
+                            <details>
+                              <summary style={{ cursor: 'pointer' }}>{s.subject || 'Customer idea'}</summary>
+                              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{s.description}</p>
+                              <p style={{ fontSize: 12 }}>{s.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable'}</p>
+                              <p style={{ fontSize: 12 }}>{(() => {
+                                try { return JSON.parse(s.formData || '{}').follow_up_opt_in === true
+                                  ? 'Follow-up permitted' : 'No follow-up permission'; }
+                                catch { return 'Follow-up permission unavailable'; }
+                              })()}</p>
+                            </details>
+                          ) : s.subject || s.requestType || '-'}
+                        </td>
                         <td style={ { padding: '8px 10px' } }>{ getStatusBadge( s.status ) }</td>
                         <td style={ { padding: '8px 10px' } }>
                           <SubmissionStatusSelect

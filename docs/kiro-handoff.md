@@ -218,3 +218,17 @@ reverts with
 Route, integration and API restore commands:
 `docs/prohibited-provider-retirement.md`.
 Permissions: `python scripts/apply_unattended_permissions.py --user --restore`.
+
+
+## 2026-10-08 — WhatsApp customer ideas
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | WD_Leave_Review_v2 Flow JSON, inbound handler, customer_ideas helper, Flow Responses display and focused tests | Owner requested required aspirational thought, working Next/Submit and backend/contact saving. 78 Python tests and 1 frontend test pass; TypeScript and production build pass. | Revert this scoped commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp code and live alias | Existing live 79 and code hash captured before update. Built archive preserves all existing live members, replaces handler.py and adds customer_ideas.py only. New version 80 is Active/Successful, live points to 80. Code SHA256 sIO3xStfy05MJw0P8oTD4dYbG3i/t9qd9Ps0L/h+75A=. | Move live alias back to 79 using current revision guard. |
+| A2_REMOTE_CODE | Explicit scoped files on origin/stack | Standing authorization; fetched HEAD and origin/stack both 978eb2c9344fddc22696f90cbaf6e8c3dc139727 before commit. Non-force push. | Revert scoped commit and push stack. |
+| A3_PRODUCTION | Amplify d22dm4b0jn71jw stack automatic build | Read app/branch before push: repository wecare-digital/wecare-digital, platform WEB, auto build enabled, prior active job 1432. No configuration or secret changes. | Revert scoped commit and rebuild. |
+
+Storage: stack-wecare-digital-FlowSubmissionTable holds the authoritative idea; stack-wecare-digital-SubmitRequestsTable holds a stable flow_log contact activity projection. Both already exist, role access verified; no schema/IAM mutation. Trusted webhook sender resolves the contact, never handset-supplied IDs. Duplicate delivery repairs the activity projection. No outbound messaging, public review, payment, or sales-lead creation.
+
+Meta Flow 1578178897413815 remains a saved draft. Interactive preview validates required input, navigation, preserved thought and Submit completion. Removed explicit 500 character limit; native Meta limit still applies. Real WhatsApp-to-storage QA is WAITING_FOR_OWNER: supply an authorised test recipient. Preview completion is not evidence of a production submission. No real customer messages sent.
