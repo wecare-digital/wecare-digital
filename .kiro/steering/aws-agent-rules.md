@@ -13,13 +13,16 @@ the two conflict, **these take precedence**.
 builds, and for everything else, unless explicitly told otherwise.
 
     profile:  wecare-prod
-    identity: arn:aws:iam::775261844268:user/wecare-admin   (IAM user, not root)
+    identity: arn:aws:iam::775261844268:user/wecare-admin   (preferred)
+              arn:aws:iam::775261844268:root                (owner-authorized project use)
     region:   us-east-1
 
 `AWS_PROFILE=wecare-prod` is exported from `~/.zprofile`, so login shells,
 interactive shells, scripts and boto3 all resolve it without any per-command
 flag. Verify with `aws sts get-caller-identity` — it must report
 `775261844268`.
+
+Owner override, 2026-10-09: "we will use root for the project now". The existing root connection in account `775261844268` is authorized for reviewed project operations. Root identity alone is not a deployment blocker. Keep exact account/resource guards, scoped changes, captured rollback versions and post-change verification. This grants no credential-value access, payment/provider changes, live-send enabling, destructive blanket cleanup or removal of guards. Do not create, replace or rotate root keys.
 
 A second profile exists, `wecare-selfcare` (account `010526260063`). **Do not use
 it** unless a task explicitly names that account.

@@ -538,10 +538,67 @@ def _get_languages(request_id: str) -> Dict[str, Any]:
 
 
 def _test_ai_response(body: Dict, request_id: str) -> Dict[str, Any]:
-    """Refuse an unconfigured test rather than fabricate a generated response."""
-    if not isinstance(body.get('message'), str) or not body['message'].strip():
+    """Generate one staff-only text preview, without tools or application writes."""
+    if not isinstance(body, dict) or not isinstance(body.get('message'), str) or not body['message'].strip():
         return _error_response(400, 'Message is required')
-    return _error_response(501, 'AI response testing is not configured. Use the internal assistant to test permitted read capabilities.')
+    message = body['message'].strip()
+    try:
+        if len(message) > 2000 or len(message.encode('utf-8')) > 8000:
+            return _error_response(400, 'Message must be at most 2000 characters')
+    except UnicodeEncodeError:
+        return _error_response(400, 'Message contains invalid text')
+    if 'language' in body and (not isinstance(body['language'], str) or body['language'] not in SUPPORTED_LANGUAGES):
+        return _error_response(400, 'Unsupported response language')
+    try:
+        # Read directly: _get_config initializes missing rows and is unsuitable for a preview.
+        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(Key={'id': 'ai_config'}).get('Item')
+        if item is None:
+            config = DEFAULT_AI_CONFIG
+        else:
+            raw = item.get('configValue')
+            config = json.loads(raw) if isinstance(raw, str) else raw
+        if not isinstance(config, dict):
+            return _error_response(503, 'AI test configuration is unavailable')
+        model_id = config.get('modelId')
+        # Existing saved Nova Lite and default Nova Pro were control-plane verified.
+        if model_id not in {'amazon.nova-lite-v1:0', 'amazon.nova-pro-v1:0'}:
+            return _error_response(503, 'AI test model is not configured or supported')
+        language = body.get('language', config.get('defaultLanguage', 'en'))
+        if not isinstance(language, str) or language not in SUPPORTED_LANGUAGES:
+            return _error_response(503, 'AI test response language is not configured')
+        from botocore.config import Config
+        runtime = boto3.client('bedrock-runtime', region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+            config=Config(connect_timeout=3, read_timeout=8,
+                          retries={'total_max_attempts': 2, 'mode': 'adaptive'}))
+        result = runtime.converse(
+            modelId=model_id,
+            system=[{'text': 'You are a WECARE.DIGITAL text preview assistant. '
+                     'Respond briefly in ' + SUPPORTED_LANGUAGES[language] + '. '
+                     'You have no tools, contacts, conversation history or ability to perform actions. '
+                     'Do not claim to have sent, changed, booked, paid or retrieved anything.'}],
+            messages=[{'role': 'user', 'content': [{'text': message}]}],
+            inferenceConfig={'maxTokens': 256, 'temperature': 0.2})
+        output = result.get('output', {}).get('message', {})
+        content = output.get('content')
+        if (result.get('stopReason') not in {'end_turn', 'max_tokens', 'stop_sequence'}
+                or output.get('role') != 'assistant' or not isinstance(content, list)
+                or not content or len(content) > 32
+                or any(not isinstance(block, dict) or set(block) != {'text'}
+                       or not isinstance(block['text'], str) for block in content)):
+            return _error_response(503, 'AI test did not return a text response')
+        response = '\n'.join(block['text'] for block in content).strip()
+        if not response or len(response) > 4000 or len(response.encode('utf-8')) > 16000:
+            return _error_response(503, 'AI test did not return a valid text response')
+        # Legacy response key remains present; language detection is not fabricated.
+        return {'statusCode': 200, 'headers': cors_headers(origin),
+                'body': json.dumps({'message': message, 'response': response,
+                                    'detectedLanguage': 'und', 'responseLanguage': language,
+                                    'languageSource': 'requested' if 'language' in body else 'configured',
+                                    'modelId': model_id})}
+    except Exception:
+        # Neither prompt, model output nor provider exception text belongs in a log/response.
+        logger.warning(json.dumps({'event': 'ai_test_unavailable', 'requestId': request_id}))
+        return _error_response(503, 'AI response testing is temporarily unavailable')
 
 
 def _get_default_prompt(lang: str) -> str:

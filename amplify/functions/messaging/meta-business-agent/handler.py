@@ -775,21 +775,11 @@ _THREAD_CONTROL_ACTIONS = ("release", "pass", "take")
 
 
 def _thread_control_recipient(bsuid: str, to: str) -> dict:
-    """The thread_control recipient shape, in one place.
+    """Meta thread control accepts exactly one flat to or bare-string recipient.
 
-    UNVERIFIED. This repository's only PROVEN BSUID-recipient form is FLAT:
-    whatsapp-business-api._send_message:2096-2102 sets message['recipient'] = '<bsuid>'
-    as a bare string, and the _thread_control this replaced sent a flat "to". The
-    nested object below is what Conversation Routing is believed to want, and no live
-    round trip can settle it here because a routing configuration is owner answer O1,
-    which is unanswered.
-
-    So this is the one correction point. The tests read this helper rather than
-    asserting a literal nesting, which means a corrected shape costs one function body
-    and zero test edits -- the same discipline the carousel action key and the MM edge
-    name get.
+    https://developers.facebook.com/documentation/business-messaging/whatsapp/conversation-routing/thread-control/
     """
-    return {"recipient": {"user_id": bsuid} if bsuid else {"to": to}}
+    return {"recipient": bsuid} if bsuid else {"to": to}
 
 
 def _thread_control(body: dict):
@@ -813,6 +803,8 @@ def _thread_control(body: dict):
 
     if not phone_id:
         return _resp(400, {"error": "entityId (phone_number_id) required"})
+    if bsuid and to:
+        return _resp(400, {"error": "provide exactly one of bsuid or to"})
     if not bsuid and not to:
         return _resp(400, {"error": "one of bsuid (business-scoped user id) or to "
                                     "(consumer phone, E.164) required"})

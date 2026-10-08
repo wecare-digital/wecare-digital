@@ -103,7 +103,7 @@ export const COGNITO_CONFIG = {
 
 // Bedrock AI Configuration
 // Architecture:
-//   - SEO Audit: InvokeModel (Claude Opus 4.6 → Nova Pro fallback) via bedrock.ts
+//   - SEO Audit: InvokeModel (Claude Opus 4.6 → Nova Pro fallback) in operations/seo-tools/handler.py
 //   - WhatsApp Auto-Reply: Converse API (Nova Lite) — no agent needed
 //   - Internal Admin: Converse API (Nova Lite) — agent optional, Converse works standalone
 //   - WhatsApp Voice/Calling: Converse API (Nova Lite) — agent fallback if configured

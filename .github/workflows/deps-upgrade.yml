@@ -1,21 +1,19 @@
 name: deps-upgrade-and-lock
 
 # One-shot, manually triggered upgrade that runs on a networked GitHub runner
-# (the agent sandbox cannot download npm packages). It regenerates a CLEAN, fully
-# consistent lockfile (deletes the stale lock first), optionally bumps all direct
+# and updates the existing root lockfile in place, optionally bumps current direct
 # deps to @latest, verifies with both `npm run build` AND `npm ci` via
 # scripts/npm_ci_gate.py, then commits the result back to `stack` (which triggers
 # the Amplify deploy). Both gates must pass before anything is committed.
 #
-# The npm ci gate is blocking but tolerates four known-upstream bundled-dependency
-# findings that no change to this repo can fix; any other lockfile-sync finding
-# fails the job. See the comment on that step, and scripts/npm_ci_gate.py.
+# The root npm ci gate is strict. Backend dependencies remain in amplify/.
+# See docs/npm-ci-backend-isolation.md and scripts/npm_ci_gate.py.
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "lock-only (clean regen of lock) or full-latest (also bump direct deps to @latest)"
+        description: "lock-only (update existing lock) or full-latest (upgrade current root deps)"
         type: choice
         default: lock-only
         options:
@@ -52,102 +50,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Bump all direct deps to @latest (full-latest only)
+      - name: Bump current root dependencies (full-latest only)
         if: ${{ inputs.mode == 'full-latest' }}
-        run: |
-          npm install --save --legacy-peer-deps --no-audit --no-fund --package-lock-only \
-            next@latest react@latest react-dom@latest react-router-dom@latest \
-            aws-amplify@latest @aws-amplify/ui-react@latest \
-            @aws-sdk/client-bedrock@latest @aws-sdk/client-bedrock-runtime@latest \
-            @capacitor/core@latest @capacitor/android@latest @capacitor/ios@latest \
-            @capacitor/app@latest @capacitor/browser@latest @capacitor/haptics@latest \
-            @capacitor/keyboard@latest @capacitor/push-notifications@latest \
-            @capacitor/splash-screen@latest @capacitor/status-bar@latest flag-icons@latest
-          # @capacitor/cli is BELOW, in the --save-dev list, and moving it back up would undo
-          # a deliberate change. It is a build tool, not a runtime dependency, and it is the
-          # only path by which xcode@3.0.1 -> uuid@7.0.3 entered the production tree. This list
-          # is why the fix has to land in two places: package.json alone would be reverted by
-          # the next full-latest run of this workflow.
-          npm install --save-dev --legacy-peer-deps --no-audit --no-fund --package-lock-only \
-            @capacitor/cli@latest \
-            @aws-amplify/backend-cli@latest @aws-amplify/backend-data@latest @aws-amplify/data-construct@latest \
-            @aws-amplify/graphql-schema-generator@latest @testing-library/jest-dom@latest @testing-library/react@latest \
-            @types/node@latest @types/react@latest @types/react-dom@latest @vitejs/plugin-react@latest \
-            jsdom@latest typescript@latest vitest@latest
-          npm install --save --legacy-peer-deps --no-audit --no-fund --package-lock-only @aws-amplify/backend@latest
+        run: node scripts/upgrade-dependencies.mjs --apply
 
-      - name: CLEAN regenerate lockfile (delete stale lock + modules first)
-        run: |
-          rm -rf node_modules package-lock.json
-          npm install --legacy-peer-deps --no-audit --no-fund
+      - name: Update root lockfile in place
+        run: npm install --no-audit --no-fund
 
       - name: Gate - build
         run: npm run build
 
-      # BLOCKING, and it tolerates one known-upstream defect (four identical findings)
-      # and nothing else.
-      #
-      # This step used to be non-blocking, and that is what let the lockfile rot:
-      # because nothing failed when `npm ci` failed, the committed lockfile drifted
-      # until it was missing five entries the tree needs
-      # (@aws-cdk/cli-plugin-contract, webpack, @webassemblyjs/ast,
-      # @webassemblyjs/wasm-edit, json-schema-traverse). So it must stay blocking.
-      #
-      # It then went the other way and ran a bare `npm ci --legacy-peer-deps`,
-      # asserting in a comment that both spellings were "verified ... exit 0"
-      # against a resynced lockfile. That claim was false. Re-measured on `stack`
-      # 2026-09-29 (Node 24.21.0 / npm 11.19.0): both fail with four
-      # `Missing: @opentelemetry/core@2.0.0 from lock file` errors, because
-      # @aws-amplify/data-construct and @aws-amplify/graphql-api-construct bundle
-      # OpenTelemetry copies whose pinned @opentelemetry/core@2.0.0 does not match
-      # the 2.8.0 bundled beside them. It is inside published tarballs, not here, and
-      # an `overrides` entry crashes npm (exit 134). So a bare `npm ci` gate can never
-      # pass, which made this job unable to commit the lockfile it had just
-      # regenerated - a brick, not a tripwire.
-      #
-      # EXPECT THIS GATE TO FAIL TODAY, AND FOR A DIFFERENT REASON THAN THE ABOVE.
-      # The step before this one deletes the lockfile and regenerates it, on the
-      # premise that a clean regen is at least as good as what is committed. Measured
-      # 2026-09-29 (Node 24.21.0 / npm 11.19.0), it is not:
-      #
-      #   committed lockfile   npm ci -> exit 1,  4 findings,  1 distinct
-      #   fresh regen          npm ci -> exit 1, 87 findings, 62 distinct
-      #
-      # The extra 61 are a second bundled subtree (@aws-cdk/toolkit-lib, archiver,
-      # bare-*, chalk, fs-extra - what aws-cdk bundles) that the fresh resolve hoists
-      # differently. `npm install` tolerates it, so no other workflow notices, but it is
-      # 15x further from installable. The gate therefore reports ~61 unexpected findings
-      # and refuses to commit, which is CORRECT - it is blocking a regression, not
-      # reporting drift we caused. Read a failure here as "the regen made the lockfile
-      # worse" and do not reach for --strict or continue-on-error.
-      #
-      # The unblock is to stop regenerating from scratch: `npm install` OVER the existing
-      # lockfile moved 35 insertions / 56 deletions for the same dependency result where a
-      # regen moved ~19,700 lines (docs/grahak-os-handoff.md, item 2). That changes this
-      # job's stated purpose, so it is left as an owner decision rather than done here.
-      #
-      # npm_ci_gate.py's ALLOWLIST IS EMPTY NOW, so this is a strict gate: every
-      # Missing/Invalid/Extraneous/Conflicting finding fails the job. It used to tolerate
-      # four known-upstream @opentelemetry/core edges by exact string, because
-      # @aws-amplify/data-construct and @aws-amplify/graphql-api-construct bundle an
-      # inconsistent OpenTelemetry set that no change here could resolve. Those packages
-      # are backend-only and now live in amplify/package.json as a separate install root,
-      # so the web app's lockfile no longer contains them and `npm ci` resolves it
-      # cleanly. See docs/npm-ci-backend-isolation.md.
-      #
-      # The upstream defect is NOT fixed - it moved with the packages, and `npm ci` inside
-      # amplify/ still fails on it. That root installs with `npm install` and is not gated
-      # here. The script is kept rather than replaced by a bare `npm ci` because it also
-      # separates drift from a network or engine failure, and because re-adding an
-      # allowlist entry should be a reviewed change rather than an inline flag.
-      #
-      # NOTE ON SCOPE: this job upgrades the ROOT manifest, so it no longer touches the
-      # four backend packages. Upgrading those is a deliberate `npm install --prefix
-      # amplify` plus a review of amplify/package-lock.json.
-      #
-      # The gate compares the lockfile by hash rather than `git diff` because it has
-      # deliberately just been regenerated and is expected to differ from HEAD. What
-      # must not happen is `npm ci` itself rewriting it.
+      # Strict installation gate: preserve the root/backend install boundary and
+      # fail on every lock inconsistency. Do not delete a good lockfile to upgrade.
+      # Historical bundled backend issues: docs/npm-ci-backend-isolation.md.
       - name: Gate - npm ci from clean (catches lockfile drift)
         run: |
           rm -rf node_modules

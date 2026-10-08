@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Plan/apply the two customer log retention policies with principal and age guards.
 
-Default is read-only. Apply is eligible only as wecare-admin and when each log
+Default is read-only. Apply requires wecare-admin, or the explicit project-owner
+root opt-in, and when each log
 has existed for less than 30 days, so the first policy cannot discard old events.
 Older groups need explicit history review; this tool refuses them. No log bodies,
 credentials, customer records, resource creation or Lambda deployment are read.
@@ -14,6 +15,7 @@ import boto3
 
 ACCOUNT = '775261844268'
 EXPECTED_ARN = f'arn:aws:iam::{ACCOUNT}:user/wecare-admin'
+OWNER_ROOT_ARN = f'arn:aws:iam::{ACCOUNT}:root'
 REGION = 'us-east-1'
 GROUPS = ('/aws/lambda/wecare-customer-profile', '/aws/lambda/wecare-customer-session')
 RETENTION_DAYS = 30
@@ -42,16 +44,19 @@ def build_plan(logs, now_ms):
                       'proposedRetentionDays': RETENTION_DAYS, 'ageDays': round(age / 86400000, 2)})
     return plans
 
-def execute(sts, logs, apply=False, now_ms=None):
+def execute(sts, logs, apply=False, now_ms=None, owner_authorized_root=False):
     identity = sts.get_caller_identity()
-    allowed = identity.get('Account') == ACCOUNT and identity.get('Arn') == EXPECTED_ARN
+    allowed = identity.get('Account') == ACCOUNT and (
+        identity.get('Arn') == EXPECTED_ARN or
+        (owner_authorized_root and identity.get('Arn') == OWNER_ROOT_ARN))
     plan = build_plan(logs, int(time.time() * 1000) if now_ms is None else now_ms)
     result = {'identity': {'account': identity.get('Account'), 'arn': identity.get('Arn')},
-              'writeIdentityAllowed': allowed, 'applyRequested': apply, 'plan': plan, 'applied': []}
+              'writeIdentityAllowed': allowed, 'applyRequested': apply,
+              'ownerAuthorizedRoot': owner_authorized_root, 'plan': plan, 'applied': []}
     if not apply:
         return result
     if not allowed:
-        raise PermissionError('Expected wecare-admin IAM identity is required; root cannot apply this plan')
+        raise PermissionError('Expected project account and IAM user, or explicit owner-authorized root opt-in, required')
     if any(item['status'].startswith('BLOCKED') for item in plan):
         raise ValueError('Retention plan contains a review blocker; no policy changed')
     for item in plan:
@@ -66,9 +71,11 @@ def execute(sts, logs, apply=False, now_ms=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--owner-authorized-root', action='store_true',
+                        help='Use the project owner root authorization of 2026-10-09; exact account and resource guards still apply')
     args = parser.parse_args()
     session = boto3.Session(profile_name='wecare-prod', region_name=REGION)
-    print(json.dumps(execute(session.client('sts'), session.client('logs'), args.apply), indent=2))
+    print(json.dumps(execute(session.client('sts'), session.client('logs'), args.apply, owner_authorized_root=args.owner_authorized_root), indent=2))
 
 if __name__ == '__main__':
     main()

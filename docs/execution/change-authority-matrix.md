@@ -3390,3 +3390,10 @@ Class A1_LOCAL / A2_REMOTE_CODE. Baseline 88856c1936d58c86f1d379deab0e5059406d63
 Evidence: full integrated offline Python gate10134passed/6skipped/3xfail, frontend1583passed/2skipped, typecheckPASS, lint0errors197warnings, static export1521pages, blog/schemaPASS; new retention guard4casesPASS. Unit tests use dummy credentials and denied network transports; no live provider/payment/customer journey certification.
 
 Rollback: revert only this commit's named source paths through a normal forward commit; zero-byte files restore from baseline Git. No force/history rewrite. Retention is not applied; its future rollback would restore prior policy from the read-only plan, with actual change ownership and timestamp recorded first.
+
+
+## 2026-10-09 — owner-authorized root and reviewed project closure
+
+A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION: direct owner authorizes root use for this project and completion/deep cleanup. Supersedes the 2026-10-08 root retention apply blocker and AI-test501 state. Exact account775261844268/us-east-1, existing authentication, no credentials retrieved/rotated. Two named customer log groups verified30days; thirteen revision/hash/alias-guarded code rollouts across ten functions.117 reviewed unused files removed; retained lock versions unchanged; upgrade automation derives the manifest. History replay isolation and canonical recipient/handover fixes deployed without provider configuration or receipt/typing gate changes. AI preview is real bounded text-only output with no executor tools/writes.
+
+Evidence/rollback: project-completion-20261009.md/.json; Python10187pass/6skip/3xfail, frontend1583pass/2skip, typecheck/build/browser/schema/blog pass, live public synthetic AI preview200/READY. Exact alias prior versions recorded; revert source through named forward commits. Wix removal intent, durable coexistence ingestion, live provider/payment journey authorization, unpatched braces and operation-specific IAM narrowing remain explicit. Historical entries are snapshots, not current blockers when superseded here.

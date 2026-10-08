@@ -3042,20 +3042,23 @@ export async function getSupportedLanguages (): Promise<SupportedLanguages> {
  * Test AI response generation
  * API: POST /ai/test
  */
-export async function testBedrockAIResponse ( message: string ): Promise<{ message: string; response: string; detectedLanguage: string }> {
+export async function testBedrockAIResponse ( message: string ): Promise<{
+  message: string; response: string; detectedLanguage: string;
+  responseLanguage: string; languageSource: string; modelId: string;
+} | null> {
   const data = await apiCall<any>( `${API_BASE}/ai/test`, {
     method: 'POST',
     body: JSON.stringify( { message } ),
   } );
-  if ( data )
-  {
-    return {
-      message: data.message || message,
-      response: data.response || 'AI test response would appear here',
-      detectedLanguage: data.detectedLanguage || 'en',
-    };
-  }
-  return { message, response: 'AI service unavailable', detectedLanguage: 'en' };
+  if ( !data || typeof data.response !== 'string' || !data.response.trim() ) return null;
+  return {
+    message: typeof data.message === 'string' ? data.message : message,
+    response: data.response,
+    detectedLanguage: data.detectedLanguage || 'und',
+    responseLanguage: data.responseLanguage || '',
+    languageSource: data.languageSource || '',
+    modelId: data.modelId || '',
+  };
 }
 
 

@@ -928,6 +928,10 @@ SUBMIT_REQUEST_FLOW_ID = os.environ.get('SUBMIT_REQUEST_FLOW_ID', '1235100738173
 # normalising `_SYSTEM_EVENT_FIELDS` to module scope would touch a loop nine existing
 # fields depend on, for no behavioural gain.
 _COEXISTENCE_FIELDS = frozenset({'smb_app_state_sync', 'smb_message_echoes'})
+# History media enrichment can carry value.messages, just like live inbound
+# traffic. Replay must stay audit-only and never run customer automation.
+# https://developers.facebook.com/documentation/business-messaging/whatsapp/webhooks/reference/history/
+_AUDIT_ONLY_REPLAY_FIELDS = _COEXISTENCE_FIELDS | {'history'}
 
 
 def _coexistence_ingest_enabled() -> bool:
@@ -1265,7 +1269,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 aws_phone_number_id = (
                     _get_aws_phone_number_id(display_phone_number, phone_number_id,
                                              meta_phone_number_ids)
-                    if value.get('messages') else ''
+                    if value.get('messages') and _wh_field not in _AUDIT_ONLY_REPLAY_FIELDS else ''
                 )
                 
                 # Extract contacts info (contains profile names, BSUIDs, usernames)
@@ -1305,7 +1309,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # Guarding with a computed list rather than a `continue` keeps the audit
                 # arm below reachable; the four group arms it sits beside use no
                 # `continue` either. Inert for every other field.
-                _coexistence_change = _wh_field in _COEXISTENCE_FIELDS
+                _coexistence_change = _wh_field in _AUDIT_ONLY_REPLAY_FIELDS
                 _inbound_messages = [] if _coexistence_change else value.get('messages', [])
 
                 # Process incoming messages
