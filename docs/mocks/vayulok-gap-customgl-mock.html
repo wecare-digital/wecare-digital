@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>VayuLok — "Filling the Gap" section mock — Option B (custom WebGL dot-matrix globe)</title>
+
+<!--
+  ===========================================================================
+  PREVIEW-ONLY STYLE BLOCK. NOT PART OF THE DELIVERABLE.
+
+  Everything in the <style data-vl-preview-only> element below exists ONLY so
+  this file is viewable as a standalone document through htmlpreview /
+  file://. It is DROPPED ON INSERTION into the Next.js page — the host page
+  already owns its own document reset and vertical rhythm.
+  ===========================================================================
+-->
+<style data-vl-preview-only>
+/* PREVIEW ONLY — delete when this block is pasted into the Next.js page. */
+html,body{margin:0;background:#fff}
+.vlg-preview-shell{padding:24px 0 64px}
+</style>
+
+<!--
+  ===========================================================================
+  MOCK COPY NOTICE. All headline / body copy in the LEFT column below is
+  ON-BRAND PLACEHOLDER written for this mock. It states the real VayuLok
+  premise (sparse air-quality monitoring across Bharat; VayuLok adds denser
+  coverage) but the exact wording, figures and station counts are placeholder
+  and must be confirmed with the owner before shipping to the Next.js page.
+
+  OPTION B: the right-column visual is a DOT-MATRIX globe written in RAW
+  WebGL with NO library and NO dependency — a sphere of gl.POINTS whose land
+  dots come from a CODE-GENERATED landmass mask, plus glowing data-point dots
+  (markers) over Bharat. The far hemisphere is depth-dimmed so it reads as a
+  solid dark SPHERE of dots, not a flat disc. The globe auto-spins. NO image
+  is ever loaded; the globe surface is generated entirely in code. NO toggle /
+  tabs / pills: just the globe, with an optional static legend caption.
+  ===========================================================================
+-->
+
+<style>
+/* ============================================================================
+   VAYULOK "FILLING THE GAP" SECTION BLOCK — stylesheet (Option B, raw WebGL).
+
+   NO GLOBAL STYLES. Every selector is scoped under the `vlg-` prefix and the
+   custom properties are declared on the SECTION ROOT (.vlg-fillgap) rather
+   than :root, because this block is pasted into a Next.js page that owns the
+   document.
+
+   TOKENS cited to src/lib/design-tokens.ts inline. NO RED anywhere (owner
+   hard rule): only brand lime / forest-green / amber / greens / greys / white
+   appear. The globe PANEL is dark (reference look); the surrounding page
+   stays light for the vayulok context.
+   ========================================================================= */
+
+/* ---- SECTION ROOT. Tokens live here, not on :root. ---------------------- */
+.vlg-fillgap{
+  font-family:'Inter',ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;                      /* colors.text */
+  -webkit-font-smoothing:antialiased;
+
+  /* Surfaces */
+  --paper:#ffffff;                    /* colors.white */
+  --ground:#f9fafb;                   /* colors.bgSecondary — surrounding page is LIGHT */
+  --panel:#0a0a0a;                    /* the globe panel is dark (reference look) */
+  --panel-edge:#161616;
+  --lime:#d1f470;                     /* colors.lime — brand accent */
+  --lime-hover:#c5e866;               /* colors.limeHover */
+  --amber:#f5c451;                    /* VayuLok data accent (NOT red) */
+  --green:#1a3a2a;                    /* colors.primary — brand primary */
+  --green-bright:#4ade80;             /* existing-data dot colour, reads on dark */
+  --hair:#e5e7eb;                     /* colors.border */
+
+  /* Ink */
+  --ink-head:#1a1a1a;                 /* colors.text — headline */
+  --ink-body:rgba(0,0,0,.72);         /* body copy */
+  --ink-muted:rgba(0,0,0,.54);        /* colors.textSecondary */
+  --ink-grey:#6b7280;                 /* colors.textMuted */
+
+  /* Shape — radii from design-tokens.ts radius */
+  --r-panel:14px;                     /* radius.xl */
+
+  /* Motion — motion.easeOut */
+  --e-glide:cubic-bezier(.16,1,.3,1);
+}
+
+/* SCOPED box-sizing. Not a bare `*` rule: it cannot reach outside the block. */
+.vlg-fillgap,.vlg-fillgap *{box-sizing:border-box}
+
+/* ---- container: ~1300px measure, centred ------------------------------- */
+.vlg-wrap{width:100%;max-width:1300px;margin:0 auto;padding:0 24px}
+
+/* ============================================================================
+   ONE SHORT MOCK-DISCLOSURE LINE.
+   ========================================================================= */
+.vlg-mocknote{
+  max-width:1300px;margin:0 auto 28px;padding:0 24px;
+  font-size:13px;line-height:1.45;color:var(--ink-muted);
+}
+.vlg-mocknote b{color:var(--green);font-size:11px;font-weight:700;letter-spacing:.08em}
+
+/* ============================================================================
+   CONTEXT PLACEHOLDERS — quiet dashed notes framing this one section.
+   ========================================================================= */
+.vlg-context{
+  max-width:1300px;margin:0 auto;padding:30px 24px;
+  border:1px dashed var(--hair);border-radius:var(--r-panel);
+  background:transparent;text-align:center;
+}
+.vlg-context p{margin:0;font-size:13px;line-height:1.45;letter-spacing:.01em;color:var(--ink-muted)}
+.vlg-context-top{margin-bottom:48px}
+.vlg-context-foot{margin-top:48px}
+
+/* ============================================================================
+   THE SECTION — light surface, generous vertical padding.
+   ========================================================================= */
+.vlg-section{background:var(--paper);padding:72px 0}
+
+/* ---- the two-column grid: left copy ~40%, right globe ~60% ------------- */
+.vlg-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:40px;align-items:center;
+}
+@media(min-width:768px){
+  .vlg-grid{grid-template-columns:minmax(0,40%) minmax(0,60%);gap:56px}
+}
+.vlg-col-left{min-width:0}
+.vlg-col-right{min-width:0}
+
+/* ---- type ladder ------------------------------------------------------- */
+.vlg-eyebrow{
+  margin:0 0 16px;font-size:12px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--green);
+}
+.vlg-h2{
+  margin:0 0 20px;
+  font-size:clamp(30px,3.4vw,46px);font-weight:700;line-height:1.05;
+  letter-spacing:-1.4px;color:var(--ink-head);
+}
+.vlg-h2 .vlg-h2-accent{
+  background:linear-gradient(transparent 62%,var(--lime) 62%);
+  padding:0 .04em;
+}
+.vlg-body{
+  margin:0 0 18px;max-width:52ch;
+  font-size:18px;font-weight:400;line-height:1.55;letter-spacing:-.1px;color:var(--ink-body);
+}
+.vlg-body:last-of-type{margin-bottom:0}
+.vlg-body strong{color:var(--ink-head);font-weight:600}
+
+/* ---- a quiet stat row under the copy ----------------------------------- */
+.vlg-stats{
+  display:flex;flex-wrap:wrap;gap:28px;margin-top:28px;
+  padding-top:24px;border-top:1px solid var(--hair);
+}
+.vlg-stat{min-width:0}
+.vlg-stat b{display:block;font-size:28px;font-weight:700;letter-spacing:-.6px;color:var(--green)}
+.vlg-stat span{display:block;margin-top:2px;font-size:13px;line-height:1.35;color:var(--ink-grey)}
+
+/* ============================================================================
+   THE GLOBE STAGE — dark rounded panel (reference look). Raw WebGL renders a
+   dot-matrix globe into the canvas that fills it. ONLY the globe lives here.
+   ========================================================================= */
+.vlg-stage{
+  position:relative;width:100%;
+  aspect-ratio:1/1;max-height:580px;
+  border:1px solid var(--panel-edge);border-radius:var(--r-panel);
+  background:
+    radial-gradient(70% 70% at 50% 46%,#101512 0%,#0a0a0a 70%);
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.18);
+}
+.vlg-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* ---- WebGL / load fallback panel (shown if WebGL can't run) ------------ */
+.vlg-fallback{
+  position:absolute;inset:0;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:32px;text-align:center;color:rgba(255,255,255,.78);
+  background:radial-gradient(60% 60% at 50% 46%,#15321f 0%,#0a0a0a 72%);
+}
+.vlg-fallback.is-on{display:flex}
+.vlg-fallback b{font-size:15px;font-weight:700;color:#fff}
+.vlg-fallback span{font-size:13px;line-height:1.5;max-width:34ch;color:rgba(255,255,255,.7)}
+
+/* ---- static legend caption (NOT interactive — no toggle) --------------- */
+.vlg-legend{
+  position:absolute;left:16px;bottom:16px;z-index:2;
+  display:flex;flex-direction:column;gap:8px;
+  padding:12px 14px;
+  background:rgba(10,10,10,.55);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.12);border-radius:12px;
+  pointer-events:none;
+}
+.vlg-legend-row{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:600;color:rgba(255,255,255,.86)}
+.vlg-legend-dot{width:10px;height:10px;border-radius:9999px;flex:0 0 auto}
+.vlg-legend-dot.is-existing{background:var(--green-bright);box-shadow:0 0 8px rgba(74,222,128,.7)}
+.vlg-legend-dot.is-vayulok{background:var(--lime);box-shadow:0 0 8px rgba(209,244,112,.75)}
+
+/* ---- caption under the stage ------------------------------------------- */
+.vlg-cap{margin:12px 0 0;font-size:12px;line-height:1.45;color:var(--ink-muted)}
+</style>
+</head>
+<body>
+<div class="vlg-preview-shell">
+
+  <!-- MOCK DISCLOSURE — one line -->
+  <p class="vlg-mocknote">
+    <b>MOCK — OPTION B (custom WebGL)</b> &nbsp;Standalone preview of the proposed VayuLok “Filling
+    the Gap” section with a dot-matrix globe written in raw WebGL (no library). Copy and station
+    figures are placeholder.
+  </p>
+
+  <!-- OUT-OF-SCOPE: the real rotating-word hero renders here on /vayulok -->
+  <div class="vlg-context vlg-context-top" aria-hidden="true">
+    <p>↑ existing VayuLok rotating-word hero renders above — not part of this mock</p>
+  </div>
+
+  <!-- =====================================================================
+       THE DELIVERABLE: the "Filling the Gap" section.
+       ===================================================================== -->
+  <section class="vlg-fillgap" aria-labelledby="vlg-heading">
+    <div class="vlg-section">
+      <div class="vlg-wrap">
+        <div class="vlg-grid">
+
+          <!-- LEFT: copy -->
+          <div class="vlg-col-left">
+            <p class="vlg-eyebrow">The coverage gap</p>
+            <h2 class="vlg-h2" id="vlg-heading">
+              Filling the <span class="vlg-h2-accent">gap</span> in Bharat’s air
+            </h2>
+            <!-- MOCK COPY — placeholder, confirm wording with owner before shipping -->
+            <p class="vlg-body">
+              Across most of Bharat, air-quality truth is <strong>thin on the ground</strong>.
+              Official monitoring stations cluster in a handful of metros, leaving whole
+              districts, highways and smaller towns with no reading at all — just estimates
+              stretched over hundreds of kilometres.
+            </p>
+            <p class="vlg-body">
+              <strong>VayuLok closes that gap.</strong> A denser mesh of low-cost sensors fills
+              in the blank spaces between the official stations, so a street, a school or a
+              neighbourhood can finally see its own air instead of a city-wide average.
+            </p>
+
+            <div class="vlg-stats">
+              <div class="vlg-stat">
+                <b>~1 in 20</b>
+                <span>districts with a reference-grade monitor today</span>
+              </div>
+              <div class="vlg-stat">
+                <b>10×</b>
+                <span>denser coverage targeted by the VayuLok mesh</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- RIGHT: the custom-WebGL dot-matrix globe (ONLY the globe + legend) -->
+          <div class="vlg-col-right">
+            <div class="vlg-stage" id="vlg-stage">
+              <canvas class="vlg-canvas" id="vlg-globe"
+                      role="img"
+                      aria-label="A dark dot-matrix globe centred on Bharat, rendered in raw WebGL. Continents are drawn as fine dots on a sphere, with the far side dimmed so it reads as a solid globe; brighter lime and green dots mark air-quality monitoring points concentrated over India with a sparse worldwide scatter. The globe slowly spins."></canvas>
+
+              <!-- Static fallback if WebGL is unavailable -->
+              <div class="vlg-fallback" id="vlg-fallback" role="img"
+                   aria-label="Static fallback: the dot-matrix globe cannot be rendered in this browser.">
+                <b>Globe preview</b>
+                <span>Your browser can’t render WebGL here. On a supported browser this panel shows a slowly spinning dot-matrix globe centred on Bharat with the air-quality coverage dots.</span>
+              </div>
+
+              <!-- STATIC legend caption (NOT a control — no toggle) -->
+              <div class="vlg-legend" aria-hidden="true">
+                <div class="vlg-legend-row">
+                  <span class="vlg-legend-dot is-existing"></span> Existing monitors
+                </div>
+                <div class="vlg-legend-row">
+                  <span class="vlg-legend-dot is-vayulok"></span> VayuLok mesh
+                </div>
+              </div>
+            </div>
+            <p class="vlg-cap">
+              Illustrative dot-matrix globe (raw WebGL). Data-point positions are schematic, not survey data.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OUT-OF-SCOPE: the live-data section renders here on /vayulok -->
+  <div class="vlg-context vlg-context-foot" aria-hidden="true">
+    <p>↓ existing VayuLok live-data section renders below — not part of this mock</p>
+  </div>
+
+</div>
+
+<!-- ============================================================================
+     THE GLOBE — RAW WebGL, no library, no dependency.
+
+     We build a point cloud of gl.POINTS on a unit sphere (Fibonacci lattice
+     for even spacing). Each lattice point is kept only if a CODE-GENERATED
+     landmass mask says it is land, so the dots trace recognisable continents
+     (incl. a wedge for India) — NO image is ever loaded. A second, denser set
+     of MARKER points sits over Bharat (lime) plus a sparse worldwide scatter.
+
+     The vertex shader rotates the sphere by phi/theta, projects it, and passes
+     the camera-facing z to the fragment shader. The fragment shader DIMS the
+     far hemisphere (back-face dimming) and draws each point as a soft round
+     dot, so the result reads as a solid dark SPHERE of dots rather than a flat
+     disc. The globe auto-spins by advancing phi each frame.
+
+     Colours: near-black base, dark-green land dots, lime markers. NO red.
+
+     DEGRADE: no WebGL / compile failure → static fallback panel, never a crash.
+              prefers-reduced-motion → draw once, no spin.
+     ============================================================================ -->
+<script>
+(function(){
+  var stage    = document.getElementById('vlg-stage');
+  var canvas   = document.getElementById('vlg-globe');
+  var fallback = document.getElementById('vlg-fallback');
+
+  function showFallback(){
+    if(fallback) fallback.classList.add('is-on');
+    if(canvas) canvas.style.display = 'none';
+  }
+
+  var gl = null;
+  try{
+    gl = canvas.getContext('webgl', {alpha:true, antialias:true, premultipliedAlpha:false})
+      || canvas.getContext('experimental-webgl', {alpha:true, antialias:true});
+  }catch(e){ gl = null; }
+  if(!gl){ showFallback(); return; }
+
+  var reduce = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  /* ---- lat/long helpers ------------------------------------------------- */
+  function toRad(d){ return d*Math.PI/180; }
+  // Unit vector for lat/long. Longitude 0 at +Z so phi rotation about Y spins
+  // east/west; +Y is north.
+  function latLonToXYZ(latDeg, lonDeg){
+    var lat = toRad(latDeg), lon = toRad(lonDeg);
+    var cl = Math.cos(lat);
+    return [ cl*Math.sin(lon), Math.sin(lat), cl*Math.cos(lon) ];
+  }
+
+  /* ---- CODE-GENERATED landmass mask ------------------------------------
+     Schematic continent polygons in lat/long, rasterised into a low-res
+     equirectangular grid, then softened. point-in-polygon test decides land.
+     Recognisable India wedge included. NO image. */
+  var LAND_POLYS = [
+    // Africa
+    [[37,-10],[35,10],[31,33],[12,44],[-2,42],[-18,36],[-35,20],[-30,14],[-6,9],[5,-5],[16,-17],[30,-16],[36,-6]],
+    // Europe
+    [[71,22],[60,55],[55,30],[46,16],[36,-9],[43,-9],[52,-5],[60,5],[70,10]],
+    // Asia bulk
+    [[72,55],[75,105],[72,160],[55,170],[40,140],[22,120],[8,105],[20,80],[35,65],[55,55]],
+    // India wedge (recognisable)
+    [[34,70],[31,76],[27,80],[23,90],[16,82],[8,78],[12,73],[20,69],[27,68]],
+    // Arabian peninsula
+    [[30,35],[25,50],[13,45],[12,43],[20,38],[28,34]],
+    // N America
+    [[71,-168],[72,-95],[68,-62],[48,-54],[30,-82],[18,-98],[32,-116],[55,-130],[66,-158]],
+    // S America
+    [[12,-72],[6,-50],[-10,-35],[-34,-54],[-52,-70],[-38,-73],[-18,-76],[2,-80]],
+    // Australia
+    [[-12,113],[-11,142],[-20,154],[-37,150],[-39,130],[-33,115]],
+    // Greenland
+    [[83,-55],[82,-20],[70,-22],[60,-45],[72,-58]],
+    // SE-Asia islands (coarse)
+    [[6,95],[2,104],[-6,106],[-8,120],[0,118],[7,100]]
+  ];
+  function pointInPoly(lat, lon, poly){
+    // poly points are [lat, lon]; ray-cast in lon/lat space.
+    var inside = false;
+    for(var i=0, j=poly.length-1; i<poly.length; j=i++){
+      var yi = poly[i][0], xi = poly[i][1];
+      var yj = poly[j][0], xj = poly[j][1];
+      var intersect = ((yi>lat)!==(yj>lat)) &&
+        (lon < (xj-xi)*(lat-yi)/(yj-yi) + xi);
+      if(intersect) inside = !inside;
+    }
+    return inside;
+  }
+  function isLand(lat, lon){
+    if(lat < -60) return true;             // Antarctica cap
+    for(var i=0;i<LAND_POLYS.length;i++){
+      if(pointInPoly(lat, lon, LAND_POLYS[i])) return true;
+    }
+    return false;
+  }
+
+  /* ---- build the land dot cloud (Fibonacci sphere) --------------------- */
+  var N = 36000;                           // lattice samples (dense dot matrix)
+  var GA = Math.PI*(3 - Math.sqrt(5));     // golden angle
+  var landPos = [];                        // xyz triples
+  for(var i=0;i<N;i++){
+    var y = 1 - (i/(N-1))*2;               // 1..-1
+    var r = Math.sqrt(Math.max(0,1 - y*y));
+    var th = GA*i;
+    var x = Math.cos(th)*r;
+    var z = Math.sin(th)*r;
+    var lat = Math.asin(y)*180/Math.PI;
+    var lon = Math.atan2(x, z)*180/Math.PI;
+    if(isLand(lat, lon)){
+      landPos.push(x, y, z);
+    }
+  }
+
+  /* ---- marker dots: Bharat-concentrated + sparse worldwide ------------- */
+  // type attribute: 1 = marker (lime, bigger, glowing); 0 = land (dim green).
+  var MARKERS = [
+    [28.6,77.2],[19.1,72.9],[13.1,80.3],[22.6,88.4],[12.9,77.6],[17.4,78.5],
+    [26.9,75.8],[23.0,72.6],[21.1,79.1],[18.5,73.9],[25.6,85.1],[30.7,76.8],
+    [15.3,74.1],[11.0,76.9],[26.1,91.7],[24.6,80.0],[20.3,85.8],[31.1,77.2],
+    // sparse worldwide scatter
+    [51.5,-0.1],[40.7,-74.0],[1.35,103.8],[35.7,139.7],[-33.9,151.2],
+    [-23.5,-46.6],[48.9,2.3],[25.2,55.3]
+  ];
+  var markerPos = [];
+  for(var m=0;m<MARKERS.length;m++){
+    var v = latLonToXYZ(MARKERS[m][0], MARKERS[m][1]);
+    // lift markers a touch above the surface so they sit "on" the globe
+    markerPos.push(v[0]*1.012, v[1]*1.012, v[2]*1.012);
+  }
+
+  /* ---- GL program ------------------------------------------------------- */
+  var VERT = [
+    'attribute vec3 aPos;',
+    'uniform mat3 uRot;',
+    'uniform float uScale;',   // ndc radius of the globe
+    'uniform float uAspect;',  // width/height
+    'uniform float uPointSize;',
+    'varying float vFacing;',  // 1 front .. 0 back (camera looks down +Z)
+    'void main(){',
+    '  vec3 p = uRot * aPos;',
+    '  vFacing = (p.z + 1.0) * 0.5;',           // -1..1 -> 0..1
+    '  vec2 pos = vec2(p.x/uAspect, p.y) * uScale;',
+    '  gl_Position = vec4(pos, p.z*0.5, 1.0);', // z into depth for gl.LESS
+    '  float depthScale = 0.55 + 0.45 * vFacing;',
+    '  gl_PointSize = uPointSize * depthScale;',
+    '}'
+  ].join('\n');
+
+  var FRAG = [
+    'precision mediump float;',
+    'uniform vec3 uColorFront;',
+    'uniform vec3 uColorBack;',
+    'uniform float uIsMarker;',
+    'varying float vFacing;',
+    'void main(){',
+    '  vec2 c = gl_PointCoord - vec2(0.5);',
+    '  float d = length(c);',
+    '  if(d > 0.5) discard;',                   // round dots
+    '  float edge = smoothstep(0.5, 0.18, d);', // soft edge
+    '  vec3 col = mix(uColorBack, uColorFront, vFacing);',
+    '  float facingDim = mix(0.18, 1.0, vFacing);', // back hemisphere dimmer
+    '  float a = edge * facingDim;',
+    '  if(uIsMarker > 0.5){',
+    '     float glow = smoothstep(0.5, 0.0, d);',
+    '     col = uColorFront + glow*0.25;',
+    '     a = max(edge, glow*0.6) * mix(0.35, 1.0, vFacing);',
+    '  }',
+    '  gl_FragColor = vec4(col * a, a);',        // premultiplied-ish additive feel
+    '}'
+  ].join('\n');
+
+  function compile(type, src){
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+      return null;
+    }
+    return s;
+  }
+  var vs = compile(gl.VERTEX_SHADER, VERT);
+  var fs = compile(gl.FRAGMENT_SHADER, FRAG);
+  if(!vs || !fs){ showFallback(); return; }
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs);
+  gl.linkProgram(prog);
+  if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){ showFallback(); return; }
+  gl.useProgram(prog);
+
+  var aPos = gl.getAttribLocation(prog, 'aPos');
+  var uRot = gl.getUniformLocation(prog, 'uRot');
+  var uScale = gl.getUniformLocation(prog, 'uScale');
+  var uAspect = gl.getUniformLocation(prog, 'uAspect');
+  var uPointSize = gl.getUniformLocation(prog, 'uPointSize');
+  var uColorFront = gl.getUniformLocation(prog, 'uColorFront');
+  var uColorBack = gl.getUniformLocation(prog, 'uColorBack');
+  var uIsMarker = gl.getUniformLocation(prog, 'uIsMarker');
+
+  var landBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, landBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(landPos), gl.STATIC_DRAW);
+
+  var markerBuf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, markerBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(markerPos), gl.STATIC_DRAW);
+
+  var landCount = landPos.length/3;
+  var markerCount = markerPos.length/3;
+
+  // additive-ish blending for glow on dark panel
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+  gl.enable(gl.DEPTH_TEST);
+  gl.depthFunc(gl.LEQUAL);
+  gl.clearColor(0,0,0,0);
+
+  /* ---- rotation matrix (phi about Y, theta tilt about X) --------------- */
+  function rotMat(phi, theta){
+    var cp=Math.cos(phi), sp=Math.sin(phi);
+    var ct=Math.cos(theta), st=Math.sin(theta);
+    // R = Rx(theta) * Ry(phi), column-major for mat3
+    // Ry: [cp 0 sp; 0 1 0; -sp 0 cp]
+    // Rx: [1 0 0; 0 ct -st; 0 st ct]
+    // product M = Rx*Ry
+    var m00 = cp,        m01 = 0,   m02 = sp;
+    var m10 = st*sp,     m11 = ct,  m12 = -st*cp;
+    var m20 = -ct*sp,    m21 = st,  m22 = ct*cp;
+    // WebGL mat3 uniform expects column-major: [col0, col1, col2]
+    return new Float32Array([
+      m00, m10, m20,
+      m01, m11, m21,
+      m02, m12, m22
+    ]);
+  }
+
+  /* ---- sizing (devicePixelRatio-aware) --------------------------------- */
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function resize(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if(!w || !h) return;
+    canvas.width  = Math.round(w*dpr);
+    canvas.height = Math.round(h*dpr);
+    gl.viewport(0,0,canvas.width,canvas.height);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // Orient so Bharat (~80°E) faces camera at rest, with slight northern tilt.
+  // Longitude 0 is at +Z; to bring +80°E to front we rotate by -80°.
+  var phi = toRad(-80);
+  var theta = 0.30;
+
+  function frame(){
+    resize();
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    var aspect = canvas.width / canvas.height;
+    var R = rotMat(phi, theta);
+    gl.uniformMatrix3fv(uRot, false, R);
+    gl.uniform1f(uScale, 0.86);              // globe fills most of the panel
+    gl.uniform1f(uAspect, aspect);
+
+    var basePt = (canvas.width/560) * 2.4;   // scale dot size to canvas
+
+    // --- land dots: dim forest green front, near-black back ---
+    gl.bindBuffer(gl.ARRAY_BUFFER, landBuf);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.uniform1f(uPointSize, basePt);
+    gl.uniform1f(uIsMarker, 0.0);
+    gl.uniform3f(uColorFront, 0.26, 0.52, 0.36); // lit green
+    gl.uniform3f(uColorBack,  0.05, 0.10, 0.08); // near-black green
+    gl.drawArrays(gl.POINTS, 0, landCount);
+
+    // --- marker dots: lime, bigger, glowing ---
+    gl.bindBuffer(gl.ARRAY_BUFFER, markerBuf);
+    gl.enableVertexAttribArray(aPos);
+    gl.vertexAttribPointer(aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.uniform1f(uPointSize, basePt*3.4);
+    gl.uniform1f(uIsMarker, 1.0);
+    gl.uniform3f(uColorFront, 0.82, 0.96, 0.44); // lime #d1f470-ish
+    gl.uniform3f(uColorBack,  0.40, 0.55, 0.22);
+    gl.drawArrays(gl.POINTS, 0, markerCount);
+
+    if(!reduce){
+      phi += 0.0045;                          // slow auto-spin
+      requestAnimationFrame(frame);
+    }
+  }
+
+  // First paint; if the context is somehow lost before drawing, fall back.
+  try{
+    frame();
+    if(reduce){ /* single static frame already drawn */ }
+  }catch(e){
+    showFallback();
+  }
+})();
+</script>
+</body>
+</html>
