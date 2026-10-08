@@ -59,6 +59,12 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
     { id: 'sns', label: 'SNS Subscription' },
   ];
 
+  // Official Business Account rollup, per WABA. Read-only: the green tick is granted by a
+  // Meta review started in Business Suite, so there is nothing to request from here.
+  // `null` means the read did not land — the route is deploy-time work — and the row
+  // renders "unavailable" rather than throwing.
+  const [obaStatus, setObaStatus] = useState<api.ObaStatus | null>(null);
+
   // SNS subscription state
   const [snsStatus, setSnsStatus] = useState<api.WABASNSSubscriptionStatus | null>(null);
   const [snsLoading, setSnsLoading] = useState(false);
@@ -119,6 +125,16 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
     const interval = setInterval(loadData, 60000); // Refresh every minute
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const id = selectedWaba?.wabaId || selectedWaba?.id;
+    if (!id) { setObaStatus(null); return; }
+    let live = true;
+    api.getObaStatus(id)
+      .then(s => { if (live) setObaStatus(s); })
+      .catch(() => { if (live) setObaStatus(null); });
+    return () => { live = false; };
+  }, [selectedWaba?.wabaId, selectedWaba?.id]);
 
   const handleSelectWaba = async (wabaId: string) => {
     try {
@@ -266,6 +282,14 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
                       <span className="label">Receiving</span>
                       <span className={`value ${selectedWaba.enableReceiving ? 'enabled' : 'disabled'}`}>
                         {selectedWaba.enableReceiving ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <span className="label">Official Business Account</span>
+                      <span className="value" title={obaStatus?.note || ''}>
+                        {obaStatus
+                          ? `${obaStatus.obaStatus} (${obaStatus.phones.filter(p => p.isOfficialBusinessAccount).length}/${obaStatus.phones.length} numbers)`
+                          : 'unavailable'}
                       </span>
                     </div>
                   </div>
