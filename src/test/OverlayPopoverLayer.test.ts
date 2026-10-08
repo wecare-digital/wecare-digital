@@ -503,8 +503,9 @@ describe( 'a Popover inside an above-popover container uses layer="overlay"', ()
     // future edit to either modal is the likeliest way the prop goes missing again.
     const payFlow = codeOnly( readFileSync(
       join( SRC, 'pages', 'workspace', 'pay', 'flow', 'index.tsx' ), 'utf8' ) );
-    expect( payFlow ).toMatch(
-      /<Select[^>]*ariaLabel="Brand"[\s\S]{0,260}?value=\{ editForm\.purpose \}[\s\S]{0,260}?layer="overlay"/ );
+    // Brand is now fixed; its read-only input has no popover to place.
+    expect( payFlow ).toMatch( /<input[^>]*aria-label="Brand"[^>]*readOnly/ );
+    expect( payFlow ).not.toMatch( /<Select[^>]*ariaLabel="Brand"/ );
 
     const link = codeOnly( readFileSync( join( SRC, 'pages', 'workspace', 'link', 'index.tsx' ), 'utf8' ) );
     expect( link ).toMatch( /<DateField[\s\S]{0,200}?label="Expiry Date \(optional\)"[\s\S]{0,200}?layer="overlay"/ );

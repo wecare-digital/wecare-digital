@@ -66,8 +66,11 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from coupon_fake_dynamo import FakeTable  # noqa: E402
 from lambda_utils import wix_ecom  # noqa: E402
+from lambda_utils.ecommerce import checkout_pricing as cp  # noqa: E402
 from lambda_utils.ecommerce import coupon_store as cs  # noqa: E402
 from lambda_utils.ecommerce import gift_card_store as gcs  # noqa: E402
+from lambda_utils.ecommerce import redemption  # noqa: E402
+from lambda_utils.ecommerce import store_redemption_provider as srp  # noqa: E402
 from lambda_utils.ecommerce import wix_coupons as wc  # noqa: E402
 from lambda_utils.ecommerce import wix_gift_cards as wg  # noqa: E402
 from lambda_utils.ecommerce.money import Money  # noqa: E402
@@ -87,7 +90,7 @@ _MISSING = object()
 
 NOW = 1_700_000_000
 START_MS = 1_719_390_501_000
-LEGS = ("coupon", "wix-giftcard", "our-giftcard", "all")
+LEGS = ("coupon", "wix-giftcard", "our-giftcard", "invoice", "all")
 
 FIXTURES = ROOT / "tests/fixtures"
 
@@ -483,6 +486,127 @@ def _leg_our_giftcard(args) -> dict:
     }
 
 
+def _leg_invoice(args) -> dict:
+    """LEG 4. The INVOICE money path: one coupon authority, one gift-card authority, one order.
+
+    This is the leg that shows the two halves joined. `store_redemption_provider` is the only
+    concrete `redemption.RedemptionProvider`, so the figures below come from the SAME modules the
+    website cart reference consumes - the invoice surface asks and never answers.
+
+    The order is the part worth watching, and it is not negotiable:
+
+      coupon  -> reduces the COLLECTION, so `checkout_pricing` charges its 2.5% fee and the 18%
+                 GST on that fee against the DISCOUNTED figure. A coupon is a price change.
+      quote   -> collection + fee + GST = the authoritative total. This is the taxable total.
+      card    -> subtracted from THAT total. A gift card is tender, so it can never reduce
+                 taxable value, and the identity
+                 `redemption + payable == authoritative total` holds exactly in integer paise.
+
+    And the card is NOT debited: invoice create verifies a balance and records evidence, because
+    an unpaid invoice must never burn a customer's balance. The balance is re-read afterwards to
+    prove it.
+    """
+    coupons = FakeTable(key_attr=cs.KEY_ATTRIBUTE,
+                        indexes={cs.STATUS_INDEX: (cs.STATUS_ATTRIBUTE, "createdAt")})
+    cards = FakeTable(key_attr=gcs.KEY_ATTRIBUTE,
+                      indexes={gcs.STATUS_INDEX: (gcs.STATUS_ATTRIBUTE, "createdAt")})
+
+    cs.create(coupons, {"code": args.coupon_code, "name": "Offline invoice sample",
+                        "discountKind": cs.MONEY_OFF,
+                        "moneyOffPaise": args.coupon_money_off_paise,
+                        "startTimeMs": START_MS, "minimumSubtotalPaise": 0},
+              created_by="demo-operator", clock=_clock())
+    # Mirrored, because an unmirrored coupon is refused: the same code on the website would be
+    # rejected by Wix's `Add Coupon`, and the two surfaces must not disagree about the promise.
+    cs.mark_mirrored(coupons, args.coupon_code, "wix-coupon-offline-sample", clock=_clock())
+    issued = gcs.issue(cards, initial_value_paise=args.value_paise, pepper=DEMO_PEPPER,
+                       clock=_clock())
+
+    provider = srp.StoreRedemptionProvider(
+        coupons_table=coupons, gift_cards_table=cards,
+        # By REFERENCE, at the moment the pepper is needed. In production this reader reaches
+        # Secrets Manager inside the request; it is never read at import and never cached.
+        secret_reader=lambda _secret_id: {gcs.PEPPER_FIELD: DEMO_PEPPER},
+        # AFTER the coupon's own `startTimeMs`, or `evaluate` would answer `NOT_STARTED` and the
+        # leg would demonstrate a refusal rather than the money path. `START_MS` is the fixture's
+        # start time, in milliseconds; this clock is in seconds, like both stores' contract.
+        clock=_clock(START_MS // 1000 + 10))
+
+    collection_paise = args.coupon_money_off_paise + args.value_paise + 100000
+    applied = redemption.apply_coupon(
+        code=args.coupon_code, collection_before_discount_paise=collection_paise,
+        cart_ref=args.reference_id, provider=provider)
+    quote = cp.compute_quote(applied.discounted_collection_paise)
+    undiscounted = cp.compute_quote(collection_paise)
+    verified = redemption.verify_gift_card(
+        code=issued["code"], authoritative_total_paise=quote.total_payable_paise,
+        cart_ref=args.reference_id, provider=provider)
+    payable = redemption.build_payable(verified)
+
+    held = cs.hold(coupons, code=args.coupon_code, cart_id=args.reference_id,
+                   ttl_seconds=86400, clock=_clock())
+    # The same reference re-takes its own hold rather than conflicting, which is what makes a
+    # re-posted invoice create idempotent by construction.
+    re_held = cs.hold(coupons, code=args.coupon_code, cart_id=args.reference_id,
+                      ttl_seconds=86400, clock=_clock())
+    after = gcs.get_card(cards, code_hash=issued["codeHash"]) or {}
+
+    mismatches = []
+    if not applied.applied:
+        mismatches.append(f"the coupon was refused: {applied.reason}")
+    if applied.discount_paise != args.coupon_money_off_paise:
+        mismatches.append(f"coupon discount {applied.discount_paise}")
+    if quote.convenience_fee_paise >= undiscounted.convenience_fee_paise:
+        mismatches.append("the fee was not computed on the discounted collection")
+    if quote.total_payable_paise != (applied.discounted_collection_paise
+                                     + quote.convenience_fee_paise
+                                     + quote.convenience_gst_paise):
+        mismatches.append("the quote does not reconcile")
+    if not verified.applied:
+        mismatches.append(f"the gift card was refused: {verified.reason}")
+    if payable.redemption_paise + payable.razorpay_payable_paise != quote.total_payable_paise:
+        mismatches.append("the redemption and the payable do not account for the total")
+    if int(after.get("balancePaise") or 0) != args.value_paise:
+        mismatches.append("invoice create moved the card balance")
+    if gcs.HOLD_ATTEMPT_ATTRIBUTE in after:
+        mismatches.append("invoice create took a gift-card hold")
+    if held["cartId"] != args.reference_id or re_held["cartId"] != args.reference_id:
+        mismatches.append("the coupon hold is not keyed on the invoice reference")
+
+    return {
+        "leg": "invoice",
+        "verified": "CURRENT: the invoice surface bound to the one authority",
+        "referenceId": args.reference_id,
+        "provider": type(provider).__name__,
+        "collectionPaise": collection_paise,
+        "couponCode": args.coupon_code,
+        "couponDiscountPaise": applied.discount_paise,
+        "discountedCollectionPaise": applied.discounted_collection_paise,
+        "conveniencePaise": quote.convenience_fee_paise,
+        "convenienceGstPaise": quote.convenience_gst_paise,
+        "undiscountedConveniencePaise": undiscounted.convenience_fee_paise,
+        "authoritativeTotalPaise": quote.total_payable_paise,
+        "codeMasked": gcs.masked(after.get("codeLast4")),
+        "cardBalancePaise": int(after.get("balancePaise") or 0),
+        "redemptionPaise": payable.redemption_paise,
+        "payablePaise": payable.razorpay_payable_paise,
+        "requiresGateway": payable.requires_gateway,
+        "evidence": sorted(_invoice_evidence_keys()),
+        "holdCartId": held["cartId"],
+        "holdIdempotent": re_held["cartId"] == held["cartId"],
+        "mismatches": mismatches,
+    }
+
+
+def _invoice_evidence_keys() -> set:
+    """The evidence attribute names an invoice writes, from the module that owns them."""
+    from lambda_utils.ecommerce import gift_card_settlement  # noqa: PLC0415
+
+    return {gift_card_settlement.CODE_HASH_ATTR,
+            gift_card_settlement.REQUIRED_PAISE_ATTR,
+            gift_card_settlement.REDEEMED_PAISE_ATTR}
+
+
 # ── validation ────────────────────────────────────────────────────────────────
 
 def _validate(args, parser) -> None:
@@ -619,6 +743,43 @@ def _render(legs: list, aws_calls: int, out: list) -> None:
                        f"{leg['replayCommitted']}, balance"
                        f" {leg['replayBalancePaise']} paise unchanged")
             out.append(f"  concurrent       {leg['concurrency']}")
+        elif leg["leg"] == "invoice":
+            out.append("")
+            out.append("-- LEG 4 . INVOICE MONEY PATH ----------------------------------")
+            out.append(f"  {leg['verified']}")
+            out.append(f"  reference        {leg['referenceId']}  (cart id AND order id here)")
+            out.append(f"  provider         {leg['provider']}"
+                       "  (the ONLY concrete RedemptionProvider)")
+            out.append(f"  collection       {leg['collectionPaise']} paise"
+                       f"  = {_rupees(leg['collectionPaise'])}")
+            out.append("")
+            out.append("  1. COUPON - a price change, applied BEFORE the fee")
+            out.append(f"     {leg['couponCode']}   -{leg['couponDiscountPaise']} paise"
+                       f"  = {_rupees(leg['couponDiscountPaise'])}")
+            out.append(f"     discounted    {leg['discountedCollectionPaise']} paise"
+                       f"  = {_rupees(leg['discountedCollectionPaise'])}")
+            out.append("  2. QUOTE - fee and GST on the DISCOUNTED collection")
+            out.append(f"     conv fee      {leg['conveniencePaise']} paise"
+                       f"   (undiscounted would be {leg['undiscountedConveniencePaise']})")
+            out.append(f"     GST on fee    {leg['convenienceGstPaise']} paise")
+            out.append(f"     total         {leg['authoritativeTotalPaise']} paise"
+                       f"  = {_rupees(leg['authoritativeTotalPaise'])}  <- TAXABLE total")
+            out.append("  3. GIFT CARD - tender, subtracted from THAT total")
+            out.append(f"     card          {leg['codeMasked']}"
+                       f"   balance {leg['cardBalancePaise']} paise")
+            out.append(f"     redemption    {leg['redemptionPaise']} paise")
+            out.append(f"     payable       {leg['payablePaise']} paise"
+                       f"  = {_rupees(leg['payablePaise'])}"
+                       f"   requiresGateway={leg['requiresGateway']}")
+            out.append("     identity      redemption + payable == authoritative total, exactly")
+            out.append("")
+            out.append(f"  balance after    {leg['cardBalancePaise']} paise - UNCHANGED."
+                       " Invoice create verifies;")
+            out.append("                   it never debits, because an unpaid invoice must not"
+                       " burn balance.")
+            out.append(f"  evidence stored  {', '.join(leg['evidence'])}")
+            out.append(f"  coupon hold      cartId {leg['holdCartId']},"
+                       f" re-takeable by the same reference={leg['holdIdempotent']}")
         else:  # pragma: no cover - the leg set is closed
             raise AssertionError(f"unclassifiable leg {leg['leg']!r}")
 
@@ -664,6 +825,8 @@ def main(argv=None) -> int:
             legs.append(_leg_wix_giftcard(transport, args))
         if args.leg in ("our-giftcard", "all"):
             legs.append(_leg_our_giftcard(args))
+        if args.leg in ("invoice", "all"):
+            legs.append(_leg_invoice(args))
         transport.assert_drained()
     except BaseException as error:  # noqa: BLE001 - reported as a contract failure, by TYPE
         # An `UnexpectedAwsCall` arrives HERE, so an attempted AWS call fails the run rather

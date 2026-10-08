@@ -37,7 +37,10 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from coupon_fake_dynamo import FakeTable  # noqa: E402
 from lambda_utils import wix_ecom  # noqa: E402
+from lambda_utils.ecommerce import checkout_pricing as cp  # noqa: E402
 from lambda_utils.ecommerce import coupon_store as cs  # noqa: E402
+from lambda_utils.ecommerce import redemption  # noqa: E402
+from lambda_utils.ecommerce import store_redemption_provider as srp  # noqa: E402
 from lambda_utils.ecommerce import gift_card_store as gcs  # noqa: E402
 from lambda_utils.ecommerce import wix_coupons as wc  # noqa: E402
 from lambda_utils.ecommerce import wix_gift_cards as wg  # noqa: E402
@@ -930,3 +933,74 @@ def test_the_staff_gate_the_harness_stubs_is_the_real_one():
 def test_the_whole_harness_built_no_secrets_manager_client():
     """Corroborated from OUTSIDE any stubbed call, which is why it is a plain assert."""
     assert wix_ecom._secrets is None
+
+
+# ══ GROUP E — the INVOICE leg of the same walk-through ════════════════════════
+
+def test_the_invoice_leg_discounts_by_the_very_amount_it_sent_to_wix(transport):
+    """The one walk-through continued onto the third surface, and the no-drift proof.
+
+    Groups A-D follow one coupon out to Wix and one card through the ledger. This continues the
+    SAME coupon onto the invoice surface, which is the only surface with no Wix cart to ask -
+    `Calculate Cart` is what answers "what is this coupon worth" on the website, and a Pay Flow
+    invoice has no cart to calculate. So the amount has to come from our own stored definition,
+    and the risk is obvious: two readings of one coupon, one by Wix and one by us, that agree on
+    the day they are written and drift afterwards.
+
+    They cannot drift, because they read the SAME stored attribute. `wix_coupons.specification`
+    turns `moneyOffPaise` into the whole-rupee `moneyOffAmount` on the wire;
+    `coupon_store.discount_paise` discounts by that same `moneyOffPaise`. This asserts the two
+    against each other in paise, through the figure actually sent over the transport.
+    """
+    transport.expect(method="POST", endpoint=wc.BASE,
+                     body=fixture("wix_coupon_create_response.json"))
+    store = coupons_table()
+    row = cs.create(store, {"code": "WDSAMPLE10", "name": "Sample money off",
+                            "discountKind": cs.MONEY_OFF, "moneyOffPaise": 12345600,
+                            "startTimeMs": START_MS, "minimumSubtotalPaise": 500000,
+                            "usageLimit": 10, "limitPerCustomer": 1}, clock=clock())
+    wix_coupon_id = wc.WixCoupons(wix_ecom._request).create(row)
+    cs.mark_mirrored(store, "WDSAMPLE10", wix_coupon_id, clock=clock())
+
+    sent_rupees = json.loads(
+        transport.requests[-1].body_bytes.decode("utf-8"))["specification"]["moneyOffAmount"]
+
+    # The invoice surface: a collection in integer paise, priced by the module that owns the
+    # definition. No cart, no network, no clock.
+    definition_row = cs.get_definition(store, "WDSAMPLE10")
+    collection_paise = 20000000
+    discount = cs.discount_paise(definition_row, collection_paise=collection_paise)
+
+    assert discount == definition_row["moneyOffPaise"]
+    assert discount == sent_rupees * cs.PAISE_PER_RUPEE
+    assert type(discount) is int
+
+    # And the whole invoice money path, in the documented order: coupon into the fee basis, card
+    # off the final total. The fee really falls, which is what makes the coupon a price change.
+    applied = redemption.apply_coupon(code="WDSAMPLE10",
+                                      collection_before_discount_paise=collection_paise,
+                                      cart_ref="WD-PAY-SAMPLE01",
+                                      provider=_StoreProvider(store))
+    quote = cp.compute_quote(applied.discounted_collection_paise)
+    assert applied.discount_paise == discount
+    assert quote.convenience_fee_paise < cp.compute_quote(collection_paise).convenience_fee_paise
+    assert quote.total_payable_paise == (applied.discounted_collection_paise
+                                         + quote.convenience_fee_paise
+                                         + quote.convenience_gst_paise)
+
+
+class _StoreProvider(srp.StoreRedemptionProvider):
+    """The real provider over one table, with no gift-card table and no secret reader needed.
+
+    Subclassed rather than hand-written so this cannot become a second provider: `validate_coupon`
+    and `read_gift_card` are inherited untouched, and only the construction is narrowed to the
+    coupon half the test exercises. A gift-card read here would raise on the `None` reader, which
+    is the correct failure for a collaborator a test did not supply.
+    """
+
+    def __init__(self, coupons_table) -> None:
+        # AFTER the fixture's `startTimeMs`, or `evaluate` answers `NOT_STARTED`. The sample's
+        # coupon starts in the future relative to `NOW`, which is what every other group here
+        # relies on; this leg needs a clock past it to exercise an ELIGIBLE verdict.
+        super().__init__(coupons_table=coupons_table, gift_cards_table=None,
+                         secret_reader=None, clock=clock(START_MS // 1000 + 10))

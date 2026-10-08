@@ -1,6 +1,6 @@
 # AWS account inventory
 
-Generated 2026-09-30T22:45:19.256384+00:00 · account `775261844268` · `us-east-1` (+ ap-south-1) · regenerate with `python scripts/aws_account_inventory.py`
+Generated 2026-10-07T11:16:58.897383+00:00 · account `775261844268` · `us-east-1` (+ ap-south-1) · regenerate with `python scripts/aws_account_inventory.py`
 
 This file supersedes every dated resource count in the steering files. Machine-readable companion: `aws-inventory.json`. Secret **names** and metadata are recorded; no secret value is ever read. Lambda environment variable **names** are recorded, values never are.
 
@@ -10,35 +10,35 @@ Collector errors: **0** (a non-zero count makes this inventory PARTIAL, not auth
 
 | Resource | Count |
 |---|---:|
-| Lambda functions | 66 |
-| — with a `live` alias | 59 |
+| Lambda functions | 75 |
+| — with a `live` alias | 68 |
 | HTTP APIs | 1 |
 | REST APIs | 0 |
-| HTTP API routes | 359 |
-| API authorizers | 0 |
-| Routes with AuthorizationType=NONE | 359 |
-| DynamoDB tables | 80 |
+| HTTP API routes | 376 |
+| API authorizers | 1 |
+| Routes with AuthorizationType=NONE | 374 |
+| DynamoDB tables | 84 |
 | SQS queues | 10 |
-| EventBridge rules | 6 |
+| EventBridge rules | 7 |
 | EventBridge Scheduler schedules | 1 |
-| Secrets Manager secrets | 31 |
-| — scheduled for deletion | 5 |
+| Secrets Manager secrets | 35 |
+| — scheduled for deletion | 13 |
 | Cognito user pools | 2 |
-| S3 buckets | 6 |
-| CloudFront distributions | 2 |
+| S3 buckets | 7 |
+| CloudFront distributions | 3 |
 | WAF web ACLs (regional) | 0 |
 | WAF web ACLs (CloudFront) | 0 |
 | Route 53 hosted zones | 1 |
-| CloudWatch alarms | 66 |
-| CloudWatch log groups | 82 |
-| CloudFormation stacks | 1 |
+| CloudWatch alarms | 73 |
+| CloudWatch log groups | 91 |
+| CloudFormation stacks | 4 |
 | Amplify apps | 1 |
 
 ## Lambda
 
-Runtimes: {'python3.12': 65, None: 1}  ·  package types: {'Zip': 65, 'Image': 1}
+Runtimes: {'python3.12': 74, None: 1}  ·  package types: {'Zip': 74, 'Image': 1}
 
-SnapStart: {'None': 66}
+SnapStart: {'None': 75}
 
 Alias read errors: 0
 
@@ -54,13 +54,17 @@ Alias read errors: 0
 
 ## API Gateway
 
-- **zllr9lrg7j** `wecare-digital-api` — 359 routes, 0 authorizers, stages: ['prod']
+- **zllr9lrg7j** `wecare-digital-api` — 376 routes, 1 authorizers, stages: ['prod']
+  - authorizer `workspace-mcp-staff` (JWT) ['$request.header.Authorization']
 
-Routes with an authorizer attached: **0**
+Routes with an authorizer attached: **2**
+
+- `ANY /workspace/mcp` — JWT
+- `POST /workspace/mcp-iam` — AWS_IAM
 
 ## DynamoDB
 
-Empty tables (64): `stack-wecare-digital-AIInteractionsTable`, `stack-wecare-digital-AIProviderPolicyTable`, `stack-wecare-digital-AdClickAttributionTable`, `stack-wecare-digital-AgentApprovalsTable`, `stack-wecare-digital-AmendmentHistoryTable`, `stack-wecare-digital-AppointmentTable`, `stack-wecare-digital-AutomationRulesTable`, `stack-wecare-digital-BulkJobsTable`, `stack-wecare-digital-BulkRecipientsTable`, `stack-wecare-digital-CallNotificationsTable`, `stack-wecare-digital-CatalogCacheTable`, `stack-wecare-digital-ConversationHistoryTable`, `stack-wecare-digital-ConversationMetaTable`, `stack-wecare-digital-CrmActivities`, `stack-wecare-digital-CrmLeads`, `stack-wecare-digital-CrmOpportunities`, `stack-wecare-digital-CrmPipelines`, `stack-wecare-digital-CrmStages`, `stack-wecare-digital-DLQMessagesTable`, `stack-wecare-digital-DLTTemplates`, `stack-wecare-digital-DocumentHistoryTable`, `stack-wecare-digital-DownloadGrantsTable`, `stack-wecare-digital-EnterpriseAssistTable`, `stack-wecare-digital-FaqTable`, `stack-wecare-digital-FlowDraftTable`, `stack-wecare-digital-FlowLogTable`, `stack-wecare-digital-FlowRegistryTable`, `stack-wecare-digital-FlowSubmissionTable`, `stack-wecare-digital-InvoiceAssetsTable`, `stack-wecare-digital-InvoiceDeliveryLogTable`, `stack-wecare-digital-InvoiceItemsTable`, `stack-wecare-digital-InvoiceSequenceTable`, `stack-wecare-digital-InvoicesTable`, `stack-wecare-digital-MediaFilesTable`, `stack-wecare-digital-NotificationAttempts`, `stack-wecare-digital-NotificationDeliveries`, `stack-wecare-digital-NotificationEvents`, `stack-wecare-digital-NotificationOutbox`, `stack-wecare-digital-OBDCampaigns`, `stack-wecare-digital-OrderTable`, `stack-wecare-digital-PartnerLedger`, `stack-wecare-digital-PartnerWallet`, `stack-wecare-digital-PaymentAttemptsTable`, `stack-wecare-digital-PaymentsTable`, `stack-wecare-digital-PstnSoftphoneSessions`, `stack-wecare-digital-PushTokensTable`, `stack-wecare-digital-RequestStatusHistoryTable`, `stack-wecare-digital-ReviewTable`, `stack-wecare-digital-RxSlotTable`, `stack-wecare-digital-ScheduledMessagesTable`, `stack-wecare-digital-SecureFilesTable`, `stack-wecare-digital-SmsOutboundTable`, `stack-wecare-digital-SubmitRequestsTable`, `stack-wecare-digital-TemplateAnalyticsTable`, `stack-wecare-digital-UsersTable`, `stack-wecare-digital-VoiceAwsTable`, `stack-wecare-digital-VoiceCalls`, `stack-wecare-digital-WhatsAppCallingTable`, `stack-wecare-digital-WhatsAppGroupTable`, `stack-wecare-digital-WhatsAppPhonesTable`, `stack-wecare-digital-WhatsAppVoiceTable`, `stack-wecare-digital-WixOrderIds`, `stack-wecare-digital-WixOrdersCache`, `stack-wecare-digital-WixProductsCache`
+Empty tables (53): `stack-wecare-digital-AIInteractionsTable`, `stack-wecare-digital-AIProviderPolicyTable`, `stack-wecare-digital-AdClickAttributionTable`, `stack-wecare-digital-AgentApprovalsTable`, `stack-wecare-digital-AmendmentHistoryTable`, `stack-wecare-digital-AppointmentTable`, `stack-wecare-digital-AutomationRulesTable`, `stack-wecare-digital-BulkJobsTable`, `stack-wecare-digital-BulkRecipientsTable`, `stack-wecare-digital-CatalogCacheTable`, `stack-wecare-digital-ConversationHistoryTable`, `stack-wecare-digital-ConversationMetaTable`, `stack-wecare-digital-CrmActivities`, `stack-wecare-digital-CrmLeads`, `stack-wecare-digital-CrmOpportunities`, `stack-wecare-digital-CrmPipelines`, `stack-wecare-digital-CrmStages`, `stack-wecare-digital-DLQMessagesTable`, `stack-wecare-digital-DLTTemplates`, `stack-wecare-digital-DocumentHistoryTable`, `stack-wecare-digital-DownloadGrantsTable`, `stack-wecare-digital-EnterpriseAssistTable`, `stack-wecare-digital-FaqTable`, `stack-wecare-digital-FlowDraftTable`, `stack-wecare-digital-FlowLogTable`, `stack-wecare-digital-FlowRegistryTable`, `stack-wecare-digital-FlowSubmissionTable`, `stack-wecare-digital-NotificationAttempts`, `stack-wecare-digital-NotificationDeliveries`, `stack-wecare-digital-NotificationEvents`, `stack-wecare-digital-NotificationOutbox`, `stack-wecare-digital-OBDCampaigns`, `stack-wecare-digital-PartnerLedger`, `stack-wecare-digital-PartnerWallet`, `stack-wecare-digital-PstnSoftphoneSessions`, `stack-wecare-digital-PushTokensTable`, `stack-wecare-digital-RequestStatusHistoryTable`, `stack-wecare-digital-ReviewTable`, `stack-wecare-digital-RxSlotTable`, `stack-wecare-digital-ScheduledMessagesTable`, `stack-wecare-digital-SecureFilesTable`, `stack-wecare-digital-ServiceRequestsTable`, `stack-wecare-digital-SmsOutboundTable`, `stack-wecare-digital-SubmitRequestsTable`, `stack-wecare-digital-TemplateAnalyticsTable`, `stack-wecare-digital-UsersTable`, `stack-wecare-digital-VoiceAwsTable`, `stack-wecare-digital-VoiceCalls`, `stack-wecare-digital-WhatsAppGroupTable`, `stack-wecare-digital-WhatsAppPhonesTable`, `stack-wecare-digital-WhatsAppVoiceTable`, `stack-wecare-digital-WixOrdersCache`, `stack-wecare-digital-WixProductsCache`
 
 Without point-in-time recovery (7): `stack-wecare-digital-CatalogCacheTable`, `stack-wecare-digital-PstnSoftphoneSessions`, `stack-wecare-digital-RateLimitTable`, `stack-wecare-digital-SiteLanguageCache`, `stack-wecare-digital-WebhookDedup`, `stack-wecare-digital-WixOrdersCache`, `stack-wecare-digital-WixProductsCache`
 
@@ -85,11 +89,12 @@ Queues with no redrive policy and not DLQ-named: (none)
 
 ## EventBridge
 
-- bus `default` — 6 rules
+- bus `default` — 7 rules
   - `AWSUserNotificationsManagedRule-adi3lsr` ENABLED pattern -> no target [no-dlq]
   - `wecare-amplify-build-failed` ENABLED pattern -> stack-wecare-digital [no-dlq]
   - `wecare-docs-scraper-daily` ENABLED rate(1 day) -> wecare-docs-scraper [no-dlq]
   - `wecare-media-cleanup-daily` ENABLED rate(1 day) -> wecare-media-cleanup [dlq]
+  - `wecare-meta-catalog-sync-schedule` ENABLED cron(25 */6 * * ? *) -> live [no-dlq]
   - `wecare-partner-token-refresh-daily` ENABLED rate(1 day) -> wecare-partner-token-refresh [no-dlq]
   - `wecare-scheduled-messages-trigger` ENABLED rate(5 minutes) -> wecare-scheduled-messages [dlq]
 
@@ -103,7 +108,7 @@ Metadata only. No value was read.
 
 | Secret | last changed | rotation | scheduled deletion |
 |---|---|---|---|
-| `wecare/ads/account-registry` | 2026-09-18 | no | — |
+| `wecare/ads/account-registry` | 2026-10-07 | no | 2026-10-07 |
 | `wecare/agent-connector-token` | 2026-07-20 | no | — |
 | `wecare/airtel-iq` | 2026-09-20 | no | 2026-09-20 |
 | `wecare/airtel/c2c` | 2026-09-20 | no | 2026-09-20 |
@@ -114,26 +119,30 @@ Metadata only. No value was read.
 | `wecare/bing/api` | 2026-09-18 | no | — |
 | `wecare/config/webhook-registry` | 2026-09-29 | no | — |
 | `wecare/flow-private-key` | 2026-02-23 | no | — |
-| `wecare/github-connection` | 2026-09-18 | no | — |
+| `wecare/github-connection` | 2026-10-07 | no | 2026-10-07 |
 | `wecare/github-pat` | 2026-08-26 | no | — |
-| `wecare/google-api-key` | 2026-09-18 | no | — |
-| `wecare/google-maps` | 2026-09-18 | no | — |
-| `wecare/google-maps-server` | 2026-09-26 | no | — |
-| `wecare/google/ads` | 2026-09-17 | no | — |
-| `wecare/google/cloud` | 2026-09-19 | no | — |
-| `wecare/meta-system-user-token` | 2026-09-20 | no | — |
+| `wecare/google-api-key` | 2026-10-07 | no | 2026-10-07 |
+| `wecare/google-maps` | 2026-10-07 | no | 2026-10-07 |
+| `wecare/google-maps-server` | 2026-10-07 | no | 2026-10-07 |
+| `wecare/google/ads` | 2026-10-03 | no | — |
+| `wecare/google/cloud` | 2026-10-03 | no | — |
+| `wecare/integrations/owner-input-20261001` | 2026-10-07 | no | 2026-10-07 |
+| `wecare/meta-system-user-token` | 2026-09-30 | no | — |
 | `wecare/meta/payments` | 2026-09-18 | no | — |
-| `wecare/openai/api` | 2026-09-18 | no | — |
-| `wecare/plivo` | 2026-09-19 | no | — |
+| `wecare/openai/api` | 2026-10-07 | no | 2026-10-07 |
+| `wecare/otp/pepper` | 2026-10-03 | no | — |
+| `wecare/plivo` | 2026-10-07 | no | 2026-10-07 |
 | `wecare/plivo-answer` | 2026-09-19 | no | — |
-| `wecare/plivo/api` | 2026-09-18 | no | — |
-| `wecare/razorpay-webhook` | 2026-07-02 | no | — |
-| `wecare/razorpay/api` | 2026-09-19 | no | — |
+| `wecare/plivo/api` | 2026-09-30 | no | — |
+| `wecare/razorpay-webhook` | 2026-09-30 | no | — |
+| `wecare/razorpay/api` | 2026-10-02 | no | — |
 | `wecare/seo/google-oauth` | 2026-09-19 | no | — |
 | `wecare/sinch/rcs` | 2026-05-05 | no | — |
 | `wecare/sinch/sms` | 2026-09-20 | no | 2026-09-20 |
 | `wecare/truecaller` | 2026-09-19 | no | — |
-| `wecare/wix/headless-api-key` | 2026-09-26 | no | — |
+| `wecare/wix/app-oauth` | 2026-10-05 | no | — |
+| `wecare/wix/catalog-webhook` | 2026-10-05 | no | — |
+| `wecare/wix/headless-api-key` | 2026-10-05 | no | — |
 
 ## Cognito
 
@@ -150,7 +159,7 @@ Identity pools: 1
 
 ## SES
 
-### us-east-1 — production_access=True, sending=True, quota={'Max24HourSend': 50000.0, 'MaxSendRate': 14.0, 'SentLast24Hours': 0.0}
+### us-east-1 — production_access=True, sending=True, quota={'Max24HourSend': 50000.0, 'MaxSendRate': 14.0, 'SentLast24Hours': 2.0}
 
 - `one@wecare.digital` (EMAIL_ADDRESS) verified=True dkim=SUCCESS/True mail_from=None/None
 - `wecare.digital` (DOMAIN) verified=True dkim=SUCCESS/True mail_from=None/None
@@ -171,12 +180,15 @@ Configuration sets: []
 | `wecare-credential-backups-775261844268` | us-east-1 | aws:kms | yes | Enabled | no |
 | `wecare-digital-get` | us-east-1 | AES256 | yes | Suspended | no |
 | `wecare-digital-mta-sts` | us-east-1 | AES256 | yes | — | no |
+| `wecare-home-fallback-logbucket-zl8wltb0on7s` | us-east-1 | AES256 | yes | — | no |
 | `wecare-maintenance-reports-775261844268` | us-east-1 | aws:kms | yes | Enabled | no |
 
 ## CloudFront
 
 - `E1SZBXLQ4XNLJ7` djbi65ldve9va.cloudfront.net aliases=['mta-sts.wecare.digital'] status=Deployed enabled=True web_acl=**none**
   - origins: ['wecare-digital-mta-sts.s3.us-east-1.amazonaws.com']
+- `E1ZZ786I3YH65O` d27evp2npt2kzr.cloudfront.net aliases=['*.wecare.digital'] status=Deployed enabled=True web_acl=**none**
+  - origins: ['wecare.digital']
 - `E2GP22R4BIFGQ3` d1kf2rchz7yras.cloudfront.net aliases=[] status=Deployed enabled=True web_acl=**none**
   - origins: ['wecare-digital-get.s3.us-east-1.amazonaws.com']
 
@@ -187,31 +199,36 @@ Configuration sets: []
 
 ## Route 53
 
-- `wecare.digital.` (Z03939753QJGZ6ZD6BXO8) — 30 records, MX=True, types={'CNAME': 15, 'TXT': 7, 'A': 3, 'AAAA': 2, 'MX': 1, 'NS': 1, 'SOA': 1}
+- `wecare.digital.` (Z03939753QJGZ6ZD6BXO8) — 31 records, MX=True, types={'CNAME': 14, 'TXT': 7, 'A': 4, 'AAAA': 3, 'MX': 1, 'NS': 1, 'SOA': 1}
 
 ## CloudWatch
 
-- alarms: 66 (composite 0)
+- alarms: 73 (composite 0)
 - in ALARM: (none)
 - INSUFFICIENT_DATA: 0
 - alarms with no action: 0
 - dashboards: ['wecare-platform-health']
-- log groups: 82, stored 0.57 GB
-- log groups with no retention: 0
+- log groups: 91, stored 0.86 GB
+- log groups with no retention: 2
+  - `/aws/lambda/wecare-customer-profile`
+  - `/aws/lambda/wecare-customer-session`
 
 ## IaC
 
 CloudFormation stacks:
 
 - `CDKToolkit` CREATE_COMPLETE updated=2026-02-11 drift=NOT_CHECKED
+- `wecare-customer-sessions` UPDATE_COMPLETE updated=2026-10-01 drift=NOT_CHECKED
+- `wecare-home-fallback` UPDATE_COMPLETE updated=2026-10-01 drift=NOT_CHECKED
+- `wecare-workspace-mcp` UPDATE_COMPLETE updated=2026-10-06 drift=NOT_CHECKED
 
 Amplify:
 
-- `d22dm4b0jn71jw` **wecare.digital** platform=WEB custom_rules=146 repo=https://github.com/wecare-digital/wecare-digital
+- `d22dm4b0jn71jw` **wecare.digital** platform=WEB custom_rules=14 repo=https://github.com/wecare-digital/wecare-digital
   - branch `stack` stage=PRODUCTION auto_build=True
-    - job 1160 SUCCEED commit `6a5d6e9ea6fe` 2026-09-30T22:20:54
-    - job 1159 SUCCEED commit `c082d5867240` 2026-09-30T22:16:25
-    - job 1158 SUCCEED commit `394d8e39da97` 2026-09-30T22:11:58
+    - job 1427 SUCCEED commit `4ed7a9d1851c` 2026-10-07T10:59:10
+    - job 1426 SUCCEED commit `652d6f8af363` 2026-10-07T10:10:46
+    - job 1425 SUCCEED commit `779fb6403ba4` 2026-10-07T09:55:37
 
 ## Cross-service checks
 

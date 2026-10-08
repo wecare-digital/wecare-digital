@@ -625,7 +625,16 @@ def _handle_webhook_event(body: Dict, request_id: str) -> Dict[str, Any]:
                            'security', 'template_category_update', 'user_id_update',
                            'user_preferences', 'group_participant_change',
                            'group_membership_approval_request', 'business_username_update',
-                           'payment_configuration_update', 'history', 'flows'):
+                           'payment_configuration_update', 'history', 'flows',
+                           # Coexistence and Multi-Partner Solutions. Forwarded
+                           # IDENTICALLY by the catch-all `else` below, so naming them
+                           # here is byte-identical in behaviour — the reason is triage
+                           # readability, the same reason `standby` and
+                           # `messaging_handovers` were named on 2026-10-06: landing in
+                           # "Unhandled webhook field" reads as a defect, and this tuple
+                           # is the list a reader consults to answer "do we receive this?".
+                           'smb_app_state_sync', 'smb_message_echoes',
+                           'partner_solutions'):
                 # Forward all non-call webhook fields to inbound handler for processing
                 # The inbound handler has full logic for template status, account updates, etc.
                 _forward_to_inbound_handler(entry, waba_id, request_id)

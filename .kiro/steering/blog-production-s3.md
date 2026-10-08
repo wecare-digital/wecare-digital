@@ -137,3 +137,28 @@ fleet, so a wildcard here would widen every other function too.
   resolve-before-generate discipline applied to `reference_id`
 - `amplify/functions/shared/lambda_utils/media_paths.py` — the key contract
 - `docs/execution/` — the PHASE 0 audit that established the bucket and prefix decisions
+
+
+## WhatsApp media: two folders, two roles (owner decision 2026-10-07)
+
+WhatsApp media is split into an outgoing public folder and an incoming gated folder.
+They are NOT interchangeable; the split is a privacy boundary, not organisation.
+
+| Folder | Role | Access | Why |
+|---|---|---|---|
+| `o/public/wa-tpl/img/` | **Outgoing** template header images (e.g. `wecarepay-header.png`, the fixed payment-template logo) | **public** (CloudFront, unauthenticated) | Meta refetches a template's header from its URL at send time, so it MUST be publicly reachable. Reserved for outgoing template assets only — do not junk it with anything else. |
+| `secure/stack/whatsapp-media/incoming/` | **Incoming** customer WhatsApp media (documents, images a customer sends) | **gated** (`secure/` root, denied at the edge) | Incoming customer content must never be publicly readable. |
+
+The fixed payment-template header is `o/public/wa-tpl/img/wecarepay-header.png`
+(verified serving HTTP 200, `image/png`, over `https://wecare.digital/get/...` 2026-10-07).
+The invoice-engine and outbound-whatsapp send paths hardcode that URL as the header on
+EVERY payment, with no per-call override.
+
+**Known migration:** inbound WhatsApp uploads historically land at the PUBLIC
+`o/stack/whatsapp-media/incoming/`. Phase O-2's Drop Docs path already copies an incoming
+object into `secure/` before registering it as a customer document precisely because the
+arrival prefix is public. The target end-state is that incoming customer media lands
+directly under `secure/stack/whatsapp-media/incoming/` (gated), composed through
+`media_paths.secure(...)`, so the public arrival prefix is no longer a customer-data
+exposure. Compose all keys through `media_paths` (public()/secure()), never by hand.
+No new bucket — prefixes + IAM scoping only.

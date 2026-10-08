@@ -12,6 +12,10 @@ import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import { DIAL_CODES } from '../../../lib/dialCodes';
+import {
+  ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, formatAddress,
+  type AddressFormFields,
+} from '../../../lib/address-format';
 
 // SVG Icons — lime + dark green theme (#1a3a2a) — Fix #17: added aria-hidden for decorative icons
 const AddUserIcon = () => (<svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none"><path stroke="#1a3a2a" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 5v14m-7-7h14"/></svg>);
@@ -305,38 +309,34 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
   const [formBsuid, setFormBsuid] = useState('');
   const [formUsername, setFormUsername] = useState('');
   const [formContactBookName, setFormContactBookName] = useState('');
+  /*
+   * THE ADDRESS, as ONE piece of state over the eight `contact_address._RULES` fields.
+   *
+   * WHAT WAS BROKEN HERE, because the fix only makes sense next to it. There were twelve
+   * separate address useStates and `formAddressLine1` had NO INPUT BOUND TO IT. The visible field
+   * labelled "Address" wrote `formBuildingName`. Both payloads gated the structured `address`
+   * object on `formAddressLine1` being truthy, so `address` was permanently `undefined`,
+   * `contact_address.normalize_for_storage` never ran, and `checkoutDeliveryAddress` was NEVER
+   * written from this form - which is what made every downstream reader
+   * (`payment_address.for_wix`, `for_meta_beneficiary`, `cart_v2.delivery_address`) come up
+   * empty for a CRM-created contact.
+   *
+   * One record keyed on the shared field list cannot develop that fault again: a field that is
+   * not rendered does not exist, and the form has no field list of its own to drift from the
+   * server's.
+   *
+   * `formShippingAddress` SURVIVES as a read-only fallback, not as an input. A contact created
+   * before this change holds its whole address in that one string and nothing else, so the
+   * preview shows it until the structured fields are filled in - showing an empty preview over a
+   * stored address would read as data loss.
+   */
+  const [formAddress, setFormAddress] = useState<AddressFormFields>({ ...EMPTY_ADDRESS_FIELDS });
   const [formShippingAddress, setFormShippingAddress] = useState('');
-  const [formBillingAddress, setFormBillingAddress] = useState('');
-  const [formAddressLine1, setFormAddressLine1] = useState('');
-  const [formAddressLine2, setFormAddressLine2] = useState('');
-  const [formCity, setFormCity] = useState('');
-  const [formState, setFormState] = useState('');
-  const [formPostalCode, setFormPostalCode] = useState('');
-  const [formLandmark, setFormLandmark] = useState('');
-  const [formHouseNumber, setFormHouseNumber] = useState('');
-  const [formBuildingName, setFormBuildingName] = useState('');
-  const [formTowerNumber, setFormTowerNumber] = useState('');
-  const [formFloorNumber, setFormFloorNumber] = useState('');
-  const [formCountry, setFormCountry] = useState('India');
   const [formGstin, setFormGstin] = useState('');
   const [formCompanyName, setFormCompanyName] = useState('');
   const [formDesignation, setFormDesignation] = useState('');
   const [formCountryCode, setFormCountryCode] = useState('+91');
 
-  // ONE address, composed from the structured fields into the single shipping/billing string
-  // the website and Wix read. Called on every structured-field edit with the field that just
-  // changed (React state is async, so the caller passes its new value through `override`).
-  const composeAddress = (override: Partial<{ houseNumber: string; buildingName: string; landmark: string; city: string; state: string; postalCode: string; country: string }> = {}) => {
-    const a = {
-      houseNumber: formHouseNumber, buildingName: formBuildingName, landmark: formLandmark,
-      city: formCity, state: formState, postalCode: formPostalCode, country: formCountry,
-      ...override,
-    };
-    const line = [a.houseNumber, a.buildingName, a.landmark, a.city, a.state, a.postalCode, a.country]
-      .map(s => (s || '').trim()).filter(Boolean).join(', ');
-    setFormShippingAddress(line);
-    setFormBillingAddress(line);
-  };
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const [formOptInWA, setFormOptInWA] = useState(true);
@@ -471,11 +471,8 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
   const resetForm = () => {
     setFormName(''); setFormPhone(''); setFormEmail('');
     setFormBsuid(''); setFormUsername(''); setFormContactBookName('');
-    setFormShippingAddress(''); setFormBillingAddress(''); setFormCountryCode('+91');
-    setFormAddressLine1(''); setFormAddressLine2(''); setFormCity(''); setFormState('');
-    setFormPostalCode(''); setFormLandmark(''); setFormHouseNumber(''); setFormBuildingName('');
-    setFormTowerNumber(''); setFormFloorNumber('');
-    setFormCountry('India');
+    setFormShippingAddress(''); setFormCountryCode('+91');
+    setFormAddress({ ...EMPTY_ADDRESS_FIELDS });
     setFormGstin('');
     setFormCompanyName(''); setFormDesignation('');
     setFormOptInWA(true); setFormOptInSms(true); setFormOptInEmail(true);
@@ -544,6 +541,44 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
     return null;
   };
 
+  /**
+   * THE ONE ADDRESS PAYLOAD, built once and spread into both the create and the update.
+   *
+   * It emits three things from one field set:
+   *   1. `address` — the VALIDATED write path. `addressPayload` returns `undefined` until the
+   *      four required fields are present, because the server refuses a partial address with
+   *      `400 FIELD_REQUIRED` and writes nothing, which would fail the whole contact save over a
+   *      half-typed address. When it IS present, `contact_address.normalize_for_storage` runs and
+   *      `checkoutDeliveryAddress` is written — the thing this form never managed to do before.
+   *   2. `shippingAddress` / `billingAddress` — the composed string, so the two legacy address
+   *      columns the contacts table and the invoice renderers read cannot disagree with the
+   *      fields. Only written when there is something to compose: an untouched form must not
+   *      blank a stored address.
+   *   3. the flat CRM columns, still written because other readers read them. `landmark` carries
+   *      `locality`: one concept, and `locality` is the name `contact_address._RULES` gives it.
+   *
+   * `houseNumber` / `buildingName` / `towerNumber` / `floorNumber` are NOT written. They are four
+   * extra columns standing in for `addressLine2`, nothing in the payment path reads them, and
+   * this form no longer offers inputs for them. They are also not CLEARED: the WhatsApp subscribe
+   * flow still writes them, omitting a key leaves the stored value alone, and `handleEdit` folds
+   * whatever is in them into `addressLine2` so an existing contact loads intact.
+   */
+  const addressFieldsForPayload = () => {
+    const composed = formatAddress(formAddress);
+    return {
+      shippingAddress: composed || formShippingAddress || undefined,
+      billingAddress: composed || formShippingAddress || undefined,
+      addressLine1: formAddress.addressLine1 || undefined,
+      addressLine2: formAddress.addressLine2 || undefined,
+      landmark: formAddress.locality || undefined,
+      city: formAddress.city || undefined,
+      state: formAddress.state || undefined,
+      postalCode: formAddress.postalCode || undefined,
+      country: formAddress.country || undefined,
+      address: addressPayload(formAddress),
+    };
+  };
+
   // Fix #9: Frontend validation helpers
   const isValidPhone = (phone: string): boolean => {
     const cleaned = phone.replace(/[\s\-().]/g, '');
@@ -570,19 +605,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       const result = await api.createContact({
         name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
         bsuid: formBsuid || undefined, username: formUsername || undefined, contactBookName: formContactBookName || undefined,
-        shippingAddress: formShippingAddress || undefined, billingAddress: formBillingAddress || undefined,
-        addressLine1: formAddressLine1 || undefined, addressLine2: formAddressLine2 || undefined,
-        city: formCity || undefined, state: formState || undefined, postalCode: formPostalCode || undefined,
-        landmark: formLandmark || undefined, houseNumber: formHouseNumber || undefined, buildingName: formBuildingName || undefined,
-        towerNumber: formTowerNumber || undefined, floorNumber: formFloorNumber || undefined,
-        country: formCountry || undefined,
-        // FEAT-003: validated structured address -> checkoutDeliveryAddress via the shared
-        // server-side validator. Flat fields kept for other readers; collapsing is a follow-up.
-        address: (formAddressLine1 && formCity && formState && formPostalCode) ? {
-          addressLine1: formAddressLine1, addressLine2: formAddressLine2 || undefined,
-          city: formCity, state: formState, postalCode: formPostalCode,
-          country: formCountry || undefined, countryCode: formCountry || undefined,
-        } : undefined,
+        ...addressFieldsForPayload(),
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
@@ -620,13 +643,36 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
     setFormPhone(phoneNumber);
     setFormEmail(contact.email || '');
     setFormBsuid(contact.bsuid || ''); setFormUsername(contact.username || ''); setFormContactBookName(contact.contactBookName || '');
-    setFormShippingAddress(contact.shippingAddress || ''); setFormBillingAddress(contact.billingAddress || '');
-    setFormAddressLine1(contact.addressLine1 || ''); setFormAddressLine2(contact.addressLine2 || '');
-    setFormCity(contact.city || ''); setFormState(contact.state || '');
-    setFormPostalCode(contact.postalCode || ''); setFormLandmark(contact.landmark || '');
-    setFormHouseNumber(contact.houseNumber || ''); setFormBuildingName(contact.buildingName || '');
-    setFormTowerNumber(contact.towerNumber || ''); setFormFloorNumber(contact.floorNumber || '');
-    setFormCountry(contact.country || 'India');
+    setFormShippingAddress(contact.shippingAddress || '');
+    /*
+     * PRE-FILL INTO THE EIGHT CANONICAL FIELDS, and MIGRATE two historical mistakes while doing
+     * it, because an edit is the only moment either can be corrected:
+     *
+     *   - `checkoutDeliveryAddress` WINS where it exists. It is the only one of these sources
+     *     that went through `contact_address.normalize_for_storage`, so it is the stored result
+     *     of this same field set rather than a guess at one.
+     *   - `addressLine1` falls back to `buildingName`. The field this form LABELLED "Address"
+     *     wrote `buildingName`, so for every contact created here that column holds the real
+     *     street address and `addressLine1` is empty. Reading it back into the field that is
+     *     actually validated and stored is what turns the defect into a one-save repair.
+     *   - the four house/building/tower/floor columns fold into `addressLine2`, de-duplicated,
+     *     rather than being dropped on the floor.
+     */
+    const checkout = contact.checkoutDeliveryAddress;
+    const foldedLine2 = [contact.houseNumber, contact.towerNumber, contact.floorNumber]
+      .map(v => String(v || '').trim())
+      .filter((v, i, all) => v && all.indexOf(v) === i)
+      .join(', ');
+    setFormAddress({
+      addressLine1: checkout?.addressLine1 || contact.addressLine1 || contact.buildingName || '',
+      addressLine2: checkout?.addressLine2 || contact.addressLine2 || foldedLine2,
+      locality: checkout?.locality || contact.landmark || '',
+      city: checkout?.city || contact.city || '',
+      state: checkout?.state || contact.state || '',
+      postalCode: checkout?.postalCode || contact.postalCode || '',
+      country: checkout?.country || contact.country || EMPTY_ADDRESS_FIELDS.country,
+      countryCode: checkout?.countryCode || EMPTY_ADDRESS_FIELDS.countryCode,
+    });
     setFormGstin((contact as any).gstin || '');
     setFormCompanyName(contact.companyName || '');
     setFormDesignation(contact.designation || '');
@@ -652,19 +698,7 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
       const result = await api.updateContact(editingContact.contactId, {
         name: formName, phone: fullPhone || undefined, email: formEmail || undefined,
         bsuid: formBsuid || undefined, username: formUsername || undefined, contactBookName: formContactBookName || undefined,
-        shippingAddress: formShippingAddress || undefined, billingAddress: formBillingAddress || undefined,
-        addressLine1: formAddressLine1 || undefined, addressLine2: formAddressLine2 || undefined,
-        city: formCity || undefined, state: formState || undefined, postalCode: formPostalCode || undefined,
-        landmark: formLandmark || undefined, houseNumber: formHouseNumber || undefined, buildingName: formBuildingName || undefined,
-        towerNumber: formTowerNumber || undefined, floorNumber: formFloorNumber || undefined,
-        country: formCountry || undefined,
-        // FEAT-003: validated structured address -> checkoutDeliveryAddress via the shared
-        // server-side validator. Flat fields kept for other readers; collapsing is a follow-up.
-        address: (formAddressLine1 && formCity && formState && formPostalCode) ? {
-          addressLine1: formAddressLine1, addressLine2: formAddressLine2 || undefined,
-          city: formCity, state: formState, postalCode: formPostalCode,
-          country: formCountry || undefined, countryCode: formCountry || undefined,
-        } : undefined,
+        ...addressFieldsForPayload(),
         gstin: formGstin || undefined,
         companyName: formCompanyName || undefined,
         designation: formDesignation || undefined,
@@ -976,21 +1010,43 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
           <input style={S.input} value={formDesignation} onChange={e => setFormDesignation(e.target.value)} placeholder="Enter role or job title" onFocus={focusStyle} onBlur={blurStyle} />
         </div>
       </div>
-      {/* ONE address format, accepted everywhere: website checkout, WhatsApp payments and Wix.
-          The structured fields are the single source of truth; the free-text shipping/billing
-          strings that the website and Wix read are composed from them on every edit, so there is
-          no second address to keep in sync. The old free-text "Delivery Address" textarea and the
-          separate "Structured Address (WhatsApp Payments)" block were merged into this one. */}
+      {/*
+        * THE ONE ADDRESS INPUT GROUP. Eight fields, rendered from `ADDRESS_FIELDS` so this form
+        * and the Pay Flow forms cannot hold different field sets, and ONE read-only composed
+        * preview where the free-text "Delivery Address" textarea used to be. The textarea was an
+        * INPUT, which is what let a staff member type one address there and a different one into
+        * the fields below with nothing reconciling them.
+        *
+        * Every input carries an `id` and its label an `htmlFor`: the old structured block used
+        * bare `<label>` elements with no association at all, so none of those fields had an
+        * accessible name and none could be found by label in a test either.
+        */}
       <div>
-        <label style={S.label}>Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(one address — used for delivery, billing, WhatsApp payments and Wix)</span></label>
+        <p style={{ ...S.label, marginBottom: 8 }}>Delivery Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(used for billing too)</span></p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div><label style={S.label}>House / Unit Number</label><input style={S.input} value={formHouseNumber} onChange={e => { setFormHouseNumber(e.target.value); composeAddress({ houseNumber: e.target.value }); }} placeholder="e.g. 12" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Address</label><input style={S.input} value={formBuildingName} onChange={e => { setFormBuildingName(e.target.value); composeAddress({ buildingName: e.target.value }); }} placeholder="Street, area, building" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Landmark</label><input style={S.input} value={formLandmark} onChange={e => { setFormLandmark(e.target.value); composeAddress({ landmark: e.target.value }); }} placeholder="Enter a nearby landmark" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>City</label><input style={S.input} value={formCity} onChange={e => { setFormCity(e.target.value); composeAddress({ city: e.target.value }); }} placeholder="e.g. Mumbai" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>State</label><input style={S.input} value={formState} onChange={e => { setFormState(e.target.value); composeAddress({ state: e.target.value }); }} placeholder="e.g. Maharashtra" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Postal Code</label><input style={S.input} value={formPostalCode} onChange={e => { setFormPostalCode(e.target.value); composeAddress({ postalCode: e.target.value }); }} placeholder="Enter postal code" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Country</label><input style={S.input} value={formCountry} onChange={e => { setFormCountry(e.target.value); composeAddress({ country: e.target.value }); }} placeholder="India" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          {ADDRESS_FIELDS.map(spec => (
+            <div key={spec.key}>
+              <label htmlFor={`contact-${spec.key}`} style={S.label}>{spec.label}</label>
+              <input
+                id={`contact-${spec.key}`}
+                style={S.input}
+                value={formAddress[spec.key]}
+                maxLength={spec.maxLength}
+                placeholder={spec.placeholder}
+                onChange={e => setFormAddress({ ...formAddress, [spec.key]: e.target.value })}
+                onFocus={focusStyle}
+                onBlur={blurStyle}
+              />
+            </div>
+          ))}
+        </div>
+        <p style={{ ...S.label, marginTop: 10, marginBottom: 5 }}>Composed address</p>
+        <div
+          data-address-preview="contact"
+          aria-readonly="true"
+          style={{ ...S.input, background: '#f9fafb', color: '#6b7280', minHeight: 44, display: 'flex', alignItems: 'center', wordBreak: 'break-word' }}
+        >
+          {formatAddress(formAddress) || formShippingAddress || '\u2014'}
         </div>
       </div>
       {/* Opt-in toggle */}

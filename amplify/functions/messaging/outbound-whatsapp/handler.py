@@ -419,9 +419,16 @@ VALID_PAYMENT_CONFIGS = {
 DEFAULT_PAYMENT_CONFIG = 'WECAREDIGITAL'
 # Both WABAs share the same config names, so the mapping is uniform. It is kept
 # per-phone so a future divergence needs only a value change here.
+#
+# WABA1 ONLY for payments, by owner decision 2026-10-07: WABA2 is NEVER used for any
+# form of payment, anywhere. WABA2 (PHONE_NUMBER_ID_2) is deliberately ABSENT from both
+# maps below. Because _build_payment_settings resolves the config name from these maps and
+# raises PaymentConfigurationUnresolved on a miss, a payment attempt on WABA2 fails closed
+# at this one chokepoint rather than sending a prompt the customer cannot complete
+# (wecarepay_wa is only approved on WABA1, verified live 2026-10-07). Do NOT re-add
+# PHONE_NUMBER_ID_2 here without the owner reversing that decision.
 PHONE_PAYMENT_CONFIG = {
-    PHONE_NUMBER_ID_1: 'WECAREDIGITAL',                  # +919330994400 (WABA1)
-    PHONE_NUMBER_ID_2: 'WECAREDIGITAL',                  # +919903300044 (WABA2)
+    PHONE_NUMBER_ID_1: 'WECAREDIGITAL',                  # +919330994400 (WABA1) — the only payment WABA
 }
 
 # Razorpay is the only gateway. PayU was removed from both WABAs on Meta.
@@ -667,6 +674,30 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         is_otp_template = body.get('isOtpTemplate', False) or body.get('isAuthenticationTemplate', False)
         otp_code = body.get('otpCode', '')
         otp_button_type = body.get('otpButtonType', 'copy_code')  # 'url' or 'copy_code'
+
+        # Limited-time-offer (LTO) template support. The offer code is a Meta coupon
+        # string, NOT a payment instrument: no amount, no discount arithmetic, no
+        # gateway.
+        #
+        # Validated HERE, not in the builder. `_build_message_payload` returns a
+        # message payload and has no path that returns an HTTP envelope, so a 400 has
+        # to be decided while `_error_response` is still the correct return type --
+        # returning one from the builder would POST the envelope to Meta as the
+        # message. `ArithmeticError` is the base of decimal.InvalidOperation, so a
+        # malformed Decimal is caught without widening the `from decimal import
+        # Decimal` at the top of this module.
+        is_lto_template = body.get('isLtoTemplate', False) or body.get('isLimitedTimeOffer', False)
+        lto_offer_code = body.get('ltoOfferCode') or body.get('offerCode') or ''
+        lto_copy_code_index = body.get('ltoCopyCodeIndex', 0)
+        lto_expiration_ms = None
+        if is_lto_template:
+            try:
+                lto_expiration_ms = int(Decimal(str(body.get('ltoExpirationTimeMs'))))
+            except (TypeError, ValueError, ArithmeticError):
+                return _error_response(400, 'ltoExpirationTimeMs must be an integer epoch '
+                                            'milliseconds value')
+            if lto_expiration_ms <= 0:
+                return _error_response(400, 'ltoExpirationTimeMs must be positive')
 
         # Standard template media header support (IMAGE / VIDEO / DOCUMENT headers).
         # Templates like wecare_pdf (DOCUMENT) and wd_order (VIDEO) require a
@@ -973,7 +1004,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             context_message_id=context_message_id,
             direct_send_category=direct_send_category,
             direct_send_waba=direct_send_waba,
-            has_contact_record=bool(contact)
+            has_contact_record=bool(contact),
+            is_lto_template=is_lto_template,
+            lto_expiration_ms=lto_expiration_ms,
+            lto_offer_code=lto_offer_code,
+            lto_copy_code_index=lto_copy_code_index
         )
         
     except json.JSONDecodeError:
@@ -1428,9 +1463,13 @@ def _handle_checkout_template_send(
         # Build template components
         components = []
 
-        # Header (image or video) — wecare_pay template REQUIRES image header
-        DEFAULT_CHECKOUT_HEADER = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
-        checkout_header = header_image_url or DEFAULT_CHECKOUT_HEADER
+        # Header (image) — wecarepay_wa template REQUIRES an image header.
+        # FIXED company-logo header on EVERY payment, by owner decision 2026-10-07:
+        # the same WECARE.DIGITAL logo on every payment message, never varied per order.
+        # The per-call header_image_url override is deliberately ignored for the checkout
+        # template so no caller can substitute a different image.
+        FIXED_CHECKOUT_HEADER = 'https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png'
+        checkout_header = FIXED_CHECKOUT_HEADER
         if checkout_order_details.get('header_image_id'):
             components.append({
                 'type': 'header',
@@ -1828,7 +1867,11 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
                       context_message_id: Optional[str] = None,
                       direct_send_category: Optional[str] = None,
                       direct_send_waba: str = '',
-                      has_contact_record: bool = False) -> Dict[str, Any]:
+                      has_contact_record: bool = False,
+                      is_lto_template: bool = False,
+                      lto_expiration_ms: Optional[int] = None,
+                      lto_offer_code: Optional[str] = None,
+                      lto_copy_code_index: int = 0) -> Dict[str, Any]:
     """
     Handle LIVE mode - call Meta Graph API (Direct API).
     Requirements: 5.2, 5.5, 5.6, 5.7, 5.8, 5.10, 5.11
@@ -1897,7 +1940,11 @@ def _handle_live_send(message_id: str, contact_id: str, recipient_phone: str,
             template_flow_button=template_flow_button,
             template_url_button=template_url_button,
             context_message_id=context_message_id,
-            direct_send_category=direct_send_category
+            direct_send_category=direct_send_category,
+            is_lto_template=is_lto_template,
+            lto_expiration_ms=lto_expiration_ms,
+            lto_offer_code=lto_offer_code,
+            lto_copy_code_index=lto_copy_code_index
         )
 
         # The builder is the arbiter, so believe it over the pre-check.
@@ -3031,6 +3078,25 @@ def _sanitize_reference_id(reference_id: str) -> str:
     return result
 
 
+# All three OTP types deliver the code through the URL button sub_type at send time.
+# ONE_TAP and ZERO_TAP differ from COPY_CODE in the TEMPLATE definition, not here --
+# which is why there is no third branch in the OTP send path. The otpButtonType log
+# field keeps the CALLER'S spelling, so a one-tap send and a url send stay separable
+# in CloudWatch.
+_OTP_URL_SUBTYPES = {'url', 'one_tap', 'zero_tap'}
+
+
+def _copy_code_button_component(index: Any, code: Any) -> Dict[str, Any]:
+    """The one spelling of a copy_code button component.
+
+    Meta names the parameter `coupon_code` for both an authentication OTP and a
+    limited-time-offer code; two literal copies of that shape is how a field name
+    ends up corrected in one place and not the other.
+    """
+    return {'type': 'button', 'sub_type': 'copy_code', 'index': int(index or 0),
+            'parameters': [{'type': 'coupon_code', 'coupon_code': str(code)}]}
+
+
 def _build_message_payload(recipient_phone: str, content: str, media_type: Optional[str],
                            media_id: Optional[str], is_template: bool, template_name: Optional[str],
                            template_params: list, filename: Optional[str] = None,
@@ -3049,7 +3115,11 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                       template_url_button: Optional[Dict] = None,
                            context_message_id: Optional[str] = None,
                            *,
-                           direct_send_category: Optional[str] = None) -> Dict[str, Any]:
+                           direct_send_category: Optional[str] = None,
+                           is_lto_template: bool = False,
+                           lto_expiration_ms: Optional[int] = None,
+                           lto_offer_code: Optional[str] = None,
+                           lto_copy_code_index: int = 0) -> Dict[str, Any]:
     """Build WhatsApp Cloud API message payload. Supports BSUID recipient.
 
     `direct_send_category` is keyword-only and defaults to None, so every existing
@@ -3519,7 +3589,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 })
             
             btn_type = (otp_button_type or 'copy_code').lower()
-            if btn_type == 'url':
+            if btn_type in _OTP_URL_SUBTYPES:
                 # URL button: OTP code appended to the template URL as {{1}}
                 payload['template']['components'].append({
                     'type': 'button',
@@ -3529,18 +3599,45 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 })
             else:
                 # One-tap / copy_code button: user taps to auto-fill OTP
-                payload['template']['components'].append({
-                    'type': 'button',
-                    'sub_type': 'copy_code',
-                    'index': 0,
-                    'parameters': [{'type': 'coupon_code', 'coupon_code': str(otp_code)}]
-                })
+                payload['template']['components'].append(
+                    _copy_code_button_component(0, otp_code))
             
             logger.info(json.dumps({
                 'event': 'otp_template_payload_built',
                 'templateName': template_name,
                 'language': template_language,
                 'otpButtonType': btn_type,
+                'bodyParamCount': len(actual_params)
+            }))
+        # Limited-time-offer template support. EMIT ONLY: validation and coercion
+        # happened in handler(), because this function cannot return an HTTP response
+        # and must not try. By the time this branch runs, lto_expiration_ms is a
+        # positive int or the request already 400'd, so there is no failure path here.
+        #
+        # It appends body params itself rather than falling through, because the chain
+        # is elif-ordered and an offer template can legitimately carry both.
+        elif is_lto_template:
+            if actual_params:
+                payload['template']['components'].append({
+                    'type': 'body',
+                    'parameters': [{'type': 'text', 'text': str(p)} for p in actual_params]
+                })
+            payload['template']['components'].append({
+                'type': 'limited_time_offer',
+                'parameters': [{
+                    'type': 'limited_time_offer',
+                    'limited_time_offer': {'expiration_time_ms': lto_expiration_ms}
+                }]
+            })
+            if lto_offer_code:
+                payload['template']['components'].append(
+                    _copy_code_button_component(lto_copy_code_index, lto_offer_code))
+
+            logger.info(json.dumps({
+                'event': 'lto_template_payload_built',
+                'templateName': template_name,
+                'expirationTimeMs': lto_expiration_ms,
+                'hasOfferCode': bool(lto_offer_code),
                 'bodyParamCount': len(actual_params)
             }))
         # Add body parameters if provided (for templates with variables like {{1}}, {{2}})

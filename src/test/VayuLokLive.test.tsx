@@ -512,8 +512,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( card.textContent ).toContain( 'Lumpyngngad' );
     expect( card.textContent ).toContain( 'Shillong, Meghalaya' );
     expect( screen.queryByText( 'Search India to see live weather and air.' ) ).toBeNull();
-    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
-    expect( screen.getByRole( 'button', { name: 'PM2.5' } ) ).not.toBeDisabled();
+    expect( await screen.findByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
+    expect( await screen.findByRole( 'button', { name: 'PM2.5' } ) ).not.toBeDisabled();
     await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
   } );
 
@@ -577,10 +577,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    await waitFor( () => expect( container.querySelector( '.vl-live-now-grid' ) ).not.toBeNull() );
-    expect( container.querySelector( '.vl-live-now-grid' )?.textContent ).toContain( 'Satisfactory' );
-    expect( container.querySelector( '.vl-live-air-source-strip' )?.textContent ).toContain( 'Google model' );
-    expect( container.querySelector( '.vl-live-air-source-strip' )?.textContent ).toContain( 'No nearby monitor reading' );
+    // The default location can render just before the selected location clears it.
+    // Assert the complete current-conditions contract in one settled render.
+    await waitFor( () => {
+      expect( container.querySelector( '.vl-live-now-grid' )?.textContent ).toContain( 'Satisfactory' );
+      const source = container.querySelector( '.vl-live-air-source-strip' );
+      expect( source?.textContent ).toContain( 'Google model' );
+      expect( source?.textContent ).toContain( 'No nearby monitor reading' );
+    } );
 
     const rail = await waitFor( () => {
       const el = container.querySelector( '.vl-live-forecast-weather' );

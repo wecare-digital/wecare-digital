@@ -25,6 +25,15 @@ from .whatsapp_types import (
     PHONE_NUMBER_MAX,
     URL_MAX,
     FLOW_NAME_MAX,
+    LTO_COMPONENT_TYPE,
+    LTO_TEXT_MAX,
+    LTO_ALLOWED_CATEGORIES,
+    LTO_HEADER_FORMATS,
+    LTO_REQUIRED_BUTTON_TYPES,
+    OTP_TYPES,
+    OTP_AUTOFILL_TYPES,
+    OTP_AUTOFILL_TEXT_MAX,
+    SIGNATURE_HASH_LEN,
 )
 from .template_ttl import validate_ttl
 
@@ -148,6 +157,45 @@ def validate_footer(comp: Dict[str, Any]) -> Tuple[List[str], List[str]]:
     return errors, []
 
 
+def validate_limited_time_offer(comp: Dict[str, Any], category: str) -> Tuple[List[str], List[str]]:
+    """Validate a LIMITED_TIME_OFFER component. Returns (errors, warnings).
+
+    `category` is accepted for signature parity with validate_header/validate_body.
+    The MARKETING-only rule is a statement about the TEMPLATE rather than about this
+    component, so validate_components enforces it once, beside the other LTO
+    cross-component rules.
+
+    The LTO_TEXT_MAX cap is a WARNING and not an error on purpose. It is believed to
+    be Meta's and is not confirmable from this repository or this account, and
+    _create_template refuses on any error -- so enforcing a guess would stop the only
+    request that could ever disprove it. As a warning, Meta's own answer is the
+    measurement. See design section 4; test 2a pins the classification.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    offer = comp.get('limited_time_offer')
+    if not isinstance(offer, dict):
+        errors.append('LIMITED_TIME_OFFER component requires a limited_time_offer object')
+        return errors, warnings
+
+    text = offer.get('text') or ''
+    if not str(text).strip():
+        errors.append('limited_time_offer.text is required (the offer label)')
+    if _placeholders(str(text)):
+        errors.append('limited_time_offer.text must not contain variables')
+    if len(str(text)) > LTO_TEXT_MAX:
+        warnings.append(
+            f'limited_time_offer.text is longer than {LTO_TEXT_MAX} characters; '
+            'Meta may reject or truncate it'
+        )
+
+    if 'has_expiration' in offer and not isinstance(offer.get('has_expiration'), bool):
+        errors.append('limited_time_offer.has_expiration must be a boolean (true or false)')
+
+    return errors, warnings
+
+
 def validate_examples(comp: Dict[str, Any], where: str) -> List[str]:
     """Validate that placeholders have matching examples and a consistent format."""
     errors: List[str] = []
@@ -208,6 +256,71 @@ def validate_flow_button(button: Dict[str, Any]) -> List[str]:
     return errors
 
 
+def validate_otp_button(button: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    """Validate an OTP (authentication) button. Returns (errors, warnings).
+
+    This closes a SILENT-ACCEPT hole rather than unblocking a refusal. `OTP` was
+    already in BUTTON_TYPES, so validate_buttons accepted an OTP button and then did
+    nothing with it: no otp_type, a misspelled otp_type, a missing package_name or
+    unaccepted zero-tap terms all validated clean and were sent to Meta to be rejected
+    there, with no local message to read.
+
+    `text` is length-checked HERE rather than by widening validate_buttons' existing
+    tuple, because that tuple's membership is load-bearing for four other button types
+    and widening it would also start length-checking MPM, SPM, CATALOG and
+    REQUEST_CONTACT_INFO, which currently escape it.
+
+    The signature-hash LENGTH is a warning, not an error: nothing in this account can
+    produce a real hash, so a hard check would be a rule written against a value
+    nobody here has ever held. Test 9 pins that classification.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    otp_type = (button.get('otp_type') or '').upper()
+    if not otp_type:
+        errors.append(f'OTP button requires otp_type (one of {", ".join(OTP_TYPES)})')
+    elif otp_type not in OTP_TYPES:
+        errors.append(f'Invalid otp_type: {otp_type}. Must be one of {", ".join(OTP_TYPES)}')
+
+    text = button.get('text', '')
+    if len(str(text)) > BUTTON_TEXT_MAX:
+        errors.append(f'OTP button text must be <= {BUTTON_TEXT_MAX} characters')
+
+    autofill_text = button.get('autofill_text', '')
+    if len(str(autofill_text)) > OTP_AUTOFILL_TEXT_MAX:
+        errors.append(f'autofill_text must be <= {OTP_AUTOFILL_TEXT_MAX} characters')
+
+    supported_apps = button.get('supported_apps') or []
+    if otp_type in OTP_AUTOFILL_TYPES:
+        has_inline_app = bool(button.get('package_name')) and bool(button.get('signature_hash'))
+        apps_complete = bool(supported_apps) and all(
+            isinstance(app, dict) and app.get('package_name') and app.get('signature_hash')
+            for app in supported_apps
+        )
+        if not has_inline_app and not apps_complete:
+            errors.append(
+                f'{otp_type} OTP button requires package_name and signature_hash, or a '
+                'supported_apps entry carrying both'
+            )
+
+    if otp_type == 'ZERO_TAP' and button.get('zero_tap_terms_accepted') is not True:
+        # A truthy string here means "we think we accepted the terms", which is
+        # precisely the silent wrongness this validator exists to refuse.
+        errors.append('ZERO_TAP OTP button requires zero_tap_terms_accepted to be true (boolean)')
+
+    hashes = [button.get('signature_hash')]
+    hashes.extend(app.get('signature_hash') for app in supported_apps if isinstance(app, dict))
+    for value in hashes:
+        if value and len(str(value)) != SIGNATURE_HASH_LEN:
+            warnings.append(
+                f'signature_hash is usually {SIGNATURE_HASH_LEN} characters; '
+                'this one does not look like an Android signature hash'
+            )
+
+    return errors, warnings
+
+
 def validate_button_grouping(buttons: List[Dict[str, Any]]) -> Optional[str]:
     """Quick replies must be contiguous (a single group). Returns error or None."""
     types = [(b.get('type') or '').upper() for b in buttons]
@@ -217,8 +330,15 @@ def validate_button_grouping(buttons: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]:
-    """Validate a BUTTONS component. Returns (errors, warnings)."""
+def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple[List[str], List[str]]:
+    """Validate a BUTTONS component. Returns (errors, warnings).
+
+    `category` is optional and defaults to '' so every existing caller keeps working
+    with a single positional argument. The "OTP only on AUTHENTICATION" rule is
+    SKIPPED when it is empty: a caller who supplied no category has not told us the
+    template is not an AUTHENTICATION one, and inventing that answer would make the
+    validator wrong in the silent direction this rule exists to close.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     if not buttons:
@@ -238,6 +358,11 @@ def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str
         if t == 'FLOW':
             errors.extend(validate_flow_button(b))
             continue
+        if t == 'OTP':
+            oe, ow = validate_otp_button(b)
+            errors.extend(oe)
+            warnings.extend(ow)
+            continue
         if t in ('QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL') and len(b.get('text', '')) > BUTTON_TEXT_MAX:
             errors.append(f'{t} button text must be <= {BUTTON_TEXT_MAX} characters')
         if t == 'COPY_CODE' and len(str(b.get('example', ''))) > COPY_CODE_EXAMPLE_MAX:
@@ -255,6 +380,10 @@ def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str
         errors.append('At most 2 URL buttons allowed')
     if counts.get('QUICK_REPLY', 0) > 10:
         errors.append('At most 10 QUICK_REPLY buttons allowed')
+    if counts.get('OTP', 0) > 1:
+        errors.append('At most 1 OTP button allowed')
+    if counts.get('OTP', 0) and (category or '').upper() not in ('', 'AUTHENTICATION'):
+        errors.append('An OTP button is only allowed on an AUTHENTICATION template')
 
     grouping = validate_button_grouping(buttons)
     if grouping:
@@ -262,14 +391,36 @@ def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str
     return errors, warnings
 
 
-def validate_components(components: List[Dict[str, Any]], category: str) -> Tuple[List[str], List[str]]:
-    """Validate all components. Returns (errors, warnings)."""
+def validate_components(components: List[Dict[str, Any]], category: str,
+                        *, top_level: bool = True) -> Tuple[List[str], List[str]]:
+    """Validate all components. Returns (errors, warnings).
+
+    `top_level` is keyword-only and defaults to True, so validate_template_parts and
+    every other caller keeps today's behaviour. The recursive CAROUSEL call below is
+    the ONLY site that passes top_level=False, because the cross-component rules are
+    statements about a TEMPLATE: run per card, they would tell a MARKETING carousel
+    that every card needs an IMAGE header, a COPY_CODE button and an offer component,
+    and they would evaluate the carousel-exclusive rule in a scope where has_carousel
+    is always false.
+
+    has_body's check deliberately stays OUTSIDE the guard -- a carousel card does
+    legitimately require a BODY, and that is existing behaviour nobody asked to
+    change.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     has_body = False
+    has_carousel = False
+    lto_count = 0
+    header_format = ''
+    # Stays [] when the template carries no BUTTONS component at all, which is what
+    # makes an absent BUTTONS component produce the SAME diagnostics as a BUTTONS
+    # component carrying neither required button.
+    buttons_seen: List[Dict[str, Any]] = []
     for comp in components or []:
         ctype = (comp.get('type') or '').upper()
         if ctype == 'HEADER':
+            header_format = (comp.get('format') or '').upper()
             e, w = validate_header(comp, category)
         elif ctype == 'BODY':
             has_body = True
@@ -277,19 +428,52 @@ def validate_components(components: List[Dict[str, Any]], category: str) -> Tupl
         elif ctype == 'FOOTER':
             e, w = validate_footer(comp)
         elif ctype == 'BUTTONS':
-            e, w = validate_buttons(comp.get('buttons', []))
+            buttons_seen.extend(comp.get('buttons', []) or [])
+            e, w = validate_buttons(comp.get('buttons', []), category)
         elif ctype == 'CAROUSEL':
+            has_carousel = True
             e, w = [], []
             for card in comp.get('cards', []):
-                ce, cw = validate_components(card.get('components', []), category)
+                ce, cw = validate_components(card.get('components', []), category, top_level=False)
                 e.extend(ce)
                 w.extend(cw)
+        elif ctype == LTO_COMPONENT_TYPE:
+            lto_count += 1
+            e, w = validate_limited_time_offer(comp, category)
         else:
             e, w = ([f'Unknown component type: {ctype}'] if ctype else ['Component missing type']), []
         errors.extend(e)
         warnings.extend(w)
     if not has_body:
         errors.append('Template must include a BODY component')
+
+    if top_level and lto_count:
+        cat = (category or '').upper()
+        if cat not in LTO_ALLOWED_CATEGORIES:
+            errors.append(
+                f'{LTO_COMPONENT_TYPE} is only supported on '
+                f'{", ".join(LTO_ALLOWED_CATEGORIES)} templates'
+            )
+        if lto_count > 1:
+            errors.append(f'A template may have at most 1 {LTO_COMPONENT_TYPE} component')
+        if has_carousel:
+            errors.append(f'{LTO_COMPONENT_TYPE} and CAROUSEL components are mutually exclusive')
+        if header_format not in LTO_HEADER_FORMATS:
+            # Believed to be Meta's rule and not confirmable here, so it is surfaced
+            # and the submission proceeds -- Meta's answer is the measurement.
+            warnings.append(
+                f'{LTO_COMPONENT_TYPE} templates usually require a HEADER with format '
+                f'{" or ".join(LTO_HEADER_FORMATS)}'
+            )
+        # Read through LTO_REQUIRED_BUTTON_TYPES rather than inlining the two spellings,
+        # for the same reason LTO_TEXT_MAX lives in whatsapp_types: the rule is believed
+        # to be Meta's and a correction must cost one line in one file. The declaration
+        # order is the message order.
+        button_types = [(b.get('type') or '').upper() for b in buttons_seen]
+        for required in LTO_REQUIRED_BUTTON_TYPES:
+            if button_types.count(required) != 1:
+                errors.append(
+                    f'{LTO_COMPONENT_TYPE} templates require exactly 1 {required} button')
     return errors, warnings
 
 

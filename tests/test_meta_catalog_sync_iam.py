@@ -226,16 +226,27 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
     assert "if not apply:" in source
 
 
-# Owner-authorized catalog rollout must stay narrowly scoped.
+# ── 4. the gates ship closed, and this script does not open them ───────────
 
 
-def test_provisioned_environment_preserves_owner_scope_and_hold(provisioner):
-    env = provisioner.ENVIRONMENT
-    assert env["META_CATALOG_SYNC_ENABLED"] == "true"
-    assert env["META_CATALOG_SYNC_DRY_RUN"] == "false"
-    assert env["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
-    assert set(env["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
-        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
+def test_the_provisioned_environment_matches_the_owner_scoped_rollout(provisioner):
+    """Keep the authorized two-variant rollout and its availability hold explicit.
+
+    Fresh handler defaults remain closed. This provisioner records the separately
+    authorized live rollout, so testing it as an unprovisioned disabled feature
+    would contradict the checked-in deployment manifest.
+    """
+    manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
+    live = manifest["functions"]["wecare-meta-catalog-sync"]
+    expected = {
+        "META_CATALOG_SYNC_ENABLED": "true",
+        "META_CATALOG_SYNC_DRY_RUN": "false",
+        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+    }
+    for key, value in expected.items():
+        assert provisioner.ENVIRONMENT[key] == value
+        assert live[key] == value
 
 
 def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):

@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 69,
-  "_variables": 429,
+  "_variables": 431,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {

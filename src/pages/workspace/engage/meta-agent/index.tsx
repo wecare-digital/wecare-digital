@@ -191,6 +191,36 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
         await call( 'allowlist_remove', { entryId: id } ); toast.success( 'Removed' ); loadAllow();
     };
 
+    // ── Thread control (Conversation Routing) ──
+    // Release and pass only. TAKE is deliberately not offered: the backend answers 409
+    // because taking a thread requires this account to be the designated escalation
+    // partner, which is an unanswered owner question — a button that always fails is
+    // worse than no button.
+    const [ tcBsuid, setTcBsuid ] = useState( '' );
+    const [ tcPhone, setTcPhone ] = useState( '' );
+    const [ tcRole, setTcRole ] = useState( '' );
+    const [ tcOut, setTcOut ] = useState( '' );
+    const threadControl = async ( action: 'release' | 'pass' ) => {
+        const target: Record<string, string> = {};
+        if ( tcBsuid.trim() ) target.bsuid = tcBsuid.trim();
+        else if ( tcPhone.trim() ) target.to = tcPhone.trim();
+        if ( !target.bsuid && !target.to ) { toast.error( 'Enter a business-scoped user ID or a consumer phone number' ); return; }
+        if ( action === 'pass' && !tcRole.trim() ) { toast.error( 'A target role is required to pass a thread' ); return; }
+        if ( !( await confirm( action === 'release'
+            ? 'Release this thread back to the responder that passed it to us?'
+            : `Pass this thread to ${tcRole.trim()}?` ) ) ) return;
+        setBusy( 'threadControl' );
+        try
+        {
+            const d = await call( 'thread_control', {
+                action, ...target, ...( action === 'pass' ? { targetRole: tcRole.trim() } : {} ),
+            } );
+            setTcOut( JSON.stringify( d, null, 2 ) );
+            if ( d?.error ) toast.error( typeof d.error === 'string' ? d.error : JSON.stringify( d.error ) );
+            else toast.success( action === 'release' ? 'Thread released' : 'Thread passed' );
+        } finally { setBusy( '' ); }
+    };
+
     // ── Test ──
     const [ testMsg, setTestMsg ] = useState( '' );
     const [ testOut, setTestOut ] = useState( '' );
@@ -312,6 +342,36 @@ const MetaAgentPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
                             ) ) }
                         </ul>
                     ) }
+                </div>
+
+                {/* Thread control */ }
+                <div style={ card }>
+                    <h2 style={ h2 }>Thread control</h2>
+                    <p style={ { color: 'var(--text-muted)', fontSize: 13, margin: '0 0 10px' } }>
+                        Hand a conversation back to the responder that passed it to us, or pass it to a named role.
+                        Identify the thread by business-scoped user ID where you have one — that is how a routing
+                        event identifies it. Taking a thread is not offered: it requires this account to be the
+                        designated escalation partner.
+                    </p>
+                    <div style={ { display: 'grid', gap: 8, marginBottom: 10 } }>
+                        <div>
+                            <label style={ lbl }>Business-scoped user ID (preferred)</label>
+                            <input value={ tcBsuid } onChange={ e => setTcBsuid( e.target.value ) } placeholder="BSUID…" style={ { width: '100%' } } />
+                        </div>
+                        <div>
+                            <label style={ lbl }>…or consumer phone (E.164)</label>
+                            <input value={ tcPhone } onChange={ e => setTcPhone( e.target.value ) } placeholder="+15551234567" style={ { width: '100%' } } disabled={ tcBsuid.trim() !== '' } />
+                        </div>
+                        <div>
+                            <label style={ lbl }>Target role (required to pass)</label>
+                            <input value={ tcRole } onChange={ e => setTcRole( e.target.value ) } placeholder="e.g. HUMAN_AGENT" style={ { width: '100%' } } />
+                        </div>
+                    </div>
+                    <div style={ { display: 'flex', gap: 'var(--space-2)' } }>
+                        <Button onClick={ () => threadControl( 'release' ) } disabled={ busy !== '' }>{ busy === 'threadControl' ? 'Working…' : 'Release' }</Button>
+                        <Button variant="secondary" onClick={ () => threadControl( 'pass' ) } disabled={ busy !== '' || !tcRole.trim() }>Pass</Button>
+                    </div>
+                    { tcOut && <pre style={ { background: 'var(--surface-2, #f5f5f5)', padding: 12, borderRadius: 8, fontSize: 12, overflow: 'auto', maxHeight: 200, marginTop: 10 } }>{ tcOut }</pre> }
                 </div>
 
                 {/* Test */ }

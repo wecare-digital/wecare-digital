@@ -3248,6 +3248,48 @@ Authority: owner's direct request to connect Vault payment, uploaded file delive
 
 No customer QA send or payment capture/refund. New automatic sends are scoped to a verified paid file-bound Vault request and the exact owner-named ready/review messages; ordinary PDF attachment additionally requires a recent inbound service window. See docs/whatsapp/paid-vault.md for accepted versus delivered semantics and the remaining live recipient/file QA requirement.
 
+
+## 2026-10-07 — Admin pool MFA enabled (A3_PRODUCTION, security-tightening, autonomous)
+
+Class: A3_PRODUCTION, additive/security-tightening — authorized under standing grant
+(01-standing-authorization.md: "Flag changes that only tighten security"), run unattended.
+
+Action: enabled TOTP MFA as OPTIONAL on the STAFF/ADMIN Cognito user pool only.
+
+| Field | Value |
+|---|---|
+| Pool | `us-east-1_cSx0RHCIR` (WECARE.DIGITAL, staff/admin) |
+| API | `set-user-pool-mfa-config` (dedicated MFA API — NOT the full-replace `update-user-pool`, so pool Lambda triggers are untouched) |
+| Before | `MfaConfiguration: OFF`, `SoftwareTokenMfaConfiguration: null` |
+| After | `MfaConfiguration: OPTIONAL`, `SoftwareTokenMfaConfiguration.Enabled: true` |
+| Customer pool | `us-east-1_46ULYuukt` deliberately UNTOUCHED (phone-OTP CUSTOM_AUTH; TOTP is wrong there) — re-verified still `OFF` |
+| Rollback | `aws cognito-idp set-user-pool-mfa-config --user-pool-id us-east-1_cSx0RHCIR --software-token-mfa-configuration Enabled=false --mfa-configuration OFF` |
+
+Why OPTIONAL not REQUIRED: REQUIRED would lock out any staff user not yet TOTP-enrolled.
+OPTIONAL turns TOTP on as available, makes the existing self-enrolment UI
+(`/workspace/access/security` + `src/components/security/TotpSetup.tsx`) real, and meets the
+"admin MFA implemented" required target in `00-current-owner-overrides.md` (which lists admin
+MFA as a required target but explicitly NOT a mandatory blocking gate). Reversible in one call.
+
+Resolves the gap recorded in `.agents/tasks/workspace-pages-backend-aws-20261007/findings.md`
+§6.1 (MFA OFF on both pools) for the admin pool. The customer pool's post-WAF exposure
+(no per-IP filter, no MFA) is unchanged and remains an owner-accepted item — TOTP is not the
+right control for a phone-OTP pool; its guard is the handler rate-limit + per-phone probe counter.
+
+
+## 2026-10-08 — Owner-approved single invoice engine and reconciled release
+
+Authority: owner asked to use `invoice-sample-real-v6.png`, retain one invoice engine, verify native payment readiness, complete pending local work and push it.
+
+| Class | Target | Change and evidence | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Git history, live aliases, Meta payment-config readback, DynamoDB metadata | Isolated reconciliation preserves concurrent work. Meta readback returned PAYMENT_READY for the native Razorpay configuration. CouponsTable and GiftCardsTable are absent. | Read only |
+| A1_LOCAL | Existing invoice engine, receipt layout/font, PDF delivery, scoped tests and local documentation snapshot | Owner-approved receipt layout uses real invoice data; same engine renders PDF for document delivery. Unsupported native gift-card settlement returns a typed refusal before reservation or send. Python full suite: 10,043 passed, 6 skipped, 3 xfailed. Locked-dependency production build passed. | Revert scoped commit; RECEIPT_TRANSPARENT_BG=false restores legacy rendering/delivery |
+| A2_REMOTE_CODE | stack | Explicit paths, non-force push after final gates and upstream reconciliation. Preserve original Kiro worktrees and their in-progress edits. | Follow-up revert commit |
+| A3_PRODUCTION | Existing affected Lambda packages and live aliases | Capture pre-release versions and hashes, validate dependency closure, use revision guards and confirm published code hashes. Deployment evidence is recorded separately after success. | Restore each captured live alias version |
+
+No payment capture/refund, provider configuration change, credential read or live-send flag enabling. Real recipient/device/payment QA remains WAITING_FOR_OWNER until the owner nominates a QA recipient. Coupon/gift-card infrastructure and gift-card settlement are not certified as operational by this release.
+
 ## 2026-10-08 — Shared multicolour WhatsApp catalog artwork
 
 Authority: owner's direct "push" request after reviewing the multicolour catalog design, plus standing scoped remote-code authorization.

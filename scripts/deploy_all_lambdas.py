@@ -444,7 +444,8 @@ SPECS: List[Spec] = [
     # --- payments ---
     Spec("wecare-razorpay-webhook", "payments/razorpay-webhook"),
     Spec("wecare-payments-read", "payments/payments-read"),
-    Spec("wecare-invoice-engine", "payments/invoice-engine"),
+    Spec("wecare-invoice-engine", "payments/invoice-engine", extra_dirs=("fonts",),
+         extra_files=("receipt_layout.py",)),
     # --- ecommerce ---
     Spec("wecare-wix-store", "ecommerce/wix-store"),
     Spec("wecare-product-image-gen", "ecommerce/product-image-gen"),
