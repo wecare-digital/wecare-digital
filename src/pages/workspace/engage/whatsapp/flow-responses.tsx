@@ -273,11 +273,7 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                               <summary style={{ cursor: 'pointer' }}>{s.subject || 'Customer idea'}</summary>
                               <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{s.description}</p>
                               <p style={{ fontSize: 12 }}>{s.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable'}</p>
-                              <p style={{ fontSize: 12 }}>{(() => {
-                                try { return JSON.parse(s.formData || '{}').follow_up_opt_in === true
-                                  ? 'Follow-up permitted' : 'No follow-up permission'; }
-                                catch { return 'Follow-up permission unavailable'; }
-                              })()}</p>
+                              <p style={{ fontSize: 12 }}>Saved in customer reviews.</p>
                             </details>
                           ) : s.subject || s.requestType || '-'}
                         </td>

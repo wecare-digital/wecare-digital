@@ -5906,7 +5906,9 @@ export interface Review {
   contactId?: string;
   customerName?: string;
   customerPhone?: string;
-  rating: number; // 1-5
+  rating?: number; // 1-5 when the customer supplied a rating
+  reviewType?: string;
+  visibility?: string;
   comment?: string;
   source: string; // whatsapp, web, google, manual
   status: string; // pending, approved, hidden, flagged
@@ -5921,11 +5923,15 @@ export interface Review {
 const REVIEWS_BASE = `${WA_BIZ_BASE}/reviews`;
 
 export async function listReviews ( params?: {
+  customerPhone?: string;
+  contactId?: string;
   status?: string;
   source?: string;
   minRating?: number;
 } ): Promise<{ reviews: Review[]; count: number }> {
   const qs = new URLSearchParams();
+  if ( params?.customerPhone ) qs.set('customerPhone', params.customerPhone);
+  if ( params?.contactId ) qs.set('contactId', params.contactId);
   if ( params?.status ) qs.set( 'status', params.status );
   if ( params?.source ) qs.set( 'source', params.source );
   if ( params?.minRating ) qs.set( 'minRating', String( params.minRating ) );

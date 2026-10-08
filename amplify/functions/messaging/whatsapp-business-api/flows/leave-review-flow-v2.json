@@ -69,12 +69,6 @@
                 "helper-text": "Imagine what could be better, simpler, or possible. Tell us in your own words."
               },
               {
-                "type": "OptIn",
-                "name": "follow_up_opt_in",
-                "label": "You can message me about this idea.",
-                "required": false
-              },
-              {
                 "type": "Footer",
                 "label": "Next",
                 "on-click-action": {
@@ -85,8 +79,7 @@
                   },
                   "payload": {
                     "topic": "${form.topic}",
-                    "idea": "${form.idea}",
-                    "follow_up_opt_in": "${form.follow_up_opt_in}"
+                    "idea": "${form.idea}"
                   }
                 }
               }
@@ -108,10 +101,6 @@
         "idea": {
           "type": "string",
           "__example__": "I'd love a simple way to track my request."
-        },
-        "follow_up_opt_in": {
-          "type": "boolean",
-          "__example__": false
         }
       },
       "layout": {
@@ -147,20 +136,15 @@
             "text": "Tap Submit idea to send your thought privately to our team."
           },
           {
-            "type": "TextCaption",
-            "text": "We will only message you about your idea if you allowed follow-up."
-          },
-          {
             "type": "Footer",
             "label": "Submit idea",
             "on-click-action": {
               "name": "complete",
               "payload": {
                 "flow_key": "wd_leave_review_v2",
-                "schema_version": "3",
+                "schema_version": "4",
                 "topic": "${data.topic}",
-                "idea": "${data.idea}",
-                "follow_up_opt_in": "${data.follow_up_opt_in}"
+                "idea": "${data.idea}"
               }
             }
           }

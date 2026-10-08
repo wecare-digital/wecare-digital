@@ -912,13 +912,30 @@ def _update_enterprise_case(case_id: str, body: Dict) -> Dict:
 def _list_reviews(params: Dict) -> Dict:
     table = dynamodb.Table(REVIEWS_TABLE)
     status = params.get('status')
-
-    if status:
-        resp = table.query(IndexName='status', KeyConditionExpression=Key('status').eq(status))
+    if status == 'pending':
+        status = 'submitted'
+    phone = params.get('customerPhone', '').replace('+', '').replace(' ', '')
+    contact_id = params.get('contactId')
+    if phone:
+        operation = table.query
+        kwargs = {'IndexName': 'customerPhone', 'KeyConditionExpression': Key('customerPhone').eq(phone)}
+    elif status:
+        operation = table.query
+        kwargs = {'IndexName': 'status', 'KeyConditionExpression': Key('status').eq(status)}
     else:
-        resp = table.scan()
-
-    items = resp.get('Items', [])
+        operation = table.scan
+        kwargs = {}
+    items = []
+    while True:
+        page = operation(**kwargs)
+        items.extend(page.get('Items', []))
+        if not page.get('LastEvaluatedKey'):
+            break
+        kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    if contact_id:
+        items = [i for i in items if i.get('contactId') == contact_id]
+    if status:
+        items = [i for i in items if i.get('status') == status]
     source = params.get('source')
     min_rating = params.get('minRating')
     if source:

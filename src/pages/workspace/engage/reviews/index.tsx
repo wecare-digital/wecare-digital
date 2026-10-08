@@ -54,7 +54,8 @@ function statusBadge ( status: string ) {
   return <span style={ { display: 'inline-block', padding: '2px 8px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg } }>{ status }</span>;
 }
 
-function stars ( rating: number ) {
+function stars ( rating?: number ) {
+  if (!rating || rating < 1 || rating > 5) return 'Not rated';
   return '★'.repeat( rating ) + '☆'.repeat( 5 - rating );
 }
 
@@ -199,7 +200,7 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
           <div>
             <div style={ { textAlign: 'center', marginBottom: 16 } }>
               <div style={ { color: '#f59e0b', fontSize: 28, letterSpacing: 2 } }>{ stars( selected.rating ) }</div>
-              <div style={ { fontSize: 14, color: '#6b7280', marginTop: 4 } }>{ selected.rating }/5</div>
+              <div style={ { fontSize: 14, color: '#6b7280', marginTop: 4 } }>{ selected.rating ? `${selected.rating}/5` : 'Customer idea' }</div>
             </div>
             <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 } }>
               <div><span style={ labelStyle }>Customer</span><div style={ { fontWeight: 500 } }>{ selected.customerName || '—' }</div></div>
