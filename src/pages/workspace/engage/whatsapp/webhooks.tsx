@@ -34,6 +34,13 @@ const WEBHOOK_FIELDS = [
   { field: 'user_id_update', desc: 'Business-scoped User ID (BSUID) changes for a user — subscribe to track identity continuity' },
   { field: 'message_echoes', desc: 'Echoes of messages sent by the business (required for Meta Business Agent)' },
   { field: 'messaging_handovers', desc: 'Conversation handoff between Meta Business Agent and human agents (required for MBA)' },
+  // Coexistence and Multi-Partner Solutions. Listed so an operator CAN subscribe —
+  // nothing in code, in a script or as a side effect subscribes for them. This
+  // deployment is not a coexistence deployment and not a multi-partner solution, so if
+  // subscribed these three are audited and counted only; no inbox row, no send.
+  { field: 'smb_app_state_sync', desc: 'Coexistence: contact/chat state sync from the WhatsApp Business app — audited only, not ingested' },
+  { field: 'smb_message_echoes', desc: 'Coexistence: echoes of messages the owner sent from the WhatsApp Business app — audited only, never written to the inbox' },
+  { field: 'partner_solutions', desc: 'Multi-Partner Solutions: solution/partner association changes — audit only' },
 ];
 
 const EXISTING_WEBHOOKS = [

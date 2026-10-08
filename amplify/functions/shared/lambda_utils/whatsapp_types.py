@@ -56,3 +56,23 @@ COPY_CODE_EXAMPLE_MAX = 20
 PHONE_NUMBER_MAX = 20
 URL_MAX = 2000
 FLOW_NAME_MAX = 200
+
+# Limited-time-offer templates. LTO_TEXT_MAX is Meta's believed cap on the offer
+# label and is NOT confirmable from anything in this repo -- it lives here alone so a
+# correction is one line, and template_validation reads it rather than inlining 16.
+LTO_COMPONENT_TYPE = 'LIMITED_TIME_OFFER'
+LTO_TEXT_MAX = 16
+LTO_ALLOWED_CATEGORIES = ('MARKETING',)
+LTO_HEADER_FORMATS = ('IMAGE', 'VIDEO')
+LTO_REQUIRED_BUTTON_TYPES = ('COPY_CODE', 'URL')
+
+# Authentication-template OTP buttons. SIGNATURE_HASH_LEN is Meta's documented length
+# for an Android app signature hash. NOTHING in this account can produce one, because
+# there is no signed Android app -- native packaging is POST-PROJECT -- so the length
+# is enforced as a WARNING rather than an error: a hard check would be a rule written
+# against a value nobody here has ever held. No package name and no signature hash is
+# declared anywhere in this file, deliberately.
+OTP_TYPES = ('COPY_CODE', 'ONE_TAP', 'ZERO_TAP')
+OTP_AUTOFILL_TYPES = ('ONE_TAP', 'ZERO_TAP')
+OTP_AUTOFILL_TEXT_MAX = 25
+SIGNATURE_HASH_LEN = 11

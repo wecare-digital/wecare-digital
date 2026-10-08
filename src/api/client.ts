@@ -715,6 +715,17 @@ export interface Message {
   transcription?: string;       // English transcription of voice notes
   detectedLanguage?: string;    // Detected language of voice note (e.g. "hi-IN")
   contactsPayload?: WaContactCard[] | null;  // shared contact card(s), messageType=contacts
+  // Revoke ("delete for everyone") — written by inbound-whatsapp-handler._apply_revoke.
+  // The content is never deleted or redacted; isRevoked is what the inbox renders.
+  isRevoked?: boolean;
+  revokedAt?: number;
+  revokedByWhatsappMessageId?: string;
+  // 'exact' | 'inferred' — an inferred match is a timing guess and MUST be labelled
+  // as one in the UI. Present on the target row and on the revoke row itself.
+  revokeResolution?: string;
+  // Set on the REVOKE's own row, pointing at the message it deleted. Its presence is
+  // what stops the revoke rendering as a second, standalone bubble.
+  revokesMessageId?: string;
   // Call breadcrumb fields (channel=voice, messageType=call)
   callId?: string;
   callType?: string;            // plivo | aws | whatsapp; legacy rows may read 'airtel'
@@ -796,6 +807,13 @@ function normalizeMessage ( item: any ): Message {
     // This object is built by enumeration, so an omitted field is dropped before
     // any UI sees it — the contact card cannot render without this line.
     contactsPayload: Array.isArray( item.contactsPayload ) ? item.contactsPayload : undefined,
+    // Same enumeration rule as contactsPayload above: without these four lines the
+    // revoke fields are dropped before any UI can read them.
+    isRevoked: item.isRevoked === true,
+    revokedAt: typeof item.revokedAt === 'number' ? item.revokedAt : ( item.revokedAt ? Number( item.revokedAt ) : undefined ),
+    revokedByWhatsappMessageId: item.revokedByWhatsappMessageId,
+    revokeResolution: item.revokeResolution,
+    revokesMessageId: item.revokesMessageId,
     callId: item.callId,
     callType: item.callType,
     duration: typeof item.duration === 'number' ? item.duration : ( item.duration ? Number( item.duration ) : undefined ),
@@ -2366,7 +2384,7 @@ export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRe
     },
   };
 
-  // Always use checkout button template (wecare_pay) — enables address + coupons
+  // Always use checkout button template (wecarepay_wa) — enables address + coupons
   return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
     method: 'POST',
     body: JSON.stringify( {
@@ -2375,7 +2393,7 @@ export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRe
       recipientBsuid: request.recipientBsuid,
       isCheckoutTemplate: true,
       isTemplate: true,
-      templateName: 'wecare_pay',
+      templateName: 'wecarepay_wa',
       templateParams: [],
       checkoutOrderDetails: orderDetails,
       headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
@@ -4498,7 +4516,11 @@ export async function sendTestLocation ( to: string, latitude: number, longitude
   return apiCall<any>( `${WA_SEND_BASE}/location`, { method: 'POST', body: JSON.stringify( { to, latitude, longitude, ...opts } ) } ) as any;
 }
 
-export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
+// `carouselCards` selects the product_carousel shape on the same route: the handler
+// dispatches on body shape, and carouselCards is the most specific one, so it wins over
+// catalogMessage and sections. No sibling function — a second one would duplicate the
+// body assembly for an identical request.
+export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; carouselCards?: { productRetailerId: string }[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
   return apiCall<any>( `${WA_SEND_BASE}/product`, { method: 'POST', body: JSON.stringify( { to, catalogId, ...opts } ) } ) as any;
 }
 
@@ -4597,6 +4619,33 @@ export async function rejectGroupJoinRequests ( groupId: string, joinRequestIds:
 export async function getPhoneSettings ( phoneId: string ): Promise<any> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/phone-settings?phoneId=${phoneId}` );
   return data?.settings || null;
+}
+
+// Official Business Account status, rolled up per WABA. READ-ONLY: the green tick is
+// granted by a Meta review started in Business Suite and there is no API to request it.
+// The rollup is four-valued — UNKNOWN is not NOT_OFFICIAL.
+// Returns null until GET /wa-business/oba-status exists (deploy-time work), which is why
+// the dashboard row renders "unavailable" rather than throwing.
+export interface ObaPhone {
+  phoneId: string;
+  displayPhoneNumber: string;
+  verifiedName: string;
+  qualityRating: string;
+  codeVerificationStatus: string;
+  nameStatus: string;
+  isOfficialBusinessAccount: boolean;
+}
+export interface ObaStatus {
+  wabaId: string;
+  obaStatus: 'OFFICIAL' | 'PARTIAL' | 'NOT_OFFICIAL' | 'UNKNOWN';
+  phones: ObaPhone[];
+  note?: string;
+}
+
+export async function getObaStatus ( wabaId: string ): Promise<ObaStatus | null> {
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/oba-status?wabaId=${encodeURIComponent( wabaId )}` );
+  if ( !data?.obaStatus ) return null;
+  return { wabaId: data.wabaId || wabaId, obaStatus: data.obaStatus, phones: data.phones || [], note: data.note || '' };
 }
 
 export async function updatePhoneSettings ( phoneId: string, settings: Record<string, any> ): Promise<boolean> {
@@ -6309,6 +6358,31 @@ export async function getMmOnboardingStatus ( wabaId: string ): Promise<{ onboar
   return { onboardingStatus: data?.onboardingStatus || '', time: data?.time || '' };
 }
 
+// MM API conversion metrics. The route answers 200 with available:false when the edge
+// does not resolve for this account, carrying the edge it tried, a reason and the last
+// cached reading — so render the cached numbers with their timestamp rather than an
+// error. `metrics` rows are Meta's own, unreshaped: their shape is unverified here.
+// Returns null until GET /wa-business/mm-conversion-metrics exists (deploy-time work).
+export interface MmConversionMetrics {
+  wabaId: string;
+  available: boolean;
+  edge: string;
+  metrics?: any[];
+  readAt?: number;
+  reason?: string;
+  cached?: { metrics?: any[]; readAt?: number };
+  note?: string;
+}
+
+export async function getMmConversionMetrics ( wabaId: string, opts?: { since?: string; until?: string } ): Promise<MmConversionMetrics | null> {
+  const qs = new URLSearchParams( { wabaId } );
+  if ( opts?.since ) qs.set( 'since', opts.since );
+  if ( opts?.until ) qs.set( 'until', opts.until );
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/mm-conversion-metrics?${qs.toString()}` );
+  if ( !data || typeof data.available !== 'boolean' ) return null;
+  return data as MmConversionMetrics;
+}
+
 export interface CatalogFlowEntry { flowIdWaba1?: string; flowIdWaba2?: string; flowCode?: string; cta?: string; body?: string; }
 
 export async function getCatalogFlowMap (): Promise<Record<string, CatalogFlowEntry>> {
@@ -6553,7 +6627,33 @@ export const aiAgentApi = {
   // Tech Partner upgrade readiness — live measurement of the 4 eligibility gates.
   techPartnerReadiness: () =>
     metaAgent<TechPartnerReadiness>( 'tp_eligibility' ),
+  // ── Conversation Routing thread control ──
+  // Both go through the same POST ${API_BASE}/meta-agent dispatcher as every other
+  // agent action, so no new route is needed. A thread is identified by BSUID where
+  // one is known (that is how a routing event identifies it) with the consumer phone
+  // as the fallback. There is deliberately NO takeThread: the handler answers 409,
+  // because taking control needs this account to be the designated escalation
+  // partner and that designation is an unanswered owner question.
+  releaseThread: ( waba: WabaKey, opts: ThreadControlTarget = {} ) =>
+    metaAgent<ThreadControlResult>( 'thread_control', { waba, action: 'release', ...opts } ),
+  passThread: ( waba: WabaKey, targetRole: string, opts: ThreadControlTarget = {} ) =>
+    metaAgent<ThreadControlResult>( 'thread_control', { waba, action: 'pass', targetRole, ...opts } ),
 };
+export interface ThreadControlTarget {
+  /** Business-scoped user id — preferred, because routing identifies a thread by it. */
+  bsuid?: string;
+  /** Consumer phone in E.164 — the fallback, and what an operator usually has. */
+  to?: string;
+  /** A raw phone-number id, when the caller is not selecting by WABA key. */
+  entityId?: string;
+}
+export interface ThreadControlResult {
+  thread_control: unknown;
+  action: string;
+  entityId: string;
+  bsuid: string;
+  targetRole: string | null;
+}
 
 export interface TechPartnerGate { pass: boolean; label: string; }
 export interface TechPartnerReadiness {

@@ -15,8 +15,11 @@ interface IR { name: string; unitPrice: string; quantity: string; gstRate: strin
 
 const EMPTY_FORM = { name: '', phone: '', email: '', shippingAddress: '', billingAddress: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', landmark: '', gstin: '', houseNumber: '', buildingName: '' };
 const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18' } );
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '15', purpose: '', orderId: '' };
-const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 15, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ 'BNB Club', 'No Fault', 'Expo Week', 'Ritual Guru', 'Legal Champ', 'WECARE.DIGITAL', 'Gift Card', 'Service Fee', 'Consultation' ] };
+// Brand is hardcoded to the one brand this business invoices under. The multi-brand selector
+// (BNB Club, Ritual Guru, ...) was removed — WECARE.DIGITAL is the only brand.
+const BRAND = 'WECARE.DIGITAL';
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '15', purpose: BRAND, orderId: '' };
+const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 15, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ 'WECARE.DIGITAL' ] };
 const TABS: ShellTab[] = [
   { id: 'customers', label: 'Customers' },
   { id: 'create', label: 'Create' },
@@ -536,9 +539,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                            and the control takes `ariaLabel`, which adds a name where there was
                            none and changes nothing on screen. */ }
                       <label>Brand</label>
-                      <Select ariaLabel="Brand" value={ invForm.purpose }
-                        onChange={ v => setInvForm( { ...invForm, purpose: v } ) }
-                        options={ brandOptions } />
+                      <input type="text" value="WECARE.DIGITAL" readOnly disabled />
                     </div>
                     <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
                   </div>
@@ -821,10 +822,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               <div className="form-group"><label>Default Promo / Discount ({ '\u20B9' })</label><input type="number" value={ config.default_promo } onChange={ e => setConfig( { ...config, default_promo: parseFloat( e.target.value ) || 0 } ) } /></div>
               <div className="form-group"><label>GSTIN</label><input type="text" value={ config.gstin } onChange={ e => setConfig( { ...config, gstin: e.target.value } ) } /></div>
               <div className="form-group"><label>Default Item Name</label><input type="text" value={ config.default_item_name } onChange={ e => setConfig( { ...config, default_item_name: e.target.value } ) } /></div>
-              <div className="form-group">
-                <label>Brands (one per line)</label>
-                <textarea rows={ 6 } value={ config.purposes.join( '\n' ) } onChange={ e => setConfig( { ...config, purposes: e.target.value.split( '\n' ).filter( Boolean ) } ) } />
-              </div>
               <Button variant="primary" size="sm" loading={ configSaving } onClick={ () => { setConfigSaving( true ); try { localStorage.setItem( CFG_KEY, JSON.stringify( config ) ); } catch { } setTimeout( () => { setConfigSaving( false ); showMsg( 'Config saved' ); }, 300 ); } }>Save Config</Button>
             </div>
           ) }
@@ -846,19 +843,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <div className="form-group"><label>Phone</label><input type="tel" value={ editForm.customerPhone } onChange={ e => setEditForm( { ...editForm, customerPhone: e.target.value } ) } /></div>
                   <div className="form-group"><label>Email</label><input type="email" value={ editForm.customerEmail } onChange={ e => setEditForm( { ...editForm, customerEmail: e.target.value } ) } /></div>
                   <div className="form-group"><label>Brand</label>
-                    { /* layer="overlay" IS REQUIRED HERE, not a precaution. This Select sits
-                         inside `.pf-modal-overlay`, which is position:fixed inset:0 at
-                         `z-index: 9999` (inner-ux.css:2017-2025), and no ancestor of that
-                         overlay opens a stacking context - so the overlay and the Popover's
-                         body portal compete in the ROOT context and the Popover's default
-                         1500 loses. The menu would paint under the 40% black veil and a
-                         click aimed at an option would land on the overlay instead, whose
-                         onClick closes this modal and discards the edit. 10001 clears the
-                         overlay and still loses to the 10002 toast band, which is the
-                         ordering design 5.1 picked. */ }
-                    <Select ariaLabel="Brand" value={ editForm.purpose }
-                      onChange={ v => setEditForm( { ...editForm, purpose: v } ) }
-                      options={ brandOptions } layer="overlay" />
+                    <input type="text" value="WECARE.DIGITAL" readOnly disabled />
                   </div>
                   <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
                   <div className="form-group"><label>Promo / Discount ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>
