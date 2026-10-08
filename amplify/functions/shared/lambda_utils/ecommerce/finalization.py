@@ -256,6 +256,9 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     # harmless redelivery into a paid-but-no-order alarm over a label.
     if attempt.get('customerUuid'):
         order['customerUuid'] = attempt['customerUuid']
+    if attempt.get('customerPhone'):
+        # Recorded from the authenticated checkout session, never a browser field.
+        order['customerPhone'] = attempt['customerPhone']
     try:
         orders.put_item(Item=order, ConditionExpression='attribute_not_exists(orderId)')
     except Exception as error:

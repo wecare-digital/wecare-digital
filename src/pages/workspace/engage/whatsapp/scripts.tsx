@@ -9,6 +9,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import MaybeLayout from '../../../../components/MaybeLayout';
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
 
 interface Props { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -96,7 +97,11 @@ const ScriptsPageBody: React.FC<Props> = () => {
       rx_slot: { keywords: ['rx slot', 'medical visit'], message: { body: '🩺 Arrange a medical tourism or prescription-related visit quickly and easily.', flowCta: 'Book Medical Visit' }, flowId: '1892784521355352' },
       drop_docs: { keywords: ['drop docs', 'upload documents'], message: { body: '🖇️ Send your supporting documents securely to help us process your request.', flowCta: 'Upload Documents' }, flowId: '1737801600902350' },
       enterprise_assist: { keywords: ['enterprise', 'b2b'], message: { body: '💼 Corporate, B2B, and bulk inquiries. Tell us what you need and our team will assist you.', flowCta: 'Enterprise Support' }, flowId: '2132515287534606' },
-      leave_review: { keywords: ['review', 'feedback'], message: { body: '⭐ Share your experience with us and help us improve our service.', flowCta: 'Leave Feedback' }, flowId: '963443293213262' },
+      // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound
+      // handler, as the same ordered list, via src/lib/reviewEntry.ts — REVIEW_FLOW_ID is
+      // WD_Leave_Review_v2, PUBLISHED on WABA 1. Guarded by
+      // tests/test_leave_review_wiring.py.
+      leave_review: { keywords: REVIEW_ENTRY_KEYWORDS, message: { body: '⭐ Share your experience with us and help us improve our service.', flowCta: 'Leave Feedback' }, flowId: REVIEW_FLOW_ID },
       subscribe: { keywords: ['subscribe', 'register'], message: { body: '🔔 Get updates, offers, and service news. Fill in your details to stay connected.', flowCta: 'Subscribe for Updates' }, flowId: '1557815099200456' },
     };
 

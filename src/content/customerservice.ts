@@ -1,5 +1,13 @@
 import type { CycleWord } from '../components/RotatingHero';
 import type { ProductDef } from './products';
+/*
+ * `featureFlags` and `reviewWaLink` are deliberately NOT imported here any more. The
+ * /leave-review/ CTA is now the owner's own short link rather than a flag-gated generated
+ * link. Both still exist and still govern the per-order review row in src/pages/orders.tsx.
+ *
+ * The link itself lives in src/lib/reviewEntry.ts, which is the one source every review
+ * surface reads - this page and the four workspace tables.
+ */
 import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
 
 /**
@@ -221,8 +229,21 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     ],
     note:
       'Nothing you send is published anywhere without asking you first, and asking is not a condition of anything. Reviews you choose to leave on an external platform are governed by that platform, not by us.',
-    ctaLabel: 'Leave a review',
-    // The public page opens WhatsApp with Leave Review prefilled.
+    ctaLabel: 'Leave a review on WhatsApp',
+    /**
+     * THE ONE CTA ON THESE PAGES THAT IS NOT THE CONTACT PAGE.
+     *
+     * This is the canonical, UNATTRIBUTED review door: a visitor reading /leave-review/ has
+     * no order in context, so the message carries the bare review keyword and the Flow shows
+     * "General feedback" instead of an order. The attributed door is the per-order button in
+     * /orders/, which is the only place a real order number exists, and that one is still
+     * governed by `featureFlags.reviewCta`.
+     *
+     * Unconditional rather than flag-gated: WD_Leave_Review_v2 is published, so the room
+     * behind the door exists, and the owner named this specific short link. The lime
+     * `.pdp-cta` pill renders the href unchanged - no new component, no new tokens, and the
+     * hero is untouched.
+     */
     ctaHref: REVIEW_ENTRY_URL,
   },
   {
