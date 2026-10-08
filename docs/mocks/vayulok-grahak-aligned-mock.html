@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  INTERNAL DUMMY MOCK — NOT A LIVE PAGE, NOT PRODUCTION CODE.
+
+  Throwaway visual mock for the VayuLok redesign conversation. It brings the
+  minimal live /vayulok/ hero (brand badge + "Bharat <rotating> Intelligence")
+  up to the structure and motion of the /grahak-os/ hero: a two-column layout
+  with a product mockup on the right, the same rotating pill mechanism, and the
+  same scroll-reveal (.anim / .is-armed) system for sections below the fold.
+
+  Single self-contained file on purpose: no build step, no imports, no
+  framework, no external resources, so it renders identically from file:// and
+  from raw GitHub via htmlpreview.
+
+  IT LIVES IN docs/mocks/ DELIBERATELY. docs/ is outside the Next.js build, so
+  this file cannot be deployed. Do NOT move it to public/ or src/pages/ —
+  both ship to the live site.
+
+  EVERY COLOUR, TYPE VALUE AND ANIMATION TIMING BELOW IS COPIED FROM REAL CODE.
+  Sources, so this mock can be checked against source rather than trusted:
+    src/pages/grahak-os/index.tsx       — hero layout, .anim reveal, pill CSS
+    src/pages/vayulok/index.tsx         — the 6 subject tint/dot pairs, pill
+    .kiro/steering/grahak-os-design.md  — palette, type ladder, hairlines
+    src/components/BrandBadge.tsx        — the lime brand pill (#d1f470/#1a3a2a)
+
+  COPY IS PLACEHOLDER. The owner supplies the real body copy and rates; the
+  air-quality numbers in the mockup card are illustrative, not live data.
+  Per owner constraint, NO RED (#dc2626) anywhere — the "heatmap" subject uses
+  terracotta #c2591b, matching the live page.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DUMMY MOCK — VayuLok redesign (grahak-aligned, internal, not a live page)</title>
+<style>
+/* ===========================================================================
+   NO @font-face AND NO WEB-FONT LINK, ON PURPOSE. The font stack string is the
+   one from .page (src/pages/grahak-os/index.tsx) and .vl-shell
+   (src/pages/vayulok/index.tsx) character for character; it resolves to
+   whatever Inter/system font the viewer has, which keeps this file
+   self-contained.
+   =========================================================================== */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;
+  overflow-x:hidden;
+}
+@supports (overflow-x:clip){body{overflow-x:clip}}
+
+/* --- MOCK-ONLY CHROME. Not part of the theme. --------------------------- */
+/* Banner so this page can never be mistaken for the real one. #1a3a2a fill
+   with #d1f470 type is the third of the three lime treatments the contract
+   allows (.kiro/steering/grahak-os-design.md, "inverted, dark"). */
+.vm-banner{
+  background:#1a3a2a;color:#d1f470;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.4;
+  padding:14px 24px;text-align:center;
+}
+.vm-banner b{color:#fff}
+
+/* --- Mock stand-in for the fixed site header (108px, 96px <=767px). ------ */
+.vm-header{
+  height:108px;display:flex;align-items:center;padding:0 24px;
+  border-bottom:1px solid #e5e7eb;
+}
+/* BrandBadge, copied: #d1f470 fill, #1a3a2a type, no border, fully rounded.
+   (.kiro/steering/grahak-os-design.md Palette: "our own surfaces, full voice") */
+.brand-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:#d1f470;color:#1a3a2a;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;
+  padding:8px 14px;border-radius:9999px;
+}
+.brand-badge .bb-dot{width:8px;height:8px;border-radius:50%;background:#1a3a2a}
+
+/* =======================================================================
+   ANIMATIONS — copied from src/pages/grahak-os/index.tsx.
+   THE FINISHED STATE IS WHAT CSS SHIPS; .is-armed is what opts out of it, so
+   with no JS the page shows its finished state rather than a blank. The mock's
+   script arms the sections and reveals them on scroll, same as the real page.
+   DO NOT move opacity:0 back onto .anim.
+   ======================================================================= */
+.anim{opacity:1;transform:none}
+.anim.is-armed{opacity:0;transform:translateY(30px);transition:all .7s cubic-bezier(.16,1,.3,1)}
+.anim.is-armed.show{opacity:1;transform:translateY(0)}
+
+/* =======================================================================
+   HERO — layout copied from .hero / .hero-content on /grahak-os/.
+   ======================================================================= */
+.hero{padding:140px 24px 80px;max-width:1300px;margin:0 auto}
+.hero-content{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.hero-left{align-self:center}
+.hero-eyebrow{margin:0 0 20px}
+/* Hero h1: clamp(36,4.3vw,60) / 600 / lh 1.04 / ls -0.04em / rgba(0,0,0,.95).
+   600, NOT 700 — the section h2 below is heavier; that inversion is intentional
+   (design contract, "Type ladder"). */
+.hero-left h1{
+  font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+  letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 24px;
+}
+/* One body level only: 20 / 400 / lh 1.4 / ls -0.125px / rgba(0,0,0,.898). */
+.hero-left p{
+  font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;
+  font-weight:400;margin:0 0 18px;max-width:400px;
+}
+.hero-left p.hero-sub{margin:0}
+
+/* --- Rotating subject pill. Geometry/easing/timing copied verbatim from
+   .vl-mark on src/pages/vayulok/index.tsx (itself ported from .hero-mark on
+   /grahak-os/). Tint/dot set inline per word by the script. ---------------- */
+.hero-mark{
+  position:relative;display:inline-block;white-space:nowrap;
+  padding:.02em .3em .02em .22em;border-radius:9999px;background:#e0f7c8;
+  transition:background-color .52s cubic-bezier(.16,1,.3,1);
+}
+.hero-mark::before{
+  content:'';position:absolute;inset:0;background:#fff;border-radius:9999px;
+  transform:scaleX(1);transform-origin:right center;
+  transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;z-index:0;
+}
+.hero.show .hero-mark::before{transform:scaleX(0)}
+.hero-mark-dot{
+  position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;
+  background:#3da35a;border-radius:50%;margin-right:.18em;vertical-align:.14em;
+  transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
+}
+.hero.show .hero-mark-dot{transform:scale(1)}
+.hero-cycle{
+  width:max-content;position:relative;z-index:1;display:inline-block;
+  height:1.06em;line-height:1.06em;vertical-align:baseline;overflow:hidden;
+  transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width;
+}
+.hero-cyc-word{
+  position:absolute;left:0;top:0;white-space:nowrap;opacity:0;
+  transform:translateY(.42em);
+  transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
+}
+.hero-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* =======================================================================
+   HERO MOCKUP — adapts the /grahak-os/ phone+code composition to VayuLok's
+   subject: a phone showing a live air-quality card instead of a WhatsApp
+   thread. Wrapper hairline is 2px (hoverable per the contract). Colours are
+   from the palette only: dark green #1a3a2a surface header, lime #d1f470 for
+   our own accent, neutral greys for the rest. The AQI figure deliberately
+   avoids red — a "Moderate" amber state is shown.
+   ======================================================================= */
+.mockup-wrapper{
+  width:100%;max-width:380px;margin:0 auto;padding:16px;background:#fff;
+  border-radius:16px;border:2px solid #e5e7eb;transition:all .25s;
+}
+.phone{
+  border-radius:22px;overflow:hidden;border:1px solid #e5e7eb;background:#f7f8f7;
+}
+.phone-header{
+  background:#1a3a2a;color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;
+}
+.phone-header .loc-pin{width:34px;height:34px;border-radius:50%;background:rgba(209,244,112,.22);display:flex;align-items:center;justify-content:center;color:#d1f470;font-size:16px}
+.phone-header .loc-text{display:flex;flex-direction:column;line-height:1.2}
+.phone-header .loc-name{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.phone-header .loc-sub{font-size:12px;color:rgba(255,255,255,.72)}
+.aqi-body{padding:18px 16px 20px}
+/* Big AQI number — amber "Moderate", never red (owner constraint). */
+.aqi-figure{display:flex;align-items:baseline;gap:10px}
+.aqi-num{font-size:52px;font-weight:700;line-height:1;letter-spacing:-1.5px;color:#1a1a1a}
+.aqi-badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;color:#8a5a00;background:#fef3c7;padding:5px 10px;border-radius:9999px}
+.aqi-badge .ab-dot{width:8px;height:8px;border-radius:50%;background:#f0a818}
+.aqi-caption{font-size:14px;color:rgba(0,0,0,.54);margin:6px 0 16px}
+.aqi-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.aqi-tile{border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px}
+.aqi-tile .t-k{font-size:12px;color:rgba(0,0,0,.54);margin:0 0 4px}
+.aqi-tile .t-v{font-size:18px;font-weight:600;color:#1a1a1a;letter-spacing:-.3px}
+
+/* =======================================================================
+   SECTION RHYTHM — hero white, "coverage" grey, "subjects" white, closer
+   white. Grey bands reach both window edges (100vw) with a centring negative
+   margin and the measure on an inner box, copied from the pp- full-bleed
+   pattern on /grahak-os/.
+   ======================================================================= */
+.band-grey{background:#fafafa;width:100vw;margin-left:calc(50% - 50vw)}
+.pp-inner{max-width:1300px;margin:0 auto;padding:80px 24px}
+.section-header{max-width:760px}
+/* Section h2: clamp(28,3.2vw,40) / 700 / lh 1.08 / ls -1.2px — HEAVIER than
+   the hero h1, intentionally (design contract). */
+.section-header h2{
+  font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;
+  letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 14px;
+}
+.section-header p{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0;max-width:620px}
+
+/* Subject pills — 2px hairline, hover to lime, 17px label (contract). */
+.subject-pills{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.pp-pill{
+  display:inline-flex;align-items:center;gap:8px;padding:14px 22px;
+  border:2px solid #e5e7eb;background:#fff;border-radius:50px;
+  font-size:17px;font-weight:600;color:rgba(0,0,0,.898);transition:all .25s;
+}
+.pp-pill:hover{border-color:#d1f470}
+.pp-pill .pdot{width:9px;height:9px;border-radius:50%}
+
+.closer{max-width:1300px;margin:0 auto;padding:90px 24px 110px;text-align:center}
+.closer h2{font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px;color:rgba(0,0,0,.95);margin:0 0 14px}
+.closer p{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0 auto;max-width:560px}
+
+@media(max-width:860px){
+  .hero-content{grid-template-columns:1fr;gap:40px}
+  .hero{padding:120px 20px 60px}
+  .mockup-wrapper{max-width:340px}
+}
+@media(max-width:767px){
+  .vm-header{height:96px}
+  .pp-inner{padding:56px 16px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .anim,.anim.is-armed{transition:none}
+  .hero-mark::before{transform:scaleX(0)}
+  .hero-mark-dot{transform:scale(1)}
+  .hero-cycle,.hero-cyc-word{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="vm-banner">INTERNAL MOCK — <b>not a live page.</b> VayuLok redesign aligned to the Grahak OS hero. Copy &amp; rates are placeholder.</div>
+
+<div class="vm-header">
+  <span class="brand-badge"><span class="bb-dot"></span>VayuLok by WECARE.DIGITAL</span>
+</div>
+
+<main>
+  <!-- HERO -->
+  <section class="hero anim" id="hero">
+    <div class="hero-content">
+      <div class="hero-left">
+        <div class="hero-eyebrow">
+          <span class="brand-badge"><span class="bb-dot"></span>VayuLok · by WECARE.DIGITAL</span>
+        </div>
+        <h1>
+          Bharat
+          <span class="hero-mark" id="mark">
+            <i class="hero-mark-dot" id="markDot" aria-hidden="true"></i>
+            <span class="hero-cycle" id="cycle">
+              <span class="sr-only">Air, Pollen, Weather, Forecast, Solar, Heatmap</span>
+            </span>
+          </span>
+          <br>Intelligence
+        </h1>
+        <!-- PLACEHOLDER COPY — owner supplies real wording + rates. -->
+        <p>Air quality, weather and forecasts for wherever you are in Bharat — one place, every signal that affects the air you breathe.</p>
+        <p class="hero-sub">Built on Google environmental data, wired through WECARE.DIGITAL.</p>
+      </div>
+
+      <div class="hero-right">
+        <div class="mockup-wrapper">
+          <div class="phone">
+            <div class="phone-header">
+              <span class="loc-pin">📍</span>
+              <span class="loc-text">
+                <span class="loc-name">Shillong, Meghalaya</span>
+                <span class="loc-sub">Live · updated 2 min ago</span>
+              </span>
+            </div>
+            <div class="aqi-body">
+              <div class="aqi-figure">
+                <span class="aqi-num">78</span>
+                <span class="aqi-badge"><span class="ab-dot"></span>Moderate</span>
+              </div>
+              <p class="aqi-caption">Air Quality Index · placeholder sample</p>
+              <div class="aqi-grid">
+                <div class="aqi-tile"><p class="t-k">Temperature</p><p class="t-v">19°C</p></div>
+                <div class="aqi-tile"><p class="t-k">PM2.5</p><p class="t-v">31 µg/m³</p></div>
+                <div class="aqi-tile"><p class="t-k">Humidity</p><p class="t-v">74%</p></div>
+                <div class="aqi-tile"><p class="t-k">Wind</p><p class="t-v">8 km/h</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COVERAGE (grey band) -->
+  <section class="band-grey anim" id="coverage">
+    <div class="pp-inner">
+      <div class="section-header">
+        <h2>Every signal in the air<br>One place to read it</h2>
+        <p>Placeholder section. The owner decides what sits here — this is where coverage, data sources, or how VayuLok works would go.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SUBJECTS (white) -->
+  <section class="anim" id="subjects">
+    <div class="pp-inner">
+      <div class="section-header">
+        <h2>What VayuLok reads</h2>
+        <p>The six subjects the hero rotates through, as pills — matching the subject hues used on the live page.</p>
+      </div>
+      <div class="subject-pills" id="subjectPills"></div>
+    </div>
+  </section>
+
+  <!-- CLOSER (white) -->
+  <section class="anim" id="closer">
+    <div class="closer">
+      <h2>Placeholder closer</h2>
+      <p>Final band. Owner supplies the closing line and any rate/plan detail here.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ---------------------------------------------------------------------------
+   The six subject words with their tint/dot pairs are COPIED VERBATIM from
+   cycleWords in src/pages/vayulok/index.tsx. No new colours. Heatmap is
+   terracotta (#c2591b), not red, per the owner "NO RED" constraint.
+   The rotation (2400ms), width measuring and tint/dot swap reproduce the live
+   .vl-mark / .hero-mark behaviour.
+--------------------------------------------------------------------------- */
+var cycleWords = [
+  { word:'Air',      tint:'#e0f7c8', dot:'#3da35a' },
+  { word:'Pollen',   tint:'#fef9c3', dot:'#ca8a04' },
+  { word:'Weather',  tint:'#dbeafe', dot:'#2563eb' },
+  { word:'Forecast', tint:'#ede9fe', dot:'#9849e8' },
+  { word:'Solar',    tint:'#fef3c7', dot:'#f0a818' },
+  { word:'Heatmap',  tint:'#fbe6d4', dot:'#c2591b' }
+];
+
+var cycle = document.getElementById('cycle');
+var mark = document.getElementById('mark');
+var markDot = document.getElementById('markDot');
+
+/* Build one absolutely-stacked span per word (the live page's measured-width
+   technique: the active word returns to flow and gives the box its width). */
+var wordEls = cycleWords.map(function(c){
+  var s = document.createElement('span');
+  s.className = 'hero-cyc-word';
+  s.textContent = c.word;
+  s.setAttribute('aria-hidden','true');
+  cycle.appendChild(s);
+  return s;
+});
+
+var idx = 0;
+function paint(){
+  var c = cycleWords[idx];
+  wordEls.forEach(function(el,i){ el.classList.toggle('on', i===idx); });
+  mark.style.background = c.tint;
+  markDot.style.background = c.dot;
+  var active = wordEls[idx];
+  if (active) cycle.style.width = active.offsetWidth + 'px';
+}
+paint();
+
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce){
+  setInterval(function(){ idx = (idx + 1) % cycleWords.length; paint(); }, 2400);
+}
+
+/* Subject pills — one per word, dot tinted with the saturated hue. */
+var pills = document.getElementById('subjectPills');
+cycleWords.forEach(function(c){
+  var p = document.createElement('span');
+  p.className = 'pp-pill';
+  var d = document.createElement('span');
+  d.className = 'pdot';
+  d.style.background = c.dot;
+  p.appendChild(d);
+  p.appendChild(document.createTextNode(c.word));
+  pills.appendChild(p);
+});
+
+/* Scroll-reveal, copied in shape from the /grahak-os/ hero: arm the sections
+   (so without JS they stay in the finished state), seed whatever already
+   intersects the viewport in the same batch so nothing above the fold blinks,
+   then reveal the rest on intersection. */
+(function(){
+  if (typeof IntersectionObserver === 'undefined') return;
+  var sections = Array.prototype.slice.call(document.querySelectorAll('.anim'));
+  sections.forEach(function(el){
+    var r = el.getBoundingClientRect();
+    var onscreen = r.top < window.innerHeight && r.bottom > 0;
+    el.classList.add('is-armed');
+    if (onscreen) el.classList.add('show');
+  });
+  var obs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if (e.isIntersecting) e.target.classList.add('show'); });
+  }, { threshold: 0.1 });
+  sections.forEach(function(el){ obs.observe(el); });
+})();
+</script>
+</body>
+</html>
