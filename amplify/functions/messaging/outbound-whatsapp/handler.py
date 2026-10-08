@@ -3074,6 +3074,14 @@ def _sanitize_reference_id(reference_id: str) -> str:
     return result
 
 
+# All three OTP types deliver the code through the URL button sub_type at send time.
+# ONE_TAP and ZERO_TAP differ from COPY_CODE in the TEMPLATE definition, not here --
+# which is why there is no third branch in the OTP send path. The otpButtonType log
+# field keeps the CALLER'S spelling, so a one-tap send and a url send stay separable
+# in CloudWatch.
+_OTP_URL_SUBTYPES = {'url', 'one_tap', 'zero_tap'}
+
+
 def _copy_code_button_component(index: Any, code: Any) -> Dict[str, Any]:
     """The one spelling of a copy_code button component.
 
@@ -3554,7 +3562,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
                 })
             
             btn_type = (otp_button_type or 'copy_code').lower()
-            if btn_type == 'url':
+            if btn_type in _OTP_URL_SUBTYPES:
                 # URL button: OTP code appended to the template URL as {{1}}
                 payload['template']['components'].append({
                     'type': 'button',

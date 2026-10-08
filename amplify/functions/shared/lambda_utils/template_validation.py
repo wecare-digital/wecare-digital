@@ -29,6 +29,10 @@ from .whatsapp_types import (
     LTO_TEXT_MAX,
     LTO_ALLOWED_CATEGORIES,
     LTO_HEADER_FORMATS,
+    OTP_TYPES,
+    OTP_AUTOFILL_TYPES,
+    OTP_AUTOFILL_TEXT_MAX,
+    SIGNATURE_HASH_LEN,
 )
 from .template_ttl import validate_ttl
 
@@ -251,6 +255,71 @@ def validate_flow_button(button: Dict[str, Any]) -> List[str]:
     return errors
 
 
+def validate_otp_button(button: Dict[str, Any]) -> Tuple[List[str], List[str]]:
+    """Validate an OTP (authentication) button. Returns (errors, warnings).
+
+    This closes a SILENT-ACCEPT hole rather than unblocking a refusal. `OTP` was
+    already in BUTTON_TYPES, so validate_buttons accepted an OTP button and then did
+    nothing with it: no otp_type, a misspelled otp_type, a missing package_name or
+    unaccepted zero-tap terms all validated clean and were sent to Meta to be rejected
+    there, with no local message to read.
+
+    `text` is length-checked HERE rather than by widening validate_buttons' existing
+    tuple, because that tuple's membership is load-bearing for four other button types
+    and widening it would also start length-checking MPM, SPM, CATALOG and
+    REQUEST_CONTACT_INFO, which currently escape it.
+
+    The signature-hash LENGTH is a warning, not an error: nothing in this account can
+    produce a real hash, so a hard check would be a rule written against a value
+    nobody here has ever held. Test 9 pins that classification.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    otp_type = (button.get('otp_type') or '').upper()
+    if not otp_type:
+        errors.append(f'OTP button requires otp_type (one of {", ".join(OTP_TYPES)})')
+    elif otp_type not in OTP_TYPES:
+        errors.append(f'Invalid otp_type: {otp_type}. Must be one of {", ".join(OTP_TYPES)}')
+
+    text = button.get('text', '')
+    if len(str(text)) > BUTTON_TEXT_MAX:
+        errors.append(f'OTP button text must be <= {BUTTON_TEXT_MAX} characters')
+
+    autofill_text = button.get('autofill_text', '')
+    if len(str(autofill_text)) > OTP_AUTOFILL_TEXT_MAX:
+        errors.append(f'autofill_text must be <= {OTP_AUTOFILL_TEXT_MAX} characters')
+
+    supported_apps = button.get('supported_apps') or []
+    if otp_type in OTP_AUTOFILL_TYPES:
+        has_inline_app = bool(button.get('package_name')) and bool(button.get('signature_hash'))
+        apps_complete = bool(supported_apps) and all(
+            isinstance(app, dict) and app.get('package_name') and app.get('signature_hash')
+            for app in supported_apps
+        )
+        if not has_inline_app and not apps_complete:
+            errors.append(
+                f'{otp_type} OTP button requires package_name and signature_hash, or a '
+                'supported_apps entry carrying both'
+            )
+
+    if otp_type == 'ZERO_TAP' and button.get('zero_tap_terms_accepted') is not True:
+        # A truthy string here means "we think we accepted the terms", which is
+        # precisely the silent wrongness this validator exists to refuse.
+        errors.append('ZERO_TAP OTP button requires zero_tap_terms_accepted to be true (boolean)')
+
+    hashes = [button.get('signature_hash')]
+    hashes.extend(app.get('signature_hash') for app in supported_apps if isinstance(app, dict))
+    for value in hashes:
+        if value and len(str(value)) != SIGNATURE_HASH_LEN:
+            warnings.append(
+                f'signature_hash is usually {SIGNATURE_HASH_LEN} characters; '
+                'this one does not look like an Android signature hash'
+            )
+
+    return errors, warnings
+
+
 def validate_button_grouping(buttons: List[Dict[str, Any]]) -> Optional[str]:
     """Quick replies must be contiguous (a single group). Returns error or None."""
     types = [(b.get('type') or '').upper() for b in buttons]
@@ -260,8 +329,15 @@ def validate_button_grouping(buttons: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str]]:
-    """Validate a BUTTONS component. Returns (errors, warnings)."""
+def validate_buttons(buttons: List[Dict[str, Any]], category: str = '') -> Tuple[List[str], List[str]]:
+    """Validate a BUTTONS component. Returns (errors, warnings).
+
+    `category` is optional and defaults to '' so every existing caller keeps working
+    with a single positional argument. The "OTP only on AUTHENTICATION" rule is
+    SKIPPED when it is empty: a caller who supplied no category has not told us the
+    template is not an AUTHENTICATION one, and inventing that answer would make the
+    validator wrong in the silent direction this rule exists to close.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     if not buttons:
@@ -281,6 +357,11 @@ def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str
         if t == 'FLOW':
             errors.extend(validate_flow_button(b))
             continue
+        if t == 'OTP':
+            oe, ow = validate_otp_button(b)
+            errors.extend(oe)
+            warnings.extend(ow)
+            continue
         if t in ('QUICK_REPLY', 'URL', 'PHONE_NUMBER', 'VOICE_CALL') and len(b.get('text', '')) > BUTTON_TEXT_MAX:
             errors.append(f'{t} button text must be <= {BUTTON_TEXT_MAX} characters')
         if t == 'COPY_CODE' and len(str(b.get('example', ''))) > COPY_CODE_EXAMPLE_MAX:
@@ -298,6 +379,10 @@ def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str
         errors.append('At most 2 URL buttons allowed')
     if counts.get('QUICK_REPLY', 0) > 10:
         errors.append('At most 10 QUICK_REPLY buttons allowed')
+    if counts.get('OTP', 0) > 1:
+        errors.append('At most 1 OTP button allowed')
+    if counts.get('OTP', 0) and (category or '').upper() not in ('', 'AUTHENTICATION'):
+        errors.append('An OTP button is only allowed on an AUTHENTICATION template')
 
     grouping = validate_button_grouping(buttons)
     if grouping:
@@ -343,7 +428,7 @@ def validate_components(components: List[Dict[str, Any]], category: str,
             e, w = validate_footer(comp)
         elif ctype == 'BUTTONS':
             buttons_seen.extend(comp.get('buttons', []) or [])
-            e, w = validate_buttons(comp.get('buttons', []))
+            e, w = validate_buttons(comp.get('buttons', []), category)
         elif ctype == 'CAROUSEL':
             has_carousel = True
             e, w = [], []
