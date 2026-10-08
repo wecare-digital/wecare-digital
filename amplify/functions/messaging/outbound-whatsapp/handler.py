@@ -437,7 +437,7 @@ PHONE_PAYMENT_CONFIG = {
 # guard inside `_build_payment_settings` - but the map and the guard must agree, or the next
 # reader concludes WABA2 is a permitted payment sender because the map says so.
 PHONE_PAYMENT_GATEWAYS = {
-    PHONE_NUMBER_ID_1: {'razorpay': 'WECAREDIGITAL'},     # +919330994400 (WABA1)
+    PHONE_NUMBER_ID_1: {'razorpay': 'WECAREDIGITAL'},     # +919330994400 (WABA1) — the only payment WABA
 }
 
 #: The ONLY sender permitted to take a payment.

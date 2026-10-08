@@ -26,6 +26,8 @@ const CATEGORY_OPTIONS: SelectOption[] = [ 'UTILITY', 'MARKETING', 'AUTHENTICATI
     .map( c => ( { value: c, label: c } ) );
 const HEADER_FORMAT_OPTIONS: SelectOption[] = [ 'NONE', 'TEXT', 'IMAGE', 'VIDEO', 'DOCUMENT', 'LOCATION' ]
     .map( f => ( { value: f, label: f } ) );
+// 'Offer' (the LIMITED_TIME_OFFER component, step 5) is kept: the step bodies below render
+// `step === 0` through `step === 8`, so dropping it would orphan a reachable editor.
 const STEPS = [ 'Basics', 'Header', 'Body', 'Footer', 'Buttons', 'Offer', 'Flow button', 'TTL', 'Preview' ];
 
 type BtnType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE';

@@ -1,0 +1,38 @@
+{
+  "status": "success",
+  "stdout": "",
+  "return_value": {
+    "account": "775261844268",
+    "region": "us-east-1",
+    "athenaWorkgroups": [
+      {
+        "Name": "primary",
+        "State": "ENABLED"
+      }
+    ],
+    "glueDatabaseNames": []
+  },
+  "api_calls": [
+    {
+      "service": "sts",
+      "operation": "GetCallerIdentity",
+      "status": "success"
+    },
+    {
+      "service": "athena",
+      "operation": "ListWorkGroups",
+      "status": "success",
+      "n_items": {
+        "WorkGroups": 1
+      }
+    },
+    {
+      "service": "glue",
+      "operation": "GetDatabases",
+      "status": "success",
+      "n_items": {
+        "DatabaseList": 0
+      }
+    }
+  ]
+}

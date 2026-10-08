@@ -3315,6 +3315,14 @@ Authority: owner's direct instruction to use the Wix API connection, automate Wi
 
 Evidence and pending deployment checks: docs/whatsapp/catalog-design/connection-status.md and wix-media-update-evidence.json. No manual Meta catalog entries submitted, no live payment or customer message sent. AWS runtime inspection/deployment remains blocked by the earlier workspace-credit automatic-review failure; no alternate AWS path used.
 
+## Workspace repeat rescan — 8 October 2026 R2
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | origin/stack b1669cde; GitHub; AWS account775261844268/us-east-1 | Fresh source graph,41 AWS API attempts including successful retries, latest workflows and full tests; no credentials/customer data read | Read only |
+| A1_LOCAL | codex/workspace-rescan-20261008-r2 | Updated plan,40-case test matrix, compact metadata summary, page CSV and parameterized audit script; no functional application changes | Revert scoped documentation/tooling commit |
+| A2_REMOTE_CODE | Separate review branch | Documentation/evidence push only; production CI failures retained visibly | Close draft PR or revert branch commit |
+
 ## 2026-10-08 - Live automatic Meta catalog rollout
 
 Authority: direct owner instruction DO THAT, use APIs, automate Wix changes, retain linked orders.
