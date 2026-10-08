@@ -271,8 +271,11 @@ def _from_payment_body(webhook, *, channel):
     client = MagicMock()
     client.invoke.side_effect = _invoke
     with patch.object(webhook, 'lambda_client', client):
+        # `amount` and `currency` are GONE from this signature. They were DEAD across the whole
+        # body - neither name occurred after the signature - so they are deleted rather than
+        # retyped, which removes two float money parameters from a money path.
         webhook._post_payment_handler(
-            TXN, 599.0, 'INR', '+919876543210', 'buyer@example.com',
+            TXN, '+919876543210', 'buyer@example.com',
             'desc', {}, 'req-1', channel=channel)
     assert len(seen) == 1
     return seen[0]
@@ -305,9 +308,10 @@ def test_the_channel_is_not_entry_point(webhook):
 
 
 def test_an_omitted_channel_is_still_a_valid_call(webhook):
-    """`channel` is keyword-only with a default, so the legacy eight-positional-argument callers
-    are unaffected and an omission is a silent `website` rather than a `TypeError` on a path
-    where the capture has already happened."""
+    """`channel` is keyword-only with a default, so an omission is a silent `website` rather than
+    a `TypeError` on a path where the capture has already happened. The same shape now carries
+    `checkoutMode`, where the fail-closed direction matters more: an absent mode closes the
+    invoice-delivery gate rather than sending a document we may not owe."""
     seen = []
 
     def _invoke(**kwargs):
@@ -321,7 +325,7 @@ def test_an_omitted_channel_is_still_a_valid_call(webhook):
     client.invoke.side_effect = _invoke
     with patch.object(webhook, 'lambda_client', client):
         webhook._post_payment_handler(
-            TXN, 599.0, 'INR', '+919876543210', 'b@example.com', 'desc', {}, 'req-1')
+            TXN, '+919876543210', 'b@example.com', 'desc', {}, 'req-1')
 
     assert seen[0]['channel'] == ''
 

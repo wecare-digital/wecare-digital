@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 69,
-  "_variables": 421,
+  "_variables": 429,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -181,7 +181,9 @@
     "wecare-invoice-engine": {
       "ADMIN_MFA_REQUIRED": "true",
       "CDN_DOMAIN": "wecare.digital/get",
+      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
+      "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
       "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
       "INVOICE_ASSETS_TABLE": "stack-wecare-digital-InvoiceAssetsTable",
       "INVOICE_DELIVERY_TABLE": "stack-wecare-digital-InvoiceDeliveryLogTable",
@@ -189,7 +191,10 @@
       "INVOICE_SEQ_TABLE": "stack-wecare-digital-InvoiceSequenceTable",
       "LOG_LEVEL": "INFO",
       "MEDIA_BUCKET": "wecare-digital-get",
-      "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable"
+      "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
+      "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
+      "WA_PAY_CONFIG_NAME": "WECAREDIGITAL",
+      "WA_PAY_TEMPLATE": "wecarepay_wa"
     },
     "wecare-marketing-ads": {
       "COGNITO_USER_POOL_ID": "us-east-1_cSx0RHCIR",
@@ -338,15 +343,18 @@
     },
     "wecare-razorpay-webhook": {
       "AWS_ACCOUNT_ID": "775261844268",
+      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-CommerceKeys",
       "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
       "LOG_LEVEL": "INFO",
       "MESSAGES_TABLE": "stack-wecare-digital-WhatsAppInboundTable",
       "PAYMENTS_TABLE": "stack-wecare-digital-PaymentsTable",
+      "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "POST_PAYMENT_FLOW_WABA1": "2672013166527523",
       "POST_PAYMENT_FLOW_WABA2": "1021379973921053",
       "POST_PAYMENT_REQUEST_TEMPLATE": "postpay_request_v1",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get",
+      "WA_REVIEW_TEMPLATE": "wecare_leave_review",
       "WEBHOOK_LOG_TABLE": "stack-wecare-digital-RazorpayWebhookLogTable"
     },
     "wecare-rcs-dlr": {
