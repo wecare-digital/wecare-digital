@@ -9,7 +9,7 @@
  * - System events from webhook handler
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
@@ -17,6 +17,7 @@ import { SkeletonCard } from '../../../../components/Skeleton';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import Tabs, { TabItem } from '../../../../components/ui/Tabs';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import * as api from '../../../../api/client';
 
 interface PageProps {
@@ -39,6 +40,9 @@ const QUALITY_LABELS: Record<string, string> = {
   UNKNOWN: 'Unknown',
 };
 
+/** The 300px the dead `.waba-selector-section select` rule carried; the box is drawn by CSS now. */
+const WABA_SELECT_STYLE: React.CSSProperties = { minWidth: 300 };
+
 const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false }) => {
   const router = useRouter();
   const toast = useToastContext();
@@ -58,6 +62,13 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
     { id: 'events', label: 'System Events' },
     { id: 'sns', label: 'SNS Subscription' },
   ];
+
+  /* Derived from FETCHED data, so it is memoised on the array it comes from rather than
+     rebuilt inline - an inline literal would hand Select a new array on every render. */
+  const wabaOptions: SelectOption[] = useMemo(
+    () => wabas.map((waba) => ({ value: waba.id, label: waba.wabaName || waba.wabaId })),
+    [wabas]
+  );
 
   // SNS subscription state
   const [snsStatus, setSnsStatus] = useState<api.WABASNSSubscriptionStatus | null>(null);
@@ -216,16 +227,13 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
             {/* WABA Selector */}
             <div className="waba-selector-section">
               <label>Select WABA:</label>
-              <select
+              <Select
+                ariaLabel="Select WABA"
                 value={selectedWaba?.id || ''}
-                onChange={(e) => handleSelectWaba(e.target.value)}
-              >
-                {wabas.map((waba) => (
-                  <option key={waba.id} value={waba.id}>
-                    {waba.wabaName || waba.wabaId}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => handleSelectWaba(v)}
+                options={wabaOptions}
+                style={WABA_SELECT_STYLE}
+              />
             </div>
 
             {/* Tabs */}

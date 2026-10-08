@@ -80,6 +80,15 @@ DISPATCH_EVENT_TYPE = os.environ.get("CATALOGUE_DISPATCH_EVENT", "wix-catalogue-
 
 DISPATCH_TIMEOUT_SECONDS = 10
 
+#: The Meta catalogue sync (PHASE W, FEAT-001), invoked asynchronously after verification.
+#:
+#: ALIAS-QUALIFIED, because `wecare-meta-catalog-sync` has a `live` alias and a `$LATEST` invoke
+#: would run code that has not been published - see `.kiro/steering/lambda-snapstart-deploy.md`.
+#: An env var so the target can be repointed without a code change, and defaulted so the function
+#: works with no configuration at all.
+META_CATALOG_SYNC_FUNCTION = os.environ.get(
+    "META_CATALOG_SYNC_FUNCTION", "wecare-meta-catalog-sync:live")
+
 
 def _read_secret(secret_id: str) -> Mapping[str, Any]:
     """Read a JSON secret by id, at request time. No cache, and NEVER raises.
@@ -207,6 +216,56 @@ def _dispatch(reader=None, opener=None) -> bool:
     return accepted
 
 
+def _lambda_client():
+    """A Lambda client, built AT REQUEST TIME. `boto3` is imported inside, like `_read_secret`.
+
+    Separate from `_invoke_sync` so a test can replace the whole transport in one place; the
+    autouse fixture in `tests/test_wix_catalog_webhook.py` patches this, which is what guarantees
+    running the suite cannot invoke the real function.
+    """
+    import boto3
+    return boto3.client("lambda", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+
+
+def _invoke_sync(entity_id: str, client=None) -> bool:
+    """Ask `wecare-meta-catalog-sync` to re-project the catalogue onto Meta. Never raises.
+
+    `InvocationType='Event'`, so this returns as soon as Lambda has accepted the payload and the
+    receiver's answer to Wix does not wait on a Wix read, a Meta read and a diff. A webhook that
+    held a connection open for the sync would start timing out as the catalogue grew.
+
+    THE PAYLOAD IS CORRELATION, NOT INSTRUCTION. `entityId` is logged by the sync and never used
+    to narrow its read, for the same reason this receiver ignores it: a verified event means
+    "re-read the catalogue", so a change in Wix's envelope can cost a log field and can never cost
+    a missed item.
+
+    FAILURE IS LOGGED BY EXCEPTION TYPE AND NOTHING ELSE, and the caller still answers 200. The
+    sync has a six-hourly EventBridge schedule as its backstop, exactly as the GitHub dispatch has
+    `catalogue-sync.yml`'s cron, so a failed invoke costs latency rather than correctness - and a
+    non-2xx answer here would only make Wix retry a body that is not the problem.
+    """
+    try:
+        client = client or _lambda_client()
+        client.invoke(
+            FunctionName=META_CATALOG_SYNC_FUNCTION,
+            InvocationType="Event",
+            Payload=json.dumps({"source": "wix-webhook", "entityId": entity_id}).encode("utf-8"),
+        )
+    except Exception as error:  # noqa: BLE001 - a fan-out failure is not a 500
+        logger.error(json.dumps({
+            "event": "meta_catalog_sync_invoke_failed",
+            "function": META_CATALOG_SYNC_FUNCTION,
+            "errorType": type(error).__name__,
+        }))
+        return False
+    logger.info(json.dumps({
+        "event": "meta_catalog_sync_invoked",
+        "function": META_CATALOG_SYNC_FUNCTION,
+        "entityId": entity_id,
+    }))
+    return True
+
+
 def handler(event, context):  # noqa: ARG001 - Lambda signature
     """Verify, then dispatch. Verification is FIRST and nothing precedes it.
 
@@ -252,6 +311,13 @@ def handler(event, context):  # noqa: ARG001 - Lambda signature
     }))
 
     accepted = _dispatch()
+
+    # The second consumer of the same verified event: the Meta catalogue sync. Added by PHASE W
+    # FEAT-001, AFTER verification and AFTER the existing dispatch, so neither is affected by it.
+    # The response shape is deliberately NOT extended - `rebuildRequested` is what Wix is told,
+    # the sync's outcome is a log line, and the three-field body is pinned by
+    # `tests/test_wix_catalog_webhook.py`.
+    _invoke_sync(verified.entity_id)
 
     # 200 EITHER WAY, and that is deliberate. A non-2xx answer makes Wix retry, and a retry cannot
     # fix a missing GitHub token or a GitHub outage - it would just repeat. The six-hourly

@@ -20,6 +20,7 @@ import type { ShopProduct } from '../content/shop';
 // instead of against a literal copied out of it. A literal is a per-product hand edit, and
 // `.github/workflows/catalogue-sync.yml` rewrites this file on a schedule.
 import catalog from '../content/wix-catalog.json';
+import { SERVICES_PRODUCT_ID } from '../config/services';
 
 /**
  * The /shop/ catalogue: the snapshot reader, and the two pages built on it.
@@ -74,9 +75,24 @@ describe( 'the Wix snapshot is read correctly', () => {
     const button = screen.getByRole( 'button', { name: 'Add Merchandise to cart' } );
     expect( button ).toBeDisabled();
     const variants = merchandise.variants!;
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: variants[0].id } } );
+    /*
+     * DRIVEN AS A BUTTON-PLUS-LISTBOX, not with fireEvent.change, which does nothing at all
+     * against one - it would pass silently while choosing no variant, and the assertion below
+     * would then be comparing two cart lines that never got one.
+     *
+     * The name is an EXACT STRING and that is the labelling fix landing. The call site used to
+     * wrap the control in <label className="shopd-options">Fit and size, and a <button
+     * role="combobox"> inside a <label> computes its name by walking the label's subtree -
+     * which contains the trigger's own caption, giving "Fit and size Choose your fit and size".
+     * The wrapper is gone and Select owns the label, so the name is those three words and
+     * nothing else. An exact string is what proves that; a regex would pass either way.
+     */
+    const chooser = () => screen.getByRole( 'combobox', { name: 'Fit and size' } );
+    fireEvent.click( chooser() );
+    fireEvent.click( screen.getByRole( 'option', { name: variants[0].label } ) );
     fireEvent.click( button );
-    fireEvent.change( screen.getByRole( 'combobox' ), { target: { value: variants[1].id } } );
+    fireEvent.click( chooser() );
+    fireEvent.click( screen.getByRole( 'option', { name: variants[1].label } ) );
     fireEvent.click( screen.getByRole( 'button', { name: 'Add Merchandise to cart' } ) );
     expect( readCart() ).toHaveLength( 2 );
     expect( readCart().map( item => item.name ) ).toEqual( [
@@ -113,6 +129,9 @@ describe( 'the Wix snapshot is read correctly', () => {
     const expected = rows
       .filter( r => r.visible !== false && !!r.slug && !!r.name )
       .filter( r => r.slug !== CONTRIBUTION_SLUG )
+      // The services product (Phase O-1) is a payment vehicle bought from /submit-request/ and
+      // /request-amendment/, excluded from /shop/ by id like the contribution.
+      .filter( r => ( r as { id?: string } ).id !== SERVICES_PRODUCT_ID )
       // The Wix template's twelve sample products, excluded by owner decision 2026-10-05. Derived
       // from the exported list rather than named here, so this stays the prefix-based check the
       // comment above argues for: a product the owner decides to sell is published by deleting one
@@ -399,12 +418,44 @@ describe( 'the product page', () => {
      * descriptions contains <span style="font-weight: 700">, so if the tags were passing through,
      * this would find them.
      */
+    /*
+     * SCOPED TO THE MERCHANT-DERIVED NODES, NOT TO THE WHOLE SECTION - changed in batch 2e, and
+     * the reason is worth stating because loosening a guard like this one is exactly the move
+     * that should be resisted.
+     *
+     * It used to read `section.shopd-about`'s entire innerHTML. That worked while every element
+     * in the section was either a <p> or a <button>, and it broke the moment the variant chooser
+     * became our own component: Select renders a <span class="ui-field-label"> and a <span
+     * class="ui-select-value">, so the assertion started failing on OUR chrome rather than on
+     * merchant HTML. The wrong fix is to allow `<span` through, which is the one string this test
+     * exists to catch.
+     *
+     * So the subject narrows to the nodes that actually carry merchant strings, and NOTHING that
+     * carries one is left out: `.shopd-price` is product.formattedPrice, and every `.shopd-p` is
+     * one paragraph of product.body, which is the whole of what toParagraphs returns from
+     * descriptionHtml. Both are still read as innerHTML rather than textContent, so a tag that
+     * survived sanitising is still visible to this check. It is narrower in surface and identical
+     * in strength on the thing being tested, and the count assertion below makes the narrowing
+     * self-checking: a page whose merchant text stopped rendering through these classes would
+     * report zero nodes and fail here rather than passing vacuously.
+     */
     for ( const product of SHOP_PRODUCTS ) {
       const { container, unmount } = render( <ShopProductPage product={ product } /> );
       const about = container.querySelector( 'section.shopd-about' ) as HTMLElement;
       expect( about, `${product.slug} has no about section` ).toBeTruthy();
-      expect( about.innerHTML, `${product.slug} leaked a Wix span` ).not.toContain( '<span' );
-      expect( about.innerHTML, `${product.slug} leaked a style attribute` ).not.toContain( 'style=' );
+
+      const merchantNodes = Array.from(
+        container.querySelectorAll( '.shopd-price, .shopd-p' )
+      ) as HTMLElement[];
+      // One price plus one paragraph per body paragraph. If this is ever zero the loop below
+      // asserts nothing, which is how a guard passes while covering nothing.
+      expect( merchantNodes.length, `${product.slug} renders no merchant-derived text` )
+        .toBe( product.body.length + 1 );
+
+      for ( const node of merchantNodes ) {
+        expect( node.innerHTML, `${product.slug} leaked a Wix span` ).not.toContain( '<span' );
+        expect( node.innerHTML, `${product.slug} leaked a style attribute` ).not.toContain( 'style=' );
+      }
       unmount();
     }
   } );
@@ -691,11 +742,13 @@ describe( "the Wix template's own sample products are not this storefront", () =
       'referral-partner', 'viveka' ] ) {
       expect( SHOP_PRODUCTS.some( product => product.slug === slug ), slug ).toBe( true );
     }
-    // Exactly the visible rows, less the contribution vehicle, less the twelve samples.
+    // Exactly the visible rows, less the contribution vehicle, less the services vehicle
+    // (Phase O-1, a second payment vehicle excluded by id), less the twelve samples.
     const visible = ( ( catalog as { products?: { slug?: string; name?: string;
       visible?: boolean }[] } ).products || [] )
       .filter( row => row.visible !== false && !!row.slug && !!row.name );
-    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 1 - WIX_TEMPLATE_SAMPLE_SLUGS.length );
+    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 2 - WIX_TEMPLATE_SAMPLE_SLUGS.length );
+    expect( SHOP_PRODUCTS.some( product => product.id === SERVICES_PRODUCT_ID ) ).toBe( false );
     expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
     expect( CONTRIBUTION_PRODUCT?.slug ).toBe( CONTRIBUTION_SLUG );
   } );

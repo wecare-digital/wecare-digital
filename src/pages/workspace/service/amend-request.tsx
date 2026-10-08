@@ -7,6 +7,7 @@ import MaybeLayout from '../../../components/MaybeLayout';
 import SEO, { PAGE_SEO } from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import EmptyState from '../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -20,6 +21,13 @@ const AMENDMENT_TYPES = [
   'Update Contact Info',
   'Cancel Request',
   'Other',
+];
+
+/* Derived from the list above so the two cannot drift. The '' placeholder row stays first and
+   keeps its text, because an empty amendmentType is what "not chosen yet" means here. */
+const AMENDMENT_TYPE_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Select type...' },
+  ...AMENDMENT_TYPES.map( t => ( { value: t, label: t } ) ),
 ];
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -201,12 +209,12 @@ const AmendRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
               <div style={ { fontSize: 12, color: '#6b7280' } }>Amending</div>
               <div style={ { fontWeight: 600, color: '#1a3a2a' } }>{ ( selectedSub as any ).subject || ( selectedSub as any ).requestType } — { ( selectedSub as any ).submissionNumber || selectedSub.submissionId.slice( 0, 8 ) }</div>
             </div>
-            <label style={ labelStyle }>Amendment Type *
-              <select value={ form.amendmentType } onChange={ e => setForm( f => ( { ...f, amendmentType: e.target.value } ) ) } style={ inputStyle }>
-                <option value="">Select type...</option>
-                { AMENDMENT_TYPES.map( t => <option key={ t } value={ t }>{ t }</option> ) }
-              </select>
-            </label>
+            { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair.
+                 A <button> is a labelable element too, so the wrapper would have made the
+                 accessible name "Amendment Type * Select type...". */ }
+            <Select label="Amendment Type *" value={ form.amendmentType }
+              onChange={ v => setForm( f => ( { ...f, amendmentType: v } ) ) }
+              options={ AMENDMENT_TYPE_OPTIONS } />
             <label style={ labelStyle }>Description *
               <textarea value={ form.description } onChange={ e => setForm( f => ( { ...f, description: e.target.value } ) ) } placeholder="Describe what you want to change or add..." rows={ 5 } style={ { ...inputStyle, resize: 'vertical' } } maxLength={ 2000 } />
               <div style={ { fontSize: 11, color: '#9ca3af', textAlign: 'right', marginTop: 2 } }>{ form.description.length }/2000</div>

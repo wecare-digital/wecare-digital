@@ -1,6 +1,7 @@
 import React from 'react';
 
 import { INDIA_SUBDIVISION_NAMES } from '../config/indiaSubdivisions';
+import Select from './ui/Select';
 
 /**
  * THE ONE DELIVERY-ADDRESS FORM IN THE PRODUCT, and the home of the `StoredAddress` type.
@@ -183,20 +184,44 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
           />
         </label>
 
-        <label>
-          <span>State</span>
-          <select
-            value={ value.state }
-            onChange={ event => patch( 'state', event.target.value ) }
-            autoComplete="address-level1"
-            aria-invalid={ invalidField === 'state' ? 'true' : undefined }
-          >
-            <option value="">Select a state</option>
-            { INDIA_SUBDIVISION_NAMES.map( name => (
-              <option key={ name } value={ name }>{ name }</option>
-            ) ) }
-          </select>
-        </label>
+        {/*
+          * THE LAST CONTROL IN THE MIGRATION, AND THE ONLY ONE THAT COSTS A CAPABILITY.
+          *
+          * This was the one <select> in the tree carrying `autoComplete` - "address-level1" -
+          * and a <button role="combobox"> plus a hidden input CANNOT receive browser address
+          * autofill: the hidden input is not autofillable and the button is not a form control.
+          * So one-tap address entry at checkout is GONE, deliberately and with the owner's
+          * override on the design's own recommendation. It is recorded as an accepted
+          * capability loss in docs/execution/change-authority-matrix.md, with its rollback -
+          * revert this one call site - because the rest of the batch does not depend on it.
+          * src/test/AddressFieldsTokens.test.tsx asserts the loss rather than the attribute, so
+          * nobody re-reads the old assertion as proof that autofill still works.
+          *
+          * The wrapping <label> is gone and the component owns the pair, for the reason design
+          * 1.7(a) gives: a <button> is a labelable element, so the ancestor label would compute
+          * the name by walking its own subtree and produce "State Karnataka". The two rules
+          * below the grid give the field the same column, the same 7px gap and the same 12px
+          * bold dark-green caption the <label> did.
+          *
+          * The value contract is unchanged: the empty row is still a real option, the names
+          * still come from src/config/indiaSubdivisions.ts - which a drift test holds equal to
+          * the Python table, because the subdivision is the place of supply and decides the
+          * CGST/SGST versus IGST split - and `patch( 'state', ... )` receives exactly what the
+          * native handler passed it. The invalid border moves from this file's #8c1d18 to
+          * form-controls.css's `.ui-select-trigger[aria-invalid="true"]` var(--danger), which is
+          * the one appearance change: the server's answer still lands on this control.
+          */}
+        <Select
+          className="address-state"
+          label="State"
+          value={ value.state }
+          onChange={ next => patch( 'state', next ) }
+          invalid={ invalidField === 'state' }
+          options={ [
+            { value: '', label: 'Select a state' },
+            ...INDIA_SUBDIVISION_NAMES.map( name => ( { value: name, label: name } ) ),
+          ] }
+        />
 
         <label>
           <span>PIN code</span>
@@ -242,12 +267,52 @@ const AddressFields: React.FC<Props> = ( { value, onChange, disabled, invalidFie
         .span-2{grid-column:1 / -1}
         label{display:flex;flex-direction:column;gap:7px;min-inline-size:0}
         label>span{font-size:12px;font-weight:700;color:#1a3a2a}
-        input,select{
-          min-height:52px;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;
-          padding:0 14px;background:#fff;color:#1a1a1a;font:inherit;font-size:16px;outline:none;
+        /* THE STATE FIELD, which is no longer a <label> wrapping a <select> but a Select of our
+           own (batch 2f). These two rules are the label-and-control stack the <label> above gave
+           it: the same grid cell, the same 7px gap, the same 12px bold dark-green caption.
+           :global() is MANDATORY on both - styled-jsx stamps its scope hash only onto the
+           lowercase tags it can see in this file, and a className handed to a component reaches
+           a node it never saw, so without :global() these match nothing and the caption sits
+           flush against the trigger at the wrong size. */
+        .address-grid :global(.address-state){min-inline-size:0}
+        .address-grid :global(.address-state .ui-field-label){
+          margin-block-end:7px;font-size:12px;font-weight:700;color:#1a3a2a;
         }
+        /* ONE RULE FOR SIX CONTROLS - the India state select and five inputs (address line 1 and
+           2, city, PIN code and the read-only country field) - which is exactly why it is
+           rewritten onto the control tokens rather than left to be overridden. This component
+           renders outside .layout .main-content, so none of the workspace important rules
+           reaches it and these values are what actually paint. form-controls.css reaches the
+           select and cannot reach the five inputs, so skinning only the select would leave the
+           state field a different height, radius and border weight from the five fields beside
+           it in the same grid. It was 52px / 1px / 10px; it is now the shared 44px / 2px / 13px.
+           src/test/AddressFieldsTokens.test.tsx pins this rule, because cart.tsx:1790 gates this
+           component on showProfile && checkoutAccessToken and /orders/ is behind the same
+           sign-in - so no browser harness in this repo can reach it.
+           BATCH 2f NOTE: it is now ONE RULE FOR FIVE CONTROLS. The state field is a Select, so
+           the select arm of this list and of the two rules below is UNREACHED, and the shared
+           tokens are what keep the trigger the same box as the five inputs. The arms are left in
+           place rather than retired - the input side is live, the values are identical on both,
+           and a selector consolidation is not this batch.
+           NO BACKTICK IN A styled-jsx COMMENT - this block is a template literal, so one around
+           a selector name terminates it and the parser reports a cascade of JSX errors further
+           down the file. Measured here, on the first run of this batch. */
+        input,select{
+          min-height:var(--control-h);box-sizing:border-box;
+          border:var(--control-border-w) solid var(--control-border);
+          border-radius:var(--control-radius);
+          padding-block:0;padding-inline:var(--control-px);
+          background-color:var(--control-bg);color:var(--control-fg);
+          font:inherit;font-size:16px;outline:none;
+        }
+        /* The outline KEEPS !important: the :focus rule in form-controls.css is (0,5,1) and
+           declares a non-important outline none, and importance is the only axis on which this
+           rule can beat it. box-shadow is the pairing fix - the select takes --focus-ring from
+           the shared file and the five inputs are outside that selector, so the ring has to be
+           declared here for the whole grid or one control in six would ring and five would not. */
         input:focus-visible,select:focus-visible{
-          outline:3px solid #1a3a2a;outline-offset:2px;border-color:#1a3a2a;
+          outline:3px solid var(--accent) !important;outline-offset:2px;
+          border-color:var(--accent);box-shadow:var(--focus-ring);
         }
         input[aria-invalid='true'],select[aria-invalid='true']{border-color:#8c1d18}
         .fixed{background:#f6f7f6;color:rgba(0,0,0,.66)}

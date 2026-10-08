@@ -12,13 +12,15 @@ checkout path cannot proceed without:
    mark one input. So this module keeps its own `_RULES` table and raises `UnusableAddress`
    carrying a machine `code` and, when one is attributable, the `field`.
 2. **Can this address actually price the cart?** In India the delivery address *is* the place of
-   supply: it decides CGST + SGST versus IGST on an invoice carrying a real GSTIN. A state that
-   `wix_address.india_subdivision` cannot resolve does not fail loudly later — it produces a
-   plausible total with the wrong tax split. So step 6 below asks the only question that matters,
-   `to_wix_address(out)` must succeed, and refuses storage otherwise.
+   supply: it decides CGST + SGST versus IGST on an invoice carrying a real GSTIN. That question
+   — and India's six-digit PIN — are now PAYMENT rules owned by `payment_address`, which runs them
+   at pay time against the paying channel (FEAT-003). This module no longer runs them, so storage
+   is international: it validates structure and keeps any valid address, and a payment fails closed
+   later if the stored address cannot settle on the channel the customer chose.
 
-It lives under `ecommerce/` rather than `identity/` for exactly that reason: the extra validation
-is a tax rule, not an identity rule.
+It lives under `ecommerce/` rather than `identity/` because it still carries the field-level
+`code`/`field` reporting the checkout form needs; the tax rules themselves live in
+`payment_address`.
 
 THE TWO ATTRIBUTES, ON THE CONTACT ROW THAT ALREADY HOLDS THE IDENTITY
 ----------------------------------------------------------------------
@@ -47,21 +49,14 @@ path reads them.
 
 from __future__ import annotations
 
-import re
 from typing import Any, Dict, Optional
 
-from lambda_utils.ecommerce import wix_address
 from lambda_utils.identity import address as owned_address
 
 #: The contact-row attribute holding the structured address.
 ATTRIBUTE = "checkoutDeliveryAddress"
 #: The contact-row attribute holding the epoch seconds it was last written.
 UPDATED_ATTRIBUTE = "checkoutAddressUpdatedAt"
-
-#: India's six-digit PIN. Applied only when the DEFAULTED country code is `IN` (step 3), because
-#: `identity.address` is deliberately loose on postal codes everywhere else.
-_INDIA_PIN_RE = re.compile(r"^[1-9][0-9]{5}$")
-
 
 class UnusableAddress(ValueError):
     """Carries a machine code and, when one is attributable, the field that failed.
@@ -114,38 +109,36 @@ _RULES = {
 def normalize_for_storage(raw: Any) -> Dict[str, Any]:
     """The address to store, or raise `UnusableAddress` naming the code and (usually) the field.
 
-    Six steps, in this order:
+    Three steps, in this order (FEAT-003 removed the India PIN check and the Wix-mappability
+    check — those are PAYMENT rules now, owned by `payment_address` and run at pay time):
 
     1. `raw` is a non-empty dict                      -> `ADDRESS_REQUIRED`
     2. coerce every `_RULES` field through `_text` ONCE, require the required ones, bound every
        length, THEN default `countryCode`             -> `FIELD_REQUIRED` / `FIELD_TOO_LONG`
-    3. an `IN` address needs a valid six-digit PIN    -> `INVALID_PIN`
-    4. `identity.address.normalize_address(cleaned)`  -> `INVALID_ADDRESS`
-    5. metadata is absent by construction (see the module docstring)
-    6. `wix_address.to_wix_address(out)` must succeed -> `UNMAPPABLE_STATE`
+    3. `identity.address.normalize_address(cleaned)`  -> `INVALID_ADDRESS`
 
-    **Step 4 normalises `cleaned`, never `raw`, and that is the whole point of `_text`.**
+    Metadata (`googlePlaceId`/`latitude`/`longitude`) is absent by construction — see the module
+    docstring. `country` and `countryCode` stay real fields; `state` and `postalCode` stay required
+    and length-bounded, but `postalCode` no longer carries India's PIN regex (that moved to
+    `payment_address.assert_payable`), so a valid non-India postal code is accepted and stored.
+
+    **Step 3 normalises `cleaned`, never `raw`, and that is the whole point of `_text`.**
     `identity.address._clean` opens `" ".join(str(value or "").split())` and raises only on an
-    over-long result (`identity/address.py:72-78`): it does not refuse a non-scalar, it
-    **stringifies** it. On a required field that is invisible, because step 2 already refused the
-    request. On an optional field it is not — handing `raw` down would store
-    `addressLine2 = "{'long_name': 'Flat 3B'}"`, which `to_wix_address` passes straight through to
-    the Wix delivery address and `full_address` prints on the identity card. The same split
-    misattributes a field: `{"countryCode": {"x": 1}}` would default to `IN` here, pass the PIN
-    regex, and then be recomputed from `raw` at step 4 as `"{'"`, failing step 6 as
-    `UNMAPPABLE_STATE` with `field:"state"` — a 400 naming an input the customer never touched.
+    over-long result: it does not refuse a non-scalar, it **stringifies** it. On a required field
+    that is invisible, because step 2 already refused the request. On an optional field it is not —
+    handing `raw` down would store `addressLine2 = "{'long_name': 'Flat 3B'}"`, which the Wix
+    delivery address would pass straight through and `full_address` would print on the identity
+    card. So `_text` coerces every field once, before step 3 sees it.
 
-    Feeding `cleaned` forward is also what makes step 4 unreachable in practice rather than
+    Feeding `cleaned` forward is also what makes step 3 unreachable in practice rather than
     hopeful: `normalize_address` requires `addressLine1`, `city` and `postalCode`, all three
     `True` here, and step 2 additionally requires `state`, so this module's required set is a
     strict superset; its only other failure is a length raise, and every `_RULES` limit is at or
     below the limit it applies to the same field.
 
-    **Step 2 defaults the country code locally, and that is load-bearing.** `normalize_address` is
-    the thing that applies the `IN` default, but that runs at step *4*. The India-only form posts
-    no `countryCode` at all, so testing the raw value at step 3 would compare `"" == "IN"`, skip
-    the PIN regex, and store an `IN` address with an unvalidated postal code —
-    `to_wix_address` does not check postal codes, so nothing downstream would catch it.
+    **Step 2 defaults the country code locally.** `normalize_address` is the thing that applies the
+    `IN` default, but that runs at step *3*. Defaulting here keeps `countryCode` a real, uppercased
+    two-letter value for every later reader (including `payment_address`, which branches on it).
     """
     if not isinstance(raw, dict) or not raw:
         raise UnusableAddress("ADDRESS_REQUIRED")
@@ -162,33 +155,28 @@ def normalize_for_storage(raw: Any) -> Dict[str, Any]:
     cleaned["countryCode"] = (
         cleaned["countryCode"] or owned_address.DEFAULT_COUNTRY_CODE).upper()[:2]
 
-    if (cleaned["countryCode"] == owned_address.DEFAULT_COUNTRY_CODE
-            and not _INDIA_PIN_RE.match(cleaned["postalCode"])):
-        raise UnusableAddress("INVALID_PIN", "postalCode")
-
     try:
         out = owned_address.normalize_address(cleaned)
     except owned_address.InvalidAddress:
         raise UnusableAddress("INVALID_ADDRESS") from None
 
-    # The money rule, and deliberately country-agnostic: it asks whether this address can become
-    # the Wix address that prices the cart, rather than restating India's subdivision table at a
-    # second site. One rule, no gap for a non-India address to pass storage and die at pay time.
-    try:
-        wix_address.to_wix_address(out)
-    except wix_address.UnmappableAddress:
-        raise UnusableAddress("UNMAPPABLE_STATE", "state") from None
-
+    # Storage is INTERNATIONAL (FEAT-003). The India PIN rule and the Wix-mappability rule that
+    # used to live here are PAYMENT rules, not storage rules — they moved to `payment_address`
+    # and run at pay time against the paying channel. Keeping them here would make storage
+    # India-only and reject a valid international address at save time. `payment_address` is the
+    # single owner of the place-of-supply / settlement tax rules now.
     return out
 
 
 def from_contact(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """The stored address on a contact row, re-validated, or `None`. **Never raises.**
+    """The stored address on a contact row, re-validated for STRUCTURE, or `None`. **Never raises.**
 
-    Because of step 6 that guarantee is true by construction: a dict this returns is a dict
-    `to_wix_address` accepts. An address written before a rule tightened, or hand-edited in the
-    CRM, therefore degrades to a recoverable `409 DELIVERY_DETAILS_REQUIRED` ("confirm your
-    address") and never to a 503 or — worse — a priced cart with the wrong tax split.
+    FEAT-003 weakened this guarantee deliberately: a dict this returns is **structurally valid**
+    (required fields present, lengths bounded, a real country code, a normalisable owned-address).
+    It is NO LONGER guaranteed to be `to_wix_address`-acceptable — storage is now international and
+    the India/Wix place-of-supply question moved to `payment_address`. Ask *that* module whether a
+    returned address can actually pay on a given channel; see `payable_for` below for a caller that
+    wants one answer covering both "no address stored" and "stored but unpayable here".
     """
     if not isinstance(row, dict):
         return None
@@ -198,10 +186,30 @@ def from_contact(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         return None
 
 
+def payable_for(row: Optional[Dict[str, Any]], channel: str):
+    """One return shape for a caller: `(address, None)` or `(None, UnpayableAddress)`.
+
+    Collapses the two "cannot take money" cases — no address stored, and a stored-but-unpayable
+    address on this channel — into a single tuple so a checkout/send path has exactly one branch.
+    Imported lazily to avoid a module import cycle (payment_address imports from this package).
+    """
+    from lambda_utils.ecommerce import payment_address
+
+    address = from_contact(row)
+    if address is None:
+        return None, payment_address.UnpayableAddress("ADDRESS_REQUIRED")
+    try:
+        payment_address.assert_payable(address, channel=channel)
+    except payment_address.UnpayableAddress as exc:
+        return None, exc
+    return address, None
+
+
 __all__ = [
     "ATTRIBUTE",
     "UPDATED_ATTRIBUTE",
     "UnusableAddress",
     "normalize_for_storage",
     "from_contact",
+    "payable_for",
 ]

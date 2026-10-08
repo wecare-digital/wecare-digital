@@ -1,0 +1,186 @@
+{
+  "captured_at": "2026-10-07T09:43:01.436206+00:00",
+  "region": "us-east-1",
+  "account": "775261844268",
+  "purpose": "Phase W pre-deploy rollback state",
+  "functions": {
+    "wecare-contacts": {
+      "exists": true,
+      "latest_sha256": "8z/fxHKcSSyvyQuR6h/8gpiiTNTWk1HoWSEADMtaUsw=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-05T02:34:00.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "28",
+      "alias_revision": "73c26720-a0cd-4633-bc89-c3a99e2093c5",
+      "published_versions": [
+        "24",
+        "25",
+        "26",
+        "27",
+        "28"
+      ],
+      "version_count": 23
+    },
+    "wecare-secure-files": {
+      "exists": true,
+      "latest_sha256": "Nt7KL+1OMx8b8Tp3xOZFVEB1Y0M85O3At5GYnaPEVQs=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-07T08:57:58.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "24",
+      "alias_revision": "fd5817ef-8f74-4bd1-a548-65a232546782",
+      "published_versions": [
+        "21",
+        "22",
+        "23",
+        "24",
+        "25"
+      ],
+      "version_count": 25
+    },
+    "wecare-checkout": {
+      "exists": true,
+      "latest_sha256": "Sw6aqQUQja286Hdp1FFAnkuTP6MN45ptFWdiz/XAB8o=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-07T01:36:36.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "25",
+      "alias_revision": "1ce60462-f518-43d6-95f7-62ab47f6f5af",
+      "published_versions": [
+        "21",
+        "22",
+        "23",
+        "24",
+        "25"
+      ],
+      "version_count": 25
+    },
+    "wecare-customer-orders": {
+      "exists": true,
+      "latest_sha256": "mBbksbsvdiWAX5LfwRO9Qs3Ua61fIi98XMjxdRzRH9A=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-05T02:34:53.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "2",
+      "alias_revision": "51a1242a-79c8-4511-adfe-ff154530e47a",
+      "published_versions": [
+        "1",
+        "2"
+      ],
+      "version_count": 2
+    },
+    "wecare-meta-catalog-sync": {
+      "exists": false,
+      "error": "ResourceNotFoundException"
+    },
+    "wecare-wix-catalog-webhook": {
+      "exists": true,
+      "latest_sha256": "BaYrsjlhAMqTonVu+WpTdJPpMiF/VX6CAg3Dwi/MbLY=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-05T23:28:25.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "8",
+      "alias_revision": "13f3fa82-fb13-476b-b7af-cec3ff7b43a2",
+      "published_versions": [
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ],
+      "version_count": 8
+    },
+    "wecare-inbound-whatsapp": {
+      "exists": true,
+      "latest_sha256": "x2f++slDnU37VBWFGQsYsvGMLzs3YmGqfBBczDW+8DQ=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-07T02:10:13.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "78",
+      "alias_revision": "e90899cf-abdc-48e2-bcd2-233fcc65ab36",
+      "published_versions": [
+        "74",
+        "75",
+        "76",
+        "77",
+        "78"
+      ],
+      "version_count": 44
+    },
+    "wecare-invoice-engine": {
+      "exists": true,
+      "latest_sha256": "K1nBvl7Iswng/odvIOcaINeFLHT8TMqC4dUjZ28cOTU=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-05T02:37:54.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "41",
+      "alias_revision": "5e941c26-14fe-4867-b7c0-7962930bfffc",
+      "published_versions": [
+        "37",
+        "38",
+        "39",
+        "40",
+        "41"
+      ],
+      "version_count": 28
+    },
+    "wecare-razorpay-webhook": {
+      "exists": true,
+      "latest_sha256": "v1L79A9XgJtyc99zdYuH3T6nXTDjRQfOCTQ0YFryIk4=",
+      "runtime": "python3.12",
+      "package_type": "Zip",
+      "last_modified": "2026-10-07T01:36:48.000+0000",
+      "snapstart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "live_alias": true,
+      "ROLLBACK_VERSION": "50",
+      "alias_revision": "9d2eb30f-b8d1-43d0-9d9a-f94bacec35b2",
+      "published_versions": [
+        "46",
+        "47",
+        "48",
+        "49",
+        "50"
+      ],
+      "version_count": 31
+    }
+  },
+  "error_count": 0
+}

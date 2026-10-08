@@ -125,6 +125,32 @@ export const zIndex = {
     popover: 1500,
     toast: 1600,
     tooltip: 1700,
+    /**
+     * A Popover rendered INSIDE the Confirm dialog, and the only entry in this scale whose
+     * number comes from the app rather than from the scale.
+     *
+     * BRACKETED BY TWO MEASURED NUMBERS. Below it: ConfirmContext's backdrop, inline
+     * `zIndex: 10000` (design 5.1 cites ConfirmContext.tsx:89; measured on this tree it is
+     * ConfirmContext.tsx:215), whose dialog card is a non-positioned child - so 10001 paints
+     * above the card. Above it: the toast band at 10002 (Layout.css:1718, inner-ux.css:776),
+     * which correctly still wins, because a toast must be readable over an open menu.
+     *
+     * `popover: 1500` cannot serve this case and `dropdown: 1000` cannot serve the ordinary
+     * one: 1000 TIES with the mobile sidebar (Layout.css `.sidebar` at <=768px) and would
+     * resolve on DOM order. The rest of this scale is aspirational - the app's real overlay
+     * band is 9998-10002 - and reconciling it is a separate task, not a prerequisite for a
+     * dropdown.
+     *
+     * TWO CALL SITES PASS IT, and both are controls that did not work without it: the Brand
+     * Select in pay/flow's invoice-edit modal and the expiry DateField in link's create/edit
+     * modal. Both modals are `position: fixed; inset: 0` overlays at `z-index: 9999`
+     * (inner-ux.css `.pf-modal-overlay`, flex-layout.css `.link-modal-overlay`) with no
+     * stacking context between them and the root, so a Popover portalled to document.body at
+     * 1500 painted UNDER the veil - clickable-through in the first case, invisible in the
+     * second. src/test/OverlayPopoverLayer.test.ts resolves every layered control against
+     * this scale and fails any that needs this entry without passing it.
+     */
+    overlayPopover: 10001,
 } as const;
 
 /* ── Layout ────────────────────────────────────────────────────────────── */

@@ -621,7 +621,16 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
     setDeleting( true );
     try
     {
-      await api.hardDeleteContact( selectedContact );
+      const result = await api.hardDeleteContact( selectedContact );
+      if ( !result.ok )
+      {
+        // A refusal is not a failure, and must not be swallowed. Say which refusal it was,
+        // then offer the action that IS available - archiving keeps the record and every
+        // payment link intact, which is what the guard is protecting.
+        await _offerArchiveInstead( selectedContact, result );
+        await loadData();
+        return;
+      }
       setSelectedContact( '' );
       setDeleteMode( null );
       setConfirmText( '' );
@@ -632,6 +641,44 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
     } finally
     {
       setDeleting( false );
+    }
+  };
+
+  /** Explain a hard-delete refusal and, where it helps, archive instead. */
+  const _offerArchiveInstead = async ( contactId: string, result: api.HardDeleteResult ) => {
+    if ( result.ok ) return;
+    if ( result.code === 'ERROR' )
+    {
+      toast.error( 'Delete failed — please try again' );
+      return;
+    }
+    const headline = result.code === 'CONTACT_HAS_PAYMENTS'
+      ? 'This contact has payments and cannot be deleted'
+      : 'Payment history could not be checked, so the delete was refused';
+    toast.error( headline );
+    const archive = await confirm( {
+      title: 'Archive instead?',
+      message: (
+        <div>
+          <p>{ headline }.</p>
+          { result.reason && <p style={ { color: 'rgba(0,0,0,.54)', fontSize: 13 } }>{ result.reason }</p> }
+          <p>Archiving hides the contact from the CRM list and keeps the record, the messages
+            and every payment link intact. It can be restored by an admin.</p>
+        </div>
+      ),
+      confirmText: 'Archive',
+    } );
+    if ( !archive ) return;
+    const archived = await api.deleteContact( contactId );
+    if ( archived )
+    {
+      toast.success( 'Contact archived' );
+      setSelectedContact( '' );
+      setDeleteMode( null );
+      setConfirmText( '' );
+    } else
+    {
+      toast.error( 'Archive failed — please try again' );
     }
   };
 
@@ -893,17 +940,34 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
       try
       {
         let deleted = 0;
+        // A REFUSAL is not a FAILURE. A contact the server protected because it has payments
+        // is a correct outcome the operator needs told about; an error is something to retry.
+        // Collapsing the two into one number is how "nothing happened" reads as success.
+        let refused = 0;
+        let failed = 0;
         if ( id === 'contacts' )
         {
-          // Hard delete contacts FIRST — this also deletes their messages + media from S3
+          // Hard delete contacts FIRST — this also deletes their messages + media from S3.
+          //
+          // A refused contact is COUNTED, not skipped, and the pass loop stops as soon as a
+          // pass deletes nothing. Both matter now that the server can refuse: `listContacts`
+          // keeps returning a contact with payments forever, so the old loop ran all 20
+          // passes re-requesting the same refusals and counted each one as a deletion.
           for ( let pass = 0; pass < 20; pass++ )
           {
             const allContacts = await api.listContacts();
             if ( allContacts.length === 0 ) break;
+            const deletedBefore = deleted;
             for ( const c of allContacts )
             {
-              try { await api.hardDeleteContact( c.contactId ); deleted++; } catch { /* skip */ }
+              try
+              {
+                const result = await api.hardDeleteContact( c.contactId );
+                if ( result.ok ) { deleted++; } else if ( result.code === 'ERROR' ) { failed++; }
+                else { refused++; }
+              } catch { failed++; }
             }
+            if ( deleted === deletedBefore ) break; // nothing moved — every remaining row is refused
           }
         } else if ( id === 'whatsapp_inbox' )
         {
@@ -1046,7 +1110,12 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
           results.push( { id, label, deleted: 0, error: 'No cleanup endpoint available' } );
           continue;
         }
-        results.push( { id, label, deleted, elapsed: Math.round( ( Date.now() - t0 ) / 1000 * 10 ) / 10 } );
+        results.push( {
+          id, label, deleted,
+          elapsed: Math.round( ( Date.now() - t0 ) / 1000 * 10 ) / 10,
+          ...( refused ? { refused } : {} ),
+          ...( failed ? { error: `${failed} failed` } : {} ),
+        } );
       } catch ( err: any )
       {
         results.push( { id, label, deleted: 0, error: err?.message || 'Failed' } );
@@ -1055,6 +1124,13 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
 
     setCleanupResults( results );
     setCleanupSelected( new Set() );
+    // Surfaced as a toast as well as in the result rows: a sweep that silently left rows
+    // behind is indistinguishable from one that finished.
+    const totalRefused = results.reduce( ( sum, r ) => sum + ( r.refused || 0 ), 0 );
+    if ( totalRefused > 0 )
+    {
+      toast.error( `${totalRefused} contact${totalRefused === 1 ? '' : 's'} kept — they have payments and can only be archived` );
+    }
     await loadData();
     setCleanupRunning( false );
   };
@@ -1290,6 +1366,10 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
   const failedPayments = paymentMessages.filter( m => ( m as any ).paymentStatus === 'failed' ).length;
   const pendingPayments = paymentMessages.filter( m => m.status === 'pending' ).length;
 
+  // Derived once so the two billing branches stay mutually exclusive by
+  // construction rather than by keeping `=== false` and `!== false` in step.
+  const costReportingOff = billingData?.costReportingEnabled === false;
+
   // Filter messages
   const filteredMessages = searchQuery.trim()
     ? messages.filter( m =>
@@ -1425,18 +1505,21 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
                   </div>
                 ) }
 
-                { billingData && billingData.costReportingEnabled === false && (
+                { billingData && costReportingOff && (
                   <div style={ { background: '#f9fafb', borderRadius: '8px', textAlign: 'center', padding: '3rem', border: '1px solid #e5e7eb' } }>
-                    <div style={ { fontSize: '2rem', marginBottom: '1rem' } }>—</div>
+                    <div aria-hidden="true" style={ { fontSize: '2rem', marginBottom: '1rem' } }>—</div>
                     <h3 style={ { color: '#0f2a1d', margin: '0 0 0.5rem' } }>Cost Reporting Disabled</h3>
                     <p style={ { color: '#6b7280', margin: 0 } }>
                       { billingData.note || 'AWS cost reporting is disabled for this account.' }
                     </p>
-                    <div style={ { color: '#6b7280', marginTop: '0.75rem', fontSize: '0.875rem' } }>Account: { AWS_ACCOUNT_ID }</div>
+                    <div style={ { color: '#6b7280', marginTop: '0.75rem', fontSize: '0.875rem' } }>
+                      { billingData.period }
+                    </div>
+                    <div style={ { color: '#6b7280', fontSize: '0.875rem' } }>Account: { AWS_ACCOUNT_ID }</div>
                   </div>
                 ) }
 
-                { billingData && billingData.costReportingEnabled !== false && (
+                { billingData && !costReportingOff && (
                   <>
                     <div className="billing-summary">
                       <div className="billing-total">

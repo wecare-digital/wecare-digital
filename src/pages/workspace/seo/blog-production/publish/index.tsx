@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../../../components/Layout';
 import SEO from '../../../../../components/SEO';
+import { usePromptDialog } from '../../../../../contexts/ConfirmContext';
 import * as seoApi from '../../../../../api/seo';
 import type { BlogPublishResponse, BlogVerifyResponse } from '../../../../../api/seo';
 
@@ -44,6 +45,7 @@ const JOB_COLOUR: Record<string, string> = {
 
 const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
   const router = useRouter();
+  const prompt = usePromptDialog();
   const batchId = typeof router.query.batch === 'string' ? router.query.batch : '';
 
   const [ data, setData ] = useState<BlogPublishResponse | null>( null );
@@ -105,9 +107,21 @@ const BlogPublishQueue: React.FC<PageProps> = ( { signOut, user } ) => {
     return result.note;
   } );
 
-  const withdraw = ( jobId: string ) => {
-    const reason = window.prompt( 'Why is this release being withdrawn?' ) || '';
-    if ( reason.trim().length < 10 ) return Promise.resolve();
+  // async because the reason is now collected by a modal rather than a blocking native
+  // prompt. Its only caller is an onClick that discards the return value, so losing the
+  // synchronous Promise.resolve() is safe.
+  const withdraw = async ( jobId: string ) => {
+    const reason = await prompt( {
+      title: 'Withdraw this release',
+      label: 'Why is this release being withdrawn?',
+      required: true,
+      minLength: 10,
+      multiline: true,
+      helper: 'At least 10 characters',
+    } );
+    if ( reason === null ) return;
+    // Kept as a post-condition, same as the QA page: the floor is enforced in three places.
+    if ( reason.trim().length < 10 ) return;
     return act( `withdraw-${ jobId }`, async () => {
       await seoApi.withdrawBlogRelease( jobId, reason );
       return 'Withdrawn. It can be released again.';

@@ -35,6 +35,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Spinner from '../../../components/ui/Spinner';
 import { useToastContext } from '../../../contexts/ToastContext';
+import { useConfirm } from '../../../contexts/ConfirmContext';
 import * as api from '../../../api/client';
 import type { SecureFile } from '../../../api/client';
 
@@ -60,6 +61,7 @@ const STATUS_COLOURS: Record<string, { bg: string; fg: string; border: string }>
 
 export default function SecureFilesPage ( { signOut, user }: PageProps ) {
     const toast = useToastContext();
+    const confirm = useConfirm();
 
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
@@ -183,11 +185,13 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
     };
 
     const handleRevoke = async ( target: SecureFile ) => {
-        const ok = window.confirm(
-            `Revoke "${target.displayName}"?\n\n`
-            + 'The customer will no longer be able to download it. '
-            + 'The record is kept so the history of who was charged survives.',
-        );
+        const ok = await confirm( {
+            title: `Revoke "${target.displayName}"?`,
+            message: 'The customer will no longer be able to download it. '
+                + 'The record is kept so the history of who was charged survives.',
+            confirmText: 'Revoke',
+            danger: true,
+        } );
         if ( !ok ) return;
 
         const result = await api.revokeSecureFile( target.fileId );

@@ -1,13 +1,26 @@
 /**
  * RCS Send Page - Send RCS messages (text or template)
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import MaybeLayout from '../../../../components/MaybeLayout';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
+
+/*
+ * The fallback rows, kept exactly as they were. They are what the native control showed
+ * before `listRcsTemplates` answered, and `templateId` is seeded at 'test16' to match.
+ */
+const FALLBACK_TEMPLATE_OPTIONS: SelectOption[] = [
+    { value: 'test16', label: 'test16' },
+    { value: 'test17', label: 'test17' },
+];
+
+/* LAYOUT ONLY - what the inline `width: '100%'` carried; the box is the trigger's. */
+const FULL_WIDTH: React.CSSProperties = { width: '100%' };
 
 const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
     const [ phone, setPhone ] = useState( '' );
@@ -24,6 +37,18 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
         // Load templates via authenticated API
         api.listRcsTemplates().then( t => setTemplates( t ) ).catch( () => { } );
     }, [] );
+
+    /* The fetched list, memoised on `templates`, with the same fallback branch the native
+       control had: the two hardcoded rows until the API answers. */
+    const templateOptions: SelectOption[] = useMemo(
+        () => ( templates.length > 0
+            ? templates.map( t => ( {
+                value: t.name,
+                label: `${ t.name } — ${ t.textMessageContent?.substring( 0, 50 ) }...`,
+            } ) )
+            : FALLBACK_TEMPLATE_OPTIONS ),
+        [ templates ]
+    );
 
     const handleSend = async () => {
         if ( !phone ) { toast.error( 'Phone number required' ); return; }
@@ -78,17 +103,15 @@ const RcsSendPageBody: React.FC<PageProps> = ( { embedded } ) => {
             { messageType === 'template' ? (
                 <>
                     <div style={ { marginBottom: 12 } }>
+                        { /* The caption is an UNASSOCIATED <label> - no `for`, no wrapped control -
+                             so it was never a name source and this control had no accessible name
+                             at all. It stays, keeping its own type and spacing, and the control
+                             takes `ariaLabel`. This chooses the template for an OUTBOUND RCS send,
+                             which is why it is a write control and not a list filter. */ }
                         <label style={ { display: 'block', fontWeight: 500, marginBottom: 4 } }>Template</label>
-                        <select value={ templateId } onChange={ e => setTemplateId( e.target.value ) } style={ { width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6 } }>
-                            { templates.length > 0 ? templates.map( t => (
-                                <option key={ t.name } value={ t.name }>{ t.name } — { t.textMessageContent?.substring( 0, 50 ) }...</option>
-                            ) ) : (
-                                <>
-                                    <option value="test16">test16</option>
-                                    <option value="test17">test17</option>
-                                </>
-                            ) }
-                        </select>
+                        <Select ariaLabel="Template" value={ templateId }
+                            onChange={ v => setTemplateId( v ) }
+                            options={ templateOptions } style={ FULL_WIDTH } />
                     </div>
                     <div style={ { marginBottom: 12 } }>
                         <label style={ { display: 'block', fontWeight: 500, marginBottom: 4 } }>Parameters (JSON, optional)</label>

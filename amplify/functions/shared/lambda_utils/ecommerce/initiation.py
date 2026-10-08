@@ -52,18 +52,24 @@ def existing(keys, attempts, identity, request_id, intent):
 
 def reserve(client, *, keys_name, attempts_name, identity, request_id, intent,
             snapshot, configuration_name, provider_mid, phone_id, waba_id,
-            now, intent_version=1):
+            now, intent_version=1, customer_uuid=''):
     """Three conditional writes in one DynamoDB transaction, before any send.
 
     An uncertain transaction response must be read back by request key. Retrying
     this function is safe only through that same key and intent fingerprint.
+
+    `customer_uuid` is the public customer id, read off the contact row by the caller. Defaulted
+    and last, so every existing call site is unaffected, and emitted by `payment_attempt.build`
+    only when non-empty - it is attribution the invoice prints, never an input to a money
+    decision.
     """
     attempt_id = payment_attempt.new_payment_attempt_id()
     reference_id = order_keys.mint_payment_reference()
     attempt = payment_attempt.build(
         customer_id=identity.customer_id, reference_id=reference_id,
         amount_paise=int(snapshot['amountPaise']), configuration_name=configuration_name,
-        payment_attempt_id=attempt_id, cart_id=snapshot['wixCartId'], now=now)
+        payment_attempt_id=attempt_id, cart_id=snapshot['wixCartId'],
+        customer_uuid=customer_uuid, now=now)
     attempt = payment_attempt.transition(attempt, payment_attempt.PAYMENT_READINESS_CHECKED, now=now)
     attempt.update(schemaVersion=intent_version, checkoutMode='WIX_HEADLESS',
                    purchasedSnapshot=snapshot, snapshotHash=fingerprint(snapshot),

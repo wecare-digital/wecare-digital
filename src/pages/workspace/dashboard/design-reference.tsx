@@ -237,6 +237,10 @@ const DesignReferencePage: React.FC<PageProps> = ( { signOut, user } ) => {
                             </div>
                             <div className="form-group">
                                 <label style={ { display: 'block', fontSize: 14, fontWeight: 500, color: '#374151', marginBottom: 8 } }>Select Dropdown</label>
+                                { /* NOT MIGRATED, on purpose - design section 5.2: a specimen on the
+                                     design-reference page is not a surface a custom listbox improves,
+                                     and it keeps its Layer-1-skinned native box so the closed state is
+                                     already fully ours, which is the whole visible win. */ }
                                 <select style={ { width: '100%' } }>
                                     <option>Choose channel...</option>
                                     <option>WhatsApp</option>

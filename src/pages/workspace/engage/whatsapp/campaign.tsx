@@ -1,7 +1,7 @@
 ﻿/**
  * WhatsApp Campaign Page
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import { SkeletonTable } from '../../../../components/Skeleton';
@@ -9,6 +9,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { WHATSAPP_PHONES, API_BASE } from '../../../../config/constants';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import Tabs, { TabItem } from '../../../../components/ui/Tabs';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -19,6 +20,11 @@ interface CampaignLog { id: string; name: string; template: string; recipients: 
 const tabItems: TabItem[] = [
   { id: 'create', label: 'Create Campaign' },
   { id: 'logs', label: 'Campaign Logs' },
+];
+
+/** One account today, exactly as the single `<option>` it replaces. */
+const WABA_OPTIONS: SelectOption[] = [
+  { value: WHATSAPP_PHONES.primary.id, label: WHATSAPP_PHONES.primary.name },
 ];
 
 const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -36,6 +42,12 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
   const [ selectAll, setSelectAll ] = useState( false );
   const [ searchQuery, setSearchQuery ] = useState( '' );
   const [ message, setMessage ] = useState<{ type: string; text: string } | null>( null );
+
+  /* Fetched, so memoised on `templates`; the leading '' row is the placeholder. */
+  const templateOptions: SelectOption[] = useMemo( () => [
+    { value: '', label: 'Select a template...' },
+    ...templates.map( t => ( { value: t.name, label: `${ t.name } (${ t.language })` } ) ),
+  ], [ templates ] );
 
   const loadData = useCallback( async () => {
     setLoading( true );
@@ -156,20 +168,15 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
             </div>
             <div className="form-group">
               <label>WABA Account</label>
-              <select value={ selectedWaba } onChange={ e => setSelectedWaba( e.target.value ) }>
-                <option value={ WHATSAPP_PHONES.primary.id }>{ WHATSAPP_PHONES.primary.name }</option>
-              </select>
+              <Select ariaLabel="WABA Account" value={ selectedWaba }
+                onChange={ v => setSelectedWaba( v ) } options={ WABA_OPTIONS } />
             </div>
           </div>
 
           <div className="form-group">
             <label>Template * ({ templates.length } approved)</label>
-            <select value={ selectedTemplate } onChange={ e => setSelectedTemplate( e.target.value ) }>
-              <option value="">Select a template...</option>
-              { templates.map( t => (
-                <option key={ t.name } value={ t.name }>{ t.name } ({ t.language })</option>
-              ) ) }
-            </select>
+            <Select ariaLabel="Template" value={ selectedTemplate }
+              onChange={ v => setSelectedTemplate( v ) } options={ templateOptions } />
           </div>
 
           <div className="contacts-section">

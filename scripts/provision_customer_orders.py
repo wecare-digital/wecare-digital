@@ -3,7 +3,8 @@
 What it stands up, in this order
 -------------------------------
 1. `customerId-createdAt-index` on `stack-wecare-digital-OrderTable`, then polls
-   `describe_table` until `IndexStatus == 'ACTIVE'`.
+   `describe_table` until `IndexStatus == 'ACTIVE'`, then the same for
+   `customerId-createdAt-v2-index` (sequentially: one GSI operation in flight per table).
 2. `wecare-customer-orders-role`: trusts `lambda.amazonaws.com` only, carries
    `AWSLambdaBasicExecutionRole` and ONE inline policy equal to `expected_role_policy()`.
 3. The log group, 30-day retention (the fleet default).
@@ -19,6 +20,14 @@ so no `a.model()` block in that file has ever been materialised. The handler def
 `ORDERS_BY_CUSTOMER_INDEX` to the same literal as `ORDERS_BY_CUSTOMER_INDEX` here, and
 `tests/test_customer_orders_iam.py` asserts the two agree, so a rename in one place is a red test
 rather than a 503 in production.
+
+THERE ARE TWO INDEXES, AND THE SECOND ONE EXISTS BECAUSE OF THE PARAGRAPH BELOW.
+`customerId-createdAt-v2-index` is `customerId-createdAt-index` plus `channel` in the projection.
+It is a NEW index rather than a widened one, because a projection cannot be widened; v1 keeps
+serving, unchanged, while v2 is created and backfilled beside it. `SERVING_INDEX` names the one
+the function actually queries and is still v1 - the move is `--repoint-serving-index`, which
+refuses unless `describe_table` reports v2 ACTIVE, because a Query against a CREATING index
+raises ResourceNotFoundException and this handler answers that with a 503 and no partial list.
 
 A GSI PROJECTION IS IMMUTABLE AFTER CREATION. Widening or narrowing one means deleting and
 recreating the index. So a projection mismatch on a re-run is REPORTED and never reconciled:
@@ -58,6 +67,9 @@ Usage:
     python scripts/provision_customer_orders.py --dry-run     # default; changes nothing
     python scripts/provision_customer_orders.py --apply
     python scripts/provision_customer_orders.py --verify
+    # then, as a SEPARATE decision once v2 reports ACTIVE:
+    python scripts/provision_customer_orders.py --repoint-serving-index            # dry run
+    python scripts/provision_customer_orders.py --repoint-serving-index --apply
 
 After first provision, normal code updates use:
     python scripts/deploy_all_lambdas.py wecare-customer-orders
@@ -136,6 +148,51 @@ INDEX_DEFINITION = {
         "NonKeyAttributes": list(INDEX_NON_KEY_ATTRIBUTES),
     },
 }
+
+#: A SECOND INDEX, NOT AN EDIT TO THE FIRST, and the reason is stated at :118-137 and :349-356
+#: above: A GSI PROJECTION IS IMMUTABLE AFTER CREATION. `channel` has to reach `/orders`, and
+#: widening `customerId-createdAt-index` to carry it would mean deleting and recreating the index
+#: every order list is served from - which leaves every customer's history returning PARTIAL
+#: results for as long as the backfill takes. So the old index keeps serving, unchanged, while
+#: this one is created and backfilled beside it.
+#:
+#: Same key schema, deliberately: this is the same query, and a different partition or sort key
+#: would make the repoint a behaviour change rather than a projection change.
+#:
+#: `channel` projects cleanly because it is one short word - unlike `items`, which is why the
+#: detail panel still says item details are unavailable. Adding `items` here is not a free ride
+#: on this index: it is `purchasedSnapshot`, tens of kilobytes including a delivery address, and
+#: keeping a second copy of it out of the index is the data minimisation the module docstring and
+#: the IAM grant exist to enforce.
+ORDERS_BY_CUSTOMER_INDEX_V2 = "customerId-createdAt-v2-index"
+
+INDEX_NON_KEY_ATTRIBUTES_V2 = INDEX_NON_KEY_ATTRIBUTES + ["channel"]
+
+INDEX_DEFINITION_V2 = {
+    "IndexName": ORDERS_BY_CUSTOMER_INDEX_V2,
+    "KeySchema": [
+        {"AttributeName": "customerId", "KeyType": "HASH"},
+        {"AttributeName": "createdAt", "KeyType": "RANGE"},
+    ],
+    "Projection": {
+        "ProjectionType": "INCLUDE",
+        "NonKeyAttributes": list(INDEX_NON_KEY_ATTRIBUTES_V2),
+    },
+}
+
+#: WHICH INDEX THE FUNCTION ACTUALLY QUERIES. Still v1, and that is the whole point of this
+#: constant existing rather than `expected_environment` naming an index directly.
+#:
+#: The repoint is DEFERRED TO LAND TIME AND GATED ON ACTIVE. A Query against a CREATING index
+#: raises ResourceNotFoundException, which the handler turns into a 503 - so pointing the live
+#: function at v2 in the same change that creates it would break every order list between the
+#: `update_table` call and the end of the backfill. `--repoint-serving-index` performs the move
+#: and REFUSES unless `describe_table` reports v2 ACTIVE; nothing else in this script moves it.
+#:
+#: Until then `channel` is written on every new order row and read through
+#: `order_channel.canonical`, which answers `website` for a row the serving projection does not
+#: carry it on. So the page is correct, not broken, while the repoint waits.
+SERVING_INDEX = ORDERS_BY_CUSTOMER_INDEX
 
 #: A table allows only ONE GSI operation in flight, and creation is not instant to report. A
 #: Query against a CREATING index raises ResourceNotFoundException, which a reader mistakes for
@@ -241,7 +298,16 @@ def expected_role_policy(acct: str | None = None) -> dict:
                 "Action": ["dynamodb:Query"],
                 "Resource": [
                     f"arn:aws:dynamodb:{REGION}:{acct}:table/{ORDERS_TABLE}"
-                    f"/index/{ORDERS_BY_CUSTOMER_INDEX}"
+                    f"/index/{ORDERS_BY_CUSTOMER_INDEX}",
+                    # EXACTLY ONE MORE INDEX ARN, and no new verb. The repoint to v2 needs the
+                    # grant in place BEFORE the env var moves, or the first query after the move
+                    # is an AccessDeniedException; and v1 keeps its grant because it keeps
+                    # serving until that move happens. Both are index ARNs, so the structural
+                    # property holds unchanged: there is still no statement on the order TABLE,
+                    # which is what makes a `GetItem` for `purchasedSnapshot` an
+                    # AccessDeniedException rather than a code review finding.
+                    f"arn:aws:dynamodb:{REGION}:{acct}:table/{ORDERS_TABLE}"
+                    f"/index/{ORDERS_BY_CUSTOMER_INDEX_V2}",
                 ],
             },
             {
@@ -268,11 +334,18 @@ def expected_role_policy(acct: str | None = None) -> dict:
     }
 
 
-def expected_environment() -> dict:
-    """Five variables, every one of them a NAME. No value here can enable anything."""
+def expected_environment(serving_index: str | None = None) -> dict:
+    """Five variables, every one of them a NAME. No value here can enable anything.
+
+    `serving_index` defaults to `SERVING_INDEX` so this stays PURE and keeps answering the same
+    document on a laptop with no credentials. `--repoint-serving-index` passes
+    `ORDERS_BY_CUSTOMER_INDEX_V2` explicitly, and only after `describe_table` has reported it
+    ACTIVE - the argument exists so that check lives in one place instead of being inferred here
+    from an AWS call this function must not make.
+    """
     return {
         "ORDERS_TABLE": ORDERS_TABLE,
-        "ORDERS_BY_CUSTOMER_INDEX": ORDERS_BY_CUSTOMER_INDEX,
+        "ORDERS_BY_CUSTOMER_INDEX": serving_index or SERVING_INDEX,
         "CONTACTS_TABLE": CONTACTS_TABLE,
         "RATE_LIMIT_TABLE": RATE_LIMIT_TABLE,
         "CUSTOMER_POOL_ID": CUSTOMER_POOL_ID,
@@ -330,8 +403,13 @@ def report_package(zip_bytes: bytes, members: dict, errors: list, warnings: list
 
 # ── step 1: the index ─────────────────────────────────────────────────────────
 
-def describe_index() -> tuple:
-    """`(index_description_or_None, note)`. A read failure is reported, never assumed absent."""
+def describe_index(index_name: str = ORDERS_BY_CUSTOMER_INDEX) -> tuple:
+    """`(index_description_or_None, note)`. A read failure is reported, never assumed absent.
+
+    Takes the name so v1 and v2 are read by the SAME function: two copies would be two chances
+    for one of them to stop distinguishing "absent" from "unreadable", and that distinction is
+    what stops this script creating an index that already exists.
+    """
     try:
         table = ddb().describe_table(TableName=ORDERS_TABLE)["Table"]
     except ClientError as exc:
@@ -339,17 +417,17 @@ def describe_index() -> tuple:
     except BotoCoreError as exc:
         return None, f"NOT MEASURED ({type(exc).__name__})"
     for index in table.get("GlobalSecondaryIndexes") or []:
-        if index.get("IndexName") == ORDERS_BY_CUSTOMER_INDEX:
+        if index.get("IndexName") == index_name:
             return index, f"status {index.get('IndexStatus')}"
     return None, "absent"
 
 
-def _projection_drift(index: dict) -> str:
+def _projection_drift(index: dict, wanted_attributes=None) -> str:
     """`''` when the live projection matches, otherwise the mismatch to REPORT (never repair)."""
     projection = index.get("Projection") or {}
     kind = projection.get("ProjectionType")
     live = set(projection.get("NonKeyAttributes") or [])
-    wanted = set(INDEX_NON_KEY_ATTRIBUTES)
+    wanted = set(INDEX_NON_KEY_ATTRIBUTES if wanted_attributes is None else wanted_attributes)
     if kind == "INCLUDE" and live == wanted:
         return ""
     return (f"PROJECTION DRIFT: live type={kind} attributes={sorted(live)}; wanted "
@@ -386,14 +464,99 @@ def ensure_index(dry_run: bool) -> str:
     return f"creation requested; {wait_for_index()}"
 
 
-def wait_for_index() -> str:
+def ensure_index_v2(dry_run: bool) -> str:
+    """The `channel`-carrying index, created BESIDE v1 and never instead of it.
+
+    A table allows only ONE GSI operation in flight, so this runs after `ensure_index` has
+    settled - and if v1 is still CREATING, `update_table` answers
+    LimitExceededException/ResourceInUseException, which is reported rather than retried: two
+    creations racing on one table is not a condition to paper over.
+
+    The env repoint is NOT here. It is `--repoint-serving-index`, which refuses unless this index
+    reads ACTIVE first.
+    """
+    existing, note = describe_index(ORDERS_BY_CUSTOMER_INDEX_V2)
+    if existing is not None:
+        drift = _projection_drift(existing, INDEX_NON_KEY_ATTRIBUTES_V2)
+        status = existing.get("IndexStatus")
+        if drift:
+            return f"{note}; {drift}"
+        if status != "ACTIVE" and not dry_run:
+            return f"exists ({note}); {wait_for_index(ORDERS_BY_CUSTOMER_INDEX_V2)}"
+        return f"exists and projection matches ({note})"
+    if note.startswith("NOT MEASURED"):
+        return f"could not read {ORDERS_TABLE}: {note}"
+    if dry_run:
+        return (f"would create GSI {ORDERS_BY_CUSTOMER_INDEX_V2} on {ORDERS_TABLE} — "
+                f"customerId (HASH, S) / createdAt (RANGE, N), INCLUDE "
+                f"{INDEX_NON_KEY_ATTRIBUTES_V2}, then poll to ACTIVE. The serving env var stays "
+                f"on {SERVING_INDEX} until --repoint-serving-index is run against an ACTIVE "
+                f"index")
+    ddb().update_table(
+        TableName=ORDERS_TABLE,
+        AttributeDefinitions=[
+            {"AttributeName": "customerId", "AttributeType": "S"},
+            {"AttributeName": "createdAt", "AttributeType": "N"},
+        ],
+        GlobalSecondaryIndexUpdates=[{"Create": INDEX_DEFINITION_V2}],
+    )
+    return f"creation requested; {wait_for_index(ORDERS_BY_CUSTOMER_INDEX_V2)}"
+
+
+def repoint_serving_index(dry_run: bool) -> str:
+    """Move `ORDERS_BY_CUSTOMER_INDEX` to v2. REFUSES unless v2 reads ACTIVE.
+
+    The ACTIVE check is the whole function. A Query against a CREATING index raises
+    ResourceNotFoundException, which this handler turns into a 503 with no partial answer - so a
+    repoint performed a moment too early takes every customer's order history down for the length
+    of a backfill. Measured, not assumed: the status comes from `describe_table`, and an
+    unreadable table refuses rather than defaulting to "probably fine".
+
+    Deliberately NOT part of the normal `--apply` run. Creating the index and moving production
+    onto it are two decisions, and bundling them is how the second one gets made by accident.
+    """
+    index, note = describe_index(ORDERS_BY_CUSTOMER_INDEX_V2)
+    if index is None:
+        return (f"REFUSED: {ORDERS_BY_CUSTOMER_INDEX_V2} is {note}. Run --apply first and let it "
+                f"reach ACTIVE.")
+    status = index.get("IndexStatus")
+    if status != "ACTIVE":
+        return (f"REFUSED: {ORDERS_BY_CUSTOMER_INDEX_V2} is {status}, not ACTIVE. A Query against "
+                f"a CREATING index is a ResourceNotFoundException, which this handler answers as "
+                f"a 503 — every order list would fail until the backfill finished.")
+    drift = _projection_drift(index, INDEX_NON_KEY_ATTRIBUTES_V2)
+    if drift:
+        return f"REFUSED: {drift}"
+    wanted = expected_environment(ORDERS_BY_CUSTOMER_INDEX_V2)["ORDERS_BY_CUSTOMER_INDEX"]
+    if not function_exists():
+        return "function absent - nothing to repoint"
+    config = lam().get_function_configuration(FunctionName=FUNCTION_NAME)
+    current = dict((config.get("Environment") or {}).get("Variables") or {})
+    if current.get("ORDERS_BY_CUSTOMER_INDEX") == wanted:
+        return f"already serving from {wanted}"
+    if dry_run:
+        return (f"would set ORDERS_BY_CUSTOMER_INDEX={wanted} "
+                f"(was {current.get('ORDERS_BY_CUSTOMER_INDEX')!r}); v2 reads ACTIVE with "
+                f"{int(index.get('ItemCount') or 0)} items backfilled")
+    current["ORDERS_BY_CUSTOMER_INDEX"] = wanted
+    lam().update_function_configuration(
+        FunctionName=FUNCTION_NAME, Environment={"Variables": current})
+    lam().get_waiter("function_updated_v2").wait(FunctionName=FUNCTION_NAME)
+    # `$LATEST` only. The route invokes the ALIAS, so this is not serving until a version is
+    # published and `live` is moved - `python scripts/snapstart_publish.py wecare-customer-orders`
+    # - with the rollback version captured first.
+    return (f"set ORDERS_BY_CUSTOMER_INDEX={wanted} on $LATEST. NOT LIVE YET: publish a version "
+            f"and move the `live` alias, or the route keeps querying {SERVING_INDEX}.")
+
+
+def wait_for_index(index_name: str = ORDERS_BY_CUSTOMER_INDEX) -> str:
     """Poll until ACTIVE. Nothing downstream may run before this returns.
 
     A Query against a CREATING index raises ResourceNotFoundException, so attaching the policy or
     publishing the function first would produce a failure that reads as a wrong index name.
     """
     for _ in range(INDEX_POLL_ATTEMPTS):
-        index, note = describe_index()
+        index, note = describe_index(index_name)
         if index is not None and index.get("IndexStatus") == "ACTIVE":
             return f"ACTIVE ({int(index.get('ItemCount') or 0)} items backfilled)"
         if index is None and note.startswith("NOT MEASURED"):
@@ -656,6 +819,18 @@ def verify() -> int:
         if index.get("IndexStatus") != "ACTIVE":
             problems.append(f"index status is {index.get('IndexStatus')}, not ACTIVE")
 
+    # v2 is REPORTED, not required. It is absent until `--apply` runs after this change, and an
+    # absent v2 is not a fault: v1 is still the serving index, `channel` still reaches the order
+    # ROW, and `order_channel.canonical` answers `website` for a projection that does not carry
+    # it. Calling that a problem would make `--verify` fail on a correct intermediate state.
+    index_v2, note_v2 = describe_index(ORDERS_BY_CUSTOMER_INDEX_V2)
+    print(f"index {ORDERS_BY_CUSTOMER_INDEX_V2}: {note_v2} "
+          f"(serving: {SERVING_INDEX}; repoint with --repoint-serving-index once ACTIVE)")
+    if index_v2 is not None:
+        drift_v2 = _projection_drift(index_v2, INDEX_NON_KEY_ATTRIBUTES_V2)
+        if drift_v2:
+            problems.append(drift_v2)
+
     try:
         live_policy = iam().get_role_policy(
             RoleName=ROLE_NAME, PolicyName=INLINE_POLICY_NAME)["PolicyDocument"]
@@ -676,6 +851,16 @@ def verify() -> int:
               f"{config.get('MemorySize')}MB {config.get('Timeout')}s "
               f"v{config.get('Version')}")
         for key, value in expected_environment().items():
+            if key == "ORDERS_BY_CUSTOMER_INDEX":
+                # EITHER index is correct here, and that is not laxness: the repoint is a
+                # separate deliberate step, so both "before" and "after" are valid live states
+                # and `--verify` must pass in both. What would be wrong is a THIRD value, which
+                # this still catches.
+                if env.get(key) not in (ORDERS_BY_CUSTOMER_INDEX, ORDERS_BY_CUSTOMER_INDEX_V2):
+                    problems.append(f"env {key} is {env.get(key)!r}, wanted one of "
+                                    f"{ORDERS_BY_CUSTOMER_INDEX!r} or "
+                                    f"{ORDERS_BY_CUSTOMER_INDEX_V2!r}")
+                continue
             if env.get(key) != value:
                 problems.append(f"env {key} is {env.get(key)!r}, wanted {value!r}")
     except ClientError as exc:
@@ -717,15 +902,33 @@ def main(argv=None) -> int:
     parser.add_argument("--dry-run", action="store_true",
                         help="the default; accepted explicitly so a habit does not surprise.")
     parser.add_argument("--verify", action="store_true", help="read back and report only")
+    parser.add_argument("--repoint-serving-index", action="store_true",
+                        help=f"move ORDERS_BY_CUSTOMER_INDEX to {ORDERS_BY_CUSTOMER_INDEX_V2}. "
+                             f"Refuses unless that index reports ACTIVE. Needs --apply to write; "
+                             f"without it this is a dry run.")
     args = parser.parse_args(argv)
 
     if args.verify:
         return verify()
 
     dry_run = not args.apply
+
+    if args.repoint_serving_index:
+        # ON ITS OWN, deliberately. The repoint is the one step in this script that can take a
+        # working order list down, so it does not ride along with a provision run that somebody
+        # launched for a different reason.
+        print(f"repoint: {repoint_serving_index(dry_run)}")
+        if dry_run:
+            print("\ndry run: nothing changed. Re-run with --apply to repoint.")
+        return 0
     print(f"region: {REGION}; account: {account_id()}")
     print(f"function: {FUNCTION_NAME}; role: {ROLE_NAME}; alias: {LIVE_ALIAS}")
     print(f"table: {ORDERS_TABLE}; index: {ORDERS_BY_CUSTOMER_INDEX}")
+    print(f"second index: {ORDERS_BY_CUSTOMER_INDEX_V2} (adds `channel`; a GSI projection is "
+          f"IMMUTABLE, so this is a new index, not a widened one)")
+    print(f"serving index: {SERVING_INDEX} — the repoint to "
+          f"{ORDERS_BY_CUSTOMER_INDEX_V2} is a SEPARATE step (--repoint-serving-index) and "
+          f"refuses unless that index reports ACTIVE")
     print(f"route: {ROUTE_KEY} on {API_ID} stage {STAGE} (no OPTIONS route — API CORS answers "
           f"the preflight)")
     print(f"invoke grant: Qualifier={LIVE_ALIAS!r} (NOT optional — a function-level statement "
@@ -734,6 +937,8 @@ def main(argv=None) -> int:
 
     print("inline policy it would put:")
     print(json.dumps(expected_role_policy(), indent=2))
+    print("\nindex definitions it would create (v1 first; one GSI operation in flight per table):")
+    print(json.dumps([INDEX_DEFINITION, INDEX_DEFINITION_V2], indent=2))
     print("\nenvironment it would set:")
     print(json.dumps(expected_environment(), indent=2))
     print()
@@ -759,6 +964,9 @@ def main(argv=None) -> int:
             print(f"{label}: NOT MEASURED in a dry run ({type(exc).__name__})")
 
     step("index", ensure_index, dry_run)
+    # AFTER v1 and never beside it: a table allows only ONE GSI operation in flight, and
+    # `ensure_index` does not return until its own creation reports ACTIVE.
+    step("index v2", ensure_index_v2, dry_run)
     step("role", ensure_role, dry_run)
     step("log group", ensure_log_group, dry_run)
     step("Lambda", ensure_function, dry_run, zip_bytes)

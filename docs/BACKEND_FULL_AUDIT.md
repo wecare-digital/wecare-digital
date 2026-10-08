@@ -15,7 +15,7 @@ Covers every Lambda, table, AWS resource, and secret, with gaps + a phased plan 
 **Messaging (24):** inbound-whatsapp (`/webhook/whatsapp`, 512MB/120s), outbound-whatsapp (SQS+API), whatsapp-business-api (`/wa-business/*`), whatsapp-calling, whatsapp-voice, whatsapp-templates, template-management, waba-management, outbound-sms, sms-aws, sms-in-airtel, outbound-email, outbound-voice, voice-aws, voice-in-c2c/obd/cdr, voice-cdr-read, scheduled-messages (EventBridge), template-analytics, ad-attribution, push-notifications, meta-analytics, media-cleanup.
 **AI (4):** ai-generate-response (Bedrock), ai-query-kb (KB), ai-config-management, agent-action-group (Bedrock Agent).
 **Payments (4):** razorpay-webhook, payu-webhook, payments-read, invoice-engine (8 tables).
-**Operations (7):** bulk-job-create, bulk-job-control, bulk-worker (SQS, 512MB/300s), dlq-replay, billing (Cost Explorer), system-cleanup (EventBridge daily), sla-engine.
+**Operations (7):** bulk-job-create, bulk-job-control, bulk-worker (SQS, 512MB/300s), dlq-replay, billing (AWS Health + Support/Trusted Advisor; Cost Explorer removed 2026-09-28), system-cleanup (EventBridge daily), sla-engine.
 **Ecommerce (2):** wix-store, product-image-gen.
 **Other core-dir (~8):** auth-middleware, automation-rules, conversation-meta, service-api, rcs-send, rcs-dlr, sinch-dlr, catalog-management.
 

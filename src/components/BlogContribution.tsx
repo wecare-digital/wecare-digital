@@ -137,6 +137,14 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embe
               <label className="bc-choice" key={ choice.variantId }>
                 <input
                   type="radio"
+                  /* THE SHARED CONTROL SKIN MUST NOT TOUCH THIS ONE. form-controls.css draws an
+                     18px bordered box with a white dot on every radio in the app; this radio is
+                     visually hidden by `.bc-radio` and the control a user actually sees is the
+                     sibling `.bc-choice-face` pill, so skinning it would draw a SECOND control
+                     on top of the first. It is inert today only because opacity: 0 is
+                     uncontested, which is an accident rather than a contract - so the opt-out is
+                     declared here, at the call site, where the next reader will see it. */
+                  data-ui-raw
                   name={ `bc-amount-${ slug }` }
                   className="bc-radio"
                   value={ choice.variantId }

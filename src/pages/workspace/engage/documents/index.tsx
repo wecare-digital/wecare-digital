@@ -18,6 +18,7 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 
@@ -25,6 +26,28 @@ const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'uploaded', 'under_review', 'approved', 'rejected', 'reupload_requested' ];
 const SOURCE_OPTIONS = [ 'whatsapp', 'flow', 'upload', 'manual' ];
 const TYPE_OPTIONS = [ 'prescription', 'id_proof', 'address_proof', 'invoice', 'photo', 'other' ];
+
+/* The option lists, hoisted. Same order, same values, same visible text as the rows they
+   replaced, including the three '' placeholder rows the filters read as "no filter". */
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_OPTIONS.map( s => ( { value: s, label: s.replace( /_/g, ' ' ) } ) ),
+];
+const SOURCE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Sources' },
+  ...SOURCE_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const TYPE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Types' },
+  ...TYPE_OPTIONS.map( s => ( { value: s, label: s.replace( /_/g, ' ' ) } ) ),
+];
+const TYPE_SELECT_OPTIONS: SelectOption[] = TYPE_OPTIONS.map(
+  t => ( { value: t, label: t.replace( /_/g, ' ' ) } )
+);
+
+/* LAYOUT ONLY - the three filters are flex children, and a native select sized itself to
+   its widest option while the trigger shows the selected one. */
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
 
 function fmtDate ( ts?: number ): string {
   if ( !ts ) return '—';
@@ -195,18 +218,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
         {/* Filters */ }
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s.replace( /_/g, ' ' ) }</option> ) }
-          </select>
-          <select value={ sourceFilter } onChange={ e => { setSourceFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Sources</option>
-            { SOURCE_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ typeFilter } onChange={ e => { setTypeFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Types</option>
-            { TYPE_OPTIONS.map( s => <option key={ s } value={ s }>{ s.replace( /_/g, ' ' ) }</option> ) }
-          </select>
+          <Select ariaLabel="Document status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          <Select ariaLabel="Source" value={ sourceFilter }
+            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+            options={ SOURCE_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          <Select ariaLabel="Document type" value={ typeFilter }
+            onChange={ v => { setTypeFilter( v ); setPage( 1 ); } }
+            options={ TYPE_FILTER_OPTIONS } style={ FILTER_STYLE } />
         </div>
 
         { docs.length === 0 && !loading ? (
@@ -277,7 +297,10 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             <label style={ { fontSize: 14 } }>Phone<input type="tel" value={ createForm.customerPhone } onChange={ e => setCreateForm( f => ( { ...f, customerPhone: e.target.value } ) ) } placeholder="+91..." style={ inputStyle } /></label>
           </div>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 14 } }>Document Type<select value={ createForm.type } onChange={ e => setCreateForm( f => ( { ...f, type: e.target.value } ) ) } style={ inputStyle }>{ TYPE_OPTIONS.map( t => <option key={ t } value={ t }>{ t.replace( /_/g, ' ' ) }</option> ) }</select></label>
+            { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
+            <Select label="Document Type" value={ createForm.type }
+              onChange={ v => setCreateForm( f => ( { ...f, type: v } ) ) }
+              options={ TYPE_SELECT_OPTIONS } />
             <label style={ { fontSize: 14 } }>Order ID (optional)<input type="text" value={ createForm.orderId } onChange={ e => setCreateForm( f => ( { ...f, orderId: e.target.value } ) ) } placeholder="WD-ORD-..." style={ inputStyle } /></label>
           </div>
           <label style={ { fontSize: 14 } }>File Name<input type="text" value={ createForm.fileName } onChange={ e => setCreateForm( f => ( { ...f, fileName: e.target.value } ) ) } placeholder="e.g. prescription_jan2026.pdf" style={ inputStyle } /></label>
@@ -291,7 +314,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   );
 };
 
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/* `selectStyle` went with the last native select in this file - it only ever skinned those. */
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px' };

@@ -31,7 +31,32 @@
 import React, { useState, useEffect } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
+
+/*
+ * The two option lists, hoisted. Same order, same values, same visible text as the <option>
+ * rows they replaced - INCLUDING the duplicated `amazon.nova-pro-v1:0`, which was already
+ * there and is left exactly as it was. Select's clause 4 is "the first wins for display",
+ * with a development-only warning carrying a count and no option text, so the behaviour is
+ * the same as the native control's and the duplicate is now reported rather than silent.
+ * Correcting it is a product decision about which model "Balanced" should name, not a
+ * migration.
+ */
+const MODEL_OPTIONS: SelectOption[] = [
+  { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro (Fast, Cost-effective)' },
+  { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro (Balanced)' },
+  { value: 'amazon.nova-premier-v1:0', label: 'Amazon Nova Premier (Advanced)' },
+  { value: 'anthropic.claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Premium)' },
+];
+const DEFAULT_CHANNEL_OPTIONS: SelectOption[] = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'sms', label: 'SMS' },
+  { value: 'email', label: 'Email' },
+];
+
+/* LAYOUT ONLY - what `w-full` carried; the box is the trigger's. */
+const FULL_WIDTH: React.CSSProperties = { width: '100%' };
 
 interface PageProps { signOut?: () => void; user?: unknown }
 
@@ -205,17 +230,19 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
             </div>
 
             <div>
+              {/* The caption is an UNASSOCIATED <label> - no `for`, no wrapped control - so it
+                  was never a name source. It stays, and the control takes ariaLabel. The
+                  utility classes that SKINNED the native box are dropped rather than
+                  forwarded: className on a Select lands on the wrapper, so a border and a
+                  focus ring there would paint the whole field. Only the full width survives. */}
               <label className="block font-medium text-gray-700 mb-2">AI Model</label>
-              <select
+              <Select
+                ariaLabel="AI model"
                 value={config.modelId}
-                onChange={(e) => setConfig(prev => ({ ...prev, modelId: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (Fast, Cost-effective)</option>
-                <option value="amazon.nova-pro-v1:0">Amazon Nova Pro (Balanced)</option>
-                <option value="amazon.nova-premier-v1:0">Amazon Nova Premier (Advanced)</option>
-                <option value="anthropic.claude-sonnet-4-6">Claude Sonnet 4.6 (Premium)</option>
-              </select>
+                onChange={v => setConfig(prev => ({ ...prev, modelId: v }))}
+                options={MODEL_OPTIONS}
+                style={FULL_WIDTH}
+              />
             </div>
 
             <div>
@@ -264,15 +291,13 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
 
             <div>
               <label className="block font-medium text-gray-700 mb-2">Default Channel</label>
-              <select
+              <Select
+                ariaLabel="Default channel"
                 value={config.defaultChannel}
-                onChange={(e) => setConfig(prev => ({ ...prev, defaultChannel: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              >
-                <option value="whatsapp">WhatsApp</option>
-                <option value="sms">SMS</option>
-                <option value="email">Email</option>
-              </select>
+                onChange={v => setConfig(prev => ({ ...prev, defaultChannel: v }))}
+                options={DEFAULT_CHANNEL_OPTIONS}
+                style={FULL_WIDTH}
+              />
             </div>
 
             <div className="flex items-center justify-between">

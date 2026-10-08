@@ -2540,8 +2540,12 @@
   overflow-y: auto;
   padding: 4px 8px 8px;
   flex: 1;
+  /* scrollbar-width STAYS; the colour was deleted. It was `rgba(26,58,42,.15) transparent`,
+     which composites to #e8ecea over white - 1.16:1 on the lime track, effectively invisible -
+     and it was the Gecko-only half of a scrollbar the site declares once in inner-ux.css from
+     the --scrollbar-* tokens. This line stays because Gecko does not inherit scrollbar-width
+     and the canonical block sets it on html only. */
   scrollbar-width: thin;
-  scrollbar-color: rgba(26, 58, 42, 0.15) transparent;
 }
 
 .emoji-category {

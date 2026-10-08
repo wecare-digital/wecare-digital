@@ -5,6 +5,17 @@
  */
 import React, { useState } from 'react';
 import * as api from '../api/client';
+import Select, { type SelectOption } from './ui/Select';
+
+/* The three phone types, hoisted. Same order, same values, same visible text. */
+const PHONE_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'CELL', label: 'Cell' },
+  { value: 'WORK', label: 'Work' },
+  { value: 'HOME', label: 'Home' },
+];
+
+/* LAYOUT ONLY - it sits in a flex row beside a flex-1 phone input. */
+const PHONE_TYPE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 110px' };
 
 interface ContactMessageComposerProps {
   contactId: string;
@@ -77,12 +88,12 @@ const ContactMessageComposer: React.FC<ContactMessageComposerProps> = ({
       <div className="flex gap-2">
         <input placeholder="Phone number *" value={phone} onChange={e => setPhone(e.target.value)}
           className="border rounded px-2 py-1.5 text-sm flex-1" />
-        <select value={phoneType} onChange={e => setPhoneType(e.target.value)}
-          className="border rounded px-2 py-1.5 text-sm" aria-label="Phone type">
-          <option value="CELL">Cell</option>
-          <option value="WORK">Work</option>
-          <option value="HOME">Home</option>
-        </select>
+        {/* The ariaLabel-ALONE case: this control already had `aria-label="Phone type"` and no
+            visible label, so it keeps exactly that and renders no label of its own. The
+            utility classes that skinned the native box are dropped, since className on a
+            Select lands on the wrapper. */}
+        <Select ariaLabel="Phone type" value={phoneType} onChange={v => setPhoneType(v)}
+          options={PHONE_TYPE_OPTIONS} style={PHONE_TYPE_SELECT_STYLE} />
       </div>
       <input placeholder="Email (optional)" value={email} onChange={e => setEmail(e.target.value)}
         className="border rounded px-2 py-1.5 text-sm w-full" />

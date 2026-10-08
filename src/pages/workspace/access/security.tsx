@@ -5,9 +5,20 @@
  * `AssociateSoftwareToken` does not evaluate IAM policies, so it can only be
  * authorized with the signed-in user's own access token; attempting it from the
  * admin side returns "User does not have delivery config set to turn on
- * SOFTWARE_TOKEN_MFA". Pool-level TOTP is on, email MFA is on and SMS is
- * configured — this page is where a person turns the authenticator half on for
- * themselves.
+ * SOFTWARE_TOKEN_MFA".
+ *
+ * WHAT THE POOL ACTUALLY ALLOWS, measured rather than assumed. This docblock used
+ * to claim "Pool-level TOTP is on, email MFA is on and SMS is configured". That is
+ * false. `MfaConfiguration` reads `OFF` on BOTH user pools —
+ * `us-east-1_cSx0RHCIR` (staff) and `us-east-1_46ULYuukt` (the public customer OTP
+ * pool) — so no second factor is enforced for anybody today. Source:
+ * docs/execution/aws-inventory.json -> cognito.user_pools[].mfa_configuration.
+ *
+ * So read this page as where a person enrols their OWN authenticator once the pool
+ * permits it, not as evidence that a second factor is in force. Turning MFA on at
+ * the POOL is a separate, owner-gated change, and this edit does not make it: it
+ * corrects the record only. Any reader relying on the old sentence to conclude the
+ * admin-MFA target was met was reading a claim nothing had verified.
  *
  * Styled to the PUBLIC contract, as asked: the 1300px measure, the 1.04
  * line-height section heading with -1.875px tracking, the single 20px body level,

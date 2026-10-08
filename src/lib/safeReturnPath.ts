@@ -97,6 +97,9 @@ const ALLOWED: ReadonlySet<string> = new Set( [
   '/cart/',
   '/orders/',
   '/blog/',
+  // Phase O-1: the two service pages send a signed-out customer to sign in and back.
+  '/submit-request/',
+  '/request-amendment/',
   '/',
 ] );
 
