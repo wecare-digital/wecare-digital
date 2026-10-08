@@ -10,7 +10,7 @@ Fresh AWS reads in account **775261844268/us-east-1**, captured from **17:21 IST
 
 Amplify job **1461 SUCCEED** matches **b1669cde**; job1460 matches the earlier191fe707. Deployment success coexists with red CI. Live aliases: workspace MCP10, internal AI38, action group28, catalog-sync4, inbound WhatsApp85, outbound WhatsApp52, checkout32. Staff Cognito remains **OPTIONAL MFA**; customer pool remains **OFF**, with all three WhatsApp custom-auth triggers intact. A particular staff account's challenge behavior requires sign-in verification. The latency alarm was initially ALARM; follow-up read returned OK. Do not infer a continuing outage from that transient snapshot.
 
-AWS Core connection is verified by successful authorized reads. That does not verify Meta Social, WhatsApp Business Tools, Meta Ads, dashboard OAuth or desktop connectors. No customer data, secret values, live sends, calls, financial mutations, consent changes, deployments or infrastructure changes were performed in this review.
+AWS Core and AWS Data Analytics connections are verified by successful authorized reads. Data Analytics independently confirmed account775261844268: Athena has one enabled primary workgroup and Glue lists no databases in us-east-1. No SQL query was executed. That does not verify Meta Social, WhatsApp Business Tools, Meta Ads, dashboard OAuth or desktop connectors. No customer data, secret values, live sends, calls, financial mutations, consent changes, deployments or infrastructure changes were performed in this review.
 
 ## Remove resolved findings from the active list
 

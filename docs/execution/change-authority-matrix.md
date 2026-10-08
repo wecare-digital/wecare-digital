@@ -3277,6 +3277,6 @@ Evidence and pending deployment checks: docs/whatsapp/catalog-design/connection-
 
 | Class | Target | Evidence and change | Rollback |
 | --- | --- | --- | --- |
-| A0_READ | origin/stack b1669cde; GitHub; AWS account775261844268/us-east-1 | Fresh source graph,38 AWS API attempts including successful retries, latest workflows and full tests; no credentials/customer data read | Read only |
+| A0_READ | origin/stack b1669cde; GitHub; AWS account775261844268/us-east-1 | Fresh source graph,41 AWS API attempts including successful retries, latest workflows and full tests; no credentials/customer data read | Read only |
 | A1_LOCAL | codex/workspace-rescan-20261008-r2 | Updated plan,40-case test matrix, compact metadata summary, page CSV and parameterized audit script; no functional application changes | Revert scoped documentation/tooling commit |
 | A2_REMOTE_CODE | Separate review branch | Documentation/evidence push only; production CI failures retained visibly | Close draft PR or revert branch commit |
