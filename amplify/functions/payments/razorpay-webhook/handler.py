@@ -32,6 +32,9 @@ from lambda_utils.response import cors_response, cors_headers, options_response,
 from lambda_utils.logging import get_logger
 from lambda_utils import payment_status  # monotonic status, one vocabulary, dedup key
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
+# Module scope, matching `invoice-engine`, because `COMMERCE_KEYS_TABLE` below is resolved from
+# it. Import-safe: `order_keys` creates no client and reads no secret at import.
+from lambda_utils.ecommerce import order_keys
 
 logger = get_logger(__name__)
 
@@ -88,8 +91,14 @@ PAYMENT_ATTEMPTS_TABLE = os.environ.get('PAYMENT_ATTEMPTS_TABLE',
                                         'stack-wecare-digital-PaymentAttemptsTable')
 #: Already accessed via the code default; made explicit so the manifest describes the dependency
 #: instead of the default hiding it.
-COMMERCE_KEYS_TABLE = os.environ.get('COMMERCE_KEYS_TABLE',
-                                     'stack-wecare-digital-CommerceKeys')
+#:
+#: Resolved through `order_keys.commerce_keys_table_name()` and NEVER through a second literal.
+#: This constant previously defaulted to `stack-wecare-digital-CommerceKeys`, which is not a
+#: provisioned table in this account -- so with the env var absent (its live state) `reconcile`
+#: read the reservation from `WixOrderIds` via the resolver at one call site while the delivery
+#: and review claims below addressed a table that does not exist. Two spellings of one dependency
+#: inside one handler is the defect; the resolver is the single home for it.
+COMMERCE_KEYS_TABLE = order_keys.commerce_keys_table_name()
 
 #: WABA1's phone id, hoisted to a module constant so it stops appearing twice in this file. It is
 #: the PRIMARY identity and the correct fallback: WABA2 is `paymentProtected` and the UI gates it
