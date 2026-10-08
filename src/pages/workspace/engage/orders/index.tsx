@@ -310,7 +310,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         {/* ── Filters ── */ }
         <div style={ { display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' } }>
           <input
-            type="text" placeholder="Search by Order ID, phone, or customer..."
+            type="text" placeholder="Search order number, Wix ID, phone, or customer..."
             value={ search } onChange={ e => { setSearch( e.target.value ); setPage( 1 ); } }
             style={ { flex: 1, minWidth: 220, padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 } }
           />
@@ -348,7 +348,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                   { loading ? (
                     <tr><td colSpan={ 8 } style={ { padding: 40, textAlign: 'center', color: '#6b7280' } }>Loading orders...</td></tr>
                   ) : paged.map( order => {
-                    const short = order.shortId || extractShortId( order.orderId );
+                    const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
                     return (
                       <tr key={ order.orderId } style={ { borderBottom: '1px solid #f3f4f6', cursor: 'pointer' } } onClick={ () => openDetail( order ) }>
                         <td style={ tdStyle }>
@@ -420,7 +420,7 @@ interface DetailProps {
 }
 
 const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoading, documents, statusHistory, onStatusUpdate, onSubmissionStatusUpdate } ) => {
-  const short = order.shortId || extractShortId( order.orderId );
+  const short = order.orderNumber || order.shortId || extractShortId( order.orderId );
 
   return (
     <div>
@@ -436,9 +436,11 @@ const OrderDetailPanel: React.FC<DetailProps> = ( { order, submissions, subsLoad
           <div><span style={ metaLabel }>Full Order ID</span><div style={ { fontSize: 12, fontFamily: 'monospace', wordBreak: 'break-all', color: '#374151' } }>{ order.orderId }</div></div>
           <div><span style={ metaLabel }>Customer</span><div style={ { fontWeight: 500 } }>{ order.customerName || '—' }</div></div>
           <div><span style={ metaLabel }>Phone</span><div style={ { fontFamily: 'monospace' } }>{ order.customerPhone || '—' }</div></div>
+          { order.wixOrderId && <div><span style={ metaLabel }>Wix Order ID</span><div style={ { fontSize: 12, fontFamily: 'monospace', overflowWrap: 'anywhere' } }>{ order.wixOrderId }</div></div> }
+          { order.referenceId && <div><span style={ metaLabel }>Payment reference</span><div style={ { fontFamily: 'monospace' } }>{ order.referenceId }</div></div> }
           <div><span style={ metaLabel }>Source</span><div><Badge status={ order.source } /></div></div>
           <div><span style={ metaLabel }>Created</span><div>{ formatDateTime( order.createdAt ) }</div></div>
-          <div><span style={ metaLabel }>Amount</span><div style={ { fontWeight: 600 } }>{ order.paymentAmount ? `₹${order.paymentAmount}` : '—' }</div></div>
+          <div><span style={ metaLabel }>Amount</span><div style={ { fontWeight: 600 } }>{ ( order.paymentAmount ?? order.totalAmount ) !== undefined ? `₹${ order.paymentAmount ?? order.totalAmount }` : '—' }</div></div>
         </div>
 
         {/* Status controls */ }

@@ -5731,6 +5731,9 @@ export async function deleteCatalogProduct ( productId: string ): Promise<boolea
 
 export interface Order {
   orderId: string;
+  orderNumber?: string;
+  referenceId?: string;
+  finalizationStage?: string;
   shortId?: string;
   orderDate?: string;
   orderTime?: string;
@@ -5792,7 +5795,10 @@ export async function listOrders ( params?: {
 }
 
 export async function getOrder ( orderId: string ): Promise<Order | null> {
-  return apiCall<Order>( `${ORDERS_BASE}/${orderId}` );
+  const order = await apiCall<Order>( `${ORDERS_BASE}/${orderId}` );
+  if ( !order ) return null;
+  return { ...order, status: order.status || order.orderStatus || 'active',
+    paymentStatus: order.paymentStatus === 'PAYMENT_PAID' ? 'paid' : order.paymentStatus };
 }
 
 export async function createOrder ( order: Partial<Order> ): Promise<Order | null> {

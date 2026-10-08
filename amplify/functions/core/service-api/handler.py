@@ -127,9 +127,17 @@ def _list_orders(params: Dict) -> Dict:
         resp = table.scan()
 
     items = resp.get('Items', [])
+    while resp.get('LastEvaluatedKey'):
+        query = dict(kwargs, ExclusiveStartKey=resp['LastEvaluatedKey'])
+        resp = table.query(**query) if kwargs else table.scan(**query)
+        items.extend(resp.get('Items', []))
+    for item in items:
+        if item.get('paymentStatus') == 'PAYMENT_PAID':
+            item['paymentStatus'] = 'paid'
+        item.setdefault('status', item.get('orderStatus', 'active'))
     if search:
         q = search.lower()
-        items = [i for i in items if q in (i.get('orderId', '') + i.get('customerName', '') + i.get('customerPhone', '')).lower()]
+        items = [i for i in items if q in (str(i.get('orderId', '')) + str(i.get('orderNumber', '')) + str(i.get('wixOrderId', '')) + str(i.get('customerName', '')) + str(i.get('customerPhone', ''))).lower()]
 
     items.sort(key=lambda x: x.get('createdAt', 0), reverse=True)
     limit = int(params.get('limit', 200))

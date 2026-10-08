@@ -3340,3 +3340,18 @@ Authority: owner asks automated Wix/WhatsApp order linkage and all customer orde
 | A1_LOCAL | Unfinished native checkout in main workspace | Finalization response now checks persisted PAID/Wix ID/cart-completed state before unlock; five new boundary tests plus paid flow fixtures, 36 passed; not included in production patch | Revert only new completion check and helper |
 
 No live-send flag or Wix writeback flag enabled. No payment/provider configuration changed. Native paid purchase and fulfillment await QA recipient and Wix external-write contract validation. Public deployment evidence: order-link-live-evidence.json.
+
+
+## 2026-10-08 - Native catalog service checkout integration
+
+Authority: owner instruction "deep complete this first" covering checkout, Wix writeback, fulfillment, workspace display, review and owner QA.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A1_LOCAL | Native service orchestration, writeback mapping, workspace fields | 616 backend passing tests; 6 Vault frontend tests; typecheck passed; reviewed bounded source delta | Scoped revert commit |
+| A3_PRODUCTION | Checkout / business API / inbound / outbound live aliases | Preserved deployed archives; final versions 36 / 76 / 88 / 55; closed purchase gates; live safety smokes | Restore original aliases 34 / 74 / 86 / 54 |
+| A3_PRODUCTION | wecare-checkout-role | Additive CheckoutNativeCatalogAuthority, four exact-resource permissions read back allowed | Remove only this owned inline policy after alias rollback |
+| A0_READ | Meta Flow and three templates | Review Flow published; paid Submit Request draft zero validation errors; payment/download/review templates approved; payment configurations Active | Read only |
+| BLOCKED | Publish Flow 1107164111921876 | Automatic approval review requires specific owner approval; requested, no bypass | Flow remains DRAFT |
+
+No QA number supplied; no paid test, capture/refund, live customer send, external Wix order/payment write or catalog availability change. Live writeback and native catalog gates remain closed. Evidence and exact QA gates: docs/whatsapp/native-catalog-release-status.md and native-catalog-integration-evidence.json. Frontend source changes require the frontend release; the Lambda deployment alone does not publish the website.

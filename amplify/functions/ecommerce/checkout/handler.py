@@ -2843,7 +2843,10 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             customerPhone=_profile_phone(identity), catalogServiceSession=catalog_session['orderId'],
             snapshotHash=snapshot.snapshot_hash, purchasedSnapshot=dict(snapshot.frozen_data))
         attempt['wixOrderPayload'] = wix_writeback.build_wix_order_payload(
-            cart=_calculated, quote=snapshot.quote)
+            cart=_calculated, quote=snapshot.quote, buyer={'phone': identity.phone})
+        attempt['wixOrderPayload']['channelInfo']['externalOrderId'] = reference_id
+        for line in attempt['wixOrderPayload']['lineItems']:
+            line['itemType'] = {'preset': 'SERVICE'}
         if len(json.dumps(attempt, default=str).encode()) > 350000:
             return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
 
@@ -3071,6 +3074,8 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         return {'outcome' : 'NATIVE_SERVICE_FINALIZED' if done else 'NATIVE_SERVICE_FINALIZATION_PENDING'}
     if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true':
         return {'outcome': 'NATIVE_SERVICE_ROLLOUT_DISABLED'}
+    if not wix_writeback.is_enabled():
+        return {'outcome': 'NATIVE_SERVICE_WRITEBACK_NOT_READY'}
     token = str(event.get('catalogToken') or '')
     import re
     if not re.fullmatch(r'[A-Za-z0-9_-]{20,80}', token):
@@ -3094,6 +3099,11 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
             or intent.get('variantId') != row.get('variantId') or intent.get('status') != store.INTENT_OPEN
             or (row.get('kind') == 'VAULT' and intent.get('vaultFileId') != row.get('vaultFileId'))):
         return {'outcome': 'CATALOG_SERVICE_INTENT_UNAVAILABLE'}
+    response = _lambda_client().invoke(FunctionName='wecare-whatsapp-business-api:live',
+        InvocationType='RequestResponse', Payload=json.dumps({'internalAction': 'catalogServiceReadiness'}).encode())
+    readiness = json.loads(response['Payload'].read())
+    if response.get('FunctionError') or not catalog.meta_ready(readiness, row['kind']):
+        return {'outcome': 'NATIVE_SERVICE_META_NOT_READY'}
     lines = [{'catalogReference': {'catalogItemId': row['productId'],
               'options': {'variantId': row['variantId']}, 'appId': cart_v2.STORES_APP_ID}, 'quantity': 1}]
     catalog.service_from_lines([{'productId': row['productId'], 'variantId': row['variantId'], 'quantity': 1}])

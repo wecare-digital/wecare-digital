@@ -314,3 +314,16 @@ def test_confirmed_payment_cannot_be_reused_with_different_amount(table, enabled
     with pytest.raises(wb.WixWritebackPending):
         wb.record_external_payment(table, wix, amount_paise=59901, **kwargs)
     assert len(wix.calls) == 1
+
+
+def test_created_order_total_mismatch_never_creates_a_second_order(table, enabled):
+    calls = []
+    def wix(path, method='GET', body=None):
+        calls.append(path)
+        return {'order': {'id': 'created-order', 'currency': 'INR',
+                          'priceSummary': {'total': {'amount': '98.00'}}}}
+    payload = {'currency': 'INR', 'priceSummary': {'total': {'amount': '99.00'}}}
+    for _ in range(2):
+        with pytest.raises(wb.WixWritebackPending):
+            wb.create_wix_order(table, wix, order_id=ORDER, order_payload=payload)
+    assert calls == ['/ecom/v1/orders']

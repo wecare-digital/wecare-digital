@@ -235,6 +235,9 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
              'purchasedSnapshot': deepcopy(snapshot), 'snapshotHash': attempt['snapshotHash'],
              # The record says which flow produced it, rather than hard-coding one of them.
              'checkoutMode': attempt['checkoutMode'], 'paymentStatus': 'PAYMENT_PAID',
+             'source': order_channel.canonical(attempt.get('channel')),
+             'orderStatus': 'active', 'status': 'active',
+             'totalAmount': Decimal(attempt['amountPaise']) / Decimal(100),
              # WHERE the order came from, beside HOW it settled, and deliberately a SECOND field
              # rather than a third `checkoutMode`: `checkoutMode` gates finalisation through
              # `ACCEPTED_CHECKOUT_MODES` above, so a channel spelled into it would be a new
@@ -334,6 +337,11 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
             wix_writeback.mark_cart_completed(keys, wix_ecom._request,
                 order_id=order['orderId'], cart_id=cart_id, wix_order_id=wix['wixOrderId'])
             _stage(attempts, attempt['paymentAttemptId'], 'WIX_CART_COMPLETED')
+            orders.update_item(Key={'orderId': order['orderId']},
+                UpdateExpression='SET finalizationStage=:stage',
+                ConditionExpression='paymentAttemptId=:attempt',
+                ExpressionAttributeValues={':stage': 'WIX_CART_COMPLETED',
+                                           ':attempt': attempt['paymentAttemptId']})
         except (wix_writeback.WixWritebackPending, wix_writeback.WixWritebackDisabled,
                 ValueError):
             # Its OWN nested try, deliberately. The order and the external payment record have

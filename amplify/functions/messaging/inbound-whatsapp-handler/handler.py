@@ -6557,7 +6557,8 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
     its own. This function is wiring: a gate, two refusals, two conditional writes and a reply.
     """
     try:
-        if not _catalog_orders_enabled():
+        if (not _catalog_orders_enabled()
+                and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true'):
             logger.info(json.dumps({
                 'event': 'cart_order_handoff_disabled',
                 'phone_suffix': _phone_suffix(sender_phone),
@@ -6608,6 +6609,9 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                         'contactId': contact_id, 'senderPhone': sender_phone,
                         'phoneNumberId': phone_number_id}).encode())
                 return
+
+        if not _catalog_orders_enabled():
+            return
 
         keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
         now = int(time.time())

@@ -63,6 +63,42 @@ def mirror(row):
     if row.get('flowPhone'):
         item['phone'] = row['flowPhone']
     table.put_item(Item=item)
+    # Queue an ids-only follow-up. The worker re-reads the submitted record before sending.
+    try:
+        boto3.client('lambda').invoke(FunctionName='wecare-whatsapp-business-api:live',
+            InvocationType='Event', Payload=json.dumps({'internalAction': 'serviceReview',
+                                                       'requestId': row['requestId']}).encode())
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'request_review_queue_failed',
+                                   'error': type(error).__name__}))
+
+
+def send_review(event, lambda_client):
+    from .paid_vault import _send_once, HEADER_IMAGE
+    requests, _, _ = tables()
+    row = requests.get_item(Key={'requestId': str(event.get('requestId') or '')},
+                            ConsistentRead=True).get('Item') or {}
+    if (row.get('kind') != 'SUBMIT_REQUEST' or not row.get('detailsSubmittedAt')
+            or not row.get('flowContactId') or not row.get('flowPhone')):
+        return {'outcome': 'REVIEW_NOT_DUE'}
+    contact = boto3.resource('dynamodb').Table('stack-wecare-digital-ContactsTable').get_item(
+        Key={'id': row['flowContactId']}, ConsistentRead=True).get('Item') or {}
+    if (contact.get('checkoutCustomerId') != row.get('customerId') or contact.get('isDeleted')
+            or contact.get('deletedAt') is not None or contact.get('phone') != row['flowPhone']):
+        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
+    users = boto3.client('cognito-idp').list_users(UserPoolId=customer_auth.CUSTOMER_POOL_ID,
+        Filter='sub = "' + row['customerId'] + '"', Limit=2).get('Users') or []
+    if len(users) != 1 or not users[0].get('Enabled', True):
+        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
+    attrs = {a['Name']: a['Value'] for a in users[0].get('Attributes', [])}
+    if attrs.get('phone_number') != row['flowPhone'] or attrs.get('phone_number_verified') != 'true':
+        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
+    accepted = _send_once(requests, row, 'requestReviewStatus', lambda_client, {
+        'contactId': row['flowContactId'], 'recipientPhone': row['flowPhone'],
+        'phoneNumberId': '1016149501586345', 'isTemplate': True,
+        'templateName': 'wecare_leave_review', 'templateParams': [],
+        'headerImageUrl': HEADER_IMAGE, 'flowButton': {'index': 0, 'flowKey': 'leave_review'}})
+    return {'outcome': 'REVIEW_ACCEPTED' if accepted else 'REVIEW_PENDING'}
 
 
 def prepare_and_send(event, lambda_client, get_flow):

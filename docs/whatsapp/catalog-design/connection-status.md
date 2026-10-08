@@ -37,7 +37,7 @@ Validation: 134 catalog projection, handler and exclusion-parity tests passed. N
 
 ## Order path still pending
 
-Live checkout and Razorpay webhook configurations do not enable the site-bound Wix external-order writeback contract. Native catalog-service checkout changes are unfinished local source and have not been deployed by this catalog release. Paid purchase -> one Wix order -> one workspace order -> Submit Request/Vault fulfillment therefore remains unverified. Owner QA WhatsApp recipient requested; no real customer used as a substitute.
+Live checkout and Razorpay webhook configurations do not enable the site-bound Wix external-order writeback contract. Native catalog-service checkout is now integrated and deployed separately: checkout 36, business API 76, inbound 88, outbound 55. Purchase gates remain closed pending specific paid-Flow publication approval and owner QA. See ../native-catalog-release-status.md. Paid purchase -> one Wix order -> one workspace order -> Submit Request/Vault fulfillment therefore remains unverified. Owner QA WhatsApp recipient requested; no real customer used as a substitute.
 
 ## Rollback
 
@@ -47,6 +47,6 @@ Revert the catalog projection commit for code rollback. For Wix media rollback, 
 
 The finalizer now binds Wix order IDs to the canonical internal UUID/public number on the main OrderTable and reverse WixOrderIds record. Conditional writes refuse a changed association and recover from a partial failure. Wix sync resolves that association before legacy-number allocation, avoiding a duplicate workspace order. Six regression tests include syncing the same paid-order fixture twice. Checkout/writeback/package tests: 83 passed (82 before the extra replay regression).
 
-Native service finalization also now requires the persisted PAYMENT_PAID state, Wix order ID and WIX_CART_COMPLETED stage before unlocking fulfillment. This change belongs to the unfinished local native checkout implementation and is not included in the association-only production patch. Five boundary tests plus existing paid Submit Request/Vault tests passed (36 total).
+Native service finalization also now requires the persisted PAYMENT_PAID state, Wix order ID and WIX_CART_COMPLETED stage before unlocking fulfillment. This check is now included in the native checkout deployment (live checkout 36), separately from the original association-only patch. Five boundary tests plus existing paid Submit Request/Vault tests passed (36 total).
 
 Production association patch: checkout live 33 (rollback 32), Wix store live 37 (rollback 36). Both published versions Active and both OPTIONS smoke invocations returned 200 without FunctionError. Deployments retain existing package contents except the exact tested association modules. Evidence: order-link-live-evidence.json. The Wix writeback and native live-send flags remain unenabled.

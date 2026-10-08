@@ -398,7 +398,7 @@ def test_the_wix_payload_relays_wix_money_and_adds_only_our_fee():
             if fee["code"] == wix_writeback.CONVENIENCE_FEE_CODE]
     assert len(fees) == 1
     assert fees[0]["priceBeforeTax"] == {"amount": "25.00"}, "2.5% of 1000.00, exact"
-    assert fees[0]["price"] == {"amount": "29.50"}, "fee plus 18% GST on the fee, exact"
+    assert fees[0]["price"] == {"amount": "25.00"}, "tax is represented separately"
     assert payload["priceSummary"]["subtotal"] == {"amount": "1000.00"}, "relayed verbatim"
     assert payload["priceSummary"]["total"] == {"amount": "1029.50"}
     assert payload["lineItems"][0]["catalogReference"] == {"catalogItemId": "prod-1"}
@@ -583,7 +583,7 @@ class _Wix:
         # it is why the stub answers no fourth endpoint.
         if endpoint == "/ecom/v1/orders":
             self.wix_orders.append(copy.deepcopy(body))
-            return {"order": {"id": self.wix_order_id}}
+            return {"order": {"id": self.wix_order_id, "currency": body["order"]["currency"], "priceSummary": copy.deepcopy(body["order"]["priceSummary"])}}
         if endpoint.endswith("/add-payment"):
             self.wix_payments.append(copy.deepcopy(body))
             wix_order_id = endpoint[len("/ecom/v1/payments/orders/"):-len("/add-payment")]

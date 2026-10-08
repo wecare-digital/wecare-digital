@@ -86,3 +86,21 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
                   'subtotal': {'value': quote.collection_before_convenience_paise + quote.convenience_fee_paise, 'offset': 100},
                   'tax': {'value': quote.convenience_gst_paise, 'offset': 100, 'description': 'GST on convenience fee'},
                   'expiration': {'timestamp': str(now + 900), 'description': 'Complete payment within 15 minutes'}}}
+
+
+def meta_ready(readiness: dict, kind: str) -> bool:
+    templates = readiness.get('templates') or {}
+    for name in ('wecarepay_wa', 'wecare_leave_review', 'wecare_default_download'):
+        template = templates.get(name) or {}
+        if template.get('name') != name or template.get('status') != 'APPROVED' or template.get('language') != 'en':
+            return False
+    download = templates['wecare_default_download']
+    buttons = [b for c in download.get('components') or [] if c.get('type') == 'BUTTONS'
+               for b in c.get('buttons') or []]
+    if not buttons or buttons[0].get('type') != 'URL' or buttons[0].get('url') != 'https://wecare.digital/vault/?file={{1}}':
+        return False
+    if kind == 'SUBMIT_REQUEST':
+        flow = readiness.get('flow') or {}
+        if flow.get('id') != '1107164111921876' or flow.get('status') != 'PUBLISHED' or flow.get('validation_errors'):
+            return False
+    return kind in ALLOWED

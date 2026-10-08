@@ -204,6 +204,8 @@ def create_wix_order(table: Any, wix_request: Callable[..., Dict[str, Any]], *,
     existing = side_effect_guard.resolve(
         table, order_id=order_id, effect=side_effect_guard.WIX_ORDER, key_attr=key_attr)
     if existing and existing.get("state") == side_effect_guard.DONE:
+        if (existing.get("result") or {}).get("amountVerified") is False:
+            raise WixWritebackPending("created Wix order total requires reconciliation")
         return {"wixOrderId": (existing.get("result") or {}).get("wixOrderId", ""),
                 "created": False}
 
@@ -215,13 +217,28 @@ def create_wix_order(table: Any, wix_request: Callable[..., Dict[str, Any]], *,
         raise WixWritebackPending("Wix order outcome needs readback before retry")
 
     response = _guarded_call(wix_request, method="POST", path="/ecom/v1/orders",
-                             body={"order": order_payload})
+                             body={"order": order_payload, "settings": {
+                                 "orderApprovalStrategy": "PAYMENT_RECEIVED",
+                                 "notifications": {"sendNotificationToBuyer": False}}})
     wix_order_id = str((response.get("order") or {}).get("id") or "")
     if not wix_order_id:
         raise WixWritebackPending("Wix order response has no order id")
+    expected = (order_payload.get('priceSummary') or {}).get('total')
+    verified = True
+    if expected:
+        created = response.get('order') or {}
+        try:
+            verified = (created.get('currency') == order_payload.get('currency')
+                        and Money.from_wix((created.get('priceSummary') or {}).get('total', {}).get('amount')).paise
+                        == Money.from_wix(expected.get('amount')).paise)
+        except (ValueError, TypeError, AttributeError):
+            verified = False
+    # Preserve the provider id even on a mismatch; another attempt must never create again.
     side_effect_guard.confirm(
         table, order_id=order_id, effect=side_effect_guard.WIX_ORDER,
-        result={"wixOrderId": wix_order_id}, key_attr=key_attr)
+        result={"wixOrderId": wix_order_id, "amountVerified": verified}, key_attr=key_attr)
+    if not verified:
+        raise WixWritebackPending('created Wix order total requires reconciliation')
     logger.info('{"event":"wix_order_created"}')
     return {"wixOrderId": wix_order_id, "created": True}
 
@@ -338,7 +355,8 @@ def _paise_money(amount_paise: int) -> Dict[str, str]:
 
 
 def build_wix_order_payload(*, cart: Mapping[str, Any], quote: Any,
-                            coupon: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+                            coupon: Optional[Mapping[str, Any]] = None,
+                            buyer: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The Create Order payload for a verified-paid order, built from the FROZEN quote.
 
     `cart` is the Cart V2 Calculate Cart result - `{"cart": ..., "summary": ...}`, which is a
@@ -390,23 +408,38 @@ def build_wix_order_payload(*, cart: Mapping[str, Any], quote: Any,
         # All three price fields, because `totalAdditionalFees` is what Wix sums and nothing
         # documents which of them it derives from. `priceBeforeTax` is the fee; `price` and
         # `priceAfterTax` are the fee plus its GST.
-        "price": _paise_money(fee_with_tax_paise),
+        "price": _paise_money(fee_paise),
+        "taxInfo": {"taxAmount": _paise_money(gst_paise),
+                    "taxableAmount": _paise_money(fee_paise),
+                    "taxRate": "0.18", "taxIncludedInPrice": False},
         "priceBeforeTax": _paise_money(fee_paise),
         "priceAfterTax": _paise_money(fee_with_tax_paise),
     })
     total_additional_paise = sum(
-        Money.from_wix((entry.get("price") or {}).get("amount")).paise
+        Money.from_wix((entry.get("priceAfterTax") or entry.get("price") or {}).get("amount")).paise
         for entry in additional_fees)
 
     calculated_lines = {str(line.get("lineItemId")): line
                         for line in (summary.get("lineItems") or [])
                         if isinstance(line, Mapping)}
+    tax_summary = summary.get("taxSummary") or {}
+    line_taxes = {str(t.get("lineItemId")): t for t in tax_summary.get("lineItemTaxes") or []}
     line_items = []
     for item in cart_body.get("lineItems") or []:
         if not isinstance(item, Mapping):
             continue
         calculated = calculated_lines.get(str(item.get("id"))) or {}
+        tax = line_taxes.get(str(item.get("id")))
+        if tax is None:
+            if Money.from_wix((prices.get("tax") or {}).get("amount")).paise:
+                raise ValueError("calculated per-line tax is required")
+            tax = {"tax": {"amount": "0.00"}, "rate": "0"}
+        tax_amount = deepcopy(tax.get("tax") or {})
+        Money.from_wix(tax_amount.get("amount"))
         line_items.append({
+            "itemType": deepcopy((item.get("attributes") or {}).get("itemType") or {"preset": "PHYSICAL"}),
+            "taxInfo": {"taxAmount": tax_amount, "taxRate": str(tax.get("rate", "0")),
+                        "taxIncludedInPrice": bool(tax_summary.get("pricesIncludeTax"))},
             "catalogReference": deepcopy((item.get("source") or {}).get("catalogReference") or {}),
             "productName": deepcopy(item.get("name") or {}),
             "quantity": int((item.get("quantityInfo") or {}).get("confirmedQuantity")
@@ -424,8 +457,8 @@ def build_wix_order_payload(*, cart: Mapping[str, Any], quote: Any,
             # Relayed, so the order side cannot have re-derived the pre-discount figure.
             "subtotal": _relayed_money(prices, "subtotal"),
             "discount": _relayed_money(prices, "discount"),
-            "delivery": _relayed_money(prices, "delivery"),
-            "tax": _relayed_money(prices, "tax"),
+            "shipping": _relayed_money(prices, "delivery"),
+            "tax": _paise_money(Money.from_wix((prices.get("tax") or {}).get("amount")).paise + gst_paise),
             "totalAdditionalFees": _paise_money(total_additional_paise),
             # The one figure that is ours: what the customer agreed to pay and what was captured.
             "total": _paise_money(quote.total_payable_paise),
@@ -436,6 +469,14 @@ def build_wix_order_payload(*, cart: Mapping[str, Any], quote: Any,
                 "address": deepcopy(delivery.get("address") or {})}},
         },
     }
+    payload['channelInfo'] = {'type': 'OTHER_PLATFORM'}
+    payload['taxIncludedInPrices'] = bool(tax_summary.get('pricesIncludeTax'))
+    if buyer:
+        contact = {k: str(buyer[k]) for k in ('firstName', 'lastName', 'phone') if buyer.get(k)}
+        if contact:
+            payload['billingInfo'] = {'contactDetails': contact}
+        if buyer.get('email'):
+            payload['buyerInfo'] = {'email': str(buyer['email'])}
     return payload
 
 
