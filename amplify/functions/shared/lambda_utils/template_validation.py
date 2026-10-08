@@ -29,6 +29,7 @@ from .whatsapp_types import (
     LTO_TEXT_MAX,
     LTO_ALLOWED_CATEGORIES,
     LTO_HEADER_FORMATS,
+    LTO_REQUIRED_BUTTON_TYPES,
     OTP_TYPES,
     OTP_AUTOFILL_TYPES,
     OTP_AUTOFILL_TEXT_MAX,
@@ -464,11 +465,15 @@ def validate_components(components: List[Dict[str, Any]], category: str,
                 f'{LTO_COMPONENT_TYPE} templates usually require a HEADER with format '
                 f'{" or ".join(LTO_HEADER_FORMATS)}'
             )
+        # Read through LTO_REQUIRED_BUTTON_TYPES rather than inlining the two spellings,
+        # for the same reason LTO_TEXT_MAX lives in whatsapp_types: the rule is believed
+        # to be Meta's and a correction must cost one line in one file. The declaration
+        # order is the message order.
         button_types = [(b.get('type') or '').upper() for b in buttons_seen]
-        if button_types.count('COPY_CODE') != 1:
-            errors.append(f'{LTO_COMPONENT_TYPE} templates require exactly 1 COPY_CODE button')
-        if button_types.count('URL') != 1:
-            errors.append(f'{LTO_COMPONENT_TYPE} templates require exactly 1 URL button')
+        for required in LTO_REQUIRED_BUTTON_TYPES:
+            if button_types.count(required) != 1:
+                errors.append(
+                    f'{LTO_COMPONENT_TYPE} templates require exactly 1 {required} button')
     return errors, warnings
 
 

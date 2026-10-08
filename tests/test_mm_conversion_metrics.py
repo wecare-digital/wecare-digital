@@ -138,6 +138,37 @@ class TestMmConversionMetrics:
         assert resp['statusCode'] == 200
         assert body['cached'] == {}
 
+    def test_a_missing_cache_row_is_an_empty_answer_and_hasCached_says_so(self):
+        """`hasCached` is the only field the one unavailable-read log line carries that
+        could distinguish two runs, so it has to be able to say False. An earlier shape
+        returned {'metrics': [], 'readAt': 0} for a row that does not exist -- truthy --
+        and reported True on every unavailable read."""
+        self.table.get_item.return_value = {}          # no 'Item': the row is absent
+        logged = self._unavailable_log_line()
+        assert logged['hasCached'] is False
+        with patch.object(self.handler, 'dynamodb', self.fake_dynamo):
+            assert self.handler._mm_metrics_cached('WABA1') == {}
+
+    def test_hasCached_is_true_when_a_row_exists(self):
+        self.table.get_item.return_value = {
+            'Item': {'id': self.handler.MM_METRICS_CACHE_PREFIX + 'WABA1',
+                     'configValue': json.dumps(ROWS), 'updatedAt': Decimal('1760000000')}}
+        assert self._unavailable_log_line()['hasCached'] is True
+
+    def _unavailable_log_line(self):
+        """The mm_conversion_metrics_unavailable line, read at the logger boundary."""
+        fake_logger = MagicMock()
+        with patch.object(self.handler, '_graph_api',
+                          return_value={'error': {'message': 'Unsupported get request'}}), \
+                patch.object(self.handler, 'dynamodb', self.fake_dynamo), \
+                patch.object(self.handler, 'logger', fake_logger):
+            self.handler._get_mm_conversion_metrics('WABA1', {})
+        for call in fake_logger.info.call_args_list:
+            payload = json.loads(call.args[0])
+            if payload.get('event') == 'mm_conversion_metrics_unavailable':
+                return payload
+        raise AssertionError('no mm_conversion_metrics_unavailable line was logged')
+
     # 7
     def test_missing_waba_id_is_refused(self):
         event = {'requestContext': {'http': {'method': 'GET',

@@ -3605,7 +3605,7 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
             if lto_offer_code:
                 payload['template']['components'].append(
                     _copy_code_button_component(lto_copy_code_index, lto_offer_code))
-            
+
             logger.info(json.dumps({
                 'event': 'lto_template_payload_built',
                 'templateName': template_name,

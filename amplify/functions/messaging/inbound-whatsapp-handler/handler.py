@@ -1264,7 +1264,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 # `continue` either. Inert for every other field.
                 _coexistence_change = _wh_field in _COEXISTENCE_FIELDS
                 _inbound_messages = [] if _coexistence_change else value.get('messages', [])
-                
+
                 # Process incoming messages
                 for message in _inbound_messages:
                     try:
@@ -1478,7 +1478,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'error': type(e).__name__,
                             'requestId': request_id
                         }))
-                
+
                 # ── Additional Meta webhook fields (per official docs) ──
                 # These are informational/system-level events that we log to SystemEvent
                 # for audit trail and operational awareness.

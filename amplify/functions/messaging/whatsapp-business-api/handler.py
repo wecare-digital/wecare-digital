@@ -1527,10 +1527,18 @@ MM_METRICS_CACHE_PREFIX = 'mm_metrics_'
 
 
 def _mm_metrics_cached(waba_id: str) -> Dict:
-    """Last good metrics read for a WABA, or {} if there is none. Fail-open."""
+    """Last good metrics read for a WABA, or {} if there is none. Fail-open.
+
+    The empty answer is `{}` and NOT {'metrics': [], 'readAt': 0}, because the only
+    log line item 7 ships reports `hasCached: bool(cached)` -- and a truthy dict for a
+    row that does not exist makes that field say True on every unavailable read, which
+    distinguishes nothing at the exact moment the edge name is suspect.
+    """
     try:
         item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(
-            Key={'id': MM_METRICS_CACHE_PREFIX + waba_id}).get('Item') or {}
+            Key={'id': MM_METRICS_CACHE_PREFIX + waba_id}).get('Item')
+        if not item:
+            return {}
         raw = item.get('configValue')
         return {'metrics': json.loads(raw) if isinstance(raw, str) else (raw or []),
                 'readAt': int(item.get('updatedAt') or 0)}

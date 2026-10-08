@@ -143,6 +143,17 @@ def test_lto_requires_copy_code_and_url(buttons, missing):
         assert any('1 URL button' in e for e in res['errors'])
 
 
+def test_the_required_button_rule_reads_the_constant():
+    """LTO_REQUIRED_BUTTON_TYPES drives the two checks rather than sitting beside
+    inlined literals. A declared-and-never-read constant is the "looks like coverage
+    and decides nothing" shape, so the rule is asserted over the declaration, not over
+    one spelling of it."""
+    res = tv.validate_template(_definition(buttons=()))
+    for required in wt.LTO_REQUIRED_BUTTON_TYPES:
+        assert any(f'1 {required} button' in e for e in res['errors']), required
+    assert len(wt.LTO_REQUIRED_BUTTON_TYPES) == len(set(wt.LTO_REQUIRED_BUTTON_TYPES))
+
+
 def test_the_absent_buttons_component_reads_identically_to_an_empty_one():
     absent = tv.validate_template(_definition(buttons=None))['errors']
     empty = tv.validate_template(_definition(buttons=()))['errors']
