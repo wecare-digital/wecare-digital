@@ -107,10 +107,6 @@ export const navigationConfig: NavItem[] = [
       // cancel, delete and resend all move money or message a customer.
       { path: '/workspace/pay/records', label: 'Invoice records' },
       { path: '/workspace/pay/flow', label: 'Pay Flow' },
-      // 'Pay Link' (/workspace/pay/link) was a fourth child here. The ENTRY went, the PAGE
-      // stays: pay/index.tsx:11 imports it as PayLinkPage and renders it at :28 as the
-      // Pay hub's second tab, so this drops a duplicate route into the same screen,
-      // not a destination.
     ],
   },
   {

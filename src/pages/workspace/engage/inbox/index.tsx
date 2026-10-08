@@ -1002,6 +1002,16 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                         const ch = ( m.channel || 'whatsapp' ).toLowerCase();
                                         const cm = chMeta( ch );
                                         const out = ( m.direction || '' ).toUpperCase() === 'OUTBOUND';
+                                        const revoked = ( m as any ).isRevoked === true;
+                                        // A revoke that RESOLVED is already shown on the message it deleted
+                                        // (struck through, below), so rendering its own bubble as well is a
+                                        // double render. When revokesMessageId is absent the revoke never
+                                        // resolved, so it still renders as its own line and nothing becomes
+                                        // invisible. Ported from whatsapp/inbox.tsx, which was reduced to a
+                                        // wrapper over this renderer - the marking is server-side and already
+                                        // on the row (api/client.ts), so without this the fields arrive and
+                                        // nothing reads them.
+                                        if ( ( m as any ).revokesMessageId ) return null;
                                         if ( ( m.messageType || '' ).toLowerCase() === 'reaction' )
                                         {
                                             const emoji = ( m.content || '' ).replace( /\[reaction\]?/i, '' ).trim() || '👍';
@@ -1036,7 +1046,26 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
                                                         return <ContactCardBubble contacts={ cards } fallbackLabel="Contact card" />;
                                                     } )() }
                                                     { !( ( m.messageType || '' ).toLowerCase() === 'contacts' && Array.isArray( ( m as any ).contactsPayload ) && ( m as any ).contactsPayload.length > 0 )
-                                                        && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && <span className="ui-msg-text">{ prettyMsg( m.content, m.messageType ) }</span> }
+                                                        && ( ( m.content && !isSysLabel( m.content ) ) || !m.mediaUrl ) && (
+                                                        <span
+                                                            className="ui-msg-text"
+                                                            style={ revoked ? { textDecoration: 'line-through', opacity: 0.55 } : undefined }
+                                                        >{ prettyMsg( m.content, m.messageType ) }</span>
+                                                    ) }
+                                                    { revoked && (
+                                                        // An inferred match is a guess, and an unlabelled guess shown as
+                                                        // fact is the failure to avoid - so the qualifier is in the
+                                                        // visible text, not only in the tooltip.
+                                                        <span
+                                                            className="ui-msg-revoked"
+                                                            title={ ( m as any ).revokeResolution === 'inferred'
+                                                                ? 'Matched by timing — WhatsApp does not say which message was deleted.'
+                                                                : undefined }
+                                                            style={ { fontSize: 11, fontStyle: 'italic', opacity: 0.7, marginTop: 2 } }
+                                                        >
+                                                            Deleted by sender{ ( m as any ).revokeResolution === 'inferred' ? ' · matched by timing' : '' }
+                                                        </span>
+                                                    ) }
                                                     { m.transcription && <span className="ui-msg-transcript">📝 { m.transcription }</span> }
                                                     <span className="ui-msg-meta">
                                                         { fmtTime( m.timestamp ) } · { ( () => {

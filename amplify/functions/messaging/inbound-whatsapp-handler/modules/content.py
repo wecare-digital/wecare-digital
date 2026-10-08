@@ -304,7 +304,14 @@ def _edit(m: Dict) -> str:
 
 
 def _revoke(m: Dict) -> str:
-    """Handle revoke message webhook — user deleted a previously sent message."""
+    """Handle revoke message webhook — user deleted a previously sent message.
+
+    Content only. The join back to the message that was deleted lives in
+    ``handler._apply_revoke`` (two-tier: an exact wamid when Meta supplies one, else a
+    single-candidate recency inference), which is also what writes ``isRevoked`` and the
+    ``revokesMessageId`` back-link. Resolution is not a content extractor's job, so this
+    label is unchanged regardless of whether the target resolved.
+    """
     return '[Message deleted by sender]'
 
 

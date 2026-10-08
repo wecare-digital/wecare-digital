@@ -32,7 +32,7 @@ from lambda_utils.privacy import mask_phone, mask_flow_token, mask_contact_id, r
 # holding Meta's raw word. `pay_status` is the module that says what that word means.
 from lambda_utils import payment_status as pay_status
 from lambda_utils.validation import normalize_phone
-from lambda_utils.message_store import put_message  # unified MessagesTable dual-write
+from lambda_utils.message_store import put_message, query_by_contact  # unified MessagesTable: dual-write + contactId-index read
 from lambda_utils.automation import evaluate_rules  # cross-channel auto-reply rules
 from lambda_utils import meta_signature  # raw-body X-Hub-Signature-256 on the public route
 from lambda_utils import wa_status  # monotonic status ordering (no backward transitions)
@@ -157,6 +157,20 @@ DIRECT_API_PHONE_IDS = {PHONE_NUMBER_ID_1, PHONE_NUMBER_ID_2}
 # Embedded-Signup partner tenant — tag its messages with partnerWabaId so the
 # tenant-scoped customer inbox can query the partnerWabaId GSI.
 PLATFORM_WABAS = {'2094615664435155', '2513394156072604'}
+
+# How far back a revoke may be inferred to reach. A revoke payload carries no reference
+# to the message it deleted (see _apply_revoke), so outside an exact id the join is a
+# recency inference, and an inference across days would mis-mark. One hour covers the
+# overwhelming majority of real deletions — people delete what they just sent — and
+# keeps a false positive near zero. WhatsApp permits delete-for-everyone well beyond an
+# hour, so this deliberately UNDER-covers rather than over-claims: widening it trades
+# correctness for coverage, and the `revoke_target_unresolved` log line is the evidence
+# for whether it should be.
+REVOKE_CORRELATION_WINDOW_SECONDS = 3600
+# Keys Meta might one day populate with the revoked message's id, in preference order.
+# All three are checked because the exact join is strictly better than the inference and
+# costs one dict lookup; today none of them is present in a measured payload.
+_REVOKE_TARGET_ID_KEYS = ('revoked_message_id', 'id', 'message_id')
 
 
 def _get_welcome_config_key(phone_number_id: str) -> str:
@@ -895,6 +909,80 @@ PAYMENT_PHONE_NUMBER_ID = 'phone-number-id-waba1-direct-1016149501586345'
 SUBMIT_REQUEST_FLOW_ID = os.environ.get('SUBMIT_REQUEST_FLOW_ID', '1235100738173254')
 
 
+# ── Coexistence: the owner running the WhatsApp Business APP on the same number as the
+# Cloud API. NOT adopted on this deployment. Both fields are audited and counted and
+# nothing else — see the `messaging_handovers` arm in `handler` for the same discipline
+# and the same reason: structured parse, NO decision taken from it. `smb_message_echoes`
+# carries copies of messages the owner sent from the app, so writing them to the inbox
+# would duplicate the owner's own messages into the CRM timeline on a deployment that has
+# no coexistence configured. `COEXISTENCE_INGEST_ENABLED` is the seam a future adoption
+# would open; it defaults false, and false means audit-only.
+#
+# This is a MODULE-LEVEL frozenset, deliberately a different convention from the
+# `_SYSTEM_EVENT_FIELDS` set beside its membership test. That set looks like a module
+# constant but is a set literal rebuilt INSIDE the per-`change` webhook loop in `handler`,
+# with its membership test immediately below it. `_process_coexistence_event` is a
+# module-level function and needs these names too, so a loop-local set would have to be
+# passed in or duplicated. Rebuilding a 10-element set per webhook change is harmless;
+# duplicating a field-name list is not. The asymmetry is recorded rather than resolved:
+# normalising `_SYSTEM_EVENT_FIELDS` to module scope would touch a loop nine existing
+# fields depend on, for no behavioural gain.
+_COEXISTENCE_FIELDS = frozenset({'smb_app_state_sync', 'smb_message_echoes'})
+
+
+def _coexistence_ingest_enabled() -> bool:
+    """Whether coexistence ingest is requested. Defaults FALSE; false means audit-only.
+
+    Read per call rather than cached at module scope, following `_standby_reply_enabled`:
+    a module-scope read is frozen for the life of the execution environment, so a
+    configuration change would not take effect until every warm sandbox recycled.
+    """
+    return os.environ.get('COEXISTENCE_INGEST_ENABLED', 'false').strip().lower() \
+        in ('1', 'true', 'yes', 'on')
+
+
+def _process_coexistence_event(field: str, value: Dict, request_id: str) -> None:
+    """Audit and count a coexistence webhook. Writes NO message row and sends nothing.
+
+    `_store_system_event` is used exactly as the nine informational fields use it, so the
+    raw envelope is inspectable in SystemConfigTable without any inbox change.
+    `phone_number_id` is NOT a phone number and is logged in full; recipient phones go
+    through `mask_phone`.
+    """
+    _store_system_event(field, value, request_id)
+    if field == 'smb_message_echoes':
+        echoes = value.get('message_echoes') or value.get('messages') or []
+        if not isinstance(echoes, list):
+            echoes = []
+        logger.info(json.dumps({
+            'event': 'smb_message_echoes_received',
+            'echoCount': len(echoes),
+            'types': sorted({str((e or {}).get('type', '')) for e in echoes if isinstance(e, dict)}),
+            'phoneNumberId': str((value.get('metadata') or {}).get('phone_number_id') or ''),
+            'recipients': [mask_phone(str((e or {}).get('to') or '')) for e in echoes
+                           if isinstance(e, dict)][:10],
+            'ingested': False,
+            'requestId': request_id,
+        }))
+    else:
+        state = value.get('state') or value.get(field) or {}
+        logger.info(json.dumps({
+            'event': 'smb_app_state_sync_received',
+            'contactCount': len(state.get('contacts') or []) if isinstance(state, dict) else 0,
+            'chatCount': len(state.get('chats') or []) if isinstance(state, dict) else 0,
+            'phoneNumberId': str((value.get('metadata') or {}).get('phone_number_id') or ''),
+            'ingested': False,
+            'requestId': request_id,
+        }))
+    if _coexistence_ingest_enabled():
+        # Deliberately not implemented. A flag whose enabled path silently does nothing is
+        # worse than no flag: reaching here means somebody set the flag without building
+        # the ingest, so say so loudly rather than quietly acting on half a feature.
+        logger.warning(json.dumps({
+            'event': 'coexistence_ingest_requested_but_absent', 'field': field,
+            'requestId': request_id}))
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Process inbound WhatsApp messages from SNS.
@@ -1205,8 +1293,23 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     if user_id:
                         contacts_map[user_id] = entry
                 
+                # ── A coexistence change never enters normal message processing ──
+                # MEASURED, not hypothetical: `smb_message_echoes` may carry its copies
+                # under `messages` (which is why `_process_coexistence_event` reads that
+                # key as a fallback), and this loop runs BEFORE the `_COEXISTENCE_FIELDS`
+                # arm below. Driven with that payload shape, the handler wrote a row to
+                # WhatsAppInboundTable, auto-created a contact, called `put_message` and
+                # attempted a welcome send — i.e. it ingested the owner's own outbound
+                # copies as inbound CUSTOMER messages and replied to them. Coexistence is
+                # not adopted here, so the field is audited and counted and nothing else.
+                # Guarding with a computed list rather than a `continue` keeps the audit
+                # arm below reachable; the four group arms it sits beside use no
+                # `continue` either. Inert for every other field.
+                _coexistence_change = _wh_field in _COEXISTENCE_FIELDS
+                _inbound_messages = [] if _coexistence_change else value.get('messages', [])
+
                 # Process incoming messages
-                for message in value.get('messages', []):
+                for message in _inbound_messages:
                     try:
                         # Timeout guard: skip remaining messages if <15s left
                         if context and context.get_remaining_time_in_millis() < 15000:
@@ -1264,8 +1367,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             raise
                 
                 # Process status updates
+                # Same coexistence guard, same reason: `_process_status` writes to both
+                # message tables, and a coexistence envelope must reach neither.
                 _status_waba_id = (meta_waba_ids[0] if meta_waba_ids else '')
-                for status in value.get('statuses', []):
+                for status in ([] if _coexistence_change else value.get('statuses', [])):
                     try:
                         _process_status(status, request_id, contacts_map=contacts_map, waba_id=_status_waba_id)
                     except Exception as e:
@@ -1403,6 +1508,24 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                             'requestId': request_id
                         }))
                 
+                # ── Coexistence (WhatsApp Business app on a Cloud API number) ──
+                # Audited and counted, never acted on — see `_process_coexistence_event`.
+                # NO `continue` here, matching the four group arms above: they are
+                # sequential `if field == '...'` blocks that fall through to the
+                # `_SYSTEM_EVENT_FIELDS` membership test below. Falling through is safe
+                # because neither coexistence field is in that set, so the fall-through
+                # reaches no second handler.
+                if field in _COEXISTENCE_FIELDS:
+                    try:
+                        _process_coexistence_event(field, value, request_id)
+                    except Exception as e:
+                        logger.error(json.dumps({
+                            'event': 'coexistence_event_error',
+                            'field': field,
+                            'error': type(e).__name__,
+                            'requestId': request_id
+                        }))
+
                 # ── Additional Meta webhook fields (per official docs) ──
                 # These are informational/system-level events that we log to SystemEvent
                 # for audit trail and operational awareness.
@@ -1412,6 +1535,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     'business_capability_update', 'history',
                     'message_template_components_update',
                     'message_template_quality_update',
+                    'partner_solutions',                      # Multi-Partner Solutions; audit only
                     'payment_configuration_update',
                     'phone_number_name_update', 'security',
                     'template_category_update',
@@ -1506,6 +1630,189 @@ def _get_aws_phone_number_id(display_phone: str, meta_phone_id: str,
     return PHONE_NUMBER_ID_1
 
 
+def _epoch_or_zero(value) -> int:
+    """Read a stored `timestamp` as epoch seconds, scoring anything unreadable as 0.
+
+    build_message_item in lambda_utils/message_store.py writes Decimal epoch seconds
+    (message_store.py:88), but the unified Message model DECLARES `timestamp: a.datetime()`
+    (amplify/data/resource.ts:161) — an ISO-8601 string. DynamoDB is schemaless, so both
+    shapes can coexist in one table and any producer or backfill honouring the declared
+    model type puts a string there. A bare int() on one such row raises ValueError inside
+    a list comprehension, which would break _apply_revoke's "never raises" contract and
+    surface as `revoke_apply_error` — indistinguishable in the logs from "no candidate".
+
+    Scoring 0 puts the row OUTSIDE the window rather than throwing, so one malformed row
+    costs that row and not the whole resolution.
+    """
+    try:
+        return int(Decimal(str(value)))
+    except (TypeError, ValueError, ArithmeticError):
+        return 0
+
+
+def _apply_revoke(message: Dict, contact_id: str, revoke_message_id: str,
+                  revoke_wamid: str, sender_phone: str, timestamp: int,
+                  request_id: str) -> None:
+    """Mark the inbound message a revoke deleted. Audit-only on failure; never raises.
+
+    Resolution is two-tier, and BOTH tiers resolve against the unified MessagesTable so
+    they can only ever produce the same primary key:
+      exact    -- Meta supplied the revoked message's wamid; resolve it through
+                  UNIFIED_MESSAGES_TABLE's whatsappMessageId-index, the same lookup
+                  shape _process_status uses.
+      inferred -- no id available, so take the single most recent inbound WhatsApp
+                  message from this contact that is older than the revoke and inside
+                  REVOKE_CORRELATION_WINDOW_SECONDS. EXACTLY ONE candidate, or nothing
+                  is marked.
+
+    `sender_phone` is used only in the declined-resolution log line, masked, so a
+    decline is traceable to a conversation. The inferred tier keys on `contact_id`,
+    which is what contactId-index is built on.
+
+    The original content is NOT deleted or redacted — the row is the provenance record
+    for a conversation, and `isRevoked` is what the inbox renders. Deleting it would
+    destroy an audit trail to satisfy a presentation concern.
+    """
+    # Step 1 — read whatever id the payload might carry.
+    target_wamid = ''
+    rv = message.get('revoke')
+    for src in (rv if isinstance(rv, dict) else {}, message.get('context') or {}, message):
+        for k in _REVOKE_TARGET_ID_KEYS:
+            cand = str((src or {}).get(k) or '')
+            if cand and cand != revoke_wamid:
+                target_wamid = cand
+                break
+        if target_wamid:
+            break
+
+    target_id = ''
+    resolution = ''
+
+    if target_wamid:
+        # Exact tier. The UNIFIED table, deliberately: the inferred tier reads it and
+        # messages-read serves it to the inbox, so both tiers must key on the same
+        # store or the same revoke would mark different rows depending on which tier
+        # fired. Index: amplify/data/resource.ts:184.
+        try:
+            resp = dynamodb.Table(UNIFIED_MESSAGES_TABLE).query(
+                IndexName='whatsappMessageId-index',
+                KeyConditionExpression='whatsappMessageId = :w',
+                ExpressionAttributeValues={':w': target_wamid}, Limit=1)
+            items = resp.get('Items') or []
+        except Exception as e:  # noqa: BLE001 — degrade, never fail the revoke
+            # A missing or not-yet-active index degrades to the inferred tier rather
+            # than failing the revoke. No scan fallback: _process_status has one for a
+            # path that must not lose a delivery receipt, whereas a revoke that cannot
+            # be resolved is already a defined outcome here.
+            logger.warning(json.dumps({'event': 'revoke_exact_lookup_failed',
+                                       'error': type(e).__name__,
+                                       'requestId': request_id}))
+            items = []
+        if items:
+            target_id = str(items[0].get('id') or items[0].get('messageId') or '')
+            resolution = 'exact'
+
+    if not target_id:
+        # Inferred tier. It also runs when an exact id matched nothing, so a supplied
+        # id that resolves to no row FALLS THROUGH rather than declining.
+        #
+        # query_by_contact reads the UNIFIED MessagesTable on its default —
+        # message_store's own module-level MESSAGES_TABLE is
+        # os.environ['UNIFIED_MESSAGES_TABLE'] (message_store.py:40), which is the
+        # OPPOSITE of this handler's MESSAGES_TABLE (the inbound table). No
+        # table_name is passed, deliberately: the default is the table both tiers and
+        # the inbox agree on, and "clarifying" it later by passing MESSAGES_TABLE
+        # through reads like a tightening and is the bug.
+        #
+        # Then filter in memory: contactId-index returns index order, NOT
+        # newest-first, and carries no sort-key condition, so element 0 is not the
+        # most recent and the window predicate does the selection.
+        candidates = [
+            m for m in query_by_contact(contact_id, limit=50)
+            if str(m.get('channel', '')) == 'whatsapp'
+            and str(m.get('direction', '')) == 'inbound'
+            and not m.get('isRevoked')
+            and not m.get('paymentReferenceId')      # a payment row is never a revoke target
+            and str(m.get('messageType', '')) not in ('revoke', 'edit')
+            and str(m.get('whatsappMessageId', '')) != revoke_wamid
+            and 0 < (timestamp - _epoch_or_zero(m.get('timestamp')))
+                  <= REVOKE_CORRELATION_WINDOW_SECONDS
+        ]
+        if len(candidates) == 1:
+            target_id = str(candidates[0].get('id') or candidates[0].get('messageId') or '')
+            resolution = 'inferred'
+        if not target_id:
+            # Two candidates means we do not know which was deleted, and marking the
+            # newer one would be a coin flip presented as an answer. `hadExactId` is
+            # what distinguishes "no id" from "id that matched nothing".
+            logger.info(json.dumps({
+                'event': 'revoke_target_unresolved',
+                'candidateCount': len(candidates),
+                'reason': 'no_candidate' if not candidates else 'ambiguous',
+                'hadExactId': bool(target_wamid),
+                # mask_contact_id, not the raw value: a WhatsApp contactId is `wa` plus
+                # the customer's E.164 digits (privacy.py), so logging it whole is a
+                # disclosure. It passes a uuid-form contactId through untouched, so the
+                # correlation key survives where it discloses nothing.
+                'contactId': mask_contact_id(contact_id),
+                'senderPhone': mask_phone(sender_phone),
+                'requestId': request_id}))
+            return
+
+    update_expr = ('SET isRevoked = :t, revokedAt = :ts, '
+                   'revokedByWhatsappMessageId = :rw, revokeResolution = :res')
+    values = {':t': True, ':ts': Decimal(str(timestamp)),
+              ':rw': revoke_wamid, ':res': resolution}
+    # dict.fromkeys de-duplicates while preserving order: if the two env vars are ever
+    # pointed at one table, writing twice would make the second write fail its own
+    # attribute_not_exists(isRevoked) condition against the write the loop just made.
+    # _process_status:3594 guards the same hazard with an explicit table comparison.
+    for table_name in dict.fromkeys((MESSAGES_TABLE, UNIFIED_MESSAGES_TABLE)):
+        try:
+            dynamodb.Table(table_name).update_item(
+                Key={'id': target_id}, UpdateExpression=update_expr,
+                ConditionExpression='attribute_exists(id) AND attribute_not_exists(isRevoked)',
+                ExpressionAttributeValues=values)
+        except ClientError as ce:
+            if ce.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                raise
+            # A redelivered revoke, or a row this table does not hold. Not an error:
+            # the guard did its job.
+            logger.info(json.dumps({'event': 'revoke_already_applied',
+                                    'messageId': target_id, 'table': table_name,
+                                    'requestId': request_id}))
+        except Exception as e:  # noqa: BLE001 — audit-only
+            logger.warning(json.dumps({'event': 'revoke_mark_failed',
+                                       'table': table_name, 'error': type(e).__name__,
+                                       'requestId': request_id}))
+
+    # Back-link the revoke's own row, so the relationship is navigable from either end.
+    # BOTH tables, not just MESSAGES_TABLE: the inbox reads the unified MessagesTable and
+    # only that (messages-read/handler.py:44-45), so a back-link written only to
+    # WhatsAppInboundTable could never reach the frontend and the revoke bubble would
+    # never stop rendering — the exact double render this exists to remove.
+    #
+    # `attribute_exists(id)` ONLY, with no attribute_not_exists: unlike the target mark a
+    # back-link is idempotent, so a redelivered revoke rewriting the same two values is
+    # harmless and must not log a spurious conditional failure.
+    for table_name in dict.fromkeys((MESSAGES_TABLE, UNIFIED_MESSAGES_TABLE)):
+        try:
+            dynamodb.Table(table_name).update_item(
+                Key={'id': revoke_message_id},
+                UpdateExpression='SET revokesMessageId = :t, revokeResolution = :res',
+                ConditionExpression='attribute_exists(id)',
+                ExpressionAttributeValues={':t': target_id, ':res': resolution})
+        except ClientError as ce:
+            # The revoke row is missing from this table — the mirror must not create
+            # one. Same reading as the target write: the condition did its job.
+            if ce.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                raise
+        except Exception as e:  # noqa: BLE001 — audit-only
+            logger.warning(json.dumps({'event': 'revoke_backlink_failed',
+                                       'table': table_name, 'error': type(e).__name__,
+                                       'requestId': request_id}))
+
+
 def _process_message(
     message: Dict,
     metadata: Dict,
@@ -1560,10 +1867,12 @@ def _process_message(
         # Membership is tested against KNOWN_TYPES (the dispatch table itself) rather
         # than a second hand-copied list. `unknown` is not in it, so the measured
         # 125-of-128 case falls through to extract_unsupported_content unchanged.
-        # TODO: a revoke stores its own row and does NOT mark the message it deletes.
-        # The measured payload carries no `context` key, so there is no `context.id`
-        # to resolve the revoke back to. Joining them needs a field Meta is not
-        # sending today.
+        # A revoke stores its own row AND marks the message it deleted — see
+        # `_apply_revoke`, called from the bottom of this function. The measured payload
+        # carries no `context` key, so there is no `context.id` to join on; resolution is
+        # therefore two-tier (an exact wamid when Meta ever supplies one, else a
+        # single-candidate recency inference inside REVOKE_CORRELATION_WINDOW_SECONDS)
+        # and it is allowed to decline. Nothing is deleted or redacted.
         _u = message.get('unsupported')
         if not isinstance(_u, dict):
             _u = {}
@@ -1885,6 +2194,17 @@ def _process_message(
         contacts_payload=_contacts_payload,
         timestamp=timestamp,
     )
+
+    # ── A revoke marks the message it deleted ──
+    # Runs AFTER both stores so the revoke's own row exists to be back-linked, and
+    # guarded so resolution can never break inbound processing.
+    if msg_type == 'revoke':
+        try:
+            _apply_revoke(message, contact_id, message_id, whatsapp_message_id,
+                          sender_phone, timestamp, request_id)
+        except Exception as e:
+            logger.warning(json.dumps({'event': 'revoke_apply_error',
+                                       'error': type(e).__name__, 'requestId': request_id}))
 
     # ── Thread ownership signal: we received this message ──
     # Meta's docs are explicit that RECEIVING is what claims a thread — "you do not have

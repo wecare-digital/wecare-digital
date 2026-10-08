@@ -427,6 +427,13 @@ export interface Contact {
   address?: {
     addressLine1: string;
     addressLine2?: string;
+    /**
+     * FEAT-003: the eighth `contact_address._RULES` field, and the one the staff forms label
+     * "Landmark / Locality". It was missing from this interface while being accepted by the
+     * server, so a landmark typed in the CRM reached `landmark` (a flat CRM field nothing in the
+     * payment path reads) and never reached `checkoutDeliveryAddress.locality`.
+     */
+    locality?: string;
     city: string;
     state: string;
     postalCode: string;
@@ -715,6 +722,17 @@ export interface Message {
   transcription?: string;       // English transcription of voice notes
   detectedLanguage?: string;    // Detected language of voice note (e.g. "hi-IN")
   contactsPayload?: WaContactCard[] | null;  // shared contact card(s), messageType=contacts
+  // Revoke ("delete for everyone") — written by inbound-whatsapp-handler._apply_revoke.
+  // The content is never deleted or redacted; isRevoked is what the inbox renders.
+  isRevoked?: boolean;
+  revokedAt?: number;
+  revokedByWhatsappMessageId?: string;
+  // 'exact' | 'inferred' — an inferred match is a timing guess and MUST be labelled
+  // as one in the UI. Present on the target row and on the revoke row itself.
+  revokeResolution?: string;
+  // Set on the REVOKE's own row, pointing at the message it deleted. Its presence is
+  // what stops the revoke rendering as a second, standalone bubble.
+  revokesMessageId?: string;
   // Call breadcrumb fields (channel=voice, messageType=call)
   callId?: string;
   callType?: string;            // plivo | aws | whatsapp; legacy rows may read 'airtel'
@@ -796,6 +814,13 @@ function normalizeMessage ( item: any ): Message {
     // This object is built by enumeration, so an omitted field is dropped before
     // any UI sees it — the contact card cannot render without this line.
     contactsPayload: Array.isArray( item.contactsPayload ) ? item.contactsPayload : undefined,
+    // Same enumeration rule as contactsPayload above: without these four lines the
+    // revoke fields are dropped before any UI can read them.
+    isRevoked: item.isRevoked === true,
+    revokedAt: typeof item.revokedAt === 'number' ? item.revokedAt : ( item.revokedAt ? Number( item.revokedAt ) : undefined ),
+    revokedByWhatsappMessageId: item.revokedByWhatsappMessageId,
+    revokeResolution: item.revokeResolution,
+    revokesMessageId: item.revokesMessageId,
     callId: item.callId,
     callType: item.callType,
     duration: typeof item.duration === 'number' ? item.duration : ( item.duration ? Number( item.duration ) : undefined ),
@@ -2366,7 +2391,7 @@ export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRe
     },
   };
 
-  // Always use checkout button template (wecare_pay) — enables address + coupons
+  // Always use checkout button template (wecarepay_wa) — enables address + coupons
   return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
     method: 'POST',
     body: JSON.stringify( {
@@ -2375,7 +2400,7 @@ export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRe
       recipientBsuid: request.recipientBsuid,
       isCheckoutTemplate: true,
       isTemplate: true,
-      templateName: 'wecare_pay',
+      templateName: 'wecarepay_wa',
       templateParams: [],
       checkoutOrderDetails: orderDetails,
       headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
@@ -4498,7 +4523,11 @@ export async function sendTestLocation ( to: string, latitude: number, longitude
   return apiCall<any>( `${WA_SEND_BASE}/location`, { method: 'POST', body: JSON.stringify( { to, latitude, longitude, ...opts } ) } ) as any;
 }
 
-export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
+// `carouselCards` selects the product_carousel shape on the same route: the handler
+// dispatches on body shape, and carouselCards is the most specific one, so it wins over
+// catalogMessage and sections. No sibling function — a second one would duplicate the
+// body assembly for an identical request.
+export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; carouselCards?: { productRetailerId: string }[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
   return apiCall<any>( `${WA_SEND_BASE}/product`, { method: 'POST', body: JSON.stringify( { to, catalogId, ...opts } ) } ) as any;
 }
 
@@ -4597,6 +4626,33 @@ export async function rejectGroupJoinRequests ( groupId: string, joinRequestIds:
 export async function getPhoneSettings ( phoneId: string ): Promise<any> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/phone-settings?phoneId=${phoneId}` );
   return data?.settings || null;
+}
+
+// Official Business Account status, rolled up per WABA. READ-ONLY: the green tick is
+// granted by a Meta review started in Business Suite and there is no API to request it.
+// The rollup is four-valued — UNKNOWN is not NOT_OFFICIAL.
+// Returns null until GET /wa-business/oba-status exists (deploy-time work), which is why
+// the dashboard row renders "unavailable" rather than throwing.
+export interface ObaPhone {
+  phoneId: string;
+  displayPhoneNumber: string;
+  verifiedName: string;
+  qualityRating: string;
+  codeVerificationStatus: string;
+  nameStatus: string;
+  isOfficialBusinessAccount: boolean;
+}
+export interface ObaStatus {
+  wabaId: string;
+  obaStatus: 'OFFICIAL' | 'PARTIAL' | 'NOT_OFFICIAL' | 'UNKNOWN';
+  phones: ObaPhone[];
+  note?: string;
+}
+
+export async function getObaStatus ( wabaId: string ): Promise<ObaStatus | null> {
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/oba-status?wabaId=${encodeURIComponent( wabaId )}` );
+  if ( !data?.obaStatus ) return null;
+  return { wabaId: data.wabaId || wabaId, obaStatus: data.obaStatus, phones: data.phones || [], note: data.note || '' };
 }
 
 export async function updatePhoneSettings ( phoneId: string, settings: Record<string, any> ): Promise<boolean> {
@@ -4927,6 +4983,38 @@ export interface Invoice {
   createdAt: number;
   updatedAt: number;
   paidAt: number;
+  /**
+   * The coupon that was applied at create, normalised and server-authored.
+   *
+   * All four redemption fields below are OPTIONAL, and that is a contract rather than caution:
+   * an invoice raised before this feature existed carries none of them, so `undefined` ("no
+   * coupon was ever considered") must stay distinguishable from `0` ("a coupon was applied and
+   * it was worth nothing"). Rendering `₹0.00` for the first case would be a lie about the
+   * document.
+   */
+  couponCode?: string;
+  /**
+   * The coupon's share of `discount`, in rupees. `discount` is the SUM of the staff's manual
+   * adjustment and this, because Meta validates `total == subtotal + tax + shipping - discount`
+   * and both invoice renderers already read it that way. The manual part is `discount -
+   * couponDiscount`.
+   */
+  couponDiscount?: number;
+  /**
+   * Integer PAISE of gift-card balance this invoice requires, written as settlement evidence at
+   * create. Paise rather than rupees because `gift_card_settlement` owns the attribute and the
+   * whole gift-card ledger is integer paise; converting it here would introduce the rounding the
+   * ledger exists to avoid.
+   */
+  giftCardRequiredPaise?: number;
+  /** Integer paise actually debited. ZERO until the payment-attempt producer redeems the card. */
+  giftCardRedeemedPaise?: number;
+  /** `****1234`. The last four of the code is the ONLY part ever stored or shown in clear. */
+  giftCardLast4?: string;
+  /** True when the gift card covers the whole total, so no gateway order may ever be created. */
+  giftCardFullyCovered?: boolean;
+  /** Rupees Razorpay will collect after the verified gift-card redemption. May be `0`. */
+  amountPayable?: number;
   remarks?: string | InvoiceRemark[];
   items?: InvoiceItem[];
   assets?: InvoiceAsset[];
@@ -4964,14 +5052,112 @@ export interface CreateInvoiceEngineRequest {
   state?: string;
   postalCode?: string;
   landmark?: string;
+  /**
+   * A coupon code to apply when the invoice is created. A CODE and nothing else.
+   *
+   * There is deliberately no field on this request through which a browser could send a discount
+   * amount: the figure is decided server-side by `coupon_store.discount_paise` through the one
+   * `RedemptionProvider` the website cart also uses, and the browser's value is only a request.
+   * A coupon the store refuses fails the whole create with a typed `errorCode` rather than being
+   * dropped, because collecting the full amount after promising a discount is worse than an error.
+   *
+   * Applying one later is NOT supported: `PUT /invoices/{id}` answers `400 USE_CREATE`.
+   */
+  couponCode?: string;
+  /**
+   * A gift-card code to verify when the invoice is created. Validated and recorded only — the
+   * balance is NOT debited here, because an unpaid invoice must never burn balance and the debit
+   * belongs to the producer that mints the payment attempt.
+   */
+  giftCardCode?: string;
+}
+
+/**
+ * What the server decided about a create. Every redemption field is optional for the same reason
+ * the `Invoice` ones are, and every amount is the SERVER's: a form must render these rather than
+ * recompute anything locally.
+ */
+export interface CreateInvoiceEngineResponse {
+  invoiceId: string;
+  invoiceNumber: string;
+  referenceId?: string;
+  total: number;
+  convenienceFee?: number;
+  /** The normalised code that was actually applied. */
+  couponCode?: string;
+  /** Rupees the coupon took off, server-computed. */
+  couponDiscount?: number;
+  /** Integer paise of gift-card balance applied to this invoice. */
+  giftCardAppliedPaise?: number;
+  /** Rupees left for Razorpay after the gift card. `0` on a fully covered invoice. */
+  amountPayable?: number;
+  /** True when nothing is left to charge, so no payment link may be sent. */
+  giftCardFullyCovered?: boolean;
+  /** `APPLIED`. A refusal never reaches here — it answers 4xx/503 with an `errorCode`. */
+  couponReason?: string;
+  giftCardReason?: string;
 }
 
 // Create invoice directly
-export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest ): Promise<{ invoiceId: string; invoiceNumber: string; total: number } | null> {
-  return apiCall<{ invoiceId: string; invoiceNumber: string; total: number }>( INVOICE_BASE, {
+export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest ): Promise<CreateInvoiceEngineResponse | null> {
+  return apiCall<CreateInvoiceEngineResponse>( INVOICE_BASE, {
     method: 'POST',
     body: JSON.stringify( request ),
   } );
+}
+
+/**
+ * A create that reports WHY it was refused.
+ *
+ * `createInvoiceEngine` stays exactly as it is, because ~every other caller wants the invoice or
+ * nothing. But `apiCall` collapses a non-2xx to `null`, and FEAT-002 answers every coupon and
+ * gift-card refusal as a 4xx/503 carrying a typed `errorCode` - `COUPON_EXPIRED`,
+ * `INSUFFICIENT_BALANCE`, `HELD_BY_ANOTHER_CART`, and the fourteen others. A form that can only
+ * see `null` has to say "Create failed" and the staff member has no idea which code to fix.
+ *
+ * So this follows `hardDeleteContact`'s precedent and uses `authFetch` directly: the refusal code
+ * lives in the body and the body is the one thing this caller needs. It returns a discriminated
+ * result rather than throwing, because "the coupon has expired" is an ordinary answer and not an
+ * exception.
+ *
+ * `errorCode` is passed through VERBATIM and is never invented here. An unrecognised code must
+ * still reach the UI so a new server refusal degrades to an honest unknown-reason message rather
+ * than to a wrong one.
+ */
+export type CreateInvoiceEngineResult =
+  | { ok: true; invoice: CreateInvoiceEngineResponse }
+  | { ok: false; status: number | null; errorCode: string; retryable: boolean };
+
+export async function createInvoiceEngineResult (
+  request: CreateInvoiceEngineRequest,
+): Promise<CreateInvoiceEngineResult> {
+  let response: Response;
+  try
+  {
+    response = await authFetch( INVOICE_BASE, {
+      method: 'POST',
+      body: JSON.stringify( request ),
+    } );
+  } catch ( error )
+  {
+    console.error( 'Invoice create request failed:', error );
+    return { ok: false, status: null, errorCode: 'REQUEST_FAILED', retryable: true };
+  }
+
+  let data: any = null;
+  try { data = await response.json(); } catch { data = null; }
+
+  if ( response.ok && data && data.invoiceId )
+  {
+    return { ok: true, invoice: data as CreateInvoiceEngineResponse };
+  }
+
+  return {
+    ok: false,
+    status: response.status,
+    errorCode: typeof data?.errorCode === 'string' && data.errorCode ? data.errorCode : 'CREATE_FAILED',
+    retryable: data?.retryable === true,
+  };
 }
 
 // Create invoice from Razorpay payment ID
@@ -6309,6 +6495,31 @@ export async function getMmOnboardingStatus ( wabaId: string ): Promise<{ onboar
   return { onboardingStatus: data?.onboardingStatus || '', time: data?.time || '' };
 }
 
+// MM API conversion metrics. The route answers 200 with available:false when the edge
+// does not resolve for this account, carrying the edge it tried, a reason and the last
+// cached reading — so render the cached numbers with their timestamp rather than an
+// error. `metrics` rows are Meta's own, unreshaped: their shape is unverified here.
+// Returns null until GET /wa-business/mm-conversion-metrics exists (deploy-time work).
+export interface MmConversionMetrics {
+  wabaId: string;
+  available: boolean;
+  edge: string;
+  metrics?: any[];
+  readAt?: number;
+  reason?: string;
+  cached?: { metrics?: any[]; readAt?: number };
+  note?: string;
+}
+
+export async function getMmConversionMetrics ( wabaId: string, opts?: { since?: string; until?: string } ): Promise<MmConversionMetrics | null> {
+  const qs = new URLSearchParams( { wabaId } );
+  if ( opts?.since ) qs.set( 'since', opts.since );
+  if ( opts?.until ) qs.set( 'until', opts.until );
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/mm-conversion-metrics?${qs.toString()}` );
+  if ( !data || typeof data.available !== 'boolean' ) return null;
+  return data as MmConversionMetrics;
+}
+
 export interface CatalogFlowEntry { flowIdWaba1?: string; flowIdWaba2?: string; flowCode?: string; cta?: string; body?: string; }
 
 export async function getCatalogFlowMap (): Promise<Record<string, CatalogFlowEntry>> {
@@ -6553,7 +6764,33 @@ export const aiAgentApi = {
   // Tech Partner upgrade readiness — live measurement of the 4 eligibility gates.
   techPartnerReadiness: () =>
     metaAgent<TechPartnerReadiness>( 'tp_eligibility' ),
+  // ── Conversation Routing thread control ──
+  // Both go through the same POST ${API_BASE}/meta-agent dispatcher as every other
+  // agent action, so no new route is needed. A thread is identified by BSUID where
+  // one is known (that is how a routing event identifies it) with the consumer phone
+  // as the fallback. There is deliberately NO takeThread: the handler answers 409,
+  // because taking control needs this account to be the designated escalation
+  // partner and that designation is an unanswered owner question.
+  releaseThread: ( waba: WabaKey, opts: ThreadControlTarget = {} ) =>
+    metaAgent<ThreadControlResult>( 'thread_control', { waba, action: 'release', ...opts } ),
+  passThread: ( waba: WabaKey, targetRole: string, opts: ThreadControlTarget = {} ) =>
+    metaAgent<ThreadControlResult>( 'thread_control', { waba, action: 'pass', targetRole, ...opts } ),
 };
+export interface ThreadControlTarget {
+  /** Business-scoped user id — preferred, because routing identifies a thread by it. */
+  bsuid?: string;
+  /** Consumer phone in E.164 — the fallback, and what an operator usually has. */
+  to?: string;
+  /** A raw phone-number id, when the caller is not selecting by WABA key. */
+  entityId?: string;
+}
+export interface ThreadControlResult {
+  thread_control: unknown;
+  action: string;
+  entityId: string;
+  bsuid: string;
+  targetRole: string | null;
+}
 
 export interface TechPartnerGate { pass: boolean; label: string; }
 export interface TechPartnerReadiness {

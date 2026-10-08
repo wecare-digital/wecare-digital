@@ -42,6 +42,10 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
   const [ selectAll, setSelectAll ] = useState( false );
   const [ searchQuery, setSearchQuery ] = useState( '' );
   const [ message, setMessage ] = useState<{ type: string; text: string } | null>( null );
+  // MM API conversion metrics. `null` means the read did not land at all (the route is
+  // deploy-time work); `available: false` means Meta would not serve the edge, in which
+  // case the cached reading with its timestamp is more useful than an empty box.
+  const [ mmMetrics, setMmMetrics ] = useState<api.MmConversionMetrics | null>( null );
 
   /* Fetched, so memoised on `templates`; the leading '' row is the placeholder. */
   const templateOptions: SelectOption[] = useMemo( () => [
@@ -85,6 +89,14 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
   }, [ selectedWaba, toast ] );
 
   useEffect( () => { loadData(); }, [ loadData ] );
+
+  useEffect( () => {
+    let live = true;
+    api.getMmConversionMetrics( selectedWaba )
+      .then( m => { if ( live ) setMmMetrics( m ); } )
+      .catch( () => { if ( live ) setMmMetrics( null ); } );
+    return () => { live = false; };
+  }, [ selectedWaba ] );
 
   const filteredContacts = contacts.filter( c => c.name?.toLowerCase().includes( searchQuery.toLowerCase() ) || c.phone?.includes( searchQuery ) || c.bsuid?.includes( searchQuery ) || c.username?.toLowerCase().includes( searchQuery.toLowerCase() ) );
 
@@ -171,6 +183,29 @@ const WhatsAppCampaignPage: React.FC<PageProps> = ( { signOut, user, embedded = 
               <Select ariaLabel="WABA Account" value={ selectedWaba }
                 onChange={ v => setSelectedWaba( v ) } options={ WABA_OPTIONS } />
             </div>
+          </div>
+
+          <div className="info-card" style={ { marginBottom: 16 } }>
+            <strong style={ { fontSize: 14 } }>MM API conversion metrics</strong>
+            { !mmMetrics && (
+              <div style={ { fontSize: 13, color: '#666', marginTop: 6 } }>unavailable</div>
+            ) }
+            { mmMetrics?.available && (
+              <div style={ { fontSize: 13, marginTop: 6 } }>
+                { ( mmMetrics.metrics?.length || 0 ) } row{ ( mmMetrics.metrics?.length || 0 ) === 1 ? '' : 's' } via <code>{ mmMetrics.edge }</code>
+                { mmMetrics.readAt ? ' · read ' + new Date( mmMetrics.readAt * 1000 ).toLocaleString() : '' }
+              </div>
+            ) }
+            { mmMetrics && !mmMetrics.available && (
+              <div style={ { fontSize: 13, marginTop: 6, color: '#666' } }>
+                { mmMetrics.cached?.metrics?.length
+                  ? <>Last reading: { mmMetrics.cached.metrics.length } row{ mmMetrics.cached.metrics.length === 1 ? '' : 's' }{ mmMetrics.cached.readAt ? ' · ' + new Date( mmMetrics.cached.readAt * 1000 ).toLocaleString() : '' }</>
+                  : <>{ mmMetrics.note }</> }
+                <div style={ { marginTop: 4, color: '#92400e' } }>
+                  Not available for this WABA via <code>{ mmMetrics.edge }</code>{ mmMetrics.reason ? ' — ' + mmMetrics.reason : '' }
+                </div>
+              </div>
+            ) }
           </div>
 
           <div className="form-group">

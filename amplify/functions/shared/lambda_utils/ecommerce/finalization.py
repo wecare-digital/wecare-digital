@@ -295,6 +295,9 @@ def accept_paid(*, attempts, orders, keys, attempt, outcome, verified_captured_p
     try:
         wix = wix_writeback.create_wix_order(keys, wix_ecom._request,
             order_id=order['orderId'], order_payload=wix_payload)
+        from .order_links import bind_wix_order
+        bind_wix_order(orders, keys, order_id=order['orderId'],
+                       order_number=order['orderNumber'], wix_order_id=wix['wixOrderId'])
         _stage(attempts, attempt['paymentAttemptId'], 'WIX_ORDER_CREATED', wixOrderId=wix['wixOrderId'])
         if razorpay_paise:
             wix_writeback.record_external_payment(keys, wix_ecom._request,

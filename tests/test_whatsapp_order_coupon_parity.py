@@ -36,6 +36,7 @@ from lambda_utils.ecommerce.checkout_pricing import compute_quote  # noqa: E402
 BASKET_MODULE = ROOT / "amplify/functions/shared/lambda_utils/ecommerce/whatsapp_basket.py"
 INBOUND_HANDLER = ROOT / "amplify/functions/messaging/inbound-whatsapp-handler/handler.py"
 CHECKOUT_HANDLER = ROOT / "amplify/functions/ecommerce/checkout/handler.py"
+INVOICE_ENGINE = ROOT / "amplify/functions/payments/invoice-engine/handler.py"
 
 #: Wix collection 25499.00, the shared Cart V2 fixture's figure.
 COLLECTION_PAISE = 2549900
@@ -200,6 +201,50 @@ def test_coupon_store_is_the_only_issuance_authority_the_whatsapp_path_can_reach
             assert "apply_coupon" not in called
             assert "compute_quote" not in called
             assert "exempt_quote" not in called
+
+
+def test_the_invoice_path_uses_the_same_coupon_authority_as_the_cart():
+    """The invoice surface asks; it does not answer.
+
+    `invoice-engine` is the third coupon surface (after the cart panel and the `/coupons/*`
+    routes), and it is the one with the strongest incentive to grow its own arithmetic: it already
+    computes a subtotal, a GST figure and a convenience fee in rupees, so "just multiply by the
+    percentage here" is a one-line change that would silently fork the discount in two.
+
+    So this asserts the shape rather than a figure. The handler must import `redemption` and the
+    one concrete provider, and `create_invoice` must contain no percentage, no basis-points
+    arithmetic and no local function that returns a discount. Every amount it uses comes back from
+    a call.
+    """
+    source = INVOICE_ENGINE.read_text()
+    tree = ast.parse(source)
+
+    imported = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            imported.update(alias.name for alias in node.names)
+    assert "redemption" in imported, "the invoice path must reach the money authority"
+    assert "store_redemption_provider" in imported, \
+        "the invoice path must use the ONE concrete provider, not a local binding"
+
+    # No second amount function anywhere in the handler.
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            assert "discount_paise" != node.name, \
+                "coupon_store owns the only discount amount function"
+
+    create = next(node for node in ast.walk(tree)
+                  if isinstance(node, ast.FunctionDef) and node.name == "create_invoice")
+    body = ast.unparse(create)
+    for forbidden in ("percentOff", "moneyOffPaise", "fixedPricePaise", "round_half_up",
+                      "RATE_DENOMINATOR"):
+        assert forbidden not in body, \
+            f"create_invoice names {forbidden} - it is pricing a coupon itself"
+    # And the figures it does use are returned by a call, not derived: the only names it reads off
+    # the coupon result are the ones `redemption` computed.
+    calls = {node.func.attr for node in ast.walk(create)
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)}
+    assert "apply_coupon" in calls or "_apply_coupon_leg" in ast.unparse(create)
 
 
 def test_the_claim_leaves_the_coupon_panel_exactly_where_it_was():
