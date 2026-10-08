@@ -1,0 +1,29 @@
+{
+  "deployments": [
+    {
+      "name": "wecare-checkout",
+      "version": "33",
+      "state": "Active",
+      "rollbackVersion": "32",
+      "sha": "8u/SI2es4RzLiMU0LN173z3+eCMy+156tvlEn+fTxfA="
+    },
+    {
+      "name": "wecare-wix-store",
+      "version": "37",
+      "state": "Active",
+      "rollbackVersion": "36",
+      "sha": "oidx2+S1gKK/cugQkllFhtfZYu9LjBur4Tp/Pomn/Vc="
+    }
+  ],
+  "smoke": [
+    {
+      "name": "wecare-checkout",
+      "statusCode": 200
+    },
+    {
+      "name": "wecare-wix-store",
+      "statusCode": 200
+    }
+  ],
+  "scope": "Only finalization/order_links in checkout and handler/order_links in Wix store overlaid onto matching deployed packages. Native catalog service flags and Wix writeback contract not enabled."
+}
