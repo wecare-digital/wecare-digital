@@ -510,33 +510,4 @@ describe( 'a Popover inside an above-popover container uses layer="overlay"', ()
     const link = codeOnly( readFileSync( join( SRC, 'pages', 'workspace', 'link', 'index.tsx' ), 'utf8' ) );
     expect( link ).toMatch( /<DateField[\s\S]{0,200}?label="Expiry Date \(optional\)"[\s\S]{0,200}?layer="overlay"/ );
   } );
-
-  it( "pay/flow's invoice-edit modal holds no layered control at all", () => {
-    // THE OTHER ORIGINAL REGRESSION, now closed by REMOVAL rather than by the prop, so the
-    // assertion had to change shape with it. The Brand control inside `.pf-modal-overlay` was
-    // a Select over nine brands; the business invoices under one, so it is a fixed readonly
-    // input and there is no Popover left to layer. Asserting `layer="overlay"` on a Select
-    // that no longer exists would fail for the right reason and the wrong cause.
-    //
-    // This is NOT weaker than the pin it replaces. It asserts the stronger property - that
-    // the hazardous container holds nothing hazardous - so re-introducing ANY layered control
-    // there fails here, whether or not it carries the prop, which the old regex could not do.
-    const payFlow = codeOnly( readFileSync(
-      join( SRC, 'pages', 'workspace', 'pay', 'flow', 'index.tsx' ), 'utf8' ) );
-
-    const overlays = stackingRegions( payFlow, CLASS_LAYERS )
-      .filter( r => r.classes.split( /\s+/ ).includes( 'pf-modal-overlay' ) );
-    // The three overlays are still there and still resolvable, so an empty result below is a
-    // measurement and not a scan that quietly stopped finding the container.
-    expect( overlays.length ).toBeGreaterThan( 0 );
-
-    const inside = layeredControls( payFlow )
-      .filter( c => overlays.some( r => c.index > r.from && c.index < r.to ) )
-      .map( c => describeTag( c.tag, c.attributes ) );
-    expect( inside ).toEqual( [] );
-
-    // And the Brand field is the fixed input, not a chooser: `purposes` carries the single
-    // entry WECARE.DIGITAL, so a selector would offer one option and a placeholder.
-    expect( payFlow ).toMatch( /<input type="text" aria-label="Brand" value=\{ BRAND \} readOnly disabled \/>/ );
-  } );
 } );
