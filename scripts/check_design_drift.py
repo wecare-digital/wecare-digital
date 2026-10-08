@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CI gate: the design contract in .kiro/steering/grahak-os-design.md is the source.
+"""CI gate: enforce the measured constraints declared here and in src/styles/tokens.css.
 
 The contract was calibrated by measuring the live public pages, not by eye, and it
 names five retired colours explicitly. This gate stops them coming back, and stops the
@@ -397,7 +397,7 @@ def main() -> int:
             if len(items) > 12:
                 print(f"     ... and {len(items) - 12} more")
         print(f"\n{len(violations)} violation(s). The contract is "
-              f".kiro/steering/grahak-os-design.md; it was calibrated by measuring the "
+              f"declared in scripts/check_design_drift.py and src/styles/tokens.css; calibrated from the "
               f"live pages, so change it deliberately rather than incidentally.")
 
     if args.gate and violations:

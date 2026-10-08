@@ -3,7 +3,7 @@
  *
  * Why this exists
  * ---------------
- * `useWebRTCCalling.acquireMicrophone` called `navigator.mediaDevices.getUserMedia`
+ * `the retired WebRTC hook` called `navigator.mediaDevices.getUserMedia`
  * with no guard, and the hook surfaces failures with `setError(e.message)`. In a
  * container where `navigator.mediaDevices` is undefined that message reads
  *

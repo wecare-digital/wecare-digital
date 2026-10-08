@@ -182,7 +182,6 @@ const ShipmentsPage: React.FC = () => {
               <li className="ship-card" key={ action.label + action.href }>
                 {/* Plain anchor, not next/link: styled-jsx does not scope a capitalised component,
                     so a Link carrying ship-card-link would arrive unstyled. */}
-                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                 <a className="ship-card-link" href={ action.href }>
                   <span className="ship-card-label">{ action.label }</span>
                   <span className="ship-card-note">{ action.note }</span>

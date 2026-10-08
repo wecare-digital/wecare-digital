@@ -3370,7 +3370,7 @@ export interface ScheduledMessage {
   templateParams: string[];
   phoneNumberId: string;
   scheduledAt: string;  // ISO timestamp
-  status: 'PENDING' | 'SENT' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'DISPATCHING' | 'DISPATCH_UNKNOWN' | 'SENT' | 'FAILED' | 'CANCELLED';
   createdAt: string;
   sentAt?: string;
   errorMessage?: string;
@@ -3404,9 +3404,10 @@ export async function scheduleTemplateMessage ( request: {
  */
 export async function listScheduledMessages ( status?: string ): Promise<ScheduledMessage[]> {
   let url = `${API_BASE}/scheduled`;
-  if ( status ) url += `?status=${status}`;
+  if ( status !== undefined ) url += `?status=${encodeURIComponent( status )}`;
 
   const data = await apiCall<any>( url );
+  if ( !data || !Array.isArray( data.scheduledMessages ) ) throw new Error( 'Scheduled messages are unavailable' );
   if ( data && data.scheduledMessages )
   {
     return data.scheduledMessages.map( normalizeScheduledMessage );

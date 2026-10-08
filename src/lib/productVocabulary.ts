@@ -40,6 +40,7 @@ export const channel = {
   email: 'Email',
   voice: 'Business Calling',
   inbox: 'Common Inbox',
+  push: 'Push',
 } as const;
 
 /**
@@ -50,10 +51,11 @@ export const channel = {
 export const channelDescription = {
   whatsapp: 'Conversations, templates and calling on WhatsApp Business',
   sms: 'Transactional and promotional SMS, with DLT templates for India',
-  rcs: 'Rich messaging where the handset supports it, India only',
-  email: 'Transactional email',
+  rcs: 'Rich messaging where the handset and sender support it',
+  email: 'Transactional email and campaigns',
   voice: 'Inbound and outbound calling, IVR and call records',
   inbox: 'Every channel in one thread per customer',
+  push: 'Web and mobile push notifications',
 } as const;
 
 /**

@@ -20,3 +20,37 @@ Removed the unconsumed Material vendor package, its root dependency and exclusiv
 This removes approximately1.08MiB of current tracked source/vendor bytes. It does not shrink existing Git history or establish an equivalent production bundle saving. Restore exact files from the pre-cleanup commit if a future consumer is introduced; do not restore retired dependencies through upgrade automation.
 
 Use metadata/issuer-shape secret scanning only. Preserve the existing credential-rotation evidence and owner-only rotation boundary.
+
+## Current tree and integration owners
+
+```text
+wecare-digital/
+├── src/                  Browser application
+│   ├── pages/            Public/customer/workspace route entries
+│   ├── components/       Shared UI and capability controls
+│   ├── api/              Authenticated backend clients
+│   ├── lib/, hooks/      Shared behavior and state
+│   ├── config/, content/ Navigation, vocabulary and content contracts
+│   └── test/, styles/    Browser fixtures and shared appearance
+├── public/               Static/PWA/native association and verification assets
+├── amplify/              Separate infrastructure dependency root
+│   ├── functions/        Domain Lambda handlers
+│   │   └── shared/       Shared runtime contracts and helpers
+│   └── infra/            Resource ownership and deployment definitions
+├── tests/                Offline Python handler/contract tests
+├── scripts/              Build, operational and verification entry points
+├── tools/                Browser, export, schema and navigation audits
+├── .github/workflows/    Build, policy and release automation
+├── .kiro/                Current agents/hooks/settings/specs and task state
+├── config/, content/     Shared generated/build and operational inputs
+├── migration/            Retained migration batches with active glob consumers
+├── docs/, seo/           Runbooks, dated evidence and retained audit output
+├── android/, ios/, native/ Platform packaging with implicit build consumers
+└── packages/, shared/, rcs/, vendor/ Retained cross-runtime/provider assets
+```
+
+Route components use src/api clients and authenticated API routes; Lambda handlers own data/provider operations and import shared runtime helpers. Navigation and shared UI preserve deep links. Active channels consume the shared product vocabulary. Timestamp validation, scheduling claims and visible delivery-review states share a backend/client/UI contract. Failed provider evidence must remain unavailable/unknown rather than an empty queue or fabricated success.
+
+Keep the root web npm lock and Amplify infrastructure lock separate. CSS census fixtures are regenerated from their single scanner and checked against current source in CI before tests. The retired steering/skill directory is no longer an active dependency; fleet resources use existing README/browser guidance. Historical documents remain snapshots and are not executable requirements.
+
+A missing static import is a review candidate: public assets, framework route entries, native files, scripts, migration globs and control-plane allowlists have implicit consumers. Retire only files with explicit reference evidence and completed verification. Per-file audit evidence is stored outside the production repository to avoid adding large generated inventories to source.

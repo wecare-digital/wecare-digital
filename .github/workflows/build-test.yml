@@ -187,6 +187,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Control skin fixture matches current source
+        run: python scripts/census_control_skins.py --json | diff -u src/test/fixtures/control-skin-census.json -
+
       - name: Unit tests
         run: npx vitest run
 

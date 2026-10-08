@@ -17,7 +17,6 @@ TARGETS = [
     "scripts/block_inline_secrets.py",
     "scripts/verify_secret_hook.py",
     "scripts/verify_no_secrets_in_tree.py",
-    ".kiro/steering/secret-handling.md",
     ".kiro/hooks/block-inline-secrets.json",
     "docs/CREDENTIAL-ROTATION-RUNBOOK.md",
 ]
