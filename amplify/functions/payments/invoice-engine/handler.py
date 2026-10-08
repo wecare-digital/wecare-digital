@@ -97,6 +97,9 @@ origin = ''
 # Env vars allow override without a redeploy.
 COMPANY = {
     'name': 'WECARE.DIGITAL',
+    # The registered legal name printed as the invoice heading (owner mockup 2026-10-07).
+    # `name` stays the brand, shown as the fixed "Brand: WECARE.DIGITAL" line beneath it.
+    'legal_name': 'WECARE.DIGITAL BHARATWORKS',
     'gstin': os.environ.get('COMPANY_GSTIN', '19AAFFW7196L1Z8'),
     'pan': os.environ.get('COMPANY_PAN', 'AAFFW7196L'),
     'address': 'The W.B.S.I.D.C. Building, Unit 1/20, 81/2/7, Phears Ln, Kolkata, WB 700012',
@@ -1044,7 +1047,9 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
         <div class="total-row b"><span>Total Tax</span><span>{tax:,.2f}</span></div>'''
 
     reference_id = invoice.get('referenceId', '')
-    ref_id_html = f'<div class="info-row"><span>Ref: {reference_id}</span></div>' if reference_id else ''
+    # Ref line removed from the customer copy (owner decision 2026-10-07): it duplicated the
+    # Order id. The reference still lives on the stored invoice record; it is simply not printed.
+    ref_id_html = ''
 
     # GST Rule 46(b): the invoice number is a mandatory particular of a tax invoice. `inv_num` has
     # been assigned at the top of this function since the renderer was written and was printed
@@ -1101,8 +1106,10 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="header-row">
     <div class="header-logo">{logo_html}</div>
     <div class="header-text">
-        <h1>{COMPANY['name']}</h1>
+        <h1>{COMPANY['legal_name']}</h1>
+        <div class="subtitle">Brand: {COMPANY['name']}</div>
         <div class="subtitle">GSTIN: {COMPANY['gstin']}</div>
+        <div class="subtitle">PAN: {COMPANY['pan']}</div>
         <div class="subtitle">The W.B.S.I.D.C. Building, Unit 1/20,</div>
         <div class="subtitle">81/2/7, Phears Ln, Kolkata, WB 700012</div>
         <div class="subtitle">one@wecare.digital | +91 93309 94400</div>
@@ -1115,7 +1122,6 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 <div class="info-row"><span>Date: {date_str}</span><span>{time_str}</span></div>
 {ref_id_html}
 {source_html}
-{f'<div class="info-row"><span>Brand: {purpose}</span></div>' if purpose else ''}
 {f'<div class="info-row b"><span>PAID: {paid_str}</span></div>' if status_upper == 'CAPTURED' and paid_str else ''}
 <div class="divider"></div>
 <div class="section-title">Bill To</div>
@@ -1472,11 +1478,17 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         x = tx + max(0, (avail_w - tw) // 2)
         draw.text((x, y), txt, fill=color, font=font)
 
-    # Company name — centered in header area, bold
-    _hdr_center(COMPANY['name'], FLG)
+    # Legal name — centered in header area, bold (owner-approved mockup 2026-10-07)
+    _hdr_center(COMPANY['legal_name'], FLG)
     y += 22
+    # Fixed brand line, always "WECARE.DIGITAL", never derived from entryPoint.
+    _hdr_center(f"Brand: {COMPANY['name']}", FSM)
+    y += LINE_H
     # GSTIN — regular, grey
     _hdr_center(f"GSTIN: {COMPANY['gstin']}", FSM, CLR_GRY)
+    y += LINE_H
+    # PAN — regular, grey (GST Rule / owner mockup: PAN under GSTIN)
+    _hdr_center(f"PAN: {COMPANY['pan']}", FSM, CLR_GRY)
     y += LINE_H
     # Address — 2 fixed lines, regular, grey
     _hdr_center("The W.B.S.I.D.C. Building, Unit 1/20,", FSM, CLR_GRY)
@@ -1506,27 +1518,14 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
         y += LINE_H
     _lr(f"Date: {date_str}", time_str, F)
     y += LINE_H
-    if reference_id:
-        _left(f"Ref: {reference_id}", F)
-        y += LINE_H
-    # Source after Ref, per docs/invoice-layout.md section 2. Unconditional: every order has an
-    # origin, and `_source_label` is total, so there is no empty-label case to guard.
+    # Ref line removed (owner decision 2026-10-07): it duplicated the Order id on the customer
+    # copy. Order id is shown below; the reference still lives on the stored record.
+    # Source per docs/invoice-layout.md section 2. Unconditional: every order has an origin, and
+    # `_source_label` is total, so there is no empty-label case to guard.
     _left(f"Source: {_source_label(invoice)}", F)
     y += LINE_H
-    # Brand: all customerservice/flow invoices → "Customer service"
-    # Pay flow / WhatsApp payment → "Pay"
-    # Manual / admin → no brand line
-    entry_point = invoice.get('entryPoint', '')
-    brand_label = ''
-    if entry_point in ('submit_request_flow', 'flow_payment'):
-        brand_label = 'Customer service'
-    elif entry_point in ('pay_flow', 'whatsapp_payment'):
-        brand_label = 'Pay'
-    elif entry_point == 'manual':
-        brand_label = ''
-    if brand_label:
-        _left(f"Brand: {brand_label}", F)
-        y += LINE_H
+    # Brand is now the FIXED header line "Brand: WECARE.DIGITAL" (set in the header block),
+    # never derived from entryPoint. The old entryPoint-derived Brand line is removed.
     # Note line: show request/submission reference (clean format, no #)
     notes = invoice.get('notes', '')
     if notes:

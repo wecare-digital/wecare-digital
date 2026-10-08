@@ -285,12 +285,12 @@ def test_the_png_draws_the_number_before_the_date(engine):
         i for i, t in enumerate(drawn) if t.startswith("Date:"))
 
 
-def test_the_png_draws_source_after_ref(engine):
-    """Per docs/invoice-layout.md section 2: `Source:` sits after `Ref:`."""
+def test_the_png_draws_no_ref_line(engine):
+    """The approved mockup removes `Ref:` from the customer-facing receipt (Ref == Order ID,
+    internal only). `Source:` stays and now carries the channel on its own."""
     drawn = _drawn_text(engine, _invoice(channel=order_channel.CHANNEL_WHATSAPP))
     assert "Source: WhatsApp" in drawn
-    ref = next(i for i, t in enumerate(drawn) if t.startswith("Ref:"))
-    assert drawn.index("Source: WhatsApp") > ref
+    assert not [t for t in drawn if t.startswith("Ref:")]
 
 
 def test_the_png_source_reads_website_for_a_website_order(engine):
