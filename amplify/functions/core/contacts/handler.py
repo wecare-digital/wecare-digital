@@ -546,9 +546,8 @@ DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
 
 
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
-    # A lock blocks EVERY delete, hard or soft, before anything else. Read fail-closed: if the
-    # row cannot be read to check the lock, refuse rather than risk deleting a retained record.
-    lock_refusal = _locked_delete_refusal(contact_id, request_id, origin)
+    # A lock blocks EVERY delete, hard or soft, before anything else.
+    lock_refusal = _locked_delete_refusal(contact_id, hard, request_id, origin)
     if lock_refusal is not None:
         return lock_refusal
     if hard:
@@ -619,17 +618,24 @@ def _unlock_contact(contact_id: str, request_id: str, origin: str = '') -> Dict[
     return cors_response(200, {'id': contact_id, 'locked': False}, origin)
 
 
-def _locked_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+def _locked_delete_refusal(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
     """`None` when the contact is not locked (delete may proceed); otherwise the 409 to return.
 
     A locked contact is retained for legal records and refuses both hard and soft delete.
-    Fail-closed: an unreadable row refuses, because that is not evidence the contact is unlocked.
-    A genuinely missing row returns None so the delete paths own their own 404.
+
+    On an UNREADABLE row the behaviour differs by delete kind, deliberately, so this guard does
+    not change an existing tested contract: for a HARD delete, return None and let
+    `_hard_delete_refusal` (which runs next and already fail-closes on an unreadable row with
+    `PAYMENT_LINKAGE_UNKNOWN`) own that refusal. For a SOFT delete there is no later guard, so an
+    unreadable row fail-closes HERE with `CONTACT_LOCKED`. A missing row returns None so the
+    delete paths own their own 404.
     """
     table = dynamodb.Table(CONTACTS_TABLE)
     try:
         row = table.get_item(Key={'id': contact_id}).get('Item')
     except Exception as exc:  # noqa: BLE001 - cannot read, so cannot prove unlocked
+        if hard:
+            return None  # the payment guard below owns the unreadable-row refusal for hard delete
         return cors_response(409, {
             'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
             'reason': f'the contact row could not be read to check its lock: {type(exc).__name__}',
