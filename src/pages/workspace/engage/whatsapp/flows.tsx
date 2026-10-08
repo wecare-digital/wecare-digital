@@ -10,6 +10,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -19,6 +20,8 @@ const WABAS = [
 ];
 
 const CATEGORIES = ['SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GENERATION', 'CONTACT_US', 'CUSTOMER_SUPPORT', 'SURVEY', 'OTHER'];
+
+const CATEGORY_OPTIONS: SelectOption[] = CATEGORIES.map(c => ({ value: c, label: c.replace(/_/g, ' ') }));
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: '#1a3a2a', PUBLISHED: '#1a3a2a', DEPRECATED: '#9ca3af', BLOCKED: '#1a3a2a', THROTTLED: '#1a3a2a',
@@ -124,10 +127,8 @@ const FlowsPage: React.FC<PageProps> = ({ signOut, user, embedded = false }) => 
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
               <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Flow name"
                 style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }} />
-              <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
-                style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 }}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>)}
-              </select>
+              <Select ariaLabel="Flow category" value={newCategory} onChange={v => setNewCategory(v)}
+                options={CATEGORY_OPTIONS} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleCreate} disabled={creating} style={{ padding: '8px 16px', background: '#d1f470', color: '#1a3a2a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>

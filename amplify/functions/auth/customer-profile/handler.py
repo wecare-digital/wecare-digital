@@ -39,6 +39,7 @@ from boto3.dynamodb.conditions import Key
 from lambda_utils import contact_key, customer_auth, customer_session
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer as identity
+from lambda_utils.identity import customer_uuid
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
 from lambda_utils.validation import sanitize_html
@@ -287,7 +288,16 @@ def _set_fragments(*, name: Optional[str], first_name: Optional[str], last_name:
         assignments.append("checkoutCustomerId=:customer")
         values[":customer"] = customer_id
     assignments += ["phoneVerifiedAt=if_not_exists(phoneVerifiedAt,:now)",
+                    # The PUBLIC customer id, on exactly the same `if_not_exists` footing as
+                    # `phoneVerifiedAt` beside it: minted locally every time and discarded by
+                    # DynamoDB when the row already has one, so an existing customer keeps the id
+                    # already printed on their invoices. Note it is NOT the row `id` - that is
+                    # `uuid5(NAMESPACE_URL, "wecare:checkout-customer:<cognito sub>")` a few lines
+                    # down, a hash of the Cognito subject, and therefore not publishable.
+                    f"{customer_uuid.ATTRIBUTE}="
+                    f"if_not_exists({customer_uuid.ATTRIBUTE},:custuuid)",
                     "checkoutProfileUpdatedAt=:now", "updatedAt=:now"]
+    values[":custuuid"] = customer_uuid.new_customer_uuid()
 
     return "SET " + ", ".join(assignments), names, values
 
@@ -339,6 +349,12 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
     contact_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"wecare:checkout-customer:{customer_id}"))
     item = {
         **contact_key.contact_item_keys(contact_id),
+        # Minted on the create branch for the same reason `_create` in `core/contacts` does: this
+        # branch runs only when neither the phone index nor the email index resolved a row, so
+        # there is no existing id to preserve. Site (3) below - the race on the deterministic id -
+        # goes through `_set_fragments`, which assigns it with `if_not_exists`, so the loser of
+        # the race does not replace the winner's id.
+        customer_uuid.ATTRIBUTE: customer_uuid.new_customer_uuid(),
         "name": name or "",
         "firstName": first_name or "",
         "lastName": last_name or "",

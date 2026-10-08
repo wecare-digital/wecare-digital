@@ -7,7 +7,21 @@ import React, { useState, useEffect } from 'react';
 import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { PAYMENT_DETAILS } from '../../../../config/constants';
+
+/*
+ * BATCH 2f - how long a payment link stays payable. `expiryDays` is a NUMBER, so the option
+ * values are the same numbers as strings and `parseInt` does the conversion the native handler
+ * already did. Same five choices, same order, same visible text.
+ */
+const EXPIRY_OPTIONS: SelectOption[] = [
+  { value: '1', label: '1 Day' },
+  { value: '3', label: '3 Days' },
+  { value: '7', label: '7 Days' },
+  { value: '15', label: '15 Days' },
+  { value: '30', label: '30 Days' },
+];
 
 interface PageProps {
   signOut?: () => void;
@@ -109,14 +123,16 @@ const PayLinkPage: React.FC<PageProps> = ({ signOut, user, embedded }) => {
                   />
                 </div>
                 <div className="form-field">
+                  {/* The `.form-field` caption is an unassociated label - no `for`, no wrapped
+                      control - so it stays and the control takes ariaLabel. `parseInt` is the
+                      same call the native handler made on the same string. */}
                   <label>Expiry (Days)</label>
-                  <select value={expiryDays} onChange={(e) => setExpiryDays(parseInt(e.target.value))}>
-                    <option value={1}>1 Day</option>
-                    <option value={3}>3 Days</option>
-                    <option value={7}>7 Days</option>
-                    <option value={15}>15 Days</option>
-                    <option value={30}>30 Days</option>
-                  </select>
+                  <Select
+                    ariaLabel="Expiry in days"
+                    value={String(expiryDays)}
+                    onChange={(v) => setExpiryDays(parseInt(v))}
+                    options={EXPIRY_OPTIONS}
+                  />
                 </div>
                 <div className="form-field full-width">
                   <label>Description</label>

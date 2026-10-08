@@ -11,6 +11,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { acquireAudioStream } from '../../../../lib/pstn/mediaCapability';
 import { safeHttpHref } from '../../../../lib/randomToken';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -18,6 +19,11 @@ const PHONE_NUMBERS = [
   { id: 'phone-number-id-waba1-direct-1016149501586345', metaId: '1016149501586345', display: '+91 93309 94400', name: 'WECARE.DIGITAL', wabaId: '2094615664435155', country: 'IN', tier: 'TIER_1K', quality: 'GREEN', callingReady: true, directApi: true },
   { id: 'phone-number-id-waba-t-direct-1055232054343117', metaId: '1055232054343117', display: '+91 99033 00044', name: 'Manish Agarwal', wabaId: '2513394156072604', country: 'IN', tier: 'TIER_10K', quality: 'GREEN', callingReady: true, directApi: true },
 ];
+
+const OUTBOUND_PHONE_OPTIONS: SelectOption[] = PHONE_NUMBERS.map( p => ( {
+  value: p.metaId,
+  label: `${ p.display } (${ p.name })`,
+} ) );
 
 // Webhook configuration — LIVE (Direct API, all WABAs use same endpoint)
 const WEBHOOK_CONFIG = {
@@ -1412,12 +1418,9 @@ const WhatsAppCallingPage: React.FC<PageProps> = ( { signOut, user, embedded = f
                   <div style={ { display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' } }>
                     <div style={ { flex: '0 0 180px' } }>
                       <label style={ { display: 'block', fontSize: '11px', fontWeight: 600, color: '#374151', marginBottom: '4px' } }>From (WABA Number)</label>
-                      <select value={ outboundPhoneNumberId } onChange={ e => setOutboundPhoneNumberId( e.target.value ) }
-                        style={ { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '12px', background: '#fff' } }>
-                        { PHONE_NUMBERS.map( p => (
-                          <option key={ p.metaId } value={ p.metaId }>{ p.display } ({ p.name })</option>
-                        ) ) }
-                      </select>
+                      <Select ariaLabel="From (WABA Number)" value={ outboundPhoneNumberId }
+                        onChange={ v => setOutboundPhoneNumberId( v ) }
+                        options={ OUTBOUND_PHONE_OPTIONS } />
                     </div>
                     <div style={ { flex: '1 1 200px' } }>
                       <label style={ { display: 'block', fontSize: '11px', fontWeight: 600, color: '#374151', marginBottom: '4px' } }>To (WhatsApp Number with country code)</label>

@@ -19,6 +19,7 @@ and no redirect URI has ever been exercised.
 
 Shape
 -----
+    customer_uuid.py   the ONE public-facing customer id: uuid4, printable, loggable in full
     customer.py        CUS_<ULID> identity, phone/email normalisation, checkout readiness
     registration.py    the walk-up front door: throttle, OTP, then admin-provision a login
     provenance.py      which source may overwrite which Contact field
@@ -74,3 +75,12 @@ Neither provider can be exercised end to end from here:
 So the contracts, the state machines and the guards are built and tested here against
 fixtures, and the live grant is recorded as `WAITING_FOR_OWNER` with the exact action.
 """
+
+# Re-exported here and ONLY this one, deliberately. Every other module in this package pulls in
+# a provider contract, a store or `lambda_utils.http`, so importing them from the package root
+# would make `from lambda_utils.identity import customer_uuid` pay for all of it on a Lambda cold
+# start. `customer_uuid` imports nothing but `uuid`, so it is free and is read on the payment
+# path by handlers that want the attribute name without the rest of identity.
+from lambda_utils.identity import customer_uuid  # noqa: F401
+
+__all__ = ["customer_uuid"]

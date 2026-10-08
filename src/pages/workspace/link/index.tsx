@@ -13,6 +13,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
+import DateField from '../../../components/ui/DateField';
 import { useToastContext } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 
@@ -404,10 +405,25 @@ const LinkPage: React.FC<PageProps> = ( { signOut, user } ) => {
                   </div>
                 ) }
 
-                <label className="link-label">
-                  Expiry Date (optional)
-                  <input className="link-input" type="date" value={ formExpiry } onChange={ e => setFormExpiry( e.target.value ) } />
-                </label>
+                { /* THE URL SHORTENER's expiry date, and the one date input an earlier revision
+                     of the plan attributed to `pay/link`. There is no date input anywhere under
+                     src/pages/workspace/pay/, and nothing in that directory is edited by this
+                     batch. SHAPE (a): the wrapping <label className="link-label"> is gone, for
+                     the reason DateField's header gives - a <label> around a text box plus a
+                     trigger button names itself by walking both and double-activates the button
+                     on a click. `.link-label` moves to the field wrapper - it is a global class
+                     in flex-layout.css rather than styled-jsx, so it still applies - which keeps
+                     the 13px type and the column layout the other seven fields have. ISO in, ISO
+                     out, so `formExpiry` reaches handleSave unchanged.
+
+                     layer="overlay" IS REQUIRED, not a precaution. This field is only ever
+                     rendered inside `.link-modal-overlay`, which is position:fixed inset:0 at
+                     `z-index: 9999` (flex-layout.css:329-337), and the Popover portals to
+                     document.body - so at its default 1500 the calendar paints BEHIND both the
+                     veil and the opaque `.link-modal`, hidden rather than merely dimmed, in the
+                     one place this control exists. 10001 clears the overlay and still loses to
+                     the 10002 toast band, which is the ordering design 5.1 picked. */ }
+                <DateField className="link-label" label="Expiry Date (optional)" value={ formExpiry } onChange={ setFormExpiry } layer="overlay" />
               </div>
               <div className="link-modal-footer">
                 <button className="link-cancel-btn" onClick={ () => { setShowForm( false ); resetForm(); } }>Cancel</button>

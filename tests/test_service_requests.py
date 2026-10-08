@@ -1,4 +1,4 @@
-"""The Phase O-1 server allow-list: two services offered, two refused by name, integer paise.
+"""The server allow-list: four services offered and priced, none refused by name, integer paise.
 
 Pure module, pure tests: no AWS, no network, no credential, no Wix call.
 """
@@ -51,15 +51,19 @@ def test_the_server_choices_mirror_the_frontend_contract():
     assert product and {product.group(1)} == set(sr.SERVICE_PRODUCT_IDS)
     choices = re.findall(
         r"kind: '(\w+)', variantId: '([0-9a-f-]{36})',\s*label: '[^']+', rupees: (\d+), "
-        r"paise: (\d+)", source)
-    assert len(choices) == 2
-    assert {variant: (kind, int(paise)) for kind, variant, _rupees, paise in choices} == \
+        r"paise: (\d+), path: '[^']+',\s*needsTarget: (true|false),", source)
+    assert len(choices) == 4
+    assert {variant: (kind, int(paise)) for kind, variant, _rupees, paise, _t in choices} == \
         dict(sr.SERVICE_CHOICES_PAISE)
-    for _kind, _variant, rupees, paise in choices:
+    for _kind, _variant, rupees, paise, _t in choices:
         assert int(rupees) * 100 == int(paise)
+    # `needsTarget` mirrors TARGET_REQUIRED_KINDS, which is the rule the server enforces.
+    assert {kind for kind, _v, _r, _p, needs in choices if needs == "true"} == \
+        set(sr.TARGET_REQUIRED_KINDS)
     block = source[source.index("export const NOT_OFFERED_SERVICE_VARIANT_IDS"):]
     block = block[:block.index("] as const")]
-    assert set(re.findall(r"'([0-9a-f-]{36})'", block)) == set(sr.NOT_OFFERED_VARIANT_IDS)
+    assert set(re.findall(r"'([0-9a-f-]{36})'", block)) == set(sr.NOT_OFFERED_VARIANT_IDS) \
+        == set()
 
 
 def test_the_refusal_sentences_mirror_the_frontend():
@@ -71,14 +75,37 @@ def test_the_refusal_sentences_mirror_the_frontend():
         assert declared.get(code) == message, code
 
 
-def test_only_two_services_are_offered_and_both_cost_9900_paise():
-    assert set(sr.SERVICE_CHOICES_PAISE) == {SUBMIT, AMEND}
+def test_exactly_four_services_are_offered_at_their_committed_paise():
+    assert set(sr.SERVICE_CHOICES_PAISE) == {SUBMIT, AMEND, DROP_DOCS, VAULT}
     assert sr.SERVICE_CHOICES_PAISE[SUBMIT] == ("SUBMIT_REQUEST", 9900)
     assert sr.SERVICE_CHOICES_PAISE[AMEND] == ("REQUEST_AMENDMENT", 9900)
-    assert DROP_DOCS not in sr.SERVICE_CHOICES_PAISE and VAULT not in sr.SERVICE_CHOICES_PAISE
+    assert sr.SERVICE_CHOICES_PAISE[DROP_DOCS] == ("DROP_DOCS", 35000)
+    assert sr.SERVICE_CHOICES_PAISE[VAULT] == ("VAULT", 4900)
     for _kind, paise in sr.SERVICE_CHOICES_PAISE.values():
         assert type(paise) is int
     assert sr.SERVICE_CURRENCY == "INR"
+
+
+def test_nothing_is_refused_by_name_any_more_but_the_guard_is_still_there():
+    """Empty sets, and the refusal machinery intact for the next variant added in Wix."""
+    assert set(sr.NOT_OFFERED_VARIANT_IDS) == set()
+    assert set(sr.NOT_OFFERED_KINDS) == set()
+    assert sr.SERVICE_NOT_OFFERED == "SERVICE_NOT_OFFERED"
+    assert sr.SERVICE_MESSAGES[sr.SERVICE_NOT_OFFERED] == \
+        "This service is not offered yet. Nothing has been charged."
+    source = (ROOT / "amplify/functions/shared/lambda_utils/ecommerce/"
+                     "service_requests.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+              and n.name == "service_line")
+    body = ast.unparse(fn)
+    assert "NOT_OFFERED_VARIANT_IDS" in body and "SERVICE_NOT_OFFERED" in body
+
+
+def test_three_of_the_four_need_a_target_submit_request():
+    assert set(sr.TARGET_REQUIRED_KINDS) == {"REQUEST_AMENDMENT", "DROP_DOCS", "VAULT"}
+    assert sr.SUBMIT_REQUEST not in sr.TARGET_REQUIRED_KINDS
+    assert sr.DROP_DOCS == "DROP_DOCS" and sr.VAULT == "VAULT"
 
 
 def test_every_refusal_sentence_says_nothing_was_charged():
@@ -88,21 +115,34 @@ def test_every_refusal_sentence_says_nothing_was_charged():
 
 # ── the allow-list ────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("variant", [DROP_DOCS, VAULT])
-def test_drop_docs_and_vault_are_refused_by_name(variant):
+@pytest.mark.parametrize("variant,expected", [(DROP_DOCS, ("DROP_DOCS", 35000)),
+                                              (VAULT, ("VAULT", 4900))])
+def test_drop_docs_and_vault_are_offered_and_priced(variant, expected):
+    kind, paise = expected
+    assert sr.service_line([line(variant)]) == sr.ServiceLine(kind, variant, paise)
+    assert sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT},
+                                 v2_enabled=True) is None
+
+
+@pytest.mark.parametrize("variant,expected", [(DROP_DOCS, ("DROP_DOCS", 35000)),
+                                              (VAULT, ("VAULT", 4900))])
+def test_drop_docs_and_vault_are_allowed_beside_an_ordinary_product(variant, expected):
+    kind, paise = expected
+    basket = [kiosk(), line(variant)]
+    assert sr.service_line(basket) == sr.ServiceLine(kind, variant, paise)
+    assert sr.checkout_preflight(basket, {"serviceIntentId": INTENT}, v2_enabled=True) is None
+
+
+@pytest.mark.parametrize("variant", ["00000000-0000-4000-8000-000000000001",
+                                     "db166bc8-a763-41ec-9f65-0f718f18155b"])
+def test_an_unknown_variant_of_the_same_product_is_still_an_unknown_choice(variant):
+    """The allow-list is closed: a fifth Wix variant is refused, not sold."""
     with pytest.raises(sr.ServiceRejected) as caught:
         sr.service_line([line(variant)])
-    assert caught.value.code == "SERVICE_NOT_OFFERED"
+    assert caught.value.code == "SERVICE_UNKNOWN_CHOICE"
     status, payload = sr.checkout_preflight([line(variant)], {"serviceIntentId": INTENT},
                                             v2_enabled=True)
-    assert (status, payload["error"]) == (409, "SERVICE_NOT_OFFERED")
-
-
-@pytest.mark.parametrize("variant", [DROP_DOCS, VAULT])
-def test_drop_docs_and_vault_are_refused_beside_an_ordinary_product(variant):
-    status, payload = sr.checkout_preflight([kiosk(), line(variant)], {"serviceIntentId": INTENT},
-                                            v2_enabled=True)
-    assert (status, payload["error"]) == (409, "SERVICE_NOT_OFFERED")
+    assert (status, payload["error"]) == (409, "SERVICE_UNKNOWN_CHOICE")
 
 
 @pytest.mark.parametrize("quantity", [True, 2, "1", 0, None, 1.0])

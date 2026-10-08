@@ -52,8 +52,18 @@ REMOVED_IDS = {"growth"}
 # `growth` was a grouping page over routes that each stand on their own. If the removal
 # had orphaned any of them, that would be a real regression rather than a tidy-up, so the
 # list it used to group is asserted reachable independently.
+#
+# Four routes left this list on 2026-10-07: /workspace/seo/pages, /workspace/seo/analytics,
+# /workspace/seo/tracking and /workspace/seo/schema. They were retired consciously under
+# owner decision B1 = CUT, not orphaned. Their backend was the `wecare-seo-platform`
+# FastAPI service reached through `NEXT_PUBLIC_SEO_API_URL`, a variable that was never
+# configured on `stack`, so `src/api/seo.ts`'s `seoFetch` threw on every call and all four
+# screens errored on load - they were unreachable in practice long before they became
+# unreachable by deletion. Removing them here is the honest bookkeeping, not a weakening:
+# the property this list guards is unchanged, and the three routes that remain must still
+# resolve to a real page file.
 GROWTH_FORMER_INNER_PAGES = [
-    "/workspace/seo", "/workspace/seo/pages", "/workspace/seo/analytics", "/workspace/seo/tracking", "/workspace/seo/schema",
+    "/workspace/seo",
     "/workspace/engage/whatsapp/ctwa-ads", "/workspace/engage/whatsapp/conversions-api",
 ]
 

@@ -7,6 +7,7 @@ import Breadcrumbs from '../../components/Breadcrumbs';
 import { SHOP_PRODUCTS, shopProductBySlug } from '../../content/shop';
 import type { ShopProduct } from '../../content/shop';
 import { addItem } from '../../lib/cart';
+import Select from '../../components/ui/Select';
 
 /**
  * /shop/<slug>/ - one page per catalogue item.
@@ -94,16 +95,37 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
 
             {/* The page's single lime surface. A button before the item is added (a client action)
                 and a link once it is, so a shopper is never stranded. */}
+            {/* THE VARIANT CHOOSER - the one public non-checkout select, and the only one on a
+                route a browser harness can actually load. It renders on EXACTLY ONE exported
+                page, /shop/merchandise/: that is the only multi-variant product in the snapshot,
+                and /shop/kiosk/ is single-variant and renders nothing here.
+
+                THE WRAPPING <label> IS GONE AND THE COMPONENT OWNS THE PAIR. A <button
+                role="combobox"> inside a <label> is still associated - a button is a labelable
+                element - so the accessible name would be computed by walking the label's subtree,
+                which now contains the trigger's own caption: "Fit and size Choose your fit and
+                size". Dropping the wrapper and passing label="Fit and size" makes the name
+                exactly those three words, which is what ShopCatalogue.test.tsx now resolves it by,
+                as an exact string rather than a regex. `.shopd-options` moves onto the field
+                wrapper and its two rules become :global(), because styled-jsx only hashes the
+                lowercase DOM tags it can see in this file and a className handed to a component
+                never receives that hash.
+
+                THE '' ROW IS KEPT AS A REAL OPTION rather than becoming a `placeholder`, so the
+                DOM mirrors the native control exactly: the shopper can still re-select "no
+                choice", and the add button's `!variantId` guard below is unchanged. */}
             { product.variants && product.variants.length > 1 && (
-              <label className="shopd-options">
-                Fit and size
-                <select value={ variantId } onChange={ e => { setVariantId( e.target.value ); setAdded( false ); } }>
-                  <option value="">Choose your fit and size</option>
-                  { product.variants.filter( variant => variant.inStock ).map( variant => (
-                    <option key={ variant.id } value={ variant.id }>{ variant.label }</option>
-                  ) ) }
-                </select>
-              </label>
+              <Select
+                className="shopd-options"
+                label="Fit and size"
+                value={ variantId }
+                onChange={ value => { setVariantId( value ); setAdded( false ); } }
+                options={ [
+                  { value: '', label: 'Choose your fit and size' },
+                  ...product.variants.filter( variant => variant.inStock )
+                    .map( variant => ( { value: variant.id, label: variant.label } ) ),
+                ] }
+              />
             ) }
             { added
               ? (
@@ -134,8 +156,27 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
              the whole reason this page stopped hand-rolling them: a page that states its own
              clearance has to restate it at both header heights, and getting that wrong paints the
              first line under the header. This div only sets its own reading measure. */
-          .shopd-options{display:flex;flex-direction:column;gap:8px;color:#1a3a2a;margin:20px 0;font-weight:700}
-          .shopd-options select{font:inherit;padding:14px;border:1px solid #c7d3b4;border-radius:14px;background:#f5f7eb;color:#1a3a2a}
+          /* :global() IS MANDATORY ON BOTH OF THESE NOW, for the reason .shopd-cta below records
+             at length: styled-jsx attaches its scoping class only to the lowercase DOM tags it
+             can see in this file, and .shopd-options is now a className handed to the Select
+             component, which forwards it to a node styled-jsx never saw. Without :global() the compiled
+             rules match nothing and the chooser renders as an unstyled button.
+             The flex column with gap:8px is what spaces the label from the trigger, so
+             .ui-field-label's own block-end margin is zeroed rather than added to it, and
+             colour and weight are inherited from this rule instead of taken from the
+             control tokens - the label here is the page's 700-weight dark green, not a
+             workspace field label. */
+          .shopd-in :global(.shopd-options){display:flex;flex-direction:column;gap:8px;color:#1a3a2a;margin:20px 0;font-weight:700}
+          .shopd-in :global(.shopd-options .ui-field-label){color:inherit;font-weight:inherit;margin-block-end:0;cursor:pointer}
+          /* NO BACKTICK IN A styled-jsx COMMENT - this block is a template literal, so one
+             around a selector name terminates it and the parser reports a cascade of JSX errors
+             further down the file.
+             The .shopd-options select rule is gone with the native control. It had just been
+             rewritten in batch 1.3a onto the shared tokens - font:inherit, the 44px floor, the
+             2px #e5e7eb box, the 13px radius and the 32px end inset for the chevron - and
+             form-controls.css's .ui-select-trigger now declares that exact set for the component
+             that replaced it, so nothing about the closed state changes. What changes is the OPEN
+             list, which was the one part no stylesheet could reach. */
           .shopd-cta-btn:disabled{opacity:.5;cursor:not-allowed}
           .shopd-in{width:100%;max-width:700px;margin:0}
 

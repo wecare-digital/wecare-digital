@@ -10,10 +10,24 @@ import SEO from '../../../../components/SEO';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { colors } from '../../../../lib/design-tokens';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const BLANK: Partial<api.AutomationRule> = { name: '', enabled: true, channel: 'any', triggerType: 'keyword', triggerValue: '', actionType: 'reply', actionValue: '', priority: 100 };
+
+/* The two draft choosers' rows, hoisted. Same order, same values, same visible text. */
+const CHANNEL_OPTIONS: SelectOption[] = [
+    { value: 'any', label: 'Any channel' },
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'sms', label: 'SMS' },
+    { value: 'rcs', label: 'RCS' },
+    { value: 'email', label: 'Email' },
+];
+const TRIGGER_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'keyword', label: 'When message contains…' },
+    { value: 'any', label: 'On any message' },
+];
 
 const AutomationPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     const toast = useToastContext();
@@ -60,12 +74,15 @@ const AutomationPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     <div className="au-new-title">New rule</div>
                     <div className="au-grid">
                         <input className="au-in" placeholder="Rule name" value={ draft.name } onChange={ e => setDraft( d => ( { ...d, name: e.target.value } ) ) } />
-                        <select className="au-in" value={ draft.channel } onChange={ e => setDraft( d => ( { ...d, channel: e.target.value as any } ) ) }>
-                            <option value="any">Any channel</option><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option><option value="rcs">RCS</option><option value="email">Email</option>
-                        </select>
-                        <select className="au-in" value={ draft.triggerType } onChange={ e => setDraft( d => ( { ...d, triggerType: e.target.value as any } ) ) }>
-                            <option value="keyword">When message contains…</option><option value="any">On any message</option>
-                        </select>
+                        { /* `.au-in` SKINNED the native control and is dropped rather than
+                             forwarded; `.au-grid` sizes these two, so no width is needed.
+                             Both casts are preserved verbatim. */ }
+                        <Select ariaLabel="Channel" value={ draft.channel ?? 'any' }
+                            onChange={ v => setDraft( d => ( { ...d, channel: v as any } ) ) }
+                            options={ CHANNEL_OPTIONS } />
+                        <Select ariaLabel="Trigger" value={ draft.triggerType ?? 'keyword' }
+                            onChange={ v => setDraft( d => ( { ...d, triggerType: v as any } ) ) }
+                            options={ TRIGGER_TYPE_OPTIONS } />
                         { draft.triggerType === 'keyword' && (
                             <input className="au-in" placeholder="keyword (e.g. hours)" value={ draft.triggerValue } onChange={ e => setDraft( d => ( { ...d, triggerValue: e.target.value } ) ) } />
                         ) }

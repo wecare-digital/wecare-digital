@@ -1,0 +1,551 @@
+"""`wecare-meta-catalog-sync` - project the Wix catalogue onto the Meta Commerce catalog.
+
+PHASE W, FEAT-001. Plan decision D3 in
+`.agents/tasks/phase-w-whatsapp-commerce-20261006/plan.md`; the retailer-id contract, the item
+shape and the diff all live in `lambda_utils/ecommerce/meta_catalog_sync.py`, which is pure. This
+file is wiring: Wix in, Meta in, a plan out, and two gates in front of the only thing that writes.
+
+IT DOES NOT WRITE TO META AS SHIPPED, AND THAT IS THE DESIGN
+------------------------------------------------------------
+Two independent gates, checked in this order:
+
+    META_CATALOG_SYNC_ENABLED  absent or not true  -> compute the plan, log it, return.
+                                                      No write request is CONSTRUCTED at all.
+    META_CATALOG_SYNC_DRY_RUN  anything but an explicit false -> same.
+
+Only both-flags-set reaches `_apply`. The Meta catalogue is customer-visible - items appear in
+WhatsApp - so turning this on is an owner decision, and nothing in this repository sets either
+variable to an enabling value. `config/lambda-env-manifest.json` records both at their safe
+defaults.
+
+A second reason the gates matter today rather than in principle: every one of the ten real
+products carries `mediaCount: 0`, so `meta_catalog_sync.blockers` names all ten and Meta commerce
+review would reject every item. The honest state is "the plan is correct and the catalogue is not
+ready", which is exactly what this function reports.
+
+THE TRIGGER CARRIES NO INFORMATION THIS FUNCTION USES
+-----------------------------------------------------
+It accepts an async invoke from `wecare-wix-catalog-webhook` (`{"source": "wix-webhook",
+"entityId": ...}`) and a scheduled EventBridge event, and treats both identically: re-read the
+whole catalogue. The entity id is logged for correlation and NEVER used to narrow the read, for
+the same reason `wix-catalog-webhook` ignores it - a verified event means "the catalogue moved",
+and re-reading is the right answer whatever the envelope said. So a change in Wix's event shape
+can cost a log field and can never cost a missed item.
+
+THE TOKEN IS READ LAZILY, AT REQUEST TIME, INSIDE THE FUNCTION
+--------------------------------------------------------------
+`wecare/meta-system-user-token`, by reference, in `_read_secret` - never at module scope. A
+module-scope read is cached for the life of a warm sandbox, so a rotation would keep using the old
+value until every sandbox recycled; that is the defect fixed in `payments/razorpay-webhook` on
+2026-09-19. The value is never logged and never reduced to a logged boolean: CodeQL's
+`py/clear-text-logging-sensitive-data` tracks taint across function boundaries and has already
+failed this build twice on exactly that shape.
+
+AUTHORIZATION
+-------------
+There is none, because there is no public surface: no HTTP API route, no function URL. The only
+callers are the webhook's role (one `lambda:InvokeFunction` grant, added by
+`scripts/provision_meta_catalog_sync.py` to the WEBHOOK's role) and an EventBridge schedule. Its
+own role grants exactly one secret read and CloudWatch Logs; `wecare-digital-lambda-role` is not
+touched.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
+from typing import Any, Dict, List, Mapping, Optional, Sequence
+
+from lambda_utils.ecommerce import meta_catalog_sync as catalog
+from lambda_utils.logging import get_logger
+from lambda_utils.meta_version import graph_url
+
+logger = get_logger(__name__)
+
+#: Secret NAME, never a value.
+META_TOKEN_SECRET = os.environ.get("META_TOKEN_SECRET", "wecare/meta-system-user-token")
+
+#: Which field of that secret to use. `access_token` is WABA1's; `access_token_waba2` is WABA2's.
+#: Configuration rather than a branch on the catalog id, so pointing this function at the other
+#: WABA is two environment variables and no code change.
+META_TOKEN_FIELD = os.environ.get("META_TOKEN_FIELD", "access_token")
+
+#: The target catalog. WABA1's, from `catalog-builder.tsx:17-21`:
+#:     WABA1 2094615664435155 -> catalog 1607047307067517
+#:     WABA2 2513394156072604 -> catalog 1424934879646296
+#: Configuration, not a literal in the code path, so WABA2 is reachable by environment variable.
+META_CATALOG_ID = os.environ.get("META_CATALOG_ID", "1607047307067517")
+
+#: The same `fields` set `catalog-management._list_products` asks for, plus nothing. Asking for
+#: less would make the diff report a change on a field we never read.
+META_PRODUCT_FIELDS = ("id,name,retailer_id,price,currency,availability,image_url,url,"
+                       "description")
+META_PAGE_LIMIT = "100"
+
+#: Wix Catalog V3. The site is on V3, confirmed by Wix rather than inferred - a V1 call returns
+#: HTTP 428 `CATALOG_V3_CALLING_CATALOG_V1_API` (see `scripts/fetch-wix-catalog.js`).
+WIX_SEARCH_ENDPOINT = "/stores/v3/products/search"
+WIX_VARIANTS_ENDPOINT = "/stores/v3/products/query-variants"
+
+#: V3 omits description, currency, media and category info unless asked, so a search without
+#: these returns products with no price currency and no description and reads as an empty
+#: catalogue. Mirrors `CATALOG_PRODUCT_FIELDS` in `ecommerce/wix-store/handler.py` and `FIELDS`
+#: in `scripts/fetch-wix-catalog.js`, so all three consumers ask for the same shape.
+WIX_PRODUCT_FIELDS = ("URL", "CURRENCY", "MEDIA_ITEMS_INFO", "PLAIN_DESCRIPTION",
+                      "DIRECT_CATEGORIES_INFO", "VARIANT_OPTION_CHOICE_NAMES", "INFO_SECTION")
+
+WIX_PAGE_SIZE = 100
+WIX_VARIANT_PAGE_SIZE = 1000
+
+#: A cursor that never empties would otherwise spin until the Lambda timed out. Same guard, and
+#: the same value, as both existing cursor loops.
+MAX_PAGES = 50
+
+GRAPH_TIMEOUT_SECONDS = 15
+
+#: Meta's batch endpoint and the `"1199.00 INR"` price form it wants are UNVERIFIED against the
+#: live API - no write has ever been made from this repository (findings section 1 lists it as an
+#: open item). They are only reachable with both gates open, which is why an unverified shape is
+#: acceptable here and would not be if the function shipped enabled.
+META_BATCH_PATH = "items_batch"
+META_BATCH_CHUNK = 100
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# The gates
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+_TRUE = frozenset({"true", "1", "yes", "on"})
+_FALSE = frozenset({"false", "0", "no", "off"})
+
+
+def _enabled() -> bool:
+    """`META_CATALOG_SYNC_ENABLED` must say true. Absent, empty or anything else is OFF.
+
+    Read at request time, not at import, so the value a deploy set is the value in force rather
+    than whatever a warm sandbox started with.
+    """
+    return os.environ.get("META_CATALOG_SYNC_ENABLED", "").strip().lower() in _TRUE
+
+
+def _dry_run() -> bool:
+    """`META_CATALOG_SYNC_DRY_RUN` must say false EXPLICITLY to switch dry run off.
+
+    Asymmetric with `_enabled` on purpose. A typo (`META_CATALOG_SYNC_DRY_RUN=flase`) leaves dry
+    run ON, which is the direction a mistake should fall in when the alternative is writing to a
+    customer-visible catalogue.
+    """
+    return os.environ.get("META_CATALOG_SYNC_DRY_RUN", "").strip().lower() not in _FALSE
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# The credential
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+
+def _read_secret(secret_id: str) -> Mapping[str, Any]:
+    """Read a JSON secret by id, AT REQUEST TIME. No cache, and never raises.
+
+    Lazy and uncached for the reason recorded in the module docstring: a module-scope or
+    process-cached read survives a rotation. `boto3` is imported INSIDE, so importing this handler
+    costs no AWS client - `tests/test_meta_catalog_sync_handler.py` asserts the import succeeds
+    with a `boto3.client` factory that raises.
+
+    `{}` on any failure. A sync that cannot read its token must do nothing, which is what an empty
+    secret produces: no token, so the Meta read is skipped and the function reports a refusal
+    rather than crashing into a retry.
+
+    Nothing here logs the result, not even its shape or its truthiness.
+    """
+    try:
+        import boto3
+        client = boto3.client("secretsmanager",
+                              region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        return json.loads(client.get_secret_value(SecretId=secret_id)["SecretString"])
+    except Exception as error:  # noqa: BLE001 - a read failure is a refusal, never a 500
+        # The secret NAME and the exception TYPE. Never the value, and never a message that could
+        # carry one.
+        logger.error(json.dumps({
+            "event": "meta_catalog_secret_read_failed",
+            "secretId": secret_id,
+            "errorType": type(error).__name__,
+        }))
+        return {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# Meta
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+
+def _graph_request(path: str, *, method: str = "GET",
+                   params: Optional[Mapping[str, str]] = None,
+                   payload: Optional[Mapping[str, Any]] = None,
+                   token: str = "", app_secret: str = "") -> Dict[str, Any]:
+    """One Graph call. Returns `{"error": ...}` rather than raising, like `catalog-management`.
+
+    `appsecret_proof` is attached when the secret carries an `app_secret`, matching
+    `catalog-management._graph_api` - an app configured to require the proof rejects every call
+    without it. The proof is an HMAC OF the token, so it is as sensitive as the token: it is put
+    in the query string and never logged.
+
+    The URL is built through `graph_url`, so the Graph version comes from
+    `lambda_utils.meta_version` and is not a literal here (`tests/test_meta_version.py` enforces
+    both halves of that).
+    """
+    url = graph_url(*[segment for segment in path.split("/") if segment])
+    query = dict(params or {})
+    if app_secret and token:
+        query["appsecret_proof"] = hmac.new(
+            app_secret.encode("utf-8"), token.encode("utf-8"), hashlib.sha256).hexdigest()
+    if query:
+        url = f"{url}?{urllib.parse.urlencode(query)}"
+    data = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = urllib.request.Request(
+        url, data=data, method=method,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=GRAPH_TIMEOUT_SECONDS) as response:
+            body = response.read().decode("utf-8")
+        return json.loads(body) if body else {}
+    except urllib.error.HTTPError as error:
+        # The STATUS only. A Graph error body echoes the request, and this request's one header is
+        # a credential.
+        return {"error": {"status": int(error.code)}}
+    except Exception as error:  # noqa: BLE001
+        return {"error": {"type": type(error).__name__}}
+
+
+def _existing_items(requester, *, token: str, app_secret: str,
+                    catalog_id: str) -> List[Dict[str, Any]]:
+    """Every item currently in the Meta catalog, by cursor paging `/{catalog_id}/products`.
+
+    Raises `RuntimeError` on a Graph error rather than returning a short list. A PARTIAL read is
+    the one failure mode that must not be tolerated here: items missing from `existing` look
+    exactly like items that need creating, so a truncated read would turn into a plan that
+    re-creates the whole catalogue.
+    """
+    items: List[Dict[str, Any]] = []
+    after = ""
+    for _ in range(MAX_PAGES):
+        params = {"fields": META_PRODUCT_FIELDS, "limit": META_PAGE_LIMIT}
+        if after:
+            params["after"] = after
+        result = requester(f"{catalog_id}/products", method="GET", params=params,
+                           token=token, app_secret=app_secret)
+        if "error" in result:
+            raise RuntimeError("the Meta catalogue could not be read")
+        page = result.get("data")
+        if isinstance(page, list):
+            items.extend(row for row in page if isinstance(row, Mapping))
+        after = (((result.get("paging") or {}).get("cursors") or {}).get("after") or "")
+        if not after or not page:
+            break
+    return items
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# Wix
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+
+def _wix_request(endpoint: str, body: Mapping[str, Any]) -> Dict[str, Any]:
+    """One authenticated Wix call, through the existing shared eCom client.
+
+    `lambda_utils.wix_ecom` already owns the base URL, the site-id header and the lazily-read,
+    by-reference API key. Imported INSIDE so this module stays importable without an AWS client.
+    """
+    from lambda_utils import wix_ecom
+    return wix_ecom._request(endpoint, method="POST", body=dict(body))
+
+
+def _wix_products(requester) -> List[Dict[str, Any]]:
+    """Read every Wix product, then hydrate per-variant prices and stock from a second endpoint.
+
+    TWO CALLS, NOT ONE, AND THE ENVELOPES DIFFER. `/products/search` takes
+    `{search: {cursorPaging}, fields}`; `/products/query-variants` takes `{fields, query}` with
+    the paging INSIDE `query`. Sending one shape to the other endpoint is a 400 rather than an
+    empty result - recorded in `scripts/fetch-wix-catalog.js:109-114`, which mirrors the working
+    call in `ecommerce/wix-store/handler.py`.
+
+    The second call is not optional here, and for a reason beyond the snapshot's: it is the ONLY
+    source of per-variant price. `Contribute` is 100-500 and `WECARE.DIGITAL Services` 49-350, so
+    a product-level price would be the minimum and wrong for most of their variants. That is why
+    `desired_items` is called with `require_variant_price=True` - a variant whose price did not
+    arrive refuses rather than publishing the product's.
+    """
+    products: List[Dict[str, Any]] = []
+    cursor = ""
+    for _ in range(MAX_PAGES):
+        paging = {"limit": WIX_PAGE_SIZE}
+        if cursor:
+            paging["cursor"] = cursor
+        result = requester(WIX_SEARCH_ENDPOINT,
+                           {"search": {"cursorPaging": paging},
+                            "fields": list(WIX_PRODUCT_FIELDS)})
+        page = result.get("products") or []
+        products.extend(row for row in page if isinstance(row, Mapping))
+        cursor = (((result.get("pagingMetadata") or {}).get("cursors") or {}).get("next") or "")
+        if not page or not cursor:
+            break
+
+    rows = [_slim_product(product) for product in products]
+    identifiers = [row["id"] for row in rows if row.get("id")]
+    if identifiers:
+        variants = _wix_variants(requester, identifiers)
+        for row in rows:
+            row["variants"] = variants.get(row["id"], [])
+    return rows
+
+
+def _slim_product(product: Mapping[str, Any]) -> Dict[str, Any]:
+    """The live V3 payload reduced to the fields `meta_catalog_sync` reads.
+
+    The same projection `scripts/fetch-wix-catalog.js` `slim()` writes into
+    `src/content/wix-catalog.json`, so the pure module sees one shape whether its input came from
+    the live API or from the committed snapshot - which is what lets the committed snapshot be a
+    valid test fixture rather than an approximation of one.
+
+    `price` stays the DECIMAL STRING Wix sends. No coercion to a float, here or anywhere.
+    """
+    price_range = product.get("actualPriceRange") or {}
+    minimum = price_range.get("minValue") or {}
+    media_items = (((product.get("media") or {}).get("itemsInfo") or {}).get("items") or [])
+    image = ""
+    for entry in media_items:
+        if isinstance(entry, Mapping):
+            candidate = str(((entry.get("image") or {}).get("url")
+                             if isinstance(entry.get("image"), Mapping)
+                             else entry.get("url")) or "").strip()
+            if candidate:
+                image = candidate
+                break
+    row: Dict[str, Any] = {
+        "id": str(product.get("id") or ""),
+        "name": str(product.get("name") or ""),
+        "slug": str(product.get("slug") or ""),
+        "visible": product.get("visible") is not False,
+        "price": minimum.get("amount"),
+        "currency": str(product.get("currency") or catalog.CURRENCY),
+        # V3's `description` is Ricos rich-content NODES; `plainDescription` is the HTML string.
+        "descriptionHtml": str(product.get("plainDescription") or ""),
+        "mediaCount": len(media_items),
+        "variants": [],
+    }
+    if image:
+        row["image"] = image
+    return row
+
+
+def _wix_variants(requester, product_ids: Sequence[str]) -> Dict[str, List[Dict[str, Any]]]:
+    """`productId -> [{id, label, inStock, pricePaise}]` from `query-variants`.
+
+    `pricePaise` is integer paise through `meta_catalog_sync.paise_from_major`, which uses
+    `Decimal(str(value))` and refuses an amount that is not a whole number of paise. A variant
+    whose price is missing or unreadable is emitted WITHOUT the key, so `desired_items` refuses it
+    in strict mode rather than silently falling back to the product's price.
+
+    `visible is False` rows are dropped, and an absent `visible` counts as visible - the same
+    reading `slim()` and `is_syncable` use.
+    """
+    by_product: Dict[str, List[Dict[str, Any]]] = {identifier: [] for identifier in product_ids}
+    cursor = ""
+    for _ in range(MAX_PAGES):
+        if cursor:
+            query: Dict[str, Any] = {"cursorPaging": {"limit": WIX_VARIANT_PAGE_SIZE,
+                                                      "cursor": cursor}}
+        else:
+            query = {"filter": {"productData.productId": {"$in": list(product_ids)}},
+                     "cursorPaging": {"limit": WIX_VARIANT_PAGE_SIZE}}
+        result = requester(WIX_VARIANTS_ENDPOINT, {"fields": ["CURRENCY"], "query": query})
+        rows = result.get("variants") or []
+        for row in rows:
+            if not isinstance(row, Mapping) or row.get("visible") is False:
+                continue
+            product_id = str((row.get("productData") or {}).get("productId") or "")
+            if product_id not in by_product:
+                continue
+            label = " / ".join(
+                str((choice.get("optionChoiceNames") or {}).get("choiceName") or "")
+                for choice in (row.get("optionChoices") or [])
+                if isinstance(choice, Mapping)
+                and (choice.get("optionChoiceNames") or {}).get("choiceName")) or "Standard"
+            variant: Dict[str, Any] = {
+                "id": str(row.get("variantId") or row.get("id") or ""),
+                "label": label,
+                "inStock": (row.get("inventoryStatus") or {}).get("inStock") is True,
+            }
+            amount = ((row.get("price") or {}).get("actualPrice") or {}).get("amount")
+            try:
+                variant["pricePaise"] = catalog.paise_from_major(amount)
+            except (ValueError, ArithmeticError):
+                pass
+            by_product[product_id].append(variant)
+        cursor = (((result.get("pagingMetadata") or {}).get("cursors") or {}).get("next") or "")
+        if not rows or not cursor:
+            break
+    return by_product
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# The write, which nothing in this repository enables
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+
+def _batch_requests(plan: catalog.SyncPlan) -> List[Dict[str, Any]]:
+    """The plan as Meta `items_batch` requests. UPDATE for everything, including a create.
+
+    `items_batch`'s `UPDATE` method is an upsert keyed on `retailer_id`, so one method covers
+    create and update and there is no ordering hazard between them. There is NO `DELETE` method
+    anywhere in this function: a retired item is an `UPDATE` setting `availability` to out of
+    stock, because deleting it would break an in-flight WhatsApp cart that already holds its
+    retailer id. `meta_catalog_sync.diff` cannot produce a delete either, so that guarantee is
+    structural at both layers.
+    """
+    requests: List[Dict[str, Any]] = []
+    for item in list(plan.create) + list(plan.update):
+        requests.append({"method": "UPDATE",
+                         "retailer_id": item["retailer_id"],
+                         "data": catalog.meta_payload(item)})
+    for item in plan.retire:
+        requests.append({"method": "UPDATE",
+                         "retailer_id": item["retailer_id"],
+                         "data": {"availability": catalog.OUT_OF_STOCK}})
+    return requests
+
+
+def _apply(plan: catalog.SyncPlan, requester, *, token: str, app_secret: str,
+           catalog_id: str) -> Dict[str, Any]:
+    """Send the plan. REACHABLE ONLY WITH BOTH GATES OPEN, and no code here opens them.
+
+    Chunked, because `items_batch` bounds a batch and a single 24-item catalogue would never hit
+    it today - the chunking is for the day the catalogue is not 24 items, not for today.
+    """
+    requests = _batch_requests(plan)
+    sent = 0
+    for start in range(0, len(requests), META_BATCH_CHUNK):
+        chunk = requests[start:start + META_BATCH_CHUNK]
+        result = requester(f"{catalog_id}/{META_BATCH_PATH}", method="POST",
+                           payload={"requests": chunk}, token=token, app_secret=app_secret)
+        if "error" in result:
+            logger.error(json.dumps({"event": "meta_catalog_batch_rejected",
+                                     "catalogId": catalog_id,
+                                     "sent": sent,
+                                     "chunk": len(chunk)}))
+            return {"applied": sent, "ok": False}
+        sent += len(chunk)
+    return {"applied": sent, "ok": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# The handler
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+
+def _trigger(event: Any) -> Dict[str, str]:
+    """What invoked us, for the log line only. Never used to narrow the read.
+
+    Covers the async invoke payload `wix-catalog-webhook` sends and an EventBridge scheduled
+    event, and falls back to `unknown` for anything else rather than refusing: the correct
+    response to any trigger is the same full re-read, so an unrecognised envelope must not become
+    a missed sync.
+    """
+    if not isinstance(event, Mapping):
+        return {"source": "unknown", "entityId": ""}
+    if event.get("source") == "aws.events" or event.get("detail-type"):
+        return {"source": "schedule", "entityId": ""}
+    return {"source": str(event.get("source") or "unknown"),
+            "entityId": str(event.get("entityId") or "")}
+
+
+def handler(event, context, *, wix_requester=None, graph_requester=None,
+            secret_reader=None):  # noqa: ARG001 - Lambda signature
+    """Compute the Wix -> Meta plan, log it, and write only if both gates are open.
+
+    The three injection points default to `None` and resolve INSIDE, never as parameter defaults.
+    A default argument is bound at definition time, so `reader=_read_secret` would make a patch of
+    the module attribute ineffective - and in `wix-catalog-webhook` that exact mistake caused a
+    test meant to simulate a missing credential to read the live one instead.
+    """
+    reader = secret_reader or _read_secret
+    wix = wix_requester or _wix_request
+    graph = graph_requester or _graph_request
+
+    trigger = _trigger(event)
+    catalog_id = os.environ.get("META_CATALOG_ID", META_CATALOG_ID)
+    enabled = _enabled()
+    dry_run = _dry_run()
+
+    secret = reader(META_TOKEN_SECRET) or {}
+    token = str(secret.get(META_TOKEN_FIELD) or "").strip()
+    app_secret = str(secret.get("app_secret") or "").strip()
+    if not token:
+        # A fact about the secret ENTRY, which is a name - not about the credential. No boolean
+        # derived from the value is logged either; "the configured field is empty" is reported by
+        # naming the field, not by reporting what was in it.
+        logger.error(json.dumps({"event": "meta_catalog_sync_unconfigured",
+                                 "secretId": META_TOKEN_SECRET,
+                                 "field": META_TOKEN_FIELD}))
+        return {"ok": False, "reason": "unconfigured", "enabled": enabled,
+                "dryRun": True, "catalogId": catalog_id, "applied": 0}
+
+    try:
+        products = _wix_products(wix)
+        desired = catalog.desired_items(products, require_variant_price=True)
+        existing = _existing_items(graph, token=token, app_secret=app_secret,
+                                   catalog_id=catalog_id)
+    except Exception as error:  # noqa: BLE001 - a read failure must not become a write attempt
+        logger.error(json.dumps({"event": "meta_catalog_sync_read_failed",
+                                 "errorType": type(error).__name__,
+                                 "catalogId": catalog_id,
+                                 "source": trigger["source"]}))
+        return {"ok": False, "reason": "read_failed", "enabled": enabled,
+                "dryRun": True, "catalogId": catalog_id, "applied": 0}
+
+    plan = catalog.diff(desired, existing)
+    blocked = catalog.blockers(desired)
+    counts = plan.counts()
+
+    # ONE structured line, and every field in it is a public catalogue identifier or a count.
+    # Product ids, retailer ids and catalog ids are public commerce identifiers; there is no
+    # personal data on this path at all, so nothing is masked and nothing needs to be.
+    logger.info(json.dumps({
+        "event": "meta_catalog_sync_planned",
+        "catalogId": catalog_id,
+        "source": trigger["source"],
+        "entityId": trigger["entityId"],
+        "enabled": enabled,
+        "dryRun": dry_run,
+        "desired": len(desired),
+        "existing": len(existing),
+        "create": counts["create"],
+        "update": counts["update"],
+        "retire": counts["retire"],
+        "foreign": counts["foreign"],
+        "blocked": len(blocked),
+        "blockedProducts": blocked,
+        "foreignRetailerIds": plan.foreign,
+        "planHash": plan.fingerprint(),
+    }))
+
+    if not enabled or dry_run:
+        # RETURNS BEFORE ANY WRITE REQUEST IS CONSTRUCTED. `_batch_requests` is not called, so
+        # there is no payload in memory to send by accident.
+        return {"ok": True, "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
+                "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
+                "applied": 0}
+
+    if plan.is_empty:
+        return {"ok": True, "enabled": True, "dryRun": False, "catalogId": catalog_id,
+                "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
+                "applied": 0}
+
+    outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
+    return {"ok": outcome["ok"], "enabled": True, "dryRun": False, "catalogId": catalog_id,
+            "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
+            "applied": outcome["applied"]}

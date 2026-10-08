@@ -14,10 +14,11 @@
  * refresh that fires immediately after the last source's write can legitimately store a stale
  * INGESTING and never run again. Showing both makes the lag visible instead of papering over it.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/router';
 import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import * as seoApi from '../../../../api/seo';
 import type { BlogBatchView } from '../../../../api/seo';
 
@@ -66,6 +67,17 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user } ) => {
   }, [] );
 
   useEffect( () => { void load(); }, [ load ] );
+
+  /* The two fetched lists, memoised. Same order, same values, same visible text as the
+     <option> rows they replaced; neither had a placeholder row. */
+  const categoryOptions: SelectOption[] = useMemo(
+    () => categories.map( value => ( { value, label: value } ) ),
+    [ categories ]
+  );
+  const classOptions: SelectOption[] = useMemo(
+    () => classes.map( value => ( { value, label: value } ) ),
+    [ classes ]
+  );
 
   async function create () {
     setBusy( 'create' );
@@ -125,20 +137,16 @@ const BlogProductionBatches: React.FC<PageProps> = ( { signOut, user } ) => {
               <input value={ form.name } onChange={ event => setForm( { ...form, name: event.target.value } ) }
                 style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, minWidth: 240 } } />
             </label>
-            <label style={ { display: 'flex', flexDirection: 'column', fontSize: 13, gap: 4 } }>
-              Category
-              <select value={ form.defaultCategory } onChange={ event => setForm( { ...form, defaultCategory: event.target.value } ) }
-                style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6 } }>
-                { categories.map( value => <option key={ value } value={ value }>{ value }</option> ) }
-              </select>
-            </label>
-            <label style={ { display: 'flex', flexDirection: 'column', fontSize: 13, gap: 4 } }>
-              Article class
-              <select value={ form.articleClass } onChange={ event => setForm( { ...form, articleClass: event.target.value } ) }
-                style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6 } }>
-                { classes.map( value => <option key={ value } value={ value }>{ value }</option> ) }
-              </select>
-            </label>
+            { /* SHAPE (a), design 5.2 - the two wrapping <label>s are gone and Select owns the
+                 pair. The wrapper was a column flex with a 4px gap and nothing else, which is
+                 exactly what `.ui-field` plus `.ui-field-label` already render, so nothing had
+                 to be reproduced in `style` here. */ }
+            <Select label="Category" value={ form.defaultCategory }
+              onChange={ v => setForm( { ...form, defaultCategory: v } ) }
+              options={ categoryOptions } />
+            <Select label="Article class" value={ form.articleClass }
+              onChange={ v => setForm( { ...form, articleClass: v } ) }
+              options={ classOptions } />
             <label style={ { display: 'flex', flexDirection: 'column', fontSize: 13, gap: 4, flex: 1, minWidth: 220 } }>
               Description
               <input value={ form.description } onChange={ event => setForm( { ...form, description: event.target.value } ) }

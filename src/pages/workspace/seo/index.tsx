@@ -24,13 +24,12 @@ const seoPages = [
   { path: '/workspace/seo/blog-manager', label: 'Blog SEO Manager', desc: 'Create AWS-native posts; AI audit, approve and apply SEO', icon: '📝' },
   { path: '/workspace/seo/pages-manager', label: 'Site Pages SEO', desc: 'AI SEO for site, system & product pages — Site / System / Products tabs', icon: '📄' },
   { path: '/workspace/seo/tools', label: 'SEO Tools', desc: 'Blog SEO, button audit, live checks, PageSpeed', icon: '🔧' },
-  { path: '/workspace/seo/pages', label: 'Pages Inventory', desc: 'All crawled pages with filters and details', icon: '📄' },
-  { path: '/workspace/seo/issues', label: 'Issues', desc: 'SEO issues and warnings by priority', icon: '⚠️' },
-  { path: '/workspace/seo/analytics', label: 'Search Analytics', desc: 'Google Search Console clicks and impressions', icon: '📊' },
-  { path: '/workspace/seo/schema', label: 'Structured Data', desc: 'JSON-LD schema markup audit', icon: '🏗️' },
-  { path: '/workspace/seo/properties', label: 'Properties', desc: 'Page-level SEO properties and metadata', icon: '🏷️' },
-  { path: '/workspace/seo/sitemaps', label: 'Sitemaps', desc: 'Sitemap management and validation', icon: '🗺️' },
-  { path: '/workspace/seo/tracking', label: 'Tracking', desc: 'Indexing and crawl coverage status', icon: '📡' },
+  //: Seven tiles went from here on 2026-10-07 with the pages behind them — Pages Inventory,
+  //: Issues, Search Analytics, Structured Data, Properties, Sitemaps and Tracking. All seven
+  //: read from the `wecare-seo-platform` FastAPI service through `seoFetch`, which threw on
+  //: every call because `NEXT_PUBLIC_SEO_API_URL` is not set on `stack`. Owner decision
+  //: B1 = CUT retired the backend and the pages together; a tile that navigates to a route
+  //: with no page file is a 404, so the tiles could not outlive them.
 ];
 
 const SEOHub: React.FC<PageProps> = ( { signOut, user } ) => {

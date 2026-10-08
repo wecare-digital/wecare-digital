@@ -16,7 +16,10 @@ it('explains durable account storage and selects the provider for viewing data',
   const github = await screen.findByRole('region', { name: 'GitHub' });
   expect(screen.getByText(/remain after signing out/)).toBeInTheDocument();
   fireEvent.click(within(github).getByRole('link', { name: 'View data' }));
-  expect(screen.getByRole('combobox', { name: 'Connection' })).toHaveValue('github');
+  // The Connection control is ui/Select now, so there is no form value to read: the trigger is
+  // a <button role="combobox"> that renders the chosen option's LABEL. Same assertion - the card
+  // link moved the control to GitHub - expressed against the real markup.
+  expect(screen.getByRole('combobox', { name: 'Connection' })).toHaveTextContent('GitHub');
   fireEvent.click(screen.getByRole('button', { name: 'Run read' }));
   await waitFor(() => expect(call).toHaveBeenCalledWith('connection_verify', { provider: 'github' }));
 });

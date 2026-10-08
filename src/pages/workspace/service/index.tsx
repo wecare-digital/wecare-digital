@@ -1,57 +1,44 @@
 /**
- * Service Hub — [retired public path]
- * Landing page for all service modules with quick-access cards.
+ * /workspace/service — sends the operator to the Service Ops hub.
+ *
+ * It was a 57-line grid of six cards with zero network calls: a second front door to
+ * destinations the Service Ops hub already owns. Four of its six cards
+ * (submit-request, track-request, amend-request and the Customer Service Hub) are
+ * nav children of /workspace/engage/service-ops, so the page's only function was to
+ * ask which door you wanted before letting you through one.
+ *
+ * WHY A REDIRECT AND NOT A DELETION. Nothing in navigationConfig or settingsConfig
+ * points here, so by the usual rule this would just be unlinked. But it is a real,
+ * short, guessable URL that somebody may have bookmarked, and deleting the page file
+ * turns that bookmark into a 404 rather than into the page they wanted. A redirect
+ * costs one file and keeps the URL honest.
+ *
+ * Nothing becomes unreachable. The two cards that were NOT Service Ops destinations
+ * — /workspace/engage/whatsapp/flow-responses ('Flow Responses') and
+ * /workspace/engage/whatsapp/flow-hub ('Flow Hub') — are both already listed in the
+ * gear's WhatsApp group, so they stay findable by name in the command palette.
+ *
+ * The three siblings (service/submit-request, track-request, amend-request) are
+ * untouched: each is a Service Ops nav child AND a declared inner page of the
+ * service-operations module home, which tests/test_module_homes.py asserts exists.
+ *
+ * Follows the two precedents in the tree, src/pages/workspace/admin/index.tsx and
+ * src/pages/workspace/forms/index.tsx.
  */
-import React from 'react';
+
+import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import Layout from '../../../components/Layout';
-import SEO from '../../../components/SEO';
 
-interface PageProps { signOut?: () => void; user?: any; }
-
-const SERVICE_MODULES = [
-  { path: '/workspace/service/submit-request', label: 'Submit Request', icon: '📝', desc: 'Submit a new service request linked to an order', color: '#dbeafe' },
-  { path: '/workspace/service/track-request', label: 'Track Request', icon: '📊', desc: 'Track all service activity for an order', color: '#d1fae5' },
-  { path: '/workspace/service/amend-request', label: 'Amend Request', icon: '✏️', desc: 'Modify or add info to an existing request', color: '#fef3c7' },
-  { path: '/workspace/engage/whatsapp/flow-responses', label: 'All Submissions', icon: '📋', desc: 'View all flow submissions across all types', color: '#f3e8ff' },
-  { path: '/workspace/engage/whatsapp/flow-hub', label: 'Flow Hub', icon: '🔄', desc: 'Manage WhatsApp flow configurations', color: '#e0e7ff' },
-  { path: '/workspace/forms/' + 'self' + 'service', label: 'Customer Service', icon: '🤖', desc: 'Customer service portal', color: '#fce7f3' },
-];
-
-const ServiceHubPage: React.FC<PageProps> = ({ signOut, user }) => {
+const ServiceIndex = () => {
   const router = useRouter();
 
-  return (
-    <Layout user={user} onSignOut={signOut}>
-      <SEO title="Service Hub" description="Customer service request management — submit, track, and amend requests." />
-      <div style={{ padding: '24px 32px', maxWidth: 1000 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1a3a2a', margin: '0 0 4px' }}>Service</h1>
-        <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 24px' }}>Order-centric customer service management</p>
+  useEffect( () => {
+    // replace, not push: this is a signpost, and leaving it in history means Back
+    // lands here and bounces forward again.
+    router.replace( '/workspace/engage/service-ops' );
+  }, [ router ] );
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {SERVICE_MODULES.map(m => (
-            <button
-              key={m.path}
-              onClick={() => router.push(m.path)}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                padding: 20, border: '2px solid #f3f4f6', borderRadius: 13, background: '#fff',
-                cursor: 'pointer', textAlign: 'left', transition: 'border-color 0.15s, box-shadow 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#d1f470'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#f3f4f6'; e.currentTarget.style.boxShadow = 'none'; }}
-            >
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, marginBottom: 12 }}>
-                {m.icon}
-              </div>
-              <div style={{ fontWeight: 600, fontSize: 15, color: '#1a3a2a', marginBottom: 4 }}>{m.label}</div>
-              <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.4 }}>{m.desc}</div>
-            </button>
-          ))}
-        </div>
-      </div>
-    </Layout>
-  );
+  return null;
 };
 
-export default ServiceHubPage;
+export default ServiceIndex;

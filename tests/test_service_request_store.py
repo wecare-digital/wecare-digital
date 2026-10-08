@@ -9,8 +9,9 @@ What is pinned here, and why each is a property rather than a shape:
 * **HIGH-4: an `OPEN#` claim can never lock a customer out.** A claim whose target is missing,
   ABANDONED or already CONSUMED is stale: it is conditionally consumed (tied to that stale target),
   `STALE_OPEN_CLAIM` is logged, and a new intent is minted. Only `statusRank == 0` resumes.
-* **Amendment ownership is checked before money moves**, with one identical refusal for missing,
-  not-yours and not-a-submit-request.
+* **Target ownership is checked before money moves** for every kind in `TARGET_REQUIRED_KINDS`
+  (amendment, Drop Docs, Vault), with one identical refusal for missing, not-yours and
+  not-a-submit-request.
 
 Offline: `tests/service_requests_fake_dynamo.py`. No AWS, no network, no credential.
 """
@@ -36,6 +37,8 @@ from lambda_utils.ecommerce import service_requests as sr  # noqa: E402
 
 SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
+DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
+VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
 ALICE = "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 BOB = "22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 
@@ -145,12 +148,65 @@ def test_a_different_amendment_target_supersedes_the_open_intent(table, keys):
     assert claim["targetIntentId"] == second["intentId"] and claim["isConsumed"] is False
 
 
-@pytest.mark.parametrize("kind", ["DROP_DOCS", "VAULT", "drop_docs"])
-def test_drop_docs_and_vault_cannot_be_intended(table, kind):
+@pytest.mark.parametrize("kind,variant,paise", [("DROP_DOCS", DROP_DOCS, 35000),
+                                                ("VAULT", VAULT, 4900)])
+def test_drop_docs_and_vault_mint_an_intent_against_a_target(table, keys, kind, variant, paise):
+    target, _ = submitted(table, keys)
+    intent = store.request_intent(table, who(), kind, target.request_public_id)
+    assert intent == {"intentId": intent["intentId"], "kind": kind, "variantId": variant,
+                      "amountPaise": paise, "currency": "INR",
+                      "targetRequestId": target.request_public_id}
+    assert type(table.rows["INTENT#" + intent["intentId"]]["amountPaise"]) is int
+    # Its own OPEN# claim, per service, so one does not displace another.
+    assert table.rows[f"OPEN#{ALICE}#{variant}"]["isConsumed"] is False
+
+
+@pytest.mark.parametrize("kind", ["DROP_DOCS", "VAULT"])
+def test_drop_docs_and_vault_refuse_without_a_target(table, kind):
     with pytest.raises(sr.ServiceRejected) as caught:
         store.request_intent(table, who(), kind)
-    assert caught.value.code == "SERVICE_NOT_OFFERED"
+    assert caught.value.code == "SERVICE_TARGET_REQUIRED"
     assert table.rows == {}
+
+
+@pytest.mark.parametrize("kind", ["VAULT_COPY", "DROPDOCS", "drop docs", "CONTRIBUTE"])
+def test_an_unknown_kind_is_still_an_unknown_choice(table, kind):
+    with pytest.raises(sr.ServiceRejected) as caught:
+        store.request_intent(table, who(), kind)
+    assert caught.value.code == "SERVICE_UNKNOWN_CHOICE"
+    assert table.rows == {}
+
+
+@pytest.mark.parametrize("spelling", ["drop_docs", " Drop_Docs "])
+def test_the_kind_is_read_case_insensitively(table, keys, spelling):
+    """`request_intent` strips and upper-cases, so `drop_docs` IS `DROP_DOCS`.
+
+    O-1's `["DROP_DOCS","VAULT","drop_docs"]` case read as though a lower-case kind were an
+    unknown choice. It never was: it was refused because `DROP_DOCS` was in `NOT_OFFERED_KINDS`.
+    Pinned here so the normalisation is not mistaken for a refusal again.
+    """
+    target, _ = submitted(table, keys)
+    assert store.request_intent(table, who(), spelling,
+                                target.request_public_id)["kind"] == "DROP_DOCS"
+
+
+@pytest.mark.parametrize("kind", ["DROP_DOCS", "VAULT"])
+def test_a_foreign_or_wrong_kind_target_is_the_one_identical_refusal(table, keys, kind):
+    mine, _ = submitted(table, keys)
+    theirs, _ = submitted(table, keys, customer=BOB)
+    foreign = pytest.raises(customer_auth.CustomerNotAuthorized)
+    with foreign as a:
+        store.request_intent(table, who(), kind, theirs.request_public_id)
+    with pytest.raises(customer_auth.CustomerNotAuthorized) as b:
+        store.request_intent(table, who(), kind, "WD-REQ-ZZZZZZZZ")
+    # The target exists and is mine, but it is not a SUBMIT_REQUEST.
+    amendment = store.request_intent(table, who(), "REQUEST_AMENDMENT", mine.request_public_id)
+    ref, _att, _ord = pay(keys, amendment, paise=9900)
+    activated = store.activate(table, keys, reference_id=ref)
+    assert activated.outcome == store.ACTIVATED
+    with pytest.raises(customer_auth.CustomerNotAuthorized) as c:
+        store.request_intent(table, who(), kind, activated.request_public_id)
+    assert str(a.value) == str(b.value) == str(c.value)
 
 
 def test_an_unknown_kind_is_refused(table):

@@ -5,12 +5,17 @@ import fs from 'fs';
 import path from 'path';
 import * as customerAuth from '../lib/customerAuth';
 import * as cart from '../lib/cart';
-import { SERVICE_CHOICES } from '../config/services';
+import { SERVICE_CHOICES, serviceByKind } from '../config/services';
 import ServiceRequestPurchase from '../components/ServiceRequestPurchase';
 
 /**
- * The Phase O-1 buy box. jsdom render only: the two service pages are public and statically
- * exported, but this box's signed-in states are client-only, so no browser rendering claim is made.
+ * The buy box, shared by all four service pages. jsdom render only: the pages are public and
+ * statically exported, but this box's signed-in states are client-only, so no browser rendering
+ * claim is made.
+ *
+ * The three target-taking services (amendment, Drop Docs, Vault) are driven through ONE code path
+ * keyed on `service.needsTarget`, so each is exercised rather than assumed to behave like the
+ * amendment it was copied from.
  */
 const [ SUBMIT, AMEND ] = SERVICE_CHOICES;
 const INTENT = '01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f';
@@ -84,7 +89,8 @@ describe( 'ServiceRequestPurchase', () => {
     // Only SUBMIT_REQUEST rows are amendable.
     expect( screen.getAllByRole( 'radio' ) ).toHaveLength( 1 );
     fireEvent.click( button );
-    expect( await screen.findByText( 'Choose the request you want to amend.' ) ).toBeInTheDocument();
+    expect( await screen.findByText( 'Choose the request this Request Amendment is for.' ) )
+      .toBeInTheDocument();
     expect( calls.filter( c => c.url.includes( 'request-intent' ) ) ).toHaveLength( 0 );
     fireEvent.click( screen.getByRole( 'radio' ) );
     fireEvent.click( button );
@@ -93,14 +99,48 @@ describe( 'ServiceRequestPurchase', () => {
       .toEqual( { kind: 'REQUEST_AMENDMENT', targetRequestId: 'WD-REQ-7K2M9QXA' } );
   } );
 
-  it( 'amendment with nothing to amend links to Submit Request', async () => {
+  it.each( [ 'REQUEST_AMENDMENT', 'DROP_DOCS', 'VAULT' ] as const )(
+    '%s with nothing to work on links to Submit Request', async kind => {
+      signedIn();
+      stub( { '/services/my-requests': { status: 200, body: { requests: [] } } } );
+      render( <ServiceRequestPurchase kind={ kind } /> );
+      const label = serviceByKind( kind )!.label;
+      expect( await screen.findByText(
+        new RegExp( `${ label } works on a request you have already submitted` ) ) )
+        .toBeInTheDocument();
+      expect( screen.getByRole( 'link', { name: 'Submit a request' } ).getAttribute( 'href' ) )
+        .toBe( '/submit-request/' );
+      expect( screen.queryByRole( 'button' ) ).toBeNull();
+    } );
+
+  it.each( [
+    [ 'DROP_DOCS', 'Drop Docs' ],
+    [ 'VAULT', 'Vault' ],
+  ] as const )( '%s asks which request it is for and sends targetRequestId', async ( kind, label ) => {
     signedIn();
-    stub( { '/services/my-requests': { status: 200, body: { requests: [] } } } );
-    render( <ServiceRequestPurchase kind="REQUEST_AMENDMENT" /> );
-    expect( await screen.findByText( /You have no request to amend yet/ ) ).toBeInTheDocument();
-    expect( screen.getByRole( 'link', { name: 'Submit a request' } ).getAttribute( 'href' ) )
-      .toBe( '/submit-request/' );
-    expect( screen.queryByRole( 'button' ) ).toBeNull();
+    const choice = serviceByKind( kind )!;
+    stub( {
+      '/services/my-requests': { status: 200, body: { requests: [
+        { requestId: 'WD-REQ-7K2M9QXA', kind: 'SUBMIT_REQUEST', status: 'SUBMITTED',
+          createdAt: 1, orderNumber: 'WD-ORD-ABCDEFGH', targetRequestId: null } ] } },
+      '/services/request-intent': { status: 200, body: {
+        intentId: INTENT, kind, variantId: choice.variantId, amountPaise: choice.paise,
+        currency: 'INR', targetRequestId: 'WD-REQ-7K2M9QXA' } },
+    } );
+    render( <ServiceRequestPurchase kind={ kind } /> );
+    const button = await screen.findByRole( 'button',
+      { name: new RegExp( `Continue to pay for ${ label }` ) } );
+    expect( screen.getByText( `Which request is this ${ label } for?` ) ).toBeInTheDocument();
+    fireEvent.click( button );
+    expect( await screen.findByText( `Choose the request this ${ label } is for.` ) )
+      .toBeInTheDocument();
+    expect( calls.filter( c => c.url.includes( 'request-intent' ) ) ).toHaveLength( 0 );
+    fireEvent.click( screen.getByRole( 'radio' ) );
+    fireEvent.click( button );
+    await waitFor( () => expect( navigatedTo ).toBe( '/cart/' ) );
+    expect( calls.find( c => c.url.includes( 'request-intent' ) )!.body )
+      .toEqual( { kind, targetRequestId: 'WD-REQ-7K2M9QXA' } );
+    expect( cart.readCart()[ 0 ].variantId ).toBe( choice.variantId );
   } );
 
   it( 'a not-found target says so in one sentence and stays usable', async () => {

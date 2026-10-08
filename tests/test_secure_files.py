@@ -719,6 +719,69 @@ def test_provisioner_preserves_a_manually_enabled_payment_flag():
     assert "environment(payment_enabled=keep_payment)" in source
 
 
+def _provisioner_module():
+    """The provisioner, imported by path under a name of its own.
+
+    Importing is safe and does not touch AWS: every client is built inside `iam()`,
+    `lam()` and `api()` at call time, never at module scope.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "wecare_secure_files_provisioner", ROOT / "scripts/provision_secure_files_api.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_the_provisioner_requires_an_explicit_apply(monkeypatch):
+    """A bare invocation must be a DRY RUN. This one is not a style preference.
+
+    This script publishes a Lambda version and moves the production ``live`` alias. It used
+    to do that with no flag, and on 2026-10-07 it did: run from a build loop whose own
+    instruction said "DRY RUN ONLY", it put unmerged worktree code behind
+    ``wecare-secure-files:live`` for about six minutes
+    (``docs/execution/change-authority-matrix.md``).
+
+    Asserted by DRIVING `main`, not by reading the argparse line, because what matters is
+    the value each write step receives. No AWS call is made: every step is replaced with a
+    recorder first.
+    """
+    module = _provisioner_module()
+    seen = {}
+
+    def _record(name, value):
+        seen.setdefault(name, []).append(value)
+        return f"{name}: recorded"
+
+    monkeypatch.setattr(module, "package", lambda: b"zip")
+    monkeypatch.setattr(module, "ensure_role", lambda dry: _record("role", dry))
+    monkeypatch.setattr(module, "ensure_function", lambda _zip, dry: _record("function", dry))
+    monkeypatch.setattr(module, "ensure_alias", lambda dry: _record("alias", dry))
+    monkeypatch.setattr(module, "ensure_routes", lambda dry: [_record("routes", dry)])
+    monkeypatch.setattr(module, "ensure_webhook_access", lambda dry: _record("webhook", dry))
+    monkeypatch.setattr(module, "verify", lambda: 0)
+
+    assert module.main([]) == 0
+    assert set(seen) == {"role", "function", "alias", "routes", "webhook"}
+    assert all(value is True for values in seen.values() for value in values), \
+        "a bare invocation reached a write step with dry_run=False"
+
+    seen.clear()
+    assert module.main(["--dry-run"]) == 0
+    assert all(value is True for values in seen.values() for value in values)
+
+    # and the write path still exists, behind the flag that has to be typed
+    seen.clear()
+    assert module.main(["--apply"]) == 0
+    assert all(value is False for values in seen.values() for value in values)
+
+    # contradicting yourself is refused rather than resolved in either direction
+    seen.clear()
+    assert module.main(["--apply", "--dry-run"]) == 2
+    assert seen == {}
+
+
 # ── webhook-independence, so a missing subscription cannot strand a payment ────
 
 def test_reconcile_only_accepts_a_captured_payment():

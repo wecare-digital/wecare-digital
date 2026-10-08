@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Button from '../ui/Button';
+import Select, { type SelectOption } from '../ui/Select';
 import { MCPConnection, workspaceMCP } from '../../lib/workspace-mcp';
 import styles from '../../styles/MCPConnections.module.css';
 
@@ -39,6 +40,19 @@ export default function MCPPlayground({ connections, names, onVerified, selected
   const [error, setError] = useState('');
   const [completed, setCompleted] = useState('');
   const connection = connections.find(item => item.provider === provider);
+  /* The two option lists, memoised. Same order, same values, same visible text as the
+     <option> rows they replaced, with 'verify' kept as the Read list's first row. */
+  const connectionOptions: SelectOption[] = useMemo(
+    () => connections.map(item => ({ value: item.provider, label: names[item.provider] || item.provider })),
+    [connections, names]
+  );
+  const readOptions: SelectOption[] = useMemo(
+    () => [
+      { value: 'verify', label: 'Check connection and view data' },
+      ...reads.filter(item => item.provider === provider).map(item => ({ value: item.id, label: item.label })),
+    ],
+    [provider]
+  );
   const request = playgroundRequest(provider, operation);
   const run = async () => {
     setBusy(true); setResult(''); setError(''); setCompleted('');
@@ -54,13 +68,21 @@ export default function MCPPlayground({ connections, names, onVerified, selected
     <h2 id="mcp-playground-title">MCP Playground</h2>
     <p>Choose a connection and select Run read to see its result below. Meta Social offers app settings and API usage; WhatsApp offers business lists. Other integrations show their available connection data. Results belong to your staff account.</p>
     <div className={styles.playgroundControls}>
-      <label>Connection<select value={provider} disabled={busy || !connections.length} onChange={event => {
-        setProvider(event.target.value); onProviderChange?.(event.target.value); setOperation('verify'); setResult(''); setError(''); setCompleted('');
-      }}>{connections.map(item => <option key={item.provider} value={item.provider}>{names[item.provider] || item.provider}</option>)}</select></label>
-      <label>Read<select value={operation} disabled={busy} onChange={event => { setOperation(event.target.value); setResult(''); setError(''); setCompleted(''); }}>
-        <option value="verify">Check connection and view data</option>
-        {reads.filter(item => item.provider === provider).map(item => <option key={item.id} value={item.id}>{item.label}</option>)}
-      </select></label>
+      {/* SHAPE (a), design 5.2 - both wrapping <label>s are gone and Select owns the pair. A
+          <button> is a labelable element too, so leaving them would have made the accessible
+          names "Connection AWS" and "Read Check connection and view data", and a label
+          forwards clicks to its control, which can double-activate a button.
+          `disabled` is a straight prop pass; every statement of both handlers is kept in
+          order, including the three resets that clear the previous result and the
+          `onProviderChange` notification the parent page relies on. */}
+      <Select label="Connection" value={provider} disabled={busy || !connections.length}
+        onChange={v => {
+          setProvider(v); onProviderChange?.(v); setOperation('verify'); setResult(''); setError(''); setCompleted('');
+        }}
+        options={connectionOptions} />
+      <Select label="Read" value={operation} disabled={busy}
+        onChange={v => { setOperation(v); setResult(''); setError(''); setCompleted(''); }}
+        options={readOptions} />
       <Button variant="primary" disabled={busy || !connection} onClick={() => void run()}>{busy ? 'Checking…' : 'Run read'}</Button>
     </div>
     {connection && <p>Current connection status: <strong>{connection.status.replaceAll('_', ' ')}</strong></p>}

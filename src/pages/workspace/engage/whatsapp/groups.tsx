@@ -15,6 +15,7 @@ import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
 import { MaskedWaId, useConfirmDanger } from '../../../../components/wa';
 import { WHATSAPP_PHONES } from '../../../../config/constants';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const MAX_P = 512;
@@ -27,6 +28,25 @@ const WABAS = [
 const pill = ( active: boolean ) => ( { padding: '4px 10px', fontSize: 12, border: active ? '2px solid #1a3a2a' : '1px solid #ddd', borderRadius: 4, background: active ? '#f0fdf4' : '#fff', cursor: 'pointer' } );
 const btn = ( bg = '#d1f470', color = '#1a3a2a' ) => ( { padding: '6px 14px', fontSize: 12, background: bg, color, border: 'none', borderRadius: 6, cursor: 'pointer' } );
 const card = { padding: 12, background: '#fff', borderRadius: 6, border: '1px solid #e5e7eb', marginBottom: 16 };
+
+const NEW_APPROVAL_OPTIONS: SelectOption[] = [
+  { value: 'auto_approve', label: 'Auto-approve joins' },
+  { value: 'approval_required', label: 'Require approval' },
+];
+const MESSAGING_PERMISSION_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'Everyone' },
+  { value: 'admins', label: 'Admins only' },
+];
+const MEMBER_VISIBILITY_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All members visible' },
+  { value: 'admins', label: 'Hidden (admins only)' },
+];
+const JOIN_APPROVAL_OPTIONS: SelectOption[] = [
+  { value: 'auto_approve', label: 'Auto-approve' },
+  { value: 'approval_required', label: 'Require approval' },
+];
+/** Layout only: the three settings rows are flex children beside a 140px caption. */
+const SETTING_SELECT_STYLE: React.CSSProperties = { flex: '0 0 200px' };
 
 const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
   const toast = useToastContext();
@@ -138,10 +158,8 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
             <div style={ { display: 'grid', gap: 10, marginBottom: 12 } }>
               <input value={ newSubject } onChange={ e => setNewSubject( e.target.value ) } placeholder="Group name" style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
               <input value={ newDesc } onChange={ e => setNewDesc( e.target.value ) } placeholder="Description (optional)" style={ { padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6, fontSize: 14 } } />
-              <select value={ newApproval } onChange={ e => setNewApproval( e.target.value ) } style={ { padding: '6px 10px', border: '1px solid #ddd', borderRadius: 6, fontSize: 13 } }>
-                <option value="auto_approve">Auto-approve joins</option>
-                <option value="approval_required">Require approval</option>
-              </select>
+              <Select ariaLabel="Join approval" value={ newApproval } onChange={ v => setNewApproval( v ) }
+                options={ NEW_APPROVAL_OPTIONS } />
             </div>
             <div style={ { display: 'flex', gap: 8 } }>
               <button onClick={ handleCreate } disabled={ creating } style={ btn() }>{ creating ? 'Creating...' : 'Create' }</button>
@@ -202,27 +220,21 @@ const GroupsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
                 <div style={ { display: 'grid', gap: 10 } }>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
                     <span style={ { fontSize: 13, minWidth: 140 } }>Who can post:</span>
-                    <select value={ detail?.messaging_permission || 'all' } onChange={ e => handleUpdateSettings( 'messaging_permission', e.target.value ) }
-                      style={ { padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 } }>
-                      <option value="all">Everyone</option>
-                      <option value="admins">Admins only</option>
-                    </select>
+                    <Select ariaLabel="Who can post" value={ detail?.messaging_permission || 'all' }
+                      onChange={ v => handleUpdateSettings( 'messaging_permission', v ) }
+                      options={ MESSAGING_PERMISSION_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
                     <span style={ { fontSize: 13, minWidth: 140 } }>Member visibility:</span>
-                    <select value={ detail?.member_visibility || 'all' } onChange={ e => handleUpdateSettings( 'member_visibility', e.target.value ) }
-                      style={ { padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 } }>
-                      <option value="all">All members visible</option>
-                      <option value="admins">Hidden (admins only)</option>
-                    </select>
+                    <Select ariaLabel="Member visibility" value={ detail?.member_visibility || 'all' }
+                      onChange={ v => handleUpdateSettings( 'member_visibility', v ) }
+                      options={ MEMBER_VISIBILITY_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
                   <div style={ { display: 'flex', alignItems: 'center', gap: 8 } }>
                     <span style={ { fontSize: 13, minWidth: 140 } }>Join approval:</span>
-                    <select value={ detail?.join_approval_mode || 'auto_approve' } onChange={ e => handleUpdateSettings( 'join_approval_mode', e.target.value ) }
-                      style={ { padding: '4px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 } }>
-                      <option value="auto_approve">Auto-approve</option>
-                      <option value="approval_required">Require approval</option>
-                    </select>
+                    <Select ariaLabel="Join approval" value={ detail?.join_approval_mode || 'auto_approve' }
+                      onChange={ v => handleUpdateSettings( 'join_approval_mode', v ) }
+                      options={ JOIN_APPROVAL_OPTIONS } style={ SETTING_SELECT_STYLE } />
                   </div>
                   <div style={ { borderTop: '1px solid #e5e7eb', paddingTop: 10 } }>
                     <span style={ { fontSize: 13, color: '#666' } }>Group Image (URL to square PNG/JPG):</span>

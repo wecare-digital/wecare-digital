@@ -9,7 +9,8 @@ evaluates conditions and refuses any expression it does not understand.
 THE ONE RULE: A REQUEST EXISTS ONLY AFTER A PAID ORDER EXISTS
 -------------------------------------------------------------
 Two row families live before payment and carry no public id: ``INTENT#`` (what the customer is
-about to buy, and -- for an amendment -- which of THEIR requests it amends, checked BEFORE money
+about to buy, and -- for every kind in ``TARGET_REQUIRED_KINDS`` (amendment, Drop Docs, Vault) --
+which of THEIR requests it is against, checked BEFORE money
 moves, because a refund is not something this system may automate) and ``OPEN#`` (the one open
 intent per customer per service, so a reload resumes rather than multiplies). Neither appears on
 /orders and neither grants anything.
@@ -50,19 +51,23 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import secrets
 import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from lambda_utils import customer_auth
+from lambda_utils import customer_auth, media_paths
 from lambda_utils.ecommerce import order_keys
+from lambda_utils.ecommerce.document_errors import (
+    DocumentLimitReached, DocumentNotPrivate, DocumentRejected)
 from lambda_utils.ecommerce.service_requests import (
-    INTENT_ID_RE, NOT_OFFERED_KINDS, PUBLIC_REQUEST_ID_ALPHABET, PUBLIC_REQUEST_ID_ENTROPY,
-    PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE, REQUEST_AMENDMENT, SERVICE_CHOICES_PAISE,
-    SERVICE_CURRENCY, SERVICE_NOT_OFFERED, SERVICE_UNKNOWN_CHOICE, SERVICE_VARIANT_BY_KIND,
-    SUBMIT_REQUEST, ServiceRejected)
+    DROP_DOCS, INTENT_ID_RE, NOT_OFFERED_KINDS, PUBLIC_REQUEST_ID_ALPHABET,
+    PUBLIC_REQUEST_ID_ENTROPY, PUBLIC_REQUEST_ID_PREFIX, PUBLIC_REQUEST_ID_RE,
+    REQUEST_AMENDMENT, SERVICE_CHOICES_PAISE, SERVICE_CURRENCY, SERVICE_NOT_OFFERED,
+    SERVICE_UNKNOWN_CHOICE, SERVICE_VARIANT_BY_KIND, SUBMIT_REQUEST, TARGET_REQUIRED_KINDS,
+    ServiceRejected)
 from lambda_utils.identifiers import new_uuid7
 
 logger = logging.getLogger(__name__)
@@ -77,6 +82,30 @@ OPEN_PREFIX = "OPEN#"
 REQUEST_PREFIX = "REQ#"
 ORDER_PREFIX = "ORDER#"
 REQNO_PREFIX = "REQNO#"
+#: A document attached to a paid Drop Docs request: ``DOC#<reqInternal>#<sha256>``. The
+#: content hash is the key, so a replayed attach converges on the row that already exists
+#: instead of registering the same bytes twice. See `attach_document`.
+DOC_PREFIX = "DOC#"
+
+#: A sha256 hex digest, and nothing else. A malformed digest would produce a ``DOC#`` key
+#: that no replay could ever converge on, which is the one property this family exists for.
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+#: How many documents one Drop Docs request may hold.
+#:
+#: There IS a hard ceiling whether or not we choose one: ``documentSha256s`` is an attribute
+#: on the ``REQ#`` row, and at roughly 70 marshalled bytes per digest the 400 KB DynamoDB
+#: item limit arrives somewhere near five thousand. Past that, every further attach fails
+#: with a validation error nobody can read. 200 is far below it, well above any plausible
+#: set of documents for one request, and keeps `list_documents` -- one ``GetItem`` per
+#: digest, deliberately not a Query -- bounded at a readable cost.
+#:
+#: Enforced on the read side, so the refusal is legible. A burst of concurrent attaches can
+#: therefore overshoot by the number in flight, which is bounded and nowhere near the item
+#: limit; the alternative is a transaction condition whose failure is indistinguishable from
+#: an ownership failure, and answering "not yours" to a cap is worse than overshooting by a
+#: handful.
+MAX_DOCUMENTS_PER_REQUEST = 200
 
 #: Intent lifecycle. A rank, so "only rank 0 is resumable" is one integer comparison.
 INTENT_OPEN, INTENT_OPEN_RANK = "OPEN", 0
@@ -273,8 +302,11 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
     """Resolve the caller's one open intent for this service, or mint one. Never charges anything.
 
     Raises ``ServiceRejected`` (unknown or not-offered kind, or a missing/unexpected target),
-    ``CustomerNotAuthorized`` (an amendment target that is missing, not the caller's, or not a
-    Submit Request -- one identical refusal), or ``ServiceIdentityUnavailable``.
+    ``CustomerNotAuthorized`` (a target that is missing, not the caller's, or not a Submit
+    Request -- one identical refusal), or ``ServiceIdentityUnavailable``.
+
+    Every kind in ``TARGET_REQUIRED_KINDS`` -- amendment, Drop Docs and Vault -- takes a target
+    through the SAME branch, so none of them can acquire a different ownership rule by accident.
     """
     kind = str(kind or "").strip().upper()
     if kind in NOT_OFFERED_KINDS:
@@ -287,7 +319,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         raise customer_auth.CustomerNotAuthorized("session carries no customer id")
 
     target: Optional[Dict[str, Any]] = None
-    if kind == REQUEST_AMENDMENT:
+    if kind in TARGET_REQUIRED_KINDS:
         if not target_public_id:
             raise ServiceRejected("SERVICE_TARGET_REQUIRED")
         target = resolve_public(table, identity, target_public_id)
@@ -347,7 +379,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
             if str(existing.get("intentFingerprint") or "") == fingerprint:
                 return _intent_view(existing)
 
-            # A different amendment target: SUPERSEDE, in ONE transaction.
+            # A different target request: SUPERSEDE, in ONE transaction.
             intent = _new_intent(intent_id=new_id(), owner=owner, kind=kind,
                                  variant_id=variant_id, amount=amount, target=target,
                                  fingerprint=fingerprint, now=now)
@@ -486,9 +518,17 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
     if str(intent.get("currency") or "") != SERVICE_CURRENCY:
         return _unmatched("CURRENCY_MISMATCH", reference_id=reference_id, order_id=order_id)
     target_internal = str(intent.get("targetRequestId") or "")
-    if kind == REQUEST_AMENDMENT and not target_internal.startswith(REQUEST_PREFIX):
-        return _unmatched("AMENDMENT_TARGET_MISSING", reference_id=reference_id,
-                          order_id=order_id)
+    if kind in TARGET_REQUIRED_KINDS and not target_internal.startswith(REQUEST_PREFIX):
+        # The condition is generic across `TARGET_REQUIRED_KINDS`; the reason code is not,
+        # and must not be. ``AMENDMENT_TARGET_MISSING`` is kept verbatim for an amendment
+        # because it is what every historical PAID_SERVICE_UNMATCHED alert and any operator
+        # runbook already says, and a renamed code would silently stop matching them. A Drop
+        # Docs or Vault payment reports ``TARGET_MISSING`` instead -- telling whoever reads a
+        # stuck Vault payment that an *amendment* target is missing sends them looking for a
+        # service the customer never bought.
+        return _unmatched(
+            "AMENDMENT_TARGET_MISSING" if kind == REQUEST_AMENDMENT else "TARGET_MISSING",
+            reference_id=reference_id, order_id=order_id)
 
     previously = [str(entry) for entry in (intent.get("consumedOrderIds") or [])]
     if previously and order_id not in previously:
@@ -511,7 +551,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
             "paymentAttemptId": attempt_id, "referenceId": reference_id, "intentId": intent_id,
             "paidAt": now,
         }
-        if kind == REQUEST_AMENDMENT:
+        if kind in TARGET_REQUIRED_KINDS:
             request["targetRequestId"] = target_internal
             request["targetPublicRequestId"] = str(intent.get("targetPublicRequestId") or "")
         pointer = {KEY_ATTR: ORDER_PREFIX + order_id, "ownerCustomerId": owner,
@@ -536,7 +576,7 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
                     ":empty": [], ":oid": [order_id], ":sub": owner}),
             }},
         ]
-        if kind == REQUEST_AMENDMENT:
+        if kind in TARGET_REQUIRED_KINDS:
             items.append({"ConditionCheck": {
                 "TableName": table_name,
                 "Key": _marshal_item({KEY_ATTR: target_internal}),
@@ -645,3 +685,206 @@ def list_for_customer(table: Any, identity: customer_auth.CustomerIdentity, *,
     rows = [_project(row) for row in (result.get("Items") or [])
             if isinstance(row, dict) and str(row.get(KEY_ATTR) or "").startswith(REQUEST_PREFIX)]
     return rows, _encode_cursor(result.get("LastEvaluatedKey"))
+
+
+# ── documents attached to a paid Drop Docs request ────────────────────────────
+#
+# THE GATE IS HERE, NOT AT ARRIVAL. A WhatsApp upload lands under ``o/``, which CloudFront
+# serves unauthenticated, so nothing may be registered as a customer document until its
+# object is proven to live under ``secure/``. `attach_document` therefore checks ownership,
+# then kind, then gatedness, and only then writes -- in that order, so a non-gated key can
+# never leave a row behind. `dropdocs_storage.promote_to_secure` does the copying and HEADs
+# the destination; this function refuses to trust its answer without re-checking the key.
+#
+# A ``storageKey`` IS NOT AN ENTITLEMENT, AND CANNOT BECOME ONE. The destination key is a
+# pure function of the bytes (``secure/u/dropdocs/wecare-digital-<sha256><ext>``), which is
+# what makes a replay converge instead of duplicating -- but it also means two different
+# customers who attach identical bytes land on ONE shared S3 object, reachable from both of
+# their ``DOC#`` rows. Authorization is therefore on the ROW and never on the key: both
+# `attach_document` and `list_documents` go through `_resolve_dropdocs_request` and
+# `list_documents` re-checks ``ownerCustomerId`` on every row it returns. Nothing in this
+# phase can download a ``DOC#`` (D7 keeps Vault release out of scope); when a release path
+# is built it must look the row up and compare its owner. "The caller knows the key" is not
+# a statement about who the document belongs to.
+
+
+def _document_view(row: Dict[str, Any]) -> Dict[str, Any]:
+    """The client-facing shape of a document row.
+
+    ``sourceKey`` is deliberately ABSENT. The row keeps it as provenance -- a WhatsApp
+    arrival's public key is how an operator traces where a document came from -- but
+    handing a key under ``o/`` back to a browser would publish the very URL the promotion
+    exists to stop mattering. Nothing in this module returns it.
+    """
+    return {"documentId": str(row.get("sha256") or ""),
+            "storageKey": str(row.get("storageKey") or ""),
+            "contentType": str(row.get("contentType") or ""),
+            "sizeBytes": _int(row.get("sizeBytes")),
+            "attachedAt": _int(row.get("attachedAt")),
+            "publicSourceRetained": bool(row.get("publicSourceRetained"))}
+
+
+def _resolve_dropdocs_request(table: Any, identity: customer_auth.CustomerIdentity,
+                              public_request_id: Any) -> Dict[str, Any]:
+    """The caller's own paid Drop Docs request, or the ONE identical refusal.
+
+    A bad id, a missing request, somebody else's request and a request of the wrong kind
+    all raise the same ``CustomerNotAuthorized``, so this is not an existence oracle for
+    request ids or for which of a customer's services were bought.
+    """
+    request = resolve_public(table, identity, public_request_id)
+    if str(request.get("kind") or "") != DROP_DOCS:
+        raise customer_auth.CustomerNotAuthorized("resource does not exist or is not yours")
+    return request
+
+
+def resolve_dropdocs_request(table: Any, identity: customer_auth.CustomerIdentity,
+                             public_request_id: Any) -> Dict[str, Any]:
+    """`_resolve_dropdocs_request`, exposed so a caller can refuse BEFORE it moves bytes.
+
+    Exists for exactly one reason. `attach_document` resolves the target itself and always
+    will -- that re-check inside the transaction is the authority, and nothing here replaces
+    it. But a caller that copies a document into ``secure/`` and only then discovers the
+    request is missing, foreign or the wrong kind has already written an object that no
+    ``DOC#`` row references, that no role may delete (`s3:DeleteObject` is granted nowhere,
+    deliberately) and that no ``system-cleanup`` TTL covers -- a permanent orphan of up to
+    100 MB produced by a refusal.
+
+    So the locker calls this first and promotes nothing if it raises. Two reads instead of
+    one is the whole cost; the refusal is identical, because it is the same function.
+    """
+    return _resolve_dropdocs_request(table, identity, public_request_id)
+
+
+def attach_document(table: Any, identity: customer_auth.CustomerIdentity,
+                    public_request_id: Any, *, storage_key: str, sha256: str,
+                    content_type: str, size_bytes: Any, source_key: str,
+                    public_source_retained: bool,
+                    clock: Optional[Callable[[], float]] = None) -> Dict[str, Any]:
+    """Register one document against the caller's paid Drop Docs request. Idempotent.
+
+    Raises ``CustomerNotAuthorized`` (missing, not the caller's, or not a Drop Docs
+    request), ``DocumentRejected`` (the digest is not a sha256, or the byte count is absent
+    or negative -- permanently invalid input, not a privacy failure),
+    ``DocumentNotPrivate`` (``storage_key`` is not under the gated root),
+    ``DocumentLimitReached`` (the request already holds `MAX_DOCUMENTS_PER_REQUEST`) or
+    ``ServiceIdentityUnavailable``. Every one of them leaves the table untouched: there is
+    no partial state in which a row exists for an object that is still only reachable under
+    ``o/``.
+
+    The write is a two-item transaction rather than a bare put, so the row and the request's
+    index of it land together or not at all. Item 0 is the ``DOC#`` row under
+    ``attribute_not_exists`` -- a replay of the same bytes loses it and reads the winner
+    back, which is resolve-before-generate. Item 1 re-asserts ownership AND kind on the
+    ``REQ#`` row inside the transaction, the same discipline `activate` uses for its target,
+    so a request that changed hands between the read and the write cannot be written to.
+    """
+    request = _resolve_dropdocs_request(table, identity, public_request_id)
+
+    digest = str(sha256 or "").strip().lower()
+    if not SHA256_RE.match(digest):
+        # Shape, not privacy. Separate exceptions because the HTTP layer answers 400 here
+        # and 503 below, and "please try again" on a malformed digest is a lie.
+        raise DocumentRejected("a document must be identified by its sha256")
+    if not media_paths.is_gated(storage_key):
+        # The fail-closed gate. Checked here, after ownership and kind and BEFORE any write,
+        # because a row pointing at a public object is worse than no row at all.
+        raise DocumentNotPrivate("a document key must live under the gated root")
+
+    owner = identity.customer_id
+    request_internal = str(request[KEY_ATTR])
+    document_key = f"{DOC_PREFIX}{request_internal}#{digest}"
+    size = _int(size_bytes)
+    if size is None or size < 0:
+        raise DocumentRejected("a document must carry an exact byte count")
+
+    held = [str(entry or "").strip().lower() for entry in (request.get("documentSha256s")
+                                                           or [])]
+    if digest not in held and len(held) >= MAX_DOCUMENTS_PER_REQUEST:
+        # A replay of a digest already held still goes through, so idempotency survives at
+        # the ceiling rather than turning into a refusal the caller cannot resolve.
+        raise DocumentLimitReached(
+            f"a request may hold at most {MAX_DOCUMENTS_PER_REQUEST} documents")
+
+    now = _now(clock)
+    document = {
+        KEY_ATTR: document_key, "ownerCustomerId": owner,
+        "targetRequestId": request_internal,
+        "targetPublicRequestId": str(request.get("publicRequestId") or ""),
+        "storageKey": media_paths.canonical(storage_key), "sha256": digest,
+        "contentType": str(content_type or ""), "sizeBytes": size,
+        # Provenance only, never returned to a client. See `_document_view`.
+        "sourceKey": media_paths.canonical(source_key),
+        "publicSourceRetained": bool(public_source_retained), "attachedAt": now,
+    }
+    items = [
+        _put(table.name, document, f"attribute_not_exists({KEY_ATTR})"),
+        {"Update": {
+            "TableName": table.name,
+            "Key": _marshal_item({KEY_ATTR: request_internal}),
+            "UpdateExpression": ("SET updatedAt = :now, documentSha256s = list_append("
+                                 "if_not_exists(documentSha256s, :empty), :digest)"),
+            "ConditionExpression": "customerId = :sub AND kind = :dropdocs",
+            "ExpressionAttributeValues": _marshal_item({
+                ":now": now, ":empty": [], ":digest": [digest], ":sub": owner,
+                ":dropdocs": DROP_DOCS}),
+        }},
+    ]
+    try:
+        _transact(table, items)
+    except Exception as error:  # noqa: BLE001
+        if not _is_cancellation(error):
+            raise ServiceIdentityUnavailable(
+                f"could not attach a document: {type(error).__name__}") from error
+        failed = {index for index, code in enumerate(_reason_codes(error))
+                  if code == "ConditionalCheckFailed"}
+        if 1 in failed:
+            # The request stopped being the caller's Drop Docs request between the read and
+            # the write. Same refusal as every other ownership failure.
+            raise customer_auth.CustomerNotAuthorized(
+                "resource does not exist or is not yours") from error
+        if 0 in failed:
+            existing = _get(table, document_key)
+            if existing is not None:
+                logger.info(json.dumps({"event": "dropdocs_document_already_attached",
+                                        "publicRequestId": str(request.get("publicRequestId")
+                                                               or ""),
+                                        "sha256": digest}))
+                return _document_view(existing)
+        raise ServiceIdentityUnavailable("document attach kept losing races") from error
+
+    logger.info(json.dumps({"event": "dropdocs_document_attached",
+                            "publicRequestId": str(request.get("publicRequestId") or ""),
+                            "sha256": digest, "storageKey": document["storageKey"],
+                            "sizeBytes": size}))
+    return _document_view(document)
+
+
+def list_documents(table: Any, identity: customer_auth.CustomerIdentity,
+                   public_request_id: Any) -> List[Dict[str, Any]]:
+    """The caller's own documents for one Drop Docs request.
+
+    Read through the digest index on the request row rather than a scan, and rather than a
+    GSI: putting ``DOC#`` rows into ``customerId-createdAt-index`` would make them compete
+    with ``REQ#`` rows for the page limit in `list_for_customer`, so a customer with enough
+    documents would see an empty request list. Each row's owner is re-checked, so a digest
+    that somehow named another customer's row yields nothing.
+
+    One ``GetItem`` per digest, which is affordable only because the digest list is capped
+    at `MAX_DOCUMENTS_PER_REQUEST`. The cap is read here too, so a row that overshot it in a
+    concurrent burst still reads back at a bounded cost instead of growing the page without
+    limit.
+    """
+    request = _resolve_dropdocs_request(table, identity, public_request_id)
+    request_internal = str(request[KEY_ATTR])
+    documents: List[Dict[str, Any]] = []
+    seen: set = set()
+    for entry in (request.get("documentSha256s") or [])[:MAX_DOCUMENTS_PER_REQUEST]:
+        digest = str(entry or "").strip().lower()
+        if not SHA256_RE.match(digest) or digest in seen:
+            continue
+        seen.add(digest)
+        row = _get(table, f"{DOC_PREFIX}{request_internal}#{digest}")
+        if row and str(row.get("ownerCustomerId") or "") == identity.customer_id:
+            documents.append(_document_view(row))
+    return documents

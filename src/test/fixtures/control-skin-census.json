@@ -1,0 +1,2154 @@
+{
+  "checkboxRadio": {
+    "blindSpot": "A BARE `input` selector is invisible to this counting rule and reaches every type. Seven matter and are pinned by line in design.md 1.14c rather than by this scan: tokens.css:420, :434, :440, inner-pages.css:279, :1999, :2021 and MCPConnections.module.css:14. tokens.css:420 declares padding 10px 12px on every checkbox and radio in the app, which is why form-controls.css must declare padding: 0.",
+    "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `input[type=\"checkbox\"]` or `input[type=\"radio\"]` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
+    "elements": [
+      "checkbox",
+      "radio"
+    ],
+    "files": [
+      "src/components/BlogContribution.tsx",
+      "src/pages/workspace/engage/sms/index.tsx",
+      "src/pages/workspace/engage/voice-in/index.tsx",
+      "src/styles/Dashboard.css",
+      "src/styles/Layout.css",
+      "src/styles/Pages.css",
+      "src/styles/form-controls.css",
+      "src/styles/inner-pages.css",
+      "src/styles/inner-ux.css",
+      "src/styles/tokens.css"
+    ],
+    "hits": [
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "position:absolute;opacity:0;width:1px;height:1px;margin:0",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": true,
+        "line": 233,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "margin": false,
+          "opacity": false,
+          "width": false
+        },
+        "sel": ".bc-radio",
+        "spec": [
+          0,
+          1,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 246,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "border-color": false,
+          "box-shadow": false
+        },
+        "sel": ".bc-radio:hover + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "border-color:#1a3a2a;background:#d1f470",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 250,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "background": false,
+          "border-color": false
+        },
+        "sel": ".bc-radio:checked + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "outline:3px solid #1a3a2a;outline-offset:2px",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 252,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "outline": false,
+          "outline-offset": false
+        },
+        "sel": ".bc-radio:focus-visible + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [
+          "bc-radio"
+        ],
+        "decls": "transform:none;box-shadow:none",
+        "file": "src/components/BlogContribution.tsx",
+        "geometry": false,
+        "line": 265,
+        "mech": "B-styledjsx",
+        "mode": "class",
+        "pairing": false,
+        "props": {
+          "box-shadow": false
+        },
+        "sel": ".bc-radio:hover + .bc-choice-face",
+        "spec": [
+          0,
+          3,
+          0
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: auto; margin: 0;",
+        "file": "src/pages/workspace/engage/sms/index.tsx",
+        "geometry": false,
+        "line": 621,
+        "mech": "B-styledjsx",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "margin": false,
+          "width": false
+        },
+        "sel": ".checkbox-label input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "display: none;",
+        "file": "src/pages/workspace/engage/voice-in/index.tsx",
+        "geometry": false,
+        "line": 852,
+        "mech": "B-styledjsx",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "display": false
+        },
+        "sel": ".audio-option input[type=\"radio\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 16px; height: 16px; accent-color: #1a3a2a;",
+        "file": "src/pages/workspace/engage/voice-in/index.tsx",
+        "geometry": true,
+        "line": 854,
+        "mech": "B-styledjsx",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".checkbox-group input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: #000000;",
+        "file": "src/styles/Dashboard.css",
+        "geometry": true,
+        "line": 936,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".msg-select-row input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 20px; height: 20px;",
+        "file": "src/styles/Dashboard.css",
+        "geometry": true,
+        "line": 1835,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".msg-select-row input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "min-height: 32px;",
+        "file": "src/styles/Layout.css",
+        "geometry": true,
+        "line": 128,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "min-height": false
+        },
+        "sel": "button, a, input[type=\"checkbox\"], input[type=\"radio\"], select",
+        "spec": [
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "outline: none !important; box-shadow: none !important;",
+        "file": "src/styles/Layout.css",
+        "geometry": false,
+        "line": 1917,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "box-shadow": true,
+          "outline": true
+        },
+        "sel": "input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "outline: none !important; outline-width: 0 !important; outline-offset: 0 !important; box-shadow: none !important; border: none !important;",
+        "file": "src/styles/Layout.css",
+        "geometry": true,
+        "line": 1922,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border": true,
+          "box-shadow": true,
+          "outline": true,
+          "outline-offset": true
+        },
+        "sel": "input[type=\"checkbox\"]:focus, input[type=\"checkbox\"]:focus-visible, input[type=\"checkbox\"]:active",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent);",
+        "file": "src/styles/Pages.css",
+        "geometry": true,
+        "line": 1194,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "cursor": false,
+          "height": false,
+          "width": false
+        },
+        "sel": ".message-select-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 20px; height: 20px;",
+        "file": "src/styles/Pages.css",
+        "geometry": true,
+        "line": 3040,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".message-select-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: var(--color-primary); cursor: pointer;",
+        "file": "src/styles/Pages.css",
+        "geometry": true,
+        "line": 4465,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "cursor": false,
+          "height": false,
+          "width": false
+        },
+        "sel": ".checkbox-label input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "opacity: 0.4; cursor: not-allowed;",
+        "file": "src/styles/Pages.css",
+        "geometry": false,
+        "line": 4472,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "cursor": false,
+          "opacity": false
+        },
+        "sel": ".checkbox-label input[type=\"checkbox\"]:disabled",
+        "spec": [
+          0,
+          3,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "appearance: none !important; -webkit-appearance: none !important; -moz-appearance: none !important; width: var(--control-box); height: var(--control-box); padding: 0 !important; border-width: var(--control-border-w) !important; border-style: solid !important; border-color: var(--control-border); background-color: var(--control-bg); background-repeat: no-repeat !important; background-position: center !important; background-size: var(--control-indicator-size) !important; cursor: pointer; accent-color: var(--accent);",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 506,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "-webkit-appearance": true,
+          "appearance": true,
+          "border-color": false,
+          "border-style": true,
+          "border-width": true,
+          "cursor": false,
+          "height": false,
+          "padding": true,
+          "width": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input), input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "border-radius: var(--radius-sm) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 534,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border-radius": true
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "border-radius: var(--radius-full) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 539,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border-radius": true
+        },
+        "sel": "input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "border-color: var(--control-border-hover);",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 543,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "border-color": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover, input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "background-color: var(--accent); background-image: var(--control-tick) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 553,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "background-image": true
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "background-color: var(--accent); background-image: var(--control-dot) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 567,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "background-image": true
+        },
+        "sel": "input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "background-color: var(--accent); background-image: var(--control-dash) !important;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 576,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "background-image": true
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):indeterminate",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "box-shadow: var(--focus-ring) !important; outline: none;",
+        "file": "src/styles/form-controls.css",
+        "geometry": false,
+        "line": 592,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "box-shadow": true,
+          "outline": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus, input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "min-height: var(--tap-target); min-width: var(--tap-target);",
+        "file": "src/styles/form-controls.css",
+        "geometry": true,
+        "line": 634,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "min-height": false
+        },
+        "sel": "input[type=\"checkbox\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input), input[type=\"radio\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+        "spec": [
+          0,
+          4,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: #1a3a2a;",
+        "file": "src/styles/inner-pages.css",
+        "geometry": true,
+        "line": 1144,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".layout .main-content .campaign-page .contact-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          5,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "width: 18px; height: 18px; accent-color: var(--color-primary);",
+        "file": "src/styles/inner-ux.css",
+        "geometry": true,
+        "line": 1082,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "height": false,
+          "width": false
+        },
+        "sel": ".contact-item input[type=\"checkbox\"]",
+        "spec": [
+          0,
+          2,
+          1
+        ]
+      },
+      {
+        "classes": [],
+        "decls": "min-height: 44px; min-width: 44px;",
+        "file": "src/styles/tokens.css",
+        "geometry": true,
+        "line": 574,
+        "mech": "A-global",
+        "mode": "element",
+        "pairing": false,
+        "props": {
+          "min-height": false
+        },
+        "sel": "button, a, input[type=\"checkbox\"], input[type=\"radio\"], select, [role=\"button\"]",
+        "spec": [
+          0,
+          1,
+          1
+        ]
+      }
+    ],
+    "summary": {
+      "files": 10,
+      "geometryFiles": 9,
+      "geometryRuleSets": 16,
+      "matchModes": {
+        "class": 5,
+        "element": 24
+      },
+      "mechanisms": {
+        "A-global": {
+          "files": 7,
+          "geometryFiles": 7,
+          "geometryRuleSets": 14,
+          "ruleSets": 21
+        },
+        "A-module": {
+          "files": 0,
+          "geometryFiles": 0,
+          "geometryRuleSets": 0,
+          "ruleSets": 0
+        },
+        "B-styledjsx": {
+          "files": 3,
+          "geometryFiles": 2,
+          "geometryRuleSets": 2,
+          "ruleSets": 8
+        },
+        "C-injected": {
+          "files": 0,
+          "geometryFiles": 0,
+          "geometryRuleSets": 0,
+          "ruleSets": 0
+        }
+      },
+      "pairings": 0,
+      "ruleSets": 29
+    }
+  },
+  "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `select` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
+  "files": [
+    "src/components/AddressFields.tsx",
+    "src/components/dashboard/tabs/AppBuilderTab.tsx",
+    "src/pages/cart.tsx",
+    "src/pages/workspace/engage/logs/index.tsx",
+    "src/pages/workspace/engage/push/index.tsx",
+    "src/pages/workspace/engage/sms/index.tsx",
+    "src/pages/workspace/engage/whatsapp/migration.tsx",
+    "src/pages/workspace/engage/whatsapp/templates.tsx",
+    "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
+    "src/pages/workspace/forms/responses.tsx",
+    "src/pages/workspace/pay/link/index.tsx",
+    "src/pages/workspace/pay/records.tsx",
+    "src/pages/workspace/task/index.tsx",
+    "src/styles/Dashboard.css",
+    "src/styles/Layout.css",
+    "src/styles/MCPConnections.module.css",
+    "src/styles/Pages.css",
+    "src/styles/RichTextEditor.module.css",
+    "src/styles/form-controls.css",
+    "src/styles/inner-pages.css",
+    "src/styles/inner-ux.css",
+    "src/styles/tokens.css"
+  ],
+  "generator": "scripts/census_control_skins.py --json",
+  "hits": [
+    {
+      "classes": [],
+      "decls": "min-height:var(--control-h);box-sizing:border-box; border:var(--control-border-w) solid var(--control-border); border-radius:var(--control-radius); padding-block:0;padding-inline:var(--control-px); background-color:var(--control-bg);color:var(--control-fg); font:inherit;font-size:16px;outline:none;",
+      "file": "src/components/AddressFields.tsx",
+      "geometry": true,
+      "line": 300,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "outline": false,
+        "padding-block": false,
+        "padding-inline": false
+      },
+      "sel": "input,select",
+      "spec": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:3px solid var(--accent) !important;outline-offset:2px; border-color:var(--accent);box-shadow:var(--focus-ring);",
+      "file": "src/components/AddressFields.tsx",
+      "geometry": false,
+      "line": 313,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": true,
+        "outline-offset": false
+      },
+      "sel": "input:focus-visible,select:focus-visible",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color:#8c1d18",
+      "file": "src/components/AddressFields.tsx",
+      "geometry": false,
+      "line": 317,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false
+      },
+      "sel": "input[aria-invalid='true'],select[aria-invalid='true']",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; color: #1a1a1a; background: #fff; min-height: 44px; font-family: inherit;",
+      "file": "src/components/dashboard/tabs/AppBuilderTab.tsx",
+      "geometry": true,
+      "line": 631,
+      "mech": "C-injected",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".ab-form-field input, .ab-form-field select, .ab-form-field textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #1a3a2a; box-shadow: 0 0 0 3px rgba(209,244,112,.3);",
+      "file": "src/components/dashboard/tabs/AppBuilderTab.tsx",
+      "geometry": false,
+      "line": 632,
+      "mech": "C-injected",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": ".ab-form-field input:focus, .ab-form-field select:focus, .ab-form-field textarea:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [
+        "cart-amount-select"
+      ],
+      "decls": "min-width:96px;min-height:var(--control-h); padding-block:0;padding-inline-start:var(--control-px); padding-inline-end:var(--control-arrow-pad); border:var(--control-border-w) solid var(--control-border); border-radius:var(--control-radius); font-family:inherit;font-size:16px;color:var(--control-fg); background-color:var(--control-bg);",
+      "file": "src/pages/cart.tsx",
+      "geometry": true,
+      "line": 2042,
+      "mech": "B-styledjsx",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding-block": false
+      },
+      "sel": ".cart-amount-select",
+      "spec": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "classes": [
+        "cart-amount-select"
+      ],
+      "decls": "outline:3px solid var(--accent) !important;outline-offset:2px; box-shadow:var(--focus-ring);",
+      "file": "src/pages/cart.tsx",
+      "geometry": false,
+      "line": 2053,
+      "mech": "B-styledjsx",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "box-shadow": false,
+        "outline": true,
+        "outline-offset": false
+      },
+      "sel": ".cart-amount-select:focus-visible",
+      "spec": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "file": "src/pages/workspace/engage/logs/index.tsx",
+      "geometry": true,
+      "line": 431,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".filter-group select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:none;border-color:#d1f470",
+      "file": "src/pages/workspace/engage/logs/index.tsx",
+      "geometry": false,
+      "line": 435,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".filter-group select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;color:#1a1a1a;background:#fff;min-height:44px;font-family:inherit;box-sizing:border-box",
+      "file": "src/pages/workspace/engage/push/index.tsx",
+      "geometry": true,
+      "line": 392,
+      "mech": "C-injected",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".push-field input,.push-field textarea,.push-field select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box;",
+      "file": "src/pages/workspace/engage/sms/index.tsx",
+      "geometry": true,
+      "line": 614,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".form-group input, .form-group textarea, .form-group select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #1a3a2a;",
+      "file": "src/pages/workspace/engage/sms/index.tsx",
+      "geometry": false,
+      "line": 615,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".form-group input:focus, .form-group textarea:focus, .form-group select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #1a3a2a; box-shadow: 0 0 0 2px rgba(26,58,42,0.1);",
+      "file": "src/pages/workspace/engage/whatsapp/migration.tsx",
+      "geometry": false,
+      "line": 247,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": "input:focus, select:focus",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;",
+      "file": "src/pages/workspace/engage/whatsapp/templates.tsx",
+      "geometry": true,
+      "line": 1533,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".form-group input, .form-group select, .form-group textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #000;",
+      "file": "src/pages/workspace/engage/whatsapp/templates.tsx",
+      "geometry": false,
+      "line": 1543,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".form-group input:focus, .form-group select:focus, .form-group textarea:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-width: 300px;",
+      "file": "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
+      "geometry": true,
+      "line": 619,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".waba-selector-section select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "file": "src/pages/workspace/forms/responses.tsx",
+      "geometry": true,
+      "line": 335,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".fr-fg input,.fr-fg select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:none;border-color:#d1f470",
+      "file": "src/pages/workspace/forms/responses.tsx",
+      "geometry": false,
+      "line": 340,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".fr-fg input:focus,.fr-fg select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 10px 12px; border: 1.5px solid #1a3a2a; border-radius: 13px; font-size: 14px; box-sizing: border-box; background: #fff;",
+      "file": "src/pages/workspace/pay/link/index.tsx",
+      "geometry": true,
+      "line": 251,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".form-field input, .form-field select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "background: #f9fafb;",
+      "file": "src/pages/workspace/pay/link/index.tsx",
+      "geometry": false,
+      "line": 252,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false
+      },
+      "sel": ".form-field input:hover, .form-field select:hover",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; box-shadow: 0 0 0 3px rgba(26, 58, 42, 0.15); background: #fff;",
+      "file": "src/pages/workspace/pay/link/index.tsx",
+      "geometry": false,
+      "line": 253,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": ".form-field input:focus, .form-field select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "file": "src/pages/workspace/pay/records.tsx",
+      "geometry": true,
+      "line": 373,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".ir-fg input,.ir-fg select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:none;border-color:#d1f470",
+      "file": "src/pages/workspace/pay/records.tsx",
+      "geometry": false,
+      "line": 378,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".ir-fg input:focus,.ir-fg select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
+      "file": "src/pages/workspace/task/index.tsx",
+      "geometry": true,
+      "line": 335,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".tk-fg select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline:none;border-color:#d1f470",
+      "file": "src/pages/workspace/task/index.tsx",
+      "geometry": false,
+      "line": 339,
+      "mech": "B-styledjsx",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".tk-fg select:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 10px 12px; border: 1px solid var(--notion-border); border-radius: var(--radius-sm); font-size: 13px; background: var(--notion-bg);",
+      "file": "src/styles/Dashboard.css",
+      "geometry": true,
+      "line": 718,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".delete-panel select, .delete-panel input[type=\"text\"]",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #000000;",
+      "file": "src/styles/Dashboard.css",
+      "geometry": false,
+      "line": 728,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "outline": false
+      },
+      "sel": ".delete-panel select:focus, .delete-panel input:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 12px 14px; font-size: 16px; min-height: 48px;",
+      "file": "src/styles/Dashboard.css",
+      "geometry": true,
+      "line": 1818,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".delete-panel select, .delete-panel input[type=\"text\"]",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "min-height: 32px;",
+      "file": "src/styles/Layout.css",
+      "geometry": true,
+      "line": 128,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "min-height": false
+      },
+      "sel": "button, a, input[type=\"checkbox\"], input[type=\"radio\"], select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-size: var(--text-base);",
+      "file": "src/styles/Layout.css",
+      "geometry": false,
+      "line": 155,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "font-size": false
+      },
+      "sel": "input, textarea, select",
+      "spec": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 12px; border: 1px solid #c5dfa4; border-radius: 13px; color: #1a3a2a; background: #fff; font: inherit;",
+      "file": "src/styles/MCPConnections.module.css",
+      "geometry": true,
+      "line": 20,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "padding": false
+      },
+      "sel": ".playgroundControls select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 12px 16px; border: 1.5px solid #d1d5db; border-radius: var(--btn-radius); font-family: var(--font-sans); font-size: var(--text-md); background: var(--color-bg); color: rgba(0,0,0,.898); transition: all var(--transition-fast); min-height: 44px;",
+      "file": "src/styles/Pages.css",
+      "geometry": true,
+      "line": 871,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".form-group select, .form-group input, .form-group textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470;",
+      "file": "src/styles/Pages.css",
+      "geometry": false,
+      "line": 885,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false
+      },
+      "sel": ".form-group select:hover, .form-group input:hover, .form-group textarea:hover",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #d1f470; box-shadow: 0 0 0 3px rgba(26, 58, 42, 0.15);",
+      "file": "src/styles/Pages.css",
+      "geometry": false,
+      "line": 891,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": ".form-group select:focus, .form-group input:focus, .form-group textarea:focus",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-size: 16px; border-radius: 12px;",
+      "file": "src/styles/Pages.css",
+      "geometry": true,
+      "line": 915,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border-radius": false,
+        "font-size": false
+      },
+      "sel": ".form-group select, .form-group input, .form-group textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "min-height: 36px; font-size: 12px; max-width: 120px;",
+      "file": "src/styles/Pages.css",
+      "geometry": true,
+      "line": 1638,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "font-size": false,
+        "min-height": false
+      },
+      "sel": ".waba-selector select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 6px 10px; border: 2px solid #e5e7eb; border-radius: var(--radius-md); font-size: var(--text-xs); background: var(--bg);",
+      "file": "src/styles/Pages.css",
+      "geometry": true,
+      "line": 2137,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".waba-selector select",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "padding: 12px 14px; font-size: 16px; min-height: 48px; border-radius: 10px;",
+      "file": "src/styles/Pages.css",
+      "geometry": true,
+      "line": 2906,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".form-group select, .form-group input, .form-group textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "flex: 1; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border, #000); border-radius: 6px;",
+      "file": "src/styles/RichTextEditor.module.css",
+      "geometry": true,
+      "line": 699,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".payment-dialog .variable-input-row input, .payment-dialog .variable-input-row select",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: var(--text, #000); outline: none; box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);",
+      "file": "src/styles/RichTextEditor.module.css",
+      "geometry": false,
+      "line": 708,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": ".payment-dialog .variable-input-row input:focus, .payment-dialog .variable-input-row select:focus",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "appearance: none !important; -webkit-appearance: none !important; -moz-appearance: none !important; border-width: var(--control-border-w) !important; border-style: solid !important; border-color: var(--control-border); border-radius: var(--control-radius) !important; padding-block: 0 !important; padding-inline-start: var(--control-px) !important; padding-inline-end: var(--control-arrow-pad) !important; min-height: var(--control-h) !important; color: var(--control-fg) !important; background-color: var(--control-bg); font-family: inherit; transition: border-color var(--transition-normal), box-shadow var(--transition-normal);",
+      "file": "src/styles/form-controls.css",
+      "geometry": true,
+      "line": 81,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "-webkit-appearance": true,
+        "appearance": true,
+        "border-color": false,
+        "border-radius": true,
+        "border-style": true,
+        "border-width": true,
+        "min-height": true,
+        "padding-block": true
+      },
+      "sel": "select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control), input[type=\"date\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input), input[type=\"time\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input), input[type=\"datetime-local\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "background-image: var(--control-arrow) !important; background-repeat: no-repeat !important; background-position: right var(--control-arrow-inset) center !important; background-size: var(--control-arrow-size) var(--control-arrow-size) !important; cursor: pointer;",
+      "file": "src/styles/form-controls.css",
+      "geometry": false,
+      "line": 128,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background-image": true,
+        "cursor": false
+      },
+      "sel": "select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control)",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: var(--control-border-hover);",
+      "file": "src/styles/form-controls.css",
+      "geometry": false,
+      "line": 136,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false
+      },
+      "sel": "select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):hover, input[type=\"date\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover, input[type=\"time\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover, input[type=\"datetime-local\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover",
+      "spec": [
+        0,
+        5,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: var(--control-border-focus); box-shadow: var(--focus-ring) !important; outline: none;",
+      "file": "src/styles/form-controls.css",
+      "geometry": false,
+      "line": 164,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": true,
+        "outline": false
+      },
+      "sel": "select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):focus, input[type=\"date\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus, input[type=\"time\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus, input[type=\"datetime-local\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus",
+      "spec": [
+        0,
+        5,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "opacity: var(--control-disabled-opacity); cursor: not-allowed;",
+      "file": "src/styles/form-controls.css",
+      "geometry": false,
+      "line": 177,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "cursor": false,
+        "opacity": false
+      },
+      "sel": "select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):disabled, input[type=\"date\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled, input[type=\"time\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled, input[type=\"datetime-local\"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled",
+      "spec": [
+        0,
+        5,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "background: #ffffff !important; color: rgba(0,0,0,.898) !important; border: 2px solid #e5e7eb !important; border-radius: 13px !important; padding: 10px 14px !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": true,
+      "line": 250,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": true,
+        "border": true,
+        "border-radius": true,
+        "padding": true
+      },
+      "sel": ".layout .main-content select:not([data-public-ui]), .layout .main-content .filter-select:not([data-public-ui])",
+      "spec": [
+        0,
+        4,
+        0
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 259,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true
+      },
+      "sel": ".layout .main-content select:hover",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important; box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3) !important; outline: none !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 263,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true,
+        "box-shadow": true,
+        "outline": true
+      },
+      "sel": ".layout .main-content select:focus",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-size: 16px !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 398,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "font-size": true
+      },
+      "sel": ".layout .main-content input:not([data-public-ui]), .layout .main-content textarea:not([data-public-ui]), .layout .main-content select:not([data-public-ui])",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100%; padding: 10px 14px; border: 2px solid #e5e7eb; border-radius: 13px; font-size: 14px; background: #ffffff; color: rgba(0,0,0,.898); transition: all 0.15s ease;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": true,
+      "line": 1031,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "padding": false
+      },
+      "sel": ".layout .main-content .campaign-page .form-group input, .layout .main-content .campaign-page .form-group select, .layout .main-content .campaign-page .form-group textarea",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 1044,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false
+      },
+      "sel": ".layout .main-content .campaign-page .form-group input:hover, .layout .main-content .campaign-page .form-group select:hover, .layout .main-content .campaign-page .form-group textarea:hover",
+      "spec": [
+        0,
+        5,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "outline: none; border-color: #d1f470; box-shadow: 0 0 0 3px rgba(26, 58, 42, 0.15);",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 1050,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false,
+        "box-shadow": false,
+        "outline": false
+      },
+      "sel": ".layout .main-content .campaign-page .form-group input:focus, .layout .main-content .campaign-page .form-group select:focus, .layout .main-content .campaign-page .form-group textarea:focus",
+      "spec": [
+        0,
+        5,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border: 2px solid #e5e7eb !important; border-radius: 13px !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": true,
+      "line": 1920,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": true,
+        "border-radius": true
+      },
+      "sel": ".layout .main-content .pay-page input, .layout .main-content .pay-page select, .layout .main-content .pay-link-page input, .layout .main-content .pay-link-page select",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important; box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3) !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 1928,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true,
+        "box-shadow": true
+      },
+      "sel": ".layout .main-content .pay-page input:focus, .layout .main-content .pay-page select:focus, .layout .main-content .pay-link-page input:focus, .layout .main-content .pay-link-page select:focus",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 1936,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true
+      },
+      "sel": ".layout .main-content .pay-page input:hover, .layout .main-content .pay-page select:hover, .layout .main-content .pay-link-page input:hover, .layout .main-content .pay-link-page select:hover",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border: 2px solid #e5e7eb !important; border-radius: 13px !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": true,
+      "line": 1999,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "border": true,
+        "border-radius": true
+      },
+      "sel": ".layout .main-content .form-section input, .layout .main-content .form-section select, .layout .main-content .form-section textarea, .layout .main-content .form-field input, .layout .main-content .form-field select, .layout .main-content .form-field textarea, .layout .main-content .form-group input, .layout .main-content .form-group select, .layout .main-content .form-group textarea",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 2012,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true
+      },
+      "sel": ".layout .main-content .form-section input:hover, .layout .main-content .form-section select:hover, .layout .main-content .form-field input:hover, .layout .main-content .form-field select:hover, .layout .main-content .form-group input:hover, .layout .main-content .form-group select:hover",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important; box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3) !important; outline: none !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 2021,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true,
+        "box-shadow": true,
+        "outline": true
+      },
+      "sel": ".layout .main-content .form-section input:focus, .layout .main-content .form-section select:focus, .layout .main-content .form-section textarea:focus, .layout .main-content .form-field input:focus, .layout .main-content .form-field select:focus, .layout .main-content .form-field textarea:focus, .layout .main-content .form-group input:focus, .layout .main-content .form-group select:focus, .layout .main-content .form-group textarea:focus",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: #d1f470 !important; box-shadow: 0 0 0 3px rgba(209, 244, 112, 0.3) !important;",
+      "file": "src/styles/inner-pages.css",
+      "geometry": false,
+      "line": 2247,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": true,
+        "box-shadow": true
+      },
+      "sel": ".layout .main-content .modal input:focus, .layout .main-content .modal select:focus, .layout .main-content .modal textarea:focus",
+      "spec": [
+        0,
+        4,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "opacity: 0.5; cursor: not-allowed; background: var(--color-bg-secondary);",
+      "file": "src/styles/inner-ux.css",
+      "geometry": false,
+      "line": 608,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "cursor": false,
+        "opacity": false
+      },
+      "sel": ".inner-page input:disabled, .inner-page select:disabled, .inner-page textarea:disabled",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "border-color: var(--color-danger);",
+      "file": "src/styles/inner-ux.css",
+      "geometry": false,
+      "line": 616,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "border-color": false
+      },
+      "sel": ".inner-page input.error, .inner-page select.error, .inner-page textarea.error",
+      "spec": [
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "box-shadow: 0 0 0 3px rgba(26, 58, 42, 0.15);",
+      "file": "src/styles/inner-ux.css",
+      "geometry": false,
+      "line": 622,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "box-shadow": false
+      },
+      "sel": ".inner-page input.error:focus, .inner-page select.error:focus, .inner-page textarea.error:focus",
+      "spec": [
+        0,
+        3,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-size: 16px !important;",
+      "file": "src/styles/inner-ux.css",
+      "geometry": false,
+      "line": 929,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "font-size": true
+      },
+      "sel": ".inner-page input, .inner-page select, .inner-page textarea",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "width: 100% !important; min-height: 44px;",
+      "file": "src/styles/inner-ux.css",
+      "geometry": true,
+      "line": 2850,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "min-height": false
+      },
+      "sel": ".filters select, .filters input",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-size: 16px !important;",
+      "file": "src/styles/tokens.css",
+      "geometry": false,
+      "line": 567,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "font-size": true
+      },
+      "sel": "input, select, textarea",
+      "spec": [
+        0,
+        0,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "min-height: 44px; min-width: 44px;",
+      "file": "src/styles/tokens.css",
+      "geometry": true,
+      "line": 574,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": true,
+      "props": {
+        "min-height": false
+      },
+      "sel": "button, a, input[type=\"checkbox\"], input[type=\"radio\"], select, [role=\"button\"]",
+      "spec": [
+        0,
+        1,
+        1
+      ]
+    },
+    {
+      "classes": [],
+      "decls": "font-size: 16px !important;",
+      "file": "src/styles/tokens.css",
+      "geometry": false,
+      "line": 683,
+      "mech": "A-global",
+      "mode": "element",
+      "pairing": false,
+      "props": {
+        "font-size": true
+      },
+      "sel": "input, select, textarea",
+      "spec": [
+        0,
+        0,
+        1
+      ]
+    }
+  ],
+  "selfTest": {
+    "class_only_selector_reported": true,
+    "interpolated_rule_keeps_later_declarations": true,
+    "non_box_rule_ignored": true,
+    "reported": [
+      {
+        "geometry": [
+          "border",
+          "border-radius",
+          "padding"
+        ],
+        "props": [
+          "border",
+          "border-radius",
+          "padding"
+        ],
+        "sel": ".ui-planted"
+      },
+      {
+        "geometry": [],
+        "props": [
+          "box-shadow"
+        ],
+        "sel": ".ui-planted:focus"
+      }
+    ],
+    "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
+  },
+  "summary": {
+    "files": 22,
+    "geometryFiles": 21,
+    "geometryRuleSets": 29,
+    "matchModes": {
+      "class": 2,
+      "element": 65
+    },
+    "mechanisms": {
+      "A-global": {
+        "files": 9,
+        "geometryFiles": 9,
+        "geometryRuleSets": 17,
+        "ruleSets": 42
+      },
+      "A-module": {
+        "files": 0,
+        "geometryFiles": 0,
+        "geometryRuleSets": 0,
+        "ruleSets": 0
+      },
+      "B-styledjsx": {
+        "files": 11,
+        "geometryFiles": 10,
+        "geometryRuleSets": 10,
+        "ruleSets": 22
+      },
+      "C-injected": {
+        "files": 2,
+        "geometryFiles": 2,
+        "geometryRuleSets": 2,
+        "ruleSets": 3
+      }
+    },
+    "pairings": 21,
+    "ruleSets": 67
+  }
+}

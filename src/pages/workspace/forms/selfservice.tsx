@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -40,6 +41,11 @@ const MESSAGE_LINKS: Record<string, string> = {
   pay: 'https://wa.me/message/UUJ6P5HGADBAC1',
   faq: 'https://wa.me/message/U3ENEHLR7CICJ1',
 };
+/* The submissions filter, built from FLOW_TYPES so a new flow appears here for free. */
+const FLOW_FILTER_OPTIONS: SelectOption[] = [
+  { value: 'all', label: 'All Flows' },
+  ...FLOW_TYPES.map(f => ({ value: f.key, label: f.label })),
+];
 
 const fmtDate = (ts: number) => {
   if (!ts) return '—';
@@ -127,11 +133,11 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
         {activeTab === 'submissions' && (
           <div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-              <select value={filterKey} onChange={e => setFilterKey(e.target.value)}
-                      style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 12 }}>
-                <option value="all">All Flows</option>
-                {FLOW_TYPES.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-              </select>
+              {/* The old inline padding/border/radius/font-size object skinned the native
+                  control and is gone: .ui-select-trigger draws the box now. Only the width
+                  stays, which is layout. */}
+              <Select ariaLabel="Flow" value={filterKey} onChange={v => setFilterKey(v)}
+                      options={FLOW_FILTER_OPTIONS} style={{ width: 200 }} />
               <Button variant="secondary" size="sm" loading={loading} onClick={loadSubmissions}>Refresh</Button>
               <span style={{ fontSize: 12, color: '#6b7280' }}>{filtered.length} submissions</span>
             </div>

@@ -37,6 +37,7 @@ import Table from '../../../components/ui/Table';
 import Modal from '../../../components/ui/Modal';
 import Spinner from '../../../components/ui/Spinner';
 import EmptyState from '../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 
 interface PageProps {
@@ -45,6 +46,32 @@ interface PageProps {
 }
 
 type TabType = 'products' | 'orders' | 'collections' | 'manage' | 'admin' | 'settings';
+
+/* The option rows, hoisted. Same order, same values, same visible text as the <option>s they
+   replaced, including the '' placeholder row the order filter reads as "no filter". */
+const ORDER_STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  { value: 'PAID', label: 'Paid' },
+  { value: 'NOT_PAID', label: 'Not Paid' },
+  { value: 'PARTIALLY_PAID', label: 'Partially Paid' },
+  { value: 'PARTIALLY_REFUNDED', label: 'Partially Refunded' },
+  { value: 'FULLY_REFUNDED', label: 'Fully Refunded' },
+];
+const CURRENCY_OPTIONS: SelectOption[] = [
+  { value: 'INR', label: 'INR (₹)' },
+  { value: 'USD', label: 'USD ($)' },
+  { value: 'EUR', label: 'EUR (€)' },
+  { value: 'GBP', label: 'GBP (£)' },
+];
+const PRODUCT_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'digital', label: 'Digital' },
+  { value: 'physical', label: 'Physical' },
+];
+
+/* LAYOUT ONLY - what the inline `width: '100%'` carried, and a width for the filter, which
+   is a flex child beside a search input. */
+const FULL_WIDTH: React.CSSProperties = { width: '100%' };
+const FILTER_STYLE: React.CSSProperties = { width: 190 };
 
 const TABS: TabItem[] = [
   { id: 'products', label: 'Products' },
@@ -489,18 +516,13 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
                   onKeyDown={ e => e.key === 'Enter' && fetchOrders() }
                   style={ { flex: 1, minWidth: 200, padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 12, fontSize: 14, outline: 'none' } }
                 />
-                <select
+                <Select
+                  ariaLabel="Payment status"
                   value={ orderStatusFilter }
-                  onChange={ e => setOrderStatusFilter( e.target.value ) }
-                  style={ { padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 12, fontSize: 14, background: '#fff' } }
-                >
-                  <option value="">All Statuses</option>
-                  <option value="PAID">Paid</option>
-                  <option value="NOT_PAID">Not Paid</option>
-                  <option value="PARTIALLY_PAID">Partially Paid</option>
-                  <option value="PARTIALLY_REFUNDED">Partially Refunded</option>
-                  <option value="FULLY_REFUNDED">Fully Refunded</option>
-                </select>
+                  onChange={ v => setOrderStatusFilter( v ) }
+                  options={ ORDER_STATUS_FILTER_OPTIONS }
+                  style={ FILTER_STYLE }
+                />
                 <button onClick={ fetchOrders }>Search</button>
               </div>
               { loading ? (
@@ -593,14 +615,15 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
                         style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, outline: 'none', boxSizing: 'border-box' } } />
                     </div>
                     <div>
+                      { /* The caption is an UNASSOCIATED <label> - no `for`, no wrapped control -
+                           so it was never a name source. It stays, keeping its own type and
+                           spacing, and the control takes `ariaLabel`. The four currency values
+                           are unchanged: INR is the only one this store settles in, and the list
+                           is a Wix catalogue field rather than a payment decision. */ }
                       <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Currency</label>
-                      <select value={ newProduct.currency } onChange={ e => setNewProduct( { ...newProduct, currency: e.target.value } ) }
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', boxSizing: 'border-box' } }>
-                        <option value="INR">INR (₹)</option>
-                        <option value="USD">USD ($)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="GBP">GBP (£)</option>
-                      </select>
+                      <Select ariaLabel="Currency" value={ newProduct.currency }
+                        onChange={ v => setNewProduct( { ...newProduct, currency: v } ) }
+                        options={ CURRENCY_OPTIONS } style={ FULL_WIDTH } />
                     </div>
                     <div>
                       <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>SKU</label>
@@ -609,11 +632,9 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
                     </div>
                     <div>
                       <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Type</label>
-                      <select value={ newProduct.productType } onChange={ e => setNewProduct( { ...newProduct, productType: e.target.value as 'digital' | 'physical' } ) }
-                        style={ { width: '100%', padding: '10px 14px', border: '1.5px solid #d1d5db', borderRadius: 10, fontSize: 14, background: '#fff', boxSizing: 'border-box' } }>
-                        <option value="digital">Digital</option>
-                        <option value="physical">Physical</option>
-                      </select>
+                      <Select ariaLabel="Product type" value={ newProduct.productType }
+                        onChange={ v => setNewProduct( { ...newProduct, productType: v as 'digital' | 'physical' } ) }
+                        options={ PRODUCT_TYPE_OPTIONS } style={ FULL_WIDTH } />
                     </div>
                     <div>
                       <label style={ { display: 'block', fontSize: 12, fontWeight: 500, marginBottom: 4, color: '#374151' } }>Ribbon</label>

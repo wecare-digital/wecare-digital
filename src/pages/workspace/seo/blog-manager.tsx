@@ -9,6 +9,7 @@ import SEO from '../../../components/SEO';
 // meant Next routed it as [retired public path]/InstructionsContent - a 292-line chrome-less page
 // nobody intended to publish.
 import InstructionsContent from '../../../components/seo/InstructionsContent';
+import { useConfirmDanger } from '../../../components/wa';
 import { seoToolsFetch } from '../../../api/seo';
 
 interface PageProps { signOut?: () => void; user?: any; }
@@ -35,6 +36,7 @@ const td: React.CSSProperties = { padding: '6px 10px' };
 const btn: React.CSSProperties = { padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontFamily: 'inherit' };
 
 const BlogSeoManager: React.FC<PageProps> = ({ signOut, user }) => {
+  const confirmDanger = useConfirmDanger();
   const [tab, setTab] = useState<Tab>('posts');
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [audits, setAudits] = useState<AuditRecord[]>([]);
@@ -166,7 +168,7 @@ const BlogSeoManager: React.FC<PageProps> = ({ signOut, user }) => {
               <button onClick={selNone} style={{ ...btn, background: '#f3f4f6' }}>Clear</button>
             </div>)}
             {selected.size === 0 && filtered.length > 0 && <button onClick={selAll} style={{ ...btn, background: '#f3f4f6' }}>Select All ({filtered.length})</button>}
-            {selected.size === 0 && posts.length > 0 && <button onClick={async () => { if (!confirm(`Clean ALL ${posts.length} posts? This wipes all existing SEO data.`)) return; setBulkRunning('clean'); addLog(`Bulk cleaning all ${posts.length} posts...`); let ok = 0; for (const p of posts) { await cleanPost(p.slug); ok++; if (ok % 5 === 0) addLog(`Cleaned ${ok}/${posts.length}...`); await new Promise(r => setTimeout(r, 2000)); } addLog(`Bulk clean done: ${ok} posts cleaned`); await fetchPosts(); setBulkRunning(null); }} disabled={!!bulkRunning} style={{ ...btn, background: '#fee2e2', fontWeight: 600 }}>{bulkRunning === 'clean' ? 'Cleaning...' : `Clean All ${posts.length} Posts`}</button>}
+            {selected.size === 0 && posts.length > 0 && <button onClick={async () => { if (!(await confirmDanger('delete', 'This wipes all existing SEO data.', { title: `Clean ALL ${posts.length} posts?`, confirmInput: 'CLEAN', confirmText: 'Clean all posts' }))) return; setBulkRunning('clean'); addLog(`Bulk cleaning all ${posts.length} posts...`); let ok = 0; for (const p of posts) { await cleanPost(p.slug); ok++; if (ok % 5 === 0) addLog(`Cleaned ${ok}/${posts.length}...`); await new Promise(r => setTimeout(r, 2000)); } addLog(`Bulk clean done: ${ok} posts cleaned`); await fetchPosts(); setBulkRunning(null); }} disabled={!!bulkRunning} style={{ ...btn, background: '#fee2e2', fontWeight: 600 }}>{bulkRunning === 'clean' ? 'Cleaning...' : `Clean All ${posts.length} Posts`}</button>}
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>

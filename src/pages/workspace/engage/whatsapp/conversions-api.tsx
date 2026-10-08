@@ -14,10 +14,11 @@
  * automatically on Razorpay payment success; this page also lets you log events
  * manually for testing/verification in Events Manager.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import {
     getCapiStatus, createCapiDataset, logCapiEvent,
@@ -30,6 +31,13 @@ const WABAS = [
     { label: 'WABA1 · +91 93309 94400', wabaId: '2094615664435155' },
     { label: 'WABA2 · +91 99033 00044', wabaId: '2513394156072604' },
 ];
+
+const WABA_OPTIONS: SelectOption[] = WABAS.map( w => ( { value: w.wabaId, label: w.label } ) );
+/** Layout only. The native control sized to its widest option; the trigger may shrink. */
+const WABA_SELECT_STYLE: React.CSSProperties = { flex: '0 1 240px', minWidth: 0 };
+/** The marginBottom the shared `input` object carried. */
+const EVENT_SELECT_STYLE: React.CSSProperties = { marginBottom: 10 };
+const FALLBACK_EVENTS = [ 'Purchase', 'LeadSubmitted', 'AddToCart', 'InitiateCheckout' ];
 
 const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
@@ -44,6 +52,12 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
     const [ evValue, setEvValue ] = useState( '' );
     const [ evCurrency, setEvCurrency ] = useState( 'INR' );
     const [ evOrder, setEvOrder ] = useState( '' );
+
+    /* Derived from the FETCHED status, so memoised rather than rebuilt inline. */
+    const eventOptions: SelectOption[] = useMemo(
+        () => ( status?.supportedEvents || FALLBACK_EVENTS ).map( ev => ( { value: ev, label: ev } ) ),
+        [ status ]
+    );
 
     const load = useCallback( async () => {
         setBusy( 'load' );
@@ -101,9 +115,8 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
             </p>
 
             <div style={ { display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16 } }>
-                <select value={ wabaId } onChange={ e => setWabaId( e.target.value ) } style={ { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6 } }>
-                    { WABAS.map( w => <option key={ w.wabaId } value={ w.wabaId }>{ w.label }</option> ) }
-                </select>
+                <Select ariaLabel="WhatsApp Business Account" value={ wabaId }
+                    onChange={ v => setWabaId( v ) } options={ WABA_OPTIONS } style={ WABA_SELECT_STYLE } />
                 <Button onClick={ load } disabled={ busy !== '' }>{ busy === 'load' ? 'Loading…' : 'Refresh' }</Button>
             </div>
 
@@ -161,9 +174,8 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
                 <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } }>
                     <div>
                         <label style={ label }>Event</label>
-                        <select value={ evName } onChange={ e => setEvName( e.target.value ) } style={ input }>
-                            { ( status?.supportedEvents || [ 'Purchase', 'LeadSubmitted', 'AddToCart', 'InitiateCheckout' ] ).map( ev => <option key={ ev } value={ ev }>{ ev }</option> ) }
-                        </select>
+                        <Select ariaLabel="Event" value={ evName } onChange={ v => setEvName( v ) }
+                            options={ eventOptions } style={ EVENT_SELECT_STYLE } />
                     </div>
                     <div>
                         <label style={ label }>Customer phone</label>

@@ -10,12 +10,32 @@ import Modal from '../../../../components/ui/Modal';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
 import EmptyState from '../../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'pending', 'approved', 'hidden', 'flagged' ];
 const SOURCE_OPTIONS = [ 'whatsapp', 'web', 'google', 'manual' ];
+
+/*
+ * The three filter lists, built once from the arrays above so the option TEXT stays exactly
+ * what the <option> rows rendered - the raw status / source string, lowercase, and `${r}+
+ * stars` for the rating. The leading '' row is the "all" choice and it is a real selectable
+ * option rather than a placeholder, which is what keeps clearing a filter possible.
+ */
+const STATUS_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Statuses' },
+  ...STATUS_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const SOURCE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Sources' },
+  ...SOURCE_OPTIONS.map( s => ( { value: s, label: s } ) ),
+];
+const RATING_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Ratings' },
+  ...[ 5, 4, 3, 2, 1 ].map( r => ( { value: String( r ), label: `${r}+ stars` } ) ),
+];
 
 function formatDate ( ts?: number ): string {
   if ( !ts ) return '—';
@@ -145,18 +165,23 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
         </div>
 
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ statusFilter } onChange={ e => { setStatusFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Statuses</option>
-            { STATUS_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ sourceFilter } onChange={ e => { setSourceFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Sources</option>
-            { SOURCE_OPTIONS.map( s => <option key={ s } value={ s }>{ s }</option> ) }
-          </select>
-          <select value={ ratingFilter } onChange={ e => { setRatingFilter( e.target.value ); setPage( 1 ); } } style={ selectStyle }>
-            <option value="">All Ratings</option>
-            { [ 5, 4, 3, 2, 1 ].map( r => <option key={ r } value={ r }>{ r }+ stars</option> ) }
-          </select>
+          { /*
+             * No label existed here and none is invented: these three take `ariaLabel`, which
+             * is the one labelling prop that renders nothing. The native selects had no
+             * accessible name at all, so a screen reader announced three comboboxes reading
+             * "All Statuses", "All Sources", "All Ratings" - the second statement, setPage( 1 ),
+             * is preserved in order on all three, because a filter change that left the reader
+             * on page 4 of a shorter list shows an empty table.
+             */ }
+          <Select ariaLabel="Status" value={ statusFilter }
+            onChange={ v => { setStatusFilter( v ); setPage( 1 ); } }
+            options={ STATUS_FILTER_OPTIONS } style={ filterStyle } />
+          <Select ariaLabel="Source" value={ sourceFilter }
+            onChange={ v => { setSourceFilter( v ); setPage( 1 ); } }
+            options={ SOURCE_FILTER_OPTIONS } style={ filterStyle } />
+          <Select ariaLabel="Minimum rating" value={ ratingFilter }
+            onChange={ v => { setRatingFilter( v ); setPage( 1 ); } }
+            options={ RATING_FILTER_OPTIONS } style={ filterStyle } />
         </div>
 
         { reviews.length === 0 && !loading ? (
@@ -217,7 +242,14 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   );
 };
 
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/*
+ * LAYOUT ONLY, which is all `style` on a Select is for: appearance - the 2px border, the 13px
+ * radius, the padding, the type - now comes from .ui-select-trigger in form-controls.css, so
+ * the old padding/border/radius/font-size object went with the native control it was skinning.
+ * The width is here because the trigger shows the SELECTED label rather than the widest option,
+ * so three unsized filters would resize as they are used; one width holds the row still.
+ */
+const filterStyle: React.CSSProperties = { width: 160 };
 const labelStyle: React.CSSProperties = { fontSize: 12, color: '#6b7280', display: 'block', marginBottom: 2 };
 const actionBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, padding: '2px 4px' };
 

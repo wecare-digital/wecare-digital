@@ -18,6 +18,12 @@ export const contacts = defineFunction({
     CONTACTS_TABLE: 'stack-wecare-digital-ContactsTable',
     INBOUND_TABLE: 'stack-wecare-digital-WhatsAppInboundTable',
     OUTBOUND_TABLE: 'stack-wecare-digital-WhatsAppOutboundTable',
+    // Read-only, and only on the hard-delete path: a contact tied to a payment or an order
+    // may be archived but never destroyed. Both indexes are already readable by the shared
+    // role, so these names add no grant. The handler defaults match these literals, so the
+    // guard works whether or not the variable is live yet.
+    INVOICES_TABLE: 'stack-wecare-digital-InvoicesTable',
+    ORDERS_TABLE: 'stack-wecare-digital-OrderTable',
     // The handler already defaults to media_paths.BUCKET, so this line only mattered
     // on deploy — where it would have overridden a correct default with the bucket
     // deleted on 2026-09-28.

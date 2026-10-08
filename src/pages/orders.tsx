@@ -82,6 +82,27 @@ interface OrderRow {
   status: string;
   /** On the wire for a future filter. Deliberately not read here. */
   statusRank: number;
+  /**
+   * `'website' | 'whatsapp'`, canonicalised server-side by `lambda_utils.ecommerce.order_channel`
+   * so the browser never sees a third spelling. Typed `string` rather than a union because the
+   * value arrives from the network: a union would be a claim about untrusted input, and the one
+   * read below already treats anything that is not `'whatsapp'` as the website.
+   */
+  channel: string;
+  /**
+   * The public customer id — a uuid4 the server mints, re-validated server-side by
+   * `lambda_utils.identity.customer_uuid` before it reaches the wire, so a junk or uuid7 value
+   * arrives as `''` rather than being displayed.
+   *
+   * ALWAYS PRESENT, `''` when the order's customer has none (every contact created before the
+   * attribute existed). Typed `string` and not optional for the same reason `currencyUnexpected`
+   * is always present: a field that appears only when it has a value forces every reader to
+   * handle `undefined` as well as the empty case.
+   *
+   * Shown IN FULL, unlike a phone. It is opaque, carries no timestamp, and is not a credential —
+   * so it is the value a customer can safely read out to support.
+   */
+  customerUuid: string;
 }
 
 interface ProfilePayload {
@@ -838,6 +859,12 @@ export default function OrdersPage (): React.ReactElement {
                         ? ''
                         : formatPaiseINR( order.amountPaise, order.currency );
                       const label = STATUS_LABEL[ order.status ] || 'Status unavailable';
+                      // ONE local, read in two places - the row tag and the panel rung - so the
+                      // two cannot disagree. Anything that is not exactly 'whatsapp' is the
+                      // website, which matches the server's own coercion and makes a row that
+                      // predates the field (or arrives from the serving index's older
+                      // projection) read as 'Website' rather than as blank.
+                      const sourceLabel = order.channel === 'whatsapp' ? 'WhatsApp' : 'Website';
                       const note = order.status
                         ? ( STATUS_NOTE[ order.status ] || '' )
                         : 'Contact us and we will check.';
@@ -960,6 +987,17 @@ export default function OrdersPage (): React.ReactElement {
                               <span className="ord-ref" data-wc-no-translate>
                                 Ref { order.referenceId }
                               </span>
+                              { /* WHERE the order came from, as TEXT and not a colour: a tag
+                                   distinguished only by hue fails for anyone who cannot see the
+                                   difference, and this page has no legend to look it up in. In
+                                   the existing Order # cell rather than a sixth column, because
+                                   the five-column header equality and colSpan={5} below are
+                                   load-bearing and a column would be a restructure.
+
+                                   Left TRANSLATABLE on purpose: "Website" is prose, and a reader
+                                   on a translated page is better served by their own word for
+                                   it. Nothing branches on the rendered string. */ }
+                              <span className="ord-src">{ sourceLabel }</span>
                               { /* The Date column's understudy. ALWAYS in the DOM and revealed
                                    by one media query - no JS width branch, no matchMedia, no
                                    resize listener - so the rendered tree is identical at every
@@ -1058,8 +1096,27 @@ export default function OrdersPage (): React.ReactElement {
                                         ? <span data-wc-no-translate>{ order.referenceId }</span>
                                         : 'Not available' }
                                     </dd>
+                                    { /* The public customer id, beside the other two identifiers
+                                         and treated exactly like them: `data-wc-no-translate`,
+                                         because a translator rewriting a uuid would produce an
+                                         id that matches nothing, and an explicit sentence rather
+                                         than a blank when there is none — the same honest
+                                         'Not assigned' the order number uses, since an absent id
+                                         is a real state and not a loading one. The rung renders
+                                         unconditionally so the panel's row count is stable. */ }
+                                    <dt>Customer ID</dt>
+                                    <dd>
+                                      { order.customerUuid
+                                        ? <span data-wc-no-translate>{ order.customerUuid }</span>
+                                        : 'Not assigned' }
+                                    </dd>
                                     <dt>Placed</dt>
                                     <dd>{ dateTimeLabel( order.createdAt ) }</dd>
+                                    { /* THE SAME LOCAL as the row tag, not a second reading of
+                                         order.channel - one value, so the panel cannot say
+                                         "Website" while the row says "WhatsApp". */ }
+                                    <dt>Ordered on</dt>
+                                    <dd>{ sourceLabel }</dd>
                                     <dt>Amount</dt>
                                     { /* THE SAME RENDERED STRING as the Amount cell, not
                                          recomputed - one formatter, one value. */ }
@@ -1276,6 +1333,15 @@ export default function OrdersPage (): React.ReactElement {
              identifier. Not 13px: a one-pixel "table cells are tighter" exception is not a
              reason to leave the ladder. */
           .ord-ref{display:block;font-size:14px;font-weight:400;color:rgba(0,0,0,.54)}
+          /* The order-source tag. The SAME sub-line rung as .ord-ref, deliberately: the tag is
+             metadata about the row and promoting it with a pill, a background or a brand colour
+             would make a label compete with the order number for attention. 700 rather than 400
+             is the only departure, so it reads as a label and not as a second reference line -
+             and because the weight is doing that work, the tag is never distinguished by colour
+             alone, which is what keeps it legible to a reader who cannot tell these two greys
+             apart. Page-local on purpose: the shared control CSS under src/styles/ belongs to
+             another worktree and this rule has one consumer. */
+          .ord-src{display:block;font-size:14px;font-weight:700;color:rgba(0,0,0,.54)}
           /* Same rung, but it is the Date column's understudy: hidden while that column is
              visible, so the date renders EXACTLY ONCE at every width. Declared display:none
              here, ahead of every media query, and flipped in the SAME query that hides the
