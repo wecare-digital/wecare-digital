@@ -2862,13 +2862,6 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                                  "error": type(error).__name__}))
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
 
-    if catalog_session is not None:
-        _keys_table().update_item(Key={'orderId': catalog_session['orderId']},
-            UpdateExpression='SET paymentAttemptId=:attempt, referenceId=:ref',
-            ConditionExpression='serviceIntentId=:intent AND #s=:preparing',
-            ExpressionAttributeNames={'#s': 'status'},
-            ExpressionAttributeValues={':attempt': attempt_id, ':ref': reference_id,
-                ':intent': body['serviceIntentId'], ':preparing': 'PREPARING_PAYMENT'})
 
     # 4. Hand off to the in-chat payment request — UNLESS initiation is disabled, in which case the
     #    attempt exists and is ready but no payable message goes out. Either way, NO order exists.
@@ -2882,6 +2875,15 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             "currency": "INR",
             "message": "Checkout prepared. Live payment initiation is currently disabled.",
         }, origin)
+
+    if catalog_session is not None:
+        _keys_table().update_item(Key={'orderId': catalog_session['orderId']},
+            UpdateExpression='SET paymentAttemptId=:attempt, referenceId=:ref',
+            ConditionExpression='serviceIntentId=:intent AND #s=:preparing',
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':attempt': attempt_id, ':ref': reference_id,
+                ':intent': body['serviceIntentId'], ':preparing': 'PREPARING_PAYMENT'})
+
 
     if catalog_session is not None:
         from lambda_utils.ecommerce.catalog_service_checkout import payment_details

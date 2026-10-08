@@ -202,11 +202,19 @@ def test_the_coupons_role_is_not_the_shared_fleet_role(role):
     assert not offenders, "\n  ".join(offenders)
 
 
-def test_the_coupons_policy_names_exactly_one_table_and_one_index(role):
+def test_the_coupons_policy_scopes_coupon_and_authentication_tables(role):
     document = role.least_privilege_policy()
     resources = [r for s in document["Statement"] for r in s["Resource"]]
     tables = sorted(r for r in resources if ":table/" in r)
-    assert tables == sorted([COUPONS_TABLE_ARN, COUPONS_TABLE_ARN + "/index/status-index"])
+    assert tables == sorted([COUPONS_TABLE_ARN, COUPONS_TABLE_ARN + "/index/status-index",
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-CustomerSessionsTable",
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-RateLimitTable"])
+    session_grant = next(s for s in document["Statement"] if s["Sid"] == "ValidateCustomerSession")
+    assert set(session_grant["Action"]) == {"dynamodb:GetItem", "dynamodb:UpdateItem"}
+    staff_grant = next(s for s in document["Statement"] if s["Sid"] == "StaffRoleMembership")
+    assert staff_grant["Resource"] == ["arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_cSx0RHCIR"]
+    rate_grant = next(s for s in document["Statement"] if s["Sid"] == "CouponRateLimit")
+    assert rate_grant["Action"] == ["dynamodb:UpdateItem"]
     assert role.STATUS_INDEX == "status-index"
 
 
@@ -216,6 +224,7 @@ def test_the_coupons_policy_has_no_scan_and_no_wildcard_action(role):
     assert actions == {
         "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem",
         "dynamodb:Query", "secretsmanager:GetSecretValue",
+        "cognito-idp:AdminListGroupsForUser", "cognito-idp:AdminGetUser",
         "logs:CreateLogStream", "logs:PutLogEvents"}
     for forbidden in ("dynamodb:Scan", "dynamodb:*", "*", "secretsmanager:*", "iam:*"):
         assert forbidden not in actions

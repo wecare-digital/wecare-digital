@@ -3363,3 +3363,12 @@ Authority: owner instruction "deep complete this first" covering checkout, Wix w
 | BLOCKED | Publish Flow 1107164111921876 | Automatic approval review requires specific owner approval; requested, no bypass | Flow remains DRAFT |
 
 No QA number supplied; no paid test, capture/refund, live customer send, external Wix order/payment write or catalog availability change. Live writeback and native catalog gates remain closed. Evidence and exact QA gates: docs/whatsapp/native-catalog-release-status.md and native-catalog-integration-evidence.json. Frontend source changes require the frontend release; the Lambda deployment alone does not publish the website.
+
+
+### 2026-10-08 owner correction: PNG invoice delivery
+
+A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION: the owner explicitly requires WhatsApp invoice delivery as PNG. The single invoice engine selects its private image asset and image renderer, retaining delivery claims and the approved appearance. PDF download remains optional. Focused receipt, delivery, private-storage and authentication tests gate the invoice-engine-only deployment. Capture the current live alias and revision before deployment; rollback restores that recorded version. Catalog handlers are preserved from stack 23a3a7aa.
+
+A1_LOCAL/A3_PRODUCTION: complete the absent coupon service using its existing additive provisioners: on-demand CouponsTable with PITR and no TTL, dedicated role/log group, validated package/live alias and seven exact routes. Fix the real SessionStore adapter, require x-customer-csrf on cookie-authenticated POST routes, and grant only session GetItem/UpdateItem plus rate-limit UpdateItem. No coupon issuance, customer messages, or payment capture is part of infrastructure verification. Missing gift-card SPI metadata remains an owner provisioning prerequisite; unsupported native gift settlement remains refused. New-resource rollback disables integrations and leaves issuance history intact; invoice rollback is the captured live version.
+
+A1_LOCAL/A3_PRODUCTION: full-suite catalog regressions fixed without changing release flags: stale/None list IDs return the existing main-menu path; native session linkage occurs only after the initiation gate. Redeploy only invoice, checkout and inbound handlers with fresh rollback/revision guards. Coupon staff role membership is scoped to the existing staff pool. A dedicated create-only coupon function provisioner closes the previously missing creation step; ordinary package validation precedes any creation.

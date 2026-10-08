@@ -13,8 +13,8 @@ What it deliberately does NOT have
 ----------------------------------
 * No `dynamodb:Scan`. Every access in `coupon_store` is an exact-key operation or the
   `status-index` Query, and a grant nobody exercises is a grant nobody notices has gone wrong.
-* No second table. The finalization path's write to `CouponsTable` runs under the CHECKOUT role,
-  additively, which is a separate per-function role and a separate change.
+* Customer authentication reads and touches the session table; rate limiting updates
+  only its own table. These permissions do not grant session creation or deletion.
 * No `dynamodb:*`, no `DeleteTable`, no wildcard action or resource.
 * No Razorpay credential read. Nothing in this function's import closure reaches a gateway.
 
@@ -113,6 +113,24 @@ def least_privilege_policy() -> dict:
                 # operation or the status-index Query.
                 "Action": list(TABLE_ACTIONS),
                 "Resource": [table_arn(), index_arn()],
+            },
+            {
+                "Sid": "ValidateCustomerSession",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:UpdateItem"],
+                "Resource": [f"arn:aws:dynamodb:{REGION}:{ACCOUNT_ID}:table/stack-wecare-digital-CustomerSessionsTable"],
+            },
+            {
+                "Sid": "CouponRateLimit",
+                "Effect": "Allow",
+                "Action": ["dynamodb:UpdateItem"],
+                "Resource": [f"arn:aws:dynamodb:{REGION}:{ACCOUNT_ID}:table/stack-wecare-digital-RateLimitTable"],
+            },
+            {
+                "Sid": "StaffRoleMembership",
+                "Effect": "Allow",
+                "Action": ["cognito-idp:AdminListGroupsForUser", "cognito-idp:AdminGetUser"],
+                "Resource": [f"arn:aws:cognito-idp:{REGION}:{ACCOUNT_ID}:userpool/us-east-1_cSx0RHCIR"],
             },
             {
                 "Sid": "ReadWixApiKey",
@@ -233,8 +251,10 @@ def verify() -> int:
         if resource == "*":
             problems.append("policy carries a wildcard resource")
     tables = sorted({r for r in resources if ":table/" in r})
-    if tables != sorted({table_arn(), index_arn()}):
-        problems.append(f"policy names {tables}, expected only the coupons table and its index")
+    if tables != sorted({table_arn(), index_arn(),
+                         f"arn:aws:dynamodb:{REGION}:{ACCOUNT_ID}:table/stack-wecare-digital-CustomerSessionsTable",
+                         f"arn:aws:dynamodb:{REGION}:{ACCOUNT_ID}:table/stack-wecare-digital-RateLimitTable"}):
+        problems.append(f"policy names {tables}, expected coupons plus bounded session and rate-limit tables")
 
     attached = iam().list_attached_role_policies(RoleName=ROLE_NAME).get(
         "AttachedPolicies", [])

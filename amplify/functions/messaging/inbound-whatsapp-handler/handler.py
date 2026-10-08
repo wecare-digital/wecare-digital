@@ -6089,7 +6089,7 @@ def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
     Nothing falls through and nothing raises: a stale row from a deleted menu, a
     typo and an empty id all re-open the main menu.
     """
-    if list_id.startswith('vaultpick:') and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
+    if str(list_id or '').startswith('vaultpick:') and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
         parts = list_id.split(':')
         if len(parts) != 3 or not parts[2].isdigit():
             return 'unknown'

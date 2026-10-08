@@ -59,6 +59,7 @@ from typing import Any, Dict, Optional, Tuple
 
 from lambda_utils import customer_session as sessions
 from lambda_utils import middleware, rate_limit, wix_ecom
+from lambda_utils.customer_session_store import SessionStore
 from lambda_utils.ecommerce import coupon_store, wix_coupons
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, error_response, extract_origin, options_response
@@ -154,7 +155,9 @@ def _customer(event: Dict[str, Any]) -> sessions.SessionView:
     if not cookie:
         raise Refused(401, "VERIFICATION_REQUIRED")
     try:
-        return sessions.validate(_table(CUSTOMER_SESSIONS_TABLE), cookie)
+        view = sessions.validate(SessionStore(_table(CUSTOMER_SESSIONS_TABLE)), cookie)
+        sessions.assert_csrf(view, str(headers.get('x-customer-csrf') or ''))
+        return view
     except sessions.SessionError:
         raise Refused(401, "VERIFICATION_REQUIRED") from None
 

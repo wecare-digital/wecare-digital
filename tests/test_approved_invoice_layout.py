@@ -1,4 +1,4 @@
-"""Exercise the approved renderer and document delivery with real PIL and inert providers."""
+"""Exercise the approved renderer and PNG delivery with real PIL and inert providers."""
 import io
 import json
 from unittest.mock import MagicMock
@@ -69,7 +69,7 @@ def test_pending_invoice_is_never_printed_as_paid(invoice_engine, monkeypatch):
     assert not any(text.startswith('Paid on:') for text in drawn)
 
 
-def test_approved_receipt_is_delivered_as_same_engine_pdf_document(invoice_engine, monkeypatch):
+def test_approved_receipt_is_delivered_as_same_engine_png_image(invoice_engine, monkeypatch):
     monkeypatch.delenv('RECEIPT_TRANSPARENT_BG', raising=False)
     table = MagicMock()
     table.get_item.return_value = {'Item': _invoice()}
@@ -79,7 +79,9 @@ def test_approved_receipt_is_delivered_as_same_engine_pdf_document(invoice_engin
     pdf = MagicMock(return_value={'statusCode': 200, 'body': json.dumps({
         'pdfUrl': 'https://example.invalid/private.pdf',
         's3Key': 'secure/stack/invoices/fixture.pdf'})})
-    image = MagicMock()
+    image = MagicMock(return_value={'statusCode': 200, 'body': json.dumps({
+        'imageUrl': 'https://example.invalid/private.png',
+        's3Key': 'secure/stack/invoices/fixture.png'})})
     monkeypatch.setattr(invoice_engine, 'generate_invoice_pdf', pdf)
     monkeypatch.setattr(invoice_engine, 'generate_invoice_image', image)
     monkeypatch.setattr(invoice_engine, '_lookup_contact_by_phone', lambda _: None)
@@ -91,9 +93,10 @@ def test_approved_receipt_is_delivered_as_same_engine_pdf_document(invoice_engin
     response = invoice_engine.send_invoice_whatsapp('inv-approved-fixture', '+919812345678', '',
                                                     'test-only', force=True)
     assert response['statusCode'] == 200
-    pdf.assert_called_once_with('inv-approved-fixture', 'test-only')
-    image.assert_not_called()
+    image.assert_called_once_with('inv-approved-fixture', 'test-only')
+    pdf.assert_not_called()
+    table.get_item.assert_any_call(Key={'invoiceId': 'inv-approved-fixture', 'assetType': 'image'})
     payload = json.loads(json.loads(sender.invoke.call_args.kwargs['Payload'])['body'])
-    assert payload['mediaType'] == 'document'
-    assert payload['mediaFile'] == 'secure/stack/invoices/fixture.pdf'
-    assert payload['mediaFileName'].endswith('.pdf')
+    assert payload['mediaType'] == 'image'
+    assert payload['mediaFile'] == 'secure/stack/invoices/fixture.png'
+    assert 'mediaFileName' not in payload

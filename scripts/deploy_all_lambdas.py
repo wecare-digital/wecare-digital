@@ -276,6 +276,7 @@ SPECS: List[Spec] = [
         "ecommerce/coupons",
         provisioned_by="python scripts/provision_coupons_table.py && "
                        "python scripts/provision_coupons_role.py && "
+                       "python scripts/provision_coupons_function.py && "
                        "python scripts/provision_coupons_routes.py",
     ),
     # Gift-card issuance, balance and holds. Owns stack-wecare-digital-GiftCardsTable, which is

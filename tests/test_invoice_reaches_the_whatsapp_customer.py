@@ -102,7 +102,7 @@ def _seed(fake, *, with_asset=True):
         'total': '599.00', 'referenceId': 'WD-PAY-DELIV01', 'invoiceNumber': 'WD/26-27/0001',
         'orderId': 'Offline', 'createdAt': 1770000000})
     if with_asset:
-        fake.Table(ASSETS).put_item(Item={'invoiceId': INVOICE_ID, 'assetType': 'pdf',
+        fake.Table(ASSETS).put_item(Item={'invoiceId': INVOICE_ID, 'assetType': 'image',
                                           's3Key': 'secure/stack/invoices/x.png',
                                           'url': 'ignored'})
 
@@ -191,7 +191,7 @@ def test_a_render_failure_releases_the_claim_and_sends_nothing(engine, fake):
     missing becomes permanently undeliverable."""
     _seed(fake, with_asset=False)
     sender = _Sender()
-    with patch.object(engine, 'generate_invoice_pdf',
+    with patch.object(engine, 'generate_invoice_image',
                       return_value={'statusCode': 500, 'body': json.dumps({})}):
         resp = _send(engine, fake, sender)
     assert resp['statusCode'] == 500
@@ -204,10 +204,10 @@ def test_the_engine_still_renders_a_missing_asset_rather_than_refusing(engine, f
     would have made the engine REFUSE a perfectly deliverable invoice."""
     _seed(fake, with_asset=False)
     sender = _Sender()
-    with patch.object(engine, 'generate_invoice_pdf',
+    with patch.object(engine, 'generate_invoice_image',
                       return_value={'statusCode': 200,
-                                    'body': json.dumps({'s3Key': 'secure/x.pdf',
-                                                        'pdfUrl': 'https://x'})}) as render:
+                                    'body': json.dumps({'s3Key': 'secure/x.png',
+                                                        'imageUrl': 'https://x'})}) as render:
         resp = _send(engine, fake, sender)
     assert render.called
     assert resp['statusCode'] == 200
