@@ -3390,3 +3390,11 @@ Class A1_LOCAL / A2_REMOTE_CODE. Baseline 88856c1936d58c86f1d379deab0e5059406d63
 Evidence: full integrated offline Python gate10134passed/6skipped/3xfail, frontend1583passed/2skipped, typecheckPASS, lint0errors197warnings, static export1521pages, blog/schemaPASS; new retention guard4casesPASS. Unit tests use dummy credentials and denied network transports; no live provider/payment/customer journey certification.
 
 Rollback: revert only this commit's named source paths through a normal forward commit; zero-byte files restore from baseline Git. No force/history rewrite. Retention is not applied; its future rollback would restore prior policy from the read-only plan, with actual change ownership and timestamp recorded first.
+
+## Workspace correctness continuation — 9 October 2026
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | origin/stack a6c74df7 | Refreshed latest source; existing schedule cancellation and system-health fixes retained | Read only |
+| A1_LOCAL | codex/workspace-correctness-20261009 | Require configuration acknowledgement/read-back and truthful UI errors; remove fabricated billing fallback; 24 targeted and1585 full frontend tests pass; TypeScript passes; lint zero errors | Revert scoped source/test commit |
+| A2_REMOTE_CODE | Separate feature branch and PR | Explicit paths only; no production provider/auth/payment/infrastructure changes | Revert PR commit |

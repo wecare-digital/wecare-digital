@@ -1861,6 +1861,7 @@ export interface AWSBillingData {
   // 2026-09-28 because it bills per request). A zero totalCost then means "not
   // measured", not "spent nothing" -- the dashboard must not show it as a bill.
   costReportingEnabled?: boolean;
+  unavailable?: boolean;
   note?: string;
 }
 
@@ -1898,13 +1899,13 @@ export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBill
 
   const data = await apiCall<any>( url );
 
-  if ( data && data.services )
+  if ( data && Array.isArray( data.services ) )
   {
     return {
       totalCost: data.totalCost || 0,
-      period: data.period || `${new Date().toISOString().slice( 0, 7 )}-01 to ${new Date().toISOString().slice( 0, 10 )}`,
+      period: data.period || '',
       services: data.services,
-      lastUpdated: data.lastUpdated || new Date().toISOString(),
+      lastUpdated: data.lastUpdated || '',
       accountId: data.accountId,
       currency: data.currency || 'USD',
       previousMonthCost: data.previousMonthCost,
@@ -1918,40 +1919,16 @@ export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBill
     };
   }
 
-  // Fallback: Return cached/estimated data
-  return getEstimatedBilling();
-}
-
-// Fallback function with estimated billing data
-function getEstimatedBilling (): AWSBillingData {
-  const now = new Date();
-  const startOfMonth = new Date( now.getFullYear(), now.getMonth(), 1 );
-
-  const services: AWSServiceUsage[] = [
-    { service: 'Amazon Bedrock', cost: 0, usage: 61, unit: 'requests', freeLimit: '3-month trial', status: 'free' },
-    { service: 'AWS Lambda', cost: 0, usage: 6709, unit: 'requests', freeLimit: '1M/month', status: 'free' },
-    { service: 'Amazon DynamoDB', cost: 0, usage: 22977, unit: 'operations', freeLimit: '200M/month', status: 'free' },
-    { service: 'Amazon S3', cost: 0, usage: 13186, unit: 'operations', freeLimit: '20K GET', status: 'free' },
-    { service: 'Amazon API Gateway', cost: 0, usage: 5157, unit: 'requests', freeLimit: '1M/month', status: 'free' },
-    { service: 'Amazon CloudFront', cost: 0, usage: 1981, unit: 'requests', freeLimit: '1TB/month', status: 'free' },
-    { service: 'AWS Amplify', cost: 0, usage: 774, unit: 'minutes', freeLimit: '1000 mins/month', status: 'free' },
-    { service: 'Amazon SNS', cost: 0, usage: 3387, unit: 'notifications', freeLimit: '1M/month', status: 'free' },
-    { service: 'Amazon SQS', cost: 0, usage: 429, unit: 'requests', freeLimit: '1M/month', status: 'free' },
-    { service: 'Meta WhatsApp Cloud API', cost: 0, usage: 381, unit: 'conversations', freeLimit: '1000 free/mo', status: 'free' },
-    { service: 'AWS Pinpoint (SMS/Voice)', cost: 2, usage: 47, unit: 'messages/calls', freeLimit: '$2/mo toll-free', status: 'paid' },
-    { service: 'Amazon Polly', cost: 0, usage: 12, unit: 'TTS requests', freeLimit: '5M chars/month', status: 'free' },
-    { service: 'AWS Secrets Manager', cost: 0.40, usage: 1, unit: 'secrets', freeLimit: '$0.40/secret/mo', status: 'paid' },
-    { service: 'Amazon OpenSearch', cost: 0, usage: 182, unit: 'operations', freeLimit: 'Serverless', status: 'free' },
-    { service: 'Amazon Route 53', cost: 0, usage: 94671, unit: 'queries', freeLimit: '$0.50/zone', status: 'free' },
-    { service: 'Amazon Cognito', cost: 0, usage: 1, unit: 'users', freeLimit: '50K MAU', status: 'free' },
-    { service: 'CloudWatch', cost: 0, usage: 370, unit: 'metrics', freeLimit: '10 metrics', status: 'free' },
-  ];
-
+  // A failed read supplies no evidence of spend, usage or measurement time.
+  // Keep the numeric interface, but the dashboard must hide it behind these flags.
   return {
-    totalCost: 2.40,
-    period: `${startOfMonth.toISOString().slice( 0, 10 )} to ${now.toISOString().slice( 0, 10 )}`,
-    services,
-    lastUpdated: now.toISOString(),
+    totalCost: 0,
+    period: '',
+    services: [],
+    lastUpdated: '',
+    costReportingEnabled: false,
+    unavailable: true,
+    note: 'Billing data is unavailable. Check the connection or refresh to try again.',
   };
 }
 
@@ -3923,7 +3900,7 @@ export interface SystemConfig {
  * Lambda: wecare-ai-config-management
  */
 export async function getSystemConfig ( configKey: string ): Promise<SystemConfig | null> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${configKey}` );
+  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}` );
   if ( data && data.config )
   {
     return data.config;
@@ -3931,16 +3908,29 @@ export async function getSystemConfig ( configKey: string ): Promise<SystemConfi
   return null;
 }
 
+// The backend merges object settings, so retained keys are allowed. Arrays are
+// ordered values: a different element or length means the requested save is unconfirmed.
+function containsConfig ( stored: any, requested: any ): boolean {
+  if ( Array.isArray( requested ) )
+    return Array.isArray( stored ) && stored.length === requested.length
+      && requested.every( ( value, index ) => containsConfig( stored[ index ], value ) );
+  if ( requested !== null && typeof requested === 'object' )
+    return stored !== null && typeof stored === 'object' && !Array.isArray( stored )
+      && Object.keys( requested ).every( key => Object.prototype.hasOwnProperty.call( stored, key )
+        && containsConfig( stored[ key ], requested[ key ] ) );
+  return stored === requested;
+}
+
 /**
  * Update system configuration
  * Lambda: wecare-ai-config-management
  */
 export async function updateSystemConfig ( configKey: string, config: any ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config`, {
-    method: 'PUT',
-    body: JSON.stringify( { key: configKey, config } ),
-  } );
-  return data !== null;
+  const body = JSON.stringify( { key: configKey, config } );
+  const data = await apiCall<any>( `${API_BASE}/ai/config`, { method: 'PUT', body } );
+  if ( data?.success !== true ) return false;
+  const stored = await getSystemConfig( configKey );
+  return stored !== null && containsConfig( stored, JSON.parse( body ).config );
 }
 
 /**
