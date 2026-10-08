@@ -4472,7 +4472,11 @@ export async function sendTestLocation ( to: string, latitude: number, longitude
   return apiCall<any>( `${WA_SEND_BASE}/location`, { method: 'POST', body: JSON.stringify( { to, latitude, longitude, ...opts } ) } ) as any;
 }
 
-export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
+// `carouselCards` selects the product_carousel shape on the same route: the handler
+// dispatches on body shape, and carouselCards is the most specific one, so it wins over
+// catalogMessage and sections. No sibling function — a second one would duplicate the
+// body assembly for an identical request.
+export async function sendTestProduct ( to: string, catalogId: string, opts: { productRetailerId?: string; sections?: any[]; carouselCards?: { productRetailerId: string }[]; headerText?: string; bodyText?: string; footerText?: string; phoneId?: string } ): Promise<{ success?: boolean; messageId?: string; error?: string }> {
   return apiCall<any>( `${WA_SEND_BASE}/product`, { method: 'POST', body: JSON.stringify( { to, catalogId, ...opts } ) } ) as any;
 }
 
@@ -4571,6 +4575,33 @@ export async function rejectGroupJoinRequests ( groupId: string, joinRequestIds:
 export async function getPhoneSettings ( phoneId: string ): Promise<any> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/phone-settings?phoneId=${phoneId}` );
   return data?.settings || null;
+}
+
+// Official Business Account status, rolled up per WABA. READ-ONLY: the green tick is
+// granted by a Meta review started in Business Suite and there is no API to request it.
+// The rollup is four-valued — UNKNOWN is not NOT_OFFICIAL.
+// Returns null until GET /wa-business/oba-status exists (deploy-time work), which is why
+// the dashboard row renders "unavailable" rather than throwing.
+export interface ObaPhone {
+  phoneId: string;
+  displayPhoneNumber: string;
+  verifiedName: string;
+  qualityRating: string;
+  codeVerificationStatus: string;
+  nameStatus: string;
+  isOfficialBusinessAccount: boolean;
+}
+export interface ObaStatus {
+  wabaId: string;
+  obaStatus: 'OFFICIAL' | 'PARTIAL' | 'NOT_OFFICIAL' | 'UNKNOWN';
+  phones: ObaPhone[];
+  note?: string;
+}
+
+export async function getObaStatus ( wabaId: string ): Promise<ObaStatus | null> {
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/oba-status?wabaId=${encodeURIComponent( wabaId )}` );
+  if ( !data?.obaStatus ) return null;
+  return { wabaId: data.wabaId || wabaId, obaStatus: data.obaStatus, phones: data.phones || [], note: data.note || '' };
 }
 
 export async function updatePhoneSettings ( phoneId: string, settings: Record<string, any> ): Promise<boolean> {
@@ -6264,6 +6295,31 @@ export async function listGeneratedTemplates ( wabaId: string ): Promise<{ total
 export async function getMmOnboardingStatus ( wabaId: string ): Promise<{ onboardingStatus: string; time: string }> {
   const data = await apiCall<any>( `${WA_BIZ_BASE}/mm-onboarding-status?wabaId=${encodeURIComponent( wabaId )}` );
   return { onboardingStatus: data?.onboardingStatus || '', time: data?.time || '' };
+}
+
+// MM API conversion metrics. The route answers 200 with available:false when the edge
+// does not resolve for this account, carrying the edge it tried, a reason and the last
+// cached reading — so render the cached numbers with their timestamp rather than an
+// error. `metrics` rows are Meta's own, unreshaped: their shape is unverified here.
+// Returns null until GET /wa-business/mm-conversion-metrics exists (deploy-time work).
+export interface MmConversionMetrics {
+  wabaId: string;
+  available: boolean;
+  edge: string;
+  metrics?: any[];
+  readAt?: number;
+  reason?: string;
+  cached?: { metrics?: any[]; readAt?: number };
+  note?: string;
+}
+
+export async function getMmConversionMetrics ( wabaId: string, opts?: { since?: string; until?: string } ): Promise<MmConversionMetrics | null> {
+  const qs = new URLSearchParams( { wabaId } );
+  if ( opts?.since ) qs.set( 'since', opts.since );
+  if ( opts?.until ) qs.set( 'until', opts.until );
+  const data = await apiCall<any>( `${WA_BIZ_BASE}/mm-conversion-metrics?${qs.toString()}` );
+  if ( !data || typeof data.available !== 'boolean' ) return null;
+  return data as MmConversionMetrics;
 }
 
 export interface CatalogFlowEntry { flowIdWaba1?: string; flowIdWaba2?: string; flowCode?: string; cta?: string; body?: string; }

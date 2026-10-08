@@ -1511,6 +1511,105 @@ def _get_mm_onboarding_status(waba_id: str) -> Dict:
     return _resp(200, {'wabaId': waba_id, 'onboardingStatus': status_val, 'time': status_time})
 
 
+# The MM API conversion-metrics edge. UNVERIFIED -- no local documentation names it and
+# it has never been called on this account. This constant is the single place to correct
+# it; _get_mm_conversion_metrics reports the value it used in every response, including
+# the unavailable one, so a wrong name is diagnosable from the dashboard rather than
+# from CloudWatch.
+#
+# Read at MODULE scope, which is correct here and only here: this is CONFIGURATION, not a
+# credential, so the lazy-read rule in lambda-snapstart-deploy.md and secret-handling.md
+# does not apply, and the same module already reads SYSTEM_CONFIG_TABLE this way. If the
+# variable is ever actually set on the function it must be added to
+# config/lambda-env-manifest.json in the same change -- nothing sets it today.
+MM_METRICS_EDGE = os.environ.get('MM_METRICS_EDGE', 'marketing_messages_insights')
+MM_METRICS_CACHE_PREFIX = 'mm_metrics_'
+
+
+def _mm_metrics_cached(waba_id: str) -> Dict:
+    """Last good metrics read for a WABA, or {} if there is none. Fail-open."""
+    try:
+        item = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(
+            Key={'id': MM_METRICS_CACHE_PREFIX + waba_id}).get('Item') or {}
+        raw = item.get('configValue')
+        return {'metrics': json.loads(raw) if isinstance(raw, str) else (raw or []),
+                'readAt': int(item.get('updatedAt') or 0)}
+    except Exception:
+        return {}
+
+
+def _mm_metrics_cache_put(waba_id: str, rows: list) -> None:
+    """Cache the last good metrics read. Fail-open: a cache write must never break the
+    request -- test_cache_failure_does_not_break_the_read pins that. `default=str` is
+    there because the row shape is unverified and a Decimal or a date in Meta's payload
+    must not raise inside a telemetry write.
+
+    updatedAt is Decimal(str(int(...))) rather than the bare int _capi_get_dataset writes:
+    both serialize to the same DynamoDB N, and Decimal(str(...)) is this project's rule for
+    every number reaching DynamoDB. A convention alignment, not a copy of the neighbour.
+    """
+    try:
+        dynamodb.Table(SYSTEM_CONFIG_TABLE).put_item(Item={
+            'id': MM_METRICS_CACHE_PREFIX + waba_id,
+            'configValue': json.dumps(rows, default=str),
+            'updatedAt': Decimal(str(int(time.time()))),
+        })
+    except Exception as e:
+        logger.warning(json.dumps({'event': 'mm_metrics_cache_write_failed',
+                                   'wabaId': waba_id, 'error': type(e).__name__}))
+
+
+def _get_mm_conversion_metrics(waba_id: str, params: Dict) -> Dict:
+    """Read MM API conversion metrics for a WABA and cache the last good answer.
+
+    Closes the read half of the conversion loop: _capi_log_event writes AddToCart /
+    InitiateCheckout / Purchase out to the dataset, and until now nothing read anything
+    back, so nothing could inform the next campaign.
+
+    Answers 200 with available:false -- never 400 -- when Meta says the edge is not
+    available for this account. That is the same honest-refusal contract
+    whatsapp-template-management._list_template_library uses, and it is what lets the
+    panel render "not available" instead of an error toast.
+
+    The rows are returned UNRESHAPED: their shape has never been observed on this
+    account, so any local projection would be as unverified as the edge name while
+    looking like a settled mapping.
+    """
+    since = (params or {}).get('since') or ''
+    until = (params or {}).get('until') or ''
+    # No `fields` is sent: the edge's own field names are unverified, and a wrong
+    # `fields` value makes Graph reject the whole request. Take the default projection.
+    q: Dict[str, Any] = {}
+    if since:
+        q['since'] = since
+    if until:
+        q['until'] = until
+    result = _graph_api(f'{waba_id}/{MM_METRICS_EDGE}', params=q or None, waba_id=waba_id)
+    if 'error' in result:
+        cached = _mm_metrics_cached(waba_id)
+        logger.info(json.dumps({
+            'event': 'mm_conversion_metrics_unavailable', 'wabaId': waba_id,
+            'edge': MM_METRICS_EDGE, 'hasCached': bool(cached)}))
+        return _resp(200, {
+            'wabaId': waba_id, 'available': False, 'edge': MM_METRICS_EDGE,
+            'reason': (result.get('error') or {}).get('message') if isinstance(
+                result.get('error'), dict) else str(result.get('error')),
+            'cached': cached,
+            'note': ('MM API conversion metrics could not be read for this WABA. The edge '
+                     'name is unverified in this account; correct MM_METRICS_EDGE if Meta '
+                     'documents a different path, or confirm MM onboarding status first.'),
+        })
+    rows = result.get('data') if isinstance(result.get('data'), list) else [result]
+    _mm_metrics_cache_put(waba_id, rows)
+    logger.info(json.dumps({
+        'event': 'mm_conversion_metrics_read', 'wabaId': waba_id,
+        'edge': MM_METRICS_EDGE, 'rowCount': len(rows),
+        'events': sorted({str(r.get('event_name') or r.get('name') or '')
+                          for r in rows if isinstance(r, dict)})}))
+    return _resp(200, {'wabaId': waba_id, 'available': True, 'edge': MM_METRICS_EDGE,
+                       'metrics': rows, 'readAt': int(time.time())})
+
+
 # ============================================================================
 # LINK PREVIEW VALIDATOR (Open Graph requirements for WhatsApp link previews)
 # ============================================================================
@@ -2231,13 +2330,64 @@ def _send_location_msg(body: Dict) -> Dict:
     return _send_message(phone_id, {'type': 'location', 'location': location}, body)
 
 
+_PRODUCT_CAROUSEL_MIN_CARDS = 2
+_PRODUCT_CAROUSEL_MAX_CARDS = 10
+# The action key that carries the cards. Unverified against a live send -- this is the
+# single place to correct it, and the payload test reads the constant rather than a
+# literal so a correction here does not touch the test.
+_PRODUCT_CAROUSEL_ITEMS_KEY = 'product_carousel_items'
+
+
 def _send_product_msg(body: Dict) -> Dict:
-    """Single product (interactive 'product') or multi-product ('product_list')."""
+    """Single product (interactive 'product') or multi-product ('product_list').
+
+    Precedence: carouselCards > catalogMessage|viewCatalog > sections > single
+    product. The most specific body shape wins; a caller supplying two is served the
+    most specific one, and the superseded shape is named in the product_carousel_built
+    log line.
+    """
     catalog_id = body.get('catalogId')
     if not catalog_id:
         return _resp(400, {'error': 'catalogId is required'})
     phone_id = body.get('phoneId') or PHONE1_META_ID
     sections = body.get('sections')
+    cards = body.get('carouselCards') or body.get('cards')
+    if cards:
+        # A product carousel is a CATALOG PRESENTATION. It must never accept or emit an
+        # order_details component, a payment configuration name or an amount -- pinned by
+        # tests/test_product_carousel_send.py::test_carousel_carries_no_order_details.
+        #
+        # Which more-general shape this carousel is superseding, so an override is visible
+        # in CloudWatch rather than inferred from the absence of a catalog_message.
+        superseded = ('catalog_message' if (body.get('catalogMessage') or body.get('viewCatalog'))
+                      else ('sections' if sections else ''))
+        if not isinstance(cards, list):
+            return _resp(400, {'error': 'carouselCards must be a list'})
+        if not (_PRODUCT_CAROUSEL_MIN_CARDS <= len(cards) <= _PRODUCT_CAROUSEL_MAX_CARDS):
+            return _resp(400, {'error': f'product_carousel needs {_PRODUCT_CAROUSEL_MIN_CARDS}-'
+                                        f'{_PRODUCT_CAROUSEL_MAX_CARDS} cards'})
+        items = []
+        for i, c in enumerate(cards):
+            rid = (c.get('productRetailerId') or c.get('product_retailer_id') or '') \
+                if isinstance(c, dict) else str(c or '')
+            if not rid:
+                return _resp(400, {'error': f'card {i} is missing productRetailerId'})
+            items.append({'product_retailer_id': str(rid)})
+        body_text = body.get('bodyText')
+        if not body_text:
+            return _resp(400, {'error': 'bodyText is required for a product carousel'})
+        interactive = {
+            'type': 'product_carousel',
+            'body': {'text': str(body_text)[:1024]},
+            'action': {'catalog_id': catalog_id, _PRODUCT_CAROUSEL_ITEMS_KEY: items},
+        }
+        if body.get('headerText'):
+            interactive['header'] = {'type': 'text', 'text': str(body['headerText'])[:60]}
+        if body.get('footerText'):
+            interactive['footer'] = {'text': str(body['footerText'])[:60]}
+        logger.info(json.dumps({'event': 'product_carousel_built', 'catalogId': catalog_id,
+                                'cardCount': len(items), 'supersededShape': superseded}))
+        return _send_message(phone_id, {'type': 'interactive', 'interactive': interactive}, body)
     if body.get('catalogMessage') or body.get('viewCatalog'):
         # Full catalog message — opens the whole catalog with a "View catalog"
         # button so the customer browses ALL products, adds to cart, and checks out.
@@ -2866,6 +3016,58 @@ def _get_phone_settings(phone_id: str) -> Dict:
             logger.error(f'Phone settings fetch failed after retry for {phone_id}: {result}')
             return _resp(200, {'settings': None, 'error': str(result.get('error', '')), 'phoneId': phone_id})
     return _resp(200, {'settings': result})
+
+
+# Fields restricted to the set already proven to resolve on this account -- the same
+# selection _get_phone_settings, meta-analytics:192 and waba-management:454 already
+# request. Nothing speculative is added here: an unknown field name makes Graph reject
+# the whole request, taking the fields that do work with it.
+_OBA_PHONE_FIELDS = ('id,display_phone_number,verified_name,quality_rating,'
+                     'code_verification_status,is_official_business_account,name_status')
+
+
+def _get_oba_status(waba_id: str) -> Dict:
+    """GET /{waba_id}/phone_numbers -- Official Business Account state per number,
+    rolled up per WABA. The per-phone boolean is already read in three other places;
+    this is the one route that NAMES it, so a dashboard can answer "are we an OBA?"
+    without an operator reading a phone-settings blob.
+
+    Read-only. Nothing here requests, applies for or mutates OBA status: the green tick
+    is granted by a Meta review initiated from Business Suite and there is no API for it.
+    """
+    result = _graph_api(f'{waba_id}/phone_numbers',
+                        params={'fields': _OBA_PHONE_FIELDS}, waba_id=waba_id)
+    if 'error' in result:
+        return _resp(400, result)
+    phones = []
+    for p in (result.get('data') or []):
+        phones.append({
+            'phoneId': str(p.get('id') or ''),
+            'displayPhoneNumber': p.get('display_phone_number', ''),
+            'verifiedName': p.get('verified_name', ''),
+            'qualityRating': p.get('quality_rating', ''),
+            'codeVerificationStatus': p.get('code_verification_status', ''),
+            'nameStatus': p.get('name_status', ''),
+            'isOfficialBusinessAccount': bool(p.get('is_official_business_account', False)),
+        })
+    # Four-valued, deliberately. UNKNOWN is NOT NOT_OFFICIAL: an empty data[] means the
+    # read did not tell us, which is a different fact. PARTIAL exists because two WABAs
+    # with four numbers between them can legitimately be half-verified, and a boolean
+    # would have to pick a lie.
+    if not phones:
+        rollup = 'UNKNOWN'
+    elif all(p['isOfficialBusinessAccount'] for p in phones):
+        rollup = 'OFFICIAL'
+    elif any(p['isOfficialBusinessAccount'] for p in phones):
+        rollup = 'PARTIAL'
+    else:
+        rollup = 'NOT_OFFICIAL'
+    logger.info(json.dumps({'event': 'oba_status_read', 'wabaId': waba_id,
+                            'obaStatus': rollup, 'phoneCount': len(phones)}))
+    return _resp(200, {'wabaId': waba_id, 'obaStatus': rollup, 'phones': phones,
+                       'note': 'Official Business Account (green tick) is granted by Meta '
+                               'review and cannot be requested through the Graph API.'})
+
 
 def _update_phone_settings(phone_id: str, body: Dict) -> Dict:
     payload = {}
@@ -6060,6 +6262,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _resp(400, {'error': 'wabaId required'})
             return _get_mm_onboarding_status(waba_id)
 
+        elif '/mm-conversion-metrics' in path:
+            waba_id = params.get('wabaId') or body.get('wabaId')
+            if not waba_id:
+                return _resp(400, {'error': 'wabaId required'})
+            return _get_mm_conversion_metrics(waba_id, params)
+
         elif '/marketing-message' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')
             if not phone_id:
@@ -6107,6 +6315,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _upsert_ai_policy_market(body)
             elif method == 'DELETE':
                 return _delete_ai_policy_market(params.get('countryCode') or body.get('countryCode') or '')
+
+        elif '/oba-status' in path:
+            # READ-ONLY. '/oba-status' shares no substring with any existing matched
+            # fragment, so placement is free; it sits with the other account reads.
+            waba_id = params.get('wabaId') or body.get('wabaId')
+            if not waba_id:
+                return _resp(400, {'error': 'wabaId required'})
+            return _get_oba_status(waba_id)
 
         elif '/groups/participants' in path:
             return _manage_group_participants(params.get('groupId') or body.get('groupId') or '', body)

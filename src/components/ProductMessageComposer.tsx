@@ -23,10 +23,17 @@ const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border:
 const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
 const btn: React.CSSProperties = { padding: '9px 16px', background: '#1a3a2a', color: '#d1f470', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, fontWeight: 600 };
 
+// Same bounds the handler enforces (_PRODUCT_CAROUSEL_MIN_CARDS / _MAX_CARDS), so the
+// refusal happens here with a readable message instead of as a 400 from the route.
+const CAROUSEL_MIN_CARDS = 2;
+const CAROUSEL_MAX_CARDS = 10;
+
+const MODE_LABELS: Record<string, string> = { single: 'Single product', multi: 'Multi-product', carousel: 'Carousel' };
+
 const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneNumberId, recipient, onSent, onError, onClose } ) => {
     const [ to, setTo ] = useState( recipient || '' );
     const [ catalogId, setCatalogId ] = useState( '' );
-    const [ mode, setMode ] = useState<'single' | 'multi'>( 'single' );
+    const [ mode, setMode ] = useState<'single' | 'multi' | 'carousel'>( 'single' );
     const [ busy, setBusy ] = useState( false );
 
     // single
@@ -36,6 +43,9 @@ const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneN
     const [ headerText, setHeaderText ] = useState( 'Our products' );
     const [ footerText, setFooterText ] = useState( '' );
     const [ sections, setSections ] = useState<SectionDraft[]>( [ { title: '', retailerIds: '' } ] );
+    // carousel — a catalog presentation, never a payment surface: no amount, no payment
+    // configuration and no order_details anywhere on this path.
+    const [ carouselIds, setCarouselIds ] = useState( '' );
 
     const setSection = ( i: number, patch: Partial<SectionDraft> ) =>
         setSections( s => s.map( ( sec, idx ) => idx === i ? { ...sec, ...patch } : sec ) );
@@ -53,6 +63,22 @@ const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneN
             {
                 if ( !retailerId.trim() ) { onError?.( 'Product retailer ID is required' ); setBusy( false ); return; }
                 opts = { productRetailerId: retailerId.trim(), bodyText: bodyText || undefined };
+            } else if ( mode === 'carousel' )
+            {
+                const ids = carouselIds.split( ',' ).map( r => r.trim() ).filter( Boolean );
+                if ( ids.length < CAROUSEL_MIN_CARDS || ids.length > CAROUSEL_MAX_CARDS )
+                {
+                    onError?.( `A product carousel needs ${CAROUSEL_MIN_CARDS}-${CAROUSEL_MAX_CARDS} product IDs (${ids.length} given)` );
+                    setBusy( false );
+                    return;
+                }
+                if ( !bodyText.trim() ) { onError?.( 'Body text is required for a product carousel' ); setBusy( false ); return; }
+                opts = {
+                    carouselCards: ids.map( r => ( { productRetailerId: r } ) ),
+                    bodyText,
+                    headerText: headerText || undefined,
+                    footerText: footerText || undefined,
+                };
             } else
             {
                 const built = sections
@@ -90,12 +116,12 @@ const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneN
             <input style={ input } value={ catalogId } onChange={ e => setCatalogId( e.target.value ) } placeholder="Meta catalog ID" />
 
             <div style={ { display: 'flex', gap: 8, marginBottom: 12 } }>
-                { ( [ 'single', 'multi' ] as const ).map( m => (
+                { ( [ 'single', 'multi', 'carousel' ] as const ).map( m => (
                     <button key={ m } onClick={ () => setMode( m ) } style={ {
                         padding: '6px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13,
                         border: '1px solid ' + ( mode === m ? '#1a3a2a' : '#d0d0d0' ),
                         background: mode === m ? '#1a3a2a' : '#fff', color: mode === m ? '#d1f470' : '#555',
-                    } }>{ m === 'single' ? 'Single product' : 'Multi-product' }</button>
+                    } }>{ MODE_LABELS[ m ] }</button>
                 ) ) }
             </div>
 
@@ -105,6 +131,17 @@ const ProductMessageComposer: React.FC<ProductMessageComposerProps> = ( { phoneN
                     <input style={ input } value={ retailerId } onChange={ e => setRetailerId( e.target.value ) } placeholder="SKU / retailer id" />
                     <label style={ label }>Body text (optional)</label>
                     <input style={ input } value={ bodyText } onChange={ e => setBodyText( e.target.value ) } />
+                </>
+            ) : mode === 'carousel' ? (
+                <>
+                    <label style={ label }>Product IDs, comma-separated ({ CAROUSEL_MIN_CARDS }–{ CAROUSEL_MAX_CARDS } cards)</label>
+                    <input style={ input } value={ carouselIds } onChange={ e => setCarouselIds( e.target.value ) } placeholder="SKU-1, SKU-2, SKU-3" />
+                    <label style={ label }>Body text *</label>
+                    <input style={ input } value={ bodyText } onChange={ e => setBodyText( e.target.value ) } />
+                    <label style={ label }>Header text (optional)</label>
+                    <input style={ input } value={ headerText } onChange={ e => setHeaderText( e.target.value ) } />
+                    <label style={ label }>Footer text (optional)</label>
+                    <input style={ input } value={ footerText } onChange={ e => setFooterText( e.target.value ) } />
                 </>
             ) : (
                 <>
