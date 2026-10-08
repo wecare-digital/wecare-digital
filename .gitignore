@@ -173,3 +173,7 @@ public/vendor/amplify-ui.css
 # Generated rescan source graphs are preserved in task outputs.
 /docs/execution/workspace-page-inventory-20261008.json
 /docs/execution/workspace-pages-20261008.csv
+
+# R2 full generated audit graph retained locally under outputs instead of Git.
+/docs/execution/workspace-page-inventory-20261008-r2.json
+/docs/execution/workspace-rescan-aws-20261008-r2.json

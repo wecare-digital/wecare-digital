@@ -94,8 +94,9 @@ jobs:
         # a missing test dependency here reads as a broken feature rather than as a
         # missing package. Measured: 4062 passed / 29 failed without it, 4091 passed
         # with it, same commit.
+        # Receipt tests render real PNG/PDF bytes, so Pillow must be installed here.
         run: |
-          grep -E '^(pytest|boto3|botocore|requests|PyYAML|cryptography|pypdf)==' requirements-dev.txt \
+          grep -E '^(pytest|boto3|botocore|requests|PyYAML|cryptography|pypdf|pillow)==' requirements-dev.txt \
             > ci-test-requirements.txt
           python -m pip install -r ci-test-requirements.txt
 
