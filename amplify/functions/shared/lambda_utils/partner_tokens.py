@@ -15,6 +15,7 @@ kicks in for known partner assets.
 """
 import os
 import json
+import time
 from typing import Optional, List, Dict
 
 import boto3
@@ -33,8 +34,11 @@ _ddb = boto3.resource('dynamodb', region_name=REGION)
 
 # warm-lambda caches
 _token_cache: Dict[str, str] = {}
+_token_cached_at: Dict[str, float] = {}
+_CACHE_SECONDS = 300
 _phone_index: Dict[str, str] = {}   # phone_number_id -> waba_id
 _index_loaded = False
+_index_loaded_at = 0.0
 
 
 def list_tenants() -> List[dict]:
@@ -60,28 +64,37 @@ def list_tenants() -> List[dict]:
 
 
 def _load_phone_index() -> None:
-    global _index_loaded
-    if _index_loaded:
+    global _index_loaded, _index_loaded_at
+    now = time.monotonic()
+    if _index_loaded and now - _index_loaded_at < _CACHE_SECONDS:
         return
+    refreshed = {}
     for t in list_tenants():
         waba = t.get('wabaId')
         phone = t.get('phoneNumberId')
         if waba and phone:
-            _phone_index[phone] = waba
+            refreshed[phone] = waba
+    _phone_index.clear()
+    _phone_index.update(refreshed)
     _index_loaded = True
+    _index_loaded_at = now
 
 
 def get_partner_token(waba_id: str) -> Optional[str]:
     """Return the stored access token for a partner WABA, or None."""
     if not waba_id:
         return None
-    if waba_id in _token_cache:
+    now = time.monotonic()
+    if waba_id in _token_cache and now - _token_cached_at.get(waba_id, 0) < _CACHE_SECONDS:
         return _token_cache[waba_id]
+    _token_cache.pop(waba_id, None)
+    _token_cached_at.pop(waba_id, None)
     try:
         raw = _secrets.get_secret_value(SecretId=f'{PARTNER_PREFIX}{waba_id}').get('SecretString', '') or '{}'
         token = (json.loads(raw).get('access_token') or '').strip()
         if token:
             _token_cache[waba_id] = token
+            _token_cached_at[waba_id] = now
             return token
     except _secrets.exceptions.ResourceNotFoundException:
         return None
