@@ -44,7 +44,7 @@ from lambda_utils.identity import customer_uuid
 # A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
 # never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
 # so the word `captured` never has to be compared in this handler.
-from lambda_utils.ecommerce import contact_address, contact_payment_links
+from lambda_utils.ecommerce import contact_address, contact_lock, contact_payment_links
 
 logger = get_logger(__name__)
 
@@ -190,6 +190,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if contact_id:
                 return _read_one(contact_id, request_id, origin)
             return _list_all(query_params, request_id, origin)
+
+        # POST .../{id}/lock and .../{id}/unlock — dedicated lock state, before generic create.
+        # `locked` is NOT in ALLOWED_UPDATE_FIELDS, so these endpoints are the ONLY way to flip
+        # it: a generic update can neither lock nor silently unlock a legally-retained contact.
+        if method == 'POST' and resource.rstrip('/').endswith('/lock'):
+            if not contact_id:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            body = json.loads(event.get('body', '{}') or '{}')
+            return _lock_contact(contact_id, body.get('reason', 'manual'), request_id, origin)
+        if method == 'POST' and resource.rstrip('/').endswith('/unlock'):
+            if not contact_id:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            return _unlock_contact(contact_id, request_id, origin)
 
         # POST [retired public path] — Fix #14: rate limited
         if method == 'POST':
@@ -526,15 +539,110 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
 #: always still available and is what the operator actually wants.
 HARD_DELETE_REFUSED_PAYMENTS = 'CONTACT_HAS_PAYMENTS'
 HARD_DELETE_REFUSED_UNKNOWN = 'PAYMENT_LINKAGE_UNKNOWN'
+#: A LOCKED contact is legally retained: it refuses BOTH hard and soft delete. Unlike the
+#: payment guard (which blocks hard delete but still offers archive), a lock blocks archive too,
+#: so `archiveInstead` is False here — the record is kept, not archivable.
+DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
 
 
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
+    # A lock blocks EVERY delete, hard or soft, before anything else. Read fail-closed: if the
+    # row cannot be read to check the lock, refuse rather than risk deleting a retained record.
+    lock_refusal = _locked_delete_refusal(contact_id, request_id, origin)
+    if lock_refusal is not None:
+        return lock_refusal
     if hard:
         refusal = _hard_delete_refusal(contact_id, request_id, origin)
         if refusal is not None:
             return refusal
         return _hard_delete(contact_id, request_id, origin)
     return _soft_delete(contact_id, request_id, origin)
+
+
+def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Lock a contact for legal retention. Operator-driven; auto-lock-on-pay uses contact_lock.
+
+    Idempotent: locking an already-locked contact succeeds and refreshes the reason/timestamp.
+    """
+    reason = (str(reason or 'manual').strip().lower() or 'manual')[:40]
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #locked = :t, #reason = :r, #at = :ts, #u = :ts',
+            ExpressionAttributeNames={
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
+                '#reason': contact_lock.LOCKED_REASON_ATTRIBUTE,
+                '#at': contact_lock.LOCKED_AT_ATTRIBUTE,
+                '#u': 'updatedAt',
+            },
+            ExpressionAttributeValues={':t': True, ':r': reason, ':ts': int(time.time())},
+            ConditionExpression='attribute_exists(id)',
+            ReturnValues='ALL_NEW',
+        )
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+    log_event(logger, 'contact_locked', contactId=contact_id, reason=reason, requestId=request_id)
+    return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
+
+
+def _unlock_contact(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Unlock a contact. Staff may unlock even a 'paid' auto-lock, but the paid-contact
+    hard-delete guard still prevents destroying a record with payments, so legal retention
+    survives an unlock. The unlock is logged with the prior reason for the audit trail.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #locked = :f, #u = :ts REMOVE #reason, #at',
+            ExpressionAttributeNames={
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
+                '#reason': contact_lock.LOCKED_REASON_ATTRIBUTE,
+                '#at': contact_lock.LOCKED_AT_ATTRIBUTE,
+                '#u': 'updatedAt',
+            },
+            ExpressionAttributeValues={':f': False, ':ts': int(time.time())},
+            ConditionExpression='attribute_exists(id)',
+            ReturnValues='ALL_OLD',
+        )
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+    prior = resp.get('Attributes', {})
+    log_event(logger, 'contact_unlocked', contactId=contact_id,
+              priorReason=str(prior.get(contact_lock.LOCKED_REASON_ATTRIBUTE) or ''),
+              requestId=request_id)
+    return cors_response(200, {'id': contact_id, 'locked': False}, origin)
+
+
+def _locked_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+    """`None` when the contact is not locked (delete may proceed); otherwise the 409 to return.
+
+    A locked contact is retained for legal records and refuses both hard and soft delete.
+    Fail-closed: an unreadable row refuses, because that is not evidence the contact is unlocked.
+    A genuinely missing row returns None so the delete paths own their own 404.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        row = table.get_item(Key={'id': contact_id}).get('Item')
+    except Exception as exc:  # noqa: BLE001 - cannot read, so cannot prove unlocked
+        return cors_response(409, {
+            'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
+            'reason': f'the contact row could not be read to check its lock: {type(exc).__name__}',
+        }, origin)
+    if not row:
+        return None
+    if contact_lock.is_locked(row):
+        return cors_response(409, {
+            'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
+            'lockedReason': str(row.get(contact_lock.LOCKED_REASON_ATTRIBUTE) or ''),
+            'reason': 'this contact is locked for legal records and cannot be deleted or archived',
+        }, origin)
+    return None
 
 
 def _hard_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
