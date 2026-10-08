@@ -451,6 +451,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # without the context being threaded through four signatures. See `_set_deadline`.
     _set_deadline(context)
     origin = extract_origin(event)
+    if event.get('internalAction') in ('prepareNativeCatalogService', 'finalizeNativeCatalogService'):
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return cors_response(403, {'error': 'Internal invocation required'}, origin)
+        return _native_catalog_service(event, origin)
     rc = event.get("requestContext", {}) or {}
     method = rc.get("http", {}).get("method", event.get("httpMethod", "")).upper()
     if method == "OPTIONS":
@@ -2663,7 +2667,7 @@ def _translatable(value: Any) -> str:
 
 
 def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
-            origin: str) -> Dict[str, Any]:
+            origin: str, *, catalog_session: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve authoritative totals, gate on readiness, reserve an attempt, hand off to WhatsApp."""
     line_items = body.get("lineItems")
     if not isinstance(line_items, list) or not line_items:
@@ -2680,7 +2684,7 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # and a capture here would be a paid service with no request, recoverable only by a human.
     # (On the V1 branch it would also be priced with no per-line assertion at all.) Returned as
     # a 409 directly rather than raised, so it can never reach `handler`'s outer 500.
-    if service_requests.has_service_line(line_items):
+    if service_requests.has_service_line(line_items) and catalog_session is None:
         logger.info(json.dumps({"event": "service_refused",
                                 "reason": service_requests.SERVICE_WEBSITE_ONLY}))
         return cors_response(409, service_requests.refusal(
@@ -2777,6 +2781,13 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         wix_checkout_id = str(checkout.get("id") or "")
         item_summary = wix_ecom.line_item_summary(checkout)
 
+    if catalog_session is not None:
+        # Native services require the same authoritative per-line guard as website services.
+        guard = service_requests.checkout_preflight(line_items, body, v2_enabled=cart_v2.is_enabled())
+        if guard is not None:
+            return cors_response(guard[0], guard[1], origin)
+        service_requests.assert_service_line_price(_calculated, line_items, delivery_required=False)
+
     # 2. Readiness gate. A live provider readback must confirm PAYMENT_READY, or the CTA is refused
     #    with the blocking state. No local constant makes this pass.
     readiness = _readiness()
@@ -2806,6 +2817,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                          collectionPaise=snapshot.quote.collection_before_convenience_paise,
                          quoteExpiresAt=snapshot.expires_at,
                          policyVersion=snapshot.policy_version)
+        if catalog_session is not None:
+            extra.update(channel='whatsapp', nativeCatalogService=True,
+                customerPhone=_profile_phone(identity),
+                **service_requests.payref_extra(line_items, body,
+                    line_paise=service_requests.observed_service_line_paise(_calculated)))
         reference_id = order_keys.allocate_payment_reference(
             _keys_table(), payment_attempt_id=attempt_id, extra=extra,
         )
@@ -2822,6 +2838,15 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         payment_attempt_id=attempt_id,
     )
     attempt["checkoutMode"] = CHECKOUT_MODE
+    if catalog_session is not None:
+        attempt.update(nativeCatalogService=True, channel='whatsapp',
+            customerPhone=_profile_phone(identity), catalogServiceSession=catalog_session['orderId'],
+            snapshotHash=snapshot.snapshot_hash, purchasedSnapshot=dict(snapshot.frozen_data))
+        attempt['wixOrderPayload'] = wix_writeback.build_wix_order_payload(
+            cart=_calculated, quote=snapshot.quote)
+        if len(json.dumps(attempt, default=str).encode()) > 350000:
+            return cors_response(409, {'error': 'CATALOG_SERVICE_SNAPSHOT_TOO_LARGE'}, origin)
+
     attempt = payment_attempt.transition(
         attempt, payment_attempt.PAYMENT_READINESS_CHECKED)
     try:
@@ -2833,6 +2858,14 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         logger.error(json.dumps({"event": "checkout_attempt_store_failed",
                                  "error": type(error).__name__}))
         return cors_response(503, {"error": "TEMPORARILY_UNAVAILABLE"}, origin)
+
+    if catalog_session is not None:
+        _keys_table().update_item(Key={'orderId': catalog_session['orderId']},
+            UpdateExpression='SET paymentAttemptId=:attempt, referenceId=:ref',
+            ConditionExpression='serviceIntentId=:intent AND #s=:preparing',
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':attempt': attempt_id, ':ref': reference_id,
+                ':intent': body['serviceIntentId'], ':preparing': 'PREPARING_PAYMENT'})
 
     # 4. Hand off to the in-chat payment request — UNLESS initiation is disabled, in which case the
     #    attempt exists and is ready but no payable message goes out. Either way, NO order exists.
@@ -2847,10 +2880,24 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
             "message": "Checkout prepared. Live payment initiation is currently disabled.",
         }, origin)
 
-    sent = _send_order_details(
-        phone=identity.phone, reference_id=reference_id,
-        amount_paise=amount_paise, configuration_name=EXPECTED_CONFIGURATION_NAME,
-        items=item_summary)
+    if catalog_session is not None:
+        from lambda_utils.ecommerce.catalog_service_checkout import payment_details
+        payload = {'body': json.dumps({'contactId': catalog_session['contactId'],
+            'recipientPhone': identity.phone, 'phoneNumberId': catalog_session['phoneNumberId'],
+            'isTemplate': True, 'isPaymentTemplate': True, 'templateName': 'wecarepay_wa',
+            'templateParams': [],
+            'headerImageUrl': 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
+            'orderDetails': payment_details(catalog_session, snapshot.quote, reference_id,
+                                           EXPECTED_CONFIGURATION_NAME, int(time.time()))})}
+        response = _lambda_client().invoke(FunctionName='wecare-outbound-whatsapp:live',
+            InvocationType='RequestResponse', Payload=json.dumps(payload).encode())
+        result = json.loads(response['Payload'].read())
+        sent = not response.get('FunctionError') and 200 <= int(result.get('statusCode') or 500) < 300
+    else:
+        sent = _send_order_details(
+            phone=identity.phone, reference_id=reference_id,
+            amount_paise=amount_paise, configuration_name=EXPECTED_CONFIGURATION_NAME,
+            items=item_summary)
     if not sent:
         # The attempt is stored and ready; the message did not go. A soft failure the client can
         # retry, and crucially still NO order and NO second charge — the reference is reusable for a
@@ -2997,3 +3044,67 @@ def _mark_request_sent(attempt_id: str) -> None:
     except Exception as error:  # noqa: BLE001
         logger.info(json.dumps({"event": "checkout_mark_sent_skipped",
                                "error": type(error).__name__}))
+
+
+def _native_catalog_service(event: Dict[str, Any], origin: str):
+    from lambda_utils.ecommerce import catalog_service_checkout as catalog
+    if event['internalAction'] == 'finalizeNativeCatalogService':
+        attempt = _attempts_table().get_item(Key={'paymentAttemptId': str(event.get('paymentAttemptId') or '')},
+                                             ConsistentRead=True).get('Item') or {}
+        if not attempt.get('nativeCatalogService'):
+            return {'outcome': 'NOT_A_NATIVE_SERVICE'}
+        identity = customer_auth.CustomerIdentity(customer_id=attempt['customerId'],
+            subject=attempt['customerId'], phone=attempt['customerPhone'])
+        ran = _finalize_from_claim(identity, attempt)
+        current = _attempts_table().get_item(Key={'paymentAttemptId': attempt['paymentAttemptId']},
+                                           ConsistentRead=True).get('Item') or {}
+        done = ran and catalog.finalization_complete(current)
+        if done:
+            try:
+                _keys_table().update_item(Key={'orderId': 'NATIVESERVICEACTIVE#' + attempt['customerId']},
+                    UpdateExpression='SET #s=:closed', ConditionExpression='sessionKey=:session',
+                    ExpressionAttributeNames={'#s': 'status'},
+                    ExpressionAttributeValues={':closed': 'CLOSED', ':session': attempt['catalogServiceSession']})
+            except Exception as error:
+                if getattr(error, 'response', {}).get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+                    raise
+        return {'outcome' : 'NATIVE_SERVICE_FINALIZED' if done else 'NATIVE_SERVICE_FINALIZATION_PENDING'}
+    if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() != 'true':
+        return {'outcome': 'NATIVE_SERVICE_ROLLOUT_DISABLED'}
+    token = str(event.get('catalogToken') or '')
+    import re
+    if not re.fullmatch(r'[A-Za-z0-9_-]{20,80}', token):
+        return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
+    row = _keys_table().get_item(Key={'orderId': catalog.SESSION_PREFIX + token}, ConsistentRead=True).get('Item') or {}
+    if row.get('status') != 'PREPARING_PAYMENT' or int(row.get('expiresAt') or 0) <= int(time.time()):
+        return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
+    if row.get('paymentAttemptId'):
+        return {'outcome': 'CATALOG_SERVICE_ALREADY_PREPARED', 'paymentAttemptId': row['paymentAttemptId']}
+    contact = _table(CONTACTS_TABLE).get_item(Key={'id': row.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
+    owner = contact.get('checkoutCustomerId')
+    if not owner or owner != row.get('customerId'):
+        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
+    users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
+        UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
+    identity = catalog.verified_identity(contact, users, row.get('phone', ''))
+    from lambda_utils.ecommerce import service_request_store as store
+    intent = _table('stack-wecare-digital-ServiceRequestsTable').get_item(
+        Key={'requestId': 'INTENT#' + str(row.get('serviceIntentId') or '')}, ConsistentRead=True).get('Item') or {}
+    if (intent.get('ownerCustomerId') != owner or intent.get('kind') != row.get('kind')
+            or intent.get('variantId') != row.get('variantId') or intent.get('status') != store.INTENT_OPEN
+            or (row.get('kind') == 'VAULT' and intent.get('vaultFileId') != row.get('vaultFileId'))):
+        return {'outcome': 'CATALOG_SERVICE_INTENT_UNAVAILABLE'}
+    lines = [{'catalogReference': {'catalogItemId': row['productId'],
+              'options': {'variantId': row['variantId']}, 'appId': cart_v2.STORES_APP_ID}, 'quantity': 1}]
+    catalog.service_from_lines([{'productId': row['productId'], 'variantId': row['variantId'], 'quantity': 1}])
+    # Claim before pricing/provider calls. A timed-out preparation cannot be charged again blindly.
+    try:
+        _keys_table().update_item(Key={'orderId': row['orderId']}, UpdateExpression='SET nativePrepareClaim=:claimed',
+            ConditionExpression='attribute_not_exists(nativePrepareClaim)',
+            ExpressionAttributeValues={':claimed': 'CLAIMED'})
+    except Exception as error:
+        if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return {'outcome': 'CATALOG_SERVICE_RECONCILIATION_REQUIRED'}
+        raise
+    return _create(identity, {'lineItems': lines, 'serviceIntentId': row['serviceIntentId']},
+                   origin, catalog_session=row)

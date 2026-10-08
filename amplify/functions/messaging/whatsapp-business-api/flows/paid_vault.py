@@ -1,4 +1,5 @@
 """Paid Vault access followed by the approved ready and review templates."""
+import os
 import json
 import time
 from datetime import datetime
@@ -62,8 +63,12 @@ def prepare_and_send(event, lambda_client):
     base = {'contactId': contact['id'], 'recipientPhone': phone,
             'phoneNumberId': '1016149501586345', 'isTemplate': True,
             'templateParams': [], 'headerImageUrl': HEADER_IMAGE}
-    if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client,
-                      dict(base, templateName='wecare_share_pdf')):
+    ready = dict(base, templateName='wecare_share_pdf')
+    # Enable only after live Meta readback confirms this exact template is approved.
+    if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() == 'true':
+        ready = dict(base, templateName='wecare_default_download',
+                     templateUrlButton={'index': 0, 'suffix': file['fileId']})
+    if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
     # A PDF attachment is a separate ordinary document message. The approved
     # share template has an IMAGE header and cannot carry the file itself.

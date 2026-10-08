@@ -5769,6 +5769,15 @@ def _route_wd_list_reply(list_id: str, contact_id: str, sender_phone: str,
     Nothing falls through and nothing raises: a stale row from a deleted menu, a
     typo and an empty id all re-open the main menu.
     """
+    if list_id.startswith('vaultpick:') and os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
+        parts = list_id.split(':')
+        if len(parts) != 3 or not parts[2].isdigit():
+            return 'unknown'
+        lambda_client.invoke(FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+            Payload=json.dumps({'internalAction': 'catalogService', 'action': 'select',
+                'token': parts[1], 'fileIndex': int(parts[2]), 'contactId': contact_id,
+                'senderPhone': sender_phone, 'phoneNumberId': aws_phone_number_id}).encode())
+        return 'vault'
     if list_id == 'wd_back':
         # Explicit, so WD_LISTS stays one key per list rather than gaining an alias.
         _send_wd_main_menu(contact_id, sender_phone, aws_phone_number_id, request_id)
@@ -6267,6 +6276,18 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                 'requestId': request_id,
             }))
             return
+
+        if os.environ.get('WHATSAPP_CATALOG_SERVICES_ENABLED', 'false').lower() == 'true':
+            from lambda_utils.ecommerce.catalog_service_checkout import service_from_lines
+            if service_from_lines(basket.lines):
+                if basket.dropped or basket.clamped:
+                    return
+                lambda_client.invoke(FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+                    Payload=json.dumps({'internalAction': 'catalogService', 'action': 'start',
+                        'lines': basket.lines, 'sourceMessageId': basket.message_id,
+                        'contactId': contact_id, 'senderPhone': sender_phone,
+                        'phoneNumberId': phone_number_id}).encode())
+                return
 
         keys = dynamodb.Table(COMMERCE_KEYS_TABLE)
         now = int(time.time())

@@ -68,6 +68,14 @@ def mirror(row):
 def prepare_and_send(event, lambda_client, get_flow):
     """Internal ids-only hint; independently re-check every paid ownership link."""
     requests, keys, _ = tables()
+    payref = order_keys.resolve_payment_reference(keys, str(event.get('referenceId') or '')) or {}
+    if payref.get('nativeCatalogService'):
+        result = lambda_client.invoke(FunctionName='wecare-checkout:live', InvocationType='RequestResponse',
+            Payload=json.dumps({'internalAction': 'finalizeNativeCatalogService',
+                'paymentAttemptId': str(event.get('paymentAttemptId') or '')}).encode())
+        answer = json.loads(result['Payload'].read())
+        if result.get('FunctionError') or answer.get('outcome') != 'NATIVE_SERVICE_FINALIZED':
+            return {'outcome': 'NATIVE_SERVICE_FINALIZATION_PENDING'}
     outcome = store.activate(requests, keys,
                             reference_id=str(event.get('referenceId') or ''),
                             payment_attempt_id=str(event.get('paymentAttemptId') or ''))

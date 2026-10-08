@@ -5818,6 +5818,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'catalogService':
+        from flows.catalog_services import handle
+        return handle(event, lambda_client)
+
     if event.get('internalAction') == 'preparePaidSubmitRequest':
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
