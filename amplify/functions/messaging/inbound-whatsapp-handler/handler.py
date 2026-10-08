@@ -389,7 +389,14 @@ def _get_routing_config() -> Dict:
     return cfg
 
 
-CUSTOMER_IDEA_KEYWORDS = frozenset({'share an idea', 'share idea', '/idea'})
+# General review entry uses the published private v2 Flow. Order-attributed
+# `review <reference>` remains a separate route below the exact keyword loop.
+CUSTOMER_IDEA_KEYWORDS = frozenset({
+    'leave review', 'leave a review', 'review', 'feedback', 'leave feedback',
+    'share feedback', 'share your experience', 'rate', 'rating', 'testimonial',
+    'share an idea', 'share idea', '/idea', '/review', 'feature request',
+    'suggest an idea', 'suggestion', 'suggest a feature', '⭐ leave review',
+})
 
 
 def _is_deterministic_trigger(message: Dict) -> bool:
@@ -5532,7 +5539,7 @@ def _send_generic_flow(contact_id: str, phone_number_id: str, sender_phone: str,
                     'drop_docs': 'https://wecare.digital/r/dd',
                     'enterprise_assist': 'https://wecare.digital/r/ea',
                     'leave_review': 'https://wecare.digital/r/lr',
-                    'customer_idea': 'https://wa.me/919330994400?text=Share%20an%20idea',
+                    'customer_idea': 'https://wa.me/message/ZM74K2H2BIFOA1',
                     'subscribe': 'https://wecare.digital/r/sub',
                     'order_notes': 'https://wecare.digital/r/on',
                 }

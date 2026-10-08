@@ -36,7 +36,7 @@ def load_entry(source=None):
 
 def test_exact_entry_with_dashboard_keyword_config_and_kill_switch():
     ns, _ = load_entry()
-    for text in ['Share an idea', ' share idea ', '/idea']:
+    for text in ['Share an idea', ' share idea ', '/idea', 'Leave Review', 'LEAVE A REVIEW', 'feedback', '/review', 'feature request']:
         assert ns['_is_deterministic_trigger']({'type': 'text', 'text': {'body': text}})
     assert not ns['_is_deterministic_trigger']({'type': 'text', 'text': {'body': 'I might share an idea later'}})
     ns['_get_routing_config'] = lambda: {'enabled': False}
@@ -65,4 +65,13 @@ def test_second_account_links_to_correct_customer_entry():
     ns['_send_generic_flow']('fixture-contact', 'phone2', 'fixture-phone', 'fixture-request',
                              flow_config=ns['DEFAULT_FLOW_TRIGGERS']['customer_idea'], flow_key='customer_idea')
     assert not calls
-    assert ctas[0][3] == 'https://wa.me/919330994400?text=Share%20an%20idea'
+    assert ctas[0][3] == 'https://wa.me/message/ZM74K2H2BIFOA1'
+
+
+def test_general_review_aliases_take_precedence_over_legacy_order_review():
+    ns, _ = load_entry()
+    for text in ['leave review', 'review', 'feedback', 'feature request']:
+        match = next((key for key, trigger in ns['DEFAULT_FLOW_TRIGGERS'].items()
+                      if text in trigger['keywords'] and trigger.get('enabled', True)), None)
+        assert match == 'customer_idea'
+    assert 'review wd-ord-1234abcd' not in ns['CUSTOMER_IDEA_KEYWORDS']

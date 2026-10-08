@@ -3170,3 +3170,12 @@ checkout at the new price is ACCEPTED rather than refused with `SERVICE_PRICE_CH
 No live-send flag enabled. No payment capture, refund or payment-configuration mutation. No
 credential read outside the existing by-reference lazy read in `wix_ecom._request`. No new
 bucket, table or IAM grant. Razorpay remains the only gateway.
+
+## 2026-10-08 — Published private review entry and Leave Review aliases
+
+Owner requested the public Leave Review page button use the supplied WhatsApp short link and keyword routing/workspace displays agree with WD_Leave_Review_v2. Read-only browser inspection confirmed ZM74K2H2BIFOA1 targets +919330994400 with Leave Review prefilled; live page previously linked Contact. No SystemConfig flow_triggers_config override row exists.
+
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | Public review CTA; shared workspace review identity; inbound customer_idea keyword aliases | 19 exact aliases select published Flow 1578178897413815 at FEEDBACK in the preserved live package. Four Python entry checks pass; 19 frontend review tests pass; TypeScript check passes. Legacy attributed review reference route preserved. | Revert scoped commit. |
+| A3_PRODUCTION | wecare-inbound-whatsapp live routing | Preserve version 83 package, patch only CUSTOMER_IDEA_KEYWORDS and second-account customer entry fallback. No customer send or feature flag change. | Restore live alias to version 83 using current revision guard. |

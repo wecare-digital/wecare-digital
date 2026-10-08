@@ -1,7 +1,6 @@
 import type { CycleWord } from '../components/RotatingHero';
 import type { ProductDef } from './products';
-import { featureFlags } from '../config/featureFlags';
-import { reviewWaLink } from '../lib/reviewLink';
+import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
 
 /**
  * The five Customer service pages, as data.
@@ -223,19 +222,8 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     note:
       'Nothing you send is published anywhere without asking you first, and asking is not a condition of anything. Reviews you choose to leave on an external platform are governed by that platform, not by us.',
     ctaLabel: 'Leave a review',
-    /**
-     * THE ONE CTA ON THIS PAGE THAT IS NOT THE CONTACT PAGE — when `reviewCta` is on.
-     *
-     * This is the canonical, UNATTRIBUTED review door: a visitor reading /leave-review/ has
-     * no order in context, so the link carries the bare `review` keyword and the Flow shows
-     * "General feedback" instead of an order. The attributed door is the per-order button in
-     * /orders/, which is the only place a real order number exists.
-     *
-     * Falls back to `CUSTOMERSERVICE_CTA` with the flag off, so the page always has a
-     * working CTA rather than a dead or missing one. The lime `.pdp-cta` pill renders this
-     * href unchanged either way — no new component, no new tokens, and the hero is untouched.
-     */
-    ctaHref: featureFlags.reviewCta ? reviewWaLink() : CUSTOMERSERVICE_CTA,
+    // The public page opens WhatsApp with Leave Review prefilled.
+    ctaHref: REVIEW_ENTRY_URL,
   },
   {
     slug: 'refer-and-earn',

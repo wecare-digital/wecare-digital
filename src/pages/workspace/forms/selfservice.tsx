@@ -1,3 +1,4 @@
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_URL, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
 /**
  * Customer-Service Hub — All WhatsApp Flow forms accessible from the admin dashboard.
  * Shows all flow submissions, allows resending flows, and manages flow configurations.
@@ -23,7 +24,7 @@ const FLOW_TYPES = [
   { key: 'rx_slot', label: 'RX Slot', icon: '💊', flowId: '895208030185211', paid: false, price: 'Free', status: 'draft', confirmation: 'Slot confirmation' },
   { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: '1211063631104445', paid: false, price: 'Free', status: 'draft', confirmation: 'Document registered' },
   { key: 'enterprise_assist', label: 'Enterprise Assist', icon: '🏢', flowId: '1707170524029465', paid: false, price: 'Free', status: 'draft', confirmation: 'Enquiry acknowledgement' },
-  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: '4423166114671543', paid: false, price: 'Free', status: 'draft', confirmation: 'Review submitted' },
+  { key: 'customer_idea', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'published', confirmation: 'Private review saved' },
   { key: 'order_notes', label: 'Order Notes', icon: '📝', flowId: '1434731571172691', paid: false, price: 'Free', status: 'draft', confirmation: 'Notes saved' },
 ];
 
@@ -36,7 +37,7 @@ const MESSAGE_LINKS: Record<string, string> = {
   drop_docs: 'https://wa.me/message/OD6YW34USZKDI1',
   enterprise_assist: 'https://wa.me/message/TDFJNUEY3KY7A1',
   schedule_appointment: 'https://wa.me/message/BQQ4GNN7CRLPL1',
-  leave_review: 'https://wa.me/message/F35I7EOSRPUII1',
+  customer_idea: REVIEW_ENTRY_URL,
   order_notes: 'https://wa.me/message/ZVMYMOK37GWCH1',
   pay: 'https://wa.me/message/UUJ6P5HGADBAC1',
   faq: 'https://wa.me/message/U3ENEHLR7CICJ1',
@@ -207,6 +208,7 @@ const CustomerServicePage: React.FC<PageProps> = ({ signOut, user }) => {
 };
 
 function getKeywords(flowKey: string): string[] {
+  if (flowKey === 'customer_idea') return REVIEW_ENTRY_KEYWORDS;
   const map: Record<string, string[]> = {
     submit_request: ['submit request', 'sr', 'raise request'],
     subscribe: ['subscribe', 'signup', 'register', 'join'],

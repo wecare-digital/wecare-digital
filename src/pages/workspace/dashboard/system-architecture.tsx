@@ -1,3 +1,4 @@
+import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
 /**
  * System Architecture — Project Control Center
  * Complete end-to-end dashboard for the entire WECARE.DIGITAL platform.
@@ -570,7 +571,7 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'ss-rx', category: 'Customer Service Flows', name: '💊 RX Slot', description: 'Schedule a medical tourism or prescription-related visit.', path: 'Flow ID: 1892784521355352', type: 'WA Flow', status: 'Draft' },
   { id: 'ss-docs', category: 'Customer Service Flows', name: '📄 Drop Docs', description: 'Send supporting documents for a request.', path: 'Flow ID: 1737801600902350', type: 'WA Flow', status: 'Draft' },
   { id: 'ss-enterprise', category: 'Customer Service Flows', name: '🏢 Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries.', path: 'Flow ID: 2132515287534606', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-review', category: 'Customer Service Flows', name: '⭐ Leave Review', description: 'Share experience and feedback.', path: 'Flow ID: 963443293213262', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-review', category: 'Customer Service Flows', name: '⭐ Leave Review', description: 'Share experience and feedback.', path: `Flow ID: ${REVIEW_FLOW_ID}`, type: 'WA Flow', status: 'Published' },
   // path was '[retired public path]' with status 'Active' until 2026-09-25. The public [retired public path] page was
   // deleted on owner instruction, so that link 404'd and "Active" was a false claim in
   // the one table this project treats as its source of truth. The live FAQ surface is the
@@ -668,7 +669,7 @@ const CUSTOMERSERVICE_MENU: CustomerServiceItem[] = [
   { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '1892784521355352', keywords: 'rx slot, rx, prescription' },
   { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents for your request', flowId: '1737801600902350', keywords: 'drop docs, documents, upload' },
   { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '2132515287534606', keywords: 'enterprise, b2b, corporate' },
-  { row: 8, section: 'Feedback', icon: '⭐', title: 'Leave Review', description: 'Share your experience with our service', flowId: '963443293213262', keywords: 'review, feedback, rate' },
+  { row: 8, section: 'Feedback', icon: '⭐', title: 'Leave Review', description: 'Share your experience with our service', flowId: REVIEW_FLOW_ID, keywords: REVIEW_ENTRY_KEYWORDS.join(', ') },
   { row: 9, section: 'Help', icon: '❓', title: 'FAQ', description: 'View frequently asked questions', flowId: '-', keywords: 'faq, help, questions' },
 ];
 

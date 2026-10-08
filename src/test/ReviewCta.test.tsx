@@ -291,25 +291,16 @@ describe( '/leave-review/ page CTA', () => {
     expect( entry().ctaLabel ).toBe( 'Leave a review' );
   } );
 
-  /*
-   * `src/content/customerservice.ts` reads the flag at MODULE EVALUATION, so these two states
-   * cannot both be observed by flipping `flags` after import. The OFF case is what ships, and
-   * it is asserted live; the ON case is asserted on the expression, which is the only honest
-   * way to pin it from here without re-importing the module under a second mock.
-   */
-  it( 'is the contact page with the flag OFF, which is the shipped state', () => {
+  it( 'opens the verified Leave Review WhatsApp entry without the order-review flag', () => {
     expect( flags.reviewCta ).toBe( false );
-    expect( entry().ctaHref ).toBe( 'https://wecare.digital/contact/' );
+    expect( entry().ctaHref ).toBe( 'https://wa.me/message/ZM74K2H2BIFOA1' );
   } );
 
-  it( 'is wired to the unattributed review link when the flag is ON', async () => {
-    const { readFileSync } = await import( 'node:fs' );
-    const { resolve } = await import( 'node:path' );
-    const source = readFileSync(
-      resolve( __dirname, '../content/customerservice.ts' ), 'utf8' );
-    expect( source ).toContain( 'featureFlags.reviewCta ? reviewWaLink() : CUSTOMERSERVICE_CTA' );
-    // No reference: a visitor reading this page has no order in context.
-    expect( source ).not.toContain( 'reviewWaLink( ' );
+  it( 'shares the published Flow identity and aliases with workspace displays', async () => {
+    const { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } = await import( '../lib/reviewEntry' );
+    expect( REVIEW_FLOW_ID ).toBe( '1578178897413815' );
+    expect( REVIEW_ENTRY_KEYWORDS ).toContain( 'leave review' );
+    expect( REVIEW_ENTRY_KEYWORDS ).toContain( 'share an idea' );
   } );
 
   it( 'no other customer-service CTA was repointed', () => {
