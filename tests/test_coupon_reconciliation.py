@@ -473,3 +473,52 @@ def test_nothing_in_the_coupon_path_calls_place_order_or_get_checkout_url():
               .read_text(encoding="utf-8"))
     for endpoint in ("place-order", "/redirect-session", "checkout-url", "/payments/"):
         assert endpoint not in source, f"the coupon path references {endpoint}"
+
+
+# ── the invoice leg: a third surface, the SAME namespace ──────────────────────
+
+def test_an_invoice_path_redemption_lands_in_the_same_namespace_as_a_cart_one():
+    """One coupon system means one place a redemption is recorded, whichever surface sold it.
+
+    The invoice surface keys its hold and its redemption on the invoice `referenceId`, because
+    that is the identifier it has - there is no `wixCartId` on a Pay Flow invoice. That could
+    easily have become a second namespace ("invoice redemptions live over here"), and then a
+    single-use coupon could be spent once on the website and once on an invoice, because neither
+    claim would see the other.
+
+    So this asserts the namespace rather than the mechanics: both surfaces reach
+    `coupon_store.commit_redemption`, both land under `COUPONREDEEM#<code>#<orderId>`, both feed
+    the SAME `usageCount`, and the second attempt on one order is refused by the conditional write
+    rather than counted twice.
+    """
+    store = FakeTable(key_attr=cs.KEY_ATTRIBUTE,
+                      indexes={cs.STATUS_INDEX: (cs.STATUS_ATTRIBUTE, "createdAt")})
+    cs.create(store, {"code": "SHARED1", "name": "One system",
+                      "discountKind": cs.MONEY_OFF, "moneyOffPaise": 10000,
+                      "startTimeMs": 1_700_000_000_000, "minimumSubtotalPaise": 0},
+              created_by="staff-1", clock=lambda: 1_700_000_000)
+
+    # The website leg: keyed on a Wix cart and a Wix order.
+    cart_leg = cs.commit_redemption(store, code="SHARED1", cart_id="wix-cart-1",
+                                    order_id="WD-ORD-WEBSITE1", customer_id="customer-a",
+                                    clock=lambda: 1_700_000_000)
+    # The invoice leg: keyed on the invoice referenceId, which is also its cart id.
+    invoice_leg = cs.commit_redemption(store, code="SHARED1", cart_id="WD-PAY-INVOICE01",
+                                       order_id="WD-PAY-INVOICE01", customer_id="customer-b",
+                                       clock=lambda: 1_700_000_100)
+
+    assert cart_leg["committed"] is True
+    assert invoice_leg["committed"] is True
+    recorded = sorted(key for key in store.rows if key.startswith(cs.PREFIX_REDEEM))
+    assert recorded == [cs.redeem_key("SHARED1", "WD-ORD-WEBSITE1"),
+                        cs.redeem_key("SHARED1", "WD-PAY-INVOICE01")]
+    # One counter, fed by both surfaces. Two namespaces would have left this at 1.
+    assert int(cs.get_definition(store, "SHARED1")["usageCount"]) == 2
+
+    # And the invoice leg is idempotent on its own order id, so a redelivered capture does not
+    # count a second use.
+    replay = cs.commit_redemption(store, code="SHARED1", cart_id="WD-PAY-INVOICE01",
+                                  order_id="WD-PAY-INVOICE01", customer_id="customer-b",
+                                  clock=lambda: 1_700_000_200)
+    assert replay["committed"] is False
+    assert int(cs.get_definition(store, "SHARED1")["usageCount"]) == 2
