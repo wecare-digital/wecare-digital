@@ -43,6 +43,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'fun
 sys.path.insert(0, INBOUND_HANDLER_DIR)
 sys.path.insert(0, os.path.join(INBOUND_HANDLER_DIR, 'modules'))
 
+from lambda_utils import thread_ownership as to  # noqa: E402
+
 RECIPIENT = '919876543210'
 PHONE_NUMBER_ID = '1016149501586345'
 REQ = 'req-coexistence-1'
@@ -223,7 +225,23 @@ class _Ctx:
 
 
 def _drive(h, entry, *, env=None, logs=None):
-    """Run the REAL handler over a webhook entry, counting every write and every send."""
+    """Run the REAL handler over a webhook entry, counting every write and every send.
+
+    Two boundaries outside the ``h`` fixture's ``boto3`` patch have to be closed here, or this
+    module's "no AWS, no network" claim is false for any ``messages`` change:
+
+    * ``claim_event`` is patched for the same reason ``tests/test_inbound_whatsapp.py`` and
+      ``tests/test_standby_produces_no_sends.py`` patch it -- the handler imports it lazily
+      from ``lambda_utils.webhook_dedup``, which builds its DynamoDB resource at module scope.
+      Left unpatched it reaches the LIVE ``WebhookDedup`` table and claims the wamid
+      permanently, so the test passes ONCE and then fails for the 7-day TTL.
+    * ``thread_ownership`` resolves its table lazily through ``_get_table()``, so the ``h``
+      fixture's patch has already exited by the time a message is processed. It is injected
+      through the module's own ``set_table`` seam -- the same seam
+      ``tests/test_standby_produces_no_sends.py`` uses -- pointed at this run's recorder, so
+      ownership writes are counted like every other table instead of reaching AWS and
+      failing open with a warning.
+    """
     logs = logs if logs is not None else _Logs()
     dynamo = _Dynamo()
     urlopen = MagicMock(side_effect=AssertionError('a coexistence webhook must not send'))
@@ -234,11 +252,16 @@ def _drive(h, entry, *, env=None, logs=None):
             patch.object(h, 'dynamodb', dynamo), \
             patch.object(h, 'lambda_client', lam), \
             patch.object(h, 'put_message', put_message), \
+            patch('lambda_utils.webhook_dedup.claim_event', return_value=True), \
             patch('urllib.request.urlopen', urlopen), \
             patch.object(h.logger, 'info', side_effect=logs.capture), \
             patch.object(h.logger, 'warning', side_effect=logs.capture), \
             patch.object(h.logger, 'error', side_effect=logs.capture):
-        result = h.handler(_make_sns_event(entry), _Ctx())
+        to.set_table(dynamo.Table(to.table_name()))
+        try:
+            result = h.handler(_make_sns_event(entry), _Ctx())
+        finally:
+            to.set_table(None)
     return {'result': result, 'dynamo': dynamo, 'logs': logs,
             'urlopen': urlopen, 'lambda_client': lam, 'put_message': put_message}
 
