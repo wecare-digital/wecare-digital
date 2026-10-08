@@ -8,18 +8,73 @@ import * as api from '../../../../api/client';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import type { Invoice, InvoiceDeliveryLog, Contact, CreateInvoiceEngineRequest } from '../../../../api/client';
 import { DEFAULT_GSTIN } from '../../../../config/constants';
+import {
+  ADDRESS_FIELDS, EMPTY_ADDRESS_FIELDS, addressPayload, formatAddress,
+  type AddressFormFields,
+} from '../../../../lib/address-format';
 
 interface PP { signOut?: () => void; user?: any; embedded?: boolean; }
 interface FC { default_gst_rate: number; default_shipping: number; default_promo: number; gstin: string; default_item_name: string; purposes: string[]; }
 interface IR { name: string; unitPrice: string; quantity: string; gstRate: string; }
 
-const EMPTY_FORM = { name: '', phone: '', email: '', shippingAddress: '', billingAddress: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', landmark: '', gstin: '', houseNumber: '', buildingName: '' };
+/*
+ * ONE ADDRESS FIELD SET, shared with the Contacts form through src/lib/address-format.ts.
+ *
+ * `landmark`, `houseNumber` and `buildingName` are gone from this form's state. They were three
+ * extra CRM columns standing in for `locality` and `addressLine2`, and nothing in the payment
+ * path reads them: `contact_address._RULES` has eight fields and `payment_address.for_wix` /
+ * `for_meta_beneficiary` project those eight. The stored flat columns are NOT deleted and are
+ * NOT overwritten with blanks - the WhatsApp subscribe flow still writes them - they are simply
+ * no longer edited here, and `openEditCust` folds whatever is in them into `addressLine2` /
+ * `locality` so an existing contact loads with its address intact.
+ */
+const EMPTY_FORM = {
+  name: '', phone: '', email: '', shippingAddress: '', billingAddress: '', gstin: '',
+  ...EMPTY_ADDRESS_FIELDS,
+};
 const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18' } );
-// Brand is hardcoded to the one brand this business invoices under. The multi-brand selector
-// (BNB Club, Ritual Guru, ...) was removed — WECARE.DIGITAL is the only brand.
-const BRAND = 'WECARE.DIGITAL';
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '15', purpose: BRAND, orderId: '' };
-const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 15, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ 'WECARE.DIGITAL' ] };
+/*
+ * THE ONE BRAND, hardcoded. The owner asked for the brand section removed with WECARE.DIGITAL as
+ * the default, so the nine-entry list (BNB Club, No Fault, Expo Week, Ritual Guru, Legal Champ,
+ * WECARE.DIGITAL, Gift Card, Service Fee, Consultation) is reduced to one and `loadSavedConfig`
+ * refuses to restore a saved list over it - otherwise a browser that saved the old config before
+ * this change would keep offering all nine forever.
+ */
+const DEFAULT_BRAND = 'WECARE.DIGITAL';
+/*
+ * `discount` DEFAULTS TO '0', and that single character is the point of decision D4.
+ *
+ * It was '15' (with DEF_CFG.default_promo 15 to match), so EVERY Pay Flow invoice was discounted
+ * by Rs.15 before anyone typed anything - a silent, unrequested, unrecorded price change on every
+ * document. That default was the real duplicate of the coupon system. The field itself stays,
+ * relabelled "Manual adjustment": a goodwill credit is a legitimate staff line and is not a
+ * coupon, and it is now previewed on its own row beside the coupon's.
+ */
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '0', purpose: DEFAULT_BRAND, orderId: '' };
+const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 0, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ DEFAULT_BRAND ] };
+/**
+ * Human copy per server-returned refusal code, mirroring cart.tsx's COUPON_MESSAGES /
+ * GIFT_CARD_MESSAGES. Keyed on the `errorCode` FEAT-002 answers with, never on prose, and the
+ * fallback is honest about not knowing rather than guessing the nearest reason.
+ */
+const REDEMPTION_MESSAGES: Record<string, string> = {
+  UNKNOWN_CODE: 'That coupon code is not valid.',
+  COUPON_EXPIRED: 'That coupon has expired.',
+  COUPON_INELIGIBLE: 'That coupon cannot be used on this invoice.',
+  COUPON_KIND_UNSUPPORTED: 'That kind of coupon cannot be applied to an invoice.',
+  MINIMUM_SUBTOTAL: 'The invoice total is below that coupon\u2019s minimum.',
+  HELD_BY_ANOTHER_CART: 'That coupon is being used elsewhere right now. Try again shortly.',
+  COUPON_STORE_UNAVAILABLE: 'Coupons are not available right now. Try again shortly.',
+  GIFT_CARD_INVALID: 'That gift-card code is not valid.',
+  GIFT_CARD_EXPIRED: 'That gift card has expired.',
+  GIFT_CARD_INELIGIBLE: 'That gift card cannot be used for this invoice.',
+  INSUFFICIENT_BALANCE: 'That gift card has no balance left to use.',
+  GIFT_CARD_STORE_UNAVAILABLE: 'Gift cards are not available right now. Try again shortly.',
+  UNSUPPORTED_CURRENCY: 'Codes can only be applied to an invoice in rupees.',
+  AMOUNT_MISMATCH: 'The discount did not reconcile against the total, so nothing was applied.',
+  PAYABLE_BELOW_GATEWAY_MINIMUM: 'That would leave less than \u20B91 to pay, which cannot be charged.',
+};
+const REDEMPTION_UNKNOWN = 'The coupon or gift card could not be applied.';
 const TABS: ShellTab[] = [
   { id: 'customers', label: 'Customers' },
   { id: 'create', label: 'Create' },
@@ -29,7 +84,9 @@ const TABS: ShellTab[] = [
 ];
 const CFG_KEY = 'wecare_flow_config';
 const loadSavedConfig = (): FC => {
-  try { const s = localStorage.getItem( CFG_KEY ); if ( s ) return { ...DEF_CFG, ...JSON.parse( s ) }; } catch { }
+  // `purposes` is pinned AFTER the spread on purpose: the brand list is hardcoded now, so a
+  // config saved into localStorage before that decision must not restore the nine old brands.
+  try { const s = localStorage.getItem( CFG_KEY ); if ( s ) return { ...DEF_CFG, ...JSON.parse( s ), purposes: DEF_CFG.purposes }; } catch { }
   return DEF_CFG;
 };
 const STATUS_FILTERS = [
@@ -68,6 +125,66 @@ const fmtDateTime = ( ts: number ) => {
   return new Date( ms ).toLocaleString( 'en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' } );
 };
 const fmtMoney = ( n: number ) => `\u20B9${( n || 0 ).toLocaleString( 'en-IN', { minimumFractionDigits: 2 } )}`;
+/** Integer paise -> a rupee string. The gift-card ledger's unit, formatted without dividing. */
+const fmtPaise = ( paise: number ) => {
+  const digits = String( Math.max( 0, Math.trunc( paise || 0 ) ) );
+  const whole = digits.length > 2 ? digits.slice( 0, -2 ) : '0';
+  return `\u20B9${Number( whole ).toLocaleString( 'en-IN' )}.${digits.slice( -2 ).padStart( 2, '0' )}`;
+};
+
+/**
+ * THE ADDRESS BLOCK, rendered from `ADDRESS_FIELDS` and composed through `formatAddress`.
+ *
+ * ONE COMPONENT FOR BOTH CALL SITES on this page - the customer modal and the invoice-edit modal
+ * - and the same eight fields the Contacts form renders, because both import the field list from
+ * src/lib/address-format.ts rather than spelling it out. The free-text "Delivery Address"
+ * textarea that used to sit above each of these blocks is GONE as an input: it is now the
+ * read-only derived preview below, so there is exactly one place an address can be typed and
+ * exactly one string composed from it. Two inputs for one fact is how the two halves came to
+ * disagree in the first place.
+ *
+ * `fallback` is what the preview shows when nothing has been typed yet: the address string
+ * already stored on the record. Without it, opening an existing customer would display an empty
+ * preview over a stored address and read as data loss.
+ */
+const AddressFieldGroup: React.FC<{
+  value: AddressFormFields;
+  onChange: ( next: AddressFormFields ) => void;
+  idPrefix: string;
+  fallback?: string;
+}> = ( { value, onChange, idPrefix, fallback } ) => {
+  const composed = formatAddress( value );
+  return (
+    <>
+      <p style={ { fontSize: 12, fontWeight: 600, color: '#1a3a2a', margin: '8px 0 4px' } }>Delivery Address</p>
+      <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } }>
+        { ADDRESS_FIELDS.map( spec => (
+          <div className="form-group" key={ spec.key }>
+            <label htmlFor={ `${idPrefix}-${spec.key}` }>{ spec.label }</label>
+            <input
+              id={ `${idPrefix}-${spec.key}` }
+              type="text"
+              value={ value[ spec.key ] }
+              maxLength={ spec.maxLength }
+              placeholder={ spec.placeholder }
+              onChange={ e => onChange( { ...value, [ spec.key ]: e.target.value } ) }
+            />
+          </div>
+        ) ) }
+      </div>
+      <div className="form-group">
+        <span style={ { fontSize: 12, fontWeight: 600, color: '#1a3a2a' } }>Composed address</span>
+        <div
+          data-address-preview={ idPrefix }
+          aria-readonly="true"
+          style={ { fontSize: 12, color: '#555', background: '#f8faf9', border: '1px solid #e0e8e3', borderRadius: 8, padding: '8px 12px', minHeight: 34, wordBreak: 'break-word' } }
+        >
+          { composed || fallback || '\u2014' }
+        </div>
+      </div>
+    </>
+  );
+};
 
 /* ── Component ── */
 const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
@@ -94,6 +211,23 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const [ remarkAmount, setRemarkAmount ] = useState( '' );
   const [ editModal, setEditModal ] = useState<Invoice | null>( null );
   const [ editForm, setEditForm ] = useState<{ customerName: string; customerPhone: string; customerEmail: string; shipping: string; discount: string; purpose: string; orderId: string; notes: string; shippingAddress: string; billingAddress: string }>( { customerName: '', customerPhone: '', customerEmail: '', shipping: '0', discount: '0', purpose: '', orderId: '', notes: '', shippingAddress: '', billingAddress: '' } );
+  /* The invoice-edit modal's address, structured. `update_invoice` accepts only the two address
+     STRINGS (handler.py's `allowed` list), so this composes into them - which is exactly the
+     point: one typed field set, one composed string, no second free-text input to disagree. */
+  const [ editAddress, setEditAddress ] = useState<AddressFormFields>( EMPTY_ADDRESS_FIELDS );
+  /*
+   * COUPON AND GIFT CARD: a code, and nothing else, ever leaves this form.
+   *
+   * There is no state here for a discount AMOUNT and no arithmetic anywhere in this file that
+   * touches one. `redemption` holds what the SERVER returned on a 201 and `redemptionMsg` holds
+   * the message for the typed `errorCode` it refused with - the same discipline cart.tsx's
+   * RedemptionPanel follows, for the same reason: a browser-computed discount is a figure the
+   * customer can see and the ledger never agreed to.
+   */
+  const [ couponCode, setCouponCode ] = useState( '' );
+  const [ giftCardCode, setGiftCardCode ] = useState( '' );
+  const [ redemption, setRedemption ] = useState<api.CreateInvoiceEngineResponse | null>( null );
+  const [ redemptionMsg, setRedemptionMsg ] = useState( '' );
   const [ config, setConfig ] = useState<FC>( () => loadSavedConfig() );
   const [ configSaving, setConfigSaving ] = useState( false );
   const [ msg, setMsg ] = useState<{ text: string; type: 'success' | 'error' } | null>( null );
@@ -123,38 +257,42 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
 
   /* Customer handlers */
   const openEditCust = ( c: Contact ) => {
-    // Parse structured address JSON if available (from subscribe flow)
-    let addrFields = { addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', landmark: '', houseNumber: '', buildingName: '' };
+    /*
+     * PRE-FILL INTO THE EIGHT CANONICAL FIELDS, from whichever of the three places this contact's
+     * address actually lives in. A contact may carry: the Meta `shipping_info` JSON the WhatsApp
+     * subscribe flow writes (`address`, `in_pin_code`, `landmark_area`, `house_number`,
+     * `building_name`), the flat CRM columns, or the validated `checkoutDeliveryAddress` map.
+     *
+     * `checkoutDeliveryAddress` WINS where it exists, because it is the only one of the three
+     * that went through `contact_address.normalize_for_storage` - it is the stored result of this
+     * same field set. The legacy house/building/tower/floor columns fold into `addressLine2`
+     * rather than being dropped: they are real data, this form no longer offers four extra inputs
+     * for them, and folding is what turns them into the one format.
+     */
+    const checkout = c.checkoutDeliveryAddress;
+    let json: any = {};
     if ( c.shippingAddressJson )
     {
-      try
-      {
-        const addr = JSON.parse( c.shippingAddressJson );
-        addrFields = {
-          addressLine1: addr.address || c.addressLine1 || '',
-          addressLine2: addr.landmark_area || c.addressLine2 || '',
-          city: addr.city || c.city || '',
-          state: addr.state || c.state || '',
-          postalCode: addr.in_pin_code || c.postalCode || '',
-          landmark: addr.landmark_area || c.landmark || '',
-          houseNumber: addr.house_number || '',
-          buildingName: addr.building_name || '',
-        };
-      } catch { /* use flat fields */ }
+      try { json = JSON.parse( c.shippingAddressJson ) || {}; } catch { json = {}; }
     }
+    const legacyLine2 = [ c.houseNumber, c.buildingName, c.towerNumber, c.floorNumber,
+      json.house_number, json.building_name ]
+      .map( v => String( v || '' ).trim() )
+      .filter( ( v, i, all ) => v && all.indexOf( v ) === i )
+      .join( ', ' );
     setEditCust( c );
     setCustForm( {
       name: c.name || '', phone: c.phone || '', email: c.email || '',
       shippingAddress: c.shippingAddress || '', billingAddress: c.billingAddress || '',
-      addressLine1: addrFields.addressLine1 || c.addressLine1 || '',
-      addressLine2: addrFields.addressLine2 || c.addressLine2 || '',
-      city: addrFields.city || c.city || '',
-      state: addrFields.state || c.state || '',
-      postalCode: addrFields.postalCode || c.postalCode || '',
-      landmark: addrFields.landmark || c.landmark || '',
       gstin: ( c as any ).gstin || '',
-      houseNumber: addrFields.houseNumber || '',
-      buildingName: addrFields.buildingName || '',
+      addressLine1: checkout?.addressLine1 || json.address || c.addressLine1 || '',
+      addressLine2: checkout?.addressLine2 || c.addressLine2 || legacyLine2,
+      locality: checkout?.locality || json.landmark_area || c.landmark || '',
+      city: checkout?.city || json.city || c.city || '',
+      state: checkout?.state || json.state || c.state || '',
+      postalCode: checkout?.postalCode || json.in_pin_code || c.postalCode || '',
+      country: checkout?.country || c.country || EMPTY_ADDRESS_FIELDS.country,
+      countryCode: checkout?.countryCode || EMPTY_ADDRESS_FIELDS.countryCode,
     } );
   };
   const closeEditCust = () => { setEditCust( null ); setCustForm( EMPTY_FORM ); };
@@ -163,18 +301,48 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     setCustSaving( true );
     try
     {
+      const composed = formatAddress( custForm );
       const saveData = {
-        ...custForm,
-        // Build structured address JSON for WhatsApp Payments
+        name: custForm.name, phone: custForm.phone, email: custForm.email, gstin: custForm.gstin,
+        // The composed string, so the two legacy address strings cannot disagree with the fields.
+        // A composition is only written when there is something to compose: an untouched form must
+        // not blank a stored address.
+        shippingAddress: composed || custForm.shippingAddress || undefined,
+        billingAddress: composed || custForm.billingAddress || undefined,
+        // The flat CRM columns, still written because other readers (the contacts table, the
+        // invoice-engine fallback lookup) read them. `landmark` carries `locality`: one concept,
+        // and `locality` is the name `contact_address._RULES` gives it.
+        addressLine1: custForm.addressLine1 || undefined,
+        addressLine2: custForm.addressLine2 || undefined,
+        landmark: custForm.locality || undefined,
+        city: custForm.city || undefined,
+        state: custForm.state || undefined,
+        postalCode: custForm.postalCode || undefined,
+        country: custForm.country || undefined,
+        // THE VALIDATED WRITE PATH, and the same one the Contacts form uses. `undefined` until the
+        // four required fields are present, because the server refuses a partial address with
+        // 400 FIELD_REQUIRED and writes nothing - which would fail the whole customer save over a
+        // half-typed address.
+        address: addressPayload( custForm ),
+        /*
+         * Meta's `shipping_info.addresses[]` keys, UNCHANGED.
+         *
+         * FEAT-003's step said to keep the keys `payment_address.for_meta_beneficiary` expects.
+         * Reading that module shows those are the BENEFICIARY keys (`address_line1`, `postal_code`,
+         * …), which is a different Meta block from the one this field holds. Four live readers
+         * parse THESE names - invoice-engine's display-address fallback and `shipping_info`
+         * builder, outbound-whatsapp, inbound-whatsapp-handler and whatsapp-business-api all read
+         * `in_pin_code` / `address` / `landmark_area` - so renaming them would break the WhatsApp
+         * address prompt. The key set stays; only which field feeds each key changed.
+         */
         shippingAddressJson: JSON.stringify( {
           name: custForm.name, phone_number: custForm.phone?.replace( '+', '' ) || '',
           address: custForm.addressLine1, city: custForm.city, state: custForm.state,
-          in_pin_code: custForm.postalCode, house_number: custForm.houseNumber,
-          building_name: custForm.buildingName, landmark_area: custForm.landmark,
+          in_pin_code: custForm.postalCode, landmark_area: custForm.locality,
         } ),
       };
-      if ( editCust.id ) { await api.updateContact( editCust.id, saveData ); showMsg( 'Customer updated' ); }
-      else { await api.createContact( saveData ); showMsg( 'Customer created' ); }
+      if ( editCust.id ) { await api.updateContact( editCust.id, saveData as any ); showMsg( 'Customer updated' ); }
+      else { await api.createContact( saveData as any ); showMsg( 'Customer created' ); }
       closeEditCust(); loadCustomers();
     } catch ( e ) { showMsg( 'Save failed', 'error' ); }
     setCustSaving( false );
@@ -222,6 +390,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     if ( !selCustomer ) { showMsg( 'Select a customer first', 'error' ); return; }
     if ( !invForm.items.some( it => parseFloat( it.unitPrice ) > 0 ) ) { showMsg( 'Add at least one item', 'error' ); return; }
     setCreating( true );
+    setRedemptionMsg( '' );
     try
     {
       const req: CreateInvoiceEngineRequest = {
@@ -239,13 +408,53 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         items: invForm.items.map( it => ( { name: it.name || config.default_item_name, amount: parseFloat( it.unitPrice ) || 0, quantity: parseInt( it.quantity ) || 1, gstRate: parseFloat( it.gstRate ) || config.default_gst_rate } ) ),
         shipping: parseFloat( invForm.shipping ) || 0,
         discount: parseFloat( invForm.discount ) || 0, gstRate: config.default_gst_rate,
-        purpose: invForm.purpose, orderId: invForm.orderId, gstin: config.gstin,
+        purpose: DEFAULT_BRAND, orderId: invForm.orderId, gstin: config.gstin,
         preferredGateway: paymentGateway,
         paymentConfiguration: getPGConfigName( paymentGateway, sendPhone ),
+        // A CODE, and only when one was typed. Omitted entirely otherwise, because FEAT-002
+        // guarantees the no-codes path behaves byte for byte as it did before coupons existed -
+        // sending '' would put it through the redemption branch for nothing.
+        ...( couponCode.trim() ? { couponCode: couponCode.trim() } : {} ),
+        ...( giftCardCode.trim() ? { giftCardCode: giftCardCode.trim() } : {} ),
       };
-      const r = await api.createInvoiceEngine( req );
-      if ( r ) { showMsg( `Invoice ${r.invoiceNumber} created \u2014 \u20B9${r.total}` ); setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } ); setSelCustomer( null ); loadInvoices(); }
-      else showMsg( 'Create failed', 'error' );
+      /*
+       * `createInvoiceEngineResult`, not `createInvoiceEngine`, because a coupon refusal is a 400
+       * carrying a typed `errorCode` and the plain wrapper collapses every non-2xx to `null`.
+       * "Create failed" in front of a staff member who typed a valid-looking code is not an
+       * answer; "That coupon has expired" is.
+       */
+      const result = await api.createInvoiceEngineResult( req );
+      if ( result.ok )
+      {
+        const r = result.invoice;
+        showMsg( `Invoice ${r.invoiceNumber} created \u2014 \u20B9${r.total}` );
+        // Every figure here is the SERVER's. Nothing on this page recomputes a discount.
+        setRedemption( r );
+        setInvForm( { ...EMPTY_INV, items: [ NEW_ITEM() ] } );
+        // The gift-card code is a bearer secret: it is cleared and never echoed back into a
+        // visible label. The coupon code is not a secret, and the server's NORMALISED spelling of
+        // it comes back on the response, so that is what gets shown.
+        setCouponCode( '' );
+        setGiftCardCode( '' );
+        setSelCustomer( null );
+        loadInvoices();
+      }
+      else
+      {
+        setRedemption( null );
+        /*
+         * The server's typed code decides the words, and only when a code was actually sent. A
+         * create can fail for a dozen reasons that have nothing to do with a coupon, and
+         * answering "the coupon could not be applied" to one of those would send a staff member
+         * to retype a code that was never the problem. An UNRECOGNISED errorCode on a request
+         * that did carry a code degrades to the honest unknown-reason line.
+         */
+        if ( req.couponCode || req.giftCardCode )
+        {
+          setRedemptionMsg( REDEMPTION_MESSAGES[ result.errorCode ] || REDEMPTION_UNKNOWN );
+        }
+        showMsg( 'Create failed', 'error' );
+      }
     } catch ( e ) { showMsg( 'Create failed', 'error' ); }
     setCreating( false );
   };
@@ -328,13 +537,17 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   };
   const openEditModal = ( inv: Invoice ) => {
     setEditModal( inv );
+    // An invoice row carries only the two address STRINGS, so the structured block opens empty
+    // and the stored string shows as the preview's fallback. Typing anything composes a new
+    // string; typing nothing leaves the stored one exactly as it is.
+    setEditAddress( EMPTY_ADDRESS_FIELDS );
     setEditForm( {
       customerName: inv.customerName || '',
       customerPhone: inv.customerPhone || '',
       customerEmail: inv.customerEmail || '',
       shipping: String( inv.shipping || 0 ),
       discount: String( inv.discount || 0 ),
-      purpose: inv.purpose || '',
+      purpose: DEFAULT_BRAND,
       orderId: inv.orderId || '',
       notes: inv.notes || '',
       shippingAddress: inv.shippingAddress || '',
@@ -346,17 +559,21 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
     setActionLoading( 'edit' );
     try
     {
+      // One composition, one string. `update_invoice`'s `allowed` list takes shippingAddress and
+      // billingAddress only, so the eight typed fields land there - and an untouched block
+      // composes to '' and leaves the stored value in place rather than blanking it.
+      const composedAddress = formatAddress( editAddress );
       const r = await api.updateInvoiceEngine( editModal.invoiceId, {
         customerName: editForm.customerName,
         customerPhone: editForm.customerPhone,
         customerEmail: editForm.customerEmail,
         shipping: parseFloat( editForm.shipping ) || 0,
         discount: parseFloat( editForm.discount ) || 0,
-        purpose: editForm.purpose,
+        purpose: DEFAULT_BRAND,
         orderId: editForm.orderId,
         notes: editForm.notes,
-        shippingAddress: editForm.shippingAddress,
-        billingAddress: editForm.billingAddress,
+        shippingAddress: composedAddress || editForm.shippingAddress,
+        billingAddress: composedAddress || editForm.billingAddress,
       } );
       if ( r ) { showMsg( 'Invoice updated' ); setEditModal( null ); setSelInvoice( null ); loadInvoices(); }
       else showMsg( 'Update failed', 'error' );
@@ -425,17 +642,15 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     <div className="form-group"><label>Name</label><input type="text" value={ custForm.name } onChange={ e => setCustForm( { ...custForm, name: e.target.value } ) } placeholder="Enter full name" /></div>
                     <div className="form-group"><label>Phone</label><input type="tel" value={ custForm.phone } onChange={ e => setCustForm( { ...custForm, phone: e.target.value } ) } placeholder="Include country code" /></div>
                     <div className="form-group"><label>Email</label><input type="email" value={ custForm.email } onChange={ e => setCustForm( { ...custForm, email: e.target.value } ) } placeholder="Enter email address" /></div>
-                    <div className="form-group"><label>Delivery Address</label><textarea value={ custForm.shippingAddress } onChange={ e => setCustForm( { ...custForm, shippingAddress: e.target.value, billingAddress: e.target.value } ) } placeholder="Full delivery address (used for billing too)" /></div>
-                    <p style={ { fontSize: 12, fontWeight: 600, color: '#1a3a2a', margin: '8px 0 4px' } }>Structured Address (for WhatsApp Payments)</p>
-                    <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 } }>
-                      <div className="form-group"><label>House / Unit Number</label><input value={ custForm.houseNumber } onChange={ e => setCustForm( { ...custForm, houseNumber: e.target.value } ) } placeholder="e.g. 12" /></div>
-                      <div className="form-group"><label>Building</label><input value={ custForm.buildingName } onChange={ e => setCustForm( { ...custForm, buildingName: e.target.value } ) } placeholder="e.g. One BKC" /></div>
-                      <div className="form-group"><label>Street / Locality</label><input value={ custForm.addressLine1 } onChange={ e => setCustForm( { ...custForm, addressLine1: e.target.value } ) } placeholder="e.g. Bandra Kurla Complex" /></div>
-                      <div className="form-group"><label>Landmark</label><input value={ custForm.landmark } onChange={ e => setCustForm( { ...custForm, landmark: e.target.value } ) } placeholder="e.g. Near BKC Circle" /></div>
-                      <div className="form-group"><label>City</label><input value={ custForm.city } onChange={ e => setCustForm( { ...custForm, city: e.target.value } ) } placeholder="e.g. Mumbai" /></div>
-                      <div className="form-group"><label>State</label><input value={ custForm.state } onChange={ e => setCustForm( { ...custForm, state: e.target.value } ) } placeholder="e.g. Maharashtra" /></div>
-                      <div className="form-group"><label>Postal Code</label><input value={ custForm.postalCode } onChange={ e => setCustForm( { ...custForm, postalCode: e.target.value } ) } placeholder="6-digit code" maxLength={ 6 } /></div>
-                    </div>
+                    { /* ONE address input group. The free-text "Delivery Address" textarea that
+                         used to sit here is the read-only composed preview inside this block
+                         now, so the eight fields are the only place an address is typed. */ }
+                    <AddressFieldGroup
+                      idPrefix="pf-cust-addr"
+                      value={ custForm }
+                      onChange={ next => setCustForm( { ...custForm, ...next } ) }
+                      fallback={ custForm.shippingAddress }
+                    />
                     <div className="pf-modal-actions">
                       <Button variant="secondary" size="sm" onClick={ closeEditCust }>Cancel</Button>
                       <Button variant="primary" size="sm" loading={ custSaving } onClick={ saveCust }>Save</Button>
@@ -449,6 +664,38 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
           {/* CREATE INVOICE TAB */ }
           { activeTab === 'create' && (
             <div className="pf-tab-body">
+              { /*
+                 * WHAT THE SERVER DECIDED ABOUT THE COUPON AND THE GIFT CARD.
+                 *
+                 * Outside the customer-step branch on purpose: a successful create clears
+                 * `selCustomer` to reset the form, so anything rendered inside that branch
+                 * unmounts at exactly the moment it has something to say. Every figure below is
+                 * read straight off the response — there is no arithmetic on this page that
+                 * produces a discount, and `fmtPaise` formats the gift-card leg by slicing the
+                 * integer-paise string rather than dividing it.
+                 */ }
+              { redemptionMsg && (
+                <div className="msg-bar error" style={ { margin: '0 0 12px', fontSize: 12 } } role="status">{ redemptionMsg }</div>
+              ) }
+              { redemption && (
+                <div className="inner-card" style={ { marginBottom: 16, maxWidth: 500, padding: '10px 14px' } }>
+                  <h4 style={ { margin: '0 0 6px', fontSize: 13, color: '#1a3a2a' } }>Applied on the last invoice</h4>
+                  { redemption.couponCode && typeof redemption.couponDiscount === 'number' && (
+                    <div className="pf-preview-row"><span>Coupon { redemption.couponCode }</span><span>{ '\u2212' }{ fmtMoney( redemption.couponDiscount ) }</span></div>
+                  ) }
+                  { typeof redemption.giftCardAppliedPaise === 'number' && (
+                    <div className="pf-preview-row"><span>Paid by gift card</span><span>{ '\u2212' }{ fmtPaise( redemption.giftCardAppliedPaise ) }</span></div>
+                  ) }
+                  { typeof redemption.amountPayable === 'number' && (
+                    <div className="pf-preview-row"><span>Left to pay</span><span>{ fmtMoney( redemption.amountPayable ) }</span></div>
+                  ) }
+                  { redemption.giftCardFullyCovered && (
+                    <p style={ { fontSize: 11, color: '#6b7280', margin: '6px 0 0' } }>
+                      Fully covered by the gift card, so no payment link can be sent for it.
+                    </p>
+                  ) }
+                </div>
+              ) }
               { !selCustomer ? (
                 <div>
                   <h3 style={ { margin: '0 0 12px', fontSize: 18 } }>Step 1 { '\u2014' } Select Customer</h3>
@@ -525,10 +772,33 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   } } style={ { marginBottom: 4, fontSize: 12, color: '#1a3a2a' } }>+ Green Packing & Notification Fee</Button>
                   <h4 style={ { margin: '12px 0 8px', fontSize: 15 } }>Additional Charges</h4>
                   <div className="pf-form-grid">
-                    <div className="form-group"><label>Express / Shipping ({ '\u20B9' })</label><input type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
-                    <div className="form-group"><label>Promo / Discount ({ '\u20B9' })</label><input type="number" value={ invForm.discount } onChange={ e => setInvForm( { ...invForm, discount: e.target.value } ) } /></div>
+                    <div className="form-group"><label htmlFor="pf-shipping">Express / Shipping ({ '\u20B9' })</label><input id="pf-shipping" type="number" value={ invForm.shipping } onChange={ e => setInvForm( { ...invForm, shipping: e.target.value } ) } /></div>
+                    { /* DECISION D4: "Manual adjustment", not "Promo / Discount", and it defaults
+                         to 0. A goodwill credit a staff member decides on is a different fact
+                         from a coupon the store issued, and the old shared label over a silent
+                         Rs.15 default was what made them look like one mechanism. */ }
+                    <div className="form-group"><label htmlFor="pf-manual-adjustment">Manual adjustment ({ '\u20B9' })</label><input id="pf-manual-adjustment" type="number" value={ invForm.discount } onChange={ e => setInvForm( { ...invForm, discount: e.target.value } ) } /></div>
 
                   </div>
+                  { /* COUPON + GIFT CARD. Codes only: there is no input on this page through
+                       which an amount could be sent, and no arithmetic here that produces one.
+                       Everything displayed below comes back from the server. */ }
+                  <h4 style={ { margin: '12px 0 8px', fontSize: 15 } }>Coupon &amp; Gift Card</h4>
+                  <div className="pf-form-grid">
+                    <div className="form-group">
+                      <label htmlFor="pf-coupon-code">Coupon code</label>
+                      <input id="pf-coupon-code" type="text" autoComplete="off" value={ couponCode }
+                        onChange={ e => setCouponCode( e.target.value ) } placeholder="Optional" />
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="pf-giftcard-code">Gift card code</label>
+                      <input id="pf-giftcard-code" type="text" autoComplete="off" value={ giftCardCode }
+                        onChange={ e => setGiftCardCode( e.target.value ) } placeholder="Optional" />
+                    </div>
+                  </div>
+                  { /* The server's answer about these codes is rendered ABOVE the customer step,
+                       outside this branch, because a successful create clears the selected
+                       customer and would otherwise unmount the one record of what was applied. */ }
                   <div className="pf-form-grid">
                     <div className="form-group">
                       { /* The `.form-group` captions on this page are UNASSOCIATED labels - no
@@ -539,9 +809,9 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                       <label>Brand</label>
                       { /* Fixed, not chosen: `purposes` is the single entry WECARE.DIGITAL, so a
                            selector would offer one option and an empty placeholder. `invForm.purpose`
-                           already defaults to BRAND and is what travels into the invoice request,
+                           already defaults to the brand and is what travels into the invoice request,
                            so the displayed value and the submitted value are the same string. */ }
-                      <input type="text" aria-label="Brand" value={ BRAND } readOnly disabled />
+                      <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
                     </div>
                     <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
                   </div>
@@ -583,7 +853,12 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                     } ) }
                     <div className="pf-preview-row"><span>Tax (GST)</span><span>{ fmtMoney( calcTax() ) }</span></div>
                     <div className="pf-preview-row"><span>Express</span><span>{ fmtMoney( parseFloat( invForm.shipping ) || 0 ) }</span></div>
-                    <div className="pf-preview-row"><span>Promo</span><span>{ '\u2212' }{ fmtMoney( parseFloat( invForm.discount ) || 0 ) }</span></div>
+                    { /* The manual adjustment gets its OWN preview row, and there is deliberately
+                         no coupon row beside it: a coupon's value is the server's answer and is
+                         not known until the create comes back, so showing one here would mean
+                         computing a discount in the browser. The applied coupon and gift-card
+                         figures appear above, after the server has decided them. */ }
+                    <div className="pf-preview-row"><span>Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( parseFloat( invForm.discount ) || 0 ) }</span></div>
                     <div className="pf-preview-row"><span>Conv Fee</span><span>{ fmtMoney( calcConvFee() ) }</span></div>
                     <div className="pf-preview-total"><span>Total</span><span>{ fmtMoney( calcTotal() ) }</span></div>
                   </div>
@@ -676,9 +951,30 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                       <div className="pf-detail-row"><span className="label">Subtotal</span><span>{ fmtMoney( selInvoice.subtotal ) }</span></div>
                       <div className="pf-detail-row"><span className="label">Tax</span><span>{ fmtMoney( selInvoice.tax ) }</span></div>
                       <div className="pf-detail-row"><span className="label">Express</span><span>{ fmtMoney( selInvoice.shipping ) }</span></div>
-                      <div className="pf-detail-row"><span className="label">Promo</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount ) }</span></div>
+                      { /* TWO LINES FOR TWO FACTS, matching what `_build_invoice_html` and
+                           `_generate_receipt_png` now print. `invoice.discount` is the SUM of the
+                           staff adjustment and the coupon (Meta validates
+                           total == subtotal + tax + shipping - discount, so it has to be), which
+                           makes the manual part `discount - couponDiscount`. An invoice raised
+                           before coupons existed carries no `couponDiscount` at all, and that
+                           absence is why the coupon row is conditional rather than showing
+                           Rs.0.00 - which would claim a coupon was applied and was worthless. */ }
+                      { typeof selInvoice.couponDiscount === 'number' && (
+                        <div className="pf-detail-row"><span className="label">Coupon { selInvoice.couponCode || '' }</span><span>{ '\u2212' }{ fmtMoney( selInvoice.couponDiscount ) }</span></div>
+                      ) }
+                      <div className="pf-detail-row"><span className="label">Manual adjustment</span><span>{ '\u2212' }{ fmtMoney( selInvoice.discount - ( selInvoice.couponDiscount || 0 ) ) }</span></div>
                       { selInvoice.convenienceFee > 0 && <div className="pf-detail-row"><span className="label">Conv Fee</span><span>{ fmtMoney( selInvoice.convenienceFee ) }</span></div> }
                       <div className="pf-detail-total"><span>Total</span><span>{ fmtMoney( selInvoice.total ) }</span></div>
+                      { /* Gift-card tender, below the total because it is NOT a price change: the
+                           total is what the invoice is for, `amountPayable` is what Razorpay will
+                           collect. `giftCardLast4` is the only part of a code ever stored or
+                           shown in clear. */ }
+                      { typeof selInvoice.giftCardRequiredPaise === 'number' && (
+                        <div className="pf-detail-row"><span className="label">Paid by gift card { selInvoice.giftCardLast4 ? `****${selInvoice.giftCardLast4}` : '' }</span><span>{ '\u2212' }{ fmtPaise( selInvoice.giftCardRequiredPaise ) }</span></div>
+                      ) }
+                      { typeof selInvoice.amountPayable === 'number' && (
+                        <div className="pf-detail-row"><span className="label">Left to pay</span><span>{ fmtMoney( selInvoice.amountPayable ) }</span></div>
+                      ) }
                     </div>
                     { selInvoice.items && selInvoice.items.length > 0 && (
                       <div className="pf-section-divider">
@@ -821,9 +1117,19 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               <h3 style={ { margin: '0 0 16px', fontSize: 18 } }>Flow Configuration</h3>
               <div className="form-group"><label>Default GST Rate (%)</label><input type="number" value={ config.default_gst_rate } onChange={ e => setConfig( { ...config, default_gst_rate: parseFloat( e.target.value ) || 0 } ) } /></div>
               <div className="form-group"><label>Default Express / Shipping ({ '\u20B9' })</label><input type="number" value={ config.default_shipping } onChange={ e => setConfig( { ...config, default_shipping: parseFloat( e.target.value ) || 0 } ) } /></div>
-              <div className="form-group"><label>Default Promo / Discount ({ '\u20B9' })</label><input type="number" value={ config.default_promo } onChange={ e => setConfig( { ...config, default_promo: parseFloat( e.target.value ) || 0 } ) } /></div>
+              <div className="form-group"><label>Default Manual adjustment ({ '\u20B9' })</label><input type="number" value={ config.default_promo } onChange={ e => setConfig( { ...config, default_promo: parseFloat( e.target.value ) || 0 } ) } /></div>
               <div className="form-group"><label>GSTIN</label><input type="text" value={ config.gstin } onChange={ e => setConfig( { ...config, gstin: e.target.value } ) } /></div>
               <div className="form-group"><label>Default Item Name</label><input type="text" value={ config.default_item_name } onChange={ e => setConfig( { ...config, default_item_name: e.target.value } ) } /></div>
+              { /* THE BRAND LIST EDITOR IS GONE, not hidden. The owner asked for the brand
+                   section removed with WECARE.DIGITAL hardcoded as the default, and
+                   `loadSavedConfig` now pins `purposes` to DEF_CFG - so a textarea here would
+                   have been an input whose value is discarded on the next load, which is worse
+                   than no control at all. */ }
+              <div className="form-group">
+                <label>Brand</label>
+                <input type="text" value={ DEFAULT_BRAND } readOnly aria-readonly="true" />
+                <p style={ { fontSize: 11, color: '#6b7280', margin: '4px 0 0' } }>Invoices are issued by WECARE.DIGITAL.</p>
+              </div>
               <Button variant="primary" size="sm" loading={ configSaving } onClick={ () => { setConfigSaving( true ); try { localStorage.setItem( CFG_KEY, JSON.stringify( config ) ); } catch { } setTimeout( () => { setConfigSaving( false ); showMsg( 'Config saved' ); }, 300 ); } }>Save Config</Button>
             </div>
           ) }
@@ -854,14 +1160,23 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                          popover, so there is nothing left to layer. `editForm.purpose` is
                          deliberately left as loaded from the invoice, so editing an older
                          record does not rewrite the brand it was raised under. */ }
-                    <input type="text" aria-label="Brand" value={ BRAND } readOnly disabled />
+                    <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
                   </div>
                   <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
-                  <div className="form-group"><label>Promo / Discount ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>
+                  <div className="form-group"><label>Manual adjustment ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>
                   <div className="form-group"><label>Order ID</label><input type="text" value={ editForm.orderId } onChange={ e => setEditForm( { ...editForm, orderId: e.target.value } ) } /></div>
                   <div className="form-group"><label>Notes</label><textarea rows={ 2 } value={ editForm.notes } onChange={ e => setEditForm( { ...editForm, notes: e.target.value } ) } /></div>
-                  <div className="form-group"><label>Delivery Address</label><textarea rows={ 2 } value={ editForm.shippingAddress } onChange={ e => setEditForm( { ...editForm, shippingAddress: e.target.value, billingAddress: e.target.value } ) } placeholder="Delivery address (used for billing too)" /></div>
                 </div>
+                { /* The same eight fields and the same composition as the customer modal, from
+                     the same module. The free-text address textarea that was here is the
+                     read-only preview now; a coupon or gift-card code is NOT editable from here
+                     at all, because `update_invoice` answers 400 USE_CREATE for one. */ }
+                <AddressFieldGroup
+                  idPrefix="pf-inv-addr"
+                  value={ editAddress }
+                  onChange={ setEditAddress }
+                  fallback={ editForm.shippingAddress }
+                />
                 <div className="pf-modal-actions">
                   <Button variant="secondary" size="sm" onClick={ () => setEditModal( null ) }>Cancel</Button>
                   <Button variant="primary" size="sm" loading={ actionLoading === 'edit' } onClick={ submitEdit }>Save Changes</Button>

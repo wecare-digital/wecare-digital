@@ -33,7 +33,7 @@ The live manifest/provisioner record enabled=true, dryRun=false, the two exact v
 
 EventBridge schedule is ENABLED with cron(25 */6 * * ? *) and invokes the live alias. The Wix webhook role has the exact live-alias invoke grant; a last-hour CloudWatch read found one meta_catalog_sync_invoked event. Fresh Wix change-to-Meta propagation remains a separate QA check; the six-hour reconciliation is active.
 
-Validation: 120 catalog projection, handler and exclusion-parity tests passed. No customer payment or WhatsApp send was performed. Evidence: catalog-live-evidence.json.
+Validation: 134 catalog projection, handler and exclusion-parity tests passed. No customer payment or WhatsApp send was performed. Evidence: catalog-live-evidence.json.
 
 ## Order path still pending
 
@@ -42,3 +42,11 @@ Live checkout and Razorpay webhook configurations do not enable the site-bound W
 ## Rollback
 
 Revert the catalog projection commit for code rollback. For Wix media rollback, read the current product revision, remove the two newly added media references and restore empty linked media on Submit Request and Vault while preserving the complete four-option and four-variant arrays. Do not reuse the old revision or recreate variants.
+
+## Order-association hardening
+
+The finalizer now binds Wix order IDs to the canonical internal UUID/public number on the main OrderTable and reverse WixOrderIds record. Conditional writes refuse a changed association and recover from a partial failure. Wix sync resolves that association before legacy-number allocation, avoiding a duplicate workspace order. Six regression tests include syncing the same paid-order fixture twice. Checkout/writeback/package tests: 83 passed (82 before the extra replay regression).
+
+Native service finalization also now requires the persisted PAYMENT_PAID state, Wix order ID and WIX_CART_COMPLETED stage before unlocking fulfillment. This change belongs to the unfinished local native checkout implementation and is not included in the association-only production patch. Five boundary tests plus existing paid Submit Request/Vault tests passed (36 total).
+
+Production association patch: checkout live 33 (rollback 32), Wix store live 37 (rollback 36). Both published versions Active and both OPTIONS smoke invocations returned 200 without FunctionError. Deployments retain existing package contents except the exact tested association modules. Evidence: order-link-live-evidence.json. The Wix writeback and native live-send flags remain unenabled.

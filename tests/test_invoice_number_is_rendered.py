@@ -65,8 +65,9 @@ def engine(monkeypatch):
     """Load invoice-engine with boto3 stubbed, and hand back its module."""
     path = str(FUNCTIONS / "payments" / "invoice-engine")
     monkeypatch.syspath_prepend(path)
+    monkeypatch.setenv("RECEIPT_TRANSPARENT_BG", "false")
     sys.modules.pop("handler", None)
-    with patch.dict(os.environ, {"AWS_REGION": "us-east-1"}), \
+    with patch.dict(os.environ, {"AWS_REGION": "us-east-1", "RECEIPT_TRANSPARENT_BG": "false"}), \
             patch("boto3.resource"), patch("boto3.client"):
         import handler  # noqa: PLC0415 - deliberately imported under the patches
     yield handler
@@ -264,7 +265,8 @@ def _drawn_text(engine, invoice, items=ITEMS):
     engine._generate_receipt_png._font_cache = {}
     s3 = MagicMock()
     s3.get_object.side_effect = RuntimeError("no S3 in tests")
-    with patch.dict(sys.modules, _fake_pil(sink)), \
+    with patch.dict(os.environ, {"RECEIPT_TRANSPARENT_BG": "false"}), \
+            patch.dict(sys.modules, _fake_pil(sink)), \
             patch.object(engine, "s3", s3), \
             patch.object(engine, "_load_logo_bytes", return_value=None), \
             patch.object(engine, "_load_s3_image", return_value=None):
@@ -547,7 +549,7 @@ def test_the_three_render_sites_share_one_source_label(engine):
         encoding="utf-8")
     # Defined once, used by all three render sites.
     assert source.count("def _source_label(") == 1
-    assert source.count("_source_label(invoice)") == 3
+    assert source.count("_source_label(invoice)") == 4
 
 
 def test_the_amount_line_regions_are_not_touched_by_the_source_label(engine):

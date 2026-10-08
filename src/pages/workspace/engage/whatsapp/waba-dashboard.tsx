@@ -63,17 +63,18 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
     { id: 'sns', label: 'SNS Subscription' },
   ];
 
-  // Official Business Account rollup, per WABA. Read-only: the green tick is granted by a
-  // Meta review started in Business Suite, so there is nothing to request from here.
-  // `null` means the read did not land — the route is deploy-time work — and the row
-  // renders "unavailable" rather than throwing.
-  const [obaStatus, setObaStatus] = useState<api.ObaStatus | null>(null);
+
   /* Derived from FETCHED data, so it is memoised on the array it comes from rather than
      rebuilt inline - an inline literal would hand Select a new array on every render. */
   const wabaOptions: SelectOption[] = useMemo(
     () => wabas.map((waba) => ({ value: waba.id, label: waba.wabaName || waba.wabaId })),
     [wabas]
   );
+  // Official Business Account rollup, per WABA. Read-only: the green tick is granted by a
+  // Meta review started in Business Suite, so there is nothing to request from here.
+  // `null` means the read did not land — the route is deploy-time work — and the row
+  // renders "unavailable" rather than throwing.
+  const [obaStatus, setObaStatus] = useState<api.ObaStatus | null>(null);
 
   // SNS subscription state
   const [snsStatus, setSnsStatus] = useState<api.WABASNSSubscriptionStatus | null>(null);

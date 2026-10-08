@@ -123,10 +123,10 @@ def _corners(img):
 # 1. The default must not change what a customer sees
 # ---------------------------------------------------------------------------
 
-def test_the_flag_is_off_unless_someone_sets_it(offline_renderer):
+def test_the_approved_layout_is_on_by_default(offline_renderer):
     with patch.dict(os.environ, {}, clear=False):
         os.environ.pop("RECEIPT_TRANSPARENT_BG", None)
-        assert offline_renderer._transparent_receipt_enabled() is False
+        assert offline_renderer._transparent_receipt_enabled() is True
 
 
 @pytest.mark.parametrize("value", ["", "false", "0", "no", "off", "FALSE", "maybe"])
@@ -141,10 +141,10 @@ def test_the_affirmative_spellings_all_work(offline_renderer, value):
         assert offline_renderer._transparent_receipt_enabled() is True
 
 
-def test_with_the_flag_unset_the_receipt_keeps_todays_grey_backdrop(offline_renderer):
+def test_explicit_false_preserves_the_legacy_layout_for_rollback(offline_renderer):
     """The whole point of the default. This is the output live traffic gets."""
     with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("RECEIPT_TRANSPARENT_BG", None)
+        os.environ["RECEIPT_TRANSPARENT_BG"] = "false"
         img = _render(offline_renderer)
 
     assert img.mode == "RGB"
@@ -171,8 +171,8 @@ def test_the_paper_is_the_approved_off_white_and_fully_opaque(offline_renderer):
 
     w, h = img.size
     # Inside the left padding at mid-height: paper, never text.
-    assert img.getpixel((3, h // 2)) == APPROVED_PAPER_RGBA
-    assert img.getpixel((w - 4, h // 2)) == APPROVED_PAPER_RGBA
+    assert img.getpixel((100, h // 2)) == APPROVED_PAPER_RGBA
+    assert img.getpixel((w - 101, h // 2)) == APPROVED_PAPER_RGBA
 
 
 def test_the_tear_is_deterministic_so_one_invoice_renders_the_same_twice(offline_renderer):
@@ -205,7 +205,7 @@ def test_flattening_an_rgba_receipt_gives_white_not_black(offline_renderer):
 
 def test_flattening_leaves_an_opaque_receipt_alone(offline_renderer):
     with patch.dict(os.environ, {}, clear=False):
-        os.environ.pop("RECEIPT_TRANSPARENT_BG", None)
+        os.environ["RECEIPT_TRANSPARENT_BG"] = "false"
         img = _render(offline_renderer)
 
     flat = offline_renderer._flatten_onto_white(img)

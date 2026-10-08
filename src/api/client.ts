@@ -427,6 +427,13 @@ export interface Contact {
   address?: {
     addressLine1: string;
     addressLine2?: string;
+    /**
+     * FEAT-003: the eighth `contact_address._RULES` field, and the one the staff forms label
+     * "Landmark / Locality". It was missing from this interface while being accepted by the
+     * server, so a landmark typed in the CRM reached `landmark` (a flat CRM field nothing in the
+     * payment path reads) and never reached `checkoutDeliveryAddress.locality`.
+     */
+    locality?: string;
     city: string;
     state: string;
     postalCode: string;
@@ -4976,6 +4983,38 @@ export interface Invoice {
   createdAt: number;
   updatedAt: number;
   paidAt: number;
+  /**
+   * The coupon that was applied at create, normalised and server-authored.
+   *
+   * All four redemption fields below are OPTIONAL, and that is a contract rather than caution:
+   * an invoice raised before this feature existed carries none of them, so `undefined` ("no
+   * coupon was ever considered") must stay distinguishable from `0` ("a coupon was applied and
+   * it was worth nothing"). Rendering `₹0.00` for the first case would be a lie about the
+   * document.
+   */
+  couponCode?: string;
+  /**
+   * The coupon's share of `discount`, in rupees. `discount` is the SUM of the staff's manual
+   * adjustment and this, because Meta validates `total == subtotal + tax + shipping - discount`
+   * and both invoice renderers already read it that way. The manual part is `discount -
+   * couponDiscount`.
+   */
+  couponDiscount?: number;
+  /**
+   * Integer PAISE of gift-card balance this invoice requires, written as settlement evidence at
+   * create. Paise rather than rupees because `gift_card_settlement` owns the attribute and the
+   * whole gift-card ledger is integer paise; converting it here would introduce the rounding the
+   * ledger exists to avoid.
+   */
+  giftCardRequiredPaise?: number;
+  /** Integer paise actually debited. ZERO until the payment-attempt producer redeems the card. */
+  giftCardRedeemedPaise?: number;
+  /** `****1234`. The last four of the code is the ONLY part ever stored or shown in clear. */
+  giftCardLast4?: string;
+  /** True when the gift card covers the whole total, so no gateway order may ever be created. */
+  giftCardFullyCovered?: boolean;
+  /** Rupees Razorpay will collect after the verified gift-card redemption. May be `0`. */
+  amountPayable?: number;
   remarks?: string | InvoiceRemark[];
   items?: InvoiceItem[];
   assets?: InvoiceAsset[];
@@ -5013,14 +5052,112 @@ export interface CreateInvoiceEngineRequest {
   state?: string;
   postalCode?: string;
   landmark?: string;
+  /**
+   * A coupon code to apply when the invoice is created. A CODE and nothing else.
+   *
+   * There is deliberately no field on this request through which a browser could send a discount
+   * amount: the figure is decided server-side by `coupon_store.discount_paise` through the one
+   * `RedemptionProvider` the website cart also uses, and the browser's value is only a request.
+   * A coupon the store refuses fails the whole create with a typed `errorCode` rather than being
+   * dropped, because collecting the full amount after promising a discount is worse than an error.
+   *
+   * Applying one later is NOT supported: `PUT /invoices/{id}` answers `400 USE_CREATE`.
+   */
+  couponCode?: string;
+  /**
+   * A gift-card code to verify when the invoice is created. Validated and recorded only — the
+   * balance is NOT debited here, because an unpaid invoice must never burn balance and the debit
+   * belongs to the producer that mints the payment attempt.
+   */
+  giftCardCode?: string;
+}
+
+/**
+ * What the server decided about a create. Every redemption field is optional for the same reason
+ * the `Invoice` ones are, and every amount is the SERVER's: a form must render these rather than
+ * recompute anything locally.
+ */
+export interface CreateInvoiceEngineResponse {
+  invoiceId: string;
+  invoiceNumber: string;
+  referenceId?: string;
+  total: number;
+  convenienceFee?: number;
+  /** The normalised code that was actually applied. */
+  couponCode?: string;
+  /** Rupees the coupon took off, server-computed. */
+  couponDiscount?: number;
+  /** Integer paise of gift-card balance applied to this invoice. */
+  giftCardAppliedPaise?: number;
+  /** Rupees left for Razorpay after the gift card. `0` on a fully covered invoice. */
+  amountPayable?: number;
+  /** True when nothing is left to charge, so no payment link may be sent. */
+  giftCardFullyCovered?: boolean;
+  /** `APPLIED`. A refusal never reaches here — it answers 4xx/503 with an `errorCode`. */
+  couponReason?: string;
+  giftCardReason?: string;
 }
 
 // Create invoice directly
-export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest ): Promise<{ invoiceId: string; invoiceNumber: string; total: number } | null> {
-  return apiCall<{ invoiceId: string; invoiceNumber: string; total: number }>( INVOICE_BASE, {
+export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest ): Promise<CreateInvoiceEngineResponse | null> {
+  return apiCall<CreateInvoiceEngineResponse>( INVOICE_BASE, {
     method: 'POST',
     body: JSON.stringify( request ),
   } );
+}
+
+/**
+ * A create that reports WHY it was refused.
+ *
+ * `createInvoiceEngine` stays exactly as it is, because ~every other caller wants the invoice or
+ * nothing. But `apiCall` collapses a non-2xx to `null`, and FEAT-002 answers every coupon and
+ * gift-card refusal as a 4xx/503 carrying a typed `errorCode` - `COUPON_EXPIRED`,
+ * `INSUFFICIENT_BALANCE`, `HELD_BY_ANOTHER_CART`, and the fourteen others. A form that can only
+ * see `null` has to say "Create failed" and the staff member has no idea which code to fix.
+ *
+ * So this follows `hardDeleteContact`'s precedent and uses `authFetch` directly: the refusal code
+ * lives in the body and the body is the one thing this caller needs. It returns a discriminated
+ * result rather than throwing, because "the coupon has expired" is an ordinary answer and not an
+ * exception.
+ *
+ * `errorCode` is passed through VERBATIM and is never invented here. An unrecognised code must
+ * still reach the UI so a new server refusal degrades to an honest unknown-reason message rather
+ * than to a wrong one.
+ */
+export type CreateInvoiceEngineResult =
+  | { ok: true; invoice: CreateInvoiceEngineResponse }
+  | { ok: false; status: number | null; errorCode: string; retryable: boolean };
+
+export async function createInvoiceEngineResult (
+  request: CreateInvoiceEngineRequest,
+): Promise<CreateInvoiceEngineResult> {
+  let response: Response;
+  try
+  {
+    response = await authFetch( INVOICE_BASE, {
+      method: 'POST',
+      body: JSON.stringify( request ),
+    } );
+  } catch ( error )
+  {
+    console.error( 'Invoice create request failed:', error );
+    return { ok: false, status: null, errorCode: 'REQUEST_FAILED', retryable: true };
+  }
+
+  let data: any = null;
+  try { data = await response.json(); } catch { data = null; }
+
+  if ( response.ok && data && data.invoiceId )
+  {
+    return { ok: true, invoice: data as CreateInvoiceEngineResponse };
+  }
+
+  return {
+    ok: false,
+    status: response.status,
+    errorCode: typeof data?.errorCode === 'string' && data.errorCode ? data.errorCode : 'CREATE_FAILED',
+    retryable: data?.retryable === true,
+  };
 }
 
 // Create invoice from Razorpay payment ID

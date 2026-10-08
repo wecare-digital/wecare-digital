@@ -1511,6 +1511,19 @@ def _sync_orders(request_id: str) -> Dict[str, Any]:
         # 2) Write to central OrdersTable (normalized, order-centric)
         for o in orders:
             try:
+                from lambda_utils.ecommerce.order_links import canonical_order_for_wix
+                canonical = canonical_order_for_wix(orders_table, dynamodb.Table(ORDER_IDS_TABLE), o.get('id', ''))
+                if canonical:
+                    # This Wix order was created by our paid checkout. Keep its one UUID/public
+                    # number rather than minting a second legacy WD-ORD row on a sync replay.
+                    orders_table.update_item(
+                        Key={'orderId': canonical['orderId']},
+                        UpdateExpression='SET fulfillmentStatus=:status, syncedAt=:now',
+                        ConditionExpression='wixOrderId=:wix',
+                        ExpressionAttributeValues={':status': o.get('fulfillmentStatus', ''),
+                            ':now': int(datetime.now(timezone.utc).timestamp()), ':wix': o.get('id', '')})
+                    orders_synced += 1
+                    continue
                 enriched = _enrich_order(o)
                 summary = enriched.get('_summary', {})
                 wd_num = summary.get('customOrderNumber', '')

@@ -54,7 +54,7 @@ def demo(monkeypatch):
     return module
 
 
-def test_the_demo_runs_offline_and_reports_three_legs_and_no_mismatches(demo, capsys):
+def test_the_demo_runs_offline_and_reports_four_legs_and_no_mismatches(demo, capsys):
     code = demo.main(["--json", "--no-colour"])
     captured = capsys.readouterr()
     assert code == 0, captured.out
@@ -64,9 +64,13 @@ def test_the_demo_runs_offline_and_reports_three_legs_and_no_mismatches(demo, ca
     transcript = json.loads(captured.out)
     assert captured.err == ""
 
-    assert len(transcript["legs"]) == 3
+    # Four, not three: the INVOICE leg joined the walk-through when the invoice surface was bound
+    # to the one coupon authority and the one gift-card authority. It is the leg that shows the
+    # apply ORDER - coupon into the fee basis, gift card off the final total - which no other leg
+    # exercises, because no other leg has a total to apply tender against.
+    assert len(transcript["legs"]) == 4
     assert [leg["leg"] for leg in transcript["legs"]] == [
-        "coupon", "wix-giftcard", "our-giftcard"]
+        "coupon", "wix-giftcard", "our-giftcard", "invoice"]
     assert transcript["mismatchCount"] == 0
     assert transcript["awsCallsAttempted"] == 0
     assert transcript["secretsManagerClientBuilt"] is False
@@ -243,7 +247,7 @@ def test_the_transcript_carries_no_clear_bearer_code_and_no_credential(demo, cap
     assert wg.demo_code(reference_id=REFERENCE) not in plain
 
 
-@pytest.mark.parametrize("leg", ["coupon", "wix-giftcard", "our-giftcard"])
+@pytest.mark.parametrize("leg", ["coupon", "wix-giftcard", "our-giftcard", "invoice"])
 def test_each_leg_runs_on_its_own(demo, capsys, leg):
     assert demo.main(["--json", "--no-colour", "--leg", leg]) == 0
     transcript = json.loads(capsys.readouterr().out)
@@ -301,3 +305,52 @@ def test_the_demo_makes_no_payment_state_decision():
                 if isinstance(node, ast.Import) for alias in node.names}
     assert not [name for name in modules if "payment_status" in name]
     assert not [name for name in modules if "payment_attempt" in name]
+
+
+def test_the_invoice_leg_shows_the_coupon_before_the_fee_and_the_card_after_the_total(
+        demo, capsys):
+    """The one leg that demonstrates the APPLY ORDER, asserted on the transcript's own figures.
+
+    A coupon is a price change and a gift card is tender, so they enter at different points and
+    the difference is not cosmetic: if the gift card were netted into the collection instead, the
+    convenience fee and its GST would be computed on a smaller figure and the invoice would
+    under-report tax on every gift-card order. The transcript carries both the discounted and the
+    undiscounted fee precisely so that ordering is visible rather than asserted in prose.
+    """
+    assert demo.main(["--json", "--no-colour", "--leg", "invoice"]) == 0
+    leg = json.loads(capsys.readouterr().out)["legs"][0]
+
+    # 1. The coupon reduced the collection the fee is charged on.
+    assert leg["discountedCollectionPaise"] == (leg["collectionPaise"]
+                                                - leg["couponDiscountPaise"])
+    assert leg["conveniencePaise"] < leg["undiscountedConveniencePaise"]
+
+    # 2. The quote reconciles exactly, in integer paise.
+    assert leg["authoritativeTotalPaise"] == (leg["discountedCollectionPaise"]
+                                              + leg["conveniencePaise"]
+                                              + leg["convenienceGstPaise"])
+
+    # 3. The card came off THAT total, and the identity holds exactly.
+    assert leg["redemptionPaise"] + leg["payablePaise"] == leg["authoritativeTotalPaise"]
+    assert leg["requiresGateway"] is True
+
+    # And nothing was debited: an unpaid invoice must never burn a customer's balance.
+    assert leg["redemptionPaise"] == leg["cardBalancePaise"]
+    assert leg["holdIdempotent"] is True
+    assert set(leg["evidence"]) == {"giftCardCodeHash", "giftCardRequiredPaise",
+                                    "giftCardRedeemedPaise"}
+
+    # Every figure is an integer number of paise. No float reaches this transcript.
+    for key in ("collectionPaise", "couponDiscountPaise", "discountedCollectionPaise",
+                "conveniencePaise", "convenienceGstPaise", "authoritativeTotalPaise",
+                "cardBalancePaise", "redemptionPaise", "payablePaise"):
+        assert type(leg[key]) is int, key
+
+
+def test_the_invoice_leg_prints_no_gift_card_code(demo, capsys):
+    """The card is a bearer secret. Only `****` plus its last four may appear."""
+    assert demo.main(["--no-colour", "--leg", "invoice"]) == 0
+    plain = capsys.readouterr().out
+    assert demo.DEMO_PEPPER not in plain
+    masked = [line for line in plain.splitlines() if "card " in line and "****" in line]
+    assert masked, "the card line is rendered"

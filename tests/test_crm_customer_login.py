@@ -116,6 +116,13 @@ class FakeCognito:
         self.calls.append(("admin_update_user_attributes", kwargs))
         return {}
 
+    def admin_get_user(self, **kwargs):
+        # An existing phone-keyed user without a WABA stamp. The production guard
+        # must read this before it may add a stamp; a missing fake method is not
+        # evidence that the real Cognito read failed.
+        self.calls.append(("admin_get_user", kwargs))
+        return {"Username": kwargs["Username"], "UserAttributes": []}
+
     def admin_add_user_to_group(self, **kwargs):
         self.calls.append(("admin_add_user_to_group", kwargs))
         return {}
@@ -319,6 +326,8 @@ def test_a_conflict_is_treated_as_success(secure_files, monkeypatch, conflict):
     assert ok is True, detail
     if conflict == "UsernameExistsException":
         assert detail == "provisioned"
+        names = [name for name, _ in cognito.calls]
+        assert names.index("admin_get_user") < names.index("admin_update_user_attributes")
         assert any(name == "admin_update_user_attributes" for name, _ in cognito.calls), (
             "an existing user's attributes are refreshed rather than left stale")
     else:
