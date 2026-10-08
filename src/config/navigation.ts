@@ -107,6 +107,11 @@ export const navigationConfig: NavItem[] = [
       // cancel, delete and resend all move money or message a customer.
       { path: '/workspace/pay/records', label: 'Invoice records' },
       { path: '/workspace/pay/flow', label: 'Pay Flow' },
+      // 'Pay Link' (/workspace/pay/link) was a fourth child here. Both the ENTRY and the
+      // PAGE are now gone: the Link tab built a raw upi:// deep link client-side, bypassing
+      // Razorpay, the invoice engine and reconciliation, and WhatsApp payments must route
+      // through the approved order_details template rather than a raw link. pay/index.tsx
+      // no longer imports it, so there is no screen left to reach.
     ],
   },
   {
