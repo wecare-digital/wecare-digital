@@ -3097,3 +3097,9 @@ Owner requested completion of the customer-entry route. Exact `Share an idea`, `
 | A3_PRODUCTION | wecare-inbound-whatsapp version 82 and live alias | Previous version 81 and code hash verified before update; revision-guarded code update and alias move. Archive SHA256 a477a20c1256101c04188fe71dcbf42c7127554dd344b9cb732bca960aaf62d8. | Move live alias to 81 and restore its code to LATEST because ingress can invoke unqualified. |
 
 Customer URL: https://wa.me/919330994400?text=Share%20an%20idea . The customer sends the prefilled message, receives Share an idea, and taps it to open the native Flow. No live-send flag, payment configuration or provider credential changed. No customer message sent by this deployment; real-device and persistence QA still needs an authorised recipient.
+
+## 2026-10-08 — Owner-requested review invitation copy
+
+A1_LOCAL / A2_REMOTE_CODE: customer_idea invitation body changed to the owner-provided feedback sentence (star prefix), footer WECARE.DIGITAL and CTA Leave Review. Existing keywords, Flow ID, screen, submission schema and other routes remain unchanged. Nineteen focused tests and three exact-archive checks pass.
+
+A3_PRODUCTION: inbound-whatsapp live 83, previous version 82 captured; revision-guarded update and alias move. Archive SHA256 7226a96a08cce5a841501fb02aaf084ef3b4683d1913c57d15df2186c8503e00. Only handler.py changed in the prior live ZIP. Recovery: restore version 82 to both LATEST and live alias. No message sent; copy applies to future invitations.

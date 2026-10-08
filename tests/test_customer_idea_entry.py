@@ -55,7 +55,7 @@ def test_new_flow_opens_static_screen_and_preserves_order_review():
     assert body['contactId'] == 'fixture-contact'
     assert data['flowId'] == '1578178897413815'
     assert data['flowAction'] == 'navigate' and data['screenId'] == 'FEEDBACK'
-    assert data['flowCta'] == 'Share an idea'
+    assert data['flowCta'] == 'Leave Review'
 
 
 def test_second_account_links_to_correct_customer_entry():

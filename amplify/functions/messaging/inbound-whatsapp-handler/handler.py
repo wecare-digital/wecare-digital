@@ -7149,9 +7149,9 @@ DEFAULT_FLOW_TRIGGERS = {
         'keywords': sorted(CUSTOMER_IDEA_KEYWORDS),
         'flowId': '1578178897413815',
         'message': {
-            'body': 'What would you love us to make possible? Share a feature, improvement or idea privately with our team.',
+            'body': '\u2b50 We’d value your feedback!',
             'footer': 'WECARE.DIGITAL',
-            'flowCta': 'Share an idea',
+            'flowCta': 'Leave Review',
         },
         'enabled': True,
     },
