@@ -292,12 +292,15 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
     """Live Meta read of `GET /{waba}/payment_configurations`, via the WhatsApp business Lambda.
 
     Injected into `payment_readiness.evaluate` so this handler holds no Meta credential. The
-    business-API Lambda already owns the Graph token and the read; we invoke its check route and
-    return the parsed configurations payload it produces.
+    business-API Lambda already owns the Graph token and the read; we invoke its
+    `/payment-config/list` route, which returns the FLATTENED `{data:[config,...]}` shape
+    evaluate consumes. (The older `/payment-config/raw` route returned a human
+    paymentConfig/liveReadiness view with no top-level `data`, so evaluate read it as
+    META_UNAVAILABLE — fixed 2026-10-08 alongside the nested-shape / provider_mid parsing.)
     """
     invoke_event = {
         "httpMethod": "GET",
-        "path": "/wa-business/payment-config/raw",
+        "path": "/wa-business/payment-config/list",
         "queryStringParameters": {"wabaId": waba_id},
     }
     response = _lambda_client().invoke(
