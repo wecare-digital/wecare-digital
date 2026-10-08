@@ -1,0 +1,20 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "VerifyPaidRequestRecipient",
+      "Effect": "Allow",
+      "Action": "cognito-idp:ListUsers",
+      "Resource": "arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_46ULYuukt"
+    },
+    {
+      "Sid": "VerifyRequestParentAtCommit",
+      "Effect": "Allow",
+      "Action": "dynamodb:ConditionCheckItem",
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-OrderTable",
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ServiceRequestsTable"
+      ]
+    }
+  ]
+}
