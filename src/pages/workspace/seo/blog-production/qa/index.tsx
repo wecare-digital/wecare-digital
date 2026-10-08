@@ -21,11 +21,13 @@
  * signature automatically. The gate is derived from the sign-off on every assessment and compared
  * against the live body hash, so there is no revocation step to remember.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import Layout from '../../../../../components/Layout';
 import SEO from '../../../../../components/SEO';
+import Select, { type SelectOption } from '../../../../../components/ui/Select';
+import { usePromptDialog } from '../../../../../contexts/ConfirmContext';
 import * as seoApi from '../../../../../api/seo';
 import type {
   BlogQaReport, BlogQaResponse, BlogSourceView,
@@ -52,8 +54,31 @@ const VERDICT_COLOUR: Record<string, string> = {
   PASS: '#16a34a', REVIEW: '#d97706', BLOCKED: '#b91c1c',
 };
 
+/* The two fixed option lists, hoisted. Same order, same values, same visible text as the
+   <option> rows they replaced - including the em-dash placeholder row on the review flags. */
+const DECLARATION_OPTIONS: SelectOption[] = [
+  { value: 'YES', label: 'YES' },
+  { value: 'NO', label: 'NO' },
+];
+const REVIEW_FLAG_OPTIONS: SelectOption[] = [
+  { value: '', label: '—' },
+  { value: 'YES', label: 'YES' },
+];
+
+/* LAYOUT ONLY, and this is what the deleted <label> elements carried: the chip is a
+   space-between flex row, so it keeps its own background, padding and radius, and the
+   control is bounded rather than stretching, because the trigger shows the selected label
+   while a native select sized itself to its widest option. */
+const GATE_CHIP_STYLE: React.CSSProperties = {
+  fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8,
+  alignItems: 'center', background: '#f9fafb', padding: '6px 10px', borderRadius: 6,
+};
+const REVIEW_CHIP_STYLE: React.CSSProperties = { ...GATE_CHIP_STYLE, background: '#eff6ff' };
+const GATE_SELECT_STYLE: React.CSSProperties = { flex: '0 0 100px' };
+
 const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
   const router = useRouter();
+  const prompt = usePromptDialog();
   const sourceId = typeof router.query.source === 'string' ? router.query.source : '';
   const batchId = typeof router.query.batch === 'string' ? router.query.batch : '';
 
@@ -119,6 +144,15 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
 
   useEffect( () => { void load(); }, [ load ] );
 
+  /* The fetched answer list, memoised, with the em-dash placeholder row kept first. */
+  const gateAnswerOptions: SelectOption[] = useMemo(
+    () => [
+      { value: '', label: '—' },
+      ...( state?.gateAnswers || [] ).map( answer => ( { value: answer, label: answer } ) ),
+    ],
+    [ state ]
+  );
+
   async function runQa () {
     setBusy( 'qa' );
     setError( '' );
@@ -164,7 +198,18 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
   }
 
   async function revoke ( signoffId: string ) {
-    const reason = window.prompt( 'Why is this signature being withdrawn?' ) || '';
+    const reason = await prompt( {
+      title: 'Withdraw this signature',
+      label: 'Why is this signature being withdrawn?',
+      required: true,
+      minLength: 10,
+      multiline: true,
+      helper: 'At least 10 characters',
+    } );
+    if ( reason === null ) return;
+    // Kept as a post-condition. The 10-character floor is enforced in three places on
+    // purpose: minLength disables the confirm button, helper says why, and this line is
+    // the one the backend's own refusal is mirrored by.
     if ( reason.trim().length < 10 ) return;
     setBusy( 'revoke' );
     setError( '' );
@@ -376,18 +421,27 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
 
                 <h3 style={ { fontSize: 13, margin: '0 0 8px' } }>The eleven judgements (section 29)</h3>
                 <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8, marginBottom: 16 } }>
+                  { /*
+                     * The wrapping <label> is GONE, which is the point of design 1.7(a): a
+                     * <button> is a labelable element too, so leaving it would have computed the
+                     * name by walking the label's subtree - "<gate name> YES" - and a label
+                     * forwards clicks to its control, which can double-activate a button.
+                     *
+                     * It becomes a <div> rather than Select's own `label` prop because the
+                     * element carried the CHIP - a space-between flex row with its own
+                     * background, padding and radius - and `.ui-field-label` is a block, so the
+                     * `label` prop would stack the gate name above the control and lose the row.
+                     * The gate name is still rendered, in the same place, at the same size, and
+                     * the control takes `ariaLabel`: FEAT-007's eighth rule, applied to a
+                     * caption whose text is dynamic.
+                     */ }
                   { ( state?.humanGates || [] ).map( gate => (
-                    <label key={ gate } style={ { fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', background: '#f9fafb', padding: '6px 10px', borderRadius: 6 } }>
+                    <div key={ gate } style={ GATE_CHIP_STYLE }>
                       { gate }
-                      <select value={ gates[ gate ] || '' }
-                        onChange={ event => setGates( { ...gates, [ gate ]: event.target.value } ) }
-                        style={ { padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 } }>
-                        <option value="">—</option>
-                        { ( state?.gateAnswers || [] ).map( answer => (
-                          <option key={ answer } value={ answer }>{ answer }</option>
-                        ) ) }
-                      </select>
-                    </label>
+                      <Select ariaLabel={ gate } value={ gates[ gate ] || '' }
+                        onChange={ v => setGates( { ...gates, [ gate ]: v } ) }
+                        options={ gateAnswerOptions } style={ GATE_SELECT_STYLE } />
+                    </div>
                   ) ) }
                 </div>
 
@@ -398,15 +452,12 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
                 </p>
                 <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginBottom: 16 } }>
                   { DECLARATIONS.map( ( [ name, expected ] ) => (
-                    <label key={ name } style={ { fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', background: '#f9fafb', padding: '6px 10px', borderRadius: 6 } }>
+                    <div key={ name } style={ GATE_CHIP_STYLE }>
                       { name }
-                      <select value={ declarations[ name ] || expected }
-                        onChange={ event => setDeclarations( { ...declarations, [ name ]: event.target.value } ) }
-                        style={ { padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 } }>
-                        <option value="YES">YES</option>
-                        <option value="NO">NO</option>
-                      </select>
-                    </label>
+                      <Select ariaLabel={ name } value={ declarations[ name ] || expected }
+                        onChange={ v => setDeclarations( { ...declarations, [ name ]: v } ) }
+                        options={ DECLARATION_OPTIONS } style={ GATE_SELECT_STYLE } />
+                    </div>
                   ) ) }
                 </div>
 
@@ -418,15 +469,12 @@ const BlogQaReview: React.FC<PageProps> = ( { signOut, user } ) => {
                     </p>
                     <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, marginBottom: 16 } }>
                       { ( report?.reviewFlagsRequired || [] ).map( flag => (
-                        <label key={ flag } style={ { fontSize: 12, display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', background: '#eff6ff', padding: '6px 10px', borderRadius: 6 } }>
+                        <div key={ flag } style={ REVIEW_CHIP_STYLE }>
                           { flag }
-                          <select value={ declarations[ flag ] || '' }
-                            onChange={ event => setDeclarations( { ...declarations, [ flag ]: event.target.value } ) }
-                            style={ { padding: '4px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 } }>
-                            <option value="">—</option>
-                            <option value="YES">YES</option>
-                          </select>
-                        </label>
+                          <Select ariaLabel={ flag } value={ declarations[ flag ] || '' }
+                            onChange={ v => setDeclarations( { ...declarations, [ flag ]: v } ) }
+                            options={ REVIEW_FLAG_OPTIONS } style={ GATE_SELECT_STYLE } />
+                        </div>
                       ) ) }
                     </div>
                   </>

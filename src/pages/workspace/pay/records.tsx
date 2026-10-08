@@ -32,6 +32,7 @@ import Layout from '../../../components/Layout';
 import SEO from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import Pagination from '../../../components/ui/Pagination';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -111,6 +112,19 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
     } );
     return Array.from( set ).sort();
   }, [ invoices ] );
+
+  /*
+   * The filter's rows, derived from the statuses actually present in the loaded page - the
+   * same list the <option> rows were built from, in the same order, with 'all' first. The
+   * spellings come from the records themselves and are deliberately not canonicalised here:
+   * `lambda_utils/payment_status.py` owns the paid-versus-captured vocabulary on the server,
+   * and a browser filter that rewrote a stored spelling would hide rows rather than filter
+   * them.
+   */
+  const statusOptions: SelectOption[] = useMemo( () => [
+    { value: 'all', label: 'All' },
+    ...statuses.map( ( s ) => ( { value: s, label: s } ) ),
+  ], [ statuses ] );
 
   const filtered = useMemo( () => {
     const q = search.trim().toLowerCase();
@@ -202,14 +216,17 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
               onChange={ ( e ) => setSearch( e.target.value ) } />
           </div>
           <div className="ir-fg">
-            <label htmlFor="ir-st">Payment status</label>
-            <select id="ir-st" value={ statusFilter }
-              onChange={ ( e ) => setStatusFilter( e.target.value ) }>
-              <option value="all">All</option>
-              { statuses.map( ( s ) => (
-                <option key={ s } value={ s }>{ s }</option>
-              ) ) }
-            </select>
+            { /* MIGRATION SHAPE (b) - the external <label> is RETAINED with an `id`, its `for`
+                 is dropped, and the control points at it with `labelledBy`. Shape (a) would
+                 have moved the caption into the component, and `.ir-fg label` gives it a 14px
+                 muted grey that `.ui-field-label` does not render - the two captions in this
+                 filter row would then disagree. The `for` goes because the trigger is a
+                 <button>, which takes its accessible name from its contents, so a `for`
+                 pointing at it is misleading rather than harmful. */ }
+            <label id="ir-st-label">Payment status</label>
+            <Select labelledBy="ir-st-label" id="ir-st" value={ statusFilter }
+              onChange={ ( v ) => setStatusFilter( v ) }
+              options={ statusOptions } style={ { width: 200 } } />
           </div>
           <div className="ir-actions">
             <Button variant="secondary" icon="refresh" onClick={ load }
@@ -254,6 +271,17 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
                             ? `…${String( inv.customerPhone ).slice( -4 )}`
                             : inv.customerEmail || '' }
                         </div>
+                        { /* The public customer id, IN FULL, directly beneath a phone masked to
+                             its last four. The asymmetry is the whole value of this cell: the
+                             masked suffix is ambiguous (the owner-nominated QA number and a
+                             business number share `0044`), so a support agent quoting it is
+                             guessing — while the uuid is exact, opaque and safe to read aloud.
+                             Omitted entirely for an invoice that has none, so a blank is a blank
+                             rather than an em dash standing in for an identifier. */ }
+                        { inv.customerUuid && (
+                          <div className="ir-muted ir-mono" data-wc-no-translate
+                            title="Customer ID">{ inv.customerUuid }</div>
+                        ) }
                       </td>
                       <td className="ir-total">{ money( inv.total, inv.currency ) }</td>
                       <td>
@@ -348,6 +376,11 @@ const InvoiceRecordsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) 
         .ir-filters{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin:0 0 20px}
         .ir-fg{display:flex;flex-direction:column;gap:6px}
         .ir-fg label{font-size:14px;color:rgba(0,0,0,.54)}
+        /* The select arm of the next two rules is now UNREACHED - batch 2f replaced this
+           page's one select with our own combobox, whose box comes from form-controls.css.
+           Left in place rather than edited, as the earlier batches left theirs: the input arm
+           is live, and retiring a selector from a list is a separate consolidation.
+           No backtick in a styled-jsx comment: this block is a template literal. */
         .ir-fg input,.ir-fg select{
           font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff;
           border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;

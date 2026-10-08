@@ -70,6 +70,35 @@ export const featureFlags = {
    * whether "…Live" means "the route is live" or "live sending".
    */
   invoiceDownload: flag( process.env.NEXT_PUBLIC_ENABLE_INVOICE_DOWNLOAD ),
+
+  /**
+   * The "Leave a review" door — the `/orders/` detail-row button and the `/leave-review/`
+   * page CTA, both of which open `wa.me/<WABA1>?text=review <REF>`.
+   *
+   * OFF because the door and the room behind it ship separately. The customer-facing
+   * `leave-review-flow-v1` Flow JSON gained an `order_ref` screen field, and publishing a
+   * new Flow version on Meta is an owner-only action. A customer who met the button before
+   * that publish would reach a form that does not show what they are reviewing, and — if
+   * `REVIEW_ATTRIBUTION_ENABLED` were also still off on the Lambda — would get no reply at
+   * all. So the button waits for the room.
+   *
+   * It gates a LINK, not a send. Nothing behind this flag transmits a message: a `wa.me`
+   * URL makes the customer message us, which is also what opens the 24-hour window a Flow
+   * needs. That is why a CTA can sit behind a frontend flag at all, and why this is not
+   * the live-send flag `01-standing-authorization.md` refuses to enable.
+   *
+   * With it OFF, `/leave-review/` keeps its existing contact-page CTA and `/orders/`
+   * renders no review row — not a disabled button, no row.
+   *
+   * Enabling it is an env change plus a REBUILD: `NEXT_PUBLIC_` values are inlined at
+   * build time, so setting the variable alone changes nothing.
+   *
+   * Named `reviewCta` and not, say, `reviewRouting` because the sweep in
+   * `src/test/FeatureFlags.test.tsx` bans `send`/`live`/`smoke`/`apply`/`routing` in a flag
+   * name, and rightly: nobody scanning this list should have to work out whether a name
+   * means live sending.
+   */
+  reviewCta: flag( process.env.NEXT_PUBLIC_ENABLE_REVIEW_CTA ),
 } as const;
 
 export type FeatureFlagName = keyof typeof featureFlags;

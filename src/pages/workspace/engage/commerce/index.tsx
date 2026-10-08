@@ -12,16 +12,50 @@ import Layout from '../../../../components/Layout';
 import SEO from '../../../../components/SEO';
 import Button from '../../../../components/ui/Button';
 import { useToastContext } from '../../../../contexts/ToastContext';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { fetchAuthSession } from 'aws-amplify/auth';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
+/**
+ * Named exactly, because the old behaviour named it wrongly.
+ *
+ * Product listing and feed sync used to be interactive here, against
+ * /wa-business/catalog-products and /wa-business/catalog-feed. Neither has a live
+ * route. The `call` helper below returns the parsed 404 BODY rather than throwing,
+ * so the failure was invisible in three different ways: the product list silently
+ * set to empty and rendered "No products found in this catalog", which reads as an
+ * empty catalog; the feed list silently set to empty; and Save-feed reported "Feed
+ * save failed", blaming the save for a route that was never there.
+ *
+ * Both panels stay, with their headings and copy, because the capability is real on
+ * Meta's side and someone has to be told why it is not wired here. A missing
+ * capability stated once is cheaper than a control that quietly does nothing.
+ */
+const CATALOG_SYNC_UNAVAILABLE = 'Meta catalog product listing and feed sync are not available on this deployment: /wa-business/catalog-products and /wa-business/catalog-feed have no live route.';
+
 const WABAS = [
     { label: 'WABA1 · +91 93309 94400', phoneId: 'phone-number-id-waba1-direct-1016149501586345', catalog: 'wecare_catalog', catalogId: '1607047307067517', payConfig: 'Razorpay_wecare.digital' },
     { label: 'WABA2 · +91 99033 00044', phoneId: 'phone-number-id-waba-t-direct-1055232054343117', catalog: 'Catalogue_Products', catalogId: '1424934879646296', payConfig: 'WECAREDIGITAL' },
 ];
+
+/* Hoisted option rows. Same order, same values, same visible text as the <option>s they
+   replaced. The business-number list is derived from WABAS so the two cannot drift. */
+const PHONE_ID_OPTIONS: SelectOption[] = WABAS.map(
+    w => ( { value: w.phoneId, label: w.label } )
+);
+const GOODS_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'physical-goods', label: 'Physical goods (collect address)' },
+    { value: 'digital-goods', label: 'Digital goods' },
+];
+
+/* LAYOUT ONLY - what the inline `width: '100%'` carried; the box is the trigger's. The goods
+   chooser is a flex child beside a caption, and a native select sized itself to its widest
+   option while the trigger shows the selected one. */
+const FULL_WIDTH: React.CSSProperties = { width: '100%' };
+const GOODS_SELECT_STYLE: React.CSSProperties = { flex: '0 1 300px' };
 
 interface LineItem { name: string; amount: string; quantity: string; }
 
@@ -34,10 +68,9 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
     const [ goodsType, setGoodsType ] = useState<'physical-goods' | 'digital-goods'>( 'physical-goods' );
     const [ orders, setOrders ] = useState<any[]>( [] );
     const [ payments, setPayments ] = useState<any[]>( [] );
-    const [ products, setProducts ] = useState<any[]>( [] );
-    const [ productSearch, setProductSearch ] = useState( '' );
-    const [ feeds, setFeeds ] = useState<any[]>( [] );
-    const [ feedUrl, setFeedUrl ] = useState( '' );
+    // `products`, `productSearch`, `feeds` and `feedUrl` were declared here. All four
+    // existed only to hold the result of a call with no route — see
+    // CATALOG_SYNC_UNAVAILABLE above.
     const [ postpayFlow, setPostpayFlow ] = useState<any>( null );
     const [ postpaySubs, setPostpaySubs ] = useState<any[]>( [] );
 
@@ -113,44 +146,11 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         setPayments( Array.isArray( r?.payments ) ? r.payments : ( Array.isArray( r ) ? r : ( r?.data || [] ) ) );
     }, [] );
 
-    const loadProducts = useCallback( async () => {
-        const waba = WABAS.find( w => w.phoneId === phoneId ) || WABAS[ 0 ];
-        const qs = `?catalogId=${encodeURIComponent( waba.catalogId )}${productSearch.trim() ? `&search=${encodeURIComponent( productSearch.trim() )}` : ''}`;
-        const r = await call( `/wa-business/catalog-products${qs}` );
-        setProducts( Array.isArray( r?.products ) ? r.products : [] );
-    }, [ phoneId, productSearch ] );
-
-    const loadFeeds = useCallback( async () => {
-        const waba = WABAS.find( w => w.phoneId === phoneId ) || WABAS[ 0 ];
-        const r = await call( `/wa-business/catalog-feed?catalogId=${encodeURIComponent( waba.catalogId )}` );
-        const list = Array.isArray( r?.feeds ) ? r.feeds : [];
-        setFeeds( list );
-        setFeedUrl( list[ 0 ]?.url || '' );
-    }, [ phoneId ] );
-
-    const saveFeed = async () => {
-        if ( !feedUrl.trim().startsWith( 'https://' ) ) { toast.error( 'Enter a valid https feed URL' ); return; }
-        const waba = WABAS.find( w => w.phoneId === phoneId ) || WABAS[ 0 ];
-        setBusy( 'feed' );
-        try
-        {
-            const r = await call( '/wa-business/catalog-feed', 'POST', {
-                catalogId: waba.catalogId, url: feedUrl.trim(), name: 'WECARE Wix Feed', interval: 'DAILY', hour: 4,
-            } );
-            if ( r?.success ) { toast.success( `Feed ${r.action} (daily auto-sync)` ); loadFeeds(); }
-            else toast.error( 'Feed save failed' );
-        } finally { setBusy( '' ); }
-    };
-
-    const syncFeedNow = async ( feedId: string ) => {
-        setBusy( 'feedsync' );
-        try
-        {
-            const r = await call( '/wa-business/catalog-feed/fetch', 'POST', { feedId } );
-            if ( r?.success ) toast.success( 'Sync started — products refresh shortly' );
-            else toast.error( 'Sync failed' );
-        } finally { setBusy( '' ); }
-    };
+    // `loadProducts`, `loadFeeds`, `saveFeed` and `syncFeedNow` were here — the four
+    // call sites against /wa-business/catalog-products and /wa-business/catalog-feed.
+    // Removed rather than left to fail, because the `call` helper swallows the 404 and
+    // the UI reported it as empty data or as a failed save. See
+    // CATALOG_SYNC_UNAVAILABLE at the top of this file.
 
     const loadPostpay = useCallback( async () => {
         const reg = await call( '/wa-business/flow-registry?flowCode=02.WD_POSTPAY' );
@@ -161,17 +161,14 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
     }, [] );
 
     useEffect( () => { loadOrders(); loadPayments(); }, [ loadOrders, loadPayments ] );
-    useEffect( () => { loadProducts(); loadFeeds(); loadPostpay(); }, [ loadProducts, loadFeeds, loadPostpay ] );
+    // Was `loadProducts(); loadFeeds(); loadPostpay();`. Two of those three fired on
+    // every mount against a route that does not exist, so the page opened with two
+    // guaranteed 404s. Only the postpay load remains, and it is live.
+    useEffect( () => { loadPostpay(); }, [ loadPostpay ] );
 
-    const addProductToBill = ( p: any ) => {
-        // price like "100.00 INR" or "₹100.00"; extract the numeric rupee value
-        const num = ( String( p.price || '' ).match( /[\d.]+/ ) || [ '' ] )[ 0 ];
-        const first = items[ 0 ];
-        const empty = items.length === 1 && !first.name.trim() && !first.amount;
-        const next = { name: p.name || p.retailerId, amount: num, quantity: '1' };
-        setItems( empty ? [ next ] : [ ...items, next ] );
-        toast.success( `Added "${next.name}" to bill` );
-    };
+    // `addProductToBill` was here. It took a product out of the list the dead call
+    // populated, so it could never be reached. The bill composer's manual line-item
+    // entry below is unaffected and stays fully working.
 
     const setItem = ( idx: number, k: keyof LineItem, v: string ) =>
         setItems( items.map( ( it, i ) => ( i === idx ? { ...it, [ k ]: v } : it ) ) );
@@ -192,10 +189,13 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                 <h1 style={ { fontSize: 'var(--h2)', fontWeight: 700, margin: '0 0 var(--space-4)', color: 'var(--text)' } }>Commerce</h1>
 
                 <div style={ card }>
+                    { /* The `lbl` caption is an UNASSOCIATED <label> - no `for`, no wrapped
+                         control - so it was never a name source. It stays, keeping its own type
+                         and spacing, and the control takes `ariaLabel`. */ }
                     <label style={ lbl }>Business number</label>
-                    <select value={ phoneId } onChange={ e => setPhoneId( e.target.value ) } style={ { width: '100%' } }>
-                        { WABAS.map( w => <option key={ w.phoneId } value={ w.phoneId }>{ w.label }</option> ) }
-                    </select>
+                    <Select ariaLabel="Business number" value={ phoneId }
+                        onChange={ v => setPhoneId( v ) }
+                        options={ PHONE_ID_OPTIONS } style={ FULL_WIDTH } />
                     <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' } }>
                         Catalog: <b>{ activeWaba.catalog }</b> · Payments: <b>{ activeWaba.payConfig }</b> (Razorpay)
                     </p>
@@ -209,56 +209,35 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
                 <div style={ card }>
                     <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } }>
                         <h2 style={ h2 }>Catalog — { activeWaba.catalog }</h2>
-                        <Button variant="secondary" onClick={ loadProducts }>Refresh</Button>
                     </div>
-                    <div style={ { display: 'flex', gap: 6, marginBottom: 10 } }>
-                        <input value={ productSearch } onChange={ e => setProductSearch( e.target.value ) } placeholder="Search products…" style={ { flex: 1 } } />
-                    </div>
-                    { products.length === 0 ? <p style={ muted }>No products found in this catalog.</p> : (
-                        <ul style={ list }>
-                            { products.slice( 0, 50 ).map( ( p: any, i: number ) => (
-                                <li key={ p.retailerId || i } style={ row }>
-                                    <span style={ { fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 } }>
-                                        { p.imageUrl && <img src={ p.imageUrl } alt="" style={ { width: 32, height: 32, objectFit: 'cover', borderRadius: 4 } } /> }
-                                        <span>{ p.name || p.retailerId } · { p.price || '—' }{ p.availability ? ` · ${p.availability}` : '' }</span>
-                                    </span>
-                                    <span style={ { display: 'flex', gap: 4 } }>
-                                        <button onClick={ () => addProductToBill( p ) } style={ pill }>+ Bill</button>
-                                    </span>
-                                </li>
-                            ) ) }
-                        </ul>
-                    ) }
+                    { /* The Refresh button, the product search input and the product list
+                         (each row with a "+ Bill" action) were here. All of them drove
+                         /wa-business/catalog-products, which has no live route, so the
+                         list was permanently empty and read as an empty catalog. */ }
+                    <p style={ muted }>{ CATALOG_SYNC_UNAVAILABLE }</p>
                 </div>
 
                 <div style={ card }>
                     <div style={ { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 } }>
                         <h2 style={ h2 }>Catalog data feed (Wix → Meta auto-sync)</h2>
-                        <Button variant="secondary" onClick={ loadFeeds }>Refresh</Button>
                     </div>
                     <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' } }>
-                        Paste the Wix Facebook-channel feed URL. Meta fetches it daily and keeps <b>{ activeWaba.catalog }</b> in sync — product name, price and availability changes flow through automatically. The URL holds a secret token; treat it like a password.
+                        The intended arrangement: paste the Wix Facebook-channel feed URL, and Meta fetches it daily to keep <b>{ activeWaba.catalog }</b> in sync — product name, price and availability changes flowing through automatically. The URL holds a secret token; treat it like a password.
                     </p>
-                    <input value={ feedUrl } onChange={ e => setFeedUrl( e.target.value ) } placeholder="https://manage.wix.com/catalog-feed/v2/feed.tsv?channel=facebook&..." style={ { width: '100%' } } />
-                    <div style={ { display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' } }>
-                        <Button onClick={ saveFeed } disabled={ busy !== '' }>{ busy === 'feed' ? 'Saving…' : 'Save feed (daily)' }</Button>
-                        { feeds[ 0 ]?.feedId && <Button variant="secondary" onClick={ () => syncFeedNow( feeds[ 0 ].feedId ) } disabled={ busy !== '' }>{ busy === 'feedsync' ? 'Syncing…' : 'Sync now' }</Button> }
-                    </div>
-                    { feeds.length > 0 && (
-                        <p style={ { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0' } }>
-                            Feed: <b>{ feeds[ 0 ].name }</b> · { feeds[ 0 ].interval }{ feeds[ 0 ].lastUploadEnd ? ` · last sync ${feeds[ 0 ].lastUploadEnd}` : '' }{ feeds[ 0 ].lastItems !== '' ? ` · ${feeds[ 0 ].lastItems} items` : '' }
-                        </p>
-                    ) }
+                    { /* The feed URL input, Save-feed and Sync-now were here. They drove
+                         /wa-business/catalog-feed and /wa-business/catalog-feed/fetch,
+                         neither of which has a live route, and the save reported "Feed save
+                         failed" — which blamed the save rather than the missing route. */ }
+                    <p style={ muted }>{ CATALOG_SYNC_UNAVAILABLE }</p>
                 </div>
 
                 <div style={ card }>
                     <h2 style={ h2 }>Compose a bill (native Review &amp; Pay)</h2>
                     <div style={ { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 } }>
                         <label style={ { fontSize: 13, color: 'var(--text-secondary)' } }>Goods:</label>
-                        <select value={ goodsType } onChange={ e => setGoodsType( e.target.value as any ) }>
-                            <option value="physical-goods">Physical goods (collect address)</option>
-                            <option value="digital-goods">Digital goods</option>
-                        </select>
+                        <Select ariaLabel="Goods type" value={ goodsType }
+                            onChange={ v => setGoodsType( v as any ) }
+                            options={ GOODS_TYPE_OPTIONS } style={ GOODS_SELECT_STYLE } />
                     </div>
                     { items.map( ( it, idx ) => (
                         <div key={ idx } style={ { display: 'flex', gap: 6, marginBottom: 6 } }>

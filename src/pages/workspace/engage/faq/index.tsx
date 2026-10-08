@@ -12,8 +12,26 @@ import EmptyState from '../../../../components/ui/EmptyState';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 const CATEGORIES = [ 'General', 'Payments', 'Shipping', 'Returns', 'Account', 'Products', 'Technical', 'Other' ];
+
+/* The option lists, hoisted. Same order, same values, same visible text as the rows they
+   replaced, including the two '' placeholder rows the filters read as "no filter". */
+const CATEGORY_OPTIONS: SelectOption[] = CATEGORIES.map( c => ( { value: c, label: c } ) );
+const CATEGORY_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All Categories' },
+  ...CATEGORY_OPTIONS,
+];
+const ACTIVE_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All' },
+  { value: 'true', label: 'Active' },
+  { value: 'false', label: 'Inactive' },
+];
+
+/* LAYOUT ONLY - the two filters are flex children, and a native select sized itself to its
+   widest option while the trigger shows the selected one. */
+const FILTER_STYLE: React.CSSProperties = { width: 170 };
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -135,15 +153,14 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
         </div>
 
         <div style={ { display: 'flex', gap: 12, marginBottom: 16 } }>
-          <select value={ categoryFilter } onChange={ e => setCategoryFilter( e.target.value ) } style={ selectStyle }>
-            <option value="">All Categories</option>
-            { CATEGORIES.map( c => <option key={ c } value={ c }>{ c }</option> ) }
-          </select>
-          <select value={ activeFilter } onChange={ e => setActiveFilter( e.target.value as any ) } style={ selectStyle }>
-            <option value="">All</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
+          <Select ariaLabel="Category" value={ categoryFilter }
+            onChange={ v => setCategoryFilter( v ) }
+            options={ CATEGORY_FILTER_OPTIONS } style={ FILTER_STYLE } />
+          { /* The cast is preserved verbatim: activeFilter is '' | 'true' | 'false', and the
+               option values are exactly those three strings. */ }
+          <Select ariaLabel="Active" value={ activeFilter }
+            onChange={ v => setActiveFilter( v as any ) }
+            options={ ACTIVE_FILTER_OPTIONS } style={ FILTER_STYLE } />
         </div>
 
         { faqs.length === 0 && !loading ? (
@@ -160,11 +177,10 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
           <label style={ { fontSize: 14 } }>Question *<input type="text" value={ form.question } onChange={ e => setForm( f => ( { ...f, question: e.target.value } ) ) } style={ inputStyle } /></label>
           <label style={ { fontSize: 14 } }>Answer *<textarea value={ form.answer } onChange={ e => setForm( f => ( { ...f, answer: e.target.value } ) ) } rows={ 5 } style={ { ...inputStyle, resize: 'vertical' } } /></label>
           <div style={ { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 } }>
-            <label style={ { fontSize: 14 } }>Category
-              <select value={ form.category } onChange={ e => setForm( f => ( { ...f, category: e.target.value } ) ) } style={ inputStyle }>
-                { CATEGORIES.map( c => <option key={ c } value={ c }>{ c }</option> ) }
-              </select>
-            </label>
+            { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
+            <Select label="Category" value={ form.category }
+              onChange={ v => setForm( f => ( { ...f, category: v } ) ) }
+              options={ CATEGORY_OPTIONS } />
             <label style={ { fontSize: 14 } }>Sort Order<input type="number" value={ form.sortOrder } onChange={ e => setForm( f => ( { ...f, sortOrder: Number( e.target.value ) } ) ) } style={ inputStyle } /></label>
             <label style={ { fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, marginTop: 22 } }>
               <input type="checkbox" checked={ form.active } onChange={ e => setForm( f => ( { ...f, active: e.target.checked } ) ) } style={ { accentColor: '#1a3a2a' } } /> Active
@@ -178,6 +194,6 @@ const FaqPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => 
 };
 
 const inputStyle: React.CSSProperties = { display: 'block', width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14, marginTop: 4 };
-const selectStyle: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid #e5e7eb', fontSize: 14 };
+/* `selectStyle` went with the last native select in this file - it only ever skinned those. */
 
 export default FaqPage;

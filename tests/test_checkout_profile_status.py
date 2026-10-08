@@ -219,10 +219,9 @@ def test_a_row_with_no_stored_address_is_ready_but_incomplete(env):
 
 
 def test_a_stored_address_the_contract_now_refuses_is_reported_as_incomplete(env, caplog):
-    """A legacy or CRM-hand-edited address degrades to "re-enter", never to a 503.
-
-    The log line names the event and carries no value, because every component of an address
-    is PII.
+    """FEAT-003: from_contact is structural only, so a legacy/edge address with an unmapped state
+    is reported COMPLETE here; its payability is enforced at the actual checkout
+    (payment_address), not pre-judged by the profile-status endpoint.
     """
     h, fake, _mp = env
     seed(fake, **{contact_address.ATTRIBUTE: {"addressLine1": "12 MG Road", "city": "Bengaluru",
@@ -232,9 +231,9 @@ def test_a_stored_address_the_contract_now_refuses_is_reported_as_incomplete(env
         _response, body = call(h)
 
     assert body["status"] == "PROFILE_READY"
-    assert body["addressComplete"] is False
-    assert body["address"] is None
-    assert "checkout_stored_delivery_unusable" in caplog.text
+    assert body["addressComplete"] is True
+    assert body["address"] is not None
+    assert body["address"]["state"] == "Nowhere Pradesh"
 
 
 def test_the_name_falls_back_to_the_two_parts_when_the_row_has_no_name(env):

@@ -199,6 +199,84 @@ def test_the_engine_html_builder_is_the_design():
     assert captured["items"][0]["name"] == "Hamper"
 
 
+# ── the invoice number and the channel are THREADED, never derived ─────────────────
+#
+# A downloaded receipt has to print the order's own invoice number (GST Rule 46(b)) and the
+# channel it was ordered on. Both are PARAMETERS: this module is on the read path, and issuing
+# an invoice number advances the GST consecutive series, which only
+# `invoice-engine._get_next_invoice_number` may do. So the default is "nothing printed", not
+# "something invented".
+
+def test_the_invoice_number_is_passed_through_unchanged():
+    invoice = cr.invoice_dict_from_snapshot(
+        _snapshot(), order_number="WD-ORD-ABCD1234", invoice_number="WD/2627/00001")
+    assert invoice["invoiceNumber"] == "WD/2627/00001"
+
+
+def test_an_absent_invoice_number_stays_absent():
+    """The common case today - a website order the engine never invoiced. Empty, so the
+    renderer draws no `Invoice No:` row; never a substitute number."""
+    invoice = cr.invoice_dict_from_snapshot(_snapshot(), order_number="WD-ORD-ABCD1234")
+    assert invoice["invoiceNumber"] == ""
+
+
+def test_the_channel_is_canonicalised_on_the_way_through():
+    """One coercion, `order_channel.canonical`, so the receipt cannot print a third word."""
+    for given, expected in (("whatsapp", "whatsapp"), ("WhatsApp", "whatsapp"),
+                            ("website", "website"), ("", "website"), (None, "website"),
+                            ("junk", "website")):
+        invoice = cr.invoice_dict_from_snapshot(
+            _snapshot(), order_number="WD-ORD-ABCD1234", channel=given)
+        assert invoice["channel"] == expected, given
+
+
+def test_generate_receipt_threads_both_to_the_engine_builder():
+    """The seam that matters: whatever the caller knows must reach the injected renderer."""
+    s3 = FakeS3()
+    captured = {}
+
+    def _spy(invoice, items):
+        captured["invoice"] = invoice
+        return _html(invoice, items)
+
+    cr.generate_receipt(
+        identity=_identity(), snapshot=_snapshot(), order_number="WD-ORD-ABCD1234",
+        s3_client=s3, build_invoice_html=_spy, bucket=BUCKET, fmt="html",
+        invoice_number="WD/2627/00001", channel="whatsapp")
+    assert captured["invoice"]["invoiceNumber"] == "WD/2627/00001"
+    assert captured["invoice"]["channel"] == "whatsapp"
+
+
+def test_generate_receipt_defaults_to_no_number_and_the_website_channel():
+    s3 = FakeS3()
+    captured = {}
+
+    def _spy(invoice, items):
+        captured["invoice"] = invoice
+        return _html(invoice, items)
+
+    cr.generate_receipt(
+        identity=_identity(), snapshot=_snapshot(), order_number="WD-ORD-ABCD1234",
+        s3_client=s3, build_invoice_html=_spy, bucket=BUCKET, fmt="html")
+    assert captured["invoice"]["invoiceNumber"] == ""
+    assert captured["invoice"]["channel"] == "website"
+
+
+def test_the_storage_key_still_depends_only_on_the_snapshot_and_the_format():
+    """Deliberate, and worth pinning: neither new argument enters the key, so the idempotent
+    regeneration property is unchanged and the gated `secure/` key scheme is untouched. Safe
+    because an order has at most one invoice number, so the same key is the same bytes."""
+    snap = _snapshot()
+    assert cr.receipt_key(snap, fmt="pdf").startswith(media_paths.SECURE_ROOT)
+    first = cr.invoice_dict_from_snapshot(
+        snap, order_number="WD-ORD-ABCD1234", invoice_number="WD/2627/00001",
+        channel="whatsapp")
+    second = cr.invoice_dict_from_snapshot(snap, order_number="WD-ORD-ABCD1234")
+    # Different documents, one key - because the key is derived from the snapshot alone.
+    assert first["invoiceNumber"] != second["invoiceNumber"]
+    assert cr.receipt_key(snap, fmt="pdf") == cr.receipt_key(snap, fmt="pdf")
+
+
 def test_a_png_or_pdf_without_a_renderer_is_refused():
     s3 = FakeS3()
     with pytest.raises(cr.ReceiptError):

@@ -707,31 +707,25 @@ input, textarea, select {
   flex-direction: column;
   gap: 4px;
   min-height: 0;
-  /* Lime scroll thumb, matching the public header's scrollable nav group. This was
-     rgba(26,58,42,0.1) - a grey so faint it was effectively invisible, so a sidebar taller
-     than the viewport gave no hint that it scrolled. */
+  /* scrollbar-width STAYS and the colour does NOT. Gecko does not inherit scrollbar-width
+     and the canonical block declares it on html only, so dropping this line would hand
+     Firefox the system-default 16px gutter inside the sidebar. The colour was
+     `#d1f470 transparent` - a lime thumb at 1.18:1 on its own track, which is the exact
+     contrast the canonical block rejects, on the surface the owner's instruction named. */
   scrollbar-width: thin;
-  scrollbar-color: #d1f470 transparent;
   clip-path: none;
 }
 
-/* WebKit/Blink half of the lime scrollbar. scrollbar-color above only lands in Firefox.
-   These need !important and a class in the selector to beat the global
-   ::-webkit-scrollbar-thumb rules near the top of this file, which are themselves
-   !important and paint a faint grey thumb. */
-.sidebar-nav::-webkit-scrollbar {
-  width: 8px !important;
-}
-.sidebar-nav::-webkit-scrollbar-track {
-  background: transparent !important;
-}
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background: #d1f470 !important;
-  border-radius: 20px !important;
-}
-.sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: #c5e866 !important;
-}
+/* THE WEBKIT/BLINK HALF OF THE LIME SCROLLBAR WAS DELETED HERE - four
+   .sidebar-nav::-webkit-scrollbar* rules, a lime thumb and a darker-lime hover, both
+   !important, at a third width of 8px. Their comment said the !important existed to out-rank
+   "the global ::-webkit-scrollbar-thumb rules near the top of this file"; those rules were
+   themselves deleted (see :74 and :101) and no ::-webkit-scrollbar rule remains above this
+   line, so the !important had nothing left to beat. 8px was a width nobody chose - the
+   canonical `*::-webkit-scrollbar` in inner-ux.css already sizes nested scrollers from
+   --scrollbar-size / --scrollbar-size-compact. Do not restore either half:
+   src/test/ScrollbarDeclarations.test.ts pins the file set to inner-ux.css and
+   WorkflowTerminal.tsx. */
 
 /* Navigation Items - Notion Style */
 .nav-group {

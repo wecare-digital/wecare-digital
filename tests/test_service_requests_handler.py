@@ -128,10 +128,40 @@ def test_the_intent_happy_path(env):
     assert body["variantId"] == "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 
 
+@pytest.mark.parametrize("kind,variant,paise", [
+    ("DROP_DOCS", "db166bc8-a763-41ec-9f65-0f718f18155a", 35000),
+    ("VAULT", "dcff995e-448c-493a-9259-f6a82ccdc2b4", 4900),
+])
+def test_drop_docs_and_vault_are_offered_against_one_of_the_callers_requests(env, kind, variant,
+                                                                            paise):
+    ref = paid_submit(env)
+    _s, listed, _h = call(env, "/services/my-requests", {"referenceIds": [ref]})
+    public = listed["requests"][0]["requestId"]
+    status, body, _ = call(env, "/services/request-intent",
+                           {"kind": kind, "targetRequestId": public})
+    assert status == 200, body
+    assert (body["kind"], body["variantId"], body["amountPaise"], body["currency"]) == \
+        (kind, variant, paise, "INR")
+    assert body["targetRequestId"] == public
+
+
 @pytest.mark.parametrize("kind", ["DROP_DOCS", "VAULT"])
-def test_drop_docs_and_vault_are_409_not_offered(env, kind):
+def test_drop_docs_and_vault_without_a_target_are_400(env, kind):
     status, body, _ = call(env, "/services/request-intent", {"kind": kind})
-    assert (status, body["error"]) == (409, "SERVICE_NOT_OFFERED")
+    assert (status, body["error"]) == (400, "SERVICE_TARGET_REQUIRED")
+
+
+@pytest.mark.parametrize("kind", ["DROP_DOCS", "VAULT"])
+def test_a_new_service_against_someone_elses_request_is_the_same_404(env, kind):
+    ref = paid_submit(env)
+    _s, listed, _h = call(env, "/services/my-requests", {"referenceIds": [ref]})
+    public = listed["requests"][0]["requestId"]
+    env.state["who"] = BOB
+    theirs = call(env, "/services/request-intent", {"kind": kind, "targetRequestId": public})
+    missing = call(env, "/services/request-intent",
+                   {"kind": kind, "targetRequestId": "WD-REQ-ZZZZZZZZ"})
+    assert theirs[0] == missing[0] == 404
+    assert theirs[1] == missing[1]
 
 
 def test_an_unknown_kind_is_400(env):
@@ -214,8 +244,9 @@ def test_the_internal_action_never_raises(env, monkeypatch):
 def test_no_log_line_carries_a_phone(env, caplog):
     with caplog.at_level(logging.DEBUG):
         ref = paid_submit(env)
-        call(env, "/services/my-requests", {"referenceIds": [ref]})
-        call(env, "/services/request-intent", {"kind": "DROP_DOCS"})
+        _s, listed, _h = call(env, "/services/my-requests", {"referenceIds": [ref]})
+        call(env, "/services/request-intent",
+             {"kind": "DROP_DOCS", "targetRequestId": listed["requests"][0]["requestId"]})
     text = "\n".join(r.getMessage() for r in caplog.records)
     assert text, "the detector must have something to read"
     # Our own ids (UUIDs, the WD-PAY reference) may legitimately contain digit runs; strip them

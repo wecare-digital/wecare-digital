@@ -417,6 +417,22 @@ export interface Contact {
   checkoutDeliveryAddress?: CheckoutDeliveryAddress;
   /** Epoch seconds the checkout address was last written. */
   checkoutAddressUpdatedAt?: number;
+  /**
+   * FEAT-003 WRITE-side structured address. When present on a create/update, the server runs it
+   * through the one shared validator (`contact_address.normalize_for_storage`, international) and
+   * writes `checkoutDeliveryAddress`. This is the single validated write path; the flat
+   * `addressLine1`/`city`/… fields below remain for existing readers. Not the same as
+   * `checkoutDeliveryAddress`, which is the stored/read result.
+   */
+  address?: {
+    addressLine1: string;
+    addressLine2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country?: string;
+    countryCode?: string;
+  };
   // Structured address JSON (Meta shipping_info format) — set by subscribe flow
   shippingAddressJson?: string;
   billingAddressJson?: string;
@@ -494,16 +510,34 @@ export async function createContact ( contact: Partial<Contact> ): Promise<Conta
   return null;
 }
 
-export async function updateContact ( contactId: string, updates: Partial<Contact> ): Promise<Contact | null> {
-  const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}`, {
+/**
+ * A contact update that says WHY it failed.
+ *
+ * `contacts/handler.py` refuses some inputs on purpose - a phone carrying no dial code is a
+ * 400 `PHONE_COUNTRY_CODE_REQUIRED` rather than a guessed `+91` - so the reason for a refusal
+ * is information the operator needs. `updateContact` below collapses every one of those to
+ * `null`, which a caller cannot tell apart from a 503, and the CRM's inline cell editor
+ * rendered that `null` as a silent no-op. Prefer this in new code; `updateContact` stays for
+ * the callers that only branch on success.
+ */
+export async function updateContactResult ( contactId: string, updates: Partial<Contact> ): Promise<ApiResult<Contact | null>> {
+  const result = await apiCallResult<any>( `${API_BASE}/contacts/${contactId}`, {
     method: 'PUT',
     body: JSON.stringify( updates ),
   } );
-  if ( data )
+  if ( !result.ok )
   {
-    return normalizeContact( data.contact || data );
+    return result;
   }
-  return null;
+  // `data` is still guarded: a 2xx with an empty body normalises to null rather than throwing
+  // inside `normalizeContact`, which is exactly what `updateContact` returned before.
+  const data = result.data;
+  return { ok: true, data: data ? normalizeContact( data.contact || data ) : null };
+}
+
+export async function updateContact ( contactId: string, updates: Partial<Contact> ): Promise<Contact | null> {
+  const result = await updateContactResult( contactId, updates );
+  return result.ok ? result.data : null;
 }
 
 export async function deleteContact ( contactId: string ): Promise<boolean> {
@@ -1393,15 +1427,12 @@ export interface VoiceCall {
   updatedAt: string;
 }
 
-export interface MakeVoiceCallRequest {
-  contactId?: string;
-  phoneNumber: string;
-  provider: VoiceProviderSelectable;
-  callType: 'tts' | 'audio' | 'ivr' | 'click_to_call';
-  messageText?: string;
-  voiceId?: string;
-  audioUrl?: string;
-}
+// `MakeVoiceCallRequest` was declared here, as the body type for `makeVoiceCall`
+// below. Both went on 2026-10-07: the function posted to `${API_BASE}/voice/call`
+// and the live routes are GET and DELETE `/voice/calls`, PLURAL — there is no
+// singular POST route to reach. Nothing in src/ called it. The read path either
+// side of it (`listVoiceCalls`, `getVoiceCall`, `normalizeVoiceCall`) is live and
+// stays.
 
 export async function listVoiceCalls ( contactId?: string, provider?: string ): Promise<VoiceCall[]> {
   let url = `${API_BASE}/voice/calls`;
@@ -1422,13 +1453,6 @@ export async function listVoiceCalls ( contactId?: string, provider?: string ): 
 export async function getVoiceCall ( callId: string ): Promise<VoiceCall | null> {
   const calls = await listVoiceCalls();
   return calls.find( call => call.callId === callId || call.id === callId ) || null;
-}
-
-export async function makeVoiceCall ( request: MakeVoiceCallRequest ): Promise<{ callId: string; status: string } | null> {
-  return apiCall<{ callId: string; status: string }>( `${API_BASE}/voice/call`, {
-    method: 'POST',
-    body: JSON.stringify( request ),
-  } );
 }
 
 function normalizeVoiceCall ( item: any ): VoiceCall {
@@ -1689,25 +1713,11 @@ export async function getPollyVoices (): Promise<{
   };
 }
 
-// Transcribe a voice note — returns English transcription + detected language
-export interface TranscribeResult {
-  transcription: string;
-  originalTranscription?: string;
-  detectedLanguage: string;
-  messageId?: string;
-  cached: boolean;
-}
-
-export async function transcribeVoiceNote ( params: {
-  messageId?: string;
-  s3Key?: string;
-  direction?: 'INBOUND' | 'OUTBOUND';
-} ): Promise<TranscribeResult | null> {
-  return apiCall<TranscribeResult>( `${API_BASE}/whatsapp-voice/transcribe`, {
-    method: 'POST',
-    body: JSON.stringify( params ),
-  } );
-}
+// The on-demand voice-note transcription call and its result type were removed here.
+// The live account exposes seven /whatsapp-voice/* routes — clear-logs, language-config
+// (GET and PUT), logs, voices, send and tts — and no transcribe route, so the button that
+// invoked this 404'd in both inboxes. A transcription that arrives from the backend on a
+// message is still rendered; only the never-working on-demand trigger went.
 
 // Voice language configuration
 export interface VoiceLanguageConfig {
@@ -1922,32 +1932,74 @@ function getEstimatedBilling (): AWSBillingData {
 // ============================================================================
 
 /**
- * Hard Delete - Completely removes contact, all messages, and media from S3
- * This is irreversible!
- * 
- * Uses the backend ?hard=true parameter to trigger full deletion
+ * Why a hard delete can be REFUSED, and what the caller must do about it.
+ *
+ * `CONTACT_HAS_PAYMENTS`      the contact is tied to a captured invoice or to an order, so the
+ *                             row is the provenance record for that money. Archive instead.
+ * `PAYMENT_LINKAGE_UNKNOWN`   the server could not read one of the two indexes. It refuses
+ *                             rather than guessing, because "cannot determine" is not "no
+ *                             payments". Retrying later is reasonable; archiving is safe now.
+ * `ERROR`                     anything else: a 404, a network failure, a 500.
  */
-export async function hardDeleteContact ( contactId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/contacts/${contactId}?hard=true`, {
-    method: 'DELETE',
-  } );
+export type HardDeleteRefusalCode = 'CONTACT_HAS_PAYMENTS' | 'PAYMENT_LINKAGE_UNKNOWN' | 'ERROR';
 
-  if ( data && data.success )
-  {
-    return true;
-  }
+export type HardDeleteResult =
+  | { ok: true; messagesDeleted: number; mediaDeleted: number }
+  | { ok: false; code: HardDeleteRefusalCode; reason?: string; archiveInstead: boolean };
 
-  // Fallback: delete messages one by one, then soft delete contact
+/**
+ * Hard Delete - permanently removes a contact, all its messages, and its media from S3.
+ * Irreversible, and the server may now refuse it.
+ *
+ * THE FALLBACK THAT USED TO BE HERE IS DELETED, DELIBERATELY. On a falsy `success` this
+ * function called `deleteContactMessages` and then `deleteContact` - so a SERVER REFUSAL
+ * destroyed the paid contact's entire message history and soft-deleted the row anyway, which
+ * is the exact opposite of what the refusal is for. The guard it defeats is in
+ * `core/contacts._hard_delete_refusal`.
+ *
+ * Returns a discriminated result rather than a boolean, because "refused because this
+ * customer has paid" and "the request failed" need different words in front of an operator.
+ *
+ * Uses `authFetch` rather than `apiCall` on purpose: `apiCall` collapses a non-2xx to `null`
+ * and the refusal CODE lives in the 409 body, which is the one thing this caller needs.
+ */
+export async function hardDeleteContact ( contactId: string ): Promise<HardDeleteResult> {
+  let response: Response;
   try
   {
-    const messagesDeleted = await deleteContactMessages( contactId );
-    const contactDeleted = await deleteContact( contactId );
-    return contactDeleted;
+    response = await authFetch( `${API_BASE}/contacts/${contactId}?hard=true`, {
+      method: 'DELETE',
+    } );
   } catch ( error )
   {
-    console.error( 'Hard delete fallback error:', error );
-    return false;
+    console.error( 'Hard delete request failed:', error );
+    return { ok: false, code: 'ERROR', archiveInstead: false };
   }
+
+  let data: any = null;
+  try { data = await response.json(); } catch { data = null; }
+
+  if ( response.ok && data && data.success )
+  {
+    return {
+      ok: true,
+      messagesDeleted: Number( data.messagesDeleted ) || 0,
+      mediaDeleted: Number( data.mediaDeleted ) || 0,
+    };
+  }
+
+  const serverCode = typeof data?.error === 'string' ? data.error : '';
+  const code: HardDeleteRefusalCode =
+    serverCode === 'CONTACT_HAS_PAYMENTS' || serverCode === 'PAYMENT_LINKAGE_UNKNOWN'
+      ? serverCode
+      : 'ERROR';
+
+  return {
+    ok: false,
+    code,
+    reason: typeof data?.reason === 'string' ? data.reason : undefined,
+    archiveInstead: data?.archiveInstead === true,
+  };
 }
 
 /**
@@ -3188,22 +3240,14 @@ export async function migratePhone ( params: {
 }
 
 
-// ============================================================================
-// AD ATTRIBUTION API
-// ============================================================================
-
-export async function getAdAttributionStats (): Promise<{ stats: any } | null> {
-  const data = await apiCall<any>( `${API_BASE}/ad-attribution/stats` );
-  return data ? { stats: data } : null;
-}
-
-export async function getAdAttributionClicks ( params?: { limit?: number; sourceId?: string } ): Promise<{ attributions: any[]; count: number } | null> {
-  const qs = new URLSearchParams();
-  if ( params?.limit ) qs.append( 'limit', String( params.limit ) );
-  if ( params?.sourceId ) qs.append( 'sourceId', params.sourceId );
-  const url = `${API_BASE}/ad-attribution${qs.toString() ? '?' + qs : ''}`;
-  return apiCall<{ attributions: any[]; count: number }>( url );
-}
+// The AD ATTRIBUTION API block was here: `getAdAttributionStats` and
+// `getAdAttributionClicks`, both against `${API_BASE}/ad-attribution*`. Removed
+// 2026-10-07 — the live HTTP API has no route under that prefix, so both calls
+// could only ever resolve to a 404. Their one consumer,
+// src/components/AdAttributionDashboard.tsx, went in the same change; nothing else
+// in src/ referenced either function. The `wecare-ad-attribution` LAMBDA is
+// untouched: retiring it is a separate, owner-gated decision, and this change only
+// removes a frontend that could not reach it.
 
 
 // ============================================================================
@@ -4855,6 +4899,17 @@ export interface Invoice {
   customerPhone: string;
   paidByPhone: string;
   customerEmail: string;
+  /**
+   * The public customer id — a uuid4 the server mints and `invoice-engine` re-validates with
+   * `customer_uuid.is_customer_uuid` before storing, so a junk value is dropped rather than
+   * recorded. Optional because an invoice raised before the attribute existed carries none, and
+   * absent must stay distinguishable from empty here: the invoice renderers print no Customer ID
+   * row at all in that case rather than a placeholder.
+   *
+   * Safe to show in full. It is opaque, carries no timestamp (uuid4, deliberately not uuid7) and
+   * is not a credential — which is the point: a staff member can quote it instead of the phone.
+   */
+  customerUuid?: string;
   shippingAddress: string;
   billingAddress: string;
   goodsType?: 'digital-goods' | 'physical-goods';
@@ -5155,6 +5210,12 @@ export interface CleanupResult {
   deleted: number;
   elapsed?: number;
   error?: string;
+  /**
+   * Rows the server PROTECTED, counted apart from `deleted` and from `error`. A contact with
+   * payments is refused by design, which is a correct outcome rather than a failure — and
+   * folding it into either number is how a sweep that left rows behind reads as finished.
+   */
+  refused?: number;
 }
 
 export async function getCleanupPreview (): Promise<CleanupResource[]> {
@@ -5396,29 +5457,23 @@ export async function exportSubmissionsCsv ( params?: { flowCode?: string; payme
   return data?.csv || '';
 }
 
-export interface FlowVersionHealth {
-  flowCode: string; flowName: string; flowId: string; flowVersion: string;
-  dataApiVersion: string; versionStatus: string; message: string;
-}
+// `FlowVersionHealth` and `checkFlowVersionHealth` were here. Removed 2026-10-07:
+// the call went to `${WA_BIZ_BASE}/flow-version-health`, i.e.
+// /wa-business/flow-version-health, and no live route matches it. Its one caller was
+// the Flow Hub's 'Health' tab, which swallowed the 404 in a catch and rendered an
+// empty panel — so the tab went with it rather than being left to render nothing.
+// The flow-submissions and flow-registry calls above and below are live and stay.
 
-export async function checkFlowVersionHealth (): Promise<{ flows: FlowVersionHealth[]; recommendedVersion: string } | null> {
-  return apiCall<any>( `${WA_BIZ_BASE}/flow-version-health` );
-}
-
-// ── WhatsApp Commerce Catalog ──
-
-const CATALOG_BASE = `${API_BASE}/catalog`;
-
-export async function getCatalogProducts ( params?: { wabaId?: string; phoneNumberId?: string; catalogId?: string; limit?: number } ): Promise<{ products: any[]; paging?: any } | null> {
-  const qs = new URLSearchParams();
-  if ( params?.wabaId ) qs.set( 'wabaId', params.wabaId );
-  if ( params?.phoneNumberId ) qs.set( 'phoneNumberId', params.phoneNumberId );
-  if ( params?.catalogId ) qs.set( 'catalogId', params.catalogId );
-  if ( params?.limit ) qs.set( 'limit', String( params.limit ) );
-  const query = qs.toString();
-  const data = await apiCall<any>( `${CATALOG_BASE}/products${query ? '?' + query : ''}` );
-  return data || { products: [] };
-}
+// The `WhatsApp Commerce Catalog` block — `CATALOG_BASE` (`${API_BASE}/catalog`) and
+// `getCatalogProducts` — was here. Removed 2026-10-07: /catalog/products has no live
+// route, and the deployment never had one, so every caller got a 404 body back. That
+// is worse than an error, because `apiCall` hands the parsed body on and the callers
+// read `products` off it as an empty array — the UI then said "no products in this
+// catalog" when the truth was "there is no catalog endpoint". Its two consumers went
+// with it: src/components/CatalogBrowser.tsx (deleted) and the inbox composer's
+// 'Load products' picker. This is the CUT branch of the catalog-lookup decision; the
+// catalog SEND below and in the inbox is a DIFFERENT, LIVE surface over WA_BIZ_BASE
+// and deliberately stays.
 
 // ── Catalog product admin (Meta catalog create/list/delete via WA Business API) ──
 export interface CatalogProductInput {

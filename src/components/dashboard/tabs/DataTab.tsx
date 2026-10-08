@@ -206,7 +206,9 @@ const DataTab: React.FC<DataTabProps> = ( { data, onRefresh } ) => {
               <div key={ r.id } className="cleanup-result-row">
                 <span>{ r.label }</span>
                 <span className={ r.error ? 'cleanup-result-error' : 'cleanup-result-success' }>
-                  { r.error ? `Error: ${r.error}` : `${r.deleted} deleted${r.elapsed ? ` (${r.elapsed}s)` : ''}` }
+                  { r.error
+                    ? `Error: ${r.error}`
+                    : `${r.deleted} deleted${r.refused ? `, ${r.refused} kept (has payments — archive instead)` : ''}${r.elapsed ? ` (${r.elapsed}s)` : ''}` }
                 </span>
               </div>
             ) ) }

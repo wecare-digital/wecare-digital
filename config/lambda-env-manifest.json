@@ -1,8 +1,8 @@
 {
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
-  "_functions": 68,
-  "_variables": 405,
+  "_functions": 69,
+  "_variables": 421,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -115,8 +115,12 @@
     "wecare-contacts": {
       "AWS_ACCOUNT_ID": "775261844268",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
+      "CRM_PROVISION_CUSTOMER_LOGIN": "false",
+      "CUSTOMER_LOGIN_FUNCTION": "wecare-secure-files:live",
+      "INVOICES_TABLE": "stack-wecare-digital-InvoicesTable",
       "LOG_LEVEL": "INFO",
       "MEDIA_BUCKET": "wecare-digital-get",
+      "ORDERS_TABLE": "stack-wecare-digital-OrderTable",
       "REGION": "us-east-1",
       "S3_BUCKET": "wecare-digital-get"
     },
@@ -163,12 +167,14 @@
     "wecare-faq-handler": {},
     "wecare-get-miss-redirect": {},
     "wecare-inbound-whatsapp": {
+      "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
       "CONTACTS_TABLE": "stack-wecare-digital-ContactsTable",
       "IAM_REFRESH": "1772814879",
       "INBOUND_TABLE": "stack-wecare-digital-WhatsAppInboundTable",
       "MEDIA_BUCKET": "wecare-digital-get",
       "OUTBOUND_TABLE": "stack-wecare-digital-WhatsAppOutboundTable",
       "STANDBY_REPLY_ENABLED": "false",
+      "WA_CATALOG_ORDERS_ENABLED": "false",
       "WHATSAPP_PHONE_NUMBER_ID_1": "phone-number-id-waba1-direct-1016149501586345",
       "WHATSAPP_PHONE_NUMBER_ID_2": "phone-number-id-waba-t-direct-1055232054343117"
     },
@@ -227,6 +233,16 @@
     },
     "wecare-meta-analytics": {},
     "wecare-meta-business-agent": {},
+    "wecare-meta-catalog-sync": {
+      "LOG_LEVEL": "INFO",
+      "META_CATALOG_ID": "1607047307067517",
+      "META_CATALOG_SYNC_ENABLED": "false",
+      "META_CATALOG_SYNC_DRY_RUN": "true",
+      "META_TOKEN_FIELD": "access_token",
+      "META_TOKEN_SECRET": "wecare/meta-system-user-token",
+      "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
+      "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f"
+    },
     "wecare-notification-worker": {
       "NOTIF_SWEEP_LIMIT": "25"
     },
@@ -359,6 +375,7 @@
       "CUSTOMER_USER_POOL_ID": "us-east-1_46ULYuukt",
       "DOWNLOAD_GRANTS_TABLE": "stack-wecare-digital-DownloadGrantsTable",
       "DOWNLOAD_URL_TTL_SECONDS": "60",
+      "DROPDOCS_ATTACH_ENABLED": "false",
       "GRANT_TTL_SECONDS": "1800",
       "META_PHONE_NUMBER_ID": "1016149501586345",
       "META_WABA_ID": "2094615664435155",
@@ -368,6 +385,7 @@
       "SECURE_FILES_PAYMENT_ENABLED": "false",
       "SECURE_FILES_TABLE": "stack-wecare-digital-SecureFilesTable",
       "SECURE_FILE_PRICE_PAISE": "4900",
+      "SERVICE_REQUESTS_TABLE": "stack-wecare-digital-ServiceRequestsTable",
       "UPLOAD_URL_TTL_SECONDS": "900",
       "WA_DOC_TEMPLATE": "wd_file_delivery",
       "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",

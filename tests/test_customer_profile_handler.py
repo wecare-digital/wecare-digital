@@ -455,29 +455,33 @@ def test_a_session_phone_needing_normalisation_still_resolves_its_owned_row(env)
 # -- a bad address is a 400 with a field, never a 500 and never an uncaught invocation -----
 
 def test_an_invalid_pin_is_a_four_hundred_naming_the_postal_code(env):
+    # FEAT-003: storage is international; the India PIN rule moved to payment_address and runs at
+    # checkout, not here. A profile save with a non-standard PIN is now ACCEPTED (200) — the
+    # website checkout refuses an unpayable address at pay time with DELIVERY_DETAILS_REQUIRED.
     h, fake, _ = env
     seed_owned(fake)
     resp = h.handler(event(address=dict(ADDRESS, postalCode="056001")), None)
-    assert resp["statusCode"] == 400
-    assert json.loads(resp["body"]) == {
-        "error": "INVALID_ADDRESS", "code": "INVALID_PIN", "field": "postalCode"}
+    assert resp["statusCode"] == 200
 
 
-def test_an_unmapped_state_is_a_four_hundred_naming_the_state(env):
+def test_an_unmapped_state_is_now_accepted_at_profile_save(env):
+    # FEAT-003: the Wix/subdivision rule moved to payment time. An unmapped state is stored here
+    # and refused later at checkout, not at the profile save.
     h, fake, _ = env
     seed_owned(fake)
     resp = h.handler(event(address=dict(ADDRESS, state="Bangalore State")), None)
-    assert resp["statusCode"] == 400
-    assert json.loads(resp["body"]) == {
-        "error": "INVALID_ADDRESS", "code": "UNMAPPABLE_STATE", "field": "state"}
+    assert resp["statusCode"] == 200
 
 
-def test_a_refused_address_is_not_echoed_back_to_the_caller(env):
+def test_a_structurally_refused_address_is_not_echoed_back_to_the_caller(env):
+    # A STRUCTURAL failure (missing required field) still 400s and must not echo input back.
     h, fake, _ = env
     seed_owned(fake)
-    resp = h.handler(event(address=dict(ADDRESS, postalCode="056001")), None)
-    assert set(json.loads(resp["body"])) == {"error", "code", "field"}
-    for value in ("12 MG Road", "Flat 3B", "Bengaluru", "056001"):
+    resp = h.handler(event(address={"addressLine1": "12 MG Road", "city": "Bengaluru"}), None)
+    assert resp["statusCode"] == 400
+    body = json.loads(resp["body"])
+    assert "error" in body
+    for value in ("12 MG Road", "Bengaluru"):
         assert value not in resp["body"]
 
 
@@ -541,13 +545,19 @@ def test_an_address_only_save_returns_the_stored_identity(env):
     assert body["address"]["city"] == "Kolkata"
 
 
-def test_a_row_whose_stored_address_no_longer_maps_reports_address_incomplete(env):
+def test_a_stored_address_with_an_unmapped_state_is_structurally_complete_now(env):
+    # FEAT-003: from_contact is structural only, so an unmapped-state stored address is returned
+    # (addressComplete true) rather than reported incomplete. Its payability — whether that state
+    # can price a Wix/Razorpay cart — is enforced at checkout via payment_address, not here. The
+    # customer is no longer bounced back to the profile form for a legacy/edge address; checkout
+    # asks them to confirm it only if it actually cannot pay.
     h, fake, _ = env
     seed_owned(fake, **{ADDRESS_ATTRIBUTE: dict(ADDRESS, state="Bangalore State")})
     resp = h.handler(event(firstName="Asha", lastName="Sengupta"), None)
     body = json.loads(resp["body"])
-    assert body["addressComplete"] is False
-    assert body["address"] is None
+    assert body["addressComplete"] is True
+    assert body["address"] is not None
+    assert body["address"]["state"] == "Bangalore State"
 
 
 # -- the race fallback shares the composer with the edit path ------------------------------

@@ -5,6 +5,10 @@
  * accept string, and size validation that were previously duplicated across
  * src/api/client.ts and src/pages/workspace/engage/whatsapp/inbox.tsx (and elsewhere).
  *
+ * The live consumers are now src/api/client.ts and src/pages/workspace/engage/inbox/index.tsx.
+ * whatsapp/inbox.tsx is named above because that is where the duplication was, but it has since
+ * collapsed into a wrapper over the omnichannel inbox and imports nothing from here.
+ *
  * Limits and supported types follow the WhatsApp Cloud API "Supported Media Types".
  */
 

@@ -76,7 +76,11 @@ describe( 'CheckoutProfile', () => {
 
     fireEvent.change( screen.getByLabelText( 'Address line 1' ), { target: { value: '12 MG Road' } } );
     fireEvent.change( screen.getByLabelText( 'City' ), { target: { value: 'Bengaluru' } } );
-    fireEvent.change( screen.getByLabelText( 'State' ), { target: { value: 'Karnataka' } } );
+    // The state field is our own combobox since batch 2f, so this is open-then-click rather
+    // than fireEvent.change, which does nothing to a button. The SAME user action and the same
+    // emitted value - every assertion about the saved body below is untouched.
+    fireEvent.click( screen.getByRole( 'combobox', { name: 'State' } ) );
+    fireEvent.click( screen.getByRole( 'option', { name: 'Karnataka' } ) );
     fireEvent.change( screen.getByLabelText( 'PIN code' ), { target: { value: '560001' } } );
     expect( screen.getByRole( 'button', { name: /Save & continue/ } ) ).toBeEnabled();
 

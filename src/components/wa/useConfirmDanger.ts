@@ -17,12 +17,15 @@ const VERB: Record<DangerAction, string> = {
 
 export function useConfirmDanger () {
     const confirm = useConfirm();
-    return ( action: DangerAction, message: React.ReactNode, opts?: { confirmInput?: string; title?: string } ) =>
+    // confirmText is overridable because the button label and the typed verb are not always
+    // the same word: a "Clean ALL 1,279 posts?" dialog types CLEAN and must not sit above a
+    // button reading DELETE. The ?? default leaves all existing consumers unchanged.
+    return ( action: DangerAction, message: React.ReactNode, opts?: { confirmInput?: string; title?: string; confirmText?: string } ) =>
         confirm( {
             title: opts?.title || `Confirm ${action}`,
             message,
             danger: true,
             confirmInput: opts?.confirmInput ?? VERB[ action ],
-            confirmText: VERB[ action ],
+            confirmText: opts?.confirmText ?? VERB[ action ],
         } );
 }

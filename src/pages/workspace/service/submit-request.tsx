@@ -8,6 +8,7 @@ import MaybeLayout from '../../../components/MaybeLayout';
 import SEO, { PAGE_SEO } from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import EmptyState from '../../../components/ui/EmptyState';
+import Select, { type SelectOption } from '../../../components/ui/Select';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -23,6 +24,13 @@ const REQUEST_TYPES = [
   'Payment Issue',
   'General Inquiry',
   'Other',
+];
+
+/* Derived from the list above so the two cannot drift. The '' placeholder row stays first and
+   keeps its text, because an empty requestType is what "not chosen yet" means here. */
+const REQUEST_TYPE_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Select type...' },
+  ...REQUEST_TYPES.map( t => ( { value: t, label: t } ) ),
 ];
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
@@ -214,12 +222,10 @@ const SubmitRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
               <div style={ { fontSize: 12, color: '#6b7280' } }>Selected Order</div>
               <div style={ { fontWeight: 600, color: '#1a3a2a' } }>{ formatOrderLabel( selectedOrder ) }</div>
             </div>
-            <label style={ labelStyle }>Request Type *
-              <select value={ form.requestType } onChange={ e => setForm( f => ( { ...f, requestType: e.target.value } ) ) } style={ inputStyle }>
-                <option value="">Select type...</option>
-                { REQUEST_TYPES.map( t => <option key={ t } value={ t }>{ t }</option> ) }
-              </select>
-            </label>
+            { /* SHAPE (a), design 5.2 - the wrapping <label> is gone and Select owns the pair. */ }
+            <Select label="Request Type *" value={ form.requestType }
+              onChange={ v => setForm( f => ( { ...f, requestType: v } ) ) }
+              options={ REQUEST_TYPE_OPTIONS } />
             <label style={ labelStyle }>Subject *
               <input type="text" value={ form.subject } onChange={ e => setForm( f => ( { ...f, subject: e.target.value } ) ) } placeholder="Brief summary of your request" style={ inputStyle } maxLength={ 200 } />
             </label>

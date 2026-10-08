@@ -14,6 +14,7 @@ import SEO from '../../../../components/SEO';
 import PageShell, { ShellTab } from '../../../../components/PageShell';
 import Button from '../../../../components/ui/Button';
 import Pagination from '../../../../components/ui/Pagination';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import * as api from '../../../../api/client';
@@ -49,6 +50,31 @@ const DLT_TEMPLATE_OPTIONS: { key: string; id: string; label: string }[] = [
   { key: 'wa-alert', id: '1007284579074821763', label: 'wa-alert — WhatsApp alerts' },
   { key: 'wd_order', id: '1007723091207562020', label: 'wd_order — order notifications' },
 ];
+
+/*
+ * The option lists, hoisted. Each holds exactly the <option> rows it replaced, in the same
+ * order, with the same values and the same visible text. The DLT list is derived from
+ * DLT_TEMPLATE_OPTIONS above so the two can never drift: the send request carries only the
+ * KEY and the server resolves the template id, entity and sender.
+ */
+const LEGACY_PROVIDER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'All retired providers' },
+  { value: 'airtel', label: 'Airtel IQ (retired)' },
+  { value: 'sinch', label: 'Sinch SMS (retired)' },
+];
+const SEND_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'PROMOTIONAL', label: 'Promotional' },
+  { value: 'TRANSACTIONAL', label: 'Transactional' },
+];
+const DLT_KEY_OPTIONS: SelectOption[] = DLT_TEMPLATE_OPTIONS.map(
+  t => ( { value: t.key, label: t.label } )
+);
+const TPL_MESSAGE_TYPE_OPTIONS: SelectOption[] =
+  [ 'SERVICE_EXPLICIT', 'SERVICE_IMPLICIT', 'TRANSACTIONAL', 'PROMOTIONAL' ]
+    .map( t => ( { value: t, label: t } ) );
+
+/** LAYOUT ONLY - what `.sms-search`'s 200px/220px cap carried; the box is the trigger's. */
+const LEGACY_PROVIDER_STYLE: React.CSSProperties = { width: 200, maxWidth: '100%' };
 
 /** +91XXXXXXXXXX (12 digits incl. country code) routes via ap-south-1 + DLT. */
 const isIndianDestination = ( phone: string ): boolean => {
@@ -435,11 +461,12 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                     <span className="region-badge">read-only</span>
                   </div>
                   <div className="tab-header-actions">
-                    <select value={ legacyProvider } onChange={ e => { setLegacyProvider( e.target.value ); } } className="sms-search" style={ { maxWidth: '220px' } }>
-                      <option value="">All retired providers</option>
-                      <option value="airtel">Airtel IQ (retired)</option>
-                      <option value="sinch">Sinch SMS (retired)</option>
-                    </select>
+                    { /* `.sms-search` is dropped rather than forwarded: it SKINNED the native
+                         control, and className on a Select lands on the wrapper, so it would
+                         paint a box around the whole field. Its width survives as layout. */ }
+                    <Select ariaLabel="Retired provider" value={ legacyProvider }
+                      onChange={ v => { setLegacyProvider( v ); } }
+                      options={ LEGACY_PROVIDER_OPTIONS } style={ LEGACY_PROVIDER_STYLE } />
                     <Button variant="secondary" icon="refresh" onClick={ loadLegacyHistory } disabled={ legacyLoading } loading={ legacyLoading }>Refresh</Button>
                   </div>
                 </div>
@@ -482,13 +509,16 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
               <h3>Send SMS (AWS)</h3>
               <div className="form-group"><label>Phone *</label><div className="input-row"><input type="tel" value={ sendPhone } onChange={ e => setSendPhone( e.target.value ) } placeholder="+1234567890" /><button type="button" className="pick-btn" onClick={ () => setShowContactPicker( 'single' ) }>Contacts</button></div></div>
               <div className="form-group"><label>Message *</label><textarea value={ sendContent } onChange={ e => setSendContent( e.target.value ) } placeholder="Enter message..." rows={ 3 } /></div>
-              <div className="form-group"><label>Type</label><select value={ sendMessageType } onChange={ e => setSendMessageType( e.target.value ) }><option value="PROMOTIONAL">Promotional</option><option value="TRANSACTIONAL">Transactional</option></select></div>
+              { /* The `.form-group` caption is an UNASSOCIATED <label> - no `for`, no wrapped
+                   control - so it was never a name source and the native control had no
+                   accessible name at all. It stays where it is, keeping `.form-group label`'s
+                   own type and spacing, and the control takes `ariaLabel`. */ }
+              <div className="form-group"><label>Type</label><Select ariaLabel="Message type" value={ sendMessageType } onChange={ v => setSendMessageType( v ) } options={ SEND_TYPE_OPTIONS } /></div>
               { isIndianDestination( sendPhone ) ? (
                 <div className="form-group">
                   <label>DLT Template * <span style={ { fontSize: '11px', color: '#9ca3af' } }>required for +91 · TRAI DLT</span></label>
-                  <select value={ sendDltTemplateKey } onChange={ e => setSendDltTemplateKey( e.target.value ) }>
-                    { DLT_TEMPLATE_OPTIONS.map( t => ( <option key={ t.key } value={ t.key }>{ t.label }</option> ) ) }
-                  </select>
+                  <Select ariaLabel="DLT template" value={ sendDltTemplateKey }
+                    onChange={ v => setSendDltTemplateKey( v ) } options={ DLT_KEY_OPTIONS } />
                   <div style={ { marginTop: '6px', fontSize: '11px', color: '#6b7280' } }>
                     Routes via <code>ap-south-1</code> · Sender <code>WDBEEP</code> · Entity <code>1201161991108627443</code> · Template <code>{ DLT_TEMPLATE_OPTIONS.find( t => t.key === sendDltTemplateKey )?.id }</code>
                     <br />Message body must match the approved DLT template content exactly.
@@ -517,7 +547,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
               <div className="form-group"><label>Template ID (DLT) *</label><input type="text" value={ tplId } onChange={ e => setTplId( e.target.value ) } placeholder="DLT Template ID from portal" /></div>
               <div className="form-group"><label>Name</label><input type="text" value={ tplName } onChange={ e => setTplName( e.target.value ) } placeholder="e.g. Customer-Service IVR" /></div>
               <div className="form-group"><label>Content *</label><textarea value={ tplContent } onChange={ e => setTplContent( e.target.value ) } placeholder="Template text with {#var#} placeholders" rows={ 4 } /></div>
-              <div className="form-group"><label>Message Type</label><select value={ tplMessageType } onChange={ e => setTplMessageType( e.target.value ) }><option value="SERVICE_EXPLICIT">SERVICE_EXPLICIT</option><option value="SERVICE_IMPLICIT">SERVICE_IMPLICIT</option><option value="TRANSACTIONAL">TRANSACTIONAL</option><option value="PROMOTIONAL">PROMOTIONAL</option></select></div>
+              <div className="form-group"><label>Message Type</label><Select ariaLabel="DLT message type" value={ tplMessageType } onChange={ v => setTplMessageType( v ) } options={ TPL_MESSAGE_TYPE_OPTIONS } /></div>
               <div className="modal-actions"><Button variant="secondary" onClick={ () => setShowTemplateModal( false ) }>Cancel</Button><Button variant="primary" onClick={ handleCreateTemplate } loading={ tplSaving } disabled={ !tplId || !tplContent }>Save</Button></div>
             </div></div> ) }
 
@@ -527,7 +557,7 @@ const SmsPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
               <div className="form-group"><label>Template ID</label><input type="text" value={ editingTemplate.templateId } disabled style={ { background: '#f3f4f6' } } /></div>
               <div className="form-group"><label>Name</label><input type="text" value={ editTplName } onChange={ e => setEditTplName( e.target.value ) } /></div>
               <div className="form-group"><label>Content *</label><textarea value={ editTplContent } onChange={ e => setEditTplContent( e.target.value ) } rows={ 4 } /></div>
-              <div className="form-group"><label>Message Type</label><select value={ editTplMessageType } onChange={ e => setEditTplMessageType( e.target.value ) }><option value="SERVICE_EXPLICIT">SERVICE_EXPLICIT</option><option value="SERVICE_IMPLICIT">SERVICE_IMPLICIT</option><option value="TRANSACTIONAL">TRANSACTIONAL</option><option value="PROMOTIONAL">PROMOTIONAL</option></select></div>
+              <div className="form-group"><label>Message Type</label><Select ariaLabel="DLT message type" value={ editTplMessageType } onChange={ v => setEditTplMessageType( v ) } options={ TPL_MESSAGE_TYPE_OPTIONS } /></div>
               <div className="modal-actions"><Button variant="secondary" onClick={ () => setShowEditTemplateModal( false ) }>Cancel</Button><Button variant="primary" onClick={ handleUpdateTemplate } loading={ editTplSaving } disabled={ !editTplContent }>Update</Button></div>
             </div></div> ) }
 

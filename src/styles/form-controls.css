@@ -1,0 +1,1196 @@
+/* ==========================================================================
+   FORM CONTROLS - ONE SHARED SKIN FOR THE NATIVE CONTROLS
+
+   Batch 1.3a: <select> and the date family (date, time, datetime-local).
+   Batch 1.3b adds color, range and the file button; batch 1.3c adds checkbox and radio.
+
+   IMPORTED LAST in src/pages/_app.tsx, on the line after button.css. That is deliberate and
+   measured: _app.tsx imports the eight global stylesheets in the order amplify-base, Pages,
+   Layout (whose own :8 @imports tokens.css), Dashboard, inner-pages, inner-ux, flex-layout,
+   button - so a ninth import arrives after every rule in the 85-rule-set inventory. Do not
+   move this import up.
+
+   WHAT THIS FILE IS NOT. It is not a redesign. Every number it declares is a token in
+   tokens.css's FORM CONTROLS block, and every one of those records what the app already
+   renders: 2px #e5e7eb, a 13px radius, a lime hover and focus border, a 44px floor. The
+   change is the MECHANISM - one element-level declaration instead of 85 rule sets in 28
+   files - plus the one thing no cascade could add, a drawn chevron on the public pages.
+
+   WHAT ACTUALLY MOVES, so a reviewer meets it here and not in a screenshot:
+     - the focus ring's alpha, 0.3 -> 0.45, on ~140 workspace selects and the public ones,
+       because this file uses the house --focus-ring token rather than a seventh copy of a
+       hardcoded rgba();
+     - the three PUBLIC selects (/cart/ x2, /shop/<slug>/) gain appearance:none, the drawn
+       chevron and a 32px end inset for the first time - they sit outside every selector the
+       old inner-ux.css chevron block named, because neither page renders a Layout wrapper;
+     - those same public selects move 8px/14px radius -> 13px and 1px border -> 2px.
+   ========================================================================== */
+
+/* The controls this file owns. ELEMENT-LEVEL AND THEREFORE GLOBAL, deliberately: the public
+   branch of _app.tsx renders no wrapper element, so a `.layout`-scoped rule reaches nothing on
+   /cart/, /shop/<slug>/ or /account/sign-in/ - which is how 162 selects came to carry 101
+   private inline styles in the first place.
+
+   THE FOUR :not()s ARE LOAD-BEARING, and not only as opt-outs:
+     [data-ui-raw]       the opt-out for a control that must stay OS-drawn. Nothing sets it
+                         today; it exists so a future exception is declared at the call site
+                         instead of in a competing stylesheet - the mechanism that produced
+                         six scrollbar declarations.
+     [data-public-ui]    an opt-out that ALREADY exists (inner-pages.css:46-63, honoured by 15
+                         selectors): "the public design contract styles this element".
+     .amplify-*          Amplify UI's own classes, served to the authenticated branch from
+                         /vendor/amplify-ui.css. Half-overriding third-party UI produces a
+                         control that is neither ours nor theirs.
+   Including all four lifts this selector to (0,4,1), which out-specifies inner-pages.css:250
+   (0,3,1) outright and ties rather than loses to `.pay-page select` and `.form-group select`.
+   That is what makes the cascade outcome stop mattering: wherever a surviving rule ties us,
+   it declares the same two numbers anyway.
+
+   month and week are NOT here: there are zero of either in the tree, and a selector for a
+   control that does not exist is untested surface area.
+   select[multiple] and select[size] need no exclusion - measured, there are none. */
+
+/* THE !important POLICY, in one place, because it is the thing most likely to be "tidied".
+   101 of the 162 select elements carry an inline `style`, and an inline declaration beats any
+   external rule that is not !important. The brief forbids editing those call sites, so this
+   file marks the properties it OWNS and leaves alone the properties a call site legitimately
+   varies. Three carve-outs are deliberate:
+
+     border-color      NOT important. engage/appointments/index.tsx:177 sets
+                       borderColor: error ? '#dc2626' : '#e5e7eb' inline on a date input for
+                       its past-date error, and its non-error branch IS --control-border, so
+                       the carve-out costs nothing normally and buys the error state. THIS IS
+                       WHY THE BORDER IS WRITTEN AS LONGHANDS: an !important `border`
+                       shorthand would set the colour too and erase that error silently.
+     background-color  NOT important. 12 call sites set a `background` shorthand for a state
+                       tint; ours is the fallback.
+     font-size         NOT DECLARED AT ALL. Layout.css:132-154 is a 23-line comment recording
+                       the incident this would re-create: an !important font-size is a floor
+                       that cannot be exceeded, and it painted four components' deliberate
+                       17px at 16px. The floor already holds without us - tokens.css's two
+                       <=768px `font-size: 16px !important` blocks beat even an inline
+                       fontSize, and inner-pages.css:397-402 pins every workspace select at
+                       16px at every viewport. A fourth claimant would argue with a settled
+                       question.
+
+   And one non-carve-out that is just as deliberate: `outline: none` is declared WITHOUT
+   !important. See the focus rule.
+
+   width / max-width / min-width / flex / margin are NEVER declared here: layout belongs to
+   the call site. That is why `.inner-page select { width: 100% }` stays in inner-ux.css. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control),
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  border-width: var(--control-border-w) !important;
+  border-style: solid !important;
+  /* non-important on purpose - see the policy note above */
+  border-color: var(--control-border);
+  border-radius: var(--control-radius) !important;
+  padding-block: 0 !important;
+  padding-inline-start: var(--control-px) !important;
+  /* 32px, reserving room for the chevron. The text runs under the arrow without it. */
+  padding-inline-end: var(--control-arrow-pad) !important;
+  min-height: var(--control-h) !important;
+  color: var(--control-fg) !important;
+  /* non-important on purpose - see the policy note above */
+  background-color: var(--control-bg);
+  font-family: inherit;
+  /* The eased hover/focus border, carried over from the two rules this file retires `select`
+   * from: tokens.css:431 (`all var(--transition-normal)`, which is `all 0.15s ease`) and
+   * inner-ux.css:567 (`all 0.15s ease`). DELETING THIS LINE IS NOT NEUTRAL - it leaves
+   * .form-group selects eased from Pages.css:881 and every other select in the app instant,
+   * and it makes a date input ease while the select beside it snaps, because the retirement
+   * removes only `select` from tokens.css:420 and the inputs keep that rule's `all`.
+   * NOT `all`: that would animate the background-image chevron swap and the appearance change.
+   * The timing is the token, not a 0.15s literal, for the same reason --control-radius is a
+   * token - and --transition-normal IS 0.15s at runtime: Pages.css:29-30 redeclares
+   * --transition-fast: 0.15s / --transition-normal: 0.2s on its own :root, but tokens.css
+   * arrives AFTER it (_app.tsx:69 Pages.css, :70 Layout.css, whose :8 @imports tokens.css),
+   * so tokens.css:160-161's 0.1s / 0.15s win. */
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+/* THE DISCLOSURE CHEVRON. This is the only chevron declaration in the tree: the block at
+   inner-ux.css:2916-2935 was deleted with this change, because two sources for one arrow is
+   exactly the condition that produced six scrollbar declarations - and because that block
+   reached only `.layout .main-content select`, `.inner-page select`, `.ui-filter`,
+   `.ui-wa-waba` and `.ui-meta-status`, so the authenticated routes had an arrow and the
+   public pages had the OS one.
+
+   SELECT ONLY, not the date family: a date input's arrow is drawn on its
+   ::-webkit-calendar-picker-indicator below, and declaring both would paint two chevrons.
+   `background-position: right ... center` uses `right` as a VALUE, which is what
+   LogicalDirectionCss.test.tsx permits; the RTL mirror is the one override at the end. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) {
+  background-image: var(--control-arrow) !important;
+  background-repeat: no-repeat !important;
+  background-position: right var(--control-arrow-inset) center !important;
+  background-size: var(--control-arrow-size) var(--control-arrow-size) !important;
+  cursor: pointer;
+}
+
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):hover,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover {
+  border-color: var(--control-border-hover);
+}
+
+/* :focus, NOT :focus-visible, and that is measured rather than preferred. Every existing
+   focus rule on a select in this tree targets :focus - eleven in global CSS, nine in
+   styled-jsx and injected CSS - and the only three exceptions are the public call-site
+   outlines this batch rewrites by hand anyway. A rule on :focus-visible does not suppress a
+   rule on :focus, so mixing the two shows a different ring depending on whether the control
+   was clicked or tabbed to: a per-input-device split no test here can see and no single
+   screenshot can reveal.
+
+   box-shadow IS !important. Six existing rules declare the 0.3-alpha ring, four of them with
+   !important, and an !important declaration beats a non-important one at ANY specificity - so
+   without it the ~140 workspace selects would keep 0.3 while only the public ones took
+   --focus-ring's 0.45. Two ring values in one app, split by whether the page has a .layout
+   wrapper. With it, one value holds everywhere.
+
+   outline: none IS DELIBERATELY NOT !important, and this is the one place in the file where
+   dropping an !important is the correct act rather than a mistake. This rule is (0,5,1);
+   cart.tsx's and AddressFields.tsx's call-site `outline: 3px solid var(--accent) !important`
+   are (0,2,0) and (0,0,1). Importance is the ONLY axis on which they can beat us, so making
+   this important would silently replace a 3px 11.85:1 dark-green outline on the checkout page
+   with a lime ring. Non-important still beats every non-important call-site rule, so the UA
+   ring is still suppressed everywhere else. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):focus,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+/* opacity and cursor are re-declared at inner-ux.css:593-594's exact values. Those two
+   declarations are the only thing `.inner-page select:disabled` still contributes - its
+   background is already dead under inner-pages.css:252's `background: #ffffff !important` -
+   so restating them here is what lets the retirement be safe either way. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control):disabled,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* The placeholder row. A `<option value="">Select fit / size</option>` is a prompt, not a
+   value, so it reads at the muted rung - the same distinction a text input's ::placeholder
+   makes. The OPEN menu is still OS-drawn in Layer 1; this reaches the closed state. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) option[value=""] {
+  color: var(--control-fg-muted);
+}
+
+/* Retained from the deleted inner-ux.css block: old Edge/IE draw their own arrow on top. */
+select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control)::-ms-expand {
+  display: none !important;
+}
+
+/* THE DATE FAMILY'S INTERNALS. Blink/WebKit only, and prefixed by nature: Chromium is the
+   engine this repo verifies (tools/browser/lib/browser.js resolves Google Chrome by path and
+   the playwright cache holds no WebKit build), so no claim is made about Gecko or WebKit here.
+   Firefox and Safari take the border, radius, height and focus ring from the rules above and
+   keep their own internals, which is a smaller and honest outcome.
+
+   The picker indicator is where a date input's chevron goes - the element-level
+   background-image above is select-only, so there is exactly one arrow per control.
+   The focused-segment rule replaces the OS blue selection block with the house lime tint. */
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-calendar-picker-indicator,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-calendar-picker-indicator {
+  background-image: var(--control-arrow);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: var(--control-arrow-size) var(--control-arrow-size);
+  opacity: 1;
+  cursor: pointer;
+}
+
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-fields-wrapper,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-text,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-text,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-text {
+  color: var(--control-fg);
+}
+
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-day-field:focus,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-month-field:focus,
+input[type="date"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-year-field:focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-hour-field:focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-minute-field:focus,
+input[type="time"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-ampm-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-day-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-month-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-year-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-hour-field:focus,
+input[type="datetime-local"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-datetime-edit-minute-field:focus {
+  background: var(--control-tint);
+  color: var(--control-fg);
+}
+
+/* ==========================================================================
+   BATCH 1.3b - COLOUR, RANGE AND THE FILE BUTTON
+
+   SCOPE, counted rather than estimated:
+     input[type="color"]  4, every one of them in src/components/dashboard/tabs/AppBuilderTab.tsx
+     input[type="range"]  3 - two in src/components/dashboard/tabs/InternalChatTab.tsx and one
+                          in src/pages/workspace/settings/internal-agent.tsx
+     input[type="file"]   12 in 10 files. There are THIRTEEN textual matches for type="file" in
+                          src/: the thirteenth is prose in src/lib/wa-media.ts:53 and is not a
+                          control, so the count is 12 and must not be "corrected" to 13.
+
+   EVERY ONE OF THESE SURFACES IS A WORKSPACE PAGE. AuthShell is dynamic with ssr:false, so
+   all 113 workspace routes ship an empty #__next in the static export and NO browser harness
+   in this repo can see any of them. There is therefore no browser evidence for how this batch
+   looks; the appearance evidence is the owner's signed-in pass, and nothing here should be read
+   as having been screenshotted.
+
+   MEASURED BASELINE, which is why this batch resets nothing. On a synthetic Chromium page
+   carrying tokens.css:420's bare `input` declarations, a colour, range and file input ALL
+   compute padding 10px 12px, border 2px and radius 13px TODAY, with and without
+   appearance: none - Blink's style adjuster zeroes an author padding and border only for a
+   checkbox and a radio, which is why 1.3c needs `padding: 0` and this batch does not.
+   ========================================================================== */
+
+/* input[type="color"]. NON-IMPORTANT throughout, and that is a measured choice rather than a
+   relaxation of the policy: the only four colour inputs in the tree sit inside
+   AppBuilderTab.tsx:608's `.ab-color-row input[type="color"]` at (0,2,1), none of them carries
+   an inline style, and this selector is (0,4,1) - so specificity alone decides and there is no
+   inline layer to beat. What the call-site rule keeps is the half this file never declares:
+   its 44x44 box and its 2px element padding, which hold the swatch inside our border. What it
+   loses is 1px -> 2px and an 8px radius -> 13px, which is the unification this batch is for.
+
+   The OS colour PANEL is still OS-drawn. Layer 1 reaches the closed control; section 5.5 is
+   what replaces the picker, and saying otherwise here would be a promise this file cannot keep. */
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  cursor: pointer;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover {
+  border-color: var(--control-border-hover);
+}
+
+/* :focus, not :focus-visible - one convention for the whole file. box-shadow IS !important for
+   the same reason it is on the select: inner-pages.css:282 paints a 0.3-alpha ring on a focused
+   bare `input` with !important on every authenticated page, and an !important declaration beats
+   a non-important one at any specificity, so without it these four controls would keep 0.3
+   while everything else moved to --focus-ring's 0.45. outline: none stays non-important, so a
+   call site can still re-assert a stronger outline. */
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* The swatch itself. Blink/WebKit internals, in their own rule sets because a selector list is
+   discarded WHOLE when it contains one unknown pseudo-element - grouping these with a standard
+   selector would silently drop the standard half in Firefox. */
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+input[type="color"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-color-swatch {
+  border: var(--control-border-w) solid var(--control-border);
+  /* 8px AT RUNTIME, not the 6px tokens.css:139 declares: inner-ux.css:91 redeclares
+     --radius-sm on :root and _app.tsx imports it later. Same import-order fact as
+     --control-radius. A tighter radius than the element's 13px on purpose - the swatch is
+     inside it. */
+  border-radius: var(--radius-sm);
+}
+
+/* input[type="range"]. appearance: none IS !important here, as it is on the select: it is the
+   whole point of the rule and zero call sites set it. The three range inputs each carry an
+   inline `style` with `width: 100%` and `accentColor: '#1a3a2a'` - the width is layout and this
+   file never touches it, and accent-color becomes inert the moment appearance: none lands,
+   which is why the track and thumb below have to draw the control themselves.
+
+   NOTHING IS RESET HERE. A range input already computes tokens.css:420's 2px border, 13px
+   radius, 10px 12px padding and 44px min-height today, measured, with appearance: auto - so
+   appearance: none changes the track and the thumb and not the box around them. */
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  background-color: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):disabled {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+
+/* THE TRACK AND THE THUMB, declared twice because the two engines name them differently and
+   neither understands the other's pseudo-element. Blink first.
+
+   THE THUMB IS LIME, and that is not a contradiction of the lime rule. grahak-os-design.md
+   assigns lime to our own surfaces at full voice and reserves it for the ACTIONABLE thing; a
+   slider thumb is the thing you drag, unlike a scrollbar thumb, which is why the scrollbar got
+   a green that is not lime and this gets lime. The 2px --accent border is what supplies the
+   3:1 boundary contrast lime alone cannot - it is 1.24:1 on white. */
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-slider-runnable-track {
+  height: 4px;
+  background-color: var(--control-border);
+  border-radius: var(--radius-full);
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  width: 20px;
+  background-color: var(--lime);
+  border: var(--control-border-w) solid var(--accent);
+  border-radius: var(--radius-full);
+  /* Blink lays the thumb out from the top of the 4px track, so a 20px thumb needs lifting by
+     (20 - 4) / 2 to sit on the centre line. Logical, because LogicalDirectionCss.test.tsx holds
+     src/styles/*.css to zero physical direction properties and margin-block-start is the
+     logical name for the top edge in this writing mode. Gecko centres its own thumb, which is
+     why the -moz rule below carries no equivalent. */
+  margin-block-start: -8px;
+  cursor: pointer;
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-moz-range-track {
+  height: 4px;
+  background-color: var(--control-border);
+  border-radius: var(--radius-full);
+}
+
+input[type="range"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-moz-range-thumb {
+  height: 20px;
+  width: 20px;
+  background-color: var(--lime);
+  border: var(--control-border-w) solid var(--accent);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+/* input[type="file"] - THE BUTTON ONLY, and the boundary is worth stating plainly: the OS file
+   chooser dialog is not replaceable from a web page and no layer of this task removes it.
+   Styling the button is the whole of what is available here.
+
+   Two rule sets for one appearance, and they must NOT be merged. ::file-selector-button is the
+   standard name and the only one Gecko implements; ::-webkit-file-upload-button is the legacy
+   alias. A selector list containing an unknown pseudo-element is discarded whole, so grouping
+   them would drop the standard half in Firefox and the legacy half nowhere - the cost of
+   writing it twice is two blocks, and the cost of writing it once is a browser.
+
+   A QUIET button: the control's own border and radius, --accent text, and the house tint on
+   hover. Not lime, because this is a secondary affordance inside a form field rather than the
+   primary action on the surface. */
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::file-selector-button {
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  padding-block: var(--space-2);
+  padding-inline: var(--control-px);
+  margin-inline-end: var(--space-3);
+  background-color: var(--control-bg);
+  color: var(--accent);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), background-color var(--transition-normal);
+}
+
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::file-selector-button:hover {
+  border-color: var(--control-border-hover);
+  background-color: var(--control-tint);
+}
+
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-file-upload-button {
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  padding-block: var(--space-2);
+  padding-inline: var(--control-px);
+  margin-inline-end: var(--space-3);
+  background-color: var(--control-bg);
+  color: var(--accent);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), background-color var(--transition-normal);
+}
+
+input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input)::-webkit-file-upload-button:hover {
+  border-color: var(--control-border-hover);
+  background-color: var(--control-tint);
+}
+
+/* ==========================================================================
+   BATCH 1.3c - CHECKBOX AND RADIO. THE LAST LAYER 1 BATCH.
+
+   53 checkboxes and 18 radios across 35 files, and 20 rule sets in 9 files already skin one
+   (mechanism A 12 in 6 files, B/C 8 in 3). It is its own batch because the failure mode is
+   loud rather than subtle: appearance: none WITHOUT a drawn indicator makes every checkbox on
+   the site look permanently unchecked.
+
+   TWO OF THOSE 20 RULE SETS ARE OPT-OUTS, not competitors. BlogContribution.tsx's .bc-radio is
+   visually hidden with opacity: 0 and the visible control is drawn on a sibling
+   .bc-choice-face; voice-in/index.tsx's .audio-option input[type="radio"] is hidden with
+   display: none and the visible control is the label. Our rule would draw a SECOND control on
+   top of the first in both cases. Both happen to be inert today - we never declare `display`,
+   and `opacity` only on a select's :disabled - but that is an accident, so both are marked
+   [data-ui-raw] at the call site instead, which is what the attribute is for.
+   ========================================================================== */
+
+/* THE DRAWN BOX, checkbox and radio together. The radius differs and is declared separately
+   below; everything else is shared.
+
+   `padding: 0` IS NOT TIDINESS AND MUST NOT BE REMOVED. tokens.css:532 is a BARE `input`
+   selector at (0,0,1) declaring `padding: 10px 12px` on every checkbox and radio in the app,
+   and `* { box-sizing: border-box }` (Layout.css:25-29) then means a `width: 18px` box with
+   12px of inline padding and a 2px border cannot be 18px - the used width becomes the padding
+   plus the border. MEASURED in Chromium on a synthetic page carrying exactly tokens.css:532's
+   declarations: a UA-drawn checkbox computes padding 0px and border 0px and is 13px wide,
+   because Blink's style adjuster zeroes an author padding and border for a checkbox and a
+   radio specifically; add appearance: none and the authored 10px/12px LIVES and the box becomes
+   28px wide; add width: 18px as well and it is STILL 28px; add padding: 0 and it is 18px.
+   So appearance: none is precisely what makes that padding start to matter, and this one
+   declaration is what makes --control-box the box.
+
+   width and height carry NO !important, deliberately, and for two reasons. The <=768px block
+   below raises the floor with min-height/min-width, which are different properties whose used
+   size is simply the larger, so nothing is competing there. And inner-pages.css:1144 is
+   (0,5,1) - the one rule in the whole census that out-specifies this one - and it declares
+   18px, the same as --control-box, so leaving it to win costs nothing and keeps an agreement
+   rather than starting a fight.
+
+   THE BORDER LONGHANDS' !important IS LOAD-BEARING. DO NOT TIDY IT OFF. Layout.css:1920-1928
+   exists to erase a checkbox's focus indication and declares `border: none !important` at
+   :1927 on :focus, :focus-visible AND :active, at (0,2,1). A state rule carrying !important
+   beats a base rule that does not at any specificity, so a non-important border here would
+   draw a 2px box that VANISHES the instant the control is clicked or tabbed to - an
+   appearance: none checkbox with no border and no tick, which is an invisible control. This is
+   the one place in Layer 1 where dropping an !important produces nothing on screen rather than
+   a cosmetic difference. Our (0,4,1) beats that (0,2,1) at equal importance.
+
+   border-color stays NON-important, per the policy above, and there is one recorded residual:
+   inner-pages.css:280's `border-color: #d1f470 !important` reaches a focused checkbox (bare
+   `input` again) and beats us on importance, so a focused workspace checkbox takes a lime
+   border as well as our ring. That is the same appearance the select already has on focus, so
+   it is the consistent outcome rather than a defect - but it is a thing a reviewer will see
+   and this file does not declare it, so it is written down here. The RESTING border stays
+   #e5e7eb: that rule is :focus only.
+
+   No transition is declared. tokens.css:543's `transition: all` still reaches a checkbox -
+   batch 1.3a retired only `select` from that rule - so the border and the fill already ease. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  width: var(--control-box);
+  height: var(--control-box);
+  padding: 0 !important;
+  border-width: var(--control-border-w) !important;
+  border-style: solid !important;
+  /* non-important on purpose - see the residual note above */
+  border-color: var(--control-border);
+  /* non-important on purpose, as on the select: a call site may tint the resting box */
+  background-color: var(--control-bg);
+  /* THE INDICATOR IS A FIXED-SIZE CENTRED IMAGE, NEVER SIZED TO THE BOX. That is what makes
+     the tick 12px in an 18px box and 12px in the 44px box the media block below restores,
+     instead of a tick stretched across a phone-sized tile. */
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: var(--control-indicator-size) !important;
+  cursor: pointer;
+  /* A fallback for any engine that ignores appearance: none. Inert in Blink once it lands,
+     which is why the drawn indicator below cannot rely on it. */
+  accent-color: var(--accent);
+}
+
+/* 8px AT RUNTIME, not the 6px tokens.css:139 declares: inner-ux.css:91 redeclares --radius-sm
+   on :root and _app.tsx imports it later. Same import-order fact as --control-radius. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  border-radius: var(--radius-sm) !important;
+}
+
+/* 9999px, and --radius-full is not redeclared anywhere, so this one is what it says. */
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+  border-radius: var(--radius-full) !important;
+}
+
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover,
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):hover {
+  border-color: var(--control-border-hover);
+}
+
+/* THE CHECKED STATES. Each one sets the FILL as well as the MARK, and that pairing is not
+   optional: a white tick, dot or dash on --control-bg is a white mark on a white box, which is
+   an empty box - the exact "looks permanently unchecked" failure this batch exists to prevent.
+   Measured: no rule in src/styles declares an !important background on a selector that reaches
+   a checkbox, so these non-important fills at (0,5,1) win outright. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked {
+  background-color: var(--accent);
+  background-image: var(--control-tick) !important;
+}
+
+/* THE RADIO'S DOT IS A background-image AND NOT AN INSET box-shadow. This is a correctness
+   fix, not a preference: in this file box-shadow MEANS focus ring and the focus rule carries
+   !important, so a dot drawn with `box-shadow: inset 0 0 0 4px` would sit at the same (0,5,1)
+   with one pseudo-class and lose - a keyboard-focused checked radio would render as a solid
+   accent disc with no dot at all. Composing the two into a :checked:focus rule works and was
+   rejected: it leaves box-shadow doing two jobs, so the next person to add a :checked:hover
+   has to remember to re-compose and nothing fails if they do not. Drawing the dot as an image
+   makes box-shadow mean one thing on both control types, which FormControlsCss.test.ts states
+   as a negative - no :checked and no :indeterminate rule here may set box-shadow. */
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):checked {
+  background-color: var(--accent);
+  background-image: var(--control-dot) !important;
+}
+
+/* :indeterminate occurs exactly ONCE in the tree - DataTab.tsx:182's tri-state select-all
+   checkbox, set through a ref rather than an attribute - on an authenticated dashboard tab no
+   harness here can load. Its evidence is DataTabCheckbox.test.tsx, which is a DOM-STATE test
+   (jsdom computes no background-image), plus the owner's signed-in pass. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):indeterminate {
+  background-color: var(--accent);
+  background-image: var(--control-dash) !important;
+}
+
+/* :focus, NOT :focus-visible, and the reason is a measurement rather than a preference about
+   whether a ring is wanted on a click. inner-pages.css:279-284 (decl :282) and :2021-2033
+   (decl :2031) BOTH paint a 0.3-alpha ring on a focused checkbox with !important, on :focus,
+   on every authenticated page - they reach it because their selector lists name a BARE
+   `input`, and they already defeat Layout.css:1919's `box-shadow: none !important` on source
+   order. So a ring is painted today. With ours on :focus-visible only, a CLICKED workspace
+   checkbox would keep 0.3 and a TABBED one would take 0.45: two ring values on one control
+   split by input device, across 53 checkboxes, invisible to every test here and to any single
+   screenshot. This selector is (0,5,1) counting the pseudo-class and (0,4,1) without it, which
+   out-specifies both of those at equal importance either way, so :focus gives one ring
+   appearance site-wide and this file keeps one pseudo-class convention throughout. */
+input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus,
+input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):focus {
+  box-shadow: var(--focus-ring) !important;
+  outline: none;
+}
+
+/* RTL. Padding is logical already, so it mirrors for free. The chevron does not:
+   background-position-x is not a logical property, so the physical edge needs one override.
+   [dir="rtl"] rather than :dir(rtl) because `dir` is declared on <html> in the exported HTML
+   and rtlcheck.js:337 fails the build if it is absent - so the attribute is guaranteed and no
+   engine-support question needs answering. */
+[dir="rtl"] select:not([data-ui-raw]):not([data-public-ui]):not(.amplify-select):not(.amplify-field-group__control) {
+  background-position: left var(--control-arrow-inset) center !important;
+}
+
+/* ==========================================================================
+   THE PHONE TAP-TARGET FLOOR - RESTORED, NOT PRESERVED, AND THE MEDIA BLOCK IS WHY IT IS SAFE.
+
+   THE 44px FLOOR ON A CHECKBOX DOES NOT HOLD TODAY. Measured in source:
+   Layout.css:127-129's `min-height: 32px` and tokens.css:576-581's `min-height: 44px` are
+   BOTH (0,1,1) on the input[type="checkbox"] compound - one element plus one attribute
+   selector each - and a media query changes no specificity. Source order decides, and
+   tokens.css reaches the page through Layout.css:8's @import, a fact Layout.css documents in
+   its own words. So Layout.css:127 is LATER and 32px wins at every viewport, phones included.
+   tokens.css:581's `min-width: 44px` is unopposed and does hold, so the phone box today is
+   44 wide by 32 high.
+
+   BOTH HALVES OF THIS MATTER AND FormControlsCss.test.ts PINS BOTH. A top-level min-height
+   would render a 44px tile at 1280px - the hazard that was the whole reason for declaring
+   nothing at all. A missing media-block one leaves the phone box at 32px. So the declaration
+   lives INSIDE this block and nowhere else: above 768px the block does not exist, so it cannot
+   reach desktop by any cascade route.
+
+   min-width goes with it even though tokens.css:581's min-width is currently unopposed,
+   because leaving one of the pair to a rule in another file is how the pair came apart in the
+   first place.
+
+   A 44px rounded tile with a CENTRED 12px tick - not a stretched one; the indicator is a
+   fixed-size background-image - is a deliberate phone affordance, and it is the thing to look
+   at first when reviewing this batch.
+   ========================================================================== */
+@media (max-width: 768px) {
+  input[type="checkbox"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input),
+  input[type="radio"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input) {
+    min-height: var(--tap-target);
+    min-width: var(--tap-target);
+  }
+}
+
+/* ==========================================================================
+   LAYER 2 - OUR OWN MENUS. THE CLASSES src/components/ui/Popover.tsx AND Select.tsx WEAR.
+
+   WHY THEY LIVE HERE AND NOT IN styled-jsx, which is the whole reason this block exists in
+   a stylesheet at all: Popover renders through ReactDOM.createPortal into document.body, so
+   the node is NOT in the tree styled-jsx transformed. A `<style jsx>` block in the component
+   would ship rules whose selectors carry a scope hash the portalled markup never receives -
+   every rule dead, the panel falling back to whatever global `div` and `ul` styling it lands
+   next to. That defect has shipped twice in this repo (the pill rendering as
+   "Sign inConfirm code", and the phone field's dial-code segment) and
+   src/test/StyledJsxBuildScope.test.ts was written for it.
+
+   WHAT STAYS INLINE, AND ONLY THIS: the COMPUTED geometry - `top`, `left`, `width` from the
+   anchor's getBoundingClientRect() - plus two custom properties carrying numbers that cannot
+   be constants here, `--ui-popover-z` (the layer, picked per design 5.1 from
+   src/lib/design-tokens.ts) and `--ui-popover-max-h` (the maxMenuHeight prop). The
+   DECLARATIONS that consume them are below, so no colour, border, radius or shadow is ever
+   written from the component. InfoTooltip.tsx positions the same way.
+
+   DIRECTION. Every property here is logical, as src/test/LogicalDirectionCss.test.tsx's
+   deliberately EMPTY allow-list requires. The one physical edge is the chevron's
+   `background-position: right ... center`, where `right` is a VALUE rather than a property -
+   permitted, and mirrored by the one [dir="rtl"] override at the end of this block, exactly
+   as the native select's arrow is.
+
+   ONE HONEST LIMITATION, because it is a property of portals and not a bug to be found
+   later: the panel is a child of <body>, so it inherits type and colour from <body> and NOT
+   from the panel that rendered the trigger. A Select inside a small-type workspace card
+   draws its menu at body size. That is the correct default for a menu - it is an overlay,
+   not part of the card - and it is recorded here so the first person to notice does not read
+   it as lost styling.
+   ========================================================================== */
+
+/* The field wrapper and the label Select OWNS. A <span>, not a <label>, and that is measured
+   rather than stylistic: a <button> is a labelable element, so a wrapping <label> would still
+   associate and the accessible name would be computed by walking the label's subtree - which
+   contains the trigger's own text, producing "Fit and size Choose your fit and size" - and a
+   <label> forwards clicks to its control, which can double-activate a button. The cursor is a
+   pointer because the span opens the menu on click, which is the affordance the 18 wrapping
+   <label> call sites had for free. */
+.ui-field {
+  display: block;
+}
+.ui-field-label {
+  display: block;
+  margin-block-end: var(--space-1);
+  color: var(--control-fg);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+}
+
+/* THE TRIGGER. Every number is the token the native select already renders, so a migrated
+   control is visually indistinguishable from the Layer-1-skinned one beside it: the same 2px
+   #e5e7eb box, the same 13px radius at runtime, the same 44px floor, the same lime hover and
+   focus border, the same 0.45-alpha house focus ring, and the same drawn chevron from
+   --control-arrow at the same 11px inset and 14px size with the same 32px end padding.
+   NO font-size, here or anywhere in this file: Layout.css:132-154 records the incident an
+   !important font-size caused, and `font: inherit` takes the surrounding type without
+   declaring a floor. `inline-size: 100%` matches inner-ux.css's `.inner-page select` rule,
+   which is what keeps ~50 workspace pages' controls full-width. */
+.ui-select-trigger {
+  display: inline-flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: var(--control-h);
+  padding-block: 0;
+  padding-inline-start: var(--control-px);
+  padding-inline-end: var(--control-arrow-pad);
+  appearance: none;
+  -webkit-appearance: none;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  background-image: var(--control-arrow);
+  background-repeat: no-repeat;
+  background-position: right var(--control-arrow-inset) center;
+  background-size: var(--control-arrow-size) var(--control-arrow-size);
+  color: var(--control-fg);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+.ui-select-trigger:hover {
+  border-color: var(--control-border-hover);
+}
+/* :focus and not :focus-visible, for the reason the select rules above give at length: every
+   existing focus rule on a control in this tree targets :focus, and a rule on :focus-visible
+   does not suppress one on :focus - so mixing the two splits the ring by input device. */
+.ui-select-trigger:focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+/* Open is a state worth seeing: the border holds the focus colour while the menu is up even
+   if a click moved focus for a frame. */
+.ui-select-trigger[aria-expanded="true"] {
+  border-color: var(--control-border-focus);
+}
+.ui-select-trigger[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+/* aria-disabled rather than :disabled, so the empty-options case (clause 5) and a
+   deliberately disabled control render identically - the component sets both. */
+.ui-select-trigger[aria-disabled="true"] {
+  opacity: var(--control-disabled-opacity);
+  cursor: not-allowed;
+}
+/* The chosen value, truncated rather than wrapped: the trigger is one line at --control-h. */
+.ui-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The prompt reads at the muted rung, the same distinction a text input's ::placeholder makes
+   and the same token the native `option[value=""]` rule above uses. */
+.ui-select-placeholder {
+  color: var(--control-fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* THE PORTALLED PANEL. `position: fixed` belongs here and not inline, because only the two
+   coordinates are computed. The z-index and the height ceiling read the custom properties the
+   component sets; the fallbacks are the design's own numbers so a panel still renders sanely
+   if a consumer forgets to set them. 1500 clears all persistent chrome measured
+   (.inner-header 99, .tabs 100/101, .sidebar 100 and 1000 at <=768px) and sits below the
+   app's real transient-overlay band of 9998-10002, so a modal or a toast still wins over a
+   stray open menu. */
+.ui-popover {
+  position: fixed;
+  z-index: var(--ui-popover-z, 1500);
+  max-block-size: var(--ui-popover-max-h, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  color: var(--control-fg);
+  box-shadow: var(--shadow-xl);
+}
+
+.ui-select-menu,
+.ui-select-group {
+  margin: 0;
+  padding-block: var(--space-1);
+  padding-inline: var(--space-1);
+  list-style: none;
+}
+.ui-select-group {
+  padding-block: 0;
+  padding-inline: 0;
+}
+.ui-select-option {
+  display: block;
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--control-fg);
+  cursor: pointer;
+}
+/* THE ACTIVE ROW IS GREY, NOT LIME, and that is the design contract rather than a
+   preference: lime is the actionable colour and must not become a passive control fill. The
+   keyboard-active row and the hovered row read identically on purpose - there is one notion
+   of "the row under the cursor or the caret" - and the SELECTED row is distinguished by
+   colour plus weight instead, so the two states can be told apart when they coincide. */
+.ui-select-option[data-active="true"],
+.ui-select-option:hover {
+  background-color: var(--bg-hover);
+}
+.ui-select-option[aria-selected="true"] {
+  color: var(--accent);
+  font-weight: var(--font-semibold);
+}
+.ui-select-option[aria-disabled="true"] {
+  color: var(--control-fg-muted);
+  cursor: not-allowed;
+}
+.ui-select-group-label {
+  display: block;
+  padding-block: var(--space-2) var(--space-1);
+  padding-inline: var(--space-2);
+  color: var(--control-fg-muted);
+  font-weight: var(--font-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+/* The one mirror. background-position-x is not a logical property, so the chevron needs the
+   same single override the native select's arrow takes above. [dir="rtl"] rather than
+   :dir(rtl) because `dir` is declared on <html> in the exported HTML and rtlcheck.js fails
+   the build if it is absent. */
+[dir="rtl"] .ui-select-trigger {
+  background-position: left var(--control-arrow-inset) center;
+}
+
+/* ==========================================================================
+   LAYER 2b - OUR OWN PICKERS. THE CLASSES DateField.tsx, TimeField.tsx,
+   DateTimeField.tsx AND ColorField.tsx WEAR.
+
+   SAME REASONS AS THE BLOCK ABOVE, so they are not restated: the calendar and the swatch grid
+   are portalled by Popover, a portal escapes styled-jsx's scope hash, and only the computed
+   geometry is inline. Every value below is an existing token; no new hex.
+
+   ONE MEASURED FACT WORTH READING BEFORE EDITING THIS BLOCK, because it decided the shape of
+   the date control. `inner-pages.css:149` is
+   `.layout .main-content button:not([class*="ct-"]):not(.sidebar-collapse-btn):not(.ps-tab)
+   :not(.confirm-modal-cancel):not(.confirm-modal-confirm):not([data-public-ui])`, which
+   computes to (0,8,1) and declares background, color, border, border-radius and padding with
+   `!important`. No class selector can out-rank that, so EVERY <button> these components render
+   inside a workspace page takes the workspace button theme - white, 2px #e5e7eb, 13px radius.
+   Two consequences, both deliberate rather than discovered:
+
+     - `.ui-date-control` carries NO border and NO background. The box belongs to the text
+       input, and the calendar trigger sits BESIDE it as a separate button, so under the
+       workspace theme the control reads as "an input with a button next to it" - which is how
+       every other icon-plus-field pair on those pages already reads. A bordered wrapper would
+       have drawn a second box around a button that already has one.
+     - `.ui-select-trigger` above escapes that rule by accident: `[class*="ct-"]` matches the
+       `ct-` inside `sele`ct-`trigger`. Recorded because it is an accident, not a design, and a
+       rename of that class would silently change how ~145 workspace dropdowns are painted.
+
+   The portalled panels are children of <body> and therefore OUTSIDE `.layout .main-content`,
+   so none of those rules reach the calendar, the day buttons, the swatch grid or the hex field.
+   That is why only the two in-page triggers need the note above.
+   ========================================================================== */
+
+/* THE DATE CONTROL. A row, not a box: see the note above. `gap` rather than a margin so the
+   spacing is direction-agnostic without an override. */
+.ui-date-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ui-date-control[data-disabled] {
+  opacity: var(--control-disabled-opacity);
+}
+
+/* The typed half. The border, radius and fill are the same tokens the native date input takes
+   from the top of this file, so the migrated control is indistinguishable from the one beside
+   it. NO !important and no raised specificity, deliberately: the one rule that competes on a
+   workspace page is `.layout .main-content input[type="text"]:not([data-public-ui])`
+   (inner-pages.css:266), and it declares 2px #e5e7eb and 13px - the SAME VALUES these tokens
+   resolve to at runtime. Padding and the 44px floor are uncontested, because that rule sets
+   neither. An !important here would buy nothing and would have to be explained forever. */
+.ui-date-input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: var(--control-h);
+  padding-block: 0;
+  padding-inline: var(--control-px);
+  appearance: none;
+  -webkit-appearance: none;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  color: var(--control-fg);
+  font: inherit;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+.ui-date-input:hover {
+  border-color: var(--control-border-hover);
+}
+.ui-date-input:focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.ui-date-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+/* The calendar trigger. Square at the control height so it reads as a companion to the input
+   rather than a text button. */
+.ui-date-trigger,
+.ui-color-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-block-size: var(--control-h);
+  min-inline-size: var(--control-h);
+  padding-block: 0;
+  padding-inline: var(--control-px);
+  appearance: none;
+  -webkit-appearance: none;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  color: var(--control-fg);
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+.ui-date-trigger:hover,
+.ui-color-trigger:hover {
+  border-color: var(--control-border-hover);
+}
+.ui-date-trigger:focus,
+.ui-color-trigger:focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.ui-date-trigger[aria-expanded="true"],
+.ui-color-trigger[aria-expanded="true"] {
+  border-color: var(--control-border-focus);
+}
+/* data-invalid rather than aria-invalid, and only here: role="button" does not support
+   aria-invalid, so the colour trigger carries the state as a data attribute and this rule is
+   what the operator actually sees. Same --danger border every other control uses. */
+.ui-color-trigger[data-invalid] {
+  border-color: var(--danger);
+}
+
+/* The calendar glyph, drawn from borders rather than a data URI. A fifth asset in tokens.css
+   would need its hue hardcoded inside the URI - the one thing that block has to keep to a
+   minimum - and a box with a thick block-start edge reads as a calendar at 14px. */
+.ui-date-trigger-icon {
+  display: block;
+  inline-size: 14px;
+  block-size: 14px;
+  border: 2px solid var(--accent);
+  border-block-start-width: 5px;
+  border-radius: 3px;
+}
+
+/* THE CALENDAR PANEL. Inside the portal, so nothing here competes with a workspace rule. */
+.ui-date-panel {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2);
+}
+.ui-date-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block-end: var(--space-2);
+}
+.ui-date-month {
+  flex: 1 1 auto;
+  text-align: center;
+  font-weight: var(--font-semibold);
+}
+.ui-date-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--control-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.ui-date-nav:hover {
+  background-color: var(--bg-hover);
+}
+.ui-date-nav:focus {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.ui-date-grid {
+  display: block;
+}
+.ui-date-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.ui-date-weekday {
+  display: block;
+  padding-block: var(--space-1);
+  color: var(--control-fg-muted);
+  text-align: center;
+  font-weight: var(--font-semibold);
+}
+.ui-date-cell {
+  display: block;
+}
+/* 36px rather than the 44px tap floor: seven of them plus the panel padding is 260px, and a
+   calendar wider than the viewport on a 390px phone is worse than a 36px target inside a
+   panel the operator has already deliberately opened. */
+.ui-date-day {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 36px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--control-fg);
+  font: inherit;
+  cursor: pointer;
+}
+.ui-date-day:hover {
+  background-color: var(--bg-hover);
+}
+.ui-date-day:focus {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+/* Today is an OUTLINE and the selection is a FILL, so the two read differently when they
+   coincide - the same reason the select menu distinguishes active from selected. */
+.ui-date-day[data-today="true"] {
+  box-shadow: inset 0 0 0 2px var(--control-border-hover);
+}
+.ui-date-day[data-selected="true"] {
+  background-color: var(--accent);
+  color: var(--control-bg);
+  font-weight: var(--font-semibold);
+}
+.ui-date-day[aria-disabled="true"] {
+  color: var(--control-fg-muted);
+  cursor: not-allowed;
+}
+
+/* THE TIME AND DATETIME ROWS. Layout only; the two halves are whole components already. */
+.ui-time-parts,
+.ui-datetime-parts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ui-time-parts > .ui-field,
+.ui-datetime-parts > .ui-field {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+.ui-time-sep {
+  flex: 0 0 auto;
+  color: var(--control-fg-muted);
+  font-weight: var(--font-semibold);
+}
+
+/* THE COLOUR TRIGGER's two children. The preview carries the runtime colour from the
+   component's inline style - the one value in this family that cannot be a token - and the hex
+   is shown as TEXT beside it, so the control is readable without relying on the colour. */
+.ui-color-preview {
+  flex: 0 0 auto;
+  inline-size: 20px;
+  block-size: 20px;
+  border: var(--control-border-w) solid var(--control-border);
+  border-radius: var(--radius-sm);
+}
+.ui-color-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* THE SWATCH PANEL. Five columns, which is the number ColorField's ArrowDown/ArrowUp step
+   assumes - the two must agree or the grid navigates diagonally. */
+.ui-color-panel {
+  padding-block: var(--space-2);
+  padding-inline: var(--space-2);
+}
+.ui-color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 32px);
+  gap: var(--space-2);
+}
+.ui-color-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: var(--control-border-w) solid var(--control-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ui-color-swatch:focus {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.ui-color-swatch[data-checked="true"] {
+  border-color: var(--accent);
+}
+/* THE SECOND INDICATOR. A check mark drawn from two borders, shown only on the chosen swatch:
+   colour alone must not be the only thing distinguishing it, least of all on a control whose
+   whole subject is colour. --control-tick cannot be reused here because it is white, and half
+   this palette is white or near-white. */
+.ui-color-check {
+  display: none;
+  inline-size: 12px;
+  block-size: 7px;
+  border-width: 0 0 3px 3px;
+  border-style: solid;
+  border-color: var(--accent);
+  transform: rotate(-45deg);
+  /* The glyph is drawn on the swatch's own fill, so it needs a halo to stay legible on a dark
+     one. Two shadows rather than a background: a background box would hide the colour. */
+  filter: drop-shadow(0 0 1px var(--control-bg)) drop-shadow(0 0 1px var(--control-bg));
+}
+.ui-color-swatch[data-checked="true"] .ui-color-check {
+  display: block;
+}
+
+/* The hex field. Inside the portal, so tokens.css's `input, textarea` base rule at (0,0,1) is
+   the only competitor and a class out-ranks it. */
+.ui-color-hex {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-block-start: var(--space-3);
+}
+.ui-color-hex-label {
+  color: var(--control-fg-muted);
+  font-weight: var(--font-semibold);
+}
+.ui-color-hex-input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: var(--control-h);
+  padding-block: 0;
+  padding-inline: var(--control-px);
+  appearance: none;
+  -webkit-appearance: none;
+  border-width: var(--control-border-w);
+  border-style: solid;
+  border-color: var(--control-border);
+  border-radius: var(--control-radius);
+  background-color: var(--control-bg);
+  color: var(--control-fg);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.ui-color-hex-input:focus {
+  border-color: var(--control-border-focus);
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+
+/* NO RTL MIRROR IN THIS BLOCK, and that is a decision rather than an omission. The only
+   physical pair here is the check mark's two drawn edges, and a tick is not a direction: it
+   reads the same way in Arabic as in English, the way a check mark on a paper form does.
+   Everything else is logical, so the select block's single chevron override above remains the
+   file's only direction-specific rule. */

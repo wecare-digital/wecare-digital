@@ -28,9 +28,23 @@ from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, options_response, extract_origin
 from lambda_utils.logging import get_logger, log_event
-from lambda_utils.validation import sanitize_html, sanitize_dict, normalize_phone
+# `normalize_phone` is deliberately NOT imported here. It strips non-digits BEFORE it looks for a
+# country code, so a ten-digit foreign number arrives looking like an Indian mobile and gets +91
+# prepended - measured, `+6591234567` became `+916591234567`. This surface uses
+# `customer_identity.normalize_phone_preserving_country` instead; see `_e164_or_error`.
+from lambda_utils.validation import sanitize_html, sanitize_dict
 from lambda_utils import contact_key  # `id` is the physical key; `contactId` is its alias
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
+from lambda_utils.privacy import mask_phone  # a phone reaches a log masked, or not at all
+from lambda_utils.identity import customer as customer_identity
+# The PUBLIC customer id. Deliberately not the row `id` - see the module docstring: that one is
+# uuid5 of the Cognito sub when `auth/customer-profile` writes it, so publishing it on an invoice
+# would publish a value derived from the Cognito subject.
+from lambda_utils.identity import customer_uuid
+# A contact tied to money is the provenance record for that money, so it may be ARCHIVED and
+# never hard-deleted. The policy lives in the shared module - two indexed queries, fail-closed -
+# so the word `captured` never has to be compared in this handler.
+from lambda_utils.ecommerce import contact_address, contact_lock, contact_payment_links
 
 logger = get_logger(__name__)
 
@@ -41,6 +55,30 @@ CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-Contacts
 INBOUND_TABLE = os.environ.get('INBOUND_TABLE', 'stack-wecare-digital-WhatsAppInboundTable')
 OUTBOUND_TABLE = os.environ.get('OUTBOUND_TABLE', 'stack-wecare-digital-WhatsAppOutboundTable')
 MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+
+# READ-ONLY, and only on the hard-delete path. These two tables answer "does this contact owe
+# its existence to a payment", through `contact_payment_links`. The defaults match
+# `config/lambda-env-manifest.json` exactly, so the recorded-but-not-yet-deployed variables are
+# inert: whichever way round the deploy lands, the guard reads the same two tables.
+INVOICES_TABLE = os.environ.get('INVOICES_TABLE', 'stack-wecare-digital-InvoicesTable')
+ORDERS_TABLE = os.environ.get('ORDERS_TABLE', 'stack-wecare-digital-OrderTable')
+
+# The function that ALREADY holds `cognito-idp:AdminCreateUser` on the customer pool
+# `us-east-1_46ULYuukt` (`scripts/provision_secure_files_api.py`, Sid `CustomerPoolOnly`). The CRM
+# asks IT to provision a login rather than gaining the grant itself - see
+# `_provision_customer_login` for why that direction is the whole point.
+CUSTOMER_LOGIN_FUNCTION = os.environ.get('CUSTOMER_LOGIN_FUNCTION', 'wecare-secure-files:live')
+
+#: The copy a CRM operator sees when the dial code is missing. A refusal, not a default - see
+#: `_e164_or_error`.
+PHONE_COUNTRY_CODE_REQUIRED = 'Phone number must include a country code, e.g. +91'
+
+# The error message for a number that carries a country code but still is not reachable. Kept as
+# the pre-existing wording so no CRM UI string has to change.
+PHONE_INVALID = 'Invalid phone number format'
+
+_lambda_client = None  # built on first use only; see `_provision_customer_login`
+
 
 # The checkout delivery address, READ-ONLY on this handler.
 #
@@ -54,9 +92,16 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 # fields: that keeps a checkout-captured address distinguishable from a hand-curated one, needs
 # no migration, and removes the risk of a checkout save overwriting what a human typed.
 #
-# Deliberately NOT in `ALLOWED_UPDATE_FIELDS`. Hand-editing it in the CRM could produce a map
-# `contact_address.from_contact` re-validates to None, which demotes a payable customer to
-# `409 DELIVERY_DETAILS_REQUIRED` at checkout. One writer, and it is the checkout path.
+# The RAW attribute is deliberately NOT in `ALLOWED_UPDATE_FIELDS`: there is no unvalidated path
+# to it. But FEAT-003 lets the CRM WRITE it through the shared validator - `_create` and `_update`
+# accept a top-level `address` dict, run `contact_address.normalize_for_storage` (structural,
+# international), and write `ATTRIBUTE`/`UPDATED_ATTRIBUTE` on success or return 400 naming the
+# field on `UnusableAddress`. Storage is structural only now, so a stored address is no longer
+# guaranteed Wix-mappable; the place-of-supply / payability question moved to `payment_address`
+# and runs at pay time (an unpayable stored address becomes the recoverable
+# `409 DELIVERY_DETAILS_REQUIRED` at checkout, via the shared gate). Two writers now - checkout and
+# the CRM - but both go through the one validator, so a hand-curated address and a checkout-captured
+# one are still structurally identical and still distinguishable by `checkoutAddressUpdatedAt`.
 #
 # THIS CONSTANT IS A TEST ANCHOR, NOT PROJECTION CONFIGURATION. No handler code reads it, and
 # that is deliberate rather than an oversight: `_list_all`, `_read_one` and `_search` return the
@@ -146,6 +191,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return _read_one(contact_id, request_id, origin)
             return _list_all(query_params, request_id, origin)
 
+        # POST .../{id}/lock and .../{id}/unlock — dedicated lock state, before generic create.
+        # `locked` is NOT in ALLOWED_UPDATE_FIELDS, so these endpoints are the ONLY way to flip
+        # it: a generic update can neither lock nor silently unlock a legally-retained contact.
+        if method == 'POST' and resource.rstrip('/').endswith('/lock'):
+            if not contact_id:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            body = json.loads(event.get('body', '{}') or '{}')
+            return _lock_contact(contact_id, body.get('reason', 'manual'), request_id, origin)
+        if method == 'POST' and resource.rstrip('/').endswith('/unlock'):
+            if not contact_id:
+                return cors_response(400, {'error': 'contactId is required'}, origin)
+            return _unlock_contact(contact_id, request_id, origin)
+
         # POST [retired public path] — Fix #14: rate limited
         if method == 'POST':
             source_ip = (event.get('requestContext', {}).get('identity', {}) or {}).get('sourceIp', 'unknown')
@@ -186,16 +244,20 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
     phone = body.get('phone', '').strip() if body.get('phone') else None
     email = body.get('email', '').strip().lower() if body.get('email') else None
 
-    # Normalize phone to digits-only E.164 before validation/storage
+    # E.164 that honours the country code the operator actually typed - see `_e164_or_error`.
     if phone:
-        normalized = normalize_phone(phone)
-        if normalized:
-            phone = f'+{normalized}'
+        phone, phone_error = _e164_or_error(phone)
+        if phone_error:
+            return cors_response(400, {'error': phone_error}, origin)
 
     if not phone and not email:
         return cors_response(400, {'error': 'At least one of phone or email is required'}, origin)
+    # Belt only, and said so rather than left to be trusted: `_e164_or_error` already guarantees
+    # `+` followed by 8-15 ASCII digits, which satisfies this regex by construction. It is kept
+    # because it is the shape check this surface has always had, not because it is what makes the
+    # stored number correct.
     if phone and not _validate_phone(phone):
-        return cors_response(400, {'error': 'Invalid phone number format'}, origin)
+        return cors_response(400, {'error': PHONE_INVALID}, origin)
     if email and not _validate_email(email):
         return cors_response(400, {'error': 'Invalid email format'}, origin)
 
@@ -209,6 +271,17 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
 
     contact = {
         **contact_key.contact_item_keys(contact_id),
+        # THE PUBLIC CUSTOMER ID, minted inline and never read back first. This IS the resolve
+        # half of resolve-before-generate and it needs no extra read: `_check_duplicate` ran
+        # above and returned `None`, so no live row exists on this phone or this email - there is
+        # nothing to resolve TO. The update path cannot make that claim and so uses
+        # `if_not_exists` instead.
+        #
+        # Taken from the body is exactly what it is NOT. The client never supplies this: it is
+        # absent from `ALLOWED_UPDATE_FIELDS` and never read out of `body` here, so a request
+        # carrying `customerUuid` is ignored rather than honoured. A customer-chosen public id
+        # would let one customer claim another's identifier on an invoice.
+        customer_uuid.ATTRIBUTE: customer_uuid.new_customer_uuid(),
         'name': body.get('name', '').strip(),
         'phone': phone,
         'email': email,
@@ -249,8 +322,28 @@ def _create(body: Dict[str, Any], request_id: str, origin: str = '') -> Dict[str
         'deletedAt': None,
     }
 
+    # FEAT-003: a validated structured address may be written through the shared validator. The
+    # raw attribute is NOT in ALLOWED_UPDATE_FIELDS - this top-level `address` dict is the only
+    # path, and it always goes through normalize_for_storage (structural, international). On a bad
+    # address, refuse the whole create with 400 naming the field, writing nothing.
+    address_in = body.get('address')
+    if address_in is not None:
+        try:
+            stored_address = contact_address.normalize_for_storage(address_in)
+        except contact_address.UnusableAddress as exc:
+            return cors_response(400, {'error': 'Invalid address', 'code': exc.code,
+                                       'field': exc.field}, origin)
+        contact[contact_address.ATTRIBUTE] = stored_address
+        contact[contact_address.UPDATED_ATTRIBUTE] = now
+
     table = dynamodb.Table(CONTACTS_TABLE)
     table.put_item(Item=_to_dynamo(contact))
+
+    # AFTER the row exists, and never before it: the login is an attachment to a contact that is
+    # already stored, so a dispatch that fires and then a failed write cannot leave a Cognito user
+    # with no row behind it. Off by default, and a no-op when it is off.
+    if phone:
+        _provision_customer_login(phone, request_id)
 
     log_event(logger, 'contact_created', contactId=contact_id, requestId=request_id)
     return cors_response(201, _from_dynamo(contact), origin)
@@ -361,11 +454,14 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
             return cors_response(400, {'error': f'{f} must be a boolean value'}, origin)
 
     if 'phone' in updates and updates['phone']:
-        normalized = normalize_phone(updates['phone'])
-        if normalized:
-            updates['phone'] = f'+{normalized}'
+        # The SAME normalisation as `_create`, deliberately: an update that re-wrote the number
+        # in the old `'+' + digits` form would undo the link for a row that was created
+        # correctly, which is the defect arriving through the back door.
+        updates['phone'], phone_error = _e164_or_error(updates['phone'])
+        if phone_error:
+            return cors_response(400, {'error': phone_error}, origin)
         if not _validate_phone(updates['phone']):
-            return cors_response(400, {'error': 'Invalid phone number format'}, origin)
+            return cors_response(400, {'error': PHONE_INVALID}, origin)
     if 'email' in updates and updates['email']:
         updates['email'] = updates['email'].strip().lower()
         if not _validate_email(updates['email']):
@@ -379,6 +475,19 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         if dup:
             return cors_response(409, {'error': dup}, origin)
 
+    # FEAT-003: a validated structured address, written through the shared validator only. The
+    # raw attribute is not in ALLOWED_UPDATE_FIELDS, so `updates` never carries it from the client;
+    # the top-level `address` dict is the one path and always goes through normalize_for_storage.
+    address_in = body.get('address')
+    if address_in is not None:
+        try:
+            stored_address = contact_address.normalize_for_storage(address_in)
+        except contact_address.UnusableAddress as exc:
+            return cors_response(400, {'error': 'Invalid address', 'code': exc.code,
+                                       'field': exc.field}, origin)
+        updates[contact_address.ATTRIBUTE] = stored_address
+        updates[contact_address.UPDATED_ATTRIBUTE] = int(time.time())
+
     updates['updatedAt'] = int(time.time())
 
     set_parts, names, values = [], {}, {}
@@ -386,6 +495,23 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
         set_parts.append(f'#n{i} = :v{i}')
         names[f'#n{i}'] = k
         values[f':v{i}'] = Decimal(str(v)) if isinstance(v, (int, float)) and not isinstance(v, bool) else v
+
+    # THE PUBLIC CUSTOMER ID, backfilled onto a hand-updated contact. This is the requirement's
+    # "a manually updated contact becomes a real customer with an id we can print".
+    #
+    # Added AFTER the loop and through its own placeholder, deliberately NOT via
+    # `ALLOWED_UPDATE_FIELDS`: that set is the list of fields the CLIENT may set, and this one it
+    # may not. Routing the mint through `updates` would put a customer-supplied `customerUuid`
+    # straight onto the row.
+    #
+    # `if_not_exists` rather than a read-then-write. A fresh uuid4 is minted locally on every
+    # update and DISCARDED by DynamoDB whenever the row already has one - that costs no network
+    # call, and it makes "an existing customer keeps its id" an atomic database guarantee instead
+    # of a race window between the read and the write. Two concurrent updates therefore cannot
+    # issue two ids for one customer.
+    set_parts.append(
+        f'{customer_uuid.ATTRIBUTE} = if_not_exists({customer_uuid.ATTRIBUTE}, :vcustuuid)')
+    values[':vcustuuid'] = customer_uuid.new_customer_uuid()
 
     table = dynamodb.Table(CONTACTS_TABLE)
     try:
@@ -408,10 +534,177 @@ def _update(contact_id: str, body: Dict[str, Any], request_id: str, origin: str 
 
 # ─── DELETE (soft / hard) ───────────────────────────────────────────────────
 
+#: The two refusals, distinct on the wire so the UI can say WHICH happened rather than offering
+#: one vague "could not delete". Both carry `archiveInstead: True`, because the soft delete is
+#: always still available and is what the operator actually wants.
+HARD_DELETE_REFUSED_PAYMENTS = 'CONTACT_HAS_PAYMENTS'
+HARD_DELETE_REFUSED_UNKNOWN = 'PAYMENT_LINKAGE_UNKNOWN'
+#: A LOCKED contact is legally retained: it refuses BOTH hard and soft delete. Unlike the
+#: payment guard (which blocks hard delete but still offers archive), a lock blocks archive too,
+#: so `archiveInstead` is False here — the record is kept, not archivable.
+DELETE_REFUSED_LOCKED = 'CONTACT_LOCKED'
+
+
 def _delete(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Dict[str, Any]:
+    # A lock blocks EVERY delete, hard or soft, before anything else.
+    lock_refusal = _locked_delete_refusal(contact_id, hard, request_id, origin)
+    if lock_refusal is not None:
+        return lock_refusal
     if hard:
+        refusal = _hard_delete_refusal(contact_id, request_id, origin)
+        if refusal is not None:
+            return refusal
         return _hard_delete(contact_id, request_id, origin)
     return _soft_delete(contact_id, request_id, origin)
+
+
+def _lock_contact(contact_id: str, reason: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Lock a contact for legal retention. Operator-driven; auto-lock-on-pay uses contact_lock.
+
+    Idempotent: locking an already-locked contact succeeds and refreshes the reason/timestamp.
+    """
+    reason = (str(reason or 'manual').strip().lower() or 'manual')[:40]
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #locked = :t, #reason = :r, #at = :ts, #u = :ts',
+            ExpressionAttributeNames={
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
+                '#reason': contact_lock.LOCKED_REASON_ATTRIBUTE,
+                '#at': contact_lock.LOCKED_AT_ATTRIBUTE,
+                '#u': 'updatedAt',
+            },
+            ExpressionAttributeValues={':t': True, ':r': reason, ':ts': int(time.time())},
+            ConditionExpression='attribute_exists(id)',
+            ReturnValues='ALL_NEW',
+        )
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+    log_event(logger, 'contact_locked', contactId=contact_id, reason=reason, requestId=request_id)
+    return cors_response(200, _from_dynamo(resp.get('Attributes', {})), origin)
+
+
+def _unlock_contact(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
+    """Unlock a contact. Staff may unlock even a 'paid' auto-lock, but the paid-contact
+    hard-delete guard still prevents destroying a record with payments, so legal retention
+    survives an unlock. The unlock is logged with the prior reason for the audit trail.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        resp = table.update_item(
+            Key={'id': contact_id},
+            UpdateExpression='SET #locked = :f, #u = :ts REMOVE #reason, #at',
+            ExpressionAttributeNames={
+                '#locked': contact_lock.LOCKED_ATTRIBUTE,
+                '#reason': contact_lock.LOCKED_REASON_ATTRIBUTE,
+                '#at': contact_lock.LOCKED_AT_ATTRIBUTE,
+                '#u': 'updatedAt',
+            },
+            ExpressionAttributeValues={':f': False, ':ts': int(time.time())},
+            ConditionExpression='attribute_exists(id)',
+            ReturnValues='ALL_OLD',
+        )
+    except Exception as e:  # noqa: BLE001
+        if 'ConditionalCheckFailedException' in str(e):
+            return cors_response(404, {'error': 'Contact not found'}, origin)
+        raise
+    prior = resp.get('Attributes', {})
+    log_event(logger, 'contact_unlocked', contactId=contact_id,
+              priorReason=str(prior.get(contact_lock.LOCKED_REASON_ATTRIBUTE) or ''),
+              requestId=request_id)
+    return cors_response(200, {'id': contact_id, 'locked': False}, origin)
+
+
+def _locked_delete_refusal(contact_id: str, hard: bool, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+    """`None` when the contact is not locked (delete may proceed); otherwise the 409 to return.
+
+    A locked contact is retained for legal records and refuses both hard and soft delete.
+
+    On an UNREADABLE row the behaviour differs by delete kind, deliberately, so this guard does
+    not change an existing tested contract: for a HARD delete, return None and let
+    `_hard_delete_refusal` (which runs next and already fail-closes on an unreadable row with
+    `PAYMENT_LINKAGE_UNKNOWN`) own that refusal. For a SOFT delete there is no later guard, so an
+    unreadable row fail-closes HERE with `CONTACT_LOCKED`. A missing row returns None so the
+    delete paths own their own 404.
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        row = table.get_item(Key={'id': contact_id}).get('Item')
+    except Exception as exc:  # noqa: BLE001 - cannot read, so cannot prove unlocked
+        if hard:
+            return None  # the payment guard below owns the unreadable-row refusal for hard delete
+        return cors_response(409, {
+            'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
+            'reason': f'the contact row could not be read to check its lock: {type(exc).__name__}',
+        }, origin)
+    if not row:
+        return None
+    if contact_lock.is_locked(row):
+        return cors_response(409, {
+            'error': DELETE_REFUSED_LOCKED, 'archiveInstead': False,
+            'lockedReason': str(row.get(contact_lock.LOCKED_REASON_ATTRIBUTE) or ''),
+            'reason': 'this contact is locked for legal records and cannot be deleted or archived',
+        }, origin)
+    return None
+
+
+def _hard_delete_refusal(contact_id: str, request_id: str, origin: str = '') -> Optional[Dict[str, Any]]:
+    """`None` when the hard delete may proceed; otherwise the 409 response to return.
+
+    Runs BEFORE `_hard_delete`, which is the only ordering that helps: `_hard_delete` deletes
+    every message and every S3 object first and the contact row last, so a check made partway
+    through would already have destroyed the history the guard exists to protect.
+
+    Fail-closed in three places, not one. An unreadable contact row, an unreadable index, and a
+    row with no usable key all refuse, because none of them is evidence of "no payments".
+    """
+    table = dynamodb.Table(CONTACTS_TABLE)
+    try:
+        row = table.get_item(Key={'id': contact_id}).get('Item') or {}
+    except Exception as exc:  # noqa: BLE001 - cannot read the row, so cannot read its linkage
+        log_event(logger, 'contact_hard_delete_linkage_unknown', contactId=contact_id,
+                  reason=f'contact row unreadable: {type(exc).__name__}', requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_UNKNOWN, 'archiveInstead': True,
+            'reason': f'the contact row could not be read: {type(exc).__name__}',
+        }, origin)
+
+    if not row:
+        # Not a refusal. `_hard_delete` owns the 404 and already answers it, and duplicating
+        # that answer here would be two places deciding what "not found" looks like.
+        return None
+
+    try:
+        linkage = contact_payment_links.has_payment_links(
+            invoices_table=dynamodb.Table(INVOICES_TABLE),
+            orders_table=dynamodb.Table(ORDERS_TABLE),
+            contact_row=row,
+        )
+    except contact_payment_links.PaymentLinkageUnknown as exc:
+        # `str(exc)` is safe HERE and only here: the module builds that message itself from a
+        # fixed phrase plus `type(exc).__name__`, so it carries no provider text.
+        log_event(logger, 'contact_hard_delete_linkage_unknown', contactId=contact_id,
+                  reason=str(exc), requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_UNKNOWN, 'archiveInstead': True, 'reason': str(exc),
+        }, origin)
+
+    # `contactId` and the signal names are the whole log line. The phone is deliberately absent
+    # rather than masked: nothing here needs it, and the contact id is the correlation key.
+    if linkage.blocked:
+        log_event(logger, 'contact_hard_delete_refused', contactId=contact_id,
+                  signals=list(linkage.signals), reason=linkage.reason, requestId=request_id)
+        return cors_response(409, {
+            'error': HARD_DELETE_REFUSED_PAYMENTS, 'archiveInstead': True,
+            'reason': linkage.reason, 'signals': list(linkage.signals),
+        }, origin)
+
+    log_event(logger, 'contact_hard_delete_allowed', contactId=contact_id,
+              signals=list(linkage.signals), requestId=request_id)
+    return None
 
 
 def _soft_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str, Any]:
@@ -508,6 +801,98 @@ def _hard_delete(contact_id: str, request_id: str, origin: str = '') -> Dict[str
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
+
+def _e164_or_error(raw: str) -> tuple:
+    """`(e164, None)` or `(None, message)`. The CRM's single phone-entry contract.
+
+    THIS IS THE FIX THAT MAKES A CRM ROW VISIBLE TO THE WEBSITE AND TO WHATSAPP. One contact row
+    is reached from three directions and the only key all three share is the E.164 phone:
+    `phone-index` on `+91...` for a signed-in website session (`auth/customer-profile`,
+    `ecommerce/checkout`, `ecommerce/customer-orders`), the same index for an inbound WhatsApp
+    `wa_id`, and the Cognito `Username`. Measured before this changed: an operator typing
+    `9876543210` produced the stored value `+9876543210`, so the website looked up
+    `+919876543210` and WhatsApp looked up `919876543210` and NEITHER found the row. The CRM
+    customer was pushed through the entire first-time flow despite already existing.
+
+    A MISSING COUNTRY CODE IS REFUSED, NOT GUESSED. `normalize_phone_preserving_country` raises
+    `MissingCountryCode` for input carrying neither `+` nor `00`, and that rejection is carried
+    straight through to a 400 here rather than softened. Refusing is correct rather than
+    inconvenient on this surface: the CRM form supplies a dial code explicitly, so no real UI
+    state produces a bare national number - only a direct API caller does - and the alternative
+    is the defect wearing a wrapper. Guessing `+91` for a ten-digit foreign number sends the OTP
+    to an unrelated Indian subscriber AND reserves the wrong identity permanently, because
+    uniqueness is enforced on the normalised value.
+
+    The duplicate check downstream therefore compares normalised values on both sides, which is
+    the second half of the same property: two spellings of one number must collapse to one string
+    BEFORE `_check_duplicate` queries `phone-index`, or the same person gets two rows.
+    """
+    try:
+        return customer_identity.normalize_phone_preserving_country(raw), None
+    except customer_identity.MissingCountryCode:
+        return None, PHONE_COUNTRY_CODE_REQUIRED
+    except customer_identity.InvalidPhoneNumber:
+        return None, PHONE_INVALID
+
+
+def _customer_login_enabled() -> bool:
+    """`CRM_PROVISION_CUSTOMER_LOGIN`, read at REQUEST time and defaulting to OFF.
+
+    Read per request rather than at import so the flag can be flipped by an environment update
+    without waiting for every warm sandbox to recycle. Default off means a CRM create behaves
+    exactly as it does today until an owner deliberately turns it on.
+    """
+    return os.environ.get('CRM_PROVISION_CUSTOMER_LOGIN', 'false').strip().lower() == 'true'
+
+
+def _provision_customer_login(phone: str, request_id: str) -> None:
+    """Ask the function that already holds the grant to create the customer's Cognito login.
+
+    WHY AN ASYNC INVOKE RATHER THAN A CALL FROM HERE. A CRM contact has no Cognito user, so the
+    WhatsApp OTP trigger answers `registered=false` and sends nothing - the customer the CRM just
+    created cannot sign in. Fixing that needs `cognito-idp:AdminCreateUser` on the customer pool
+    `us-east-1_46ULYuukt`, and `core/secure-files` already holds exactly that, scoped to the
+    customer pool, for `_ensure_customer_user`. Reaching it by invoke keeps the grant in the one
+    role that was provisioned for it instead of widening this role, which is shared.
+
+    USER-LEVEL ADMIN APIS ONLY. Nothing in this path calls `UpdateUserPool`. That API is a FULL
+    REPLACE: on 2026-09-28 a partial call returned 200, silently cleared three auth triggers and
+    flipped `AllowAdminCreateUserOnly` to false on this very pool - self-signup opened on a
+    public, internet-facing pool, with no error and no warning. If a pool-level setting ever has
+    to change it goes through `scripts/cognito_pool_safe_update.py --apply` and nothing else.
+
+    THE PAYLOAD CARRIES THE NORMALISED E.164 AND NOTHING ELSE. Not the name, not the email, not
+    the contact id. The receiving function needs the phone to key the user and no more, and a
+    smaller payload is a smaller thing to get wrong; the phone reaches the log masked.
+
+    Fire-and-forget on purpose. A login is a convenience attached to a contact row that is
+    already stored, so a dispatch failure must not fail the create - it is recoverable by
+    re-saving the contact once the flag is on.
+    """
+    if not _customer_login_enabled():
+        return
+    global _lambda_client
+    try:
+        if _lambda_client is None:
+            # Built here rather than at import: with the flag off, no Lambda client is ever
+            # constructed and this handler's cold start is unchanged.
+            _lambda_client = boto3.client(
+                'lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        _lambda_client.invoke(
+            FunctionName=CUSTOMER_LOGIN_FUNCTION,
+            InvocationType='Event',
+            Payload=json.dumps({
+                'internalAction': 'provisionCustomerLogin',
+                'phone': phone,
+            }).encode('utf-8'),
+        )
+        log_event(logger, 'crm_customer_login_dispatched',
+                  phone=mask_phone(phone), requestId=request_id)
+    except Exception as exc:  # noqa: BLE001 - a missing login, never a lost contact
+        # Type only: a ClientError message can echo the request content, phone included.
+        log_event(logger, 'crm_customer_login_dispatch_failed', level='warning',
+                  error=type(exc).__name__, requestId=request_id)
+
 
 def _validate_phone(phone: str) -> bool:
     pattern = r'^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,9}[-\s\.]?[0-9]{0,9}$'

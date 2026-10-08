@@ -12,6 +12,14 @@ import SEO from '../../../../components/SEO';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import { colors } from '../../../../lib/design-tokens';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
+
+/* The SMS classification rows, hoisted - this is the India TRANSACTIONAL/PROMOTIONAL DLT
+   class on an outbound broadcast, so the two values are exactly as they were. */
+const SMS_TYPE_OPTIONS: SelectOption[] = [
+    { value: 'TRANSACTIONAL', label: 'Transactional' },
+    { value: 'PROMOTIONAL', label: 'Promotional' },
+];
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -67,6 +75,16 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
         return contacts.filter( c => eligible( c, channel ) )
             .filter( c => !q || c.name?.toLowerCase().includes( q ) || c.phone?.includes( q ) || c.email?.toLowerCase().includes( q ) );
     }, [ contacts, channel, search ] );
+
+    /* The fetched template list, memoised on `templates`: same order, same values, same
+       visible text, with the '' placeholder row kept as the first option. */
+    const templateOptions: SelectOption[] = useMemo(
+        () => [
+            { value: '', label: 'Select a template…' },
+            ...templates.map( ( t: any ) => ( { value: t.name, label: t.name } ) ),
+        ],
+        [ templates ]
+    );
 
     const toggle = ( id: string ) => setSelected( prev => { const n = new Set( prev ); n.has( id ) ? n.delete( id ) : n.add( id ); return n; } );
     const selectAll = () => setSelected( new Set( audience.map( c => c.contactId ) ) );
@@ -151,10 +169,11 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                         { channel === 'whatsapp' ? (
                             <>
                                 <p className="bc-hint">WhatsApp broadcasts must use an approved template.</p>
-                                <select className="bc-input" value={ templateName } onChange={ e => setTemplateName( e.target.value ) }>
-                                    <option value="">Select a template…</option>
-                                    { templates.map( ( t: any ) => <option key={ t.name } value={ t.name }>{ t.name }</option> ) }
-                                </select>
+                                { /* `.bc-input` SKINNED the native control and is dropped rather than
+                                     forwarded. The fetched list is memoised below. */ }
+                                <Select ariaLabel="Template" value={ templateName }
+                                    onChange={ v => setTemplateName( v ) }
+                                    options={ templateOptions } />
                             </>
                         ) : (
                             <>
@@ -163,10 +182,9 @@ const BroadcastPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                                 ) }
                                 <textarea className="bc-textarea" placeholder="Message…" value={ content } onChange={ e => setContent( e.target.value ) } rows={ 6 } />
                                 { channel === 'sms' && (
-                                    <select className="bc-input" value={ smsType } onChange={ e => setSmsType( e.target.value as any ) }>
-                                        <option value="TRANSACTIONAL">Transactional</option>
-                                        <option value="PROMOTIONAL">Promotional</option>
-                                    </select>
+                                    <Select ariaLabel="SMS type" value={ smsType }
+                                        onChange={ v => setSmsType( v as any ) }
+                                        options={ SMS_TYPE_OPTIONS } />
                                 ) }
                             </>
                         ) }

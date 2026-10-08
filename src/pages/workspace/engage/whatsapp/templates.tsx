@@ -21,6 +21,7 @@ import { SkeletonCard } from '../../../../components/Skeleton';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import { useConfirm } from '../../../../contexts/ConfirmContext';
 import Button from '../../../../components/ui/Button';
+import Select, { type SelectOption } from '../../../../components/ui/Select';
 import Tabs, { TabItem } from '../../../../components/ui/Tabs';
 import * as api from '../../../../api/client';
 
@@ -34,6 +35,59 @@ const WABA_OPTIONS = [
   { id: 'waba-e47d916f3c7a47e1a34a19653893dd4b', name: 'WECARE.DIGITAL' },
   { id: 'waba-dbe343f210204752b74c80a0a59631a6', name: 'Manish Agarwal' },
 ];
+
+const WABA_SELECT_OPTIONS: SelectOption[] = WABA_OPTIONS.map( ( w ) => ( { value: w.id, label: w.name } ) );
+const TEMPLATE_CATEGORY_OPTIONS: SelectOption[] = [
+  { value: 'UTILITY', label: 'Utility' },
+  { value: 'MARKETING', label: 'Marketing' },
+  { value: 'AUTHENTICATION', label: 'Authentication' },
+];
+const TEMPLATE_LANGUAGE_OPTIONS: SelectOption[] = [
+  { value: 'en_US', label: 'English (US)' },
+  { value: 'en_GB', label: 'English (UK)' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'es', label: 'Spanish' },
+];
+const HEADER_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'none', label: 'No Header' },
+  { value: 'text', label: 'Text' },
+  { value: 'image', label: 'Image' },
+  { value: 'video', label: 'Video' },
+  { value: 'document', label: 'Document' },
+  { value: 'location', label: 'Location (map pin)' },
+];
+const BUTTON_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'URL', label: 'URL' },
+  { value: 'PHONE_NUMBER', label: 'Phone' },
+  { value: 'QUICK_REPLY', label: 'Quick Reply' },
+];
+/** The carousel card's own order, which differs from the body button list above it. */
+const CARD_BUTTON_TYPE_OPTIONS: SelectOption[] = [
+  { value: 'QUICK_REPLY', label: 'Quick Reply' },
+  { value: 'URL', label: 'URL' },
+  { value: 'PHONE_NUMBER', label: 'Phone' },
+];
+const CAROUSEL_CATEGORY_OPTIONS: SelectOption[] = [
+  { value: 'MARKETING', label: 'Marketing' },
+  { value: 'UTILITY', label: 'Utility' },
+];
+const CAROUSEL_LANGUAGE_OPTIONS: SelectOption[] = [
+  { value: 'en_US', label: 'English (US)' },
+  { value: 'en_GB', label: 'English (UK)' },
+  { value: 'hi', label: 'Hindi' },
+  { value: 'bn', label: 'Bengali' },
+  { value: 'ta', label: 'Tamil' },
+  { value: 'te', label: 'Telugu' },
+  { value: 'gu', label: 'Gujarati' },
+  { value: 'mr', label: 'Marathi' },
+];
+/* Layout only, and these numbers are not new: they are the sizes the dropped `.waba-select`
+   and `.button-row select` rules carried. A styled-jsx class cannot be forwarded to a child
+   component - its scope hash never reaches that component's DOM - and `className` on a Select
+   lands on the wrapper, so the class goes and the layout half of it comes back here. */
+const WABA_SELECT_STYLE: React.CSSProperties = { minWidth: 200 };
+const EMBEDDED_WABA_SELECT_STYLE: React.CSSProperties = { flex: 1, minWidth: 150 };
+const BUTTON_TYPE_SELECT_STYLE: React.CSSProperties = { width: 120 };
 
 const CATEGORY_COLORS: Record<string, string> = {
   MARKETING: '#1a1a1a',
@@ -523,15 +577,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
             backLabel="Back"
             actions={
               <div className="header-actions">
-                <select
-                  className="waba-select"
+                <Select
+                  ariaLabel="WhatsApp Business Account"
                   value={ selectedWaba }
-                  onChange={ ( e ) => setSelectedWaba( e.target.value ) }
-                >
-                  { WABA_OPTIONS.map( ( w ) => (
-                    <option key={ w.id } value={ w.id }>{ w.name }</option>
-                  ) ) }
-                </select>
+                  onChange={ ( v ) => setSelectedWaba( v ) }
+                  options={ WABA_SELECT_OPTIONS }
+                  style={ WABA_SELECT_STYLE }
+                />
                 <Button variant="secondary" onClick={ () => setShowCarouselModal( true ) }>
                   Carousel
                 </Button>
@@ -546,15 +598,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
         {/* Embedded header with actions */ }
         { embedded && (
           <div className="embedded-header">
-            <select
-              className="waba-select"
+            <Select
+              ariaLabel="WhatsApp Business Account"
               value={ selectedWaba }
-              onChange={ ( e ) => setSelectedWaba( e.target.value ) }
-            >
-              { WABA_OPTIONS.map( ( w ) => (
-                <option key={ w.id } value={ w.id }>{ w.name }</option>
-              ) ) }
-            </select>
+              onChange={ ( v ) => setSelectedWaba( v ) }
+              options={ WABA_SELECT_OPTIONS }
+              style={ EMBEDDED_WABA_SELECT_STYLE }
+            />
             <Button variant="secondary" onClick={ () => setShowCarouselModal( true ) }>
               Carousel
             </Button>
@@ -821,42 +871,32 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                 <div className="form-row">
                   <div className="form-group">
                     <label>Category</label>
-                    <select
+                    <Select
+                      ariaLabel="Category"
                       value={ newTemplate.category }
-                      onChange={ ( e ) => setNewTemplate( { ...newTemplate, category: e.target.value as any } ) }
-                    >
-                      <option value="UTILITY">Utility</option>
-                      <option value="MARKETING">Marketing</option>
-                      <option value="AUTHENTICATION">Authentication</option>
-                    </select>
+                      onChange={ ( v ) => setNewTemplate( { ...newTemplate, category: v as any } ) }
+                      options={ TEMPLATE_CATEGORY_OPTIONS }
+                    />
                   </div>
                   <div className="form-group">
                     <label>Language</label>
-                    <select
+                    <Select
+                      ariaLabel="Language"
                       value={ newTemplate.language }
-                      onChange={ ( e ) => setNewTemplate( { ...newTemplate, language: e.target.value } ) }
-                    >
-                      <option value="en_US">English (US)</option>
-                      <option value="en_GB">English (UK)</option>
-                      <option value="hi">Hindi</option>
-                      <option value="es">Spanish</option>
-                    </select>
+                      onChange={ ( v ) => setNewTemplate( { ...newTemplate, language: v } ) }
+                      options={ TEMPLATE_LANGUAGE_OPTIONS }
+                    />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label>Header Type</label>
-                  <select
+                  <Select
+                    ariaLabel="Header Type"
                     value={ newTemplate.headerType }
-                    onChange={ ( e ) => setNewTemplate( { ...newTemplate, headerType: e.target.value as any } ) }
-                  >
-                    <option value="none">No Header</option>
-                    <option value="text">Text</option>
-                    <option value="image">Image</option>
-                    <option value="video">Video</option>
-                    <option value="document">Document</option>
-                    <option value="location">Location (map pin)</option>
-                  </select>
+                    onChange={ ( v ) => setNewTemplate( { ...newTemplate, headerType: v as any } ) }
+                    options={ HEADER_TYPE_OPTIONS }
+                  />
                 </div>
 
                 { newTemplate.headerType === 'location' && (
@@ -904,14 +944,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                   <label>Buttons ({ newTemplate.buttons.length }/3)</label>
                   { newTemplate.buttons.map( ( btn, idx ) => (
                     <div key={ idx } className="button-row">
-                      <select
+                      <Select
+                        ariaLabel={ `Button ${ idx + 1 } type` }
                         value={ btn.type }
-                        onChange={ ( e ) => updateButton( idx, 'type', e.target.value ) }
-                      >
-                        <option value="URL">URL</option>
-                        <option value="PHONE_NUMBER">Phone</option>
-                        <option value="QUICK_REPLY">Quick Reply</option>
-                      </select>
+                        onChange={ ( v ) => updateButton( idx, 'type', v ) }
+                        options={ BUTTON_TYPE_OPTIONS }
+                        style={ BUTTON_TYPE_SELECT_STYLE }
+                      />
                       <input
                         type="text"
                         value={ btn.text }
@@ -980,31 +1019,23 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                   </div>
                   <div className="form-group">
                     <label>Category</label>
-                    <select
+                    <Select
+                      ariaLabel="Category"
                       value={ carouselTemplate.category }
-                      onChange={ ( e ) => setCarouselTemplate( { ...carouselTemplate, category: e.target.value as any } ) }
-                    >
-                      <option value="MARKETING">Marketing</option>
-                      <option value="UTILITY">Utility</option>
-                    </select>
+                      onChange={ ( v ) => setCarouselTemplate( { ...carouselTemplate, category: v as any } ) }
+                      options={ CAROUSEL_CATEGORY_OPTIONS }
+                    />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label>Language</label>
-                  <select
+                  <Select
+                    ariaLabel="Language"
                     value={ carouselTemplate.language }
-                    onChange={ ( e ) => setCarouselTemplate( { ...carouselTemplate, language: e.target.value } ) }
-                  >
-                    <option value="en_US">English (US)</option>
-                    <option value="en_GB">English (UK)</option>
-                    <option value="hi">Hindi</option>
-                    <option value="bn">Bengali</option>
-                    <option value="ta">Tamil</option>
-                    <option value="te">Telugu</option>
-                    <option value="gu">Gujarati</option>
-                    <option value="mr">Marathi</option>
-                  </select>
+                    onChange={ ( v ) => setCarouselTemplate( { ...carouselTemplate, language: v } ) }
+                    options={ CAROUSEL_LANGUAGE_OPTIONS }
+                  />
                 </div>
 
                 <div className="form-group">
@@ -1097,14 +1128,13 @@ const TemplateManagement: React.FC<PageProps> = ( { signOut, user, embedded = fa
                           <label>Buttons ({ card.buttons?.length || 0 }/2)</label>
                           { card.buttons?.map( ( btn, btnIdx ) => (
                             <div key={ btnIdx } className="button-row">
-                              <select
+                              <Select
+                                ariaLabel={ `Card ${ cardIdx + 1 } button ${ btnIdx + 1 } type` }
                                 value={ btn.type }
-                                onChange={ ( e ) => updateCarouselCardButton( cardIdx, btnIdx, 'type', e.target.value ) }
-                              >
-                                <option value="QUICK_REPLY">Quick Reply</option>
-                                <option value="URL">URL</option>
-                                <option value="PHONE_NUMBER">Phone</option>
-                              </select>
+                                onChange={ ( v ) => updateCarouselCardButton( cardIdx, btnIdx, 'type', v ) }
+                                options={ CARD_BUTTON_TYPE_OPTIONS }
+                                style={ BUTTON_TYPE_SELECT_STYLE }
+                              />
                               <input
                                 type="text"
                                 value={ btn.text }

@@ -3284,56 +3284,78 @@ def _build_message_payload(recipient_phone: str, content: str, media_type: Optio
         # interactive order_details messages. For PG deep integration, we MUST always
         # provide beneficiaries. If address is unknown, use business address as fallback.
         if goods_type == 'physical-goods':
-            shipping_info = order_details.get('shipping_info', {})
-            beneficiary_addr = shipping_info.get('addresses', [])
-
-            # Try to build beneficiary from provided address
-            b_name = 'Customer'
-            b_addr1 = ''
-            b_city = ''
-            b_state = ''
-            b_postal = ''
-
-            if beneficiary_addr:
-                addr = beneficiary_addr[0]
-                b_name = (addr.get('name', 'Customer') or 'Customer')[:200]
-                b_addr1 = addr.get('address', addr.get('address_line1', '')) or ''
-                b_city = addr.get('city', '') or ''
-                b_state = addr.get('state', '') or ''
-                b_postal = addr.get('in_pin_code', addr.get('postal_code', '')) or ''
-
-            if b_addr1 and b_city and b_postal:
-                # Complete customer address — use it
-                action_params['beneficiaries'] = [{
-                    'name': b_name,
-                    'address_line1': b_addr1[:100],
-                    'address_line2': (beneficiary_addr[0].get('landmark_area', beneficiary_addr[0].get('address_line2', '')) if beneficiary_addr else '')[:100],
-                    'city': b_city,
-                    'state': b_state or b_city,
-                    'country': 'India',
-                    'postal_code': b_postal[:6],
-                }]
+            # FEAT-003: when the caller supplies a `customer_address` in the shared stored shape,
+            # build the beneficiary through the one validator and FAIL CLOSED on an unpayable one.
+            # The business-address fallback is legitimate ONLY for a caller that supplied NO
+            # customer address (Meta: beneficiary data is legal/compliance, not shown to the user);
+            # it must NEVER substitute for a supplied customer address that failed the rule, or a
+            # payment would be sent against a beneficiary that cannot settle. Non-India is refused
+            # outright (WHATSAPP_ORDER_DETAILS is India-only — MCC 7392 / purpose 03 / INR).
+            customer_address = order_details.get('customer_address')
+            if customer_address is not None:
+                from lambda_utils.ecommerce import payment_address as _pa
+                recipient = (order_details.get('recipient_name')
+                             or customer_address.get('recipientName') or 'Customer')
+                try:
+                    action_params['beneficiaries'] = [
+                        _pa.for_meta_beneficiary(customer_address, recipient_name=recipient)]
+                except _pa.UnpayableAddress as exc:
+                    logger.info(json.dumps({
+                        'event': 'order_details_beneficiary_unpayable_refused',
+                        'code': exc.code, 'field': exc.field, 'referenceId': ref_id}))
+                    raise PaymentConfigurationUnresolved(
+                        f'customer_address is not payable on WhatsApp: {exc.code}') from None
             else:
-                # Address unknown/incomplete — use BUSINESS address as beneficiary fallback.
-                # Meta requires beneficiaries for physical-goods but says "Beneficiary
-                # information isn't shown to users but is needed for legal and compliance."
-                # So using business address is valid — the actual shipping address can be
-                # collected separately (via chat, form, or checkout endpoint beta).
-                logger.info(json.dumps({
-                    'event': 'beneficiary_fallback_to_business_address',
-                    'reason': 'Customer address incomplete for physical-goods',
-                    'missingFields': {'address_line1': not b_addr1, 'city': not b_city, 'postal_code': not b_postal},
-                    'referenceId': ref_id,
-                }))
-                action_params['beneficiaries'] = [{
-                    'name': 'WECARE.DIGITAL',
-                    'address_line1': '81/2/7 Phears Ln',
-                    'address_line2': 'The W.B.S.I.D.C. Building, Unit 1/20',
-                    'city': 'Kolkata',
-                    'state': 'West Bengal',
-                    'country': 'India',
-                    'postal_code': '700012',
-                }]
+                shipping_info = order_details.get('shipping_info', {})
+                beneficiary_addr = shipping_info.get('addresses', [])
+
+                # Try to build beneficiary from provided address
+                b_name = 'Customer'
+                b_addr1 = ''
+                b_city = ''
+                b_state = ''
+                b_postal = ''
+
+                if beneficiary_addr:
+                    addr = beneficiary_addr[0]
+                    b_name = (addr.get('name', 'Customer') or 'Customer')[:200]
+                    b_addr1 = addr.get('address', addr.get('address_line1', '')) or ''
+                    b_city = addr.get('city', '') or ''
+                    b_state = addr.get('state', '') or ''
+                    b_postal = addr.get('in_pin_code', addr.get('postal_code', '')) or ''
+
+                if b_addr1 and b_city and b_postal:
+                    # Complete customer address — use it
+                    action_params['beneficiaries'] = [{
+                        'name': b_name,
+                        'address_line1': b_addr1[:100],
+                        'address_line2': (beneficiary_addr[0].get('landmark_area', beneficiary_addr[0].get('address_line2', '')) if beneficiary_addr else '')[:100],
+                        'city': b_city,
+                        'state': b_state or b_city,
+                        'country': 'India',
+                        'postal_code': b_postal[:6],
+                    }]
+                else:
+                    # Address unknown/incomplete — use BUSINESS address as beneficiary fallback.
+                    # Meta requires beneficiaries for physical-goods but says "Beneficiary
+                    # information isn't shown to users but is needed for legal and compliance."
+                    # So using business address is valid — the actual shipping address can be
+                    # collected separately (via chat, form, or checkout endpoint beta).
+                    logger.info(json.dumps({
+                        'event': 'beneficiary_fallback_to_business_address',
+                        'reason': 'Customer address incomplete for physical-goods',
+                        'missingFields': {'address_line1': not b_addr1, 'city': not b_city, 'postal_code': not b_postal},
+                        'referenceId': ref_id,
+                    }))
+                    action_params['beneficiaries'] = [{
+                        'name': 'WECARE.DIGITAL',
+                        'address_line1': '81/2/7 Phears Ln',
+                        'address_line2': 'The W.B.S.I.D.C. Building, Unit 1/20',
+                        'city': 'Kolkata',
+                        'state': 'West Bengal',
+                        'country': 'India',
+                        'postal_code': '700012',
+                    }]
         
         interactive_payload = {
             'type': 'order_details',

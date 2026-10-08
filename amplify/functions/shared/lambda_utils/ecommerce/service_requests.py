@@ -1,4 +1,4 @@
-"""Phase O-1 services: Submit Request and Request Amendment, as fixed-price product lines.
+"""WECARE.DIGITAL services: four fixed-price product lines on the ONE checkout.
 
 What this is, and why it mirrors `blog_contribution`
 ----------------------------------------------------
@@ -13,17 +13,27 @@ It is the SERVER half of the allow-list. The browser half is `src/config/service
 separately on purpose so the browser cannot widen the trusted set;
 `tests/test_service_requests.py` fails if the two drift.
 
-WHAT IS OFFERED IN O-1, AND WHAT IS REFUSED
--------------------------------------------
-Only Submit Request and Request Amendment, Rs.99 each. The same product carries two more variants,
-Drop Docs and Vault, which belong to a later phase (document storage, upload/download, CRM pull).
-They are named in ``NOT_OFFERED_VARIANT_IDS`` so the server can REFUSE them by name
-(`SERVICE_NOT_OFFERED`) rather than mistake them for an unknown variant -- and, crucially, rather
-than let them through as an ordinary product line, which would charge for a service nothing in
-this phase can deliver.
+WHAT IS OFFERED, AND WHAT IS REFUSED
+------------------------------------
+FOUR services, all four variants of the one Wix product: Submit Request and Request Amendment at
+Rs.99, Drop Docs at Rs.350 and Vault at Rs.49. Drop Docs and Vault were refused by name in O-1
+(``SERVICE_NOT_OFFERED``) because nothing could deliver them; O-2 adds them to
+``SERVICE_CHOICES_PAISE`` instead, which is the whole of the change -- no second payment path, no
+new ownership machinery, and the same per-line price assertion.
 
-PRICING IS ORDINARY ORDER PRICING (plan D1)
--------------------------------------------
+``NOT_OFFERED_VARIANT_IDS`` and ``NOT_OFFERED_KINDS`` are now EMPTY, and the refusal code, its
+message and the not-offered branch in ``service_line`` all deliberately remain. They are the guard
+for the NEXT variant somebody adds in Wix: naming it here refuses it by name rather than letting it
+through as an ordinary product line, which would charge for a service nothing can deliver.
+
+Three of the four REQUIRE a target Submit Request (``TARGET_REQUIRED_KINDS``): an amendment amends
+one, Drop Docs sends documents for "a request already under way", and Vault asks for "a copy of a
+document held against one of your requests". A target-free Drop Docs would let a customer pay
+Rs.350 to attach documents to nothing. The target is resolved and owned-checked in
+``service_request_store`` BEFORE money moves.
+
+PRICING IS ORDINARY ORDER PRICING
+---------------------------------
 Unlike a contribution, a service is NOT fee-exempt: `cart_v2.calculate` prices the line and
 `checkout_pricing.compute_quote` adds the 2.5% convenience fee and 18% GST on that fee, exactly
 as for any single order. The committed paise figure below is therefore not a total -- it is the
@@ -62,25 +72,34 @@ SERVICE_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: Request kinds. A REQUEST lifecycle vocabulary, unrelated to payment status.
 SUBMIT_REQUEST = "SUBMIT_REQUEST"
 REQUEST_AMENDMENT = "REQUEST_AMENDMENT"
+DROP_DOCS = "DROP_DOCS"
+VAULT = "VAULT"
 
-#: THE ONLY TWO SERVICES THAT CAN BE BOUGHT IN O-1, as ``{variant id: (kind, line paise)}``.
+#: THE ONLY FOUR SERVICES THAT CAN BE BOUGHT, as ``{variant id: (kind, line paise)}``.
 #: Mirrored in src/config/services.ts as SERVICE_CHOICES.
 SERVICE_CHOICES_PAISE: Mapping[str, Tuple[str, int]] = MappingProxyType({
     "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": (SUBMIT_REQUEST, 9900),        # Rs.99
     "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": (REQUEST_AMENDMENT, 9900),     # Rs.99
+    "db166bc8-a763-41ec-9f65-0f718f18155a": (DROP_DOCS, 35000),            # Rs.350
+    "dcff995e-448c-493a-9259-f6a82ccdc2b4": (VAULT, 4900),                 # Rs.49
 })
 
-#: Variants of the same product that are deliberately NOT offered in this phase. Refused by name.
+#: The services that cannot exist without a target Submit Request of the CALLER'S OWN. One
+#: frozenset rather than three ``kind ==`` comparisons, so adding a fourth target-taking service
+#: cannot reach only two of the three places that have to agree.
+TARGET_REQUIRED_KINDS: FrozenSet[str] = frozenset({REQUEST_AMENDMENT, DROP_DOCS, VAULT})
+
+#: Variants of the same product that are deliberately NOT offered. EMPTY: all four are offered.
+#: Kept, with its refusal code and its branch in ``service_line``, as the guard for the next Wix
+#: variant somebody adds -- refusing by name beats charging for something nothing can deliver.
 #: Mirrored in src/config/services.ts as NOT_OFFERED_SERVICE_VARIANT_IDS.
-NOT_OFFERED_VARIANT_IDS: FrozenSet[str] = frozenset({
-    "db166bc8-a763-41ec-9f65-0f718f18155a",     # Drop Docs  (O-2)
-    "dcff995e-448c-493a-9259-f6a82ccdc2b4",     # Vault      (O-2)
-})
+NOT_OFFERED_VARIANT_IDS: FrozenSet[str] = frozenset()
 
 #: The kind names of the not-offered services, so `request-intent` refuses them by name too.
-NOT_OFFERED_KINDS: FrozenSet[str] = frozenset({"DROP_DOCS", "VAULT"})
+#: EMPTY for the same reason, and kept for the same reason.
+NOT_OFFERED_KINDS: FrozenSet[str] = frozenset()
 
-#: ``{kind: variant id}`` for the two offered services.
+#: ``{kind: variant id}`` for the four offered services.
 SERVICE_VARIANT_BY_KIND: Mapping[str, str] = MappingProxyType(
     {kind: variant for variant, (kind, _paise) in SERVICE_CHOICES_PAISE.items()})
 
@@ -110,7 +129,7 @@ SERVICE_NOT_PAYABLE = "SERVICE_NOT_PAYABLE"
 
 SERVICE_MESSAGES: Mapping[str, str] = MappingProxyType({
     SERVICE_NOT_OFFERED: "This service is not offered yet. Nothing has been charged.",
-    SERVICE_UNKNOWN_CHOICE: "Choose Submit Request or Request Amendment. Nothing has been charged.",
+    SERVICE_UNKNOWN_CHOICE: "Choose a WECARE.DIGITAL service. Nothing has been charged.",
     SERVICE_INVALID_QUANTITY: "A service is bought one at a time. Set its quantity to 1. "
                               "Nothing has been charged.",
     SERVICE_ONE_PER_ORDER: "Only one service can be paid for in an order. Remove the extra one. "
@@ -174,8 +193,10 @@ def service_line(line_items: Any) -> Optional[ServiceLine]:
     anything whose shape cannot be read is simply not recognised as a service and falls through
     to ``wix_ecom.resolved_catalog_lines``, which owns the strict shape refusals.
 
-    The not-offered check runs BEFORE the allow-list, so Drop Docs and Vault are refused by name
-    (``SERVICE_NOT_OFFERED``) rather than as an unknown choice.
+    The not-offered check runs BEFORE the allow-list so that a named-but-unavailable variant is
+    refused by name (``SERVICE_NOT_OFFERED``) rather than as an unknown choice.
+    ``NOT_OFFERED_VARIANT_IDS`` is currently empty -- all four services are offered -- so this
+    branch is the guard for the next variant added in Wix, not dead code.
     """
     if not isinstance(line_items, list):
         return None
@@ -352,7 +373,7 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
     if not delivery_required:
         # A services-only basket (nothing ships, so nothing else is in it but services). Every
         # component Wix can add on top of the lines must be exactly zero, or the payable rises
-        # above "Rs.99 + convenience fee" without a refusal -- the same hole
+        # above "the committed line price + convenience fee" without a refusal -- the same hole
         # `_assert_contribution_total` closes on the total. NOT applied to a mixed basket, where
         # other lines legitimately carry delivery, tax and fees.
         components = calculated.get("componentsPaise") or {}
@@ -365,9 +386,10 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
 
 
 __all__ = [
-    "INTENT_ID_RE", "NOT_OFFERED_KINDS", "NOT_OFFERED_VARIANT_IDS", "PUBLIC_REQUEST_ID_RE",
-    "REQUEST_AMENDMENT", "SERVICE_CHOICES_PAISE", "SERVICE_CURRENCY", "SERVICE_MESSAGES",
-    "SERVICE_PRODUCT_IDS", "SERVICE_VARIANT_BY_KIND", "SUBMIT_REQUEST", "ServiceLine",
+    "DROP_DOCS", "INTENT_ID_RE", "NOT_OFFERED_KINDS", "NOT_OFFERED_VARIANT_IDS",
+    "PUBLIC_REQUEST_ID_RE", "REQUEST_AMENDMENT", "SERVICE_CHOICES_PAISE", "SERVICE_CURRENCY",
+    "SERVICE_MESSAGES", "SERVICE_PRODUCT_IDS", "SERVICE_VARIANT_BY_KIND", "SUBMIT_REQUEST",
+    "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected", "assert_service_line_price",
     "checkout_preflight", "has_service_line", "intent_rebound", "is_service_product",
     "payref_extra", "refusal",

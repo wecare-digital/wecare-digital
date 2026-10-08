@@ -259,24 +259,126 @@
   --max-width-wide: 1400px;
   --tap-target: 44px;
 
+  /* The house lime state tint. One declaration; --scrollbar-track and --control-tint both
+   * read it, so a change to the tint cannot move one and not the other. */
+  --lime-tint: rgba(209, 244, 112, 0.22);
+
   /* ========================================
    * SCROLLBAR
    * One palette, declared once, consumed by the single site-wide rule in inner-ux.css.
    *
-   * These are aliases of existing tokens, not new colours. The thumb is --accent, which is
-   * also the home CTA's border and text colour; the track is the house lime state tint that
-   * .btn-ghost:hover, .co-btn-quiet:hover and .si-error already use.
+   * THE BRAND SHOWS IN THE TRACK, NOT THE THUMB. The track is the house lime state tint
+   * --lime-tint, which .btn-ghost:hover, .co-btn-quiet:hover and .si-error also use. A LIME
+   * THUMB WAS MEASURED AND REJECTED: #d1f470 on that track is 1.18:1, far under the 3:1 WCAG
+   * 1.4.11 asks of a control boundary, so the thumb would be the one part of the page a
+   * low-vision visitor cannot find. Lime is the affordance colour for actions; a scrollbar
+   * is not an action.
    *
-   * A LIME THUMB WAS MEASURED AND REJECTED. #d1f470 against a near-white track is 1.24:1,
-   * far under the 3:1 WCAG 1.4.11 asks of a control boundary, so the thumb would be the one
-   * part of the page a low-vision visitor cannot find. #1a3a2a is 12.48:1 on white. Lime is
-   * the affordance colour for actions; a scrollbar is not an action.
+   * THE THUMB IS ITS OWN VALUE, not an alias. It was var(--accent) - #1a3a2a, the home CTA's
+   * border and heading colour - which measures 11.85:1 on this track and reads as the
+   * near-black the owner complained about. #4a9e73 is a mid-green that measures 3.10:1 on
+   * this track (composited over white -> #f5fde0, sRGB relative luminance, the same formula
+   * tools/browser/designsweep.js:65-87 uses). Hover #3a7d5a is DARKER at 4.68:1, matching the
+   * --accent -> --accent-hover direction, so hover raises contrast rather than lowering it.
+   *
+   * 3.10:1 clears the 3:1 floor by 0.10 - about 3%. THAT FLOOR IS WHAT BOUNDS HOW MUCH
+   * LIGHTER THE THUMB MAY EVER GO: there is almost no headroom left, so any lighter value
+   * must be re-measured against the resolved track before it lands.
+   * src/test/ScrollbarTokens.test.ts runs that arithmetic and fails under 3.
+   *
+   * FOUR STRAY THUMB COLOURS WERE DELETED WITH THIS CHANGE. Do not restore one - each kept a
+   * second scrollbar alive in exactly one engine, which does not look like a CSS conflict, it
+   * looks like a browser bug:
+   *   src/styles/Layout.css:714        scrollbar-color #d1f470 on .sidebar-nav (Gecko)
+   *                        :722-733    four .sidebar-nav::-webkit-scrollbar* rules (Blink)
+   *   src/styles/Pages.css:2544        scrollbar-color rgba(26,58,42,.15) on .emoji-grid-scroll
+   *   src/components/Header.tsx:775    scrollbar-color #d1f470 on .nav-products-scroll
+   *                             :777-780  four .nav-products-scroll::-webkit-scrollbar* rules
+   *   src/components/SupportWidget.tsx:810  scrollbar-color rgba(26,58,42,.15) on .wc-rows
+   * Their `scrollbar-width: thin` lines STAYED: Gecko does not inherit scrollbar-width and
+   * the canonical block declares it on html only. src/test/ScrollbarDeclarations.test.ts pins
+   * the file set. src/components/WorkflowTerminal.tsx is the one allowed exception
+   * (white-on-dark terminal panel, where this palette is unreadable).
    * ======================================== */
-  --scrollbar-thumb: var(--accent);
-  --scrollbar-thumb-hover: var(--accent-hover);
-  --scrollbar-track: rgba(209, 244, 112, 0.22);
+  --scrollbar-thumb: #4a9e73;
+  --scrollbar-thumb-hover: #3a7d5a;
+  --scrollbar-track: var(--lime-tint);
   --scrollbar-size: 10px;
   --scrollbar-size-compact: 7px;
+
+  /* ========================================
+   * FORM CONTROLS
+   * EVERY VALUE HERE RECORDS WHAT THE APP ALREADY RENDERS. It is not a new look.
+   * The numbers are the dominant measured idiom from the 85 rule sets in 28 files in 1.14:
+   *   inner-pages.css:250-267   .layout .main-content select - 2px #e5e7eb, 13px radius,
+   *                             lime :hover, lime :focus. !important on all nine lines, so
+   *                             these are what ~140 of the 162 selects render TODAY.
+   *   inner-pages.css:1920-1941, :1999-2030, :1031-1041   2px #e5e7eb, 13px, again
+   *   tokens.css:420-446, inner-ux.css:550-607            2px #e5e7eb, the same lime
+   * A 1px border and a grey hover were proposed and REJECTED: thinning every control in the
+   * app and spending the lime hover is a redesign, and this task is a mechanism change.
+   *
+   * CONSUMED BY src/styles/form-controls.css, which is imported LAST in _app.tsx.
+   * ======================================== */
+  --control-h: var(--tap-target);           /* 44px - the floor tokens.css:465 ALREADY applies */
+  /* 13px AT RUNTIME, and that is the whole point of writing the token rather than the number.
+   * src/styles/inner-ux.css:92 redeclares --radius-md: 13px on :root and _app.tsx:73 imports it
+   * AFTER tokens.css (which arrives via Layout.css:8's @import at _app.tsx:70), so the 8px
+   * declared at tokens.css:140 is an authored default that never renders. Same hazard as
+   * --radius-btn, tokens.css:322-326 - except that one resolves AWAY from the value you want
+   * and this one resolves TO it. Do not "simplify" this to the literal 13px: that would make
+   * form-controls.css the one consumer that stops following the scale, so a future correction
+   * to --radius-md would move every control in the app except these four. */
+  --control-radius: var(--radius-md);
+  /* NOT var(--radius-btn): that resolves to 999px, a full pill (tokens.css:322-326). */
+  --control-border-w: 2px;                  /* as five existing rule sets declare */
+  --control-border: var(--border);          /* #e5e7eb, as five existing rule sets declare */
+  --control-border-hover: var(--lime);      /* #d1f470 - tokens.css:59. Was hardcoded twice */
+  --control-border-focus: var(--lime);      /* #d1f470 - ditto */
+  --control-bg: var(--surface);             /* #ffffff */
+  --control-fg: var(--text);                /* #1a1a1a */
+  --control-fg-muted: var(--text-muted);    /* #6b7280 - placeholder / empty option */
+  --control-px: var(--space-3);             /* 12px */
+  --control-arrow-inset: 11px;              /* unchanged from the rule this replaces */
+  --control-arrow-size: 14px;               /* unchanged */
+  --control-arrow-pad: 32px;                /* padding-inline-end. 32px EXACTLY, copied from
+                                               inner-ux.css:2928. Not calc(inset*2+size)=36px:
+                                               that is a 4px change nobody asked for. */
+  --control-box: 18px;                      /* checkbox / radio drawn box, desktop */
+  --control-indicator-size: 12px;           /* the tick/dot INSIDE that box, fixed at every box size */
+  --control-disabled-opacity: 0.5;          /* EXACTLY inner-ux.css:590's value, not 0.55 - see 4.3 */
+  --control-tint: var(--lime-tint);         /* the date-field's focused segment; see --lime-tint */
+  /* The disclosure chevron, byte-identical to the block being deleted from inner-ux.css.
+     #1a3a2a is --accent; a data URI cannot read a custom property, so this is the one
+     hardcoded hue in the block and FormControlsCss.test.ts pins it. */
+  /* 1.3a */
+  --control-arrow: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%231a3a2a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  /* The checkbox tick. White on --accent, drawn at --control-indicator-size and CENTRED, so it
+     is the same tick in an 18px box and in the 44px box the <=768px floor block restores. */
+  /* 1.3a */
+  --control-tick: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+  /* The RADIO's checked dot, as a background-image and NOT as an inset box-shadow. White disc
+     on the --accent fill, same centred fixed-size mechanism as the tick. THIS IS NOT A STYLE
+     CHOICE: the focus ring is also a box-shadow and carries !important, so a dot drawn with
+     box-shadow vanishes the moment the radio is focused - both sit at (0,5,1) with one
+     pseudo-class each, and a keyboard-focused checked radio would render as a solid accent
+     disc. Composing the two was considered and rejected: it works, but it leaves box-shadow
+     doing two jobs on one control type, so the next person to add a :checked:hover or a
+     :disabled:checked has to remember to re-compose and nothing fails if they do not. Drawing
+     the dot here makes box-shadow mean FOCUS RING and nothing else, which is a property a test
+     can state as a negative - and FormControlsCss.test.ts states it. Radius 5 of 24 so the disc
+     lands at ~5px inside the 12px indicator box, the same optical weight as the 4px inset ring
+     it replaces. */
+  /* 1.3c */
+  --control-dot: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='5' fill='%23ffffff'/%3E%3C/svg%3E");
+  /* The indeterminate dash. White on --accent, drawn at --control-indicator-size and CENTRED,
+     same mechanism as --control-tick. Its ONE consumer in the tree is
+     src/components/dashboard/tabs/DataTab.tsx:182's tri-state "select all" checkbox, which no
+     harness here can load. The :indeterminate rule MUST also set background-color:
+     var(--accent), or this is a white dash on a white box - an empty box, which is the precise
+     "looks permanently unchecked" failure batch 1.3c exists to prevent. */
+  /* 1.3c */
+  --control-dash: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round'%3E%3Cpath d='M6 12h12'/%3E%3C/svg%3E");
 }
 
 /* ========================================
@@ -417,8 +519,17 @@ body {
  * UNIFIED FORM INPUTS
  * ======================================== */
 
+/* `select` LEFT THESE THREE SELECTOR LISTS. It is now skinned by src/styles/form-controls.css,
+   which is imported last in _app.tsx and declares this exact geometry - 2px #e5e7eb, 13px
+   radius, the lime hover and focus border - plus the drawn chevron these rules never had. This
+   one was a pure duplicate of that element-level base, which is why it is the only retirement
+   1.3a makes here; the other 26 files that skin a select are left alone (design 4.1).
+   The `transition` on the base rule below went with it: form-controls.css re-declares it on
+   `border-color` and `box-shadow` so a select still eases where it eased before.
+   NOTE for batch 1.3c: the base rule is a BARE `input` selector, so its `padding: 10px 12px`
+   lands on every checkbox and radio in the app. An appearance:none box honours that padding,
+   which is why the checkbox rule must declare `padding: 0`. */
 input,
-select,
 textarea {
   font-family: var(--font-sans);
   font-size: var(--text-md);
@@ -432,13 +543,11 @@ textarea {
 }
 
 input:hover,
-select:hover,
 textarea:hover {
   border-color: #d1f470;
 }
 
 input:focus,
-select:focus,
 textarea:focus {
   outline: none;
   border-color: #d1f470;
