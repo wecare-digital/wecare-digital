@@ -1,0 +1,15 @@
+Create two square 4096 x 4096 WECARE.DIGITAL WhatsApp catalog product images using ONE identical master template.
+
+Keep the owner-supplied black bag-and-heart symbol and two-line WECARE.DIGITAL wordmark at the same size and coordinates on both cards. Preserve the round pink logo dot. Use a pure white background and identical flowing lime shapes in the top-right and bottom-left corners. Thin curved strokes in both corners follow the same amber #f0a818 → purple #9849e8 → green #3da35a → red #dc2626 colour flow.
+
+Place one identical slim multicolour accent line above the left-aligned product title. Use dark bold sans-serif titles and large dark supporting text. Keep the icon in a fixed background area on the right, pale lime, balanced in visual size and centred consistently. Use official Google Material outlined SVG icons. Keep all margins, typography, corners, logo position, accent positions, colours and opacity identical; change ONLY service title, supporting text and icon.
+
+Card 1: Submit Request
+Supporting text: Send a request about your existing order.
+Icon: assignment / document clipboard.
+
+Card 2: Vault
+Supporting text: Download documents from your Vault.
+Icon: cloud_download.
+
+No price, QR code, customer data, extra slogan or mockup frame inside the product image. Crisp typography, generous white space, clean vector edges, no gradients in the text, no blur on the foreground. Export each card separately as a full-size PNG and retain an editable SVG master.

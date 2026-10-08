@@ -3247,3 +3247,15 @@ Authority: owner's direct request to connect Vault payment, uploaded file delive
 | A2_REMOTE_CODE | origin/stack | Named paths and non-force push after gates; preserve concurrent remote changes | Follow-up revert commit |
 
 No customer QA send or payment capture/refund. New automatic sends are scoped to a verified paid file-bound Vault request and the exact owner-named ready/review messages; ordinary PDF attachment additionally requires a recent inbound service window. See docs/whatsapp/paid-vault.md for accepted versus delivered semantics and the remaining live recipient/file QA requirement.
+
+## 2026-10-08 — Shared multicolour WhatsApp catalog artwork
+
+Authority: owner's direct "push" request after reviewing the multicolour catalog design, plus standing scoped remote-code authorization.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Live homepage and homepage source | Checked brand treatment and amber/purple/green/red audience palette | Read only |
+| A1_LOCAL | docs/whatsapp/catalog-design | Shared inline-SVG HTML master templates and AI-assisted comparison; same corners, layout and accent sequence; no external asset requests | Remove scoped files or revert commit |
+| A2_REMOTE_CODE | origin/stack | Explicit design paths and this authority entry only; non-force push after structural and diff checks | Follow-up revert commit |
+
+This design-only change does not stage unfinished native catalog payment code or mutate live Meta/Wix catalog records. Product-image export and catalog upload are separate from saving the design source.
