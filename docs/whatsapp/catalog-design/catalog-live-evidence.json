@@ -1,0 +1,87 @@
+{
+  "deployment": {
+    "version": "5",
+    "state": "Active",
+    "liveVersion": "5",
+    "sha": "v4uxaXl+7L52ZCN1ZxkblU3RHnfnp06jhZ07c3i195s="
+  },
+  "verified": {
+    "webhookPolicyNames": [
+      "wecare-wix-catalog-webhook-invokes-catalog-sync",
+      "wecare-wix-catalog-webhook-reads"
+    ],
+    "catalog": {
+      "ok": true,
+      "enabled": true,
+      "dryRun": true,
+      "readOnly": true,
+      "catalogId": "1607047307067517",
+      "counts": {
+        "create": 0,
+        "update": 0,
+        "retire": 0,
+        "foreign": 1
+      },
+      "blocked": [],
+      "desiredItems": [
+        {
+          "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:dcff995e-448c-493a-9259-f6a82ccdc2b4",
+          "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+          "name": "WECARE.DIGITAL Services - Vault",
+          "description": "Select the WECARE.DIGITAL service you need. Submit Request — Customer pays ₹99, verifies via WhatsApp OTP, and receives a request/order ID. Request Amendment — Same ₹99 flow; amendments are trackable in the orders page under the profile. Drop Docs — Upload a document and verify using order ID + WhatsApp OTP. Vault — Download a document and verify using order ID + WhatsApp OTP; CRM contact may be updated when required.",
+          "availability": "out of stock",
+          "price": "49.00",
+          "currency": "INR",
+          "image_url": "https://static.wixstatic.com/media/478bf9_27b898b513ac4b508409202446818341~mv2.png",
+          "url": "https://wecare.digital/vault/"
+        },
+        {
+          "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+          "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+          "name": "WECARE.DIGITAL Services - Submit Request",
+          "description": "Select the WECARE.DIGITAL service you need. Submit Request — Customer pays ₹99, verifies via WhatsApp OTP, and receives a request/order ID. Request Amendment — Same ₹99 flow; amendments are trackable in the orders page under the profile. Drop Docs — Upload a document and verify using order ID + WhatsApp OTP. Vault — Download a document and verify using order ID + WhatsApp OTP; CRM contact may be updated when required.",
+          "availability": "out of stock",
+          "price": "99.00",
+          "currency": "INR",
+          "image_url": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
+          "url": "https://wecare.digital/submit-request/"
+        }
+      ],
+      "existingItems": [
+        {
+          "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:dcff995e-448c-493a-9259-f6a82ccdc2b4",
+          "name": "WECARE.DIGITAL Services - Vault",
+          "description": "Select the WECARE.DIGITAL service you need. Submit Request — Customer pays ₹99, verifies via WhatsApp OTP, and receives a request/order ID. Request Amendment — Same ₹99 flow; amendments are trackable in the orders page under the profile. Drop Docs — Upload a document and verify using order ID + WhatsApp OTP. Vault — Download a document and verify using order ID + WhatsApp OTP; CRM contact may be updated when required.",
+          "availability": "out of stock",
+          "price": "₹49.00",
+          "currency": "INR",
+          "image_url": "https://static.wixstatic.com/media/478bf9_27b898b513ac4b508409202446818341~mv2.png",
+          "url": "https://wecare.digital/vault/"
+        },
+        {
+          "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+          "name": "WECARE.DIGITAL Services - Submit Request",
+          "description": "Select the WECARE.DIGITAL service you need. Submit Request — Customer pays ₹99, verifies via WhatsApp OTP, and receives a request/order ID. Request Amendment — Same ₹99 flow; amendments are trackable in the orders page under the profile. Drop Docs — Upload a document and verify using order ID + WhatsApp OTP. Vault — Download a document and verify using order ID + WhatsApp OTP; CRM contact may be updated when required.",
+          "availability": "out of stock",
+          "price": "₹99.00",
+          "currency": "INR",
+          "image_url": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
+          "url": "https://wecare.digital/submit-request/"
+        },
+        {
+          "retailer_id": "WD-APPREVIEW-TEST",
+          "name": "WECARE App Review Test Product (updated)",
+          "description": "Temporary product created for Meta App Review catalog_management demonstration.",
+          "availability": "in stock",
+          "price": "₹129.00",
+          "currency": "INR",
+          "image_url": "https://wecare.digital/get/o/stream/media/m/wecare-digital.png",
+          "url": "https://wecare.digital/"
+        }
+      ],
+      "applied": 0
+    }
+  },
+  "schedule": "cron(25 */6 * * ? *)",
+  "webhook": "IAM permits live alias; last-hour log contains one meta_catalog_sync_invoked"
+}

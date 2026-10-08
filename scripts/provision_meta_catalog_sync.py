@@ -62,17 +62,11 @@ move together rather than drifting six hours apart. The webhook invoke is what m
 the schedule is what makes it eventually correct if the webhook is unregistered, failing closed on
 a missing key, or simply missed an event.
 
-IT SHIPS WITH BOTH GATES CLOSED, AND THIS SCRIPT DOES NOT OPEN THEM
--------------------------------------------------------------------
-`META_CATALOG_SYNC_ENABLED` and `META_CATALOG_SYNC_DRY_RUN` are both set EXPLICITLY, to `"false"`
-and `"true"`. Writing to the Meta catalog is a customer-visible production mutation - items appear
-in WhatsApp - and is an owner decision. `--apply` provisions a function that computes and logs the
-plan and sends nothing.
-
-The enable flag was previously left absent, because an absent key is off and is not one word away
-from enabling. It is written out now so that "deliberately closed" can be told apart from "never
-configured" by anyone auditing the live environment or `config/lambda-env-manifest.json` - see the
-note on `ENVIRONMENT`, which records what that change cost and what it bought.
+OWNER-AUTHORIZED SCOPED ROLLOUT, 2026-10-08
+-----------------------------------------
+The owner authorized the Submit Request/Vault sync. ENVIRONMENT matches the deployed manifest:
+enabled, not dry-run, exact two-variant scope, held out of stock pending native purchase QA.
+Verification checks all four controls against this record. Code defaults still fail closed.
 
 Usage:
     python scripts/provision_meta_catalog_sync.py              # dry run, the default
@@ -120,26 +114,15 @@ WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
 #: from `src/pages/catalog-builder.tsx`; WABA2's `1424934879646296` is reachable by changing this
 #: one variable plus `META_TOKEN_FIELD`.
 #:
-#: `META_CATALOG_SYNC_ENABLED` IS SET EXPLICITLY TO "false", AND IT USED TO BE ABSENT. The reason
-#: for the absence was that an absent key is harder to flip by accident than a key one word away
-#: from enabling - but that reading does not survive contact with the audit: an absent key is
-#: indistinguishable from a key NOBODY EVER CONFIGURED, and this is the one function in this phase
-#: that can write to a customer-visible Meta catalogue. "Deliberately closed" and "never thought
-#: about" have to be tellable apart on exactly that function.
-#:
-#: The accident argument also turns out to cost nothing to give up. `_enabled()` requires the value
-#: to be in `_TRUE`, so "false" is off for the same reason absence is; flipping "false" to "true"
-#: and adding a missing key are both a deliberate edit plus a deploy; and `_report_gates` below
-#: refuses outright when the LIVE value reads true, which is the guard that actually catches a
-#: flip. What absence did cost was `config/lambda-env-manifest.json` - it records what is live, so
-#: an entry declaring the gate closed while no deploy ever set it would make
-#: `scripts/env_manifest.py` report key-level drift and exit 1 indefinitely.
+# Owner-authorized rollout; scope and availability hold must remain explicit.
 ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
     "META_CATALOG_ID": "1607047307067517",
-    "META_CATALOG_SYNC_ENABLED": "false",
-    "META_CATALOG_SYNC_DRY_RUN": "true",
+    "META_CATALOG_SYNC_ENABLED": "true",
+    "META_CATALOG_SYNC_DRY_RUN": "false",
+    "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+    "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
     "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
     "LOG_LEVEL": "INFO",
@@ -340,7 +323,7 @@ def ensure_function(apply: bool) -> str:
         if exc.response.get("Error", {}).get("Code") != "ResourceNotFoundException":
             raise
     if not apply:
-        return "would create (gates closed: ENABLED absent, DRY_RUN true)"
+        return "would create (owner scoped rollout; two variants held out of stock)"
     lam().create_function(
         FunctionName=FUNCTION,
         Runtime="python3.12",
@@ -353,8 +336,7 @@ def ensure_function(apply: bool) -> str:
         MemorySize=512,
         Architectures=["x86_64"],
         Environment={"Variables": ENVIRONMENT},
-        Description="Project the Wix catalogue onto the Meta Commerce catalog. Ships with both "
-                    "gates closed: computes and logs the plan, writes nothing.",
+        Description="Project owner-authorized Wix variants onto Meta, held out of stock for QA.",
         Tags={"domain": "ecommerce", "purpose": "meta-catalog-sync"},
     )
     lam().get_waiter("function_active_v2").wait(FunctionName=FUNCTION)
@@ -465,15 +447,8 @@ def verify() -> int:
         for key, value in ENVIRONMENT.items():
             if env.get(key) != value:
                 problems.append(f"{FUNCTION} env {key} is {env.get(key)!r}, expected {value!r}")
-        # THE GATES. Reported as a problem if either is in an enabling state, because the only
-        # legitimate way into that state is an explicit owner decision - and this script is then
-        # the wrong record of it.
-        if str(env.get("META_CATALOG_SYNC_ENABLED", "")).strip().lower() == "true":
-            problems.append("META_CATALOG_SYNC_ENABLED is true - the Meta catalog is being "
-                            "written to. That is an owner decision; confirm it was one")
-        if str(env.get("META_CATALOG_SYNC_DRY_RUN", "")).strip().lower() in (
-                "false", "0", "no", "off"):
-            problems.append("META_CATALOG_SYNC_DRY_RUN is explicitly false")
+        # Owner authorized the scoped two-variant rollout on 2026-10-08.
+        # Exact environment comparison above preserves the scope and out-of-stock hold.
         try:
             lam().get_alias(FunctionName=FUNCTION, Name=LIVE_ALIAS)
         except ClientError:
@@ -509,8 +484,7 @@ def verify() -> int:
     if not problems:
         print("  in step")
         print(f"  no public surface: no HTTP API route, no function URL")
-        print(f"  gates: META_CATALOG_SYNC_ENABLED false, "
-              f"META_CATALOG_SYNC_DRY_RUN true")
+        print("  owner rollout: Submit Request/Vault only; held out of stock")
     return 1 if problems else 0
 
 
@@ -537,9 +511,7 @@ def main(argv=None) -> int:
     print()
     print("  no HTTP API route and no function URL are created: this function has no public")
     print("  surface. Its callers are the webhook's async invoke and the schedule above.")
-    print("  BOTH GATES SHIP CLOSED. META_CATALOG_SYNC_ENABLED is \"false\" and")
-    print("  META_CATALOG_SYNC_DRY_RUN is true, so it computes and logs the plan and writes")
-    print("  nothing to the Meta catalog. Opening either is an owner decision.")
+    print("  Owner rollout: Submit Request/Vault only; both remain out of stock for QA.")
     if not apply:
         print()
         print("  dry run: nothing above was changed. Re-run with --apply to act.")

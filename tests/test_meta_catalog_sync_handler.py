@@ -259,40 +259,18 @@ def test_both_gates_open_is_the_only_path_that_writes(snapshot_products, monkeyp
     assert methods == {"UPDATE"}, "there is no DELETE method anywhere in this function"
 
 
-def test_the_manifest_records_both_gates_at_their_safe_values():
-    """`config/lambda-env-manifest.json` must carry BOTH gate variables, and both closed.
-
-    WHY ABSENCE IS NOT GOOD ENOUGH IN THE MANIFEST. An absent `META_CATALOG_SYNC_ENABLED` is
-    correctly OFF in code, so the function was safe either way - but the manifest describes itself
-    as "the source of truth to diff against", and an absent key cannot be told apart from a key
-    NOBODY EVER CONFIGURED. That is precisely the distinction worth having on the one function in
-    this phase that can write to a customer-visible Meta catalogue, where an item created appears
-    in WhatsApp.
-
-    Pinned alongside `scripts/provision_meta_catalog_sync.py::ENVIRONMENT`, which sets the same
-    pair, so the recorded state and the provisioned state cannot drift apart - a manifest key no
-    deploy ever sets would make `scripts/env_manifest.py` report drift and exit 1 indefinitely.
-    """
-    manifest = json.loads(
-        (ROOT / "config/lambda-env-manifest.json").read_text(encoding="utf-8"))
+def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
+    manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     entry = manifest["functions"]["wecare-meta-catalog-sync"]
-
-    assert entry["META_CATALOG_SYNC_ENABLED"] == "false"
-    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "true"
-
-    # The provisioner is what puts them there, so the two documents are asserted to agree rather
-    # than each asserted alone.
     provisioner = _load_provisioner()
-    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_ENABLED"] == "false"
-    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_DRY_RUN"] == "true"
-    for gate in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN"):
-        assert entry[gate] == provisioner.ENVIRONMENT[gate], (
-            f"{gate} disagrees between the manifest and the provisioner")
-
-    # And neither value is an enabling one, however it is spelled. `_TRUE` / the dry-run reading
-    # are the functions that decide, so the check goes through them rather than through a literal.
-    assert entry["META_CATALOG_SYNC_ENABLED"].strip().lower() not in ("true", "1", "yes", "on")
-    assert entry["META_CATALOG_SYNC_DRY_RUN"].strip().lower() not in ("false", "0", "no", "off")
+    for key in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN",
+                "META_CATALOG_SYNC_VARIANT_IDS", "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"):
+        assert entry[key] == provisioner.ENVIRONMENT[key]
+    assert entry["META_CATALOG_SYNC_ENABLED"] == "true"
+    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "false"
+    assert entry["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
+    assert set(entry["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
 
 
 def _load_provisioner():
@@ -625,3 +603,99 @@ def test_the_handler_declares_no_graph_version_of_its_own():
     assert "from lambda_utils.meta_version import" in text
     assert "META_API_VERSION =" not in text
     assert "graph.facebook.com/v" not in text
+
+
+def test_wix_variant_media_is_preserved_for_each_meta_item():
+    product_id = "df976a0a-f582-4535-b2e1-d532f348bd27"
+    rows = [
+        {"variantId": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+         "productData": {"productId": product_id},
+         "optionChoices": [{"optionChoiceNames": {"choiceName": "Submit Request"}}],
+         "price": {"actualPrice": {"amount": "99.00"}},
+         "media": {"image": {"url": "https://static.wixstatic.com/media/submit.png"}}},
+        {"variantId": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
+         "productData": {"productId": product_id},
+         "optionChoices": [{"optionChoiceNames": {"choiceName": "Vault"}}],
+         "price": {"actualPrice": {"amount": "49.00"}},
+         "media": {"url": "https://static.wixstatic.com/media/vault.png"}},
+    ]
+    variants = receiver._wix_variants(lambda endpoint, body: {"variants": rows}, [product_id])
+    items = sync.desired_items([{"id": product_id, "slug": "wecaredigital-services",
+                                "variants": variants[product_id]}], require_variant_price=True)
+    assert [i["image_url"] for i in items] == [
+        "https://static.wixstatic.com/media/submit.png",
+        "https://static.wixstatic.com/media/vault.png"]
+    assert [i["price"] for i in items] == ["99.00", "49.00"]
+    assert [i["url"] for i in items] == ["https://wecare.digital/submit-request/", "https://wecare.digital/vault/"]
+
+
+def test_choice_artwork_overrides_stale_variant_index_media():
+    product_id = "df976a0a-f582-4535-b2e1-d532f348bd27"
+    variant_id = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+    def request(endpoint, body):
+        if endpoint == receiver.WIX_SEARCH_ENDPOINT:
+            return {"products": [{
+                "id": product_id, "slug": "wecaredigital-services",
+                "media": {"itemsInfo": {"items": []}},
+                "options": [{"id": "service", "choicesSettings": {"choices": [{
+                    "choiceId": "vault", "linkedMedia": [{"image": {"url": "https://static.wixstatic.com/media/vault.png"}}]
+                }]}}]
+            }]}
+        return {"variants": [{
+            "variantId": variant_id, "productData": {"productId": product_id},
+            "optionChoices": [{"optionChoiceIds": {"optionId": "service", "choiceId": "vault"}}],
+            "price": {"actualPrice": {"amount": "49.00"}},
+            "media": {"image": {"url": "https://static.wixstatic.com/media/submit.png"}}
+        }]}
+    rows = receiver._wix_products(request)
+    item = sync.desired_items(rows, require_variant_price=True)[0]
+    assert item["image_url"] == "https://static.wixstatic.com/media/vault.png"
+
+
+def test_scoped_rollout_never_retires_unselected_variants(snapshot_products, monkeypatch):
+    all_items = sync.desired_items(snapshot_products)
+    wanted = sync.parse_retailer_id(all_items[0]["retailer_id"])[1]
+    monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS", wanted)
+    monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    graph = FakeGraph(items=all_items[1:])
+    answer = run(FakeWix(snapshot_products), graph)
+    assert answer["counts"]["create"] == 1
+    assert answer["counts"]["retire"] == 0
+    payload = graph.writes[0]["payload"]
+    assert payload["allow_upsert"] is True
+    assert payload["item_type"] == "PRODUCT_ITEM"
+    assert payload["requests"][0]["data"]["availability"] == "out of stock"
+
+
+def test_inspection_does_not_write_when_sync_is_enabled(snapshot_products, monkeypatch):
+    monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    graph = FakeGraph()
+    answer = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
+                              graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
+    assert answer["readOnly"] is True
+    assert len(answer["desiredItems"]) == 24
+    assert graph.writes == []
+
+
+def test_batch_uses_feed_fields_and_currency_price(snapshot_products):
+    plan = sync.diff(sync.desired_items(snapshot_products), [])
+    for request in receiver._batch_requests(plan):
+        data = request["data"]
+        assert data["id"] == request["retailer_id"]
+        assert data["title"]
+        assert data["link"].startswith("https://wecare.digital/")
+        assert data["price"].endswith(" INR")
+        assert not ({"retailer_id", "name", "url", "image_url", "currency"} & data.keys())
+
+
+def test_validation_response_without_handle_is_not_success(snapshot_products):
+    plan = sync.diff(sync.desired_items(snapshot_products), [])
+    status = [{"errors": [{"message": "Duplicate retailer_id in batch api call - ."}]}]
+    answer = receiver._apply(plan, lambda *a, **k: {"validation_status": status},
+                             token=FAKE_TOKEN, app_secret="", catalog_id="test")
+    assert answer["ok"] is False
+    assert answer["applied"] == 0
+    assert answer["validationStatus"] == status

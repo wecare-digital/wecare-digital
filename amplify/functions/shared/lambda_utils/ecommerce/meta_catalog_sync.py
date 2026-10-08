@@ -66,6 +66,16 @@ OUT_OF_STOCK = "out of stock"
 #: The currency this catalogue sells in. Compared EXPLICITLY, never inferred from an amount.
 CURRENCY = "INR"
 
+# Service payment vehicles have dedicated public routes and no /shop/<slug>/ page.
+# Stable identities mirror src/config/services.ts; prices remain entirely Wix-owned.
+SERVICE_PRODUCT_ID = "df976a0a-f582-4535-b2e1-d532f348bd27"
+SERVICE_PATH_BY_VARIANT = {
+    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b": "/submit-request/",
+    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
+    "db166bc8-a763-41ec-9f65-0f718f18155a": "/drop-docs/",
+    "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
+}
+
 #: THE ONLY FIELDS THAT MAY REACH META, as an explicit allowlist rather than "whatever is in the
 #: dict". An item also carries `product_name`, which is a grouping label for `blockers` and for
 #: logs; projecting through `meta_payload` is what guarantees it cannot be sent as a product
@@ -79,12 +89,13 @@ META_ITEM_FIELDS = (
     "price",
     "currency",
     "image_url",
+    "url",
 )
 
 #: The fields a diff compares to decide "has this item changed". `item_group_id` is deliberately
 #: absent: it is derived from the retailer id, so it cannot differ without the id differing, and
 #: including it would make every comparison depend on a value Meta may normalise.
-COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "image_url")
+COMPARED_FIELDS = ("name", "description", "availability", "price", "currency", "image_url", "url")
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # The exclusion lists.
@@ -420,9 +431,19 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
                 # reach Meta because `meta_payload` projects through `META_ITEM_FIELDS`.
                 "product_name": product_name,
             }
-            image = _image_url(product)
+            # Wix resolves option-choice media onto each read-only variant. Prefer it
+            # so Submit Request and Vault do not inherit the same service artwork.
+            image = _image_url(variant) or _image_url(product)
             if image:
                 item["image_url"] = image
+            # Same public route as scripts/fetch-wix-catalog.js and shopProductHref.
+            # Wix supplies the slug; its editorless storefront domain stays internal.
+            slug = str(product.get("slug") or "").strip()
+            service_path = SERVICE_PATH_BY_VARIANT.get(str(variant.get("id") or ""))
+            if product_id == SERVICE_PRODUCT_ID and service_path:
+                item["url"] = f"https://wecare.digital{service_path}"
+            elif product_id != SERVICE_PRODUCT_ID and slug and re.fullmatch(r"[a-zA-Z0-9_-]+", slug):
+                item["url"] = f"https://wecare.digital/shop/{slug}/"
             items.append(item)
     return items
 
