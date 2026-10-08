@@ -313,6 +313,21 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
   const [formCompanyName, setFormCompanyName] = useState('');
   const [formDesignation, setFormDesignation] = useState('');
   const [formCountryCode, setFormCountryCode] = useState('+91');
+
+  // ONE address, composed from the structured fields into the single shipping/billing string
+  // the website and Wix read. Called on every structured-field edit with the field that just
+  // changed (React state is async, so the caller passes its new value through `override`).
+  const composeAddress = (override: Partial<{ houseNumber: string; buildingName: string; landmark: string; city: string; state: string; postalCode: string; country: string }> = {}) => {
+    const a = {
+      houseNumber: formHouseNumber, buildingName: formBuildingName, landmark: formLandmark,
+      city: formCity, state: formState, postalCode: formPostalCode, country: formCountry,
+      ...override,
+    };
+    const line = [a.houseNumber, a.buildingName, a.landmark, a.city, a.state, a.postalCode, a.country]
+      .map(s => (s || '').trim()).filter(Boolean).join(', ');
+    setFormShippingAddress(line);
+    setFormBillingAddress(line);
+  };
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const [formOptInWA, setFormOptInWA] = useState(true);
@@ -916,24 +931,21 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
           <input style={S.input} value={formDesignation} onChange={e => setFormDesignation(e.target.value)} placeholder="Enter role or job title" onFocus={focusStyle} onBlur={blurStyle} />
         </div>
       </div>
-      {/* Shipping + Billing row */}
+      {/* ONE address format, accepted everywhere: website checkout, WhatsApp payments and Wix.
+          The structured fields are the single source of truth; the free-text shipping/billing
+          strings that the website and Wix read are composed from them on every edit, so there is
+          no second address to keep in sync. The old free-text "Delivery Address" textarea and the
+          separate "Structured Address (WhatsApp Payments)" block were merged into this one. */}
       <div>
-        <label htmlFor="contact-address" style={S.label}>Delivery Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(used for billing too)</span></label>
-        <textarea id="contact-address" style={{ ...S.input, minHeight: 60, resize: 'vertical' } as any} value={formShippingAddress} onChange={e => { setFormShippingAddress(e.target.value); setFormBillingAddress(e.target.value); }} placeholder="Enter full delivery address" onFocus={focusStyle as any} onBlur={blurStyle as any} />
-      </div>
-      {/* Structured Address Fields (for WhatsApp Payments) */}
-      <div>
-        <button type="button" onClick={() => {}} style={{ fontSize: 13, color: '#1a3a2a', background: 'none', border: 'none', padding: 0, fontWeight: 600, marginBottom: 8, display: 'block' }}>
-          Structured Address (WhatsApp Payments)
-        </button>
+        <label style={S.label}>Address <span style={{ color: '#9ca3af', fontWeight: 400, fontSize: 11 }}>(one address — used for delivery, billing, WhatsApp payments and Wix)</span></label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div><label style={S.label}>House / Unit Number</label><input style={S.input} value={formHouseNumber} onChange={e => setFormHouseNumber(e.target.value)} placeholder="e.g. 12" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Address</label><input style={S.input} value={formBuildingName} onChange={e => setFormBuildingName(e.target.value)} placeholder="Enter your complete address" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Landmark</label><input style={S.input} value={formLandmark} onChange={e => setFormLandmark(e.target.value)} placeholder="Enter a nearby landmark" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>City</label><input style={S.input} value={formCity} onChange={e => setFormCity(e.target.value)} placeholder="e.g. Mumbai" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>State</label><input style={S.input} value={formState} onChange={e => setFormState(e.target.value)} placeholder="e.g. Maharashtra" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Postal Code</label><input style={S.input} value={formPostalCode} onChange={e => setFormPostalCode(e.target.value)} placeholder="Enter postal code" onFocus={focusStyle} onBlur={blurStyle} /></div>
-          <div><label style={S.label}>Country</label><input style={S.input} value={formCountry} onChange={e => setFormCountry(e.target.value)} placeholder="India" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>House / Unit Number</label><input style={S.input} value={formHouseNumber} onChange={e => { setFormHouseNumber(e.target.value); composeAddress({ houseNumber: e.target.value }); }} placeholder="e.g. 12" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>Address</label><input style={S.input} value={formBuildingName} onChange={e => { setFormBuildingName(e.target.value); composeAddress({ buildingName: e.target.value }); }} placeholder="Street, area, building" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>Landmark</label><input style={S.input} value={formLandmark} onChange={e => { setFormLandmark(e.target.value); composeAddress({ landmark: e.target.value }); }} placeholder="Enter a nearby landmark" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>City</label><input style={S.input} value={formCity} onChange={e => { setFormCity(e.target.value); composeAddress({ city: e.target.value }); }} placeholder="e.g. Mumbai" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>State</label><input style={S.input} value={formState} onChange={e => { setFormState(e.target.value); composeAddress({ state: e.target.value }); }} placeholder="e.g. Maharashtra" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>Postal Code</label><input style={S.input} value={formPostalCode} onChange={e => { setFormPostalCode(e.target.value); composeAddress({ postalCode: e.target.value }); }} placeholder="Enter postal code" onFocus={focusStyle} onBlur={blurStyle} /></div>
+          <div><label style={S.label}>Country</label><input style={S.input} value={formCountry} onChange={e => { setFormCountry(e.target.value); composeAddress({ country: e.target.value }); }} placeholder="India" onFocus={focusStyle} onBlur={blurStyle} /></div>
         </div>
       </div>
       {/* Opt-in toggle */}
