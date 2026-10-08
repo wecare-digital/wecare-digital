@@ -1,0 +1,83 @@
+{
+  "status": "success",
+  "stdout": "",
+  "return_value": {
+    "account": "775261844268",
+    "region": "us-east-1",
+    "errors": [],
+    "authorizers": [
+      {
+        "name": "workspace-mcp-staff",
+        "type": "JWT",
+        "id": "iu6ufl"
+      }
+    ],
+    "routeAuthCounts": {
+      "NONE": 372,
+      "JWT": 1,
+      "AWS_IAM": 1
+    },
+    "authorizedRoutes": [
+      {
+        "route": "ANY /workspace/mcp",
+        "auth": "JWT",
+        "authorizerId": "iu6ufl"
+      },
+      {
+        "route": "POST /workspace/mcp-iam",
+        "auth": "AWS_IAM"
+      }
+    ],
+    "pools": [
+      {
+        "id": "us-east-1_cSx0RHCIR",
+        "mfa": "OFF",
+        "triggerKeys": [
+          "CustomMessage"
+        ]
+      },
+      {
+        "id": "us-east-1_46ULYuukt",
+        "mfa": "OFF",
+        "triggerKeys": [
+          "DefineAuthChallenge",
+          "CreateAuthChallenge",
+          "VerifyAuthChallengeResponse"
+        ]
+      }
+    ]
+  },
+  "api_calls": [
+    {
+      "service": "sts",
+      "operation": "GetCallerIdentity",
+      "status": "success"
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetAuthorizers",
+      "status": "success",
+      "n_items": {
+        "Items": 1
+      }
+    },
+    {
+      "service": "apigatewayv2",
+      "operation": "GetRoutes",
+      "status": "success",
+      "n_items": {
+        "Items": 374
+      }
+    },
+    {
+      "service": "cognito-idp",
+      "operation": "DescribeUserPool",
+      "status": "success"
+    },
+    {
+      "service": "cognito-idp",
+      "operation": "DescribeUserPool",
+      "status": "success"
+    }
+  ]
+}

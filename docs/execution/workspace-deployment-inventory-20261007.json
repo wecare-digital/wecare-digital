@@ -1,0 +1,1337 @@
+{
+  "status": "success",
+  "stdout": "",
+  "return_value": {
+    "aliases": [
+      {
+        "name": "wecare-pstn-softphone",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "10"
+          }
+        ]
+      },
+      {
+        "name": "wecare-waba-management",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "31"
+          }
+        ]
+      },
+      {
+        "name": "wecare-docs-scraper",
+        "aliases": []
+      },
+      {
+        "name": "wecare-notification-worker",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "18"
+          }
+        ]
+      },
+      {
+        "name": "wecare-email-verification",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "5"
+          }
+        ]
+      },
+      {
+        "name": "wecare-media-cleanup",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "23"
+          }
+        ]
+      },
+      {
+        "name": "wecare-whatsapp-templates",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "29"
+          }
+        ]
+      },
+      {
+        "name": "wecare-ai-generate-response",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "38"
+          }
+        ]
+      },
+      {
+        "name": "wecare-cognito-custom-message",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "2"
+          }
+        ]
+      },
+      {
+        "name": "wecare-crm",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "16"
+          }
+        ]
+      },
+      {
+        "name": "wecare-outbound-whatsapp",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "50"
+          }
+        ]
+      },
+      {
+        "name": "wecare-contacts",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-customer-orders",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "2"
+          }
+        ]
+      },
+      {
+        "name": "wecare-outbound-email",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "25"
+          }
+        ]
+      },
+      {
+        "name": "wecare-meta-analytics",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "20"
+          }
+        ]
+      },
+      {
+        "name": "wecare-sla-engine",
+        "aliases": []
+      },
+      {
+        "name": "wecare-voice-in-obd",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "30"
+          }
+        ]
+      },
+      {
+        "name": "wecare-conversation-meta",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "20"
+          }
+        ]
+      },
+      {
+        "name": "wecare-get-miss-redirect",
+        "aliases": []
+      },
+      {
+        "name": "wecare-payments-read",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "26"
+          }
+        ]
+      },
+      {
+        "name": "wecare-checkout",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "25"
+          }
+        ]
+      },
+      {
+        "name": "wecare-workspace-mcp",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "10"
+          }
+        ]
+      },
+      {
+        "name": "wecare-razorpay-webhook",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "50"
+          }
+        ]
+      },
+      {
+        "name": "wecare-catalog-management",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "20"
+          }
+        ]
+      },
+      {
+        "name": "wecare-invoice-engine",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "41"
+          }
+        ]
+      },
+      {
+        "name": "wecare-template-analytics",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-billing",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "25"
+          }
+        ]
+      },
+      {
+        "name": "wecare-customer-session",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "7"
+          }
+        ]
+      },
+      {
+        "name": "wecare-whatsapp-template-management",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "29"
+          }
+        ]
+      },
+      {
+        "name": "wecare-rcs-send",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-scheduled-messages",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-outbound-sms",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "25"
+          }
+        ]
+      },
+      {
+        "name": "wecare-sms-aws",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-seo-tools",
+        "aliases": []
+      },
+      {
+        "name": "wecare-partner-onboarding",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "27"
+          }
+        ]
+      },
+      {
+        "name": "wecare-system-cleanup",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "31"
+          }
+        ]
+      },
+      {
+        "name": "wecare-plivo-answer",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "32"
+          }
+        ]
+      },
+      {
+        "name": "wecare-product-image-gen",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-automation-rules",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "20"
+          }
+        ]
+      },
+      {
+        "name": "wecare-dlq-replay",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "23"
+          }
+        ]
+      },
+      {
+        "name": "wecare-service-requests",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "1"
+          }
+        ]
+      },
+      {
+        "name": "wecare-url-shortener",
+        "aliases": []
+      },
+      {
+        "name": "stack-wecare-url-shortener",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "20"
+          }
+        ]
+      },
+      {
+        "name": "wecare-messages-read",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-whatsapp-voice",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "31"
+          }
+        ]
+      },
+      {
+        "name": "wecare-rcs-dlr",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-agent-action-group",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "28"
+          }
+        ]
+      },
+      {
+        "name": "wecare-messages-delete",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "26"
+          }
+        ]
+      },
+      {
+        "name": "wecare-site-language",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "9"
+          }
+        ]
+      },
+      {
+        "name": "wecare-faq-handler",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "25"
+          }
+        ]
+      },
+      {
+        "name": "wecare-ai-config-management",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "26"
+          }
+        ]
+      },
+      {
+        "name": "wecare-ai-query-kb",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "26"
+          }
+        ]
+      },
+      {
+        "name": "wecare-customer-whatsapp-auth",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "14"
+          }
+        ]
+      },
+      {
+        "name": "wecare-whatsapp-business-api",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "67"
+          }
+        ]
+      },
+      {
+        "name": "wecare-partner-token-refresh",
+        "aliases": []
+      },
+      {
+        "name": "wecare-bulk-job-create",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-push-notifications",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "23"
+          }
+        ]
+      },
+      {
+        "name": "wecare-inbound-whatsapp",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "78"
+          }
+        ]
+      },
+      {
+        "name": "wecare-voice-in-c2c",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "29"
+          }
+        ]
+      },
+      {
+        "name": "wecare-bulk-job-control",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "26"
+          }
+        ]
+      },
+      {
+        "name": "wecare-bulk-worker",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-secure-files",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-whatsapp-calling",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "42"
+          }
+        ]
+      },
+      {
+        "name": "wecare-meta-business-agent",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "36"
+          }
+        ]
+      },
+      {
+        "name": "wecare-service-api",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "21"
+          }
+        ]
+      },
+      {
+        "name": "wecare-mcp",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "11"
+          }
+        ]
+      },
+      {
+        "name": "wecare-customer-profile",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "6"
+          }
+        ]
+      },
+      {
+        "name": "wecare-auth-middleware",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "22"
+          }
+        ]
+      },
+      {
+        "name": "wecare-marketing-ads",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "25"
+          }
+        ]
+      },
+      {
+        "name": "wecare-wix-store",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "36"
+          }
+        ]
+      },
+      {
+        "name": "wecare-wix-catalog-webhook",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "8"
+          }
+        ]
+      },
+      {
+        "name": "wecare-voice-aws",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-voice-cdr-read",
+        "aliases": [
+          {
+            "name": "live",
+            "version": "24"
+          }
+        ]
+      },
+      {
+        "name": "wecare-ad-attribution",
+        "aliases": []
+      }
+    ],
+    "amplify": {
+      "app": "wecare.digital",
+      "appEnv": {},
+      "branchEnv": {
+        "NEXT_PUBLIC_API_BASE": "https://wecare.digital/api"
+      },
+      "activeJobId": "0000001423",
+      "stage": "PRODUCTION",
+      "customRules": [
+        {
+          "source": "https://www.wecare.digital",
+          "target": "https://wecare.digital",
+          "status": "301"
+        },
+        {
+          "source": "/zip",
+          "target": "/shipments/",
+          "status": "301"
+        },
+        {
+          "source": "/zip/",
+          "target": "/shipments/",
+          "status": "301"
+        },
+        {
+          "source": "/shop",
+          "target": "/",
+          "status": "301"
+        },
+        {
+          "source": "/shop/",
+          "target": "/",
+          "status": "301"
+        },
+        {
+          "source": "/shop/index.html",
+          "target": "/",
+          "status": "301"
+        },
+        {
+          "source": "/get",
+          "target": "/get/index.html",
+          "status": "200"
+        },
+        {
+          "source": "/get/",
+          "target": "/get/index.html",
+          "status": "200"
+        },
+        {
+          "source": "/get/<*>",
+          "target": "https://d1kf2rchz7yras.cloudfront.net/<*>",
+          "status": "200"
+        },
+        {
+          "source": "/r/<*>",
+          "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/r/<*>",
+          "status": "200"
+        },
+        {
+          "source": "/api/<*>",
+          "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/<*>",
+          "status": "200"
+        },
+        {
+          "source": "/mcp",
+          "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/mcp",
+          "status": "200"
+        },
+        {
+          "source": "/mcp/",
+          "target": "https://zllr9lrg7j.execute-api.us-east-1.amazonaws.com/prod/mcp",
+          "status": "200"
+        },
+        {
+          "source": "/<*>",
+          "target": "/404.html",
+          "status": "404-200"
+        }
+      ]
+    }
+  },
+  "api_calls": [
+    {
+      "service": "sts",
+      "operation": "GetCallerIdentity",
+      "status": "success"
+    },
+    {
+      "service": "lambda",
+      "operation": "ListFunctions",
+      "status": "success",
+      "n_items": {
+        "Functions": 74
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 1
+      }
+    },
+    {
+      "service": "lambda",
+      "operation": "ListAliases",
+      "status": "success",
+      "n_items": {
+        "Aliases": 0
+      }
+    },
+    {
+      "service": "amplify",
+      "operation": "GetApp",
+      "status": "success"
+    },
+    {
+      "service": "amplify",
+      "operation": "GetBranch",
+      "status": "success"
+    }
+  ]
+}

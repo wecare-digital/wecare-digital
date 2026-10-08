@@ -1,0 +1,179 @@
+{
+  "scope": "775261844268/us-east-1; metadata only",
+  "inventory": {
+    "status": "success",
+    "stdout": "",
+    "return_value": {
+      "account": "775261844268",
+      "region": "us-east-1",
+      "capturedAt": "2026-10-07T03:46:49.435818+00:00",
+      "lambda": [
+        {
+          "FunctionName": "wecare-ai-generate-response",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-05T02:37:06.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 120
+        },
+        {
+          "FunctionName": "wecare-workspace-mcp",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-06T13:43:12.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 28
+        },
+        {
+          "FunctionName": "wecare-agent-action-group",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-05T02:37:13.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 60
+        },
+        {
+          "FunctionName": "wecare-ai-config-management",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-05T02:37:10.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 30
+        },
+        {
+          "FunctionName": "wecare-ai-query-kb",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-05T02:37:02.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 30
+        },
+        {
+          "FunctionName": "wecare-meta-business-agent",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-05T02:36:59.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 60
+        },
+        {
+          "FunctionName": "wecare-mcp",
+          "Version": "$LATEST",
+          "LastModified": "2026-10-02T04:41:07.000+0000",
+          "Runtime": "python3.12",
+          "Timeout": 20
+        }
+      ],
+      "stepfunctions": [],
+      "sqs": [
+        "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-bulk-dlq",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-bulk-queue",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-inbound-dlq",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-notification-dlq",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-notification-queue",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/stack-wecare-digital-outbound-dlq",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/wecare-blog-ingest",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/wecare-blog-ingest-dlq",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/wecare-eventbridge-dlq",
+        "https://sqs.us-east-1.amazonaws.com/775261844268/wecare-lambda-async-dlq"
+      ],
+      "bedrock-agent": [
+        {
+          "agentId": "4UUQYFWX64",
+          "agentName": "wecare-digital-agent",
+          "agentStatus": "NOT_PREPARED",
+          "description": "wecare-digital-agent",
+          "updatedAt": "2026-04-25T00:14:51.346154+00:00"
+        }
+      ]
+    },
+    "api_calls": [
+      {
+        "service": "sts",
+        "operation": "GetCallerIdentity",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "ListFunctions",
+        "status": "success",
+        "n_items": {
+          "Functions": 74
+        }
+      },
+      {
+        "service": "stepfunctions",
+        "operation": "ListStateMachines",
+        "status": "success",
+        "n_items": {
+          "stateMachines": 0
+        }
+      },
+      {
+        "service": "sqs",
+        "operation": "ListQueues",
+        "status": "success",
+        "n_items": {
+          "QueueUrls": 10
+        }
+      },
+      {
+        "service": "bedrock-agent",
+        "operation": "ListAgents",
+        "status": "success",
+        "n_items": {
+          "agentSummaries": 1
+        }
+      }
+    ]
+  },
+  "aliases": {
+    "status": "success",
+    "stdout": "",
+    "return_value": {
+      "wecare-ai-generate-response": [
+        {
+          "Name": "live",
+          "FunctionVersion": "38"
+        }
+      ],
+      "wecare-workspace-mcp": [
+        {
+          "Name": "live",
+          "FunctionVersion": "10"
+        }
+      ],
+      "wecare-agent-action-group": [
+        {
+          "Name": "live",
+          "FunctionVersion": "28"
+        }
+      ]
+    },
+    "api_calls": [
+      {
+        "service": "sts",
+        "operation": "GetCallerIdentity",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "ListAliases",
+        "status": "success",
+        "n_items": {
+          "Aliases": 1
+        }
+      },
+      {
+        "service": "lambda",
+        "operation": "ListAliases",
+        "status": "success",
+        "n_items": {
+          "Aliases": 1
+        }
+      },
+      {
+        "service": "lambda",
+        "operation": "ListAliases",
+        "status": "success",
+        "n_items": {
+          "Aliases": 1
+        }
+      }
+    ]
+  }
+}
