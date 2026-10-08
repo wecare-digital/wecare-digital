@@ -229,23 +229,24 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 # ── 4. the gates ship closed, and this script does not open them ───────────
 
 
-def test_the_provisioned_environment_ships_both_gates_closed(provisioner):
-    """Both gates are WRITTEN OUT, at their safe values. `META_CATALOG_SYNC_ENABLED` used to be
-    absent here, on the argument that an absent key is harder to flip than a key one word away
-    from enabling.
+def test_the_provisioned_environment_matches_the_owner_scoped_rollout(provisioner):
+    """Keep the authorized two-variant rollout and its availability hold explicit.
 
-    That reversed because an absent key is also indistinguishable from a key nobody ever
-    configured, on the one function in this phase that can write to a customer-visible Meta
-    catalogue - and because `config/lambda-env-manifest.json` records what is LIVE, so declaring
-    the gate closed there while no deploy ever set it would make `scripts/env_manifest.py` report
-    drift and exit 1 for good. The flip risk it traded away is covered by `verify()`, which
-    refuses outright when the live value reads true.
-
-    Asserted by equality against "false" rather than by absence, so this still fails the moment
-    anything sets it to an enabling value.
+    Fresh handler defaults remain closed. This provisioner records the separately
+    authorized live rollout, so testing it as an unprovisioned disabled feature
+    would contradict the checked-in deployment manifest.
     """
-    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_ENABLED"] == "false"
-    assert provisioner.ENVIRONMENT["META_CATALOG_SYNC_DRY_RUN"] == "true"
+    manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
+    live = manifest["functions"]["wecare-meta-catalog-sync"]
+    expected = {
+        "META_CATALOG_SYNC_ENABLED": "true",
+        "META_CATALOG_SYNC_DRY_RUN": "false",
+        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+    }
+    for key, value in expected.items():
+        assert provisioner.ENVIRONMENT[key] == value
+        assert live[key] == value
 
 
 def test_the_environment_carries_secret_NAMES_and_no_value(provisioner):
