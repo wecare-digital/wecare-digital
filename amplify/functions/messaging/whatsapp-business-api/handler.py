@@ -4611,41 +4611,9 @@ def _save_submit_request(phone: str, order_id: str, subject: str, description: s
 # Uses same E2E encryption as WhatsApp Flows (shared /flow-data endpoint).
 # ═══════════════════════════════════════════════════════════════════════════
 
-# ── Coupon Configuration ──
-# In-memory coupon store. Migrate to DynamoDB CouponsTable for dynamic management.
-# Each coupon: code, id, description, discount_type (percent|flat), discount_value (paise for flat, % for percent),
-#              min_order_paise, max_discount_paise, active, valid_until (epoch), usage_limit
-CHECKOUT_COUPONS = [
-    {
-        'code': 'WELCOME10', 'id': 'welcome_10',
-        'description': 'Save ₹10 on your first order',
-        'discount_type': 'percent', 'discount_value': 10,
-        'min_order_paise': 10000, 'max_discount_paise': 50000,
-        'active': True, 'valid_until': 0, 'usage_limit': 0,
-    },
-    {
-        'code': 'FLAT50', 'id': 'flat_50',
-        'description': 'Flat ₹50 off on orders above ₹200',
-        'discount_type': 'flat', 'discount_value': 5000,
-        'min_order_paise': 20000, 'max_discount_paise': 5000,
-        'active': True, 'valid_until': 0, 'usage_limit': 0,
-    },
-    {
-        'code': 'SAVE20', 'id': 'save_20',
-        'description': 'Save 20% up to ₹100',
-        'discount_type': 'percent', 'discount_value': 20,
-        'min_order_paise': 15000, 'max_discount_paise': 10000,
-        'active': True, 'valid_until': 0, 'usage_limit': 0,
-    },
-    {
-        'code': 'FREESHIP', 'id': 'free_ship',
-        'description': 'Free shipping on this order',
-        'discount_type': 'flat', 'discount_value': 0,  # Special: zeroes shipping
-        'min_order_paise': 0, 'max_discount_paise': 0,
-        'active': True, 'valid_until': 0, 'usage_limit': 0,
-        '_free_shipping': True,
-    },
-]
+# Coupon pricing is owned by the cart/invoice redemption authority. The legacy
+# checkout-button callbacks have no reservation or settlement linkage, so they
+# cannot issue offers or change an already-created payment's coupon amount.
 
 # ── Pin-code based shipping rates (paise) ──
 # Zone → base rate. Kolkata (700xxx) is local, rest of WB is regional, others are national.
@@ -4695,34 +4663,6 @@ def _calculate_shipping_paise(pin_code: str) -> int:
     """Calculate shipping cost in paise based on pin code zone."""
     zone = _get_shipping_zone(pin_code)
     return SHIPPING_RATES_PAISE.get(zone, SHIPPING_RATES_PAISE['national'])
-
-
-def _find_coupon(code: str) -> dict:
-    """Look up coupon by code (case-insensitive). Returns coupon dict or empty."""
-    code_upper = (code or '').strip().upper()
-    for c in CHECKOUT_COUPONS:
-        if c.get('code', '').upper() == code_upper and c.get('active', False):
-            return c
-    return {}
-
-
-def _calculate_coupon_discount_paise(coupon: dict, subtotal_paise: int) -> int:
-    """Calculate coupon discount in paise. Respects min_order and max_discount."""
-    if not coupon:
-        return 0
-    min_order = coupon.get('min_order_paise', 0)
-    if subtotal_paise < min_order:
-        return 0
-    dtype = coupon.get('discount_type', 'percent')
-    if dtype == 'flat':
-        discount = coupon.get('discount_value', 0)
-    else:
-        pct = coupon.get('discount_value', 0)
-        discount = int(subtotal_paise * pct / 100)
-    max_disc = coupon.get('max_discount_paise', 0)
-    if max_disc > 0 and discount > max_disc:
-        discount = max_disc
-    return discount
 
 
 def _recalculate_order_total(order_details: dict, coupon_discount_paise: int = 0) -> int:
@@ -4775,136 +4715,27 @@ def _handle_checkout_data_exchange(sub_action: str, data: dict,
 
 def _checkout_get_coupons(order_details: dict, input_data: dict,
                           version: str, request_id: str) -> dict:
-    """Return available coupons for the order. Meta shows these in the savings offer UI."""
-    subtotal_paise = order_details.get('order', {}).get('subtotal', {}).get('value', 0)
-    user_id = input_data.get('user_id', '')
+    """Do not advertise unbacked discounts on an already-created payment."""
+    return {'version': version, 'sub_action': 'get_coupons',
+            'data': {'coupons': []}}
 
-    # Filter coupons: only return those where min_order is met
-    import time as _time
-    now = int(_time.time())
-    available = []
-    for c in CHECKOUT_COUPONS:
-        if not c.get('active', False):
-            continue
-        valid_until = c.get('valid_until', 0)
-        if valid_until > 0 and now > valid_until:
-            continue
-        if subtotal_paise < c.get('min_order_paise', 0):
-            continue
-        available.append({
-            'code': c['code'],
-            'id': c['id'],
-            'description': c['description'],
-        })
 
-    logger.info(json.dumps({
-        'event': 'checkout_get_coupons',
-        'user_id': user_id,
-        'subtotal_paise': subtotal_paise,
-        'coupons_returned': len(available),
-        'requestId': request_id,
-    }))
-
-    return {
-        'version': version,
-        'sub_action': 'get_coupons',
-        'data': {
-            'coupons': available,
-        },
-    }
+def _checkout_coupon_refusal(sub_action: str, version: str) -> dict:
+    """Refuse before repricing: this callback cannot reserve or settle a coupon."""
+    return {'version': version, 'sub_action': sub_action, 'data': {
+        'error': 'Apply or remove the coupon in checkout before requesting payment.',
+        'error_code': 'COUPON_REQUIRES_CHECKOUT',
+    }}
 
 
 def _checkout_apply_coupon(order_details: dict, input_data: dict,
                            version: str, request_id: str) -> dict:
-    """Apply a coupon to the order. Recalculate totals and return updated order_details."""
-    coupon_input = input_data.get('coupon', {})
-    coupon_code = coupon_input.get('code', '')
-    coupon = _find_coupon(coupon_code)
-
-    subtotal_paise = order_details.get('order', {}).get('subtotal', {}).get('value', 0)
-
-    if not coupon:
-        logger.warning(json.dumps({
-            'event': 'checkout_coupon_not_found',
-            'code': coupon_code, 'requestId': request_id,
-        }))
-        # Return order unchanged — Meta will show "coupon not valid"
-        total = _recalculate_order_total(order_details, 0)
-        order_details['total_amount'] = {'offset': 100, 'value': total}
-        return {
-            'version': version,
-            'sub_action': 'apply_coupon',
-            'data': {'order_details': order_details},
-        }
-
-    # Special: free shipping coupon
-    if coupon.get('_free_shipping'):
-        order_details['order']['shipping'] = {'offset': 100, 'value': 0}
-        coupon_discount_paise = 0
-    else:
-        coupon_discount_paise = _calculate_coupon_discount_paise(coupon, subtotal_paise)
-
-    total = _recalculate_order_total(order_details, coupon_discount_paise)
-    order_details['total_amount'] = {'offset': 100, 'value': total}
-
-    # Attach coupon to order_details (Meta expects this in response)
-    order_details['coupon'] = {
-        'code': coupon['code'],
-        'discount': {
-            'value': coupon_discount_paise,
-            'offset': 100,
-        },
-    }
-
-    logger.info(json.dumps({
-        'event': 'checkout_coupon_applied',
-        'code': coupon_code,
-        'discount_paise': coupon_discount_paise,
-        'new_total_paise': total,
-        'requestId': request_id,
-    }))
-
-    return {
-        'version': version,
-        'sub_action': 'apply_coupon',
-        'data': {'order_details': order_details},
-    }
+    return _checkout_coupon_refusal('apply_coupon', version)
 
 
 def _checkout_remove_coupon(order_details: dict, input_data: dict,
                             version: str, request_id: str) -> dict:
-    """Remove coupon from order. Recalculate totals and return order_details without coupon."""
-    removed_code = order_details.get('coupon', {}).get('code', '')
-
-    # If the removed coupon was a free-shipping coupon, restore default shipping
-    removed_coupon = _find_coupon(removed_code)
-    if removed_coupon and removed_coupon.get('_free_shipping'):
-        # Restore shipping based on address if available
-        addresses = order_details.get('shipping_info', {}).get('addresses', [])
-        if addresses:
-            pin = addresses[0].get('in_pin_code', '')
-            order_details['order']['shipping'] = {
-                'offset': 100, 'value': _calculate_shipping_paise(pin),
-            }
-
-    # Remove coupon from order_details
-    order_details.pop('coupon', None)
-
-    total = _recalculate_order_total(order_details, 0)
-    order_details['total_amount'] = {'offset': 100, 'value': total}
-
-    logger.info(json.dumps({
-        'event': 'checkout_coupon_removed',
-        'removed_code': removed_code,
-        'new_total_paise': total,
-        'requestId': request_id,
-    }))
-
-    return {
-        'version': version,
-        'sub_action': 'remove_coupon',
-        'data': {'order_details': order_details},
-    }
+    return _checkout_coupon_refusal('remove_coupon', version)
 
 
 def _checkout_apply_shipping(order_details: dict, input_data: dict,
@@ -4916,12 +4747,10 @@ def _checkout_apply_shipping(order_details: dict, input_data: dict,
     # Calculate shipping based on pin code zone
     shipping_paise = _calculate_shipping_paise(pin_code)
 
-    # Check if a free-shipping coupon is active
-    existing_coupon = order_details.get('coupon', {})
-    coupon_code = existing_coupon.get('code', '')
-    coupon = _find_coupon(coupon_code) if coupon_code else {}
-    if coupon.get('_free_shipping'):
-        shipping_paise = 0
+    # An embedded coupon amount is not an authority. Refuse before changing the
+    # order rather than carrying a caller-supplied discount into a new total.
+    if order_details.get('coupon'):
+        return _checkout_coupon_refusal('apply_shipping', version)
 
     # Update shipping in order
     order_details['order']['shipping'] = {'offset': 100, 'value': shipping_paise}
@@ -4932,8 +4761,7 @@ def _checkout_apply_shipping(order_details: dict, input_data: dict,
     order_details['shipping_info']['selected_address'] = selected_address
 
     # Recalculate total (with coupon discount if present)
-    coupon_discount_paise = existing_coupon.get('discount', {}).get('value', 0)
-    total = _recalculate_order_total(order_details, coupon_discount_paise)
+    total = _recalculate_order_total(order_details)
     order_details['total_amount'] = {'offset': 100, 'value': total}
 
     zone = _get_shipping_zone(pin_code)
@@ -4943,7 +4771,7 @@ def _checkout_apply_shipping(order_details: dict, input_data: dict,
         'zone': zone,
         'shipping_paise': shipping_paise,
         'new_total_paise': total,
-        'has_coupon': bool(coupon_code),
+        'has_coupon': False,
         'requestId': request_id,
     }))
 

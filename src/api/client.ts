@@ -427,6 +427,13 @@ export interface Contact {
   address?: {
     addressLine1: string;
     addressLine2?: string;
+    /**
+     * FEAT-003: the eighth `contact_address._RULES` field, and the one the staff forms label
+     * "Landmark / Locality". It was missing from this interface while being accepted by the
+     * server, so a landmark typed in the CRM reached `landmark` (a flat CRM field nothing in the
+     * payment path reads) and never reached `checkoutDeliveryAddress.locality`.
+     */
+    locality?: string;
     city: string;
     state: string;
     postalCode: string;
@@ -5048,6 +5055,60 @@ export async function createInvoiceEngine ( request: CreateInvoiceEngineRequest 
     method: 'POST',
     body: JSON.stringify( request ),
   } );
+}
+
+/**
+ * A create that reports WHY it was refused.
+ *
+ * `createInvoiceEngine` stays exactly as it is, because ~every other caller wants the invoice or
+ * nothing. But `apiCall` collapses a non-2xx to `null`, and FEAT-002 answers every coupon and
+ * gift-card refusal as a 4xx/503 carrying a typed `errorCode` - `COUPON_EXPIRED`,
+ * `INSUFFICIENT_BALANCE`, `HELD_BY_ANOTHER_CART`, and the fourteen others. A form that can only
+ * see `null` has to say "Create failed" and the staff member has no idea which code to fix.
+ *
+ * So this follows `hardDeleteContact`'s precedent and uses `authFetch` directly: the refusal code
+ * lives in the body and the body is the one thing this caller needs. It returns a discriminated
+ * result rather than throwing, because "the coupon has expired" is an ordinary answer and not an
+ * exception.
+ *
+ * `errorCode` is passed through VERBATIM and is never invented here. An unrecognised code must
+ * still reach the UI so a new server refusal degrades to an honest unknown-reason message rather
+ * than to a wrong one.
+ */
+export type CreateInvoiceEngineResult =
+  | { ok: true; invoice: CreateInvoiceEngineResponse }
+  | { ok: false; status: number | null; errorCode: string; retryable: boolean };
+
+export async function createInvoiceEngineResult (
+  request: CreateInvoiceEngineRequest,
+): Promise<CreateInvoiceEngineResult> {
+  let response: Response;
+  try
+  {
+    response = await authFetch( INVOICE_BASE, {
+      method: 'POST',
+      body: JSON.stringify( request ),
+    } );
+  } catch ( error )
+  {
+    console.error( 'Invoice create request failed:', error );
+    return { ok: false, status: null, errorCode: 'REQUEST_FAILED', retryable: true };
+  }
+
+  let data: any = null;
+  try { data = await response.json(); } catch { data = null; }
+
+  if ( response.ok && data && data.invoiceId )
+  {
+    return { ok: true, invoice: data as CreateInvoiceEngineResponse };
+  }
+
+  return {
+    ok: false,
+    status: response.status,
+    errorCode: typeof data?.errorCode === 'string' && data.errorCode ? data.errorCode : 'CREATE_FAILED',
+    retryable: data?.retryable === true,
+  };
 }
 
 // Create invoice from Razorpay payment ID
