@@ -2547,6 +2547,53 @@ a token; no credential rotated; no provider mutation; no flag enabled; no paymen
 phone number or S3 bucket touched; no other function, route, table, IAM policy or alarm
 changed; `.kiro/settings/mcp.json` not edited.**
 
+## Workspace audit and redesign research — 2026-10-07
+
+| Class | Target | Action and evidence | Rollback |
+|---|---|---|---|
+| A0_READ | origin/stack, pages, API helpers, handlers | Refreshed stack a82ff4c9; inventoried 149 route patterns and 80 handler sources; preserved concurrent working directories. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | GetApis/GetRoutes/GetIntegrations/ListFunctions/ListTables/ListAliases/GetApp/GetBranch/GetJob. 74 functions, 374 routes, 84 tables; Amplify job 1423 succeeded at audited SHA. Metadata only. | Read only |
+| A1_LOCAL | codex/workspace-audit-redesign-20261007 | Research report, every-page decisions, metadata evidence, local prototype and repeatable inventory/DOM checks. No production application code changed. | Remove research commit or branch |
+| A0_READ | Local artifact preview | In-app browser rejected file URL under security policy. No URL/browser workaround. File opened in Codex; DOM checks passed. Visual/mobile render unverified. | No external change |
+| A2_REMOTE_CODE | Separate research branch | Non-force feature-branch push of explicit documentation/tool/prototype paths; no stack merge or production deployment. | Delete research branch after review |
+
+Prior pending registry migration and workspace MCP production deployment are not authorized by this research request and were not executed.
+
+## Pasted investigation reconciliation — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Current stack, page/API/deployment source | Verified service-request source/Spec entry, contextual Blog Production links, non-stub API consumers; no missing registered pages; module-home tests 31 passed. | Read only |
+| A0_READ | AWS authorizers/routes/Cognito/alarms/metrics | Verified 372 NONE, 1 JWT, 1 IAM route; both MFA OFF, customer challenge triggers preserved; 73 metric alarms; six-function seven-day invocation evidence. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Research branch / PR244 | Added corrections and metadata; no deletion or auth change inferred from another assistant’s report. | Revert research update |
+
+## Internal agent autonomy phase plan — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Existing internal assistant, governance and workspace MCP | Traced custom Converse dispatch, disabled APPLY tools, plans/approvals, fail-open receipts, static settings catalog and worker-identity gap. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | Successful GetCallerIdentity, ListFunctions, ListStateMachines, ListQueues, ListAgents and three ListAliases calls. AI live 38, MCP live 10, action group live 28; classic agent NOT_PREPARED; zero state machines. No model invocation, secrets or customer reads. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added seven implementation phases, ten-area capability matrix and metadata evidence. Checked phase/gate coverage, CSV structure, source references and API-call success. | Revert documentation commit |
+
+This request creates the implementation plan. It does not activate autonomous production actions, change staff/customer authentication, lift protected-path restrictions or execute previously blocked production changes.
+
+## Final workspace inner-page layout — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Owner-pasted report and reconciled page audit | Used current confirmed wiring/gaps; retained corrections to stub/orphan claims. Refreshed official resource-index and consistent-navigation references. No new AWS inventory claimed. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added 14 text diagrams, ten inner-page specifications, backend upgrade/release matrix, and all 113 workspace routes mapped to 14 proposed destination groups. Validated unique route coverage, destination count, source existence and whitespace. | Revert documentation commit |
+
+Destination consolidation is a design target, not approval to delete routes/backends. Public/customer flows, authentication, production resources and application behavior remain unchanged.
+
+## WhatsApp coverage audit integration — 2026-10-07
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | Pasted WhatsApp audit and relevant repository source | Corrected Embedded Signup stub claim via shared component/API; checked legacy thread-control shape, group storage/helper, revoke limitation, OTP controls and website-only payment policy. Official Meta docs refresh failed (inaccessible/429); no replacement API contract claimed. | Read only |
+| A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added twelve-area preservation matrix, dispositions for all 25 reported gaps and six staged batches; validated coverage and component/helper references. No app tests run for documentation-only change. | Revert documentation commit |
+
+No live provider requests, credential reads, PIN/number operations, payment reactivation, send activation, AWS changes or source behavior changes were made. Pasted recommendations are classified research inputs, not blanket execution authority.
 ## Staff MFA testing override - 2026-10-07
 
 A3_PRODUCTION, explicit owner instruction in this chat: disable MFA for staff

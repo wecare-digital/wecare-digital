@@ -1,0 +1,44 @@
+{
+  "status": "success",
+  "stdout": "",
+  "return_value": {
+    "job": {
+      "jobId": "1423",
+      "status": "SUCCEED",
+      "commitId": "a82ff4c915e62fd46894d015003097b26f5c9523",
+      "startTime": "2026-10-07T02:07:48.833000+00:00",
+      "endTime": "2026-10-07T02:12:16.421000+00:00"
+    },
+    "steps": [
+      {
+        "name": "BUILD",
+        "status": "SUCCEED"
+      },
+      {
+        "name": "DEPLOY",
+        "status": "SUCCEED"
+      },
+      {
+        "name": "VERIFY",
+        "status": "SUCCEED"
+      }
+    ]
+  },
+  "api_calls": [
+    {
+      "service": "sts",
+      "operation": "GetCallerIdentity",
+      "status": "success"
+    },
+    {
+      "service": "amplify",
+      "operation": "GetBranch",
+      "status": "success"
+    },
+    {
+      "service": "amplify",
+      "operation": "GetJob",
+      "status": "success"
+    }
+  ]
+}

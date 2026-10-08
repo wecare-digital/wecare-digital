@@ -51,7 +51,7 @@ SENDER_FUNCTION = os.environ.get("WA_SENDER_FUNCTION", "wecare-outbound-whatsapp
 MEDIA_FUNCTION = os.environ.get(
     "WA_MEDIA_FUNCTION", "wecare-whatsapp-business-api:live"
 )
-PAY_TEMPLATE = os.environ.get("WA_PAY_TEMPLATE", "wecare_pay")
+PAY_TEMPLATE = os.environ.get("WA_PAY_TEMPLATE", "wecarepay_wa")
 
 # Defaults to the older approved template so delivery never depends on an approval
 # that has not landed. `wd_file_delivery` was submitted to replace it - it has BODY

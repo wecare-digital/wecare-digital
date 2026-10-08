@@ -1,0 +1,11 @@
+area,initial_autonomous_outcome,execution_owner,phase,autonomy_boundary,completion_evidence
+Inbox,Classify and summarize unread conversations then create internal follow-up tasks,Message and task services,2-4,Read and internal triage only; outbound sends remain restricted,Conversation IDs and saved task IDs with read-back
+Contacts,Detect incomplete records then correct explicitly allowed non-identity fields,Contact service,3-4,Field allowlist and optimistic concurrency; no bulk identity rewrite,Existing contact ID and verified updated fields
+Campaigns,Prepare audience and campaign drafts,Campaign and template services,4,Drafts only; no activation or spend or customer broadcast,Draft record ID and validated recipient count
+Service Ops and Forms,Triage submissions and assign internal service follow-ups,Service request and form services,3-4,No payment or destructive provider operation,Submission ID linked to verified task or service record
+Payments,Reconcile read-only status and flag discrepancies,Payment and invoice services,2-4,No capture refund or payment configuration mutation,Provider or ledger read reference and discrepancy task
+Catalog and Store,Detect catalog inconsistencies and prepare changes,Catalog and authoritative commerce services,4,Drafts until specific internal mutation policy exists,Compared record IDs and draft diff
+Tasks,Create assign and progress eligible internal tasks,Task service,3,Scoped assignment and non-destructive updates; close only after outcome verified,Task ID and persisted status plus outcome evidence
+Content and SEO,Audit configured content and prepare publication drafts,Content and SEO services,4,Configured integrations only; publishing stays outside current policy,Existing content IDs and audit or draft evidence
+Integrations,Check grant health and recover supported token refresh,Workspace MCP and provider adapters,1-2,Runtime refresh only where supported; new consent and credential replacement need owner,Authorized read timestamp or precise reconnect reason
+Platform,Inspect health costs and bounded code-job status,Scoped AWS and GitHub adapters,2-4,Read or bounded draft patch only; no unrestricted shell cloud mutation or deployment,Metadata references and workflow or patch job ID

@@ -310,7 +310,7 @@ def environment(payment_enabled: bool = False) -> dict:
         # Both templates are already APPROVED; nothing here waits on Meta.
         # wecare_pay    [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]
         # 01_wecare_doc [DOCUMENT, BODY, FOOTER, BUTTONS(FLOW)]
-        "WA_PAY_TEMPLATE": "wecare_pay",
+        "WA_PAY_TEMPLATE": "wecarepay_wa",
         # wd_file_delivery: APPROVED 2026-09-25. DOCUMENT header, BODY variables for
         # customer and file name, and no buttons. Replaced 01_wecare_doc, which could
         # name neither and carried a stray FLOW button labelled "Subscribe".
