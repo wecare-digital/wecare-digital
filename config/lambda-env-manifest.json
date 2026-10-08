@@ -241,8 +241,10 @@
     "wecare-meta-catalog-sync": {
       "LOG_LEVEL": "INFO",
       "META_CATALOG_ID": "1607047307067517",
-      "META_CATALOG_SYNC_ENABLED": "false",
-      "META_CATALOG_SYNC_DRY_RUN": "true",
+      "META_CATALOG_SYNC_ENABLED": "true",
+      "META_CATALOG_SYNC_DRY_RUN": "false",
+      "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+      "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
       "META_TOKEN_FIELD": "access_token",
       "META_TOKEN_SECRET": "wecare/meta-system-user-token",
       "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",

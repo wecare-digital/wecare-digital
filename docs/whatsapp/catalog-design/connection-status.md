@@ -23,17 +23,21 @@ The live variant reader preserves variant artwork. Explicit linked option-choice
 
 Retailer IDs remain `wix:<productId>:<variantId>`, the existing join used by WhatsApp basket resolution and Wix catalog references.
 
-Validation: 116 catalog projection, handler and exclusion-parity tests passed with offline fixtures. No customer payment or WhatsApp send was performed.
+## Live deployment verified 2026-10-08
 
-## Existing automation and remaining live verification
+AWS MCP access now succeeds in account 775261844268, us-east-1. The prior workspace credit rejection no longer blocks this work. The sync is deployed on live version 5 (code SHA v4uxaXl+7L52ZCN1ZxkblU3RHnfnp06jhZ07c3i195s=).
 
-Code already connects verified Wix catalog webhooks to the Meta sync Lambda. A six-hour EventBridge backstop is defined by the provisioning script; GitHub's catalogue workflow refreshes the website snapshot on events and every six hours.
+Meta catalog 1607047307067517 contains both existing Wix variant identities, correct INR 99/49 prices, separate Wix-hosted 4096px images and WECARE product URLs. Readback through the live alias returns create=0, update=0, retire=0, foreign=1. The foreign test item was preserved. The original items_batch payload used Graph product fields; corrected feed fields are id/title/image_link/link and currency-bearing price. Validation responses without batch handles now fail rather than reporting success.
 
-The checked-in manifest still has `META_CATALOG_SYNC_ENABLED=false`, `META_CATALOG_SYNC_DRY_RUN=true`, and `WA_CATALOG_ORDERS_ENABLED=false`. These are repository values, not a fresh AWS runtime reading.
+The live manifest/provisioner record enabled=true, dryRun=false, the two exact variant IDs, and forceOutOfStock=true. These products remain out of stock pending purchase QA. Variant scope applies to retirement too.
 
-The shared payment finalizer contains canonical order creation, Wix order creation, payment recording and completion tracking. The workspace orders page calls its order-list API. This is source-level evidence only; the complete native WhatsApp purchase, Wix writeback and workspace listing have not been live-verified in this turn.
+EventBridge schedule is ENABLED with cron(25 */6 * * ? *) and invokes the live alias. The Wix webhook role has the exact live-alias invoke grant; a last-hour CloudWatch read found one meta_catalog_sync_invoked event. Fresh Wix change-to-Meta propagation remains a separate QA check; the six-hour reconciliation is active.
 
-The earlier AWS MCP action was not executed because automatic approval review could not complete: workspace credits were exhausted. Do not bypass that block using another AWS execution route. AWS runtime inspection, deployment, catalog API upsert and end-to-end order verification remain pending until that access is restored.
+Validation: 120 catalog projection, handler and exclusion-parity tests passed. No customer payment or WhatsApp send was performed. Evidence: catalog-live-evidence.json.
+
+## Order path still pending
+
+Live checkout and Razorpay webhook configurations do not enable the site-bound Wix external-order writeback contract. Native catalog-service checkout changes are unfinished local source and have not been deployed by this catalog release. Paid purchase -> one Wix order -> one workspace order -> Submit Request/Vault fulfillment therefore remains unverified. Owner QA WhatsApp recipient requested; no real customer used as a substitute.
 
 ## Rollback
 

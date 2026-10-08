@@ -5,23 +5,12 @@ PHASE W, FEAT-001. Plan decision D3 in
 shape and the diff all live in `lambda_utils/ecommerce/meta_catalog_sync.py`, which is pure. This
 file is wiring: Wix in, Meta in, a plan out, and two gates in front of the only thing that writes.
 
-IT DOES NOT WRITE TO META AS SHIPPED, AND THAT IS THE DESIGN
-------------------------------------------------------------
-Two independent gates, checked in this order:
-
-    META_CATALOG_SYNC_ENABLED  absent or not true  -> compute the plan, log it, return.
-                                                      No write request is CONSTRUCTED at all.
-    META_CATALOG_SYNC_DRY_RUN  anything but an explicit false -> same.
-
-Only both-flags-set reaches `_apply`. The Meta catalogue is customer-visible - items appear in
-WhatsApp - so turning this on is an owner decision, and nothing in this repository sets either
-variable to an enabling value. `config/lambda-env-manifest.json` records both at their safe
-defaults.
-
-A second reason the gates matter today rather than in principle: every one of the ten real
-products carries `mediaCount: 0`, so `meta_catalog_sync.blockers` names all ten and Meta commerce
-review would reject every item. The honest state is "the plan is correct and the catalogue is not
-ready", which is exactly what this function reports.
+OWNER-AUTHORIZED SCOPED ROLLOUT, 2026-10-08
+------------------------------------------
+The deployed manifest enables only Submit Request and Vault, held out of stock while native
+purchase QA remains pending. Absent flags still default to disabled/dry-run. The variant scope
+also limits retirement, preserving unrelated and foreign items. Meta items_batch uses feed
+fields; catalog reads use Graph product fields. A response without handles is not success.
 
 THE TRIGGER CARRIES NO INFORMATION THIS FUNCTION USES
 -----------------------------------------------------
@@ -436,13 +425,21 @@ def _batch_requests(plan: catalog.SyncPlan) -> List[Dict[str, Any]]:
     """
     requests: List[Dict[str, Any]] = []
     for item in list(plan.create) + list(plan.update):
+        # items_batch takes feed fields, unlike /products and the catalog read API.
+        data = catalog.meta_payload(item)
+        data["id"] = data.pop("retailer_id")
+        data["title"] = data.pop("name")
+        if "image_url" in data:
+            data["image_link"] = data.pop("image_url")
+        data["link"] = data.pop("url")
+        data["price"] = f'{data["price"]} {data.pop("currency")}'
         requests.append({"method": "UPDATE",
                          "retailer_id": item["retailer_id"],
-                         "data": catalog.meta_payload(item)})
+                         "data": data})
     for item in plan.retire:
         requests.append({"method": "UPDATE",
                          "retailer_id": item["retailer_id"],
-                         "data": {"availability": catalog.OUT_OF_STOCK}})
+                         "data": {"id": item["retailer_id"], "availability": catalog.OUT_OF_STOCK}})
     return requests
 
 
@@ -455,18 +452,26 @@ def _apply(plan: catalog.SyncPlan, requester, *, token: str, app_secret: str,
     """
     requests = _batch_requests(plan)
     sent = 0
+    handles = []
     for start in range(0, len(requests), META_BATCH_CHUNK):
         chunk = requests[start:start + META_BATCH_CHUNK]
         result = requester(f"{catalog_id}/{META_BATCH_PATH}", method="POST",
-                           payload={"requests": chunk}, token=token, app_secret=app_secret)
+                           payload={"item_type": "PRODUCT_ITEM", "allow_upsert": True,
+                                    "requests": chunk}, token=token, app_secret=app_secret)
         if "error" in result:
             logger.error(json.dumps({"event": "meta_catalog_batch_rejected",
                                      "catalogId": catalog_id,
                                      "sent": sent,
                                      "chunk": len(chunk)}))
             return {"applied": sent, "ok": False}
+        if result.get("validation_errors"):
+            return {"applied": sent, "ok": False, "validationErrors": result["validation_errors"],
+                    "responseFields": sorted(result.keys()), "validationStatus": result.get("validation_status")}
+        if not result.get("handles"):
+            return {"applied": sent, "ok": False, "responseFields": sorted(result.keys()), "validationStatus": result.get("validation_status")}
+        handles.extend(result.get("handles") or [])
         sent += len(chunk)
-    return {"applied": sent, "ok": True}
+    return {"applied": sent, "ok": True, "batchHandles": handles}
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -521,11 +526,28 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         return {"ok": False, "reason": "unconfigured", "enabled": enabled,
                 "dryRun": True, "catalogId": catalog_id, "applied": 0}
 
+    if isinstance(event, Mapping) and isinstance(event.get("batchHandle"), str):
+        status = graph(f"{catalog_id}/check_batch_request_status", method="GET",
+                       params={"handle": event["batchHandle"]}, token=token, app_secret=app_secret)
+        return {"readOnly": True, "batchStatus": status}
+
     try:
         products = _wix_products(wix)
         desired = catalog.desired_items(products, require_variant_price=True)
         existing = _existing_items(graph, token=token, app_secret=app_secret,
                                    catalog_id=catalog_id)
+        # A scoped rollout must not publish or retire unrelated catalog variants.
+        allowed = {value.strip().lower() for value in
+                   os.environ.get("META_CATALOG_SYNC_VARIANT_IDS", "").split(",") if value.strip()}
+        if allowed:
+            desired = [item for item in desired
+                       if (catalog.parse_retailer_id(item["retailer_id"]) or (None, None))[1] in allowed]
+            existing = [item for item in existing
+                        if not catalog.parse_retailer_id(item.get("retailer_id"))
+                        or (catalog.parse_retailer_id(item.get("retailer_id")) or (None, None))[1] in allowed]
+        if os.environ.get("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "").lower() in _TRUE:
+            for item in desired:
+                item["availability"] = catalog.OUT_OF_STOCK
     except Exception as error:  # noqa: BLE001 - a read failure must not become a write attempt
         logger.error(json.dumps({"event": "meta_catalog_sync_read_failed",
                                  "errorType": type(error).__name__,
@@ -537,6 +559,15 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     plan = catalog.diff(desired, existing)
     blocked = catalog.blockers(desired)
     counts = plan.counts()
+
+    if isinstance(event, Mapping) and event.get("inspect") is True:
+        # Private IAM-protected readback. Never enters the write path, even when
+        # synchronization is enabled. Only public product fields are returned.
+        return {"ok": True, "enabled": enabled, "dryRun": True, "readOnly": True,
+                "catalogId": catalog_id, "counts": counts, "blocked": blocked,
+                "desiredItems": [catalog.meta_payload(item) for item in desired],
+                "existingItems": [catalog.meta_payload(item) for item in existing],
+                "applied": 0}
 
     # ONE structured line, and every field in it is a public catalogue identifier or a count.
     # Product ids, retailer ids and catalog ids are public commerce identifiers; there is no
@@ -575,4 +606,7 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
     return {"ok": outcome["ok"], "enabled": True, "dryRun": False, "catalogId": catalog_id,
             "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
-            "applied": outcome["applied"]}
+            "applied": outcome["applied"], "batchHandles": outcome.get("batchHandles", []),
+            "validationErrors": outcome.get("validationErrors", []),
+            "responseFields": outcome.get("responseFields", []),
+            "validationStatus": outcome.get("validationStatus")}
