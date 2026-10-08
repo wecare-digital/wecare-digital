@@ -25,6 +25,10 @@ from .whatsapp_types import (
     PHONE_NUMBER_MAX,
     URL_MAX,
     FLOW_NAME_MAX,
+    LTO_COMPONENT_TYPE,
+    LTO_TEXT_MAX,
+    LTO_ALLOWED_CATEGORIES,
+    LTO_HEADER_FORMATS,
 )
 from .template_ttl import validate_ttl
 
@@ -148,6 +152,45 @@ def validate_footer(comp: Dict[str, Any]) -> Tuple[List[str], List[str]]:
     return errors, []
 
 
+def validate_limited_time_offer(comp: Dict[str, Any], category: str) -> Tuple[List[str], List[str]]:
+    """Validate a LIMITED_TIME_OFFER component. Returns (errors, warnings).
+
+    `category` is accepted for signature parity with validate_header/validate_body.
+    The MARKETING-only rule is a statement about the TEMPLATE rather than about this
+    component, so validate_components enforces it once, beside the other LTO
+    cross-component rules.
+
+    The LTO_TEXT_MAX cap is a WARNING and not an error on purpose. It is believed to
+    be Meta's and is not confirmable from this repository or this account, and
+    _create_template refuses on any error -- so enforcing a guess would stop the only
+    request that could ever disprove it. As a warning, Meta's own answer is the
+    measurement. See design section 4; test 2a pins the classification.
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    offer = comp.get('limited_time_offer')
+    if not isinstance(offer, dict):
+        errors.append('LIMITED_TIME_OFFER component requires a limited_time_offer object')
+        return errors, warnings
+
+    text = offer.get('text') or ''
+    if not str(text).strip():
+        errors.append('limited_time_offer.text is required (the offer label)')
+    if _placeholders(str(text)):
+        errors.append('limited_time_offer.text must not contain variables')
+    if len(str(text)) > LTO_TEXT_MAX:
+        warnings.append(
+            f'limited_time_offer.text is longer than {LTO_TEXT_MAX} characters; '
+            'Meta may reject or truncate it'
+        )
+
+    if 'has_expiration' in offer and not isinstance(offer.get('has_expiration'), bool):
+        errors.append('limited_time_offer.has_expiration must be a boolean (true or false)')
+
+    return errors, warnings
+
+
 def validate_examples(comp: Dict[str, Any], where: str) -> List[str]:
     """Validate that placeholders have matching examples and a consistent format."""
     errors: List[str] = []
@@ -262,14 +305,36 @@ def validate_buttons(buttons: List[Dict[str, Any]]) -> Tuple[List[str], List[str
     return errors, warnings
 
 
-def validate_components(components: List[Dict[str, Any]], category: str) -> Tuple[List[str], List[str]]:
-    """Validate all components. Returns (errors, warnings)."""
+def validate_components(components: List[Dict[str, Any]], category: str,
+                        *, top_level: bool = True) -> Tuple[List[str], List[str]]:
+    """Validate all components. Returns (errors, warnings).
+
+    `top_level` is keyword-only and defaults to True, so validate_template_parts and
+    every other caller keeps today's behaviour. The recursive CAROUSEL call below is
+    the ONLY site that passes top_level=False, because the cross-component rules are
+    statements about a TEMPLATE: run per card, they would tell a MARKETING carousel
+    that every card needs an IMAGE header, a COPY_CODE button and an offer component,
+    and they would evaluate the carousel-exclusive rule in a scope where has_carousel
+    is always false.
+
+    has_body's check deliberately stays OUTSIDE the guard -- a carousel card does
+    legitimately require a BODY, and that is existing behaviour nobody asked to
+    change.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     has_body = False
+    has_carousel = False
+    lto_count = 0
+    header_format = ''
+    # Stays [] when the template carries no BUTTONS component at all, which is what
+    # makes an absent BUTTONS component produce the SAME diagnostics as a BUTTONS
+    # component carrying neither required button.
+    buttons_seen: List[Dict[str, Any]] = []
     for comp in components or []:
         ctype = (comp.get('type') or '').upper()
         if ctype == 'HEADER':
+            header_format = (comp.get('format') or '').upper()
             e, w = validate_header(comp, category)
         elif ctype == 'BODY':
             has_body = True
@@ -277,19 +342,48 @@ def validate_components(components: List[Dict[str, Any]], category: str) -> Tupl
         elif ctype == 'FOOTER':
             e, w = validate_footer(comp)
         elif ctype == 'BUTTONS':
+            buttons_seen.extend(comp.get('buttons', []) or [])
             e, w = validate_buttons(comp.get('buttons', []))
         elif ctype == 'CAROUSEL':
+            has_carousel = True
             e, w = [], []
             for card in comp.get('cards', []):
-                ce, cw = validate_components(card.get('components', []), category)
+                ce, cw = validate_components(card.get('components', []), category, top_level=False)
                 e.extend(ce)
                 w.extend(cw)
+        elif ctype == LTO_COMPONENT_TYPE:
+            lto_count += 1
+            e, w = validate_limited_time_offer(comp, category)
         else:
             e, w = ([f'Unknown component type: {ctype}'] if ctype else ['Component missing type']), []
         errors.extend(e)
         warnings.extend(w)
     if not has_body:
         errors.append('Template must include a BODY component')
+
+    if top_level and lto_count:
+        cat = (category or '').upper()
+        if cat not in LTO_ALLOWED_CATEGORIES:
+            errors.append(
+                f'{LTO_COMPONENT_TYPE} is only supported on '
+                f'{", ".join(LTO_ALLOWED_CATEGORIES)} templates'
+            )
+        if lto_count > 1:
+            errors.append(f'A template may have at most 1 {LTO_COMPONENT_TYPE} component')
+        if has_carousel:
+            errors.append(f'{LTO_COMPONENT_TYPE} and CAROUSEL components are mutually exclusive')
+        if header_format not in LTO_HEADER_FORMATS:
+            # Believed to be Meta's rule and not confirmable here, so it is surfaced
+            # and the submission proceeds -- Meta's answer is the measurement.
+            warnings.append(
+                f'{LTO_COMPONENT_TYPE} templates usually require a HEADER with format '
+                f'{" or ".join(LTO_HEADER_FORMATS)}'
+            )
+        button_types = [(b.get('type') or '').upper() for b in buttons_seen]
+        if button_types.count('COPY_CODE') != 1:
+            errors.append(f'{LTO_COMPONENT_TYPE} templates require exactly 1 COPY_CODE button')
+        if button_types.count('URL') != 1:
+            errors.append(f'{LTO_COMPONENT_TYPE} templates require exactly 1 URL button')
     return errors, warnings
 
 

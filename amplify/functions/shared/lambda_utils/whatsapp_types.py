@@ -56,3 +56,12 @@ COPY_CODE_EXAMPLE_MAX = 20
 PHONE_NUMBER_MAX = 20
 URL_MAX = 2000
 FLOW_NAME_MAX = 200
+
+# Limited-time-offer templates. LTO_TEXT_MAX is Meta's believed cap on the offer
+# label and is NOT confirmable from anything in this repo -- it lives here alone so a
+# correction is one line, and template_validation reads it rather than inlining 16.
+LTO_COMPONENT_TYPE = 'LIMITED_TIME_OFFER'
+LTO_TEXT_MAX = 16
+LTO_ALLOWED_CATEGORIES = ('MARKETING',)
+LTO_HEADER_FORMATS = ('IMAGE', 'VIDEO')
+LTO_REQUIRED_BUTTON_TYPES = ('COPY_CODE', 'URL')

@@ -17,9 +17,13 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const inp: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d0d0d0', borderRadius: 6, marginTop: 4, marginBottom: 10, fontSize: 14 };
 const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#444' };
-const STEPS = [ 'Basics', 'Header', 'Body', 'Footer', 'Buttons', 'Flow button', 'TTL', 'Preview' ];
+const STEPS = [ 'Basics', 'Header', 'Body', 'Footer', 'Buttons', 'Offer', 'Flow button', 'TTL', 'Preview' ];
 
 type BtnType = 'QUICK_REPLY' | 'URL' | 'PHONE_NUMBER' | 'COPY_CODE';
+
+// Mirrors whatsapp_types.LTO_TEXT_MAX. The counter below is a convenience; the
+// rules are server-authoritative and the builder does not re-implement them.
+const LTO_TEXT_MAX = 16;
 
 const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
     const toast = useToastContext();
@@ -39,6 +43,11 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
     const [ footerText, setFooterText ] = useState( '' );
     // Buttons
     const [ buttons, setButtons ] = useState<{ type: BtnType; text: string; url?: string; phone_number?: string; example?: string }[]>( [] );
+    // Limited-time offer (MARKETING only). The offer code is a Meta coupon string
+    // and the expiry is NOT part of the template — it travels per message.
+    const [ offerEnabled, setOfferEnabled ] = useState( false );
+    const [ offerText, setOfferText ] = useState( 'Expiring offer!' );
+    const [ offerHasExpiration, setOfferHasExpiration ] = useState( true );
     // Flow button
     const [ flowEnabled, setFlowEnabled ] = useState( false );
     const [ flowName, setFlowName ] = useState( '' );
@@ -62,6 +71,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
         const body: any = { type: 'BODY', text: bodyText };
         if ( /\{\{\s*1\s*\}\}/.test( bodyText ) && bodyExample ) body.example = { body_text: [ [ bodyExample ] ] };
         components.push( body );
+        if ( offerEnabled && category === 'MARKETING' ) components.push( { type: 'LIMITED_TIME_OFFER', limited_time_offer: { text: offerText, has_expiration: offerHasExpiration } } );
         if ( footerText ) components.push( { type: 'FOOTER', text: footerText } );
         const btns: any[] = buttons.map( b => ( { ...b } ) );
         if ( flowEnabled && flowName ) btns.push( { type: 'FLOW', text: flowCtaText, flow_name: flowName, flow_action: 'navigate', navigate_screen: flowScreen } );
@@ -69,7 +79,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
         const def: any = { name, language, category, components };
         if ( ttl !== '' ) def.message_send_ttl_seconds = Number( ttl );
         return def;
-    }, [ name, language, category, headerFormat, headerText, bodyText, bodyExample, footerText, buttons, flowEnabled, flowName, flowScreen, flowCtaText, ttl ] );
+    }, [ name, language, category, headerFormat, headerText, bodyText, bodyExample, footerText, buttons, offerEnabled, offerText, offerHasExpiration, flowEnabled, flowName, flowScreen, flowCtaText, ttl ] );
 
     const runValidate = useCallback( async () => {
         try { setResult( await api.validateTemplateDefinition( templateDef ) ); }
@@ -89,6 +99,12 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
             if ( t === 'HEADER' ) { setHeaderFormat( c.format || 'TEXT' ); setHeaderText( c.text || '' ); }
             else if ( t === 'BODY' ) setBodyText( c.text || '' );
             else if ( t === 'FOOTER' ) setFooterText( c.text || '' );
+            else if ( t === 'LIMITED_TIME_OFFER' )
+            {
+                setOfferEnabled( true );
+                setOfferText( c.limited_time_offer?.text || '' );
+                setOfferHasExpiration( c.limited_time_offer?.has_expiration !== false );
+            }
             else if ( t === 'BUTTONS' )
             {
                 const flow = ( c.buttons || [] ).find( ( b: any ) => ( b.type || '' ).toUpperCase() === 'FLOW' );
@@ -124,7 +140,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
             <p style={ { color: '#777', fontSize: 13, marginBottom: 12 } }>Build, validate, and submit a WhatsApp template. Presets below to start fast.</p>
 
             <div style={ { display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' } }>
-                { [ 'seasonal_promotion', 'order_confirmation', 'flow_lead_generation' ].map( p => (
+                { [ 'seasonal_promotion', 'limited_time_offer', 'order_confirmation', 'flow_lead_generation' ].map( p => (
                     <button key={ p } onClick={ () => loadPreset( p ) } style={ { fontSize: 11, padding: '3px 10px', borderRadius: 999, border: '1px solid #d0d0d0', background: '#fff', cursor: 'pointer' } }>{ p }</button>
                 ) ) }
             </div>
@@ -202,6 +218,30 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                     ) }
                     { step === 5 && (
                         <div>
+                            { category !== 'MARKETING' ? (
+                                <div style={ { fontSize: 13, color: '#777' } }>
+                                    A limited-time offer is supported on MARKETING templates only. Change the category in step 1 to add one.
+                                </div>
+                            ) : ( <>
+                                <label style={ { ...lbl, display: 'flex', gap: 6, alignItems: 'center' } }>
+                                    <input type="checkbox" checked={ offerEnabled } onChange={ e => setOfferEnabled( e.target.checked ) } /> Add a limited-time offer
+                                </label>
+                                { offerEnabled && ( <div style={ { marginTop: 8 } }>
+                                    <label style={ lbl }>Offer text ({ offerText.length }/{ LTO_TEXT_MAX })</label>
+                                    <input style={ inp } value={ offerText } onChange={ e => setOfferText( e.target.value ) } placeholder="Expiring offer!" />
+                                    <label style={ { ...lbl, display: 'flex', gap: 6, alignItems: 'center' } }>
+                                        <input type="checkbox" checked={ offerHasExpiration } onChange={ e => setOfferHasExpiration( e.target.checked ) } /> Show a countdown (has_expiration)
+                                    </label>
+                                    <div style={ { fontSize: 12, color: '#888', marginTop: 10, lineHeight: 1.5 } }>
+                                        The header must be an IMAGE or VIDEO, and the template needs both a COPY_CODE and a URL button.
+                                        The offer code is a coupon string, not a payment — and the expiry is sent per message, not stored on the template.
+                                    </div>
+                                </div> ) }
+                            </> ) }
+                        </div>
+                    ) }
+                    { step === 6 && (
+                        <div>
                             <label style={ { ...lbl, display: 'flex', gap: 6, alignItems: 'center' } }>
                                 <input type="checkbox" checked={ flowEnabled } onChange={ e => setFlowEnabled( e.target.checked ) } /> Add a Flow button
                             </label>
@@ -215,7 +255,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             </div> ) }
                         </div>
                     ) }
-                    { step === 6 && (
+                    { step === 7 && (
                         <div>
                             <label style={ lbl }>TTL seconds (message_send_ttl_seconds)</label>
                             <input style={ inp } type="number" value={ ttl } onChange={ e => setTtl( e.target.value === '' ? '' : Number( e.target.value ) ) } placeholder="e.g. 43200" />
@@ -224,7 +264,7 @@ const TemplateBuilder: React.FC<PageProps> = ( { signOut, user, embedded = false
                             ) }
                         </div>
                     ) }
-                    { step === 7 && (
+                    { step === 8 && (
                         <div>
                             <ValidationErrorList errors={ result?.errors } />
                             <WarningList warnings={ result?.warnings } />
