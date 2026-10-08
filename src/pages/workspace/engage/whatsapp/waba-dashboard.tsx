@@ -63,6 +63,7 @@ const WABADashboard: React.FC<PageProps> = ({ signOut, user, embedded = false })
     { id: 'sns', label: 'SNS Subscription' },
   ];
 
+
   /* Derived from FETCHED data, so it is memoised on the array it comes from rather than
      rebuilt inline - an inline literal would hand Select a new array on every render. */
   const wabaOptions: SelectOption[] = useMemo(

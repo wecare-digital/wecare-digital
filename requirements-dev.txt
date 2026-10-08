@@ -89,6 +89,8 @@ pydantic==2.13.5
 pydantic_core==2.46.5
 Pygments==2.21.0
 PyJWT==2.15.0
+# Receipt rendering tests. Runtime Pillow is supplied by the existing Lambda layer.
+pillow==12.3.0
 # PDF text extraction for scripts/blog_ingest.py. Pure-python wheel with no required
 # runtime dependencies on 3.12, so it needs no Lambda layer and no native toolchain.
 pypdf==6.19.0

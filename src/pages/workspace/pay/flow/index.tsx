@@ -477,6 +477,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
    */
   const phoneSelectOptions: SelectOption[] = PHONE_OPTIONS.map( p => ( { value: p.id, label: p.label } ) );
   const pgSelectOptions: SelectOption[] = PG_OPTIONS.map( pg => ( { value: pg.id, label: pg.label } ) );
+  /* `brandOptions` (and the "— Select —" empty row it opened with) stood here and is GONE with
+     the two Brand choosers it fed: `purposes` is the single entry WECARE.DIGITAL, so the list
+     could only ever offer one brand and a placeholder. `config.purposes` is still read by the
+     settings tab, so the state it comes from is untouched. */
   // Map gateway + phone to the correct Meta config name
   // CRITICAL: Each WABA has its own config names — never cross-WABA
   const getPGConfigName = ( pg: string, phoneId: string ) => {
@@ -803,6 +807,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                            and the control takes `ariaLabel`, which adds a name where there was
                            none and changes nothing on screen. */ }
                       <label>Brand</label>
+                      { /* Fixed, not chosen: `purposes` is the single entry WECARE.DIGITAL, so a
+                           selector would offer one option and an empty placeholder. `invForm.purpose`
+                           already defaults to the brand and is what travels into the invoice request,
+                           so the displayed value and the submitted value are the same string. */ }
                       <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
                     </div>
                     <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
@@ -1143,6 +1151,15 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <div className="form-group"><label>Phone</label><input type="tel" value={ editForm.customerPhone } onChange={ e => setEditForm( { ...editForm, customerPhone: e.target.value } ) } /></div>
                   <div className="form-group"><label>Email</label><input type="email" value={ editForm.customerEmail } onChange={ e => setEditForm( { ...editForm, customerEmail: e.target.value } ) } /></div>
                   <div className="form-group"><label>Brand</label>
+                    { /* Fixed here too, and that RETIRES a layering hazard rather than ignoring
+                         one: the Select this replaces sat inside `.pf-modal-overlay`
+                         (position:fixed, z-index 9999), so its body-portalled Popover competed
+                         with the overlay in the ROOT stacking context at the default 1500 and
+                         lost - the menu painted under the veil and a click aimed at an option
+                         hit the overlay, whose onClick discards the edit. A plain input opens no
+                         popover, so there is nothing left to layer. `editForm.purpose` is
+                         deliberately left as loaded from the invoice, so editing an older
+                         record does not rewrite the brand it was raised under. */ }
                     <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
                   </div>
                   <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
