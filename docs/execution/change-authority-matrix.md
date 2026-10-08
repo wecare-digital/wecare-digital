@@ -3216,3 +3216,19 @@ itself remains the orchestrator's to take or drop.
 **Not live until deployed.** `wecare-inbound-whatsapp` is invoked UNQUALIFIED by the ingress, so
 `$LATEST` becomes production the moment `update-function-code` returns; there is no alias gap to
 verify in. Not deployed here.
+
+
+## 2026-10-08 — Paid Submit Request draft and all-order customer directory
+
+Authority: owner "go ahead" plus standing authorization. Latest owner clarification requires all order types linked to the customer WhatsApp number in one table.
+
+| Class | Target | Change and evidence | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | Wix variant, OrderTable, live Lambda packages and aliases | Exact service variant/INR99 verified; central and Wix order reads returned zero orders; live archives captured | Read only |
+| A1_LOCAL | Paid Flow handlers, shared activation dispatch, checkout phone, cart intent, tests and Flow JSON | Foreign-order rejection, once-only transactional save, verified phone persistence for all types, missing-order paid preservation; exact-package tests green | Git revert scoped commit |
+| A3_PRODUCTION | Existing Lambda live aliases | checkout 32, business API 72, Razorpay webhook 53; narrow patches preserve baseline archives; SnapStart off | Restore aliases to checkout31/business69/webhook52 |
+| A3_PRODUCTION | Shared Lambda role inline policy paid-submit-request-recipient | Additive exact-resource ListUsers and ConditionCheckItem; IAM simulation allowed; policy tracked in scripts/iam-paid-submit-request.json | Restore captured role state/remove only this new inline policy after confirming readers no longer need it |
+| A3_PRODUCTION | Existing Meta Flow1107164111921876 draft and registry | WD_Submit_Request_Paid_v1 JSON upload validated with zero errors; remains DRAFT and invite guard suppresses sends | Restore prior saved draft JSON/name/registry |
+| A2_REMOTE_CODE | origin/stack | Explicit scoped paths after passing tests; non-force push | Follow-up revert commit |
+
+No payment capture/refund, provider configuration mutation, credential read, or customer QA send. Publication of the requested sample draft remains pending; outside-window approved Submit Request template and a nominated QA recipient also remain pending. See docs/whatsapp/paid-submit-request.md for the complete A/B/P/R record model and operational gaps.

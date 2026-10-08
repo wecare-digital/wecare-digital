@@ -50,3 +50,13 @@ def dispatch_activation(lambda_client: Any, *, reference_id: str, payment_attemp
         logger.warning(json.dumps({"event": "service_request_activation_dispatch_failed",
                                    "error": type(error).__name__, "referenceId": reference_id,
                                    "requestId": request_id}))
+    try:
+        lambda_client.invoke(
+            FunctionName='wecare-whatsapp-business-api:live', InvocationType='Event',
+            Payload=json.dumps({'internalAction': 'preparePaidSubmitRequest',
+                                'referenceId': str(reference_id or ''),
+                                'paymentAttemptId': str(payment_attempt_id or ''),
+                                'orderId': str(order_id or '')}).encode('utf-8'))
+    except Exception as error:
+        logger.warning(json.dumps({'event': 'paid_request_flow_dispatch_failed',
+                                   'error': type(error).__name__, 'requestId': request_id}))

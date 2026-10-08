@@ -99,9 +99,10 @@ import {
   readCart, setQuantity, removeItem, clearCart, toLineItems, availableVariantsForItem,
   needsVariantSelection, setVariant,
   basketFingerprint, cartRequiresDelivery,
-  isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines,
+  isContributionItem, setContribution, serviceIntentFor, mergeClaimedLines, rememberServiceIntent,
 } from '../lib/cart';
-import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal } from '../lib/serviceRequests';
+import { SERVICE_REFUSAL_MESSAGES, isServiceRefusal, postRequestIntent } from '../lib/serviceRequests';
+import { SERVICES_PRODUCT_ID, SERVICE_CHOICES } from '../config/services';
 import type { CartItem, CheckoutLineItem } from '../lib/cart';
 // The WhatsApp catalogue hand-off. The page owns WHEN to claim; the module owns HOW, so the
 // request shape has one definition. See `src/lib/whatsappBasket.ts`.
@@ -1045,6 +1046,22 @@ export default function Cart (): React.ReactElement {
   ): Promise<Outcome> => {
     try
     {
+      let serviceIntent = serviceIntentFor( lineItems );
+      const services = lineItems.filter( line => line.catalogReference.catalogItemId === SERVICES_PRODUCT_ID );
+      const submit = SERVICE_CHOICES.find( choice => choice.kind === 'SUBMIT_REQUEST' )!;
+      if ( !serviceIntent && services.length === 1 && services[ 0 ].quantity === 1
+        && services[ 0 ].catalogReference.options?.variantId === submit.variantId )
+      {
+        const intent = await postRequestIntent( session.accessToken, 'SUBMIT_REQUEST' );
+        if ( intent.kind === 'expired' ) return { kind: 'UNAUTHORIZED' };
+        if ( intent.kind !== 'ok' || intent.intent.variantId !== submit.variantId )
+        {
+          return { kind: 'SERVICE_REFUSED', message: intent.kind === 'refused'
+            ? intent.message : 'We could not prepare your service. Nothing has been charged. Try again.' };
+        }
+        rememberServiceIntent( submit.variantId, intent.intent.intentId );
+        serviceIntent = intent.intent.intentId;
+      }
       const response = await fetch( PREPARE_CHECKOUT_URL, {
         method: 'POST',
         headers: {
@@ -1061,7 +1078,7 @@ export default function Cart (): React.ReactElement {
           ...( resetCart ? { resetCart: true } : {} ),
           // Phase O-1: only a services basket carries its intent id; every other body is
           // byte-identical to before.
-          ...( serviceIntentFor( lineItems ) ? { serviceIntentId: serviceIntentFor( lineItems ) } : {} ),
+          ...( serviceIntent ? { serviceIntentId: serviceIntent } : {} ),
         } ),
       } );
 

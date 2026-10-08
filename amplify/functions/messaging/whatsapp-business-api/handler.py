@@ -5818,6 +5818,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'preparePaidSubmitRequest':
+        if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
+            return _resp(403, {'error': 'Internal invocation required'})
+        from flows.paid_submit_request import prepare_and_send
+        return prepare_and_send(event, lambda_client, _get_flow)
+
     # Handle async post-submit actions (invoked by REVIEW screen handler)
     if event.get('_async_action') == 'flow_post_submit':
         return _handle_async_post_submit(event, request_id)

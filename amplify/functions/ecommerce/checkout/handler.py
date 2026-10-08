@@ -1183,7 +1183,7 @@ def _website_prepare(identity: customer_auth.CustomerIdentity, body: Dict[str, A
             # no public id is byte-identical to one written before this landed - the same
             # conditional-emit rule `payment_attempt.build` applies to `cartId` and `retryOf`.
             reserve_attempt=lambda attempt: _reserve_website_attempt(
-                dict(attempt, channel=channel,
+                dict(attempt, channel=channel, customerPhone=_profile_phone(identity),
                      **({customer_uuid.ATTRIBUTE: public_customer_uuid}
                         if public_customer_uuid else {}))),
             # The read-only attempt store the one-live-payment guard needs. Without it the guard
