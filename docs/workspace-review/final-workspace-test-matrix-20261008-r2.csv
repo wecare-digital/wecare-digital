@@ -1,0 +1,41 @@
+ID,Layer,Scenario,Acceptance gate,Current verification
+T01,Source,All navigation and canonical destinations resolve,Every preserved route or redirect has an owner,Executed static scan
+T02,Source,All integration targets exist,No gateway target points to missing Lambda,Executed live metadata
+T03,Auth,Admin Operator Viewer Partner unresolved roles,Only permitted menu search actions and records visible,Planned end-to-end
+T04,Auth,Wrong customer or workspace record ID,403 or equivalent refusal with zero data/effects,Planned contract gate
+T05,UI,Transport 401 403 5xx and genuine empty results,Distinct session forbidden unavailable empty states,Planned expanded UI gate
+T06,UI,Channel filters refresh and Back,Exactly one active filter and restored selection,Planned sidebar regression
+T07,UI,Save false or timeout then reload,No success toast; draft retained; confirmed read-back,Planned configuration regression
+T08,Contracts,Cancel schedule through actual route,Explicit cancellation; stale or wrong owner denied,Planned fixture test
+T09,Data,Distinct Flow completions with same short reference,Distinct storage keys and one effect per completion,"Executed full suite: synthetic collision, dedup and fail-closed regression passed; legacy rows not migrated"
+T10,Data,Retry missing-post SEO audit including force,No poisoned claim; valid corrected retry works,Executed full suite: missing-post corrected retry and lease regressions passed
+T11,Data,Partner credential mapping changes in warm worker,Cache expires or invalidates within declared bounds,Executed full suite: bounded cache regressions passed; no live credential change
+T12,Data,More than one database page and changing sort keys,Complete cursor traversal without false whole-list claims,Planned contract gate
+T13,Data,Concurrent assignment or contact update,Conditional conflict; no silent stale overwrite,Planned internal mutation gate
+T14,Requests,Website and Flow requests together,Source lineage and staff ownership preserved,Planned staff API and UI
+T15,Commerce,Duplicate cart payment and finalization callbacks,No second charge; bound verified order result,Relevant cases included in full Python suite; no live payment verification
+T16,Privacy,Private receipt and document access,Owner-scoped links; no cross-customer disclosure,Relevant cases included in full Python suite; no live customer-data probe
+T17,Catalog,Sync large unexpected removals,Stop and require upstream evidence; retain current publication,Observed CI safeguard; resolution pending
+T18,MCP,Correct and wrong provider workspace delegation,Only granted account scope succeeds,Planned worker delegation
+T19,MCP,Expired or revoked provider grant,Refresh only where supported; otherwise precise blocked auth,Planned authorized provider checks
+T20,MCP,Schema change unknown tool extra arguments,Fail closed before side effect,Planned unified adapter
+T21,Agent,Current governance plan approval refusal catalog,READ and refusal invariants hold,Relevant cases included in full Python suite; autonomous effects still unavailable
+T22,Agent,Duplicate task trigger and concurrent workers,One durable run/action claim per dedup key,Planned new coordinator
+T23,Agent,Worker crash and browser closes,Resume committed checkpoint; work remains visible,Planned new coordinator
+T24,Agent,Timeout after accepted effect,UNKNOWN then reconciliation; no blind replay,Planned effect executor
+T25,Agent,Receipt store fails before action,No mutation proceeds without durable claim,Planned effect executor
+T26,Agent,Customer or tool content contains instructions,Data cannot change policy or grant privilege,Planned adversarial evaluation
+T27,Agent,Revoke delegation or press emergency stop,New effects stop; in-flight result reconciled,Planned kill-switch drill
+T28,Agent,Token read tool time or spend cap reached,Bounded stop with truthful partial result,Planned budget enforcement
+T29,UI,Keyboard focus mobile dialogs and hidden tabs,Accessible Back/focus; hidden views do not poll,Planned browser acceptance
+T30,Release,Exact source artifact alias canary rollback,Recorded version SHA; verified restore path,Planned deployment gate
+T31,Public,Shop FAQ links and canonical product audits,Actual redirect accepted; audits use /shop/slug,Earlier FAQ assertion no longer fails full suite; canonical product path fix still planned
+T32,Release,Gastronomy reference absent,Intentional skip/retirement not checkout failure,Gastronomy workflow green on b1669cde; no current missing-branch failure
+T33,Release,Vault headings and typography,Correct semantic size contract or declared exception,Prior Vault failure not current; latest browser run stops at animcheck before typography
+T34,Release,CodeQL scanner execution,Completed scan; resource/cache cause diagnosed,CodeQL workflow green on b1669cde; no active scanner failure
+T35,Observability,Signature smoke and DLQ events,Correct metric dimensions routing and deliberate notification,73 alarms and16filters read; latency ALARM transitioned toOK; delivery drill planned
+T36,Auth,Staff test sign-in and customer WhatsApp OTP,Owner-intended staff flow; customer custom challenge preserved,Live pool metadata; account-specific journey pending
+T37,Release,Existing customer with UsernameExists,Preserve partner WABA stamp and fail closed on unreadable user,FAIL: stale FakeCognito lacks admin_get_user; CI and local full suite agree
+T38,Release,Public animation harness request429,Identify URL and initiator; no blanket error suppression,FAIL: current CI grahak-os and contact console assertions
+T39,Truthfulness,Billing or health API fails or is disabled,Unavailable or stale status; no fabricated current data,Confirmed source fallback problem; new fixture coverage planned
+T40,Commerce,Website checkout and native WhatsApp settlement,Distinct identity/binding; no second charge; verified provider readiness,New source path requires updated acceptance review; no live financial action

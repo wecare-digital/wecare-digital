@@ -1,0 +1,123 @@
+{
+  "capturedAt": "2026-10-08T11:51:21.415870+00:00",
+  "account": "775261844268",
+  "region": "us-east-1",
+  "counts": {
+    "functions": 75,
+    "routes": 377,
+    "integrations": 77,
+    "tables": 84,
+    "metricAlarms": 73,
+    "logFilters": 16,
+    "queues": 10,
+    "stateMachines": 0,
+    "activeSecrets": 22,
+    "pendingDeletionSecrets": 13,
+    "rdsInstances": 0
+  },
+  "aliases": {
+    "alias:wecare-workspace-mcp": [
+      {
+        "Name": "live",
+        "FunctionVersion": "10"
+      }
+    ],
+    "alias:wecare-ai-generate-response": [
+      {
+        "Name": "live",
+        "FunctionVersion": "38"
+      }
+    ],
+    "alias:wecare-agent-action-group": [
+      {
+        "Name": "live",
+        "FunctionVersion": "28"
+      }
+    ],
+    "alias:wecare-meta-catalog-sync": [
+      {
+        "Name": "live",
+        "FunctionVersion": "4"
+      }
+    ],
+    "alias:wecare-inbound-whatsapp": [
+      {
+        "Name": "live",
+        "FunctionVersion": "85"
+      }
+    ],
+    "alias:wecare-outbound-whatsapp": [
+      {
+        "Name": "live",
+        "FunctionVersion": "52"
+      }
+    ],
+    "alias:wecare-checkout": [
+      {
+        "Name": "live",
+        "FunctionVersion": "32"
+      }
+    ]
+  },
+  "amplify": {
+    "error": "ToolError: Exceeded maximum number of AWS services (10) for this script execution. Already vended credentials for: ['sts', 'lambda', 'apigatewayv2', 'sqs', 'cloudwatch', 'stepfunctions', 'dynamodb', 'logs', 'bedrock-agent', 'secretsmanager', 'lightsail']"
+  },
+  "cognito": {
+    "pool:us-east-1_cSx0RHCIR": {
+      "error": "ToolError: Exceeded maximum number of AWS services (10) for this script execution. Already vended credentials for: ['sts', 'lambda', 'apigatewayv2', 'sqs', 'cloudwatch', 'stepfunctions', 'dynamodb', 'logs', 'bedrock-agent', 'secretsmanager', 'lightsail', 'rds']"
+    },
+    "pool:us-east-1_46ULYuukt": {
+      "error": "ToolError: Exceeded maximum number of AWS services (10) for this script execution. Already vended credentials for: ['sts', 'lambda', 'apigatewayv2', 'sqs', 'cloudwatch', 'stepfunctions', 'dynamodb', 'logs', 'bedrock-agent', 'secretsmanager', 'lightsail', 'rds']"
+    }
+  },
+  "bedrockAgents": [
+    {
+      "agentId": "4UUQYFWX64",
+      "agentName": "wecare-digital-agent",
+      "agentStatus": "NOT_PREPARED",
+      "description": "wecare-digital-agent",
+      "updatedAt": "2026-04-25T00:14:51.346154+00:00"
+    }
+  ],
+  "lightsail": [
+    {
+      "name": "wecare-voice-bot",
+      "bundleId": "micro_3_0",
+      "state": {
+        "code": 16,
+        "name": "running"
+      },
+      "createdAt": "2026-03-18T09:01:41.728000+00:00"
+    }
+  ],
+  "followUp": {
+    "wecare-outbound-whatsapp": {
+      "version": "52",
+      "lastModified": "2026-10-08T09:06:46.000+0000",
+      "booleanFlags": {
+        "WA_PAYMENTS_DISABLED": "UNSET",
+        "WHATSAPP_PAYMENTS_ENABLED": "UNSET",
+        "PSTN_BROWSER_ROUTING_ENABLED": "UNSET"
+      }
+    },
+    "wecare-whatsapp-business-api": {
+      "version": "73",
+      "lastModified": "2026-10-08T08:20:31.000+0000",
+      "booleanFlags": {
+        "WA_PAYMENTS_DISABLED": "UNSET",
+        "WHATSAPP_PAYMENTS_ENABLED": "UNSET",
+        "PSTN_BROWSER_ROUTING_ENABLED": "UNSET"
+      }
+    },
+    "latencyAlarm": [
+      {
+        "AlarmName": "wecare-apigw-latency-wecare-digital-api",
+        "StateValue": "OK",
+        "StateReason": "Threshold Crossed: 1 out of the last 3 datapoints [2886.878321226575 (08/10/26 11:38:00)] was not greater than the threshold (3000.0) (minimum 1 datapoint for ALARM -> OK transition).",
+        "Threshold": 3000,
+        "EvaluationPeriods": 3
+      }
+    ]
+  },
+  "collectionNote": "Initial script exceeded the MCP ten-service limit for seven requests; all seven were retried successfully in a separate script. Scoped inventory covers us-east-1, not full IAM/policies, all regions or authenticated provider journeys."
+}
