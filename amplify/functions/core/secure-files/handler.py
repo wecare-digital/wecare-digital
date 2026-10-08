@@ -65,6 +65,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from lambda_utils import customer_auth, media_paths
+from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
 from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
@@ -115,9 +116,98 @@ SERVICE_REQUESTS_TABLE = os.environ.get(
 CUSTOMER_POOL_ID = os.environ.get("CUSTOMER_USER_POOL_ID", "us-east-1_46ULYuukt")
 CUSTOMER_POOL_ISSUER = f"https://cognito-idp.{REGION}.amazonaws.com/{CUSTOMER_POOL_ID}"
 PARTNER_GROUP = os.environ.get("PARTNER_GROUP", "Partner")
-# The OTP trigger refuses a user whose WABA scope does not match, so new users
-# must be stamped with the same value the auth Lambda expects.
-META_WABA_ID = os.environ.get("META_WABA_ID", "2094615664435155")
+
+# ── which WABA a customer belongs to ─────────────────────────────────────────
+#
+# `custom:partner_waba_id` decides which business number a customer's sign-in code
+# can ever arrive from: `auth/customer-whatsapp-auth` looks the attribute up in
+# `OTP_WABA_MAP` and raises PermissionError on a miss. An unknown value and a
+# missing value are indistinguishable there - both deny, both are permanent, and the
+# only trace is one denial line in that trigger's log. So this function must write a
+# WABA id the gate maps, or write nothing at all. A hardcoded WABA1 literal was the
+# third option, and it is the one that misroutes a real customer.
+#
+# The phone-id -> WABA mapping is NOT restated here. `lambda_utils.direct_send` is its
+# single home and already fails closed on an unknown id by returning `''`.
+# `wecare-secure-files` is not packaged `standalone`, so the module is bundled into the
+# zip and importable - unlike `customer-whatsapp-auth`, whose standalone packaging is
+# the documented reason it carries the map as a JSON env var instead.
+KNOWN_WABA_IDS = frozenset(META_PHONE_TO_WABA.values())
+# The same default `whatsapp_delivery` uses, so the stamp and the sender cannot drift.
+DEFAULT_SENDER_PHONE_ID = "1016149501586345"
+
+
+class UnsafeWabaStamp(RuntimeError):
+    """Raised when stamping a WABA would be a guess rather than a fact.
+
+    Two cases, both refusing the upload instead of inventing WABA1: the sender phone
+    id does not resolve to a known WABA, and an existing user's current stamp could
+    not be read. See `_sender_waba` and `_existing_stamp`.
+    """
+
+
+def _loggable_waba(value) -> str:
+    """A Meta id that is safe to print, or `"invalid"`.
+
+    The same structural rule as `customer-whatsapp-auth._loggable_waba`, deliberately:
+    E.164 permits at most 15 digits, so an all-ASCII-digit value of 16 or more
+    characters cannot be a phone number. Both WABA ids and both Meta phone-number ids
+    in this account are 16 digits, so the rule covers either kind of id - which is why
+    it also guards the `senderPhoneId` field below.
+
+    It matters here specifically because a masked phone suffix is ambiguous in this
+    account (`+918100640044` the QA recipient vs `+919903300044` a business sender), so
+    a mistyped env value must never be echoed as though it were an id.
+
+    Not imported from that handler because it is packaged `standalone=True` and nothing
+    is importable from it. Only this print guard is restated; the mapping itself is
+    shared.
+
+    `ch in "0123456789"` rather than `str.isdigit()`, for the same reason
+    `normalise_phone` uses it: `isdigit()` is true for 128 non-ASCII codepoints, and a
+    digit-shaped lookalike is not a safe id to print.
+    """
+    text = str(value or "")
+    if len(text) >= 16 and all(ch in "0123456789" for ch in text):
+        return text
+    return "invalid"
+
+
+def _sender_phone_id() -> str:
+    return str(os.environ.get("META_PHONE_NUMBER_ID", DEFAULT_SENDER_PHONE_ID)).strip()
+
+
+def _sender_waba() -> str:
+    """The WABA this function actually delivers from, or `''` when undeterminable.
+
+    Derived from the Meta phone id every secure-file send leaves from
+    (`whatsapp_delivery.META_PHONE_NUMBER_ID`), through the shared map. Deriving rather
+    than hardcoding is what makes repointing this function at WABA2's number move the
+    stamp with it, instead of leaving customers stamped WABA1 and waiting for a code
+    from a number they have never messaged.
+
+    `META_WABA_ID` survives as an override - production sets it, the manifest declares
+    it, and `provision_secure_files_api.py` writes it - but a *validated* one. An
+    override the shared map does not recognise is a misconfiguration, not an
+    instruction, so it is logged and ignored rather than stamped.
+
+    Read per call, not captured at import, for the same reason `_payment_enabled` is: a
+    repoint that only takes effect once every warm sandbox recycles is not a repoint.
+    """
+    derived = waba_for_meta_phone(_sender_phone_id())
+    override = str(os.environ.get("META_WABA_ID", "")).strip()
+    if override and override != derived:
+        if override in KNOWN_WABA_IDS:
+            return override
+        logger.warning(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_override_rejected",
+                    "wabaId": _loggable_waba(override),
+                }
+            )
+        )
+    return derived
 
 PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
@@ -339,6 +429,88 @@ def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
 
 # ── admin: create the customer and the upload slot ────────────────────────────
 
+def _existing_stamp(client, username: str) -> str:
+    """The `custom:partner_waba_id` already on this user, or `''` if it has none.
+
+    A read failure raises `UnsafeWabaStamp` instead of defaulting either way, because
+    both defaults are wrong. Treating an unread value as absent re-creates the bug -
+    it stamps this function's own WABA over a customer who belongs to the other one.
+    Treating it as present leaves a user who may have no stamp at all, which the OTP
+    gate denies permanently. Not knowing is a reason to stop, not to pick.
+    """
+    try:
+        user = client.admin_get_user(UserPoolId=CUSTOMER_POOL_ID, Username=username)
+    except Exception as exc:  # noqa: BLE001
+        # type only: an exception message can carry data we did not construct
+        logger.error(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_stamp_unreadable",
+                    "error": type(exc).__name__,
+                }
+            )
+        )
+        raise UnsafeWabaStamp("existing customer's WABA stamp could not be read") from exc
+    for attr in user.get("UserAttributes") or []:
+        if attr.get("Name") == "custom:partner_waba_id":
+            return str(attr.get("Value") or "").strip()
+    return ""
+
+
+def _attrs_for_existing(client, username: str, attrs: list, sender_waba: str) -> list:
+    """The attribute list to send to an EXISTING customer - stamp preserved if valid.
+
+    `attrs` is the create-path list; everything except the WABA stamp carries over
+    unchanged. The stamp is decided here:
+
+    * already a WABA the shared map knows -> **left untouched**, by omitting the
+      attribute from the update entirely. `admin_update_user_attributes` only writes
+      what it is given, so omission is the preserve.
+    * absent, empty, or a value the map does not know -> stamped with `sender_waba`.
+      An unrecognised value is already a permanent OTP denial, so replacing it with a
+      mapped id strictly improves that customer's position and cannot misroute
+      anything that was working.
+    """
+    keep = [a for a in attrs if a["Name"] != "custom:partner_waba_id"]
+    existing = _existing_stamp(client, username)
+
+    if existing in KNOWN_WABA_IDS:
+        logger.info(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_stamp_preserved",
+                    "wabaId": _loggable_waba(existing),
+                }
+            )
+        )
+        if existing != sender_waba:
+            # Correct, and must stay visible rather than be "repaired". The file and
+            # payment request leave from this function's only sender; the customer's
+            # sign-in code rightly stays on their own WABA. Rewriting their identity
+            # so the two agree is exactly the defect being fixed.
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "secure_files_cross_waba_delivery",
+                        "customerWaba": _loggable_waba(existing),
+                        "senderWaba": _loggable_waba(sender_waba),
+                    }
+                )
+            )
+        return keep
+
+    logger.info(
+        json.dumps(
+            {
+                "event": "secure_files_waba_stamp_applied",
+                "wabaId": _loggable_waba(sender_waba),
+                "reason": "existing_stamp_unusable",
+            }
+        )
+    )
+    return keep + [{"Name": "custom:partner_waba_id", "Value": sender_waba}]
+
+
 def _ensure_customer_user(phone: str, name: str) -> str:
     """Create or update the phone-keyed customer so WhatsApp OTP can reach them.
 
@@ -354,15 +526,41 @@ def _ensure_customer_user(phone: str, name: str) -> str:
       returned - putting it in a log or a response would turn a passwordless
       design into a credential leak.
     * ``custom:partner_waba_id`` - the OTP trigger raises ``PermissionError`` if
-      this does not match its configured WABA, so an unstamped user could never
-      receive a code.
+      this value is not one its ``OTP_WABA_MAP`` knows, so an unstamped user could
+      never receive a code. It is derived from the sender (``_sender_waba``), and
+      on an **existing** user an already-valid stamp is preserved rather than
+      overwritten. That second half is the whole point: a customer
+      ``partner-onboarding`` legitimately provisioned on WABA2 used to be converted
+      to WABA1 by one operator upload, after which their sign-in code arrived from a
+      business number they have never messaged.
+
+    Raises ``UnsafeWabaStamp`` rather than guessing a WABA. Creating the user anyway
+    would mint a CONFIRMED, phone-keyed, group-joined identity that can never receive
+    a code, while the upload appears to succeed and the customer reaches a code screen
+    no code will satisfy - a state visible from no surface we have. Refusing the
+    upload is recoverable in seconds.
     """
     client = _cognito_client()
     e164 = "+" + phone
+
+    sender_waba = _sender_waba()
+    if not sender_waba:
+        # Checked BEFORE admin_create_user, not repaired afterwards: the stamp is one
+        # element of a single create call, so there is no "stamp it later" here.
+        logger.error(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_undeterminable",
+                    "senderPhoneId": _loggable_waba(_sender_phone_id()),
+                }
+            )
+        )
+        raise UnsafeWabaStamp("sender phone id does not resolve to a known WABA")
+
     attrs = [
         {"Name": "phone_number", "Value": e164},
         {"Name": "phone_number_verified", "Value": "true"},
-        {"Name": "custom:partner_waba_id", "Value": META_WABA_ID},
+        {"Name": "custom:partner_waba_id", "Value": sender_waba},
     ]
     if name:
         attrs.append({"Name": "name", "Value": name[:128]})
@@ -381,10 +579,21 @@ def _ensure_customer_user(phone: str, name: str) -> str:
             Password=pysecrets.token_urlsafe(24) + "aA1!",
             Permanent=True,
         )
+        logger.info(
+            json.dumps(
+                {
+                    "event": "secure_files_waba_stamp_applied",
+                    "wabaId": _loggable_waba(sender_waba),
+                    "reason": "new_user",
+                }
+            )
+        )
     except client.exceptions.UsernameExistsException:
         username = e164
         client.admin_update_user_attributes(
-            UserPoolId=CUSTOMER_POOL_ID, Username=username, UserAttributes=attrs
+            UserPoolId=CUSTOMER_POOL_ID,
+            Username=username,
+            UserAttributes=_attrs_for_existing(client, username, attrs, sender_waba),
         )
 
     try:
@@ -481,7 +690,20 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             400, {"error": f"sizeBytes must be between 1 and {MAX_UPLOAD_BYTES}"}, origin
         )
 
-    username = _ensure_customer_user(phone, name)
+    try:
+        username = _ensure_customer_user(phone, name)
+    except UnsafeWabaStamp:
+        # Already logged with the reason. Refuse the upload rather than provision a
+        # customer who could never receive a sign-in code. The body is generic: which
+        # WABA is misconfigured is an operator-console fact, not a browser one.
+        return cors_response(
+            503,
+            {
+                "error": "CUSTOMER_PROVISIONING_UNAVAILABLE",
+                "message": "Customer provisioning is unavailable. Please retry shortly.",
+            },
+            origin,
+        )
 
     file_id = f"{uuid.uuid4().hex}-{uuid.uuid4().hex}"
     basename = f"wecare-digital-{file_id}{_safe_extension(filename)}"

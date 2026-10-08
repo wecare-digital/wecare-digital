@@ -389,7 +389,7 @@
       "UPLOAD_URL_TTL_SECONDS": "900",
       "WA_DOC_TEMPLATE": "wd_file_delivery",
       "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",
-      "WA_PAY_TEMPLATE": "wecare_pay",
+      "WA_PAY_TEMPLATE": "wecarepay_wa",
       "WA_SENDER_FUNCTION": "wecare-outbound-whatsapp",
       "WHATSAPP_LINK_TTL_SECONDS": "21600"
     },

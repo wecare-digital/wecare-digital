@@ -2336,16 +2336,17 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             'contactId': contact_id,
             'recipientPhone': customer_phone,
             'phoneNumberId': phone_number_id,
-            # ALWAYS use checkout button template (wecare_pay) for ALL payments.
+            # ALWAYS use checkout button template (wecarepay_wa) for ALL payments.
             # This enables: address display, coupon support, real-time pricing.
             # Meta confirmed checkout endpoint is enabled — no separate linking needed.
             # Set physical-goods to enable shipping_info + address collection.
             'isCheckoutTemplate': True,
             'isTemplate': True,
-            'templateName': 'wecare_pay',
-            'templateParams': [],  # wecare_pay has no body variables
+            'templateName': 'wecarepay_wa',
+            'templateParams': [],  # wecarepay_wa has no body variables
             'checkoutOrderDetails': order_details_obj,
-            'headerImageUrl': 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
+            # FIXED company-logo header on EVERY payment. Do not vary per order.
+            'headerImageUrl': 'https://wecare.digital/get/o/public/wa-tpl/img/wecarepay-header.png',
         })
     }
 
