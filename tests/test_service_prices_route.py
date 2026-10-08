@@ -74,11 +74,25 @@ class PriceWix:
         cart_id = endpoint[len("/ecom/v2/carts/"):].split("/")[0]
         return {"cart": self._cart(cart_id)}
 
-    @staticmethod
-    def _cart(cart_id, currency="INR"):
+    @classmethod
+    def _cart(cls, cart_id, currency="INR"):
         money = {"currencyCode": currency}
+        # LINE ITEMS ARE PART OF THE SHAPE, because the resolver's reuse path checks that a cart
+        # read back from a pointer row actually holds the variant it is being priced for. A fake
+        # that answered a cart with no lines would make every reuse look like a wrong cart and
+        # hide the pointer bound this file asserts.
+        variant = {c: v for v, c in CART_IDS.items()}.get(cart_id)
         return {"id": cart_id, "revision": "1", "businessInfo": dict(money),
-                "customerInfo": dict(money), "paymentInfo": dict(money)}
+                "customerInfo": dict(money), "paymentInfo": dict(money),
+                "lineItems": [cls._line(variant)] if variant else []}
+
+    @staticmethod
+    def _line(variant):
+        return {"id": "line-" + variant[:8],
+                "source": {"catalogReference": {
+                    "appId": "215238eb-22a5-4c36-9e7b-e7c08025e04e",
+                    "catalogItemId": PRODUCT, "options": {"variantId": variant}}},
+                "quantityInfo": {"requestedQuantity": 1, "confirmedQuantity": 1}}
 
     def creates(self):
         return [call for call in self.calls if call[1] == "/ecom/v2/carts"]
@@ -145,6 +159,45 @@ def test_the_response_is_edge_cacheable_for_sixty_seconds(monkeypatch):
     assert response["headers"]["Cache-Control"] == "public, max-age=60"
     assert response["headers"]["Cache-Control"] == \
         f"public, max-age={service_pricing.CACHE_SECONDS}"
+
+
+def test_a_cacheable_response_cannot_serve_one_origin_anothers_cors_header(monkeypatch):
+    """The one response in this handler a SHARED cache may store, so it must not name one origin.
+
+    `response.cors_headers` reflects whichever of the apex and `www` asked. Measured on
+    2026-10-08: the `/api/*` edge caches a `public, max-age` response, STRIPS the origin's
+    `Vary: Origin`, and served a request carrying `Origin: https://www.wecare.digital` the cached
+    apex `Access-Control-Allow-Origin`. A browser rejects that, `fetchServicePrices` fails closed,
+    and every `www` visitor reads "temporarily unavailable" with no way to buy.
+
+    `*` is the fix the measurement forces, because `Vary: Origin` alone is inert at that edge. It
+    is legal and safe for THIS body only: a public price list with no customer data, no
+    credential and no cookie, fetched without credentials.
+    """
+    h, _fake, _wix = _env(monkeypatch)
+    for origin in ("https://wecare.digital", "https://www.wecare.digital",
+                   "https://example.invalid", None):
+        service_pricing.reset_cache()
+        event = prices_event()
+        if origin is None:
+            event["headers"].pop("origin", None)
+        else:
+            event["headers"]["origin"] = origin
+        headers = h.handler(event, None)["headers"]
+        assert headers["Access-Control-Allow-Origin"] == "*", origin
+        # Sent anyway, for an intermediary that does honour it and so a future return to a
+        # reflected origin is not silently poisoned.
+        assert headers["Vary"] == "Origin", origin
+
+
+def test_only_the_cacheable_arm_widens_cors(monkeypatch):
+    """The 503s stay on the reflected origin: nothing caches them, so there is nothing to mix."""
+    h, _fake, wix = _env(monkeypatch)
+    monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
+    headers = h.handler(prices_event(), None)["headers"]
+    assert headers["Access-Control-Allow-Origin"] == "https://wecare.digital"
+    assert "Cache-Control" not in headers
+    assert wix.calls == []
 
 
 def test_nothing_the_caller_supplies_reaches_wix(monkeypatch):

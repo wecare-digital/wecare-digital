@@ -219,7 +219,7 @@ def test_cart_v2_off_refuses_a_services_basket_with_503():
 @pytest.mark.parametrize("basket", [[kiosk()], [], None, "x", [None, 3, {"quantity": 1}]])
 def test_a_non_service_basket_is_untouched(basket):
     assert sr.checkout_preflight(basket, {}, v2_enabled=False) is None
-    assert sr.payref_extra(basket, {}) == {}
+    assert sr.payref_extra(basket, {}, line_paise=None) == {}
     assert sr.has_service_line(basket) is False
 
 
@@ -248,9 +248,21 @@ def test_payref_extra_carries_exactly_the_join_with_wixs_own_figure():
 
 
 def test_payref_extra_records_an_unpriced_line_as_none_rather_than_zero():
-    row = sr.payref_extra([line()], {"serviceIntentId": INTENT})["serviceLine"]
+    row = sr.payref_extra([line()], {"serviceIntentId": INTENT},
+                          line_paise=None)["serviceLine"]
     assert row["paise"] is None
     assert set(row) == {"kind", "variantId", "paise", "intentId"}
+
+
+def test_omitting_the_figure_is_a_typeerror_rather_than_an_unpriced_row():
+    """The hazard the default used to carry: an omission landed `paise: None` on a PAYREF# row,
+    which `service_request_store.activate` refuses as AMOUNT_MISMATCH -- *after* money moved.
+    With no default, the same mistake is a TypeError here instead of a post-payment unmatched
+    order. `None` still has to be passable, and deliberately."""
+    with pytest.raises(TypeError):
+        sr.payref_extra([line()], {"serviceIntentId": INTENT})      # type: ignore[call-arg]
+    assert sr.payref_extra([line()], {"serviceIntentId": INTENT},
+                           line_paise=None)["serviceLine"]["paise"] is None
 
 
 def test_recognition_is_case_insensitive_on_the_ids():

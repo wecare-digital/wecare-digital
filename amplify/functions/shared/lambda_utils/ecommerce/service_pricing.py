@@ -41,6 +41,12 @@ then estimates it. That read pays for itself twice: it is also where the explici
 happens, because `estimate()["currency"]` is a LITERAL inside `CartV2._not_payable` and not a
 value Wix returned. A currency check against a literal checks nothing.
 
+And it is a third time: the cart it reads back is checked to actually HOLD the variant being
+priced (`_holds_only`). `itemSubtotalPaise` is the cart's subtotal rather than a named line's
+price, so without that check a pointer row carrying a valid id for the wrong cart would publish
+one service's price under another slug -- which is the very fault this module was written to fix.
+A cart that fails the check is discarded and reminted, not refused.
+
 FAIL CLOSED, PER SLUG
 ---------------------
 A slug whose price cannot be resolved is reported `{"available": False}` with NO `paise` key at
@@ -140,6 +146,68 @@ def _assert_inr(cart: Mapping[str, Any]) -> None:
             raise ServicePriceUnavailable("service price cart is not in INR")
 
 
+def _line_variant_ids(cart: Mapping[str, Any]) -> list:
+    """Every variant id on the cart's line items, lowercased, in order.
+
+    Reads `source.catalogReference.options.variantId`, which is the shape `cart_v2.calculate`
+    already reads off `cart["lineItems"]` -- and reads STRICTLY, raising `CartContractError` when
+    the appId or the variantId is missing. A services checkout completes today, so that shape is
+    live rather than inferred, and reading it the same way here keeps the two in step.
+    """
+    lines = cart.get("lineItems") if isinstance(cart, Mapping) else None
+    if not isinstance(lines, list):
+        return []
+    found = []
+    for line in lines:
+        reference = ((line.get("source") or {}).get("catalogReference") or {}) \
+            if isinstance(line, Mapping) else {}
+        options = reference.get("options") if isinstance(reference, Mapping) else None
+        found.append(str((options or {}).get("variantId") or "").strip().lower()
+                     if isinstance(options, Mapping) else "")
+    return found
+
+
+def _line_quantity(cart: Mapping[str, Any]) -> Optional[int]:
+    """The single line's quantity, or `None` when no readable integer quantity is on the cart.
+
+    `None` is NOT treated as a refusal, and that is a deliberate asymmetry with the variant check
+    above. The variant shape is proven live by the working checkout; which of
+    `quantityInfo.confirmedQuantity`, `quantityInfo.requestedQuantity` or a flat `quantity` a
+    plain cart READ carries is not something this repo has measured, and refusing on an
+    unverified field would take all four services off sale rather than price them. A quantity
+    that IS readable and is not 1 is refused, because that is the shape which would publish a
+    multiple of the price -- and no code path can change the quantity of a cart this module
+    creates at 1 and never touches again.
+    """
+    lines = cart.get("lineItems") if isinstance(cart, Mapping) else None
+    if not isinstance(lines, list) or len(lines) != 1 or not isinstance(lines[0], Mapping):
+        return None
+    line = lines[0]
+    quantities = line.get("quantityInfo") if isinstance(line.get("quantityInfo"), Mapping) else {}
+    for value in (quantities.get("confirmedQuantity"), quantities.get("requestedQuantity"),
+                  line.get("quantity")):
+        # `type(...) is not int` rather than isinstance, because `isinstance(True, int)` is True.
+        if type(value) is int:
+            return value
+    return None
+
+
+def _holds_only(cart: Mapping[str, Any], variant: str) -> bool:
+    """Is this cart exactly one unit of exactly the variant being priced?
+
+    THE REUSE PATH'S MISSING INVARIANT. `estimate()["itemSubtotalPaise"]` is the CART's subtotal,
+    not a named line's price. For a cart this module created the two are the same figure, but a
+    cart read back from a DynamoDB pointer row re-establishes nothing: a row holding a valid cart
+    id for the WRONG variant would publish one service's price under another slug -- the exact
+    "each is a different item" fault -- and the checkout would then charge a different figure than
+    the card displayed. The answer is one comparison against data already in hand.
+    """
+    if _line_variant_ids(cart) != [variant]:
+        return False
+    quantity = _line_quantity(cart)
+    return quantity is None or quantity == 1
+
+
 def _subtotal_paise(estimate: Mapping[str, Any]) -> int:
     if not isinstance(estimate, Mapping):
         raise ServicePriceUnavailable("estimate returned no readable view")
@@ -167,7 +235,16 @@ def resolve_variant_paise(cart_adapter: Any, table: Any, variant_id: str, *,
         try:
             cart = cart_adapter.get(cart_id)
             _assert_inr(cart)
-            return _subtotal_paise(cart_adapter.estimate(cart_id))
+            if _holds_only(cart, variant):
+                return _subtotal_paise(cart_adapter.estimate(cart_id))
+            # A VALID POINTER AT THE WRONG CART. Recreated rather than refused, which is the
+            # strictly safer of the two: a fresh cart is minted here with the right variant at
+            # quantity 1, so the service stays on sale at a price that is certainly its own,
+            # and `_remember_cart_id` overwrites the bad pointer so the next read is a reuse
+            # again. Refusing would take a service off sale over a row only this module writes.
+            logger.warning(json.dumps({"event": "service_price_cart_variant_mismatch",
+                                       "variantId": variant,
+                                       "lines": len(_line_variant_ids(cart))}))
         except cart_v2.CartGone:
             # The pointer is worthless: expired, deleted, or minted against another site. Drop
             # it and mint a fresh cart, which is a recovery the customer never sees.

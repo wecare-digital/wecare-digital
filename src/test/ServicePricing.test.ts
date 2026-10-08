@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SERVICE_CHOICES } from '../config/services';
 import {
   SERVICE_PRICES_URL, SERVICES_PRICE_CURRENCY, allUnavailable, fetchServicePrices,
   rupeesFromPaise,
@@ -155,8 +156,46 @@ describe( 'rupeesFromPaise', () => {
     expect( rupeesFromPaise( 1 ) ).toBe( '0.01' );
     expect( rupeesFromPaise( 10 ) ).toBe( '0.10' );
     expect( rupeesFromPaise( 105 ) ).toBe( '1.05' );
-    expect( rupeesFromPaise( 123450 ) ).toBe( '1234.50' );
     // 0.1 + 0.2 !== 0.3 in binary floating point; 10 + 20 paise is exactly 30.
     expect( rupeesFromPaise( 10 + 20 ) ).toBe( '0.30' );
+  } );
+
+  it( 'groups the rupee part Indian-style, as paymentVocabulary does', () => {
+    // Newly reachable: the figure is Wix's now, and the catastrophe rail admits up to Rs.50,000,
+    // which used to render as `50000`. The grouping is applied to the ALREADY TRUNCATED whole
+    // rupees, so it is formatting rather than arithmetic.
+    expect( rupeesFromPaise( 123450 ) ).toBe( '1,234.50' );
+    expect( rupeesFromPaise( 5000000 ) ).toBe( '50,000' );
+    expect( rupeesFromPaise( 100000000 ) ).toBe( '10,00,000' );
+    expect( rupeesFromPaise( 1234567890 ) ).toBe( '1,23,45,678.90' );
+  } );
+} );
+
+describe( 'the slug vocabulary has one owner', () => {
+  it( 'derives allUnavailable from SERVICE_CHOICES rather than re-typing the slugs', () => {
+    // It was a third hand-typed copy, after src/config/services.ts and the server's
+    // SERVICE_KIND_BY_SLUG. Drift failed closed, so nothing would have broken loudly — a fifth
+    // service would simply never have received a price and its page would have read
+    // "temporarily unavailable" forever.
+    expect( Object.keys( allUnavailable() ) )
+      .toEqual( SERVICE_CHOICES.map( choice => choice.slug ) );
+    expect( Object.values( allUnavailable() ) )
+      .toEqual( SERVICE_CHOICES.map( () => ( { available: false } ) ) );
+  } );
+
+  it( 'prices exactly the slugs SERVICE_CHOICES declares, and no others', async () => {
+    reply( 200, {
+      currency: 'INR',
+      prices: {
+        ...Object.fromEntries(
+          SERVICE_CHOICES.map( ( choice, index ) =>
+            [ choice.slug, { available: true, paise: 10000 + index * 1100 } ] ) ),
+        // A slug the build does not know about must not leak into the result.
+        'not-a-service': { available: true, paise: 999999 },
+      },
+    } );
+    const prices = await fetchServicePrices();
+    expect( Object.keys( prices ) ).toEqual( SERVICE_CHOICES.map( choice => choice.slug ) );
+    expect( Object.keys( prices ) ).not.toContain( 'not-a-service' );
   } );
 } );

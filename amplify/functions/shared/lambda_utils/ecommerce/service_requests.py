@@ -347,7 +347,7 @@ def checkout_preflight(line_items: Any, body: Any, *,
 
 
 def payref_extra(line_items: Any, body: Any, *,
-                 line_paise: Optional[int] = None) -> Dict[str, Any]:
+                 line_paise: Optional[int]) -> Dict[str, Any]:
     """``{}`` for a non-service basket, else ``{"serviceLine": {kind, variantId, paise, intentId}}``.
 
     This is the join (plan D3): checkout writes it onto the ``PAYREF#`` reservation it already
@@ -355,11 +355,17 @@ def payref_extra(line_items: Any, body: Any, *,
     no table and no IAM change. Called only after ``checkout_preflight`` passed.
 
     ``line_paise`` is WIX'S OWN figure for the line, as returned by
-    ``assert_service_line_price``, and the caller must pass it. The key set is unchanged -- a
-    ``paise`` was always recorded here -- but its source moved from a committed constant to the
-    calculation that priced the thing being charged, which is the only figure that can honestly
-    claim to be what the customer paid for. ``None`` records ``None``, so an unpriced row is
-    visibly unpriced rather than silently zero, and ``service_request_store.activate`` refuses it.
+    ``assert_service_line_price``. The key set is unchanged -- a ``paise`` was always recorded
+    here -- but its source moved from a committed constant to the calculation that priced the
+    thing being charged, which is the only figure that can honestly claim to be what the customer
+    paid for. ``None`` records ``None``, so an unpriced row is visibly unpriced rather than
+    silently zero, and ``service_request_store.activate`` refuses it.
+
+    REQUIRED KEYWORD, WITH NO DEFAULT, and the missing default is the point. Omitting it used to
+    be silent and wrote ``paise: None``, which ``activate`` refuses as ``AMOUNT_MISMATCH`` ->
+    ``PAID_SERVICE_UNMATCHED`` -- *after* the customer's money has moved. A ``TypeError`` at
+    import and test time is the cheapest possible version of that same mistake. Pass ``None``
+    explicitly when there is genuinely no calculation to read a figure from.
     """
     line = service_line(line_items)
     if line is None:

@@ -111,6 +111,30 @@ ROUTE_KEYS = (
     "GET /ecommerce/service-prices",
 )
 
+#: The one anonymous route, and the per-route throttle that bounds what it can cost.
+#:
+#: WHY A THROTTLE EXISTS ON THIS ROUTE AND NOT THE OTHERS. Every other route key above requires a
+#: proven customer session, so its volume is bounded by the number of signed-in customers. This
+#: one is reachable by anyone, and a CACHE MISS on it costs EIGHT Wix calls (`get` + `estimate`
+#: per variant) on the SAME API key the live checkout prices real baskets with -- so provider
+#: throttling induced by anonymous traffic here would reach the payment path.
+#:
+#: It is the second of two bounds, deliberately, because the first one is not ours. The edge in
+#: front of `/api/*` was MEASURED caching a `public, max-age` response on 2026-10-08 (see
+#: `_service_prices` in the handler for the four-request trace), which is what keeps origin
+#: volume to roughly one fill per PoP per minute. But that is a property of someone else's
+#: configuration: an Amplify rewrite change, a `Cache-Control` edit, or a cache-busting query
+#: string would remove it silently and nothing in this repo would notice. The throttle is the
+#: bound that does not depend on the edge behaving.
+#:
+#: 5 rps sustained is far above any legitimate volume for a four-figure price list sitting behind
+#: a 60-second shared cache, and far below what would trouble Wix. Refusals are 429s from API
+#: Gateway, which `src/lib/servicePricing.ts` already treats as "unavailable" -- so exceeding it
+#: fails closed on the page rather than charging or guessing.
+PRICE_ROUTE_KEY = "GET /ecommerce/service-prices"
+ROUTE_THROTTLE_RATE = 5.0
+ROUTE_THROTTLE_BURST = 10
+
 #: Superseded statement ids, removed only once the per-route statements are in place.
 #: `add_permission` cannot EDIT a statement, and remove-then-add under one id opens a window where
 #: API Gateway cannot invoke the function — a 500 with no Lambda log line. New ids let the narrow
@@ -710,6 +734,69 @@ def ensure_routes(dry_run: bool, integration_id: str) -> str:
     return "; ".join(results)
 
 
+def live_route_keys() -> set:
+    return {r["RouteKey"] for r in _all_items("get_routes")}
+
+
+def route_throttle() -> dict:
+    """The live `RouteSettings` for the anonymous price route, or `{}`."""
+    stage = api().get_stage(ApiId=API_ID, StageName=STAGE)
+    return dict((stage.get("RouteSettings") or {}).get(PRICE_ROUTE_KEY) or {})
+
+
+def ensure_route_throttle(dry_run: bool) -> str:
+    """Cap the ONE anonymous route so it cannot spend the stage's shared allowance.
+
+    `UpdateStage` MERGES `RouteSettings` rather than replacing them -- the opposite of the
+    replace-not-patch rule `.kiro/steering/aws-agent-rules.md` applies to AWS "update" calls, and
+    a proven exception measured by `scripts/deploy_mcp_server.py`, which is where this pattern
+    comes from. Only this script's own key is ever sent, so a throttle another route owns cannot
+    be dropped by this call.
+
+    The awkward consequence of merging is that it also VALIDATES the merged map, so a setting
+    left behind for a DELETED route makes the whole map unwritable:
+
+        NotFoundException: Unable to find Route by key POST /site-language/tts
+        within the provided RouteSettings
+
+    This script REPORTS that condition instead of clearing it. Removal needs
+    `DeleteRouteSettings`, and `deploy_mcp_server.ensure_route_throttle` already owns that
+    cleanup with the argument for why it is safe; a second place deleting stage configuration is
+    how two scripts start fighting over one shared resource. `--verify` fails on a missing
+    throttle, so skipping here is visible rather than silent.
+    """
+    stage = api().get_stage(ApiId=API_ID, StageName=STAGE)
+    current = dict(stage.get("RouteSettings") or {})
+    wanted = {**current.get(PRICE_ROUTE_KEY, {}),
+              "ThrottlingRateLimit": ROUTE_THROTTLE_RATE,
+              "ThrottlingBurstLimit": ROUTE_THROTTLE_BURST}
+    default_rate = (stage.get("DefaultRouteSettings") or {}).get("ThrottlingRateLimit")
+    if current.get(PRICE_ROUTE_KEY) == wanted:
+        return (f"already {ROUTE_THROTTLE_RATE} rps / {ROUTE_THROTTLE_BURST} burst on "
+                f"{PRICE_ROUTE_KEY} (stage default {default_rate})")
+    if dry_run:
+        return (f"would set {ROUTE_THROTTLE_RATE} rps / {ROUTE_THROTTLE_BURST} burst on "
+                f"{PRICE_ROUTE_KEY}")
+    stale = sorted(key for key in current if key not in live_route_keys())
+    if stale:
+        return (f"SKIPPED — the stage carries settings for route(s) that no longer exist, which "
+                f"makes RouteSettings unwritable: {stale}. Clear them with "
+                f"`python scripts/deploy_mcp_server.py` (it owns DeleteRouteSettings), then "
+                f"re-run. `--verify` will keep failing until {PRICE_ROUTE_KEY} is capped")
+    api().update_stage(ApiId=API_ID, StageName=STAGE,
+                       RouteSettings={PRICE_ROUTE_KEY: wanted})
+    applied = route_throttle()
+    if (applied.get("ThrottlingRateLimit") != ROUTE_THROTTLE_RATE
+            or applied.get("ThrottlingBurstLimit") != ROUTE_THROTTLE_BURST):
+        raise RuntimeError(f"route throttle did not apply: {applied}")
+    lost = (set(current) - set(api().get_stage(
+        ApiId=API_ID, StageName=STAGE).get("RouteSettings") or {}))
+    if lost:
+        raise RuntimeError(f"update_stage dropped route settings for: {sorted(lost)}")
+    return (f"set {ROUTE_THROTTLE_RATE} rps / {ROUTE_THROTTLE_BURST} burst on "
+            f"{PRICE_ROUTE_KEY} (stage default stays {default_rate})")
+
+
 # ── IAM reachability report (never a grant) ───────────────────────────────────
 
 #: DynamoDB actions the checkout path could plausibly need, and the verdict we expect.
@@ -1061,6 +1148,21 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
         print(f"route {key}: -> {want_uri}")
     print(f"routes on {API_ID}: {len(routes)} total, stage {STAGE}")
 
+    # The throttle on the ONE anonymous route, read back rather than assumed. This is the bound on
+    # Wix read volume that does not depend on the `/api/*` edge continuing to cache, so an absent
+    # or loosened cap is a real finding and not a cosmetic one — see PRICE_ROUTE_KEY above.
+    applied_throttle = route_throttle()
+    if (applied_throttle.get("ThrottlingRateLimit") != ROUTE_THROTTLE_RATE
+            or applied_throttle.get("ThrottlingBurstLimit") != ROUTE_THROTTLE_BURST):
+        problems.append(
+            f"{PRICE_ROUTE_KEY} is not throttled at {ROUTE_THROTTLE_RATE} rps / "
+            f"{ROUTE_THROTTLE_BURST} burst (live: {applied_throttle or 'no route setting'}) — "
+            f"the anonymous price read is the only route here reachable without a session, and "
+            f"each cache miss costs 8 Wix calls on the checkout's own API key")
+    else:
+        print(f"route throttle {PRICE_ROUTE_KEY}: {ROUTE_THROTTLE_RATE} rps / "
+              f"{ROUTE_THROTTLE_BURST} burst")
+
     # The invoke permission, read back per route rather than assumed. A statement scoped wider than
     # its route's exact ARN is drift, and a superseded statement left behind is the whole reason the
     # narrowing needed new ids. An EXTRA statement matters too: anything beyond the known set is a
@@ -1180,6 +1282,7 @@ def main(argv=None) -> int:
     integration_id, integration_note = ensure_integration(args.dry_run)
     print(f"integration: {integration_note}")
     print(f"routes: {ensure_routes(args.dry_run, integration_id)}")
+    print(f"anonymous route throttle: {ensure_route_throttle(args.dry_run)}")
 
     if args.dry_run:
         print("\ndry run: nothing changed")

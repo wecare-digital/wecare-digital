@@ -23,7 +23,7 @@
  * what a customer reads is not this change's business. The arithmetic is identical.
  */
 
-import type { ServiceSlug } from '../config/services';
+import { SERVICE_CHOICES, type ServiceSlug } from '../config/services';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 
@@ -40,22 +40,33 @@ export type ServicePrice =
 
 const UNAVAILABLE: ServicePrice = { available: false };
 
-/** Every slug unavailable. The answer to every failure, so no caller sees a partial shape. */
-export const allUnavailable = (): Record<string, ServicePrice> => ( {
-  'submit-request': UNAVAILABLE,
-  'request-amendment': UNAVAILABLE,
-  'drop-docs': UNAVAILABLE,
-  'vault': UNAVAILABLE,
-} );
+/**
+ * Every slug unavailable. The answer to every failure, so no caller sees a partial shape.
+ *
+ * DERIVED FROM `SERVICE_CHOICES`, never re-typed. The four slugs were literalled here, which made
+ * this the THIRD hand-typed copy of the vocabulary after `src/config/services.ts` and the
+ * server's `service_requests.SERVICE_KIND_BY_SLUG`. Drift failed closed, so nothing would have
+ * broken loudly — a fifth service would simply never have received a price, on a page that said
+ * "temporarily unavailable" forever. Deriving it means adding a service to `SERVICE_CHOICES` is
+ * all it takes, and `ServicePricing.test.ts` pins the equality either way.
+ */
+export const allUnavailable = (): Record<string, ServicePrice> =>
+  Object.fromEntries( SERVICE_CHOICES.map( choice => [ choice.slug, UNAVAILABLE ] as const ) );
 
 /**
- * `99`, `350`, `1234.50` — whole rupees when the paise are zero, two decimals when they are not.
- * Integer division and modulo only.
+ * `99`, `350`, `1,234.50`, `50,000` — whole rupees when the paise are zero, two decimals when
+ * they are not, and the rupee part grouped Indian-style.
+ *
+ * Integer division and modulo only; the grouping is `toLocaleString('en-IN')` on the already
+ * truncated WHOLE rupees, which is exactly what `src/lib/paymentVocabulary.ts` does and is not
+ * arithmetic. Grouping matters now in a way it did not when the figure was fixed at 49/99/350:
+ * the price is Wix's and the catastrophe rail admits up to ₹50,000, which read as `₹50000`.
  */
 export function rupeesFromPaise ( paise: number ): string {
   const whole = Math.trunc( paise / 100 );
   const minor = paise % 100;
-  return minor === 0 ? String( whole ) : `${ whole }.${ String( minor ).padStart( 2, '0' ) }`;
+  const grouped = whole.toLocaleString( 'en-IN' );
+  return minor === 0 ? grouped : `${ grouped }.${ String( minor ).padStart( 2, '0' ) }`;
 }
 
 /** Is this a `paise` we are willing to show a customer? Positive, integer, and safely exact. */

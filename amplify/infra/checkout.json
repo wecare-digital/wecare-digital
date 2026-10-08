@@ -461,6 +461,23 @@
           "The exemption is recorded in TWO files by design - scripts/audit_route_auth.py",
           "EXPECTED_PUBLIC_ROUTES and tests/test_route_auth_enforcement.py's literal set - so",
           "exempting a route takes two edits rather than one."
+        ],
+        "WECARE::Throttle": [
+          "5 rps sustained / 10 burst, as a RouteSettings entry on the prod stage. Applied by",
+          "scripts/provision_checkout.py (ensure_route_throttle) and read back by its --verify,",
+          "NOT declared here: the prod stage is shared by ~361 routes on an API this template",
+          "only takes as a parameter, so declaring AWS::ApiGatewayV2::Stage would claim ownership",
+          "of configuration belonging to every other function.",
+          "",
+          "WHY IT EXISTS. A cache MISS on this route costs eight Wix calls (get + estimate per",
+          "variant) on the same API key the live checkout prices real baskets with, so anonymous",
+          "traffic here can induce provider throttling that reaches the payment path. The /api/*",
+          "edge was measured caching a public max-age response on 2026-10-08, which keeps origin",
+          "volume to roughly one fill per PoP per minute - but that is someone else's",
+          "configuration and could change silently. This cap does not depend on it.",
+          "",
+          "Exceeding it is a 429, which src/lib/servicePricing.ts already renders as",
+          "'temporarily unavailable' with no pay CTA. It fails closed, never at a guessed price."
         ]
       },
       "Properties": {

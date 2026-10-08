@@ -61,22 +61,38 @@ class FakeTable:
         self.rows[next(iter(Item.values()))] = dict(Item)
 
 
-def _cart(cart_id, currency="INR"):
+def _line(variant, quantity=1):
+    """One cart line in the shape `cart_v2.calculate` reads off `cart["lineItems"]`."""
+    return {"id": "line-" + variant[:8],
+            "source": {"catalogReference": {
+                "appId": cart_v2.STORES_APP_ID, "catalogItemId": PRODUCT,
+                "options": {"variantId": variant}}},
+            "quantityInfo": {"requestedQuantity": quantity, "confirmedQuantity": quantity}}
+
+
+def _cart(cart_id, currency="INR", lines=None):
     money = {"currencyCode": currency}
     return {"id": cart_id, "revision": "1", "businessInfo": dict(money),
-            "customerInfo": dict(money), "paymentInfo": dict(money)}
+            "customerInfo": dict(money), "paymentInfo": dict(money),
+            "lineItems": list(lines) if lines is not None else []}
 
 
 class FakeCart:
-    """Records `get`/`create`/`estimate`, and can be made to fail in specific ways."""
+    """Records `get`/`create`/`estimate`, and can be made to fail in specific ways.
+
+    `holds` overrides what a READ cart appears to contain, `{cart_id: [line, ...]}`. By default a
+    read cart holds exactly the one variant its pointer was stored for, which is what the live
+    carts this module creates actually hold.
+    """
 
     def __init__(self, *, gone=(), currency="INR", subtotal=None, raise_on_create=False,
-                 raise_on_get=False):
+                 raise_on_get=False, holds=None):
         self.gone = set(gone)
         self.currency = currency
         self.subtotal = PRICED if subtotal is None else subtotal
         self.raise_on_create = raise_on_create
         self.raise_on_get = raise_on_get
+        self.holds = dict(holds or {})
         self.gets, self.creates, self.estimates = [], [], []
         self._variant_of = {cart: variant for variant, cart in CART_IDS.items()}
         self._minted = 0
@@ -87,7 +103,10 @@ class FakeCart:
             raise cart_v2.CartGone("gone", cart_id)
         if self.raise_on_get:
             raise RuntimeError("wix 500")
-        return _cart(cart_id, self.currency)
+        if cart_id in self.holds:
+            return _cart(cart_id, self.currency, self.holds[cart_id])
+        variant = self._variant_of.get(cart_id)
+        return _cart(cart_id, self.currency, [_line(variant)] if variant else [])
 
     def create(self, items):
         if self.raise_on_create:
@@ -101,7 +120,7 @@ class FakeCart:
         self.creates.append(variant)
         self._minted += 1
         cart_id = CART_IDS[variant]
-        return _cart(cart_id, self.currency)
+        return _cart(cart_id, self.currency, [_line(variant)])
 
     def estimate(self, cart_id):
         self.estimates.append(cart_id)
@@ -229,6 +248,85 @@ def test_the_inr_check_also_runs_on_the_reuse_path():
     table = FakeTable(_pointer_rows(SUBMIT))
     with pytest.raises(sp.ServicePriceUnavailable):
         sp.resolve_variant_paise(FakeCart(currency="USD"), table, SUBMIT)
+
+
+# ── a reused cart has to hold the variant it is being priced for ──────────────
+#
+# `itemSubtotalPaise` is the CART's subtotal, not a named line's price. On the create path the two
+# are the same figure because this module built the cart; on the reuse path nothing re-establishes
+# that, so a pointer row carrying a valid cart id for the WRONG variant would publish one
+# service's price under another slug -- the exact "each is a different item" fault -- and the
+# checkout would then charge a figure the card never showed.
+
+def test_a_stored_cart_holding_another_variant_is_not_priced_as_this_one():
+    """The fault in its purest form: SUBMIT's pointer row points at VAULT's cart."""
+    table = FakeTable({sp.SERVICE_PRICE_CART_PREFIX + SUBMIT: {
+        "orderId": sp.SERVICE_PRICE_CART_PREFIX + SUBMIT, "wixCartId": CART_IDS[VAULT]}})
+    adapter = FakeCart()
+    paise = sp.resolve_variant_paise(adapter, table, SUBMIT)
+    # VAULT's figure must NOT come back under SUBMIT.
+    assert paise != PRICED[VAULT]
+    assert paise == PRICED[SUBMIT]
+    # The wrong cart was never estimated, and the pointer was repaired rather than left to
+    # publish the wrong price again on the next read.
+    assert adapter.estimates == [CART_IDS[SUBMIT]]
+    assert adapter.creates == [SUBMIT]
+    assert table.rows[sp.SERVICE_PRICE_CART_PREFIX + SUBMIT]["wixCartId"] == CART_IDS[SUBMIT]
+
+
+@pytest.mark.parametrize("lines", [
+    [],                                                      # emptied cart
+    [_line(SUBMIT), _line(VAULT)],                           # a second line joined it
+    [_line(SUBMIT), _line(SUBMIT)],                          # the same variant twice
+    [_line(SUBMIT, quantity=2)],                             # right variant, wrong quantity
+    [{"id": "x"}],                                           # no catalog reference at all
+])
+def test_a_stored_cart_that_is_not_one_unit_of_this_variant_is_discarded(lines):
+    table = FakeTable(_pointer_rows(SUBMIT))
+    adapter = FakeCart(holds={CART_IDS[SUBMIT]: lines})
+    assert sp.resolve_variant_paise(adapter, table, SUBMIT) == PRICED[SUBMIT]
+    assert adapter.creates == [SUBMIT]
+    assert adapter.estimates == [CART_IDS[SUBMIT]]
+
+
+def test_a_cart_with_no_readable_quantity_is_still_reused():
+    """The asymmetry is deliberate. The variant shape is proven live by the working checkout;
+    which quantity field a plain cart READ carries is not measured in this repo, so refusing on
+    an unreadable one would take all four services off sale instead of pricing them. A quantity
+    that IS readable and is not 1 is refused -- the case above."""
+    line = _line(SUBMIT)
+    line.pop("quantityInfo")
+    table = FakeTable(_pointer_rows(SUBMIT))
+    adapter = FakeCart(holds={CART_IDS[SUBMIT]: [line]})
+    assert sp.resolve_variant_paise(adapter, table, SUBMIT) == PRICED[SUBMIT]
+    assert adapter.creates == []
+
+
+def test_the_variant_is_matched_case_insensitively():
+    line = _line(SUBMIT)
+    line["source"]["catalogReference"]["options"]["variantId"] = SUBMIT.upper()
+    table = FakeTable(_pointer_rows(SUBMIT))
+    adapter = FakeCart(holds={CART_IDS[SUBMIT]: [line]})
+    assert sp.resolve_variant_paise(adapter, table, SUBMIT) == PRICED[SUBMIT]
+    assert adapter.creates == []
+
+
+def test_a_mismatched_pointer_cannot_cross_two_slugs_in_one_payload():
+    """End to end: every pointer row points at the NEXT service's cart. All four must still
+    publish their own figure rather than rotating by one."""
+    rotated = [SUBMIT, AMEND, DROP_DOCS, VAULT]
+    rows = {}
+    for index, variant in enumerate(rotated):
+        wrong = CART_IDS[rotated[(index + 1) % len(rotated)]]
+        rows[sp.SERVICE_PRICE_CART_PREFIX + variant] = {
+            "orderId": sp.SERVICE_PRICE_CART_PREFIX + variant, "wixCartId": wrong}
+    payload = sp.resolve_all(FakeCart(), FakeTable(rows), clock=Clock())
+    assert payload["prices"] == {
+        "submit-request": {"available": True, "paise": PRICED[SUBMIT]},
+        "request-amendment": {"available": True, "paise": PRICED[AMEND]},
+        "drop-docs": {"available": True, "paise": PRICED[DROP_DOCS]},
+        "vault": {"available": True, "paise": PRICED[VAULT]},
+    }
 
 
 @pytest.mark.parametrize("subtotal", [None, 0, -1, "9900", 99.0, True, 99.5])

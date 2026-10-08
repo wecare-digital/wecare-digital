@@ -99,6 +99,55 @@ def test_exactly_five_route_keys_and_no_proxy(provisioner):
             f"{key} widens the surface past its intended method"
 
 
+def test_the_one_anonymous_route_carries_its_own_throttle(provisioner):
+    """The bound on Wix reads that does not depend on the edge continuing to cache.
+
+    A cache MISS on the anonymous price read costs eight Wix calls (`get` + `estimate` per
+    variant) on the SAME API key the live checkout prices real baskets with, so anonymous traffic
+    here can induce provider throttling that reaches the payment path. The `/api/*` edge WAS
+    measured caching a `public, max-age` response on 2026-10-08, which keeps origin volume to
+    roughly one fill per PoP per minute -- but that is someone else's configuration and an
+    Amplify rewrite edit would remove it with nothing in this repo noticing.
+
+    Pinned as exact numbers rather than "a throttle exists", because the interesting regression is
+    a loosened cap, and pinned on the PRICE route specifically: the other four require a session.
+    """
+    assert provisioner.PRICE_ROUTE_KEY == "GET /ecommerce/service-prices"
+    assert provisioner.PRICE_ROUTE_KEY in provisioner.ROUTE_KEYS
+    assert provisioner.ROUTE_THROTTLE_RATE == 5.0
+    assert provisioner.ROUTE_THROTTLE_BURST == 10
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "def ensure_route_throttle(" in source
+    # Applied in the same run that creates the route, and read back by --verify rather than
+    # assumed: a throttle nobody checks is a throttle that quietly goes missing.
+    assert "ensure_route_throttle(args.dry_run)" in source
+    assert "is not throttled at" in source
+
+
+def test_the_throttle_write_sends_only_its_own_route_key(provisioner):
+    """`UpdateStage` MERGES RouteSettings and VALIDATES the merged map, so sending another
+    route's key is how one script drops a throttle another owns. Only `PRICE_ROUTE_KEY` is ever
+    written, and a stale key for a deleted route is REPORTED rather than deleted here --
+    `deploy_mcp_server` owns `DeleteRouteSettings` and the argument for why removal is safe."""
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "RouteSettings={PRICE_ROUTE_KEY: wanted}" in source
+    assert "delete_route_settings" not in source
+    assert "deploy_mcp_server" in source
+
+
+def test_the_shared_stage_is_not_declared_in_the_template(provisioner):
+    """The throttle is a stage setting and the `prod` stage is shared by every other route on the
+    API, so the template takes the API as a PARAMETER and must not claim the stage. The route's
+    metadata records where the cap lives instead, so the IaC is not silent about it."""
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    types = {name: body.get("Type") for name, body in template["Resources"].items()}
+    assert "AWS::ApiGatewayV2::Stage" not in types.values()
+    throttle = template["Resources"]["ServicePricesRoute"]["Metadata"]["WECARE::Throttle"]
+    recorded = " ".join(throttle)
+    assert "5 rps" in recorded and "10 burst" in recorded
+    assert "provision_checkout.py" in recorded
+
+
 def test_the_integration_targets_the_live_alias(provisioner):
     """`:live`, not `$LATEST`. The 58 aliased functions in this fleet all work this way, and
     `lambda-snapstart-deploy` steering requires the alias to be what production invokes."""
@@ -993,8 +1042,9 @@ class _FakeLambdaForVerify:
 
 
 class _FakeApiForVerify:
-    def __init__(self, integration_uri):
+    def __init__(self, integration_uri, route_settings=None):
         self.uri = integration_uri
+        self.route_settings = route_settings
 
     def get_integrations(self, **kwargs):  # noqa: N803
         return {"Items": [{"IntegrationId": "zkb6lxe", "IntegrationUri": self.uri}]}
@@ -1004,18 +1054,27 @@ class _FakeApiForVerify:
                            "Target": "integrations/zkb6lxe"}
                           for n, key in enumerate(_ROUTE_KEYS_FOR_FAKE)]}
 
+    def get_stage(self, **kwargs):  # noqa: N803
+        return {"RouteSettings": self.route_settings if self.route_settings is not None
+                else dict(_ROUTE_SETTINGS_FOR_FAKE),
+                "DefaultRouteSettings": {"ThrottlingRateLimit": 10000.0}}
+
 
 _ROUTE_KEYS_FOR_FAKE: tuple = ()
+_ROUTE_SETTINGS_FOR_FAKE: dict = {}
 
 
 @pytest.fixture
 def verify_run(provisioner, monkeypatch):
     """Run the real `verify()` against stubbed AWS. Returns (exit_code, printed, problems)."""
-    global _ROUTE_KEYS_FOR_FAKE
+    global _ROUTE_KEYS_FOR_FAKE, _ROUTE_SETTINGS_FOR_FAKE
     _ROUTE_KEYS_FOR_FAKE = provisioner.ROUTE_KEYS
+    _ROUTE_SETTINGS_FOR_FAKE = {provisioner.PRICE_ROUTE_KEY: {
+        "ThrottlingRateLimit": provisioner.ROUTE_THROTTLE_RATE,
+        "ThrottlingBurstLimit": provisioner.ROUTE_THROTTLE_BURST}}
     monkeypatch.setattr(provisioner, "_account_id_cache", "775261844268")
 
-    def _run(env_overrides=None, drop=()):
+    def _run(env_overrides=None, drop=(), route_settings=None):
         env = dict(provisioner.expected_environment())
         env.update(env_overrides or {})
         for key in drop:
@@ -1027,7 +1086,8 @@ def verify_run(provisioner, monkeypatch):
         monkeypatch.setattr(provisioner, "lam",
                             lambda: _FakeLambdaForVerify(env, statements))
         monkeypatch.setattr(provisioner, "api",
-                            lambda: _FakeApiForVerify(provisioner.function_arn(qualified=True)))
+                            lambda: _FakeApiForVerify(provisioner.function_arn(qualified=True),
+                                                      route_settings=route_settings))
         monkeypatch.setattr(provisioner, "live_members",
                             lambda *a, **k: ({"handler.py": b""}, "sha", "1 file"))
         monkeypatch.setattr(provisioner, "validate_members", lambda *a, **k: ([], []))
@@ -1040,6 +1100,22 @@ def verify_run(provisioner, monkeypatch):
 def test_verify_passes_on_the_state_this_script_provisions(verify_run):
     """The baseline, so a failure below is attributable to the override and not to the harness."""
     assert verify_run() == 0
+
+
+@pytest.mark.parametrize("settings", [
+    {},                                                                    # no cap at all
+    {"GET /ecommerce/service-prices": {"ThrottlingRateLimit": 5000.0,
+                                       "ThrottlingBurstLimit": 10}},       # loosened rate
+    {"GET /ecommerce/service-prices": {"ThrottlingRateLimit": 5.0,
+                                       "ThrottlingBurstLimit": 10000}},    # loosened burst
+    {"POST /ecommerce/checkout": {"ThrottlingRateLimit": 5.0,
+                                  "ThrottlingBurstLimit": 10}},            # capped the wrong route
+])
+def test_verify_fails_when_the_anonymous_route_is_not_capped(verify_run, settings):
+    """An uncapped anonymous route is a real finding, so `--verify` has to fail on it rather than
+    print it. The loosened cases matter as much as the missing one: the regression that costs
+    something is a widened limit, not a deleted setting."""
+    assert verify_run(route_settings=settings) == 1
 
 
 def test_verify_fails_on_a_wrong_wix_site_id(verify_run):

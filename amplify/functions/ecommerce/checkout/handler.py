@@ -380,6 +380,14 @@ def _service_prices(origin: str) -> Dict[str, Any]:
     carry their price and the rest carry `{"available": false}` with no `paise` key, because one
     service Wix cannot price is no reason to take the other three off sale.
 
+    WIX READ VOLUME IS BOUNDED TWICE, because this is the one unauthenticated arm and a cache
+    miss costs 8 Wix calls on the same API key the live checkout prices with. The headers below
+    carry the measurement of the first bound (the edge really does cache); the second is a
+    per-route throttle on `GET /ecommerce/service-prices`, applied by
+    `scripts/provision_checkout.py` and read back by its `--verify`. Wix WRITES are bounded
+    structurally and permanently instead: four carts for the life of the site, by the pointer
+    rows `service_pricing` keeps.
+
     Logs counts only. No credential, no cart id, no provider message.
     """
     if not cart_v2.is_enabled():
@@ -399,10 +407,39 @@ def _service_prices(origin: str) -> Dict[str, Any]:
     logger.info(json.dumps({"event": "service_prices_served", "priced": priced,
                             "slugs": len(payload["prices"])}))
     response = cors_response(200, payload, origin)
-    # Post-processed because `cors_response` takes no header argument. The edge in front of
-    # `/api/*` then absorbs the anonymous traffic, so a warm sandbox performs at most one Wix
-    # round per minute -- the same window `service_pricing.CACHE_SECONDS` holds.
+    # Post-processed because `cors_response` takes no header argument.
+    #
+    # THE EDGE DOES CACHE THIS, AND THAT IS MEASURED RATHER THAN ASSERTED. An earlier version of
+    # this comment claimed the `/api/*` edge "absorbs the anonymous traffic" with nothing behind
+    # the claim, while `docs/execution/change-authority-matrix.md` row 297 recorded three
+    # requests through that same rewrite all answering `Miss from cloudfront`. Measured on
+    # 2026-10-08 against `wecare.digital/api/seo-tools/blog-public` -- the one other PUBLIC
+    # `max-age` response behind the same rewrite -- four identical requests answered
+    # `Miss`, then `Hit (age 2)`, `Hit (age 4)`, `Hit (age 7)`. Row 297 does not contradict that:
+    # it states the API was sending `cache-control: no-store`, which nothing is allowed to cache.
+    # The variable was the header, not the edge.
+    #
+    # `Access-Control-Allow-Origin: *`, NOT the origin `cors_headers` reflects, and the
+    # measurement is what forces it rather than a preference. In the same run the origin's
+    # `Vary: Origin` was STRIPPED (`vary: Accept-Encoding` is what reached the client), and a
+    # request carrying `Origin: https://www.wecare.digital` was served the cached apex
+    # `Access-Control-Allow-Origin: https://wecare.digital`. A browser rejects that, so
+    # `fetchServicePrices` would fail closed and every `www` visitor would read "temporarily
+    # unavailable" with no way to buy. A shared cache cannot hand the wrong origin a response
+    # that names every origin. Safe HERE and nowhere else in this handler, for reasons specific
+    # to this one body: a public price list, no customer data, no credential, no cookie, and the
+    # browser client fetches it without credentials (so `*` is even a legal answer).
+    #
+    # `Vary: Origin` is sent anyway, for an intermediary that does honour it and so that a future
+    # change back to a reflected origin is not silently poisoned.
+    #
+    # The edge is the FIRST of two bounds on Wix reads, not the only one: the route carries its
+    # own throttle (`scripts/provision_checkout.py`, ROUTE_THROTTLE_*), because an anonymous
+    # route whose cache misses cost 8 Wix calls shares an API key with the live checkout's
+    # `calculate`, and concurrency rather than the per-sandbox minute is the multiplier on a miss.
     response["headers"]["Cache-Control"] = f"public, max-age={service_pricing.CACHE_SECONDS}"
+    response["headers"]["Access-Control-Allow-Origin"] = "*"
+    response["headers"]["Vary"] = "Origin"
     return response
 
 
@@ -2584,6 +2621,15 @@ def _v2_snapshot(identity: customer_auth.CustomerIdentity, line_items: list,
         _assert_contribution_total(calculated, contribution_paise)
     if service_requests.has_service_line(line_items):
         # Phase O-1: per LINE, so it holds in a mixed basket and under a coupon. Fail-closed.
+        #
+        # THE RETURN VALUE IS DISCARDED HERE ON PURPOSE, and the redundancy is deliberate rather
+        # than an oversight. The figure is needed when the `PAYREF#` row is written, four frames
+        # away in `_allocate_reference`, so it is re-derived there with the pure
+        # `observed_service_line_paise(calculated)` instead of being threaded through three
+        # signatures that have no other use for it. The two cannot disagree: same `calculated`,
+        # same single-service-line selection, and `assert_service_line_price` has already refused
+        # the basket if that selection is not unique. The assertion runs for its REFUSAL, which
+        # is the only thing this call site wants from it.
         service_requests.assert_service_line_price(
             calculated, line_items, delivery_required=requires_delivery)
     # Names and quantities only, for the payment request and the receipt. Line money never
