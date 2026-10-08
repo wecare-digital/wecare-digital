@@ -319,7 +319,7 @@ def _list_flows(waba_id: str) -> Dict:
 def _get_flow(flow_id: str) -> Dict:
     if not flow_id:
         return _resp(400, {'error': 'flowId required'})
-    result = _graph_api(flow_id, params={'fields': 'id,name,status,categories,validation_errors,json_version,data_api_version,endpoint_uri,preview'})
+    result = _graph_api(flow_id, params={'fields': 'id,name,status,categories,validation_errors,json_version,data_api_version,endpoint_uri,preview,application'})
     if 'error' in result:
         return _resp(400, result)
     return _resp(200, {'flow': result})
@@ -342,6 +342,11 @@ def _update_flow(flow_id: str, body: Dict) -> Dict:
     if not flow_id:
         return _resp(400, {'error': 'flowId required'})
     payload = {}
+    if body.get('application_id'):
+        application_id = str(body['application_id'])
+        if application_id != str(META_APP_ID):
+            return _resp(400, {'error': 'Flow application must be the configured WECARE Meta app'})
+        payload['application_id'] = application_id
     if body.get('name'):
         payload['name'] = body['name']
     if body.get('categories'):
