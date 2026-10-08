@@ -1,0 +1,106 @@
+Current route,Proposed destination,Current source
+/workspace/access,Settings / Your account,src/pages/workspace/access/index.tsx
+/workspace/access/security,Settings / Your account,src/pages/workspace/access/security.tsx
+/workspace/admin,Settings / Platform,src/pages/workspace/admin/index.tsx
+/workspace/commerce/catalog,Catalog,src/pages/workspace/commerce/catalog.tsx
+/workspace/commerce,Catalog,src/pages/workspace/commerce/index.tsx
+/workspace/contacts,Contacts,src/pages/workspace/contacts/index.tsx
+/workspace/dashboard/code-repo,Settings / Platform,src/pages/workspace/dashboard/code-repo.tsx
+/workspace/dashboard/cors-settings,Settings / Platform,src/pages/workspace/dashboard/cors-settings.tsx
+/workspace/dashboard/design-reference,Settings / Platform,src/pages/workspace/dashboard/design-reference.tsx
+/workspace/dashboard,Home,src/pages/workspace/dashboard/index.tsx
+/workspace/dashboard/lambda-functions,Settings / Platform,src/pages/workspace/dashboard/lambda-functions.tsx
+/workspace/dashboard/mcp-connections,Settings / Integrations,src/pages/workspace/dashboard/mcp-connections.tsx
+/workspace/dashboard/secure-files,Settings / Platform,src/pages/workspace/dashboard/secure-files.tsx
+/workspace/dashboard/system-architecture,Settings / Platform,src/pages/workspace/dashboard/system-architecture.tsx
+/workspace/dashboard/wa-graph-tools,Settings / Channels,src/pages/workspace/dashboard/wa-graph-tools.tsx
+/workspace/dashboard/waba-usernames,Settings / Channels,src/pages/workspace/dashboard/waba-usernames.tsx
+/workspace/docs,Settings / Platform,src/pages/workspace/docs/index.tsx
+/workspace/engage/analytics,Campaigns,src/pages/workspace/engage/analytics/index.tsx
+/workspace/engage/appointments,Service Ops,src/pages/workspace/engage/appointments/index.tsx
+/workspace/engage/automation,Settings / Automation & AI,src/pages/workspace/engage/automation/index.tsx
+/workspace/engage/broadcast,Campaigns,src/pages/workspace/engage/broadcast/index.tsx
+/workspace/engage/channels,Settings / Channels,src/pages/workspace/engage/channels/index.tsx
+/workspace/engage/commerce,Catalog,src/pages/workspace/engage/commerce/index.tsx
+/workspace/engage/contact-360,Contacts,src/pages/workspace/engage/contact-360/index.tsx
+/workspace/engage/content,Campaigns,src/pages/workspace/engage/content/index.tsx
+/workspace/engage/cost,Campaigns,src/pages/workspace/engage/cost/index.tsx
+/workspace/engage/docs,Settings / Platform,src/pages/workspace/engage/docs/index.tsx
+/workspace/engage/documents,Service Ops,src/pages/workspace/engage/documents/index.tsx
+/workspace/engage/enterprise,Service Ops,src/pages/workspace/engage/enterprise/index.tsx
+/workspace/engage/faq,Service Ops,src/pages/workspace/engage/faq/index.tsx
+/workspace/engage/inbox,Inbox,src/pages/workspace/engage/inbox/index.tsx
+/workspace/engage,Settings / Channels,src/pages/workspace/engage/index.tsx
+/workspace/engage/logs,Campaigns,src/pages/workspace/engage/logs/index.tsx
+/workspace/engage/meta-agent,Settings / Automation & AI,src/pages/workspace/engage/meta-agent/index.tsx
+/workspace/engage/orders,Service Ops,src/pages/workspace/engage/orders/index.tsx
+/workspace/engage/push,Settings / Channels,src/pages/workspace/engage/push/index.tsx
+/workspace/engage/rcs,Settings / Channels,src/pages/workspace/engage/rcs/index.tsx
+/workspace/engage/rcs/send,Inbox,src/pages/workspace/engage/rcs/send.tsx
+/workspace/engage/rcs/templates,Campaigns,src/pages/workspace/engage/rcs/templates.tsx
+/workspace/engage/reviews,Service Ops,src/pages/workspace/engage/reviews/index.tsx
+/workspace/engage/rx-slots,Service Ops,src/pages/workspace/engage/rx-slots/index.tsx
+/workspace/engage/scheduled,Campaigns,src/pages/workspace/engage/scheduled/index.tsx
+/workspace/engage/search,Inbox,src/pages/workspace/engage/search/index.tsx
+/workspace/engage/service-ops,Service Ops,src/pages/workspace/engage/service-ops/index.tsx
+/workspace/engage/ses,Settings / Channels,src/pages/workspace/engage/ses/index.tsx
+/workspace/engage/settings,Settings / Channels,src/pages/workspace/engage/settings/index.tsx
+/workspace/engage/sms,Settings / Channels,src/pages/workspace/engage/sms/index.tsx
+/workspace/engage/voice,Settings / Channels,src/pages/workspace/engage/voice/index.tsx
+/workspace/engage/voice-in,Settings / Channels,src/pages/workspace/engage/voice-in/index.tsx
+/workspace/engage/whatsapp/ai-agent,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/ai-agent.tsx
+/workspace/engage/whatsapp/auto-response,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/auto-response.tsx
+/workspace/engage/whatsapp/bsuid,Settings / Channels,src/pages/workspace/engage/whatsapp/bsuid.tsx
+/workspace/engage/whatsapp/business-profile,Settings / Channels,src/pages/workspace/engage/whatsapp/business-profile.tsx
+/workspace/engage/whatsapp/calling,Settings / Channels,src/pages/workspace/engage/whatsapp/calling.tsx
+/workspace/engage/whatsapp/campaign,Campaigns,src/pages/workspace/engage/whatsapp/campaign.tsx
+/workspace/engage/whatsapp/catalog-builder,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/catalog-builder.tsx
+/workspace/engage/whatsapp/connected-accounts,Settings / Integrations,src/pages/workspace/engage/whatsapp/connected-accounts.tsx
+/workspace/engage/whatsapp/conversions-api,Settings / Channels,src/pages/workspace/engage/whatsapp/conversions-api.tsx
+/workspace/engage/whatsapp/cost-controls,Settings / Channels,src/pages/workspace/engage/whatsapp/cost-controls.tsx
+/workspace/engage/whatsapp/ctwa-ads,Settings / Channels,src/pages/workspace/engage/whatsapp/ctwa-ads.tsx
+/workspace/engage/whatsapp/embedded-signup,Settings / Channels,src/pages/workspace/engage/whatsapp/embedded-signup.tsx
+/workspace/engage/whatsapp/flow-hub,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/flow-hub.tsx
+/workspace/engage/whatsapp/flow-publish,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/flow-publish.tsx
+/workspace/engage/whatsapp/flow-responses,Service Ops,src/pages/workspace/engage/whatsapp/flow-responses.tsx
+/workspace/engage/whatsapp/flows,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/flows.tsx
+/workspace/engage/whatsapp/groups,Settings / Channels,src/pages/workspace/engage/whatsapp/groups.tsx
+/workspace/engage/whatsapp/inbox,Inbox,src/pages/workspace/engage/whatsapp/inbox.tsx
+/workspace/engage/whatsapp,Inbox,src/pages/workspace/engage/whatsapp/index.tsx
+/workspace/engage/whatsapp/interactive-lists,Campaigns,src/pages/workspace/engage/whatsapp/interactive-lists.tsx
+/workspace/engage/whatsapp/migration,Settings / Integrations,src/pages/workspace/engage/whatsapp/migration.tsx
+/workspace/engage/whatsapp/my-account,Settings / Your account,src/pages/workspace/engage/whatsapp/my-account.tsx
+/workspace/engage/whatsapp/scripts,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/scripts.tsx
+/workspace/engage/whatsapp/send-test,Settings / Platform,src/pages/workspace/engage/whatsapp/send-test.tsx
+/workspace/engage/whatsapp/settings,Settings / Channels,src/pages/workspace/engage/whatsapp/settings.tsx
+/workspace/engage/whatsapp/tech-partner,Settings / Channels,src/pages/workspace/engage/whatsapp/tech-partner.tsx
+/workspace/engage/whatsapp/template-builder,Campaigns,src/pages/workspace/engage/whatsapp/template-builder.tsx
+/workspace/engage/whatsapp/templates,Campaigns,src/pages/workspace/engage/whatsapp/templates.tsx
+/workspace/engage/whatsapp/waba-dashboard,Settings / Channels,src/pages/workspace/engage/whatsapp/waba-dashboard.tsx
+/workspace/engage/whatsapp/webhooks,Settings / Channels,src/pages/workspace/engage/whatsapp/webhooks.tsx
+/workspace/engage/whatsapp/welcome,Settings / Automation & AI,src/pages/workspace/engage/whatsapp/welcome.tsx
+/workspace/forms,Service Ops,src/pages/workspace/forms/index.tsx
+/workspace/forms/responses,Service Ops,src/pages/workspace/forms/responses.tsx
+/workspace/forms/selfservice,Service Ops,src/pages/workspace/forms/selfservice.tsx
+/workspace,Home,src/pages/workspace/index.tsx
+/workspace/link,Campaigns,src/pages/workspace/link/index.tsx
+/workspace/pay/flow,Payments,src/pages/workspace/pay/flow/index.tsx
+/workspace/pay,Payments,src/pages/workspace/pay/index.tsx
+/workspace/pay/link,Payments,src/pages/workspace/pay/link/index.tsx
+/workspace/pay/records,Payments,src/pages/workspace/pay/records.tsx
+/workspace/seo/blog-manager,Content,src/pages/workspace/seo/blog-manager.tsx
+/workspace/seo/blog-production/batch,Content,src/pages/workspace/seo/blog-production/batch/index.tsx
+/workspace/seo/blog-production,Content,src/pages/workspace/seo/blog-production/index.tsx
+/workspace/seo/blog-production/publish,Content,src/pages/workspace/seo/blog-production/publish/index.tsx
+/workspace/seo/blog-production/qa,Content,src/pages/workspace/seo/blog-production/qa/index.tsx
+/workspace/seo/blog-production/review,Content,src/pages/workspace/seo/blog-production/review/index.tsx
+/workspace/seo/blog-studio,Content,src/pages/workspace/seo/blog-studio.tsx
+/workspace/seo,Content,src/pages/workspace/seo/index.tsx
+/workspace/seo/pages-manager,Content,src/pages/workspace/seo/pages-manager.tsx
+/workspace/seo/tools,Content,src/pages/workspace/seo/tools.tsx
+/workspace/service/amend-request,Service Ops,src/pages/workspace/service/amend-request.tsx
+/workspace/service,Service Ops,src/pages/workspace/service/index.tsx
+/workspace/service/submit-request,Service Ops,src/pages/workspace/service/submit-request.tsx
+/workspace/service/track-request,Service Ops,src/pages/workspace/service/track-request.tsx
+/workspace/settings/internal-agent,Settings / Automation & AI,src/pages/workspace/settings/internal-agent.tsx
+/workspace/task,Work,src/pages/workspace/task/index.tsx
