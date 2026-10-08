@@ -112,8 +112,17 @@ PERMITTED_LAMBDA_INVOKES_SEND = frozenset({'wecare-outbound-whatsapp'})
 #: that was already there.
 SERVICE_REQUEST_HINT = 'wecare-service-requests:live'
 
+#: A SECOND fire-and-forget hint from the same `dispatch_activation`, and the reason this file
+#: earns its keep: it arrived on `stack` (`preparePaidSubmitRequest`, the paid Submit Request
+#: draft) while this branch was in review, and the rebase surfaced it as three precise failures
+#: rather than as a silently widened payment path. Admitted deliberately, on the same grounds as
+#: the hint above - `InvocationType="Event"`, ids only, never raises, and the receiver re-reads
+#: every id before acting, so it cannot move money. Written out, never filtered.
+PAID_REQUEST_FLOW_HINT = 'wecare-whatsapp-business-api:live'
+
 PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
     SERVICE_REQUEST_HINT,
+    PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
     'wecare-invoice-engine POST /invoices/{id}/generate-pdf',
@@ -122,6 +131,7 @@ PERMITTED_LAMBDA_INVOKES_FRESH_CAPTURE = frozenset({
 })
 PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
     SERVICE_REQUEST_HINT,
+    PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/send-whatsapp',
     'wecare-outbound-whatsapp',
@@ -137,6 +147,7 @@ PERMITTED_LAMBDA_INVOKES_DEDUPLICATED = frozenset({
 #: money, but a review request is about the service, which is the same service either way.
 PERMITTED_LAMBDA_INVOKES_CATALOGUE_CAPTURE = frozenset({
     SERVICE_REQUEST_HINT,
+    PAID_REQUEST_FLOW_HINT,
     'wecare-invoice-engine POST /invoices/from-payment',
     'wecare-invoice-engine POST /invoices/{id}/generate-image',
     'wecare-invoice-engine POST /invoices/{id}/generate-pdf',
