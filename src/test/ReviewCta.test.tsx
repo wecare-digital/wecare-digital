@@ -23,8 +23,13 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
  *      like a reference and resolves to nothing.
  *
  * NOTHING HERE SENDS ANYTHING. A `wa.me` link makes the CUSTOMER message US, which is also
- * what opens the 24-hour window a Flow needs. That is why this CTA can sit behind a frontend
- * flag at all.
+ * what opens the 24-hour window a Flow needs.
+ *
+ * TWO DOORS, AND ONLY ONE IS FLAG-GATED NOW. The /leave-review/ page CTA is the owner's own
+ * `wa.me/message/ZM74K2H2BIFOA1` short link, unconditional, because WD_Leave_Review_v2
+ * (1578178897413815) is published - the room behind that door exists. `featureFlags.reviewCta`
+ * still governs the ATTRIBUTED per-order row in /orders/, which is the only place an order
+ * number exists, so the flag seam below is still load-bearing for those describes.
  *
  * THE FLAG SEAM follows `src/test/OrdersPage.test.tsx`: `vi.mock` is hoisted above the
  * imports, so the factory closes over a `vi.hoisted()` object — a plain `const` would still be
@@ -286,21 +291,64 @@ describe( '/orders/ review button with the flag ON', () => {
 describe( '/leave-review/ page CTA', () => {
   const entry = () => CUSTOMERSERVICE.find( p => p.slug === 'leave-review' )!;
 
-  it( 'exists and keeps its label', () => {
+  it( 'exists and says where the button goes', () => {
     expect( entry() ).toBeTruthy();
-    expect( entry().ctaLabel ).toBe( 'Leave a review' );
+    expect( entry().ctaLabel ).toBe( 'Leave a review on WhatsApp' );
   } );
 
-  it( 'opens the verified Leave Review WhatsApp entry without the order-review flag', () => {
-    expect( flags.reviewCta ).toBe( false );
+  it( 'is the owner\'s wa.me short link, which is the shipped state', () => {
     expect( entry().ctaHref ).toBe( 'https://wa.me/message/ZM74K2H2BIFOA1' );
   } );
 
-  it( 'shares the published Flow identity and aliases with workspace displays', async () => {
-    const { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } = await import( '../lib/reviewEntry' );
+  /*
+   * The shared identity every review surface reads. Asserted here as well as in
+   * tests/test_leave_review_wiring.py, because `reviewEntry.ts` is now the single source the
+   * page CTA and all four workspace tables import - so a wrong value here is a wrong value
+   * in five places at once.
+   */
+  it( 'shares the published Flow identity and ordered aliases with the workspace displays', async () => {
+    const { REVIEW_FLOW_ID, REVIEW_ENTRY_URL, REVIEW_ENTRY_KEYWORDS } =
+      await import( '../lib/reviewEntry' );
     expect( REVIEW_FLOW_ID ).toBe( '1578178897413815' );
-    expect( REVIEW_ENTRY_KEYWORDS ).toContain( 'leave review' );
-    expect( REVIEW_ENTRY_KEYWORDS ).toContain( 'share an idea' );
+    expect( REVIEW_ENTRY_URL ).toBe( 'https://wa.me/message/ZM74K2H2BIFOA1' );
+    // The page CTA reads this same constant, so these must be the same string.
+    expect( entry().ctaHref ).toBe( REVIEW_ENTRY_URL );
+    // Ordered, not a set: the FIRST keyword is the short link's Meta-side prefill, so the
+    // page button only lands on an exact keyword match while `leave review` leads.
+    expect( REVIEW_ENTRY_KEYWORDS[ 0 ] ).toBe( 'leave review' );
+    expect( REVIEW_ENTRY_KEYWORDS ).toHaveLength( 19 );
+  } );
+
+  /*
+   * The value is now FLAG-FREE, so it must read the same with `reviewCta` either way. The
+   * module reads nothing from `featureFlags` at evaluation any more, so flipping `flags`
+   * after import proves the absence of a read rather than being defeated by it - which is
+   * the opposite of the problem the superseded version of this test had to work around.
+   */
+  it( 'does not depend on featureFlags.reviewCta in either position', () => {
+    flags.reviewCta = true;
+    expect( entry().ctaHref ).toBe( 'https://wa.me/message/ZM74K2H2BIFOA1' );
+    flags.reviewCta = false;
+    expect( entry().ctaHref ).toBe( 'https://wa.me/message/ZM74K2H2BIFOA1' );
+  } );
+
+  it( 'carries no reference and no second query parameter', async () => {
+    /*
+     * A visitor reading this page has no order in context, so the door is deliberately
+     * unattributed. Asserted on the source too, so a future edit cannot reintroduce a
+     * generated per-order link on the one page that has no order.
+     */
+    const href = entry().ctaHref!;
+    expect( href.split( '?' ) ).toHaveLength( 1 );
+    const { readFileSync } = await import( 'node:fs' );
+    const { resolve } = await import( 'node:path' );
+    const source = readFileSync(
+      resolve( __dirname, '../content/customerservice.ts' ), 'utf8' );
+    // The import and the CALL, not the bare identifier - the module's own comment names
+    // `reviewWaLink` to record that it is intentionally absent, and that mention is fine.
+    expect( source ).not.toContain( "from '../lib/reviewLink'" );
+    expect( source ).not.toContain( 'reviewWaLink(' );
+    expect( source ).not.toContain( 'featureFlags.reviewCta ?' );
   } );
 
   it( 'no other customer-service CTA was repointed', () => {

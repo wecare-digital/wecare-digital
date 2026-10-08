@@ -3179,3 +3179,40 @@ Owner requested the public Leave Review page button use the supplied WhatsApp sh
 |---|---|---|---|
 | A1_LOCAL | Public review CTA; shared workspace review identity; inbound customer_idea keyword aliases | 19 exact aliases select published Flow 1578178897413815 at FEEDBACK in the preserved live package. Four Python entry checks pass; 19 frontend review tests pass; TypeScript check passes. Legacy attributed review reference route preserved. | Revert scoped commit. |
 | A3_PRODUCTION | wecare-inbound-whatsapp live routing | Preserve version 83 package, patch only CUSTOMER_IDEA_KEYWORDS and second-account customer entry fallback. No customer send or feature flag change. | Restore live alias to version 83 using current revision guard. |
+
+## 2026-10-08 — One Leave Review door: the published Flow, one keyword set, backend and workspace agreed
+Owner reported that the `/leave-review/` page button and the `Leave Review` keyword did nothing,
+and asked for the keyword set expanded and the workspace to SHOW the same thing the backend
+answers. Three independent causes, each sufficient on its own to produce that symptom. (1) The
+`leave_review` trigger pointed at an unpublished draft Flow. (2) Even with the right id it would
+still have failed: Flow 1578178897413815 is ENDPOINTLESS, so it must open with NAVIGATE, and
+`leave_review` was absent from `STATIC_ENTRY_SCREENS`. (3) The page CTA was gated behind
+`featureFlags.reviewCta`, which is set nowhere, so the button went to `/contact/`. Four workspace
+surfaces separately advertised a Flow id that is not present on the WABA at all, and a three-word
+keyword list. No live-send flag, payment path, credential or provider configuration touched.
+| Class | Target | Evidence | Rollback |
+|---|---|---|---|
+| A1_LOCAL | `DEFAULT_FLOW_TRIGGERS['leave_review']` flowId -> `1578178897413815`, plus the 19-keyword ordered set | 1578178897413815 = WD_Leave_Review_v2, read PUBLISHED on WABA1 during planning. Shares one Meta Flow with `customer_idea` because Meta has no per-door flow identity. REBASED ONTO 8927a81c, which independently expanded `CUSTOMER_IDEA_KEYWORDS` with review aliases, so 11 of the 19 are now claimed by `customer_idea` first — dispatch is exact-match over dict insertion order. That overlap is HARMLESS and is asserted to be, not assumed: `test_the_customer_idea_overlap_resolves_to_the_same_door` pins both triggers to the same flowId, the same `STATIC_ENTRY_SCREENS` screen and the same WABA2 fallback link, so either door yields an identical open. Every other trigger is still asserted to hold zero overlap. | Revert the scoped commit. |
+| A1_LOCAL | `STATIC_ENTRY_SCREENS` gains `'leave_review': 'FEEDBACK'` | The load-bearing line. The Flow declares no `data_api_version` and its first screen carries no `data` block, so `data_exchange` fails at open and looks identical to a wrong flow id. Pinned by `test_leave_review_opens_with_navigate_on_the_static_entry_screen`, which is the assertion that would have caught this change shipping half-done. | Revert the scoped commit; the keyword silently stops working again. |
+| A1_LOCAL | `/leave-review/` CTA becomes the owner's `https://wa.me/message/ZM74K2H2BIFOA1`, unconditional | The owner named this link twice. Verified during planning to resolve to WABA1 `919330994400` with prefill `Leave Review`, which lowercases to the first keyword, so the customer's own message opens the Flow. Chosen over flipping `NEXT_PUBLIC_ENABLE_REVIEW_CTA` because that would also switch on the per-order review row in `/orders/` — a behaviour change nobody asked for — and would yield a different URL. `featureFlags.reviewCta` is NOT removed and still governs `/orders/` only. NOTHING SENDS: a `wa.me` link composes a message the visitor still has to send. | Restore the ternary; the button returns to `/contact/`. |
+| A1_LOCAL | Four workspace surfaces repointed and the keyword cell un-sliced | `forms/selfservice.tsx` (flowId, status `published`, its stale and prefill-less `wa.me/message` short link replaced with the owner's, keywords, and `.slice(0,3)` removed so the table shows the real set), `engage/whatsapp/settings.tsx`, `engage/whatsapp/scripts.tsx`, `dashboard/system-architecture.tsx`. The id they carried is absent from the live WABA list entirely, so their `Draft` status described a Flow that does not exist. | Revert the scoped commit. |
+| A1_LOCAL | `src/lib/reviewEntry.ts` is the ONE TypeScript source; `tests/test_leave_review_wiring.py` is the cross-language drift guard | 8927a81c introduced `reviewEntry.ts`; this rebase adopts it rather than keeping per-file literals, and its `REVIEW_ENTRY_KEYWORDS` now holds the owner's ordered 19. TS cannot be imported into pytest, so the list is encoded ONCE in the test, compared to `reviewEntry.ts` and to the Python handler as an ORDERED list, and each of the five TS surfaces is asserted to REFERENCE the constants rather than restate them — a literal keyword list or flow id reappearing at any site fails the suite. Proven to bite, not just to pass: reordering one keyword in `reviewEntry.ts` fails `test_the_typescript_source_matches_the_backend`, and replacing a site's constant with a literal fails that site's reference assertion. | Delete the file; the five sites can then drift silently. |
+Deliberately NOT done, recorded so it is not read as missed: `_STANDBY_TEXT_TRIGGERS` and
+`_DETERMINISTIC_CONTAINS` were not widened — they already hold `leave review`, which is the short
+link's prefill, and widening them changes which inbound messages the bot takes from the Meta AI
+agent during standby. The `wd_review` menu row id and leaf link are unchanged. `flows/leave_review.py`,
+the `review <REF>` attribution branch and `REVIEW_ATTRIBUTION_ENABLED` are left in place: they are
+the v1 attribution path, v1 was never published so none of it is on this route, and
+`_review_attribution_enabled()` defaults false and is set nowhere. The other ~8 stale `flowId`s in
+those same three workspace files are real drift against `DEFAULT_FLOW_TRIGGERS` and were left alone
+as out of scope.
+`https://wecare.digital/r/lr` — the WABA2 fallback that `leave_review` used to carry — 302s to
+`https://www.google.com/` from a live `recovery` row. Repairing that ROW is a live data change and
+is still NOT part of this commit, but the rebase made the dead end reachable from the 8 keywords
+`customer_idea` does not claim, so `leave_review`'s fallback in `_send_generic_flow` is now the
+verified `https://wa.me/message/ZM74K2H2BIFOA1` — the same link `customer_idea` already used. That
+is a one-string code change that routes WABA2 around the broken row rather than through it; the row
+itself remains the orchestrator's to take or drop.
+**Not live until deployed.** `wecare-inbound-whatsapp` is invoked UNQUALIFIED by the ingress, so
+`$LATEST` becomes production the moment `update-function-code` returns; there is no alias gap to
+verify in. Not deployed here.
