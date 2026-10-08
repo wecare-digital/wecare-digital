@@ -26,7 +26,7 @@ describe('customer ideas in the workspace', () => {
     await waitFor(() => expect(screen.getByText('A feature I would love')).toBeInTheDocument());
     expect(screen.getByText('Request tracking in my language, with one place for every update.')).toBeInTheDocument();
     expect(screen.getByText("Linked to this sender's contact record.")).toBeInTheDocument();
-    expect(screen.getByText('No follow-up permission')).toBeInTheDocument();
+    expect(screen.getByText('Saved in customer reviews.')).toBeInTheDocument();
     expect(screen.getByText('Existing service request')).toBeInTheDocument();
   });
 });

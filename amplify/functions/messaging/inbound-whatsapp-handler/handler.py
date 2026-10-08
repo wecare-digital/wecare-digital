@@ -1634,7 +1634,7 @@ def _process_message(
             _idea_data, contact_id=_idea_contact.get('contactId') or _idea_contact.get('id'),
             phone=sender_phone, sender_name=sender_name,
             message_id=whatsapp_message_id, dynamodb=dynamodb,
-            activity_table=SUBMIT_REQUESTS_TABLE, request_id=request_id)
+            request_id=request_id)
 
     # Deduplicate using whatsappMessageId.
     # claim_event() is an atomic, strongly-consistent guard that closes the

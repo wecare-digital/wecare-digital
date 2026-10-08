@@ -145,6 +145,15 @@ const ContactActivityTimeline: React.FC<{ phone: string; contactId: string; crea
     (async () => {
       const items: ActivityItem[] = [];
 
+      // Customer ideas are read from their authoritative ReviewTable records.
+      try {
+        const { reviews } = await api.listReviews({ customerPhone: phone, contactId });
+        for (const review of reviews.filter(r => r.reviewType === 'customer_idea' && r.contactId === contactId)) {
+          items.push({ id: review.reviewId, type: 'flow', icon: '↗',
+            title: 'Customer idea shared', meta: review.comment || '', timestamp: review.createdAt });
+        }
+      } catch { /* existing activity remains available if reviews cannot load */ }
+
       // Load flow logs/submissions for this phone
       try {
         const logs = await api.listFlowLogs(phone);

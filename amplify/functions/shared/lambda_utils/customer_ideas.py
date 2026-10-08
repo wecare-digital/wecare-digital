@@ -1,17 +1,22 @@
 """Private endpointless WhatsApp ideas, linked to the authenticated sender.
 
-The FlowSubmission is authoritative. The existing contact timeline reads flow_log
-rows from SubmitRequestsTable; retries repair that projection before inbox dedup.
+ReviewTable is authoritative. FlowSubmission is a tracking projection; the
+contact timeline queries review records. Retries repair tracking before inbox dedup.
 This path never sends a message or creates a public review or sales lead.
 """
 import hashlib
 import json
+import os
+import time
+
+from botocore.exceptions import ClientError
 
 from lambda_utils import flow_completion
 
 FLOW_KEY = 'wd_leave_review_v2'
 FLOW_ID = '1578178897413815'
 FLOW_CODE = 'WD_IDEA'
+REVIEWS_TABLE = os.environ.get('REVIEWS_TABLE', 'stack-wecare-digital-ReviewTable')
 TOPICS = {
     'feature_request': 'A feature I would love',
     'improvement': 'Something to improve',
@@ -36,8 +41,8 @@ def idea_payload(message):
 
 
 def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb,
-              activity_table, request_id=''):
-    """Persist once by trusted sender + message id; repair a failed activity write."""
+              request_id=''):
+    """Claim the ReviewTable record first; retries repair its Flow tracking row."""
     idea = data.get('idea')
     if not isinstance(idea, str) or not idea.strip():
         raise ValueError('A customer idea is required')
@@ -46,36 +51,40 @@ def save_idea(data, *, contact_id, phone, sender_name, message_id, dynamodb,
     topic = data.get('topic', '')
     if not isinstance(topic, str) or topic not in TOPICS:
         topic = 'other'
-    consent = data.get('follow_up_opt_in') is True
-    form = {'topic': topic, 'idea': idea.strip(), 'follow_up_opt_in': consent,
-            'schema_version': str(data.get('schema_version', '3'))}
-    # Never let a handset-provided token/contact id choose another customer's row.
     digest = hashlib.sha256(f'{contact_id}\x1f{message_id}'.encode()).hexdigest()
-    submission_id = 'WD-IDEA-' + digest[:16].upper()
-    result = flow_completion.claim_completion(
-        flow_token=str(data.get('flow_token') or message_id), screen='REVIEW',
-        submission_id=submission_id, reference_prefix='WD-IDEA',
-        flow_code=FLOW_CODE, flow_type='customer_idea', phone=phone,
-        contact_id=contact_id, sender_name=sender_name, form_data=form,
-        status='open', extra={'flowId': FLOW_ID, 'subject': TOPICS[topic],
-                            'description': form['idea'], 'source': 'whatsapp',
-                            'whatsappMessageId': message_id}, request_id=request_id)
-    if result.status == 'error':
-        raise RuntimeError('Customer idea could not be saved')
-    item = result.item
-    if result.duplicate:
-        item = dynamodb.Table(flow_completion.FLOW_SUBMISSIONS_TABLE).get_item(
-            Key={'submissionId': submission_id}, ConsistentRead=True).get('Item')
+    review_id = 'WD-IDEA-' + digest[:16].upper()
+    now = int(time.time())
+    item = {
+        'reviewId': review_id, 'contactId': contact_id,
+        'customerPhone': phone, 'customerName': sender_name,
+        'reviewText': idea.strip(), 'category': topic,
+        'reviewType': 'customer_idea', 'visibility': 'private',
+        'source': 'whatsapp', 'status': 'submitted',
+        'flowId': FLOW_ID, 'flowCode': FLOW_CODE,
+        'schemaVersion': '4', 'whatsappMessageId': message_id,
+        'createdAt': now, 'updatedAt': now,
+    }
+    table = dynamodb.Table(REVIEWS_TABLE)
+    try:
+        table.put_item(Item=item, ConditionExpression='attribute_not_exists(reviewId)')
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        item = table.get_item(Key={'reviewId': review_id}, ConsistentRead=True).get('Item')
         if not item:
-            raise RuntimeError('Saved customer idea could not be read')
-    # Stable key + original contents make retries safe, including a failure between
-    # the authoritative write and this contact-timeline projection.
-    dynamodb.Table(activity_table).put_item(Item={
-        'id': 'idea-log-' + submission_id, 'type': 'flow_log',
-        'action': 'customer_idea', 'flowCode': FLOW_CODE, 'flowId': FLOW_ID,
-        'submissionId': submission_id, 'contactId': item['contactId'],
-        'phone': item['phone'], 'subject': item['description'],
-        'flowData': item['formData'], 'createdAt': item['createdAt'],
-        'ttl': item['ttl'],
-    })
+            raise RuntimeError('Saved customer review could not be read')
+    # ReviewTable is authoritative. Rehydrate the original content on retries so
+    # a repeated completion cannot overwrite text or staff moderation decisions.
+    form = {'topic': item['category'], 'idea': item['reviewText'], 'schema_version': '4'}
+    result = flow_completion.claim_completion(
+        flow_token=message_id, screen='REVIEW', submission_id=review_id,
+        reference_prefix='WD-IDEA', flow_code=FLOW_CODE, flow_type='customer_idea',
+        phone=item['customerPhone'], contact_id=item['contactId'],
+        sender_name=item['customerName'], form_data=form, status='open',
+        extra={'flowId': FLOW_ID, 'reviewId': review_id,
+               'subject': TOPICS.get(item['category'], TOPICS['other']),
+               'description': item['reviewText'], 'source': 'whatsapp'},
+        request_id=request_id)
+    if result.status == 'error':
+        raise RuntimeError('Customer review tracking could not be saved')
     return result
