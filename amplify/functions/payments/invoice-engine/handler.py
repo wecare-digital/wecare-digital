@@ -79,6 +79,40 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 INVOICE_PREFIX = media_paths.secure('stack/invoices/')
 CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 
+
+def _transparent_receipt_enabled() -> bool:
+    """Is the approved transparent torn-paper receipt appearance switched on?
+
+    Default OFF: absent from the environment means the receipt keeps the grey
+    (200, 200, 200) backdrop it has today, so nothing a customer sees changes until
+    the owner deliberately sets `RECEIPT_TRANSPARENT_BG` on `wecare-invoice-engine`.
+
+    Read at CALL time, never at module scope. A module-scope read is cached for the
+    life of the execution environment, so a configuration change would not take
+    effect until every warm sandbox recycled (.kiro/steering/lambda-snapstart-deploy.md).
+    """
+    return os.environ.get('RECEIPT_TRANSPARENT_BG', 'false').strip().lower() in (
+        '1', 'true', 'yes', 'on')
+
+
+def _flatten_onto_white(png_img):
+    """Drop an RGBA receipt onto white, preserving what the eye sees.
+
+    PIL's `convert('RGB')` does NOT composite — it discards the alpha band and keeps
+    the underlying RGB, which for a pixel created as (0, 0, 0, 0) is BLACK. So
+    converting a transparent receipt straight to RGB gives the PDF a black border
+    instead of a white page. Composite against white using the alpha as the mask.
+    """
+    from PIL import Image as _PILImage
+
+    if png_img.mode in ('RGBA', 'LA') or (
+            png_img.mode == 'P' and 'transparency' in png_img.info):
+        rgba = png_img.convert('RGBA')
+        flat = _PILImage.new('RGB', rgba.size, (255, 255, 255))
+        flat.paste(rgba, (0, 0), rgba)
+        return flat
+    return png_img.convert('RGB')
+
 # Module-level origin for CORS (set per-invocation in handler)
 origin = ''
 
@@ -1160,6 +1194,11 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     """
     from PIL import Image, ImageDraw, ImageFont
 
+    # Read the flag once, here, rather than at module scope — see
+    # `_transparent_receipt_enabled` for why. False keeps today's grey-backdrop output
+    # byte-for-byte.
+    transparent = _transparent_receipt_enabled()
+
     # ── Font setup (monospace — download DejaVu Sans Mono from S3 on Lambda) ──
     _font_cache = getattr(_generate_receipt_png, '_font_cache', {})
     _generate_receipt_png._font_cache = _font_cache
@@ -1322,7 +1361,9 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
 
     W = CHARS * CW + PX * 2
     est_h = 1200  # generous estimate, will crop
-    img = Image.new('RGB', (W, est_h), (255, 255, 255))
+    # (252, 252, 250) is the paper colour measured on the owner-approved specimen; plain
+    # white stays the default so the flag-off output is unchanged.
+    img = Image.new('RGB', (W, est_h), (252, 252, 250) if transparent else (255, 255, 255))
     draw = ImageDraw.Draw(img)
     logo_bytes = _load_logo_bytes()
 
@@ -1645,32 +1686,77 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     y += PY
     img = img.crop((0, 0, W, y))
 
-    # ── Add paper tear zigzag effect (top and bottom) ──
-    ZIGZAG_H = 8  # height of zigzag teeth
-    ZIGZAG_W = 12  # width of each tooth
-    tear_img = Image.new('RGB', (W, img.height + ZIGZAG_H * 2), (200, 200, 200))  # grey background
-    tear_draw = ImageDraw.Draw(tear_img)
+    if transparent:
+        # ── Owner-approved appearance: irregular torn paper on a TRANSPARENT canvas ──
+        # Reference specimen (approved 2026-10-08):
+        #   https://wecare.digital/get/o/public/wa-tpl/img/invoice-receipt.png
+        # Measured on it, and pinned by tests/test_receipt_transparent_background.py:
+        # corner alpha 0, paper (252, 252, 250, 255). The grey (200, 200, 200) backdrop
+        # in the branch below is the grey the owner asked to remove.
+        import random as _random  # noqa: PLC0415
+        from PIL import ImageFilter  # noqa: PLC0415
 
-    # Top zigzag — white teeth on grey
-    for x in range(0, W, ZIGZAG_W):
-        tear_draw.polygon([
-            (x, ZIGZAG_H),
-            (x + ZIGZAG_W // 2, 0),
-            (x + ZIGZAG_W, ZIGZAG_H),
-        ], fill=(255, 255, 255))
+        TEAR_H = 12  # vertical room the torn edge is allowed to wander in
 
-    # Bottom zigzag — white teeth on grey
-    bottom_y = img.height + ZIGZAG_H
-    for x in range(0, W, ZIGZAG_W):
-        tear_draw.polygon([
-            (x, bottom_y),
-            (x + ZIGZAG_W // 2, bottom_y + ZIGZAG_H),
-            (x + ZIGZAG_W, bottom_y),
-        ], fill=(255, 255, 255))
+        # Seeded deliberately: the tear is APPEARANCE ONLY and must be reproducible, so
+        # re-rendering one invoice does not produce a different edge. `random` is never
+        # used for an identifier here — `secrets` remains mandatory for anything that
+        # must be unique per call (.kiro/steering/lambda-snapstart-deploy.md).
+        rnd = _random.Random(7)
 
-    # Paste the receipt content between the zigzag edges
-    tear_img.paste(img, (0, ZIGZAG_H))
-    img = tear_img
+        def _rough_edge(base: int):
+            """(x, y) points across the width forming an irregular torn edge at `base`."""
+            pts = []
+            x = 0
+            while x <= W:
+                jitter = rnd.randint(-TEAR_H + 6, TEAR_H - 6)
+                micro = rnd.randint(-2, 2)
+                pts.append((x, base + jitter + micro))
+                x += 7 + rnd.randint(-2, 3)
+            pts.append((W, base + rnd.randint(-TEAR_H + 6, TEAR_H - 6)))
+            return pts
+
+        strip_h = img.height + TEAR_H * 2
+
+        # The alpha channel IS the torn paper: 255 inside the polygon, 0 outside.
+        mask = Image.new('L', (W, strip_h), 0)
+        mask_draw = ImageDraw.Draw(mask)
+        mask_draw.polygon(
+            _rough_edge(TEAR_H) + list(reversed(_rough_edge(strip_h - TEAR_H))),
+            fill=255)
+        mask = mask.filter(ImageFilter.GaussianBlur(0.6))  # soften the torn fibres
+
+        paper = Image.new('RGBA', (W, strip_h), (252, 252, 250, 255))
+        paper.paste(img.convert('RGBA'), (0, TEAR_H))
+        paper.putalpha(mask)
+        img = paper
+    else:
+        # ── Add paper tear zigzag effect (top and bottom) ──
+        ZIGZAG_H = 8  # height of zigzag teeth
+        ZIGZAG_W = 12  # width of each tooth
+        tear_img = Image.new('RGB', (W, img.height + ZIGZAG_H * 2), (200, 200, 200))  # grey background
+        tear_draw = ImageDraw.Draw(tear_img)
+
+        # Top zigzag — white teeth on grey
+        for x in range(0, W, ZIGZAG_W):
+            tear_draw.polygon([
+                (x, ZIGZAG_H),
+                (x + ZIGZAG_W // 2, 0),
+                (x + ZIGZAG_W, ZIGZAG_H),
+            ], fill=(255, 255, 255))
+
+        # Bottom zigzag — white teeth on grey
+        bottom_y = img.height + ZIGZAG_H
+        for x in range(0, W, ZIGZAG_W):
+            tear_draw.polygon([
+                (x, bottom_y),
+                (x + ZIGZAG_W // 2, bottom_y + ZIGZAG_H),
+                (x + ZIGZAG_W, bottom_y),
+            ], fill=(255, 255, 255))
+
+        # Paste the receipt content between the zigzag edges
+        tear_img.paste(img, (0, ZIGZAG_H))
+        img = tear_img
 
     # Scale 2x for WhatsApp readability
     final_w = W * 2
@@ -1771,7 +1857,9 @@ def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
     try:
         from PIL import Image as PILImage
         png_bytes = _generate_receipt_png(invoice, items)
-        png_img = PILImage.open(io.BytesIO(png_bytes)).convert('RGB')
+        # Flatten, do not just convert: with RECEIPT_TRANSPARENT_BG on, the PNG is RGBA
+        # and `convert('RGB')` would keep the black underneath its transparent pixels.
+        png_img = _flatten_onto_white(PILImage.open(io.BytesIO(png_bytes)))
         pdf_buf = io.BytesIO()
         png_img.save(pdf_buf, format='PDF', resolution=150)
         pdf_bytes = pdf_buf.getvalue()
