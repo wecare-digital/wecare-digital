@@ -58,6 +58,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
 
+
 const VayuLokPage: React.FC = () => {
   // Order is hue rhythm as much as grouping. Air + Pollen are what is in the air,
   // Weather + Forecast are conditions, Solar is the adjacent service, Heatmap is the
@@ -177,6 +178,7 @@ const VayuLokPage: React.FC = () => {
           </h1>
         </div>
       </main>
+
 
       <style jsx>{`
         /* Header is fixed at 108px, 96px under 767px - the same offsets the home
