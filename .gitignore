@@ -170,3 +170,6 @@ docs/workspace-review/workspace-audit-report.html
 # Deliberately NOT committed: a checked-in vendor copy drifts from the installed version
 # silently, and this one is regenerated before `next build` runs.
 public/vendor/amplify-ui.css
+# Generated rescan source graphs are preserved in task outputs.
+/docs/execution/workspace-page-inventory-20261008.json
+/docs/execution/workspace-pages-20261008.csv

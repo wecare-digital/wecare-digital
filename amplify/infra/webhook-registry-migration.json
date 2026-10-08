@@ -1,0 +1,16 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Temporary native resolution of noncredential webhook configuration for Standard SSM migration",
+  "Resources": {
+    "StagingConfig": {
+      "Type": "AWS::SSM::Parameter",
+      "Properties": {
+        "Name": "/wecare/migration/webhook-registry-20261007",
+        "Type": "String",
+        "Tier": "Intelligent-Tiering",
+        "Value": "{{resolve:secretsmanager:wecare/config/webhook-registry:SecretString}}",
+        "Description": "Temporary webhook config migration; no credential records"
+      }
+    }
+  }
+}

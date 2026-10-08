@@ -2594,6 +2594,49 @@ Destination consolidation is a design target, not approval to delete routes/back
 | A1_LOCAL / A2_REMOTE_CODE | Separate research branch / PR244 | Added twelve-area preservation matrix, dispositions for all 25 reported gaps and six staged batches; validated coverage and component/helper references. No app tests run for documentation-only change. | Revert documentation commit |
 
 No live provider requests, credential reads, PIN/number operations, payment reactivation, send activation, AWS changes or source behavior changes were made. Pasted recommendations are classified research inputs, not blanket execution authority.
+## Staff MFA testing override - 2026-10-07
+
+A3_PRODUCTION, explicit owner instruction in this chat: disable MFA for staff
+workspace password login only; preserve customer WhatsApp OTP for cart/orders.
+Verified pool separation in amplify/auth/resource.ts and live Cognito names.
+Used SetUserPoolMfaConfig on staff us-east-1_cSx0RHCIR with MfaConfiguration OFF;
+no UpdateUserPool or customer write. Staff DescribeUserPool diff: MfaConfiguration
+only. Customer us-east-1_46ULYuukt full pool unchanged; three CUSTOM_AUTH triggers
+retained. GetUserPoolMfaConfig confirms OFF. Before/after snapshots are in the task
+outputs/staff-mfa-before-20261007.json and staff-mfa-after-20261007.json. OFF also
+cleared email/TOTP MFA factor configuration, captured by the dedicated MFA API;
+restore the complete saved MFA payload (OPTIONAL and factor configs) for rollback.
+No user passwords, groups, app clients, tokens, auth triggers or customer behavior
+were changed. No end-to-end password sign-in attempted without owner credentials.
+This is an intentional testing override, not a newly discovered audit defect.
+
+## Deep-review remediation and consolidation research - 2026-10-07
+
+A1_LOCAL/A2_REMOTE_CODE, explicit owner instruction to resolve the review findings
+on a separate branch and research consolidation of 22 active secrets. Isolated
+codex/deep-review-20261007 includes PR242's baseline CI cleanup, collision-safe Flow
+claims, fenced derived-audit leases, bounded partner caches, Standard SSM registry
+writer and open-advisory reporting in both lockfiles. Validation: 8547 full Python
+tests passed on the final merged tree, plus 201 focused tests passed. Owner changes
+through 240bfccd were merged into this branch without changing the shared checkout. See docs/execution/deep-review-fixes-20261007.md for design and rollback.
+
+A0_READ: fresh metadata confirms 22 active secrets, eight marked for deletion today,
+running micro_3_0 voice instance ($7 bundle; nano is $5), and an empty current WhatsApp
+Calling table via consistent COUNT scan. This does not establish historic call/audio
+results. SIP Phase0 handset instructions prepared; no call, send or SIP change made.
+Consolidation research: registry-only $0.40/mo, three config candidates $1.20/mo,
+conditional provider-group scenario $2.80/mo additional to prior eight deletions.
+No other credential group was changed and no secret value entered agent context.
+
+Production preparation: tested merged PR241 workspace MCP artifact uploaded to a
+content-addressed S3 key; prior code/version10 and parameters captured. Native
+CloudFormation registry migration template validated, change set reviewed as one
+SSM parameter addition. asm-exec resolution failed; direct GetSecretValue not used.
+Automatic approval review REJECTED ExecuteChangeSet for registry and CreateChangeSet
+for production MCP update, stating exact live actions lacked explicit authorization.
+Neither rejected action was retried or bypassed. Registry is not moved and no extra
+secret deletion scheduled; workspace MCP live remains version10. Await explicit
+approval of the concrete migration and already-merged backend deployment plans.
 ## 2026-10-07 — Phase O-2 landed: Drop Docs and Vault as fixed-price lines on the one checkout
 
 Class `A2_REMOTE_CODE` + `A3_PRODUCTION`, inside the standing grant. Review verdict
@@ -2985,6 +3028,17 @@ across its route sweep, so one navigation timeout hangs the process rather than 
 indistinguishable from a slow run. It passed on the second run after the stranded browser was
 cleared. Not caused by anything in this change; a `try`/`catch` per route is the harness's own
 fix.
+# Workspace rescan and final plan — 2026-10-08
+
+| Class | Target | Action/evidence | Rollback |
+|---|---|---|---|
+| A0_READ | origin/stack 57ff0e03 and GitHub checks | Fresh source checkout; 141 routes/81 handler sources; five current failed Actions logs diagnosed; PR243/244 remain open. | Read only |
+| A0_READ | AWS account 775261844268 / us-east-1 | Successful discovery of 75 functions, 376 routes, 76 integrations, 84 tables, 73 alarms, 16 metric filters; sampled aliases/pools and Amplify job1429 source match. No credentials/customer records or provider effects. | Read only |
+| A1_LOCAL | codex/workspace-rescan-20261008 | Final plan/flows, 105-route migration map, 36-case test matrix, sanitized metadata and repeatable static inventory. Bulk graphs stay in task outputs. | Remove research files |
+| A0_READ | Current-tree offline tests | 538 governance/catalog/module Python +411 checkout/document/order Python +245 frontend tests passed. 81 handler ASTs parsed. Reused dependency runtime; no full local suite/build claimed. | No production change |
+| A2_REMOTE_CODE | Separate rescan research branch | Explicit-path non-force documentation/evidence push and draft review. No production merge/deploy, MFA/provider/sends/payments/secret/SIP change. | Close draft/revert research commit |
+
+Current CI red checks remain release gates; this research does not bypass them or infer authorization from pasted retirement/API suggestions.
 
 
 ## 2026-10-08 — WhatsApp customer ideas
