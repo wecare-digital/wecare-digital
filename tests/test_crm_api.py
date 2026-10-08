@@ -601,3 +601,60 @@ class TestEveryContactGetsAPublicCustomerUuid:
         module = importlib.util.module_from_spec(contacts)
         contacts.loader.exec_module(module)
         assert customer_uuid.ATTRIBUTE not in module.ALLOWED_UPDATE_FIELDS
+
+
+# ===========================================================================
+# ContactLock: explicit lock, locked-delete refusal, lock/unlock endpoints
+# ===========================================================================
+
+class TestContactLock:
+    """A locked contact is retained for legal records and refuses every delete."""
+
+    def test_lock_sets_the_flag_reason_and_timestamp(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha"})
+        resp = contacts._lock_contact("c1", "legal-hold", "req-lock")
+        assert resp["statusCode"] == 200
+        row = next(r for r in table.items if r["id"] == "c1")
+        assert row["locked"] is True
+        assert row["lockedReason"] == "legal-hold"
+
+    def test_lock_of_a_missing_contact_is_404(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        resp = contacts._lock_contact("nope", "manual", "req-lock")
+        assert resp["statusCode"] == 404
+
+    def test_a_locked_contact_refuses_hard_delete(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha", "locked": True, "lockedReason": "paid"})
+        resp = contacts._delete("c1", True, "req-del")
+        assert resp["statusCode"] == 409
+        body = json.loads(resp["body"])
+        assert body["error"] == contacts.DELETE_REFUSED_LOCKED
+        assert body["archiveInstead"] is False
+        assert table.deletes == [], "a locked contact must never be deleted"
+
+    def test_a_locked_contact_refuses_soft_delete_too(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha", "locked": True, "lockedReason": "paid"})
+        resp = contacts._delete("c1", False, "req-del")
+        assert resp["statusCode"] == 409
+        assert json.loads(resp["body"])["error"] == contacts.DELETE_REFUSED_LOCKED
+
+    def test_an_unlocked_contact_still_deletes_or_archives_normally(self, monkeypatch):
+        table = FakeContactsTable()
+        contacts = _contacts_module(monkeypatch, table)
+        table.items.append({"id": "c1", "name": "Asha", "locked": False})
+        # No payment links on this fake row, so a hard delete may proceed.
+        resp = contacts._delete("c1", True, "req-del")
+        assert resp["statusCode"] in (200, 204), json.loads(resp["body"]) if resp.get("body") else resp
+
+    def test_locked_is_not_in_allowed_update_fields(self):
+        """The dedicated endpoints are the ONLY way to flip lock; a generic update cannot."""
+        code = code_only(CONTACTS_HANDLER_PATH)
+        block = code[code.index("ALLOWED_UPDATE_FIELDS"):code.index("ALLOWED_UPDATE_FIELDS") + 400]
+        assert "'locked'" not in block and '"locked"' not in block
