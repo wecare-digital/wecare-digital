@@ -3272,3 +3272,16 @@ Authority: owner's direct instruction to use the Wix API connection, automate Wi
 | A2_REMOTE_CODE | origin/stack | Scoped non-force push, merge concurrent remote commits; no unrelated unfinished checkout changes staged | Follow-up revert commit |
 
 Evidence and pending deployment checks: docs/whatsapp/catalog-design/connection-status.md and wix-media-update-evidence.json. No manual Meta catalog entries submitted, no live payment or customer message sent. AWS runtime inspection/deployment remains blocked by the earlier workspace-credit automatic-review failure; no alternate AWS path used.
+
+## 2026-10-08 - Live automatic Meta catalog rollout
+
+Authority: direct owner instruction DO THAT, use APIs, automate Wix changes, retain linked orders.
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | AWS account, live aliases, schedule, webhook IAM, Meta catalog | AWS MCP access restored; account 775261844268/us-east-1; readback verifies both variant images/prices/URLs | Read only |
+| A1_LOCAL | Sync handler, manifest/provisioner and regression tests | Feed-format batch mapping; strict validation/handle result; read-only inspection; two-variant scope; unrelated retirement excluded; 120 tests passed | Scoped revert |
+| A3_PRODUCTION | wecare-meta-catalog-sync | Code update, publish Active version 5, live alias moved 2 -> 5 (intermediate versions 3/4); owner-enabled sync limited to two out-of-stock variants | Move live alias back to version 2; restore closed flags on latest |
+| A3_PRODUCTION | Meta catalog 1607047307067517 | API-created Submit Request/Vault using stable Wix retailer IDs and CDN UHD artwork; live readback converged zero diff; foreign item preserved | Set scoped variants out of stock (already held), disable sync; do not delete identifiers held by carts |
+
+No payment capture/refund/config mutation, credential retrieval, or customer send. Native purchase/writeback remains pending owner QA and contract verification. Previous workspace-credit block is superseded by successful AWS MCP operations. Evidence: docs/whatsapp/catalog-design/catalog-live-evidence.json.
