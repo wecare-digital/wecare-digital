@@ -445,7 +445,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   // Pay
   { path: '/workspace/pay', label: 'Payments', backend: 'payments-read, razorpay-webhook, invoice-engine', tables: 'Payment, Invoice, InvoiceItem, RazorpayWebhookLog' },
   { path: '/workspace/pay/flow', label: 'Pay Flow', backend: 'invoice-engine, razorpay-webhook', tables: 'Invoice, InvoiceItem, InvoicePayment, InvoiceDeliveryLog' },
-  { path: '/workspace/pay/link', label: 'Pay Link', backend: 'invoice-engine', tables: 'Invoice, InvoiceSequence' },
+
   // Other
   { path: '/workspace/contacts', label: 'Contacts', backend: 'contacts', tables: 'Contact' },
   { path: '/workspace/commerce/catalog', label: 'Store', backend: 'wix-store, catalog-management, product-image-gen', tables: 'WixProductsCache, WixOrdersCache, CatalogCache, WixOrderId' },

@@ -14,8 +14,11 @@ interface IR { name: string; unitPrice: string; quantity: string; gstRate: strin
 
 const EMPTY_FORM = { name: '', phone: '', email: '', shippingAddress: '', billingAddress: '', addressLine1: '', addressLine2: '', city: '', state: '', postalCode: '', landmark: '', gstin: '', houseNumber: '', buildingName: '' };
 const NEW_ITEM = (): IR => ( { name: '', unitPrice: '', quantity: '1', gstRate: '18' } );
-const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '15', purpose: '', orderId: '' };
-const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 15, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ 'BNB Club', 'No Fault', 'Expo Week', 'Ritual Guru', 'Legal Champ', 'WECARE.DIGITAL', 'Gift Card', 'Service Fee', 'Consultation' ] };
+// Brand is hardcoded to the one brand this business invoices under. The multi-brand selector
+// (BNB Club, Ritual Guru, ...) was removed — WECARE.DIGITAL is the only brand.
+const BRAND = 'WECARE.DIGITAL';
+const EMPTY_INV = { items: [ NEW_ITEM() ] as IR[], shipping: '49', discount: '15', purpose: BRAND, orderId: '' };
+const DEF_CFG: FC = { default_gst_rate: 18, default_shipping: 49, default_promo: 15, gstin: DEFAULT_GSTIN || '19AAFFW7196L1Z8', default_item_name: 'Services/Goods', purposes: [ 'WECARE.DIGITAL' ] };
 const TABS: ShellTab[] = [
   { id: 'customers', label: 'Customers' },
   { id: 'create', label: 'Create' },
@@ -499,10 +502,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <div className="pf-form-grid">
                     <div className="form-group">
                       <label>Brand</label>
-                      <select value={ invForm.purpose } onChange={ e => setInvForm( { ...invForm, purpose: e.target.value } ) }>
-                        <option value="">{ '\u2014' } Select { '\u2014' }</option>
-                        { config.purposes.map( p => <option key={ p } value={ p }>{ p }</option> ) }
-                      </select>
+                      <input type="text" value="WECARE.DIGITAL" readOnly disabled />
                     </div>
                     <div className="form-group"><label>Order ID</label><input type="text" value={ invForm.orderId } onChange={ e => setInvForm( { ...invForm, orderId: e.target.value } ) } placeholder="Optional" /></div>
                   </div>
@@ -769,10 +769,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
               <div className="form-group"><label>Default Promo / Discount ({ '\u20B9' })</label><input type="number" value={ config.default_promo } onChange={ e => setConfig( { ...config, default_promo: parseFloat( e.target.value ) || 0 } ) } /></div>
               <div className="form-group"><label>GSTIN</label><input type="text" value={ config.gstin } onChange={ e => setConfig( { ...config, gstin: e.target.value } ) } /></div>
               <div className="form-group"><label>Default Item Name</label><input type="text" value={ config.default_item_name } onChange={ e => setConfig( { ...config, default_item_name: e.target.value } ) } /></div>
-              <div className="form-group">
-                <label>Brands (one per line)</label>
-                <textarea rows={ 6 } value={ config.purposes.join( '\n' ) } onChange={ e => setConfig( { ...config, purposes: e.target.value.split( '\n' ).filter( Boolean ) } ) } />
-              </div>
               <Button variant="primary" size="sm" loading={ configSaving } onClick={ () => { setConfigSaving( true ); try { localStorage.setItem( CFG_KEY, JSON.stringify( config ) ); } catch { } setTimeout( () => { setConfigSaving( false ); showMsg( 'Config saved' ); }, 300 ); } }>Save Config</Button>
             </div>
           ) }
@@ -794,10 +790,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                   <div className="form-group"><label>Phone</label><input type="tel" value={ editForm.customerPhone } onChange={ e => setEditForm( { ...editForm, customerPhone: e.target.value } ) } /></div>
                   <div className="form-group"><label>Email</label><input type="email" value={ editForm.customerEmail } onChange={ e => setEditForm( { ...editForm, customerEmail: e.target.value } ) } /></div>
                   <div className="form-group"><label>Brand</label>
-                    <select value={ editForm.purpose } onChange={ e => setEditForm( { ...editForm, purpose: e.target.value } ) }>
-                      <option value="">{ '—' } Select { '—' }</option>
-                      { config.purposes.map( p => <option key={ p } value={ p }>{ p }</option> ) }
-                    </select>
+                    <input type="text" value="WECARE.DIGITAL" readOnly disabled />
                   </div>
                   <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
                   <div className="form-group"><label>Promo / Discount ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>
