@@ -24,6 +24,7 @@ from decimal import Decimal
 import time
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
+from lambda_utils.agent import governance as gov
 
 # Configure logging
 from lambda_utils.logging import get_logger
@@ -537,22 +538,10 @@ def _get_languages(request_id: str) -> Dict[str, Any]:
 
 
 def _test_ai_response(body: Dict, request_id: str) -> Dict[str, Any]:
-    """Test AI response generation."""
-    message = body.get('message', '')
-    if not message:
+    """Refuse an unconfigured test rather than fabricate a generated response."""
+    if not isinstance(body.get('message'), str) or not body['message'].strip():
         return _error_response(400, 'Message is required')
-    
-    # This would invoke the AI generate function
-    # For now, return a placeholder
-    return {
-        'statusCode': 200,
-        'headers': cors_headers(origin),
-        'body': json.dumps({
-            'message': message,
-            'response': 'AI test response would appear here',
-            'detectedLanguage': 'en'
-        })
-    }
+    return _error_response(501, 'AI response testing is not configured. Use the internal assistant to test permitted read capabilities.')
 
 
 def _get_default_prompt(lang: str) -> str:
@@ -625,42 +614,35 @@ DEFAULT_INTERNAL_AI_CONFIG = {
     'temperature': 0.7,
     'systemPrompt': '''You are WECARE.DIGITAL's internal admin assistant.
 Help operators with:
-- Sending WhatsApp messages
-- Finding and managing contacts
+- Finding contacts and reviewing message history
+- Explaining requests that need a human operator
 - Checking message statistics
 - Answering questions about the platform''',
 }
 
 
 def _get_internal_config(request_id: str) -> Dict[str, Any]:
-    """Get Internal AI configuration (FloatingAgent)."""
+    """Read saved preferences and the executor's effective tool authority.
+
+    Preferences never enable a governed tool. This GET must not create a config
+    row, and a failed read must not look like a successful settings response.
+    """
     try:
-        config_table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-        response = config_table.get_item(Key={'id': 'ai_internal_config'})
-
-        if 'Item' in response:
-            config_value = response['Item'].get('configValue', '{}')
-            config = json.loads(config_value) if isinstance(config_value, str) else config_value
-        else:
-            config = DEFAULT_INTERNAL_AI_CONFIG.copy()
-            config_table.put_item(Item={
-                'id': 'ai_internal_config',
-                'configValue': json.dumps(config),
-                'updatedAt': Decimal(str(int(time.time())))
-            })
-
+        response = dynamodb.Table(SYSTEM_CONFIG_TABLE).get_item(Key={'id': 'ai_internal_config'})
+        value = response.get('Item', {}).get('configValue')
+        config = DEFAULT_INTERNAL_AI_CONFIG.copy() if value is None else (
+            json.loads(value) if isinstance(value, str) else value)
+        if not isinstance(config, dict):
+            raise ValueError('Stored internal configuration must be an object')
         return {
             'statusCode': 200,
             'headers': cors_headers(origin),
-            'body': json.dumps({'config': config})
+            'body': json.dumps({'config': config,
+                                'toolCapabilities': gov.catalog_summary(gov.SURFACE_INTERNAL)})
         }
-    except Exception as e:
-        logger.error(f'Failed to get internal AI config: {str(e)}')
-        return {
-            'statusCode': 200,
-            'headers': cors_headers(origin),
-            'body': json.dumps({'config': DEFAULT_INTERNAL_AI_CONFIG})
-        }
+    except Exception:
+        logger.warning('Internal AI configuration read failed: %s', request_id)
+        return _error_response(503, 'Internal agent settings are temporarily unavailable')
 
 
 def _update_internal_config(body: Dict, request_id: str) -> Dict[str, Any]:

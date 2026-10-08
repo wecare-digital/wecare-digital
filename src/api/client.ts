@@ -1334,9 +1334,9 @@ export async function getDashboardStats (): Promise<DashboardStats> {
 // ============================================================================
 
 export interface SystemHealth {
-  whatsapp: { status: 'active' | 'warning' | 'error'; phoneNumbers: number; qualityRating: string };
+  whatsapp: { status: 'active' | 'warning' | 'error'; phoneNumbers: number | null; qualityRating: string };
   sms: { status: 'active' | 'warning' | 'error'; poolId: string };
-  email: { status: 'active' | 'warning' | 'error'; verified: boolean };
+  email: { status: 'active' | 'warning' | 'error'; verified: boolean | null };
   ai: {
     status: 'active' | 'warning' | 'error';
     kbId?: string;
@@ -1347,25 +1347,17 @@ export interface SystemHealth {
     externalAgentId?: string;
     externalAgentAlias?: string;
   };
-  dlq: { depth: number; oldestMessage?: string };
+  dlq: { depth: number | null; oldestMessage?: string };
 }
 
 export async function getSystemHealth (): Promise<SystemHealth> {
-  // Defaults (used as fallback if any call fails)
+  // Missing evidence stays unknown; a failed read cannot certify healthy services.
   const defaults: SystemHealth = {
-    whatsapp: { status: 'active', phoneNumbers: 2, qualityRating: 'GREEN' },
-    sms: { status: 'active', poolId: 'TBD' },
-    email: { status: 'active', verified: true },
-    ai: {
-      status: 'active',
-      internalKbId: 'static-faq',
-      internalAgentId: '4UUQYFWX64',
-      internalAgentAlias: 'TSTALIASID',
-      externalKbId: 'static-faq',
-      externalAgentId: '4UUQYFWX64',
-      externalAgentAlias: 'TSTALIASID'
-    },
-    dlq: { depth: 0 },
+    whatsapp: { status: 'warning', phoneNumbers: null, qualityRating: 'UNKNOWN' },
+    sms: { status: 'warning', poolId: '' },
+    email: { status: 'warning', verified: null },
+    ai: { status: 'warning' },
+    dlq: { depth: null },
   };
 
   try
@@ -1380,7 +1372,8 @@ export async function getSystemHealth (): Promise<SystemHealth> {
     // DLQ depth
     if ( dlqData )
     {
-      defaults.dlq.depth = dlqData.count ?? dlqData.messages?.length ?? 0;
+      defaults.dlq.depth = Number.isInteger( dlqData.count ) && dlqData.count >= 0
+        ? dlqData.count : Array.isArray( dlqData.messages ) ? dlqData.messages.length : null;
       if ( dlqData.messages?.length > 0 )
       {
         defaults.dlq.oldestMessage = dlqData.messages[ dlqData.messages.length - 1 ]?.lastAttemptAt
@@ -1402,9 +1395,20 @@ export async function getSystemHealth (): Promise<SystemHealth> {
     // WABA phone quality from waba endpoint
     if ( wabaData && Array.isArray( wabaData.wabas ) )
     {
-      defaults.whatsapp.phoneNumbers = wabaData.wabas.reduce(
-        ( sum: number, w: any ) => sum + ( w.phoneNumbers?.length ?? 0 ), 0
-      ) || defaults.whatsapp.phoneNumbers;
+      const phones = wabaData.wabas.flatMap( ( w: any ) =>
+        Array.isArray( w.phoneNumbers ) ? w.phoneNumbers : [] );
+      defaults.whatsapp.phoneNumbers = phones.length;
+      const ratings = phones.map( ( phone: any ) => phone.qualityRating )
+        .filter( ( rating: unknown ) => typeof rating === 'string' && rating.length > 0 );
+      defaults.whatsapp.qualityRating = ratings.length === phones.length && ratings.length > 0
+        ? [...new Set( ratings )].join( ', ' ) : 'UNKNOWN';
+      if ( phones.length > 0 && ratings.every( ( rating: string ) => rating === 'GREEN' )
+        && ratings.length === phones.length && !billingData?.health?.openIssues
+        && billingData?.health?.status !== 'issues' )
+      {
+        defaults.whatsapp.status = 'active';
+      }
+
     }
   } catch
   {
@@ -3409,33 +3413,15 @@ export async function listScheduledMessages ( status?: string ): Promise<Schedul
 
 /**
  * Cancel a scheduled message
- * API: DELETE /messages/scheduled/{scheduledId}
+ * API: DELETE /scheduled?scheduledId={scheduledId}
  */
 export async function cancelScheduledMessage ( scheduledId: string ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/scheduled/${scheduledId}`, {
+  const data = await apiCall<any>( `${API_BASE}/scheduled?scheduledId=${encodeURIComponent( scheduledId )}`, {
     method: 'DELETE',
   } );
-  return data?.success === true || data !== null;
+  return data?.success === true;
 }
 
-/**
- * Update a scheduled message
- * API: PUT /messages/scheduled/{scheduledId}
- */
-export async function updateScheduledMessage ( scheduledId: string, updates: {
-  scheduledAt?: string;
-  templateParams?: string[];
-} ): Promise<ScheduledMessage | null> {
-  const data = await apiCall<any>( `${API_BASE}/scheduled/${scheduledId}`, {
-    method: 'PUT',
-    body: JSON.stringify( updates ),
-  } );
-  if ( data )
-  {
-    return normalizeScheduledMessage( data );
-  }
-  return null;
-}
 
 function normalizeScheduledMessage ( item: any ): ScheduledMessage {
   return {

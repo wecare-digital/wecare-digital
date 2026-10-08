@@ -24,9 +24,7 @@
  *     got Next's bare built-in shell - no header, no footer, no widget, no links at all.
  *     Removing src/app/ is what lets the real 404 page render.
  *
- * Nothing linked here: it is absent from src/config/navigation.ts and from every other file
- * in the repo. It is reachable only by typing the URL, which is why none of the above
- * surfaced until the chrome coverage of every route was checked.
+ * The settings navigation links to this page from src/config/navigation.ts.
  */
 import React, { useState, useEffect } from 'react';
 import Layout from '../../../components/Layout';
@@ -34,18 +32,9 @@ import SEO from '../../../components/SEO';
 import Select, { type SelectOption } from '../../../components/ui/Select';
 import * as api from '../../../api/client';
 
-/*
- * The two option lists, hoisted. Same order, same values, same visible text as the <option>
- * rows they replaced - INCLUDING the duplicated `amazon.nova-pro-v1:0`, which was already
- * there and is left exactly as it was. Select's clause 4 is "the first wins for display",
- * with a development-only warning carrying a count and no option text, so the behaviour is
- * the same as the native control's and the duplicate is now reported rather than silent.
- * Correcting it is a product decision about which model "Balanced" should name, not a
- * migration.
- */
+/* Each model id appears once so the selected label identifies one model. */
 const MODEL_OPTIONS: SelectOption[] = [
-  { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro (Fast, Cost-effective)' },
-  { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro (Balanced)' },
+  { value: 'amazon.nova-pro-v1:0', label: 'Amazon Nova Pro' },
   { value: 'amazon.nova-premier-v1:0', label: 'Amazon Nova Premier (Advanced)' },
   { value: 'anthropic.claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Premium)' },
 ];
@@ -66,28 +55,38 @@ interface AgentConfig {
   temperature: number;
   maxTokens: number;
   sessionTimeout: number;
-  enabledTools: string[];
   defaultChannel: string;
   autoSearch: boolean;
   conversationHistory: boolean;
 }
 
-const AVAILABLE_TOOLS = [
-  { id: 'search_contacts', name: 'Search Contacts', category: 'Contact Management' },
-  { id: 'create_contact', name: 'Create Contact', category: 'Contact Management' },
-  { id: 'update_contact', name: 'Update Contact', category: 'Contact Management' },
-  { id: 'send_whatsapp', name: 'Send WhatsApp Text', category: 'WhatsApp' },
-  { id: 'send_whatsapp_buttons', name: 'Send Interactive Buttons', category: 'WhatsApp' },
-  { id: 'make_voice_call', name: 'Make Voice Call (TTS)', category: 'Voice' },
-  { id: 'send_sms', name: 'Send SMS', category: 'SMS' },
-  { id: 'send_email', name: 'Send Email', category: 'Email' },
-  { id: 'get_messages', name: 'Get Message History', category: 'Analytics' },
-  { id: 'get_stats', name: 'Get Dashboard Stats', category: 'Analytics' },
-  { id: 'schedule_message', name: 'Schedule Message', category: 'Advanced' },
-  { id: 'list_scheduled_messages', name: 'List Scheduled Messages', category: 'Advanced' },
-  { id: 'list_templates', name: 'List Templates', category: 'Templates' },
-  { id: 'send_template', name: 'Send Template Message', category: 'Templates' },
-];
+interface ToolCapability { class: string; summary?: string; reason?: string }
+interface ToolCapabilities {
+  enabled: Record<string, ToolCapability>;
+  refused: Record<string, ToolCapability>;
+}
+
+/* Missing or malformed authority must never inherit enabled tools from saved preferences. */
+function readCapabilities(value: unknown): ToolCapabilities | null {
+  if (!value || typeof value !== 'object') return null;
+  const catalog = value as Partial<ToolCapabilities>;
+  for (const group of ['enabled', 'refused'] as const) {
+    const entries = catalog[group];
+    if (!entries || typeof entries !== 'object' || Array.isArray(entries)) return null;
+    for (const tool of Object.values(entries)) {
+      if (!tool || typeof tool !== 'object' || typeof tool.class !== 'string') return null;
+      if (group === 'enabled' && typeof tool.summary !== 'string') return null;
+      if (group === 'refused' && typeof tool.reason !== 'string') return null;
+    }
+  }
+  if (Object.keys(catalog.enabled!).some(name => name in catalog.refused!)) return null;
+  return catalog as ToolCapabilities;
+}
+
+function toolName(name: string): string {
+  return name.replace(/_/g, ' ').replace(/\bwhatsapp\b/g, 'WhatsApp')
+    .replace(/\bsms\b/g, 'SMS').replace(/^./, letter => letter.toUpperCase());
+}
 
 const DEFAULT_CONFIG: AgentConfig = {
   enabled: true,
@@ -95,7 +94,6 @@ const DEFAULT_CONFIG: AgentConfig = {
   temperature: 0.7,
   maxTokens: 2048,
   sessionTimeout: 15,
-  enabledTools: AVAILABLE_TOOLS.map(t => t.id),
   defaultChannel: 'whatsapp',
   autoSearch: true,
   conversationHistory: true,
@@ -109,20 +107,30 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [toolCapabilities, setToolCapabilities] = useState<ToolCapabilities | null>(null);
 
   // apiCallResult, not a bare fetch: it attaches the Cognito bearer token and retries a 401
   // once with a refreshed one. The previous bare fetch sent no token, so this screen 401'd
   // on every load even for a signed-in operator - it could never have shown real config.
   const loadConfig = async () => {
     try {
-      const result = await api.apiCallResult<{ config?: Partial<AgentConfig> }>( AGENT_CONFIG_URL );
+      const result = await api.apiCallResult<{ config?: Partial<AgentConfig>; toolCapabilities?: unknown }>( AGENT_CONFIG_URL );
       if ( result.ok ) {
-        setConfig( { ...DEFAULT_CONFIG, ...( result.data?.config || {} ) } );
+        const saved = result.data?.config || {};
+        const next = { ...DEFAULT_CONFIG };
+        // Only actual settings travel back on save; legacy enabledTools is not authority.
+        for (const key of Object.keys(DEFAULT_CONFIG) as (keyof AgentConfig)[]) {
+          if (typeof saved[key] === typeof next[key]) Object.assign(next, { [key]: saved[key] });
+        }
+        setConfig(next);
+        setToolCapabilities(readCapabilities(result.data?.toolCapabilities));
       } else {
+        setToolCapabilities(null);
         setMessage( `Could not load settings: ${result.failure.message}` );
       }
     } catch (error) {
       console.error('Failed to load config:', error);
+      setToolCapabilities(null);
       setMessage( 'Could not load settings.' );
     } finally {
       setLoading(false);
@@ -157,29 +165,6 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
       setSaving(false);
     }
   };
-
-  const toggleTool = (toolId: string) => {
-    setConfig(prev => ({
-      ...prev,
-      enabledTools: prev.enabledTools.includes(toolId)
-        ? prev.enabledTools.filter(id => id !== toolId)
-        : [...prev.enabledTools, toolId]
-    }));
-  };
-
-  const toggleCategory = (category: string) => {
-    const categoryTools = AVAILABLE_TOOLS.filter(t => t.category === category).map(t => t.id);
-    const allEnabled = categoryTools.every(id => config.enabledTools.includes(id));
-    
-    setConfig(prev => ({
-      ...prev,
-      enabledTools: allEnabled
-        ? prev.enabledTools.filter(id => !categoryTools.includes(id))
-        : [...new Set([...prev.enabledTools, ...categoryTools])]
-    }));
-  };
-
-  const categories = [...new Set(AVAILABLE_TOOLS.map(t => t.category))];
 
   if (loading) {
     return (
@@ -336,53 +321,37 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
           </div>
         </div>
 
-        {/* Tool Capabilities */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Tool Capabilities</h2>
-          <p className="text-sm text-gray-600 mb-4">Enable or disable specific agent capabilities</p>
-
-          <div className="space-y-6">
-            {categories.map(category => {
-              const categoryTools = AVAILABLE_TOOLS.filter(t => t.category === category);
-              const allEnabled = categoryTools.every(t => config.enabledTools.includes(t.id));
-              const someEnabled = categoryTools.some(t => config.enabledTools.includes(t.id));
-
-              return (
-                <div key={category} className="border-b border-gray-200 pb-4 last:border-0">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-gray-900">{category}</h3>
-                    <button
-                      onClick={() => toggleCategory(category)}
-                      className={`px-3 py-1 rounded text-sm font-medium ${
-                        allEnabled
-                          ? 'bg-green-100 text-green-700'
-                          : someEnabled
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-gray-100 text-gray-700'
-                      }`}
-                    >
-                      {allEnabled ? 'All Enabled' : someEnabled ? 'Partial' : 'All Disabled'}
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {categoryTools.map(tool => (
-                      <label key={tool.id} className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={config.enabledTools.includes(tool.id)}
-                          onChange={() => toggleTool(tool.id)}
-                          className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
-                        />
-                        <span className="text-sm text-gray-700">{tool.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        {/* The executor's catalog is displayed, never edited as a saved preference. */}
+        <section className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6" aria-labelledby="tool-capabilities-heading">
+          <h2 id="tool-capabilities-heading" className="text-lg font-semibold text-gray-900 mb-4">Tool Capabilities</h2>
+          <p className="text-sm text-gray-600 mb-4">Current permissions come from the assistant. Saving preferences does not enable an action.</p>
+          {!toolCapabilities ? (
+            <p role="status">Capability status unavailable. No actions are shown as enabled.</p>
+          ) : (
+            <>
+              <h3>Available actions</h3>
+              {Object.keys(toolCapabilities.enabled).length === 0 ? (
+                <p>No actions are currently enabled.</p>
+              ) : (
+                <ul>
+                  {Object.entries(toolCapabilities.enabled).map(([name, tool]) => (
+                    <li key={name}><strong>{toolName(name)}</strong>: {tool.summary}</li>
+                  ))}
+                </ul>
+              )}
+              <h3>Unavailable actions</h3>
+              {Object.keys(toolCapabilities.refused).length === 0 ? (
+                <p>No refused actions were reported.</p>
+              ) : (
+                <ul>
+                  {Object.entries(toolCapabilities.refused).map(([name, tool]) => (
+                    <li key={name}><strong>{toolName(name)}</strong>: {tool.reason}</li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </section>
 
         {/* Usage Stats */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -406,7 +375,7 @@ export default function InternalAgentSettings ( { signOut, user }: PageProps ) {
         {/* Save Button */}
         <div className="flex justify-end space-x-3">
           <button
-            onClick={loadConfig}
+            onClick={() => { setToolCapabilities(null); loadConfig(); }}
             className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
           >
             Reset

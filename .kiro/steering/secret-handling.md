@@ -40,8 +40,10 @@ committed, and it reports one hit: the **Plivo AUTH ID**, added by `3eaead21`
 **Correction, 2026-10-01: the footprint is far larger than one auth id, and the
 "the token has never been committed" claim above is FALSE.** The healthcheck only
 compares against a narrow value set; the deeper `scripts/scan_repo_secrets.py`
-loads every field of every `wecare/*` secret from live Secrets Manager and
-compares it against the working tree and every blob ever committed. Run
+historically loaded live secret fields and compared them with the working tree
+and history. That old mode is prohibited for agents. The current scanner uses
+secret metadata and issuer-shaped patterns only; it cannot revalidate prefixless
+values or prove that historical exposures were rotated. Historical run
 2026-10-01 (10,149 blobs, 447 MB scanned, 0 errors), it reports **80 credential
 occurrences across six distinct live secret values in git history**, plus one in
 the current working tree. Values are never printed; only paths, counts and commit
@@ -72,12 +74,14 @@ Do not "fix" this with a history rewrite. A rewrite plus force push is explicitl
 prohibited, and — decisively — scrubbing history **before** rotating is theatre:
 the values must be rotated first, and rotation is deferred, so history cleanup is
 correctly blocked until then. The correct state is: recorded, understood, rotation
-pending at project close. What matters is that the scanner keeps reporting all six
-rather than being taught to ignore them — do **not** allowlist these fingerprints,
-so that any *new* secret landing in a blob is still distinguishable from this known
-set. Re-measure with `python scripts/scan_repo_secrets.py` (needs the `.venv`
-interpreter for `boto3`); do not rely on the narrower healthcheck for the history
-verdict.
+pending at project close. Preserve the historical exposure evidence and do not
+allowlist known exposures to obtain a clean result. The current
+`python scripts/scan_repo_secrets.py` performs **metadata and issuer-shape scanning
+only**, without fetching secret values. Its shape verdict is not an exact-value
+comparison and does not certify credential rotation or a clean secret history.
+Review metadata errors separately from the tree/history shape result. The owner
+must verify prefixless exposed families and perform the existing rotation runbook.
+Agents must never run a value-fetching historical scanner mode.
 
 ## The rule
 

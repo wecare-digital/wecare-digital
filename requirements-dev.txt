@@ -18,7 +18,7 @@
 #                       sso-session in ~/.aws/config makes botocore load its
 #                       login credential provider at import time.
 #   pydantic-core     - cannot be bumped independently; pydantic==2.13.5 (the
-#                       current release) hard-pins pydantic-core==2.49.0, so
+#                       current release) hard-pins pydantic-core==2.46.5, so
 #                       `pip list --outdated` reporting 2.49.0 is a false
 #                       positive.
 #   facebook_business - Meta's official SDK, targets Graph v26.0. Currently

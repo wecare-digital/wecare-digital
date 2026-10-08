@@ -465,7 +465,7 @@ const FRONTEND_ROUTES: FrontendRoute[] = [
   // in src/pages, so listing it here described a route that 404s - and this table is read
   // as the map of what the system actually serves. Header.test.tsx separately guards
   // "Studio" out of the public menu.
-  { path: '/workspace/task', label: 'Task', backend: '(coming soon)', tables: '-' },
+  { path: '/workspace/task', label: 'Task', backend: 'conversation-meta', tables: 'ConversationMetaTable' },
 ];
 
 // ─── Data: Code Map ───

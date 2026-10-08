@@ -82,13 +82,10 @@ These are different credentials and are handled differently:
 
 ## Reference implementation
 
-Wix's own Next.js minimal examples are vendored at
-[`docs/reference/wix-headless-nextjs/`](reference/wix-headless-nextjs/) so the patterns are
-readable without a network round trip. Fetched from
-[wix/headless-templates](https://github.com/wix/headless-templates) (`nextjs/minimal-examples`).
-
-Two files were dropped: `yarn.lock`, and a 2.9 MB vendored `yarn` binary under `.yarn/` —
-a package-manager executable is not reference material.
+Wix's Next.js minimal examples are available in
+[wix/headless-templates](https://github.com/wix/headless-templates)
+(`nextjs/minimal-examples`). This checkout does not contain the previously referenced
+`docs/reference/wix-headless-nextjs/` directory.
 
 The pattern it establishes, which is what we should follow:
 

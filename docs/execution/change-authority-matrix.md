@@ -3374,3 +3374,19 @@ A1_LOCAL/A3_PRODUCTION: complete the absent coupon service using its existing ad
 A1_LOCAL/A3_PRODUCTION: full-suite catalog regressions fixed without changing release flags: stale/None list IDs return the existing main-menu path; native session linkage occurs only after the initiation gate. Redeploy only invoice, checkout and inbound handlers with fresh rollback/revision guards. Coupon staff role membership is scoped to the existing staff pool. A dedicated create-only coupon function provisioner closes the previously missing creation step; ordinary package validation precedes any creation.
 
 2026-10-08 owner explicitly approved completing publication of WD_Submit_Request_Paid_v1 (1107164111921876). First publication returned Meta 139002/4233013: no application connected. A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION: allow Flow metadata update to attach only the configured WECARE Meta app; reject arbitrary app IDs. Include application metadata on readback. Capture business API live rollback 76 and revision before deployment. A3 provider publication scope is the exact approved Flow only; preserve JSON/endpoint, payment configuration and other Flows.
+
+
+## 2026-10-08 - pending audit source corrections
+
+Class A1_LOCAL / A2_REMOTE_CODE. Baseline 88856c1936d58c86f1d379deab0e5059406d635e. Lead owns only the explicit paths recorded in the resolution commit; ten previously modified foreign paths are preserved by hash checks. No AWS write or credential change.
+
+- Correct scheduled cancellation to existing root DELETE query contract, require explicit success, and remove unused unsupported update client export (zero source consumers). Backend update implementation remains preserved.
+- Internal assistant greeting/model/Task/docs are truthful; effective tool catalogue comes from executor governance, never saved enabledTools. GET preferences is read-only and fails clearly on storage failure. Unconfigured AI test returns501 instead of fabricated200.
+- Failed service-health reads remain unknown/warning; no fake provider IDs, GREEN quality or zero DLQ claim. Failed invoice PDF rendering returns retryable503 before S3/signing/assets; no placeholder financial document published.
+- Scoped xcode UUID11.1.1 override removes moderate audit chain; five braces-related high entries remain with no published upstream patch. No forced Next/ESLint downgrade.
+- Preserve foreign metadata-only scanner correction; steering now distinguishes historical exact-value evidence from current shape-only scans. Remove four clean tracked zero-byte files (no/nothing/sweep/components.module.css).
+- Add read-only-by-default customer log retention tool. Apply requires exact wecare-admin principal, exact named groups, no existing-policy conflict and log-group age below30days, then verifies. Current root identity prevents apply.
+
+Evidence: full integrated offline Python gate10134passed/6skipped/3xfail, frontend1583passed/2skipped, typecheckPASS, lint0errors197warnings, static export1521pages, blog/schemaPASS; new retention guard4casesPASS. Unit tests use dummy credentials and denied network transports; no live provider/payment/customer journey certification.
+
+Rollback: revert only this commit's named source paths through a normal forward commit; zero-byte files restore from baseline Git. No force/history rewrite. Retention is not applied; its future rollback would restore prior policy from the read-only plan, with actual change ownership and timestamp recorded first.

@@ -2499,8 +2499,6 @@ def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
     )
     items = sorted(items_resp.get('Items', []), key=lambda x: int(x.get('itemIndex', 0)))
 
-    html = _build_invoice_html(invoice, items)
-
     # Primary: render receipt PNG and convert to PDF via PIL
     try:
         from PIL import Image as PILImage
@@ -2511,12 +2509,20 @@ def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
         pdf_buf = io.BytesIO()
         png_img.save(pdf_buf, format='PDF', resolution=150)
         pdf_bytes = pdf_buf.getvalue()
-    except Exception as e:
-        logger.warning(f"PIL PDF render failed: {e}, using fallback")
-        try:
-            pdf_bytes = _render_html_to_pdf(html)
-        except Exception:
-            pdf_bytes = _generate_html_pdf_fallback(html)
+    except Exception as exc:
+        # An incomplete document must never become a successful PDF asset. Log
+        # only the failure type: render exceptions can include customer fields.
+        logger.warning(json.dumps({
+            'event': 'invoice_pdf_render_failed',
+            'errorType': type(exc).__name__,
+            'requestId': request_id,
+        }))
+        return _resp(503, {
+            'error': 'Invoice PDF rendering is temporarily unavailable',
+            'code': 'INVOICE_PDF_RENDER_FAILED',
+            'retryable': True,
+            'help': 'Retry PDF generation, or use the existing invoice HTML or image view.',
+        })
 
     ref_id = invoice.get('referenceId', invoice_id)
     s3_key = f"{INVOICE_PREFIX}wecare-digital-{ref_id}.pdf"
@@ -2547,59 +2553,6 @@ def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
 
     logger.info(json.dumps({'event': 'invoice_pdf_generated', 'invoiceId': invoice_id, 'url': pdf_url, 'requestId': request_id}))
     return _resp(200, {'invoiceId': invoice_id, 'pdfUrl': pdf_url, 's3Key': s3_key})
-
-
-def _render_html_to_pdf(html: str) -> bytes:
-    """Render HTML to PDF. Uses PIL image-to-PDF as primary approach."""
-    raise ImportError("Use image-based PDF approach")
-
-
-def _generate_html_pdf_fallback(html: str) -> bytes:
-    """Generate a minimal placeholder PDF. Real PDF uses image-based approach."""
-    html_bytes = html.encode('utf-8')
-
-    # Minimal PDF structure
-    pdf_content = b"""%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842]
-   /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-
-4 0 obj
-<< /Length """ + str(len(b"BT /F1 14 Tf 50 780 Td (INVOICE) Tj ET BT /F1 10 Tf 50 750 Td (Please view the HTML version for full invoice details.) Tj ET BT /F1 10 Tf 50 730 Td (Download the image version for a formatted view.) Tj ET")).encode() + b""" >>
-stream
-BT /F1 14 Tf 50 780 Td (INVOICE) Tj ET BT /F1 10 Tf 50 750 Td (Please view the HTML version for full invoice details.) Tj ET BT /F1 10 Tf 50 730 Td (Download the image version for a formatted view.) Tj ET
-endstream
-endobj
-
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000266 00000 n 
-0000000206 00000 n 
-
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-0
-%%EOF"""
-
-    return pdf_content
 
 
 # ─── Send Pending Invoices by Phone (instant pay flow) ───
