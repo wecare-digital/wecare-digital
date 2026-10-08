@@ -348,7 +348,14 @@ def test_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(mo
     assert request["amountPaise"] == line_paise and type(request["amountPaise"]) is int
     assert request["currency"] == "INR"
     assert request["targetPublicRequestId"] == target
-    assert len(lam.calls) == 3
+    # SIX hints across three deliveries: `dispatch_activation` fires TWO per reconciled order -
+    # `activateServiceRequest` and, since the paid Submit Request form landed,
+    # `preparePaidSubmitRequest`. Enumerated by target rather than as a bare total, so a third
+    # hint on a money-path dispatcher fails here until somebody names it. Three deliveries still
+    # produce ONE claim, ONE order and ONE request above: the hints are idempotent because the
+    # receiver re-reads every id, not because the webhook sends fewer of them.
+    assert lam.targets() == ["wecare-service-requests:live",
+                             "wecare-whatsapp-business-api:live"] * 3, lam.targets()
     # Every provider request the path made, at the HTTP seam: reads of the one payment only.
     assert set(razorpay.calls) == {("GET", "/payments/pay_LIVE0000000001")}, razorpay.calls
 
