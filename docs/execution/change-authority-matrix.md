@@ -2952,3 +2952,8 @@ fix.
 Storage: stack-wecare-digital-FlowSubmissionTable holds the authoritative idea; stack-wecare-digital-SubmitRequestsTable holds a stable flow_log contact activity projection. Both already exist, role access verified; no schema/IAM mutation. Trusted webhook sender resolves the contact, never handset-supplied IDs. Duplicate delivery repairs the activity projection. No outbound messaging, public review, payment, or sales-lead creation.
 
 Meta Flow 1578178897413815 remains a saved draft. Interactive preview validates required input, navigation, preserved thought and Submit completion. Removed explicit 500 character limit; native Meta limit still applies. Real WhatsApp-to-storage QA is WAITING_FOR_OWNER: supply an authorised test recipient. Preview completion is not evidence of a production submission. No real customer messages sent.
+
+
+### 2026-10-08 — Balanced Flow brand lockup
+
+A1_LOCAL / A2_REMOTE_CODE: owner supplied website screenshot as the brand proportion reference. Enlarged the Inter ExtraBold wordmark from 43px to 56px, increased the icon-to-wordmark gap, vertically centred both lines, retained the red dot. Updated both embedded Flow banners. Structural comparison confirms all form fields, routing and completion payload remain identical. Meta Run validates zero errors and Save persists the draft. Rollback: revert this asset-only commit. No Lambda or frontend source change.
