@@ -263,3 +263,19 @@ serve production - then re-export the env record with `python scripts/env_manife
 The fixed payment-template header `wecarepay-header.png` is a **separate** artifact and is not
 touched by any of this. Meta refetches an approved template's header from its URL at send time
 and an approved body cannot be edited in place, so that URL stays exactly as it is.
+
+
+## 2026-10-08 current owner approval and release decision
+
+The owner explicitly selected invoice-sample-real-v6.png as the invoice appearance.
+That supersedes section 4.1's default-OFF proposal and its deferred typography.
+The single wecare-invoice-engine renderer now uses the packaged DotGothic16 font,
+monochrome torn-paper layout, transparent PNG, and PDF composited onto white.
+Invoice number and source remain printed; customer identifiers are validated and
+never minted by rendering. All figures come from the stored invoice, not the sample.
+RECEIPT_TRANSPARENT_BG defaults to true; an explicit false is an appearance rollback.
+WhatsApp receives the same-engine PDF as a document to avoid image re-encoding
+flattening transparency into a black border. The fixed payment-template header is unchanged.
+Native invoice collection remains single-tender: a verified gift-card balance is
+not a debit. Split-tender native sends refuse before reserving or sending until an
+authoritative gift-card settlement producer is implemented. No live-send flag is enabled.

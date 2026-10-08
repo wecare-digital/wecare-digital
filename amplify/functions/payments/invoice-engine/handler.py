@@ -167,15 +167,11 @@ CDN_DOMAIN = os.environ.get('CDN_DOMAIN', media_paths.CDN_DOMAIN)
 def _transparent_receipt_enabled() -> bool:
     """Is the approved transparent torn-paper receipt appearance switched on?
 
-    Default OFF: absent from the environment means the receipt keeps the grey
-    (200, 200, 200) backdrop it has today, so nothing a customer sees changes until
-    the owner deliberately sets `RECEIPT_TRANSPARENT_BG` on `wecare-invoice-engine`.
-
-    Read at CALL time, never at module scope. A module-scope read is cached for the
-    life of the execution environment, so a configuration change would not take
-    effect until every warm sandbox recycled (.kiro/steering/lambda-snapstart-deploy.md).
+    Default ON following the owner's explicit approval of invoice-sample-real-v6.png.
+    Set RECEIPT_TRANSPARENT_BG=false only to restore the legacy appearance.
+    Read at call time so warm environments do not cache a layout decision.
     """
-    return os.environ.get('RECEIPT_TRANSPARENT_BG', 'false').strip().lower() in (
+    return os.environ.get('RECEIPT_TRANSPARENT_BG', 'true').strip().lower() in (
         '1', 'true', 'yes', 'on')
 
 
@@ -1804,6 +1800,16 @@ def _generate_receipt_png(invoice: Dict, items: List[Dict]) -> bytes:
     # byte-for-byte.
     transparent = _transparent_receipt_enabled()
 
+    if transparent:
+        from pathlib import Path
+        import receipt_layout
+        return receipt_layout.render(
+            invoice, items, company=COMPANY,
+            font_path=Path(__file__).parent / 'fonts' / 'DotGothic16-Regular.ttf',
+            ist_strftime=_ist_strftime, canonical_status=pay_status.canonical,
+            amount_in_words=_amount_in_words, customer_id=_customer_id(invoice),
+            source_label=_source_label(invoice))
+
     # ── Font setup (monospace — download DejaVu Sans Mono from S3 on Lambda) ──
     _font_cache = getattr(_generate_receipt_png, '_font_cache', {})
     _generate_receipt_png._font_cache = _font_cache
@@ -2752,6 +2758,15 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             'errorCode': 'FULLY_COVERED_NO_GATEWAY',
         })
 
+    # Native collection currently settles one gateway tender. A verified balance is not
+    # a debit: do not reduce the collection or mark a split-tender invoice paid before
+    # an authoritative gift-card settlement producer exists for this invoice path.
+    if invoice.get(gift_card_settlement.REQUIRED_PAISE_ATTR):
+        return _resp(409, {
+            'error': 'Gift-card settlement is not yet available for native invoice collection',
+            'errorCode': 'GIFT_CARD_NATIVE_SETTLEMENT_UNAVAILABLE',
+        })
+
     customer_phone = invoice.get('customerPhone', '')
     if not customer_phone:
         return _resp(400, {'error': 'No customer phone on invoice'})
@@ -2850,6 +2865,7 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             subtotal_paise += line_paise
             order_items.append(entry)
 
+        gift_card_paise = 0  # split tender is refused before any reservation above
         discount_paise = _paise(invoice.get('discount', 0))
         shipping_paise = _paise(invoice.get('shipping', 0))
         # GST (tax) and convenience fee are already computed on the invoice. The
@@ -3542,7 +3558,7 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
 
 def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
                           request_id: str, *, force: bool = False) -> Dict:
-    """Send invoice image via WhatsApp. Calls outbound-whatsapp Lambda.
+    """Send the approved invoice as a PDF document via outbound-whatsapp.
 
     `force` is KEYWORD-ONLY and defaults to `False`, and that shape is the whole safety property:
     a caller that has never heard of `force` gets the idempotent behaviour, which is every caller
@@ -3610,25 +3626,30 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             'why': why, 'requestId': request_id,
         }))
 
-    # Ensure image exists, generate if not
+    # WhatsApp image transport can re-encode PNG and discard transparency. The approved
+    # receipt is sent as PDF, flattened onto white by this same engine, so its appearance
+    # survives delivery. Explicit legacy-layout rollback retains the prior image transport.
+    approved_layout = _transparent_receipt_enabled()
+    asset_type = 'pdf' if approved_layout else 'image'
     assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
     try:
-        asset_resp = assets_table.get_item(Key={'invoiceId': invoice_id, 'assetType': 'image'})
+        asset_resp = assets_table.get_item(Key={'invoiceId': invoice_id, 'assetType': asset_type})
         asset = asset_resp.get('Item')
     except Exception:
         asset = None
 
-    if not asset or not asset.get('url'):
+    if not asset or not asset.get('s3Key'):
         # Generate image first
         # NOTE: an absent asset row is NOT a refusal. The engine renders it here and proceeds -
         # that behaviour is correct and must not be "fixed" into a refusal, because it is what
         # makes a perfectly deliverable invoice deliverable.
-        gen_result = generate_invoice_image(invoice_id, request_id)
+        gen_result = (generate_invoice_pdf if approved_layout else generate_invoice_image)(
+            invoice_id, request_id)
         gen_body = json.loads(gen_result.get('body', '{}'))
         if gen_result.get('statusCode') != 200:
             _release_claim('render_failed')
             return _resp(500, {'error': 'Failed to generate invoice image', 'detail': gen_body})
-        image_url = gen_body.get('imageUrl', '')
+        image_url = gen_body.get('pdfUrl' if approved_layout else 'imageUrl', '')
         s3_key = gen_body.get('s3Key', '')
     else:
         # A previously rendered asset. `url` is no longer stored, because a presigned one expires
@@ -3700,7 +3721,8 @@ def send_invoice_whatsapp(invoice_id: str, to_phone: str, phone_number_id: str,
             'content': caption,
             'phoneNumberId': phone_number_id,
             'mediaFile': s3_key,
-            'mediaType': 'image',
+            'mediaType': 'document' if approved_layout else 'image',
+            'mediaFileName': f'invoice-{invoice_id}.pdf' if approved_layout else '',
         })
     }
 

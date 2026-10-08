@@ -811,39 +811,18 @@ def test_a_code_on_update_is_refused_rather_than_ignored(engine, field):
 # 9. the WhatsApp payload and the rendered document
 # ══════════════════════════════════════════════════════════════════════════════
 
-def test_the_meta_discount_term_carries_the_verified_gift_card(engine):
-    """Meta's `order_details` has no tender concept and validates `total == subtotal + tax +
-    shipping - discount`, so the amount it shows has to equal what Razorpay collects. The
-    redemption therefore rides in `discount` while the stored tax stays computed on the
-    pre-redemption subtotal - tax-correct and Meta-valid at once."""
+def test_a_native_gift_card_collection_refuses_before_reserving_or_sending(engine):
+    """Balance verification is not debit evidence. The native path is single-tender."""
     _issue_coupon(engine)
     _issue_card(engine, value_paise=30000)
     _create(engine, couponCode=COUPON_CODE, giftCardCode=CARD_CODE)
     row = _stored(engine)
-
-    sent = {}
-
-    def _invoke(**kwargs):
-        sent.update(json.loads(json.loads(kwargs["Payload"])["body"]))
-        return {"Payload": __import__("io").BytesIO(
-            json.dumps({"statusCode": 200, "body": json.dumps({"messageId": "wamid.1"})}
-                       ).encode())}
-
     client = MagicMock()
-    client.invoke.side_effect = _invoke
     with patch.object(engine, "lambda_client", client):
-        engine.send_payment_link(row["invoiceId"], "phone-1", "WECAREDIGITAL", "req-4")
-
-    order = sent["checkoutOrderDetails"]["order"]
-    discount_paise = order["discount"]["value"]
-    # ₹100 coupon (inside `discount`) + ₹300 gift card, in paise.
-    assert discount_paise == 10000 + 30000
-    assert order["discount"]["description"] == "Promo + Gift Card"
-    total = sent["checkoutOrderDetails"]["total_amount"]["value"]
-    assert total == (order["subtotal"]["value"] + order["tax"]["value"]
-                     + order["shipping"]["value"] - discount_paise)
-    # And that total is what Razorpay will collect.
-    assert total == int(row["amountPayable"] * 100)
+        response = engine.send_payment_link(row["invoiceId"], "phone-1", "WECAREDIGITAL", "req-4")
+    assert response["statusCode"] == 409
+    assert json.loads(response["body"])["errorCode"] == "GIFT_CARD_NATIVE_SETTLEMENT_UNAVAILABLE"
+    client.invoke.assert_not_called()
 
 
 def test_the_document_prints_the_coupon_and_the_card_as_two_separate_lines(engine):

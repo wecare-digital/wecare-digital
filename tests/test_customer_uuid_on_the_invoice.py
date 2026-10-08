@@ -74,8 +74,9 @@ ITEMS = [
 def engine(monkeypatch):
     path = str(FUNCTIONS / "payments" / "invoice-engine")
     monkeypatch.syspath_prepend(path)
+    monkeypatch.setenv("RECEIPT_TRANSPARENT_BG", "false")
     sys.modules.pop("handler", None)
-    with patch.dict(os.environ, {"AWS_REGION": "us-east-1"}), \
+    with patch.dict(os.environ, {"AWS_REGION": "us-east-1", "RECEIPT_TRANSPARENT_BG": "false"}), \
             patch("boto3.resource"), patch("boto3.client"):
         import handler  # noqa: PLC0415 - deliberately imported under the patches
     yield handler
@@ -180,7 +181,7 @@ def test_the_render_sites_never_mint_a_customer_id(engine):
     assert "new_customer_uuid" not in source
     # One definition, read by all three render sites, so they cannot disagree.
     assert source.count("def _customer_id(") == 1
-    assert source.count("_customer_id(invoice)") == 3
+    assert source.count("_customer_id(invoice)") == 4
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -274,7 +275,8 @@ def _drawn_text(engine, invoice, items=ITEMS):
     engine._generate_receipt_png._font_cache = {}
     s3 = MagicMock()
     s3.get_object.side_effect = RuntimeError("no S3 in tests")
-    with patch.dict(sys.modules, _fake_pil(sink)), \
+    with patch.dict(os.environ, {"RECEIPT_TRANSPARENT_BG": "false"}), \
+            patch.dict(sys.modules, _fake_pil(sink)), \
             patch.object(engine, "s3", s3), \
             patch.object(engine, "_load_logo_bytes", return_value=None), \
             patch.object(engine, "_load_s3_image", return_value=None):

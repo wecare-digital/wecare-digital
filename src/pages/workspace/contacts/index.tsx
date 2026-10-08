@@ -337,20 +337,6 @@ const Contacts: React.FC<PageProps> = ({ signOut, user }) => {
   const [formDesignation, setFormDesignation] = useState('');
   const [formCountryCode, setFormCountryCode] = useState('+91');
 
-  // ONE address, composed from the structured fields into the single shipping/billing string
-  // the website and Wix read. Called on every structured-field edit with the field that just
-  // changed (React state is async, so the caller passes its new value through `override`).
-  const composeAddress = (override: Partial<{ houseNumber: string; buildingName: string; landmark: string; city: string; state: string; postalCode: string; country: string }> = {}) => {
-    const a = {
-      houseNumber: formHouseNumber, buildingName: formBuildingName, landmark: formLandmark,
-      city: formCity, state: formState, postalCode: formPostalCode, country: formCountry,
-      ...override,
-    };
-    const line = [a.houseNumber, a.buildingName, a.landmark, a.city, a.state, a.postalCode, a.country]
-      .map(s => (s || '').trim()).filter(Boolean).join(', ');
-    setFormShippingAddress(line);
-    setFormBillingAddress(line);
-  };
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const [formOptInWA, setFormOptInWA] = useState(true);
