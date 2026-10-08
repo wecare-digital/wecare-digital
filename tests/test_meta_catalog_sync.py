@@ -537,3 +537,17 @@ def test_the_module_logs_nothing_at_all():
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
     assert "logger" not in names
     assert "print" not in names
+
+
+def test_variant_artwork_and_public_product_link_survive_meta_projection():
+    product = {
+        "id": TEST_PRODUCT, "slug": "wecaredigital-services", "name": "Services",
+        "price": "99.00", "image": "https://static.wixstatic.com/media/shared.png",
+        "variants": [{"id": TEST_VARIANT, "label": "Submit Request", "inStock": True,
+                      "image": "https://static.wixstatic.com/media/submit.png"}],
+    }
+    item = sync.desired_items([product])[0]
+    assert item["image_url"] == "https://static.wixstatic.com/media/submit.png"
+    assert sync.meta_payload(item)["url"] == "https://wecare.digital/shop/wecaredigital-services/"
+    previous = {**item, "url": "https://wecare.digital/"}
+    assert len(sync.diff([item], [previous]).update) == 1

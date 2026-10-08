@@ -625,3 +625,50 @@ def test_the_handler_declares_no_graph_version_of_its_own():
     assert "from lambda_utils.meta_version import" in text
     assert "META_API_VERSION =" not in text
     assert "graph.facebook.com/v" not in text
+
+
+def test_wix_variant_media_is_preserved_for_each_meta_item():
+    product_id = "df976a0a-f582-4535-b2e1-d532f348bd27"
+    rows = [
+        {"variantId": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+         "productData": {"productId": product_id},
+         "optionChoices": [{"optionChoiceNames": {"choiceName": "Submit Request"}}],
+         "price": {"actualPrice": {"amount": "99.00"}},
+         "media": {"image": {"url": "https://static.wixstatic.com/media/submit.png"}}},
+        {"variantId": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
+         "productData": {"productId": product_id},
+         "optionChoices": [{"optionChoiceNames": {"choiceName": "Vault"}}],
+         "price": {"actualPrice": {"amount": "49.00"}},
+         "media": {"url": "https://static.wixstatic.com/media/vault.png"}},
+    ]
+    variants = receiver._wix_variants(lambda endpoint, body: {"variants": rows}, [product_id])
+    items = sync.desired_items([{"id": product_id, "slug": "wecaredigital-services",
+                                "variants": variants[product_id]}], require_variant_price=True)
+    assert [i["image_url"] for i in items] == [
+        "https://static.wixstatic.com/media/submit.png",
+        "https://static.wixstatic.com/media/vault.png"]
+    assert [i["price"] for i in items] == ["99.00", "49.00"]
+    assert [i["url"] for i in items] == ["https://wecare.digital/submit-request/", "https://wecare.digital/vault/"]
+
+
+def test_choice_artwork_overrides_stale_variant_index_media():
+    product_id = "df976a0a-f582-4535-b2e1-d532f348bd27"
+    variant_id = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+    def request(endpoint, body):
+        if endpoint == receiver.WIX_SEARCH_ENDPOINT:
+            return {"products": [{
+                "id": product_id, "slug": "wecaredigital-services",
+                "media": {"itemsInfo": {"items": []}},
+                "options": [{"id": "service", "choicesSettings": {"choices": [{
+                    "choiceId": "vault", "linkedMedia": [{"image": {"url": "https://static.wixstatic.com/media/vault.png"}}]
+                }]}}]
+            }]}
+        return {"variants": [{
+            "variantId": variant_id, "productData": {"productId": product_id},
+            "optionChoices": [{"optionChoiceIds": {"optionId": "service", "choiceId": "vault"}}],
+            "price": {"actualPrice": {"amount": "49.00"}},
+            "media": {"image": {"url": "https://static.wixstatic.com/media/submit.png"}}
+        }]}
+    rows = receiver._wix_products(request)
+    item = sync.desired_items(rows, require_variant_price=True)[0]
+    assert item["image_url"] == "https://static.wixstatic.com/media/vault.png"

@@ -300,6 +300,13 @@ def _wix_products(requester) -> List[Dict[str, Any]]:
         variants = _wix_variants(requester, identifiers)
         for row in rows:
             row["variants"] = variants.get(row["id"], [])
+            # The variant search index can lag behind a product update. Resolve
+            # explicit option-choice artwork from the product read first.
+            for variant in row["variants"]:
+                images = {row["choiceImages"][key] for key in variant.get("choiceIds", [])
+                          if key in row["choiceImages"]}
+                if len(images) == 1:
+                    variant["image"] = images.pop()
     return rows
 
 
@@ -336,7 +343,17 @@ def _slim_product(product: Mapping[str, Any]) -> Dict[str, Any]:
         "descriptionHtml": str(product.get("plainDescription") or ""),
         "mediaCount": len(media_items),
         "variants": [],
+        "choiceImages": {},
     }
+    for option in product.get("options") or []:
+        for choice in (option.get("choicesSettings") or {}).get("choices") or []:
+            for entry in choice.get("linkedMedia") or []:
+                choice_image = str((entry.get("image") or {}).get("url")
+                                   or entry.get("url") or "").strip()
+                if choice_image:
+                    key = f"{option.get('id')}:{choice.get('choiceId')}"
+                    row["choiceImages"][key] = choice_image
+                    break
     if image:
         row["image"] = image
     return row
@@ -379,7 +396,17 @@ def _wix_variants(requester, product_ids: Sequence[str]) -> Dict[str, List[Dict[
                 "id": str(row.get("variantId") or row.get("id") or ""),
                 "label": label,
                 "inStock": (row.get("inventoryStatus") or {}).get("inStock") is True,
+                "choiceIds": [
+                    f"{(choice.get('optionChoiceIds') or {}).get('optionId')}:{(choice.get('optionChoiceIds') or {}).get('choiceId')}"
+                    for choice in (row.get("optionChoices") or [])
+                    if isinstance(choice, Mapping)
+                ],
             }
+            media = row.get("media") or {}
+            image = media.get("image") or {}
+            image_url = str(image.get("url") or media.get("url") or "").strip()
+            if image_url:
+                variant["image"] = image_url
             amount = ((row.get("price") or {}).get("actualPrice") or {}).get("amount")
             try:
                 variant["pricePaise"] = catalog.paise_from_major(amount)
