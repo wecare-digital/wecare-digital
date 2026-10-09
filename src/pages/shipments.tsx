@@ -1,3 +1,4 @@
+import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 import React, { useEffect, useRef } from 'react';
 import PageMeta from '../components/PageMeta';
 import RotatingHero from '../components/RotatingHero';
@@ -236,6 +237,7 @@ const ShipmentsPage: React.FC = () => {
                 pages is a plain <a> for the same reason. */}
             {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a className="ship-close-cta" href="/orders/">Track something now</a>
+            <a className="ship-close-cta" href={ whatsappServiceLink( 'shipments' ) }>Open WhatsApp</a>
           </div>
         </section>
 

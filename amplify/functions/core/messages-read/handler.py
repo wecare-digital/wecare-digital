@@ -392,7 +392,10 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
             
             if actual_s3_key:
                 # Use CloudFront CDN URL instead of pre-signed S3 URL
-                cdn_url = f"https://{MEDIA_CDN_DOMAIN}/{actual_s3_key}"
+                cdn_url = (s3_client.generate_presigned_url('get_object',
+                    Params={'Bucket': MEDIA_BUCKET, 'Key': actual_s3_key}, ExpiresIn=300)
+                    if media_paths.is_gated(actual_s3_key)
+                    else f"https://{MEDIA_CDN_DOMAIN}/{actual_s3_key}")
                 result['mediaUrl'] = cdn_url
                 result['actualS3Key'] = actual_s3_key
                 
@@ -407,7 +410,7 @@ def _convert_from_dynamodb(item: Dict[str, Any]) -> Dict[str, Any]:
                     'displayFilename': display_filename,
                     'mediaId': media_id,
                     'messageId': message_id,
-                    'cdnUrl': cdn_url
+                    'private': media_paths.is_gated(actual_s3_key)
                 }))
             else:
                 logger.warning(json.dumps({

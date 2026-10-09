@@ -35,6 +35,16 @@ def test_get_message_reads_canonical_table_only(messages_handler):
     table.delete_item.assert_not_called()
 
 
+def test_private_customer_media_returns_short_lived_signed_url(messages_handler):
+    key = 'secure/u/whatsapp/incoming/customer-document.pdf'
+    messages_handler.s3_client.generate_presigned_url.return_value = 'https://signed.example/document'
+    with patch.object(messages_handler, '_find_actual_s3_key', return_value=key):
+        result = messages_handler._convert_from_dynamodb({'id': 'message-private', 's3Key': key, 'messageType': 'document'})
+    assert result['mediaUrl'] == 'https://signed.example/document'
+    messages_handler.s3_client.generate_presigned_url.assert_called_once_with(
+        'get_object', Params={'Bucket': messages_handler.MEDIA_BUCKET, 'Key': key}, ExpiresIn=300)
+
+
 def test_payment_update_denied_before_write(messages_handler):
     event = {'body': json.dumps({'status': 'paid'})}
     denied = {'statusCode': 403, 'body': '{}'}

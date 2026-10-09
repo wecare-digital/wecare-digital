@@ -5870,6 +5870,14 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from flows.paid_submit_request import send_review
         return send_review(event, lambda_client)
 
+    if event.get('internalAction') == 'catalogLifecycle':
+        from flows.catalog_lifecycle import handle
+        return handle(event, _graph_api)
+
+    if event.get('internalAction') == 'customerCommand':
+        from flows.customer_commands import handle
+        return handle(event, lambda_client)
+
     if event.get('internalAction') == 'catalogService':
         from flows.catalog_services import handle
         return handle(event, lambda_client)

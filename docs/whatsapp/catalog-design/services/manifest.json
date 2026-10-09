@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "bucket": "wecare-digital-get",
+  "designVersion": "v1",
+  "approvalRequired": true,
+  "products": [
+    {
+      "slug": "submit-request",
+      "title": "Submit Request",
+      "description": "Get help with your existing order.",
+      "icon": "assignment",
+      "imageKey": "o/catalog/services/submit-request/v1/image-4096.png",
+      "sourceKey": "o/catalog/services/submit-request/v1/source.svg",
+      "imageUrl": "https://wecare.digital/get/o/catalog/services/submit-request/v1/image-4096.png",
+      "keyword": "Submit Request",
+      "whatsappUrl": "https://wa.me/919330994400?text=Submit%20Request",
+      "websiteUrl": "https://wecare.digital/submit-request/",
+      "state": "PREPARED_PENDING_CATALOG_APPROVAL"
+    },
+    {
+      "slug": "request-amendment",
+      "title": "Request Amendment",
+      "description": "Request a change to your existing order.",
+      "icon": "edit_note",
+      "imageKey": "o/catalog/services/request-amendment/v1/image-4096.png",
+      "sourceKey": "o/catalog/services/request-amendment/v1/source.svg",
+      "imageUrl": "https://wecare.digital/get/o/catalog/services/request-amendment/v1/image-4096.png",
+      "keyword": "Request Amendment",
+      "whatsappUrl": "https://wa.me/919330994400?text=Request%20Amendment",
+      "websiteUrl": "https://wecare.digital/request-amendment/",
+      "state": "PREPARED_PENDING_CATALOG_APPROVAL"
+    },
+    {
+      "slug": "drop-docs",
+      "title": "Drop Docs",
+      "description": "Upload documents for your order.",
+      "icon": "upload_file",
+      "imageKey": "o/catalog/services/drop-docs/v1/image-4096.png",
+      "sourceKey": "o/catalog/services/drop-docs/v1/source.svg",
+      "imageUrl": "https://wecare.digital/get/o/catalog/services/drop-docs/v1/image-4096.png",
+      "keyword": "Drop Docs",
+      "whatsappUrl": "https://wa.me/919330994400?text=Drop%20Docs",
+      "websiteUrl": "https://wecare.digital/drop-docs/",
+      "state": "PREPARED_PENDING_CATALOG_APPROVAL"
+    },
+    {
+      "slug": "vault",
+      "title": "Vault",
+      "description": "Access and download your documents.",
+      "icon": "cloud_download",
+      "imageKey": "o/catalog/services/vault/v1/image-4096.png",
+      "sourceKey": "o/catalog/services/vault/v1/source.svg",
+      "imageUrl": "https://wecare.digital/get/o/catalog/services/vault/v1/image-4096.png",
+      "keyword": "Vault",
+      "whatsappUrl": "https://wa.me/919330994400?text=Vault",
+      "websiteUrl": "https://wecare.digital/vault/",
+      "state": "PREPARED_PENDING_CATALOG_APPROVAL"
+    },
+    {
+      "slug": "shipments",
+      "title": "Shipments",
+      "description": "Track your orders and deliveries.",
+      "icon": "local_shipping",
+      "imageKey": "o/catalog/services/shipments/v1/image-4096.png",
+      "sourceKey": "o/catalog/services/shipments/v1/source.svg",
+      "imageUrl": "https://wecare.digital/get/o/catalog/services/shipments/v1/image-4096.png",
+      "keyword": "Shipments",
+      "whatsappUrl": "https://wa.me/919330994400?text=Shipments",
+      "websiteUrl": "https://wecare.digital/shipments/",
+      "state": "PREPARED_PENDING_CATALOG_APPROVAL"
+    },
+    {
+      "slug": "leave-review",
+      "title": "Leave Review",
+      "description": "Share your experience. Help us improve.",
+      "icon": "rate_review",
+      "imageKey": "o/catalog/services/leave-review/v1/image-4096.png",
+      "sourceKey": "o/catalog/services/leave-review/v1/source.svg",
+      "imageUrl": "https://wecare.digital/get/o/catalog/services/leave-review/v1/image-4096.png",
+      "keyword": "Leave Review",
+      "whatsappUrl": "https://wa.me/919330994400?text=Leave%20Review",
+      "websiteUrl": "https://wecare.digital/leave-review/",
+      "state": "PREPARED_PENDING_CATALOG_APPROVAL"
+    }
+  ]
+}

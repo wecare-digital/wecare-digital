@@ -11,6 +11,7 @@ Integrates with AI automation when enabled in SystemConfig.
 """
 
 import os
+import re
 import json
 import uuid
 import time
@@ -87,11 +88,9 @@ MEDIA_BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
 # was built from MEDIA_BUCKET, which only produced a valid URL while the bucket was
 # named app.wecare.digital. See voice-in/obd for the same correction.
 MEDIA_CDN_DOMAIN = os.environ.get('MEDIA_CDN_DOMAIN', media_paths.CDN_DOMAIN)
-# Rooted in the public tree. The two inbound images already in the bucket sit at
-# `o/stack/whatsapp-media/incoming/`, so the un-rooted prefix wrote a second tree
-# beside them and DocumentTable.storageKey recorded a key nothing could resolve.
-MEDIA_PREFIX = os.environ.get('MEDIA_INBOUND_PREFIX',
-                              media_paths.public('stack/whatsapp-media/incoming/'))
+# Customer uploads are private from their first S3 write. Existing public media
+# remains readable through its persisted key; no migration or public fallback here.
+MEDIA_PREFIX = media_paths.secure('u/whatsapp/incoming/')
 SEND_MODE = os.environ.get('SEND_MODE', 'LIVE')
 SUBMIT_REQUESTS_TABLE = os.environ.get('SUBMIT_REQUESTS_TABLE', 'stack-wecare-digital-SubmitRequestsTable')
 
@@ -2629,6 +2628,49 @@ def _process_message(
         # '/menu' is already collapsed. See strip_decorative_edges() for why this is
         # deliberately not applied to the pay, flow-trigger or subscriber-id sets.
         _content_plain = strip_decorative_edges(content_lower)
+
+        # Non-form service doors reuse secure website experiences. No second payment path.
+        if _content_plain in {'vault', 'my vault', 'request amendment', 'drop docs',
+                              'shipments', 'submit request'}:
+            service_doors = {
+                'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
+                'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
+                'request amendment': ('Request Amendment', '/request-amendment/', 'Request a change to your existing order.'),
+                'drop docs': ('Drop Docs', '/drop-docs/', 'Upload documents securely for your existing order.'),
+                'shipments': ('Orders', '/orders/', 'View your orders and delivery updates with this verified WhatsApp number.'),
+                'submit request': ('Submit Request', '/submit-request/', 'Get help with your existing order. Your service purchase and the order you need help with remain linked separately.'),
+            }
+            title, path, body = service_doors[_content_plain]
+            _send_cta_button(contact_id, aws_phone_number_id, title,
+                'https://wecare.digital' + path, request_id,
+                body_text=body, footer_text='WECARE.DIGITAL')
+            return
+
+        # Orders and public Customer ID share the website's verified customer partition.
+        if (_content_plain in {'orders', 'my orders', 'order history', 'all orders',
+                               'customer id', 'my customer id', 'customer uuid'}
+                or re.fullmatch(r'orders page [1-9][0-9]{0,2}', _content_plain)):
+            try:
+                result = lambda_client.invoke(
+                    FunctionName='wecare-whatsapp-business-api:live',
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps({'internalAction': 'customerCommand',
+                        'text': _content_plain, 'contactId': contact_id,
+                        'senderPhone': sender_phone}).encode())
+                answer = json.loads(result['Payload'].read())
+                if result.get('FunctionError') or not answer.get('reply'):
+                    raise RuntimeError('customer command unavailable')
+                _send_cta_button(contact_id, aws_phone_number_id, 'View orders',
+                    'https://wecare.digital/orders/', request_id,
+                    body_text=answer['reply'], footer_text='WECARE.DIGITAL')
+            except Exception as error:
+                logger.warning(json.dumps({'event': 'customer_command_unavailable',
+                                           'errorType': type(error).__name__}))
+                _send_cta_button(contact_id, aws_phone_number_id, 'View orders',
+                    'https://wecare.digital/orders/', request_id,
+                    body_text='Please sign in with this WhatsApp number to securely view your orders and Customer ID.',
+                    footer_text='WECARE.DIGITAL')
+            return
 
         # ── "Get my ID" / "my id" / "sub id" — fetch subscriber details ──
         MY_ID_KEYWORDS = {
@@ -7720,14 +7762,14 @@ def _link_media_to_service_request(contact_id: str, s3_key: str, media_type: str
         if not req or (int(time.time()) - opened_at) > 14 * 86400:
             return
         base = s3_key.split('/')[-1]
-        dest_key = media_paths.public(f"stack/service-requests/{req}/{int(time.time())}-{base}")
+        dest_key = media_paths.secure(f"u/service-requests/{req}/{int(time.time())}-{base}")
         try:
             s3.copy_object(Bucket=MEDIA_BUCKET, CopySource={'Bucket': MEDIA_BUCKET, 'Key': s3_key}, Key=dest_key)
         except Exception:
             dest_key = s3_key  # fall back to the original key if copy fails
         attachment = {
             'key': dest_key,
-            'url': f'https://{MEDIA_CDN_DOMAIN}/{dest_key}',
+            'private': True,
             'type': media_type,
             'filename': filename or base,
             'mime': mime or '',
