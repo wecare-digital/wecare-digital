@@ -2465,9 +2465,38 @@ def _post_payment_handler(payment_id: str, contact: str,
     # FAIL-OPEN because a feedback send is the least important thing on this path: it must never
     # block or reverse the invoice or the paid state. Idempotent on the invoice, so a redelivered
     # capture asks once.
+    # A native catalogue purchase has its OWN review trigger, which asks AFTER the service was
+    # actually delivered (`flows/paid_submit_request.py`, `flows/paid_vault.py`). This arm asks at
+    # capture, before any fulfilment, so it is the one that yields - otherwise a native purchase
+    # is asked twice, from two unrelated claim namespaces that cannot see each other.
+    #
+    # Step 5 is FAIL-OPEN by contract (the comment block above). It must never raise, because a
+    # raise reaches the handler's top-level `except`, returns 500, and lets the idempotency lease
+    # lapse so Razorpay REPLAYS a captured payment. An unreadable PAYREF# row therefore falls
+    # back to the pre-existing website behaviour: ask for the review. Never invert that default to
+    # "skip on error" - a transient throttle would then silently suppress a legitimate website
+    # review request.
+    #
+    # `OrderIdentityUnavailable` specifically, not bare `Exception`: `order_keys._read_row` wraps
+    # EVERY storage error into that one type, so the narrow catch has no storage blind spot, while
+    # a bare catch would also swallow a genuine programming error and turn it into a permanently
+    # invisible duplicate-review bug. A storage outage must fail open here; a logic bug must be loud.
+    native = False
+    try:
+        payref = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        native = bool(payref.get('nativeCatalogService'))
+    except order_keys.OrderIdentityUnavailable:
+        logger.warning(json.dumps({'event': 'review_native_check_unavailable',
+                                   'referenceId': reference_id, 'requestId': request_id}))
+
     if contact and invoice_id:
-        _request_review_on_whatsapp(invoice_id, contact, originating_phone_id,
-                                    reference_id, request_id)
+        if native:
+            logger.info(json.dumps({'event': 'review_request_skipped_native',
+                                    'referenceId': reference_id, 'requestId': request_id}))
+        else:
+            _request_review_on_whatsapp(invoice_id, contact, originating_phone_id,
+                                        reference_id, request_id)
 
     logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,
                             'invoiceId': invoice_id, 'invoiceDelivered': delivered,
