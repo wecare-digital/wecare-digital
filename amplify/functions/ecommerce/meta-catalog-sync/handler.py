@@ -860,7 +860,14 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
 
     if not enabled or dry_run:
         # RETURNS BEFORE ANY WRITE REQUEST IS CONSTRUCTED. `_batch_requests` is not called, so
-        # there is no payload in memory to send by accident.
+        # there is no payload in memory to send by accident. An explicit Apply action gets a
+        # refusal rather than a dry-run "ok", so the workspace cannot mistake a closed gate for
+        # a successful catalog mutation.
+        if action == "apply":
+            return {"ok": False, "reason": "release_gates_closed",
+                    "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
+                    "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                    "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
         return {"ok": True, "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
                 "counts": counts, "blocked": blocked, "planHash": plan_hash,
                 "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
