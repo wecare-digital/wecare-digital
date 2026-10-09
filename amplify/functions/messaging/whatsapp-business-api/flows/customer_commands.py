@@ -9,6 +9,8 @@ from lambda_utils.identity import customer_uuid
 
 ORDERS_URL = 'https://wecare.digital/orders/'
 SIGN_IN_URL = 'https://wecare.digital/account/sign-in/'
+ORDER_PAGE_SIZE = 10
+MAX_ORDER_PAGE = 10
 
 
 def command(text):
@@ -23,10 +25,12 @@ def command(text):
 
 def order_page(table, owner, page_number):
     """Same index and owner partition as /ecommerce/my-orders; no phone scans."""
+    if not isinstance(page_number, int) or isinstance(page_number, bool) or not 1 <= page_number <= MAX_ORDER_PAGE:
+        raise ValueError('Order page exceeds WhatsApp read budget')
     query = {'IndexName': 'customerId-createdAt-index',
              'KeyConditionExpression': 'customerId=:owner',
              'ExpressionAttributeValues': {':owner': owner},
-             'ScanIndexForward': False, 'Limit': 20}
+             'ScanIndexForward': False, 'Limit': ORDER_PAGE_SIZE}
     page = {}
     for index in range(page_number):
         page = table.query(**query)
@@ -49,11 +53,16 @@ def reply(table, contact, identity, selection):
         identifier = customer_uuid.from_contact(contact)
         return ('Your Customer ID: ' + identifier + '\n\n' + ORDERS_URL
                 if identifier else 'Your Customer ID is not available yet. Please open your account so we can help complete your profile.\n' + SIGN_IN_URL)
+    if page > MAX_ORDER_PAGE:
+        return 'Please open your account to view further orders and download receipts:\n' + ORDERS_URL
     rows, more = order_page(table, identity.customer_id, page)
     text = ('Your orders' + (f' — page {page}' if page > 1 else '') + '\n\n'
             + '\n'.join(rows)) if rows else 'No orders were found on this page of your verified account.'
     if more:
-        text += f'\n\nType Orders page {page + 1} to see more.'
+        if page < MAX_ORDER_PAGE:
+            text += f'\n\nType Orders page {page + 1} to see more.'
+        else:
+            text += '\n\nOpen your account to view further orders.'
     return text + '\n\nView orders and download receipts:\n' + ORDERS_URL
 
 

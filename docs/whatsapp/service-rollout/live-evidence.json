@@ -4,9 +4,9 @@
   "deployment": [
     {
       "function": "wecare-whatsapp-business-api",
-      "live": "78",
-      "rollback": "77",
-      "codeSha256": "MpB0Wejd+g2AwbTh3Mxy1pSbDKNGGFInvlds5Lkxy80="
+      "live": "79",
+      "rollback": "78",
+      "codeSha256": "fGW4u2Knkc33y/ppQZylVOY5PH30hrmVVBsYJ3UJeDo="
     },
     {
       "function": "wecare-messages-read",
@@ -87,5 +87,21 @@
     "Enable native services only after writeback and payment prerequisites pass",
     "Run real customer Submit Request and Vault QA",
     "Reconcile legacy unlinked orders and legacy public upload originals"
-  ]
+  ],
+  "auditFollowup": {
+    "pythonFullPassed": 10328,
+    "skipped": 6,
+    "expectedFailures": 3,
+    "exactPackageRegressionPassed": 17,
+    "frontendPassed": 1594,
+    "frontendSkipped": 2,
+    "browserSuitesPassed": 5,
+    "privateSubmissionDownloads": "response-only signed approved prefixes;300seconds",
+    "orders": "10complete rows;10page read ceiling;website further history",
+    "externalizedRasterBytes": 2525767,
+    "rasterCopiesPreserved": true,
+    "remoteByteEquivalenceVerified": 6,
+    "messagesSent": 0,
+    "paymentsPerformed": false
+  }
 }
