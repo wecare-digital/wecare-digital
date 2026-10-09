@@ -47,7 +47,8 @@
     "verifiedCheckoutCustomerLink": false,
     "readOnlyOrdersSmoke": "VERIFIED_CUSTOMER_REQUIRED",
     "messagesSent": 0,
-    "paymentPerformed": false
+    "paymentPerformed": false,
+    "customerTestPhone": "+918100640044"
   },
   "catalog": {
     "current": "1607047307067517",
@@ -64,7 +65,8 @@
     "freshCreated": false,
     "sdkDisconnect": "pending explicit updated confirmation",
     "readOnlyInspect": "read_failed; applied 0",
-    "wixWebhookDelivery": "received; catalog sync read_failed"
+    "wixWebhookDelivery": "received; catalog sync read_failed",
+    "wixWriteback": "disabled; writeback and confirmed-contract flags absent"
   },
   "flows": {
     "submitRequestPaid": {
@@ -115,6 +117,18 @@
     "keywordDeploymentJob": "1488",
     "keywordDeploymentStatus": "SUCCEED",
     "keywordDeploymentCommit": "c2cfa741b35a881813667edde307610a71604952",
-    "artworkSnapshotDeployment": "awaiting next source build"
+    "artworkSnapshotDeployment": "job 1490 RUNNING at last check",
+    "liveServicePricesPaise": {
+      "submit-request": 9900,
+      "request-amendment": 9900,
+      "drop-docs": 35000,
+      "vault": 4900
+    },
+    "existingOrderCopy": "build and typecheck passed; source ready for deployment"
+  },
+  "templates": {
+    "wecarepay_wa": "APPROVED",
+    "wecare_default_download": "APPROVED",
+    "wecare_leave_review": "APPROVED"
   }
 }
