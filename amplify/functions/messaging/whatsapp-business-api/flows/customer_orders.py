@@ -1,5 +1,6 @@
 """Owner-scoped Orders data exchange. No financial or messaging side effects."""
 import hashlib
+import json
 import os
 import re
 import secrets
@@ -15,7 +16,7 @@ PREFIX = 'CUSTOMERHUB#'
 TOKEN_PATTERN = re.compile(r'^orders:([A-Za-z0-9_-]{40,80})$')
 
 
-def record_order_help(table, identity, contact_id, session_token, data):
+def record_order_help(table, identity, contact_id, session_token, data, *, public_customer_id=''):
     """One unassociated lookup request per verified session; no checkout side effect."""
     description = data.get('description', '')
     reference = data.get('order_reference', '')
@@ -26,10 +27,14 @@ def record_order_help(table, identity, contact_id, session_token, data):
     request_id = 'WD-HELP-' + hashlib.sha256(
         (identity.customer_id + ':' + session_token).encode()).hexdigest()[:24].upper()
     row = {'submissionId': request_id, 'flowType': 'order_lookup', 'flowName': 'Orders',
+           'flowCode': 'WD_Orders', 'submissionNumber': request_id,
+           'subject': 'Help finding an order', 'paymentStatus': 'none',
            'customerId': identity.customer_id, 'contactId': contact_id, 'phone': identity.phone,
            'orderReference': reference.strip(), 'description': description.strip(),
            'status': 'awaiting_order_verification', 'source': 'whatsapp_flow',
            'tags': ['Orders', 'Order verification pending'], 'createdAt': int(time.time())}
+    if public_customer_id:
+        row['customerUuid'] = public_customer_id
     try:
         table.put_item(Item=row, ConditionExpression='attribute_not_exists(submissionId)')
     except ClientError as exc:
@@ -94,6 +99,34 @@ def profile(contact, identity):
             'address': str(address.get('fullAddress') or 'Not provided') if address else 'Not provided'}
 
 
+def profile_form(contact):
+    address = contact_address.from_contact(contact) or {}
+    return {'first_name': str(contact.get('firstName') or ''), 'last_name': str(contact.get('lastName') or ''),
+        **{field: str(address.get(stored) or '') for field, stored in {
+            'address_line1': 'addressLine1', 'address_line2': 'addressLine2', 'city': 'city',
+            'state': 'state', 'postal_code': 'postalCode', 'country_code': 'countryCode'}.items()}}
+
+
+def update_profile(db, contact, identity, data):
+    allowed = {'first_name', 'last_name', 'address_line1', 'address_line2', 'city', 'state', 'postal_code', 'country_code'}
+    if set(data) - allowed or not isinstance(data.get('first_name'), str):
+        raise ValueError('Unsupported profile field')
+    first, last = data['first_name'].strip(), data.get('last_name', '')
+    if not isinstance(last, str) or not 1 <= len(first) <= 100 or len(last.strip()) > 100:
+        raise ValueError('Invalid name')
+    address = contact_address.normalize_for_storage({
+        stored: data.get(field, '') for field, stored in {
+            'address_line1': 'addressLine1', 'address_line2': 'addressLine2', 'city': 'city',
+            'state': 'state', 'postal_code': 'postalCode', 'country_code': 'countryCode'}.items()})
+    db.Table('stack-wecare-digital-ContactsTable').update_item(
+        Key={'id': contact['id']},
+        UpdateExpression='SET firstName=:first, lastName=:last, #name=:name, checkoutDeliveryAddress=:address, checkoutAddressUpdatedAt=:now, updatedAt=:now',
+        ConditionExpression='checkoutCustomerId=:owner AND attribute_not_exists(deletedAt) AND (attribute_not_exists(isDeleted) OR isDeleted=:false)',
+        ExpressionAttributeNames={'#name': 'name'},
+        ExpressionAttributeValues={':first': first, ':last': last.strip(), ':name': ' '.join([first, last.strip()]).strip(),
+            ':address': address, ':now': int(time.time()), ':owner': identity.customer_id, ':false': False})
+
+
 def order_details(orders, identity, order_id):
     row = orders.get_item(Key={'orderId': str(order_id)}, ConsistentRead=True).get('Item') or {}
     if row.get('customerId') != identity.customer_id or not row.get('orderNumber'):
@@ -144,7 +177,12 @@ def route(action, screen, data, token):
         if action == 'INIT' or (action == 'BACK' and screen == 'ACCOUNT'):
             return {'screen': 'ACCOUNT', 'data': profile(contact, identity)}
         if action == 'data_exchange' and screen == 'ACCOUNT':
+            if data.get('account_action') == 'edit_profile':
+                return {'screen': 'PROFILE', 'data': profile_form(contact)}
             return order_page(db, identity, session, token)
+        if action == 'data_exchange' and screen == 'PROFILE':
+            update_profile(db, contact, identity, data)
+            return {'screen': 'PROFILE_SAVED', 'data': {}}
         if action == 'data_exchange' and screen == 'ORDERS':
             if data.get('order_id') == 'more_orders':
                 return order_page(db, identity, session, token, next_page=True)
@@ -152,9 +190,23 @@ def route(action, screen, data, token):
                 return {'screen': 'ORDER_HELP', 'data': {}}
             return {'screen': 'DETAILS', 'data': order_details(
                 db.Table('stack-wecare-digital-OrderTable'), identity, data.get('order_id', ''))}
+        if action == 'data_exchange' and screen == 'DETAILS':
+            owned = order_details(db.Table('stack-wecare-digital-OrderTable'), identity, data.get('order_id', ''))
+            if data.get('detail_action') == 'invoice_copy':
+                response = boto3.client('lambda').invoke(FunctionName='wecare-whatsapp-business-api:live',
+                    InvocationType='RequestResponse', Payload=json.dumps({'internalAction': 'customerInvoiceCopy',
+                        'flowToken': token, 'orderId': owned['order_id']}).encode())
+                if response.get('FunctionError'):
+                    raise RuntimeError('invoice copy unavailable')
+                result = json.loads(response['Payload'].read())
+                if not result.get('reference') or not result.get('message'):
+                    raise RuntimeError('invoice copy unavailable')
+                return {'screen': 'RESULT', 'data': {'reference': result['reference'], 'message': result['message']}}
+            return {'screen': 'RESULT', 'data': {'reference': owned['order_number'], 'message': 'No changes were requested.'}}
         if action == 'data_exchange' and screen == 'ORDER_HELP':
             reference = record_order_help(db.Table('stack-wecare-digital-FlowSubmissionTable'),
-                identity, session.get('contactId', ''), token, data)
+                identity, session.get('contactId', ''), token, data,
+                public_customer_id=customer_uuid.from_contact(contact) or '')
             return {'screen': 'RESULT', 'data': {'reference': reference,
                 'message': 'Your request is saved for order verification. No payment has been requested.'}}
         return {'screen': 'UNAVAILABLE', 'data': {}}

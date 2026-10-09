@@ -3479,3 +3479,12 @@ braces3.0.3 (no fixed version listed). No blanket override or false exposure cla
 ZIP/config/readback and alert evidence is in codex-audit-evidence-20261009.json.
 
 Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope checks passed; workflow YAML parsed and actual 53ed298e→724dcc38 scope returned deploy=false. All 9 workflows for 724dcc38 succeeded.
+
+
+### Customer-service continuation release — 2026-10-09
+
+- A1: Orders/profile/invoice-copy and CRM queue changes, focused offline tests, final Python gate 10,319 passed / 7 skipped / 3 expected failures; frontend 1,597 passed / 2 skipped, TypeScript and production build pass. Invoice copy reuses an existing owned invoice and IMAGE template, no financial writes, no actual customer send in verification.
+- A3: business API live 87 -> 88; hash `ATFBwztpvFTaMziX3NNIvPyfc7Z2W8rIM3R+A6hfX88=`. Exact overlaid ZIP import validated, unauthorized HTTP candidate invocations return 403 with no FunctionError. Orders draft 2167802357142172 re-uploaded with eight screens, zero Meta validation errors, endpoint retained; still DRAFT, customer routing off. Immediate rollback 87; original feature baseline 83.
+- A3: secure-files live 34 read back with hash `6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=`; service-requests live 5 hash `mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=`. Secure-files IAM adds only `PrivateIncomingOwnershipProof`, GetItem on exact MessagesTable/ContactsTable; source provisioner matches. Rollbacks 32/4 respectively; remove only that SID if required.
+- A3: catalog-sync live 6 -> 7, code unchanged hash `9Nrpq65Z1Cd5ANxpCdTiHdylN9lijITni+ruPbCiKn4=`. Revision-guarded full environment read/modify/write preserved all 10 variables and all secret references; only catalog ID, enabled/dry-run and four-variant scope changed. New target 1457045652952851, enabled false, dry-run true, existing out-of-stock hold retained. Candidate inspect returns ok/readOnly, four creates proposed, blocked [], existing [], applied 0. No Meta products written. Rollback 6 reintroduces the old catalog target; use only for an actual rollback.
+- Concurrent checkout live 41 discovered on final read; it was not overwritten. Native-service, dynamic Vault and Wix writeback live flags remain absent; secure attachment remains false. End-to-end payment/customer delivery remains unverified. No provider secret values, captures, refunds, or synthetic Purchase events were used.

@@ -10,8 +10,9 @@ from lambda_utils.ecommerce import vault_access
 HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
 
 
-def _send_once(requests, row, key, lambda_client, body):
-    current = requests.get_item(Key={'requestId': row['requestId']}, ConsistentRead=True).get('Item') or {}
+def _send_once(requests, row, key, lambda_client, body, *, record_key=None):
+    record_key = record_key or {'requestId': row['requestId']}
+    current = requests.get_item(Key=record_key, ConsistentRead=True).get('Item') or {}
     if current.get(key) == 'ACCEPTED':
         return True
     now = int(time.time())
@@ -27,7 +28,7 @@ def _send_once(requests, row, key, lambda_client, body):
         condition = key + '=:rejected AND ' + attempts_key + '=:previous'
         values.update({':rejected': 'SEND_REJECTED', ':previous': previous})
     try:
-        requests.update_item(Key={'requestId': row['requestId']},
+        requests.update_item(Key=record_key,
             UpdateExpression='SET ' + key + '=:s, ' + attempts_key + '=:count',
             ConditionExpression=condition, ExpressionAttributeValues=values)
     except Exception as error:
@@ -48,7 +49,7 @@ def _send_once(requests, row, key, lambda_client, body):
     except Exception:
         # Failure may occur after Meta accepted the message. Never blindly retry it.
         pass
-    requests.update_item(Key={'requestId': row['requestId']},
+    requests.update_item(Key=record_key,
         UpdateExpression='SET ' + key + '=:s, ' + retry_key + '=:retry',
         ConditionExpression=key + '=:sending AND ' + attempts_key + '=:count',
         ExpressionAttributeValues={':s': status, ':retry': now + 30,

@@ -5510,6 +5510,10 @@ export interface FlowSubmissionItem {
   flowCode: string;
   flowType?: string;
   flowVersion?: string;
+  invoiceDeliveryStatus?: string;
+  orderReference?: string;
+  customerUuid?: string;
+  tags?: string[];
   phone: string;
   contactId?: string;
   senderName?: string;

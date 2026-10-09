@@ -49,17 +49,29 @@ Each implementation task: add failing behavioral test → observe failure → im
 - Ruling: reuse the approved blueprint and brand; no repeated design confirmation, as owner explicitly requested execution.
 - Ruling: implement locally and keep live-send gates off until contracts and customer QA pass; do not treat absent flags as functioning checkout.
 
-### Build checkpoint — 9 October 2026
+### Verified build checkpoint — 9 October 2026
 
-| Task | Implementation checkpoint | Release state |
+This is a partial release, not end-to-end customer certification. Keep unchecked tasks until their full acceptance criteria pass.
+
+| Task | Implemented and verified | Remaining |
 |---|---|---|
-| 1 | Paid/granted Vault files refuse a new intent; paid file hides repayment CTA | Source tested; alias deployment pending |
-| 2 | Definite outbound rejection retries after 30s, at most three attempts; unknown outcomes never blindly retry | Source tested; alias deployment pending |
-| 3 | Private inbound message/contact/customer/S3-key proof before Drop Docs promotion | Source tested; alias deployment pending; encrypted picker is task 10 |
-| 4 | Orders missing-order form saves one owner-bound `awaiting_order_verification` record per session without guessed order or payment | Source tested; service-specific integration and CRM controls pending |
-| 6 | Expiring opaque Orders session, verified profile, server-owned pagination, selected-order ownership re-read and missing-order screens | Meta draft 2167802357142172 created with zero validation errors; endpoint and customer routing pending |
-| 12 | Concurrent source already moved to fresh catalog/dataset; preserve those changes during merge | Live catalog population/sync and revision approval remain pending |
-| 13 | Isolated draft executor 84 created over hash-verified live 83; no live alias switch | Actual Orders backend not deployed by the preview executor |
-| 5,7–11,14 | Continue implementation and provider/customer validation | Not complete |
+| 1 | Vault paid/granted intent guard in service-requests live 5; repayment CTA removed in tested source | Website release and real grant/download QA |
+| 2 | Vault sends use compare-and-set claims; definite rejection retries after 30s up to three attempts; unknown outcome holds | Customer delivery/reconciliation QA |
+| 3 | Secure-files live 34 proves canonical inbound message, undeleted contact, verified phone and permanent customer ownership before private promotion; exact two-table GetItem permission added | Encrypted Flow DocumentPicker adapter and gated attachment QA |
+| 4 | Owner-bound missing-order record, optional reference, description, public UUID and tags; workspace exposes awaiting order verification | Connect all service-specific entry points and verify agent resolution |
+| 5 | No time-only lock release added: late capture must not create a second collection | Authoritative provider terminal-unpaid proof and recovery contract |
+| 6 | Business API live 88 serves expiring opaque Orders sessions, verified profile, owned pagination and selected-order reread; eight-screen Meta draft 2167802357142172 has zero errors and verified endpoint | Public publication/keyword routing and customer QA |
+| 7 | Business API live 88 resolves only owned existing invoice/reference/private image, checks approved IMAGE template, fixes recipient to verified phone, claims once per customer/order/UTC day; requests and send state shown in workspace | Actual template delivery, delivery receipts and website PDF parity QA |
+| 8 | Orders draft edits name/address with customer compare-and-set; immutable phone/UUID, email verification remains on website; preserves order snapshots | Verified customer preview and profile parity QA |
+| 9 | Existing native code supports Submit Request/Vault but live flags remain off; original/service/payment identities stay distinct | Amendment/Drop Docs target binding and fulfillment contracts before allowing collection |
+| 10 | Existing ordinary private upload ownership is protected | Verify/decrypt/register encrypted picker; exact service submission/repair integration |
+| 11 | Missing-order and invoice-copy types/reference/customer UUID/tags/status exposed in workspace source | Website rollout and full service/order/document projection parity QA |
+| 12 | Meta sync live 7 targets fresh catalog 1457045652952851, all four known paid variants, writes disabled/dry-run. Live inspection succeeds with four proposals, no blocked items, zero existing items/applied writes | Persistent revision approval queue, approved item creation and both WABA connection readback |
+| 13 | Business 88, secure-files 34, service-requests 5 and catalog-sync 7 read back; Orders draft validated without publication | Final source deployment checks, remaining provider-contract deployment |
+| 14 | Test contact exists but lacked permanent customer account link at the last read | Owner verifies +918100640044 account, personally pays, and completes real journeys |
 
-Evidence: focused Python regression 220 passed, followed by additional expiry/recreated-contact/retry-cap checks 35 passed; Vault UI 7 passed. Meta preview expires 8 November 2026. No customer send, purchase, invoice, upload or synthetic analytics event was executed by these tests.
+Backend final-tree offline gate: 10,319 passed, 7 skipped, 3 expected failures. Exact ZIP import checks pass for all three customer-service candidates, including the new invoice module. Orders/invoice inert candidate invocations reject unauthorized HTTP with 403 and no function error. No actual invoice send, customer purchase, capture, refund, or fabricated Purchase event was executed by those checks.
+
+The four Wix proposals have concise public descriptions and the original IDs/prices: Submit Request ₹99; Request Amendment ₹99; Drop Docs ₹350; Vault ₹49. All proposals remain out of stock. Their Wix image URLs are assigned; the six original ultra-HD catalog PNGs remain separately stored under `o/catalog/services/<slug>/v1/image-4096.png` in `wecare-digital-get`.
+
+Immediate rollback: business API 87 (original pre-feature baseline 83), secure-files 32, service-requests 4, catalog-sync 6. Catalog-sync 6 restores the obsolete old catalog configuration and should only be used as an emergency rollback. Preserve later concurrent releases; refresh alias revisions before any rollback. Remove only `PrivateIncomingOwnershipProof` from the existing secure-files policy if rolling back that scoped permission.

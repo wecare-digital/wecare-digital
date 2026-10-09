@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "enabled": false,
+  "dryRun": true,
+  "readOnly": true,
+  "catalogId": "1457045652952851",
+  "counts": {
+    "create": 4,
+    "update": 0,
+    "retire": 0,
+    "foreign": 0
+  },
+  "blocked": [],
+  "desiredItems": [
+    {
+      "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
+      "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "name": "Request Amendment",
+      "description": "Request a change to your existing order.",
+      "availability": "out of stock",
+      "price": "99.00",
+      "currency": "INR",
+      "image_url": "https://static.wixstatic.com/media/478bf9_61bf98226abd4c7183413fd1b2fd76ce~mv2.png",
+      "url": "https://wecare.digital/request-amendment/"
+    },
+    {
+      "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:db166bc8-a763-41ec-9f65-0f718f18155a",
+      "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "name": "Drop Docs",
+      "description": "Upload documents for your order.",
+      "availability": "out of stock",
+      "price": "350.00",
+      "currency": "INR",
+      "image_url": "https://static.wixstatic.com/media/478bf9_df2cd2060b1c4bbca3a6915001062adc~mv2.png",
+      "url": "https://wecare.digital/drop-docs/"
+    },
+    {
+      "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:dcff995e-448c-493a-9259-f6a82ccdc2b4",
+      "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "name": "Vault",
+      "description": "Access and download your documents.",
+      "availability": "out of stock",
+      "price": "49.00",
+      "currency": "INR",
+      "image_url": "https://static.wixstatic.com/media/478bf9_0d6ef02aebca413e8c5843057bff60dd~mv2.png",
+      "url": "https://wecare.digital/vault/"
+    },
+    {
+      "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+      "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "name": "Submit Request",
+      "description": "Get help with your existing order.",
+      "availability": "out of stock",
+      "price": "99.00",
+      "currency": "INR",
+      "image_url": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png",
+      "url": "https://wecare.digital/submit-request/"
+    }
+  ],
+  "existingItems": [],
+  "applied": 0
+}

@@ -105,3 +105,22 @@ def test_session_customer_cannot_be_rebound_to_recreated_contact(hub,monkeypatch
     db=Mock();db.Table.return_value=keys; monkeypatch.setattr(hub,'_db',lambda:db)
     monkeypatch.setattr(hub,'_verified',lambda *args:({},SimpleNamespace(customer_id='replacement')))
     assert hub.route('INIT','',{},'orders:'+'A'*43)['screen']=='UNAVAILABLE'
+
+
+def test_profile_update_rejects_identity_and_unverified_email_fields(hub):
+    db=Mock();identity=SimpleNamespace(customer_id='owner')
+    for key in ['phone','email','emailVerifiedAt','customerUuid','customerId']:
+        with pytest.raises(ValueError): hub.update_profile(db,{'id':'c'},identity,{key:'forged'})
+    db.Table.assert_not_called()
+
+
+def test_profile_update_changes_contact_only_and_retains_owner_condition(hub):
+    db=Mock();identity=SimpleNamespace(customer_id='owner')
+    hub.update_profile(db,{'id':'c'},identity,{'first_name':'Asha','last_name':'Das',
+        'address_line1':'12 Park Street','address_line2':'','city':'Kolkata','state':'West Bengal',
+        'postal_code':'700016','country_code':'IN'})
+    assert db.Table.call_args.args[0]=='stack-wecare-digital-ContactsTable'
+    update=db.Table.return_value.update_item.call_args.kwargs
+    assert 'checkoutCustomerId=:owner' in update['ConditionExpression']
+    assert update['ExpressionAttributeValues'][':owner']=='owner'
+    assert 'emailVerifiedAt' not in update['UpdateExpression']

@@ -3953,7 +3953,7 @@ def _update_submission_status(body: Dict) -> Dict:
     if not submission_id or not new_status:
         return _resp(400, {'error': 'submissionId and status required'})
 
-    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled'}
+    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled', 'awaiting_order_verification'}
     if new_status not in valid_statuses:
         return _resp(400, {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'})
 
@@ -5946,13 +5946,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'customerInvoiceCopy':
+        from flows.customer_invoice import handle
+        return handle(event, lambda name: _graph_api('2094615664435155/message_templates',
+            params={'name': name, 'fields': 'name,status,language,components', 'limit': 100}, waba_id='2094615664435155'),
+            lambda_client, s3_client)
+
     if event.get('internalAction') == 'prepareCustomerOrdersFlow':
         from flows.customer_orders import prepare
         return prepare(event)
 
     if event.get('internalAction') == 'serviceDesignDrafts':
         from flows.service_design_drafts import handle
-        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow)
+        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow, _update_flow)
 
     if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
