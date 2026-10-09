@@ -6998,6 +6998,7 @@ export async function logCapiEvent ( input: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SecureFile {
+  paidEntitlementId?: string;
   paidGrantId?: string;
   deliveryStatus?: string;
   vaultPaymentStatus?: string;
@@ -7209,10 +7210,10 @@ export async function createSecureFileOrder ( fileId: string ): Promise<ApiResul
 }
 
 /**
- * Redeem a paid grant for a short-lived download URL.
+ * Exchange durable paid access for a fresh short-lived download URL.
  *
- * Single use: the backend spends the grant with a conditional write, so calling
- * this twice fails the second time by design. Do not retry on a 403.
+ * The access identifier may be a durable entitlement or a historical paid grant that the
+ * backend migrates safely. Expiring or interrupted transport does not consume the purchase.
  */
 export async function redeemSecureFileDownload ( fileId: string, grantId: string ): Promise<ApiResult<{
   downloadUrl: string; expiresInSeconds: number;
