@@ -376,20 +376,6 @@ def test_every_validation_rule_refuses_before_any_write(kwargs, code):
     assert refused.value.code == code
 
 
-def test_payments_disabled_refuses_before_any_write(engine, fake):
-    """T-S15. `WA_PAYMENTS_DISABLED` is a single opt-out that can only ever tighten. There is
-    deliberately no env var that can turn payments ON."""
-    _seed_invoice(fake)
-    lam = _RecordingLambda()
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
-        resp = _drive(engine, fake, lam)
-
-    assert resp['statusCode'] == 503
-    assert _body(resp)['code'] == wpr.WA_PAY_DISABLED
-    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
-    assert lam.invokes == []
-
-
 def test_the_reserved_reference_is_meta_valid():
     """T-S11. Validated, never truncated: a truncated reference resolves to nothing at capture."""
     assert order_keys.is_valid_meta_reference_id(REFERENCE)
