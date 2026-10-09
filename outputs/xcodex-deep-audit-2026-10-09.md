@@ -52,3 +52,9 @@ AUD-08 / P1 / CONFIRMED: current grant consumption occurs before actual S3 downl
 AUD-09 / P2 / CONFIRMED: legacy S3 link message incorrectly claims single use; only application grant redemption is one-time, presigned URL can be reused until expiry. Payment alone is not universal proof of open messaging window. Use approved template and verified inbound window; distinguish link issuance/accepted send from actual download. Config TTL drift is bounded in runtime, not proven six-hour exposure. Required word/contract/config repairs and live verification remain pending.
 
 Follow-up targeted regression check:121 existing tests passed (paid Vault, secure files, native catalog orchestration and catalog checkout). No renewal implementation tests passed because feature is not yet built. Read outputs/xcodex-new-session-full-prompt.md for complete executable continuation; latest priority is V1/V2 durable paid access and safe renewal before catalog activation. Overall PARTIALLY COMPLETE.
+
+## Owner-authorized Flow retirement
+
+Nine unused published Flows retired and independently read back across both WABAs.59 total; after2 published/22 draft/35 deprecated. Retained six exact IDs and18 unused-draft boundary in flow-retirement-2026-10-09.md/.json. Fixed deprecation endpoint/WABA context and list pagination; deployed Business90 with rollback89. Full backend10339/7 skipped/3 xfailed; focused135. No customer send/payment/publication/draft deletion or gate enablement.
+
+AUD-10 / P2 / CONFIRMED: legacy Subscribe route/UI still reference the now-retired Profile IDs. Disable/replace with verified Orders/profile path and inspect old template dependencies before customer release. Provider deprecation completed; full stale-routing/draft cleanup not complete. Do not rebuild/republish deprecated legacy versions from stale handoff.

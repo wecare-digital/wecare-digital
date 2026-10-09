@@ -65,3 +65,31 @@ def test_retired_raw_diagnostic_has_explicit_replacement_without_provider_call(a
     assert body['replacement'] == '/wa-business/payment-config/list'
     assert body['diagnostic'] == '/wa-business/payment-config/check'
     graph.assert_not_called()
+
+@pytest.mark.parametrize('waba', ['2094615664435155', '2513394156072604'])
+def test_flow_deprecation_uses_meta_operation_and_owning_waba(api, monkeypatch, waba):
+    from unittest.mock import Mock
+    graph = Mock(return_value={'success': True})
+    monkeypatch.setattr(api, '_graph_api', graph)
+    monkeypatch.setattr(api, '_emit_event', Mock())
+    result = api.handler({'path': '/wa-business/flows/deprecate', 'httpMethod': 'POST',
+        'body': json.dumps({'flowId': 'fixture-flow', 'wabaId': waba})}, None)
+    assert result['statusCode'] == 200
+    graph.assert_called_once_with('fixture-flow/deprecate', method='POST', waba_id=waba)
+
+def test_flow_deprecation_provider_failure_is_not_success(api, monkeypatch):
+    monkeypatch.setattr(api, '_graph_api', lambda *a, **k: {'error': {'code': 100}})
+    result = api._deprecate_flow('fixture-flow', '2513394156072604')
+    assert result['statusCode'] == 400
+
+def test_flow_inventory_follows_cursor_without_exposing_paging_url(api, monkeypatch):
+    responses = iter([{'data': [{'id': 'first'}], 'paging': {'next': 'https://fixture.invalid/?secret=x', 'cursors': {'after': 'next'}}}, {'data': [{'id': 'second'}]}])
+    monkeypatch.setattr(api, '_graph_api', lambda *a, **k: next(responses))
+    result = api._list_flows('fixture-waba')
+    assert json.loads(result['body']) == {'flows': [{'id': 'first'}, {'id': 'second'}]}
+
+def test_flow_inventory_repeated_cursor_does_not_return_partial_inventory(api, monkeypatch):
+    monkeypatch.setattr(api, '_graph_api', lambda *a, **k: {'data': [], 'paging': {'next': 'fixture', 'cursors': {'after': 'same'}}})
+    result = api._list_flows('fixture-waba')
+    assert result['statusCode'] == 502
+    assert 'flows' not in json.loads(result['body'])

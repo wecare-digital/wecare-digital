@@ -4,8 +4,8 @@
   "deployment": [
     {
       "function": "wecare-whatsapp-business-api",
-      "live": "89",
-      "codeSha256": "r+k6k2WhMDaNbYzFfax39Zi/1e/ckqg8ad891fvCu3E="
+      "live": "90",
+      "codeSha256": "pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI="
     },
     {
       "function": "wecare-secure-files",
@@ -470,5 +470,90 @@
     ],
     "approvedDownloadBase": "https://wecare.digital/vault/?file={{1}}",
     "nextAction": "V1/V2 durable paid entitlement plus authenticated temporary-session renewal"
+  },
+  "latestFlowRetirement": {
+    "counts": {
+      "DEPRECATED": 35,
+      "DRAFT": 22,
+      "PUBLISHED": 2
+    },
+    "total": 59,
+    "retiredIds": [
+      "2672013166527523",
+      "1018621047428701",
+      "1529800232178121",
+      "1262971692700761",
+      "1021379973921053",
+      "1935472957154109",
+      "959273520451230",
+      "2150051392227837",
+      "951987930811295"
+    ],
+    "retained": [
+      {
+        "id": "2167802357142172",
+        "name": "WD_Orders_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "849713848195607",
+        "name": "WD_Shipments_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1107164111921876",
+        "name": "WD_Submit_Request_Paid_v1",
+        "status": "PUBLISHED",
+        "categories": [
+          "CUSTOMER_SUPPORT"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1578178897413815",
+        "name": "WD_Leave_Review_v2",
+        "status": "PUBLISHED",
+        "categories": [
+          "SURVEY"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1211063631104445",
+        "name": "WD_Drop_Documents",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "3678132465672138",
+        "name": "03.WD_Amend_Request",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      }
+    ],
+    "unusedDraftCount": 18,
+    "draftsDeleted": 0,
+    "staleRouting": "Subscribe/Profile UI references require cleanup",
+    "evidence": "outputs/flow-retirement-2026-10-09.json"
   }
 }

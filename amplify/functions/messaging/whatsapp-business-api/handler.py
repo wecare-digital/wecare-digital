@@ -310,11 +310,23 @@ def _update_business_profile(phone_id: str, body: Dict) -> Dict:
 def _list_flows(waba_id: str) -> Dict:
     if not waba_id:
         return _resp(400, {'error': 'wabaId required'})
-    result = _graph_api(f'{waba_id}/flows', params={'fields': 'id,name,status,categories,validation_errors'}, waba_id=waba_id)
-    if 'error' in result:
-        logger.error(f'List flows error for WABA {waba_id}: {result}')
-        return _resp(400, result)
-    return _resp(200, {'flows': result.get('data', [])})
+    rows, after, seen = [], None, set()
+    while True:
+        params = {'fields': 'id,name,status,categories,validation_errors', 'limit': 100}
+        if after:
+            params['after'] = after
+        result = _graph_api(f'{waba_id}/flows', params=params, waba_id=waba_id)
+        if 'error' in result:
+            return _resp(400, result)
+        rows.extend(result.get('data') or [])
+        paging = result.get('paging') or {}
+        if not paging.get('next'):
+            return _resp(200, {'flows': rows})
+        after = (paging.get('cursors') or {}).get('after')
+        if not after or after in seen or len(rows) >= 1000:
+            return _resp(502, {'error': 'Incomplete Flow inventory'})
+        seen.add(after)
+
 
 def _get_flow(flow_id: str) -> Dict:
     if not flow_id:
@@ -378,10 +390,10 @@ def _publish_flow(flow_id: str) -> Dict:
     _emit_event('flow_published', severity='info', data={'flowId': flow_id})
     return _resp(200, {'success': True})
 
-def _deprecate_flow(flow_id: str) -> Dict:
+def _deprecate_flow(flow_id: str, waba_id: str = None) -> Dict:
     if not flow_id:
         return _resp(400, {'error': 'flowId required'})
-    result = _graph_api(flow_id, method='POST', payload={'status': 'DEPRECATED'})
+    result = _graph_api(f'{flow_id}/deprecate', method='POST', waba_id=waba_id)
     if 'error' in result:
         return _resp(400, result)
     _emit_event('flow_deprecated', severity='warning', data={'flowId': flow_id})
@@ -6094,7 +6106,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif '/flows/publish' in path:
             return _publish_flow(params.get('flowId') or body.get('flowId'))
         elif '/flows/deprecate' in path:
-            return _deprecate_flow(params.get('flowId') or body.get('flowId'))
+            return _deprecate_flow(params.get('flowId') or body.get('flowId'),
+                                   params.get('wabaId') or body.get('wabaId'))
         elif '/flows/preview' in path:
             return _get_flow_preview(params.get('flowId') or body.get('flowId'))
         elif '/flows/assets' in path:

@@ -1,3 +1,5 @@
+LATEST FLOW RETIREMENT CHECKPOINT —9 October2026: Business API live90 (rollback89), documented Meta deprecate endpoint/WABA context and paginated inventory repaired. Nine obsolete published Flows across two WABAs are now DEPRECATED. Only published Submit1107164111921876 and Review1578178897413815 remain. Retained drafts: Orders2167802357142172, Amendment3678132465672138, Drop Docs1211063631104445, Shipments849713848195607. No Vault Flow. Eighteen other drafts remain unpublished, not deleted/deprecated. Old Profile1262971692700761/951987930811295 are deprecated; legacy Subscribe/UI references still need disabling/retargeting. Read outputs/flow-retirement-2026-10-09.md and .json before any Flow action. Source baseline may be newer after the scoped commit; revalidate remote/live revisions. Meta retirement cannot be undone by Lambda rollback. Current full backend10339/7 skipped/3 xfailed; source/remaining customer-engineering still PARTIALLY COMPLETE.
+
 # WECARE.DIGITAL — FULL NEW-SESSION EXECUTION PROMPT
 
 ## Latest owner requirement — Vault delivery and renewable paid access

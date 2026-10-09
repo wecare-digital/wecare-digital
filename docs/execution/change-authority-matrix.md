@@ -3503,3 +3503,10 @@ Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope c
 - A0/A1: source e9e377ce revalidated against origin; read current Business89/Secure Files34/checkout41 safe settings/hashes, three approved template contracts and DownloadGrantsTable TTL. No secret retrieval, financial/customer send/identity write, flag enablement or deployment.
 - Source confirms consumed-before-download and no renewable paid catalog/web access; legacy single-use URL/window wording and bounded TTL drift recorded as pending. Added V1–V9 implementation contract and complete new-session prompt; updated current audit/architecture/state/migration/payment/handoff records without claiming implementation.
 - Verification:121 existing targeted offline tests pass; documentation diff/JSON/link checks. Prior full gates/CI/Amplify1503 remain preceding source evidence. No new production rollback required.
+
+### Explicit owner-requested Flow deprecation —2026-10-09
+
+- Owner directly authorized retiring every Flow outside the plan. A0 full paginated inventory59 across two WABAs; retained six exact planned IDs; nine obsolete published targets selected. Eighteen unused drafts left unpublished because deprecation is not draft deletion.
+- A1/A3: correct Meta /deprecate endpoint with owning-WABA context and bounded pagination; focused135/full10339 passed,7 skipped,3 xfailed. Business89→90 revision-guarded, exact handler-only overlay hash pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI=, code rollback89. Unauthorized HTTP401.
+- Explicit provider operation: ninePOSTdeprecations200 and fresh readbackDEPRECATED. After2PUBLISHED/22DRAFT/35DEPRECATED. No secrets/customer sends/payments/new publication/draft deletion or release flags. No bulk registry sync. Meta deprecation is not reversed by code alias rollback; replacement requires verified migration.
+- Source audit retains pending legacy Subscribe/Profile/UI references; not certified routing cleanup. Evidence outputs/flow-retirement-2026-10-09.json/.md; master/new-session handoffs updated.
