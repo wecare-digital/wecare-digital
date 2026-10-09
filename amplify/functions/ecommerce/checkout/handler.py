@@ -550,18 +550,10 @@ def _unowned(item: Dict[str, Any]) -> bool:
 
 
 def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:
-    """The verified CRM profile for this signed-in phone, or None.
+    """Return a verified profile only for an exact permanent customer owner.
 
-    The lookup key comes from the proven session, through `_profile_phone` so it is the same
-    string `customer-profile` stored the row under. A browser cannot choose a phone/customer id.
-    A row is accepted when it is either owned by this customer or owned by nobody (see
-    `_unowned`), and in BOTH cases it must still carry `emailVerifiedAt` and a non-empty email
-    before its name/email are allowed into Razorpay prefill.
-
-    **The email gate is not relaxed, deliberately.** Claiming a row on a phone match says "this
-    row is about me"; it says nothing about the email on it. Paying against an unverified email
-    is a worse problem than being asked to verify one, so a claimed-but-unverified row still
-    answers `PROFILE_REQUIRED` and goes through email verification first.
+    Phone matching locates candidates; ownerless contacts require staff reconciliation.
+    Email verification remains mandatory for payment prefill.
     """
     try:
         response = _table(CONTACTS_TABLE).query(
@@ -573,25 +565,15 @@ def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict
         logger.error(json.dumps({"event": "checkout_profile_lookup_failed",
                                  "error": type(error).__name__}))
         raise
-    # An owned row wins over an unowned one, so a customer with their own row never reads a
-    # stray unowned duplicate on the same number. Both still pass the email-verified gate.
-    claimable: Optional[Dict[str, Any]] = None
     for item in response.get("Items") or []:
         if item.get("deletedAt") is not None:
             continue
-        owned = str(item.get("checkoutCustomerId") or "") == identity.customer_id
-        if not owned and not _unowned(item):
+        if not identity.customer_id or item.get("checkoutCustomerId") != identity.customer_id:
             continue
-        if not item.get("emailVerifiedAt"):
+        if not item.get("emailVerifiedAt") or not str(item.get("email") or "").strip():
             continue
-        if not str(item.get("email") or "").strip():
-            continue
-        if owned:
-            return item
-        if claimable is None:
-            claimable = item
-    return claimable
-
+        return item
+    return None
 
 def _load_owned_address(
         identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:
