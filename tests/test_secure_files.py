@@ -287,6 +287,7 @@ def _grant(**over):
         "orderId": "order_ABC",
         "fileId": "f1",
         "ownerPhone": "918100640044",
+        "customerId": "owner",
         "paid": False,
         "consumed": False,
         "channel": "web",
