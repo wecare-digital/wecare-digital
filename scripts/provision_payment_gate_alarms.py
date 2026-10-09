@@ -1,4 +1,4 @@
-"""Metric filters + alarms for the two WhatsApp payment-gate refusal events.
+"""Metric filters + alarms for the WhatsApp payment-gate refusal event.
 
 Why this exists, and why it is part of the gate change rather than a follow-up
 -----------------------------------------------------------------------------
@@ -10,8 +10,8 @@ safe if someone hears it.
 The discoverability problem is concrete, not theoretical. The inbound auto-send leg invokes the
 invoice route with `InvocationType='Event'` and never reads the response, so a refusal is
 invisible to the customer: they receive the invoice message and simply no payment request. The
-handler-side ERROR line is the ONLY signal on that leg, which is why these two filters target the
-handler events and not `payment_readiness`'s own `payment_readiness_blocked` WARNING — that line
+handler-side ERROR line is the ONLY signal on that leg, which is why this filter targets the
+handler event and not `payment_readiness`'s own `payment_readiness_blocked` WARNING — that line
 carries no invoice id and no request id.
 
 * `wa_payment_readiness_refused` means a live provider readback did not prove the configuration
@@ -19,11 +19,6 @@ carries no invoice id and no request id.
   is refusing. Eight of the ten blocking states need a human; two are availability states that
   will clear on their own, which is why the alarm description says to read the `readiness` field
   rather than assuming an outage.
-
-* `wa_payment_disabled_refused` means `WA_PAYMENTS_DISABLED` is set and the brake is being hit.
-  Pulling the brake is a legitimate administrative act, so this is not a defect alarm — it exists
-  so a pulled brake is visible as an EVENT rather than as silence, and so nobody spends a day
-  debugging Meta while the kill switch is on.
 
 Both functions are watched because both carry a gate: `wecare-invoice-engine` refuses before the
 reserve-and-send transaction, and `wecare-outbound-whatsapp` refuses at the boundary every payment
@@ -41,7 +36,7 @@ this: neither calls `put_metric_filter`, and both only create alarms on AWS-nati
 Created via boto3 because ampx cannot run in the agent environment. Every put_* is an upsert, so
 this script is idempotent and safe to re-run.
 
-Cost: metric filters are free; four alarms at roughly $0.10/month each.
+Cost: metric filters are free; two alarms at roughly $0.10/month each.
 """
 import boto3
 
@@ -71,19 +66,6 @@ SIGNALS = [
             "operator-actionable and answered 409. On the inbound auto-send leg the customer "
             "sees no payment request and no caller sees a status, so this log line is the only "
             "signal that leg produces."
-        ),
-    },
-    {
-        "event": "wa_payment_disabled_refused",
-        "filterName": "wa-payment-disabled-refused",
-        "metricName": "WaPaymentDisabledRefused",
-        "alarmSuffix": "wa-payment-disabled-refused",
-        "description": (
-            "wa_payment_disabled_refused logged - WA_PAYMENTS_DISABLED is set and the kill "
-            "switch is refusing in-WhatsApp payment sends. This is a legitimate administrative "
-            "state, not a defect: the alarm exists so a pulled brake is visible as an event "
-            "rather than as silence. Nothing was charged. If the brake was not pulled "
-            "deliberately, unset the variable on the named function."
         ),
     },
 ]

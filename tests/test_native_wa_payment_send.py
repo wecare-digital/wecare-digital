@@ -439,31 +439,6 @@ def test_an_empty_expected_mid_alone_refuses(engine, fake):
     assert lam.sends() == []
 
 
-def test_the_kill_switch_outranks_a_blocking_readiness_verdict(engine, fake):
-    """THE HARD-CONSTRAINT REGRESSION TEST.
-
-    With `WA_PAYMENTS_DISABLED` set AND a readiness stub that would also block, the answer is
-    503 `WA_PAY_DISABLED` — not a readiness state. `evaluate` also reads the kill switch and
-    reports it as CONFIGURATION_UNVERIFIED, so without the explicit check first a pulled brake
-    would surface as a readiness verdict and lose its code, its 503 and its operator wording.
-
-    Nothing is written, nothing is sent, and the provider is never read.
-    """
-    _seed_invoice(fake)
-    lam = _RecordingLambda(readiness={'data': []})
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
-        resp = _drive(engine, fake, lam, config='')
-
-    assert resp['statusCode'] == 503
-    assert _body(resp)['code'] == wpr.WA_PAY_DISABLED
-    assert _body(resp)['error'] == wpr.REFUSAL_MESSAGES[wpr.WA_PAY_DISABLED]
-    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
-    assert fake.count(ATTEMPTS) == 0
-    assert lam.sends() == []
-    # The brake is checked BEFORE readiness, so the provider is never consulted.
-    assert lam.readiness_calls == 0
-
-
 @pytest.mark.parametrize('readiness,state,status', [
     ({'data': []}, 'PAYMENT_CONFIG_MISSING', 409),
     ({'data': [{'configuration_name': 'SOMETHINGELSE', 'status': 'active',
@@ -553,10 +528,9 @@ def test_the_gate_runs_before_the_reservation_in_source_order(engine):
     import inspect
 
     source = inspect.getsource(engine.send_payment_link)
-    assert (source.index('payments_disabled()')
-            < source.index('payment_readiness.evaluate(')
+    assert (source.index('payment_readiness.evaluate(')
             < source.index('wa_payment_request.build_request(')), (
-        'the brake, then readiness, then the reserve-and-send transaction')
+        'readiness, then the reserve-and-send transaction')
 
 
 def test_the_attempt_advances_to_request_sent_after_a_successful_send(engine, fake):
@@ -650,20 +624,6 @@ def test_every_validation_rule_refuses_before_any_write(kwargs, code):
     with pytest.raises(wpr.PaymentRequestRefused) as refused:
         wpr.build_request(**base)
     assert refused.value.code == code
-
-
-def test_payments_disabled_refuses_before_any_write(engine, fake):
-    """T-S15. `WA_PAYMENTS_DISABLED` is a single opt-out that can only ever tighten. There is
-    deliberately no env var that can turn payments ON."""
-    _seed_invoice(fake)
-    lam = _RecordingLambda()
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
-        resp = _drive(engine, fake, lam)
-
-    assert resp['statusCode'] == 503
-    assert _body(resp)['code'] == wpr.WA_PAY_DISABLED
-    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
-    assert lam.invokes == []
 
 
 def test_the_reserved_reference_is_meta_valid():

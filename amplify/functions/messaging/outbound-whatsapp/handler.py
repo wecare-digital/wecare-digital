@@ -40,9 +40,8 @@ from lambda_utils.ecommerce import order_keys
 REFERENCE_ID_MAX_LENGTH = order_keys.META_REFERENCE_ID_MAX_LENGTH
 # A0 — the readiness gate at the payment-request chokepoint. `payment_readiness` proves the
 # configuration and the approved template against a LIVE provider read; `wa_payment_request` is
-# imported for exactly two things and nothing else: `payments_disabled()`, so the kill switch has
-# ONE reader implementation rather than a second env read here, and `PAYMENT_SENDERS`, so the
-# gate and the caller-side module cannot disagree about which sender may collect.
+# imported for `PAYMENT_SENDERS`, so the gate and the caller-side module cannot disagree about
+# which sender may collect.
 #
 # On the note at wa_payment_request.py:74-79 ("a literal rather than an import because the
 # resolver must not depend on the `ecommerce` package"): that scopes to `_build_payment_settings`,
@@ -698,8 +697,8 @@ def _build_payment_settings(phone_number_id: str, order_details: dict) -> list:
 # callers can be added by anyone, the Meta boundary cannot, and two of the live callers are
 # browser code that must not be trusted with a gate at all.
 #
-# After this gate, pulling `WA_PAYMENTS_DISABLED` on this function stops every in-WhatsApp
-# payment send in the system. Before it, that was false.
+# After this gate, no in-WhatsApp payment send in the system reaches Meta without a live
+# readiness proof. Before it, that was false.
 
 
 _payment_read_lambda = None
@@ -786,7 +785,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
     """Refuse a payment REQUEST unless a live provider readback proves it can be collected.
 
     Returns None to proceed. Ordered so the cheapest and most authoritative refusals come
-    first; steps 1-7 make NO provider call. Never raises - and the call site wraps it anyway, so
+    first; steps 1-6 make NO provider call. Never raises - and the call site wraps it anyway, so
     the promise is enforced rather than asserted.
     """
     # 1. Arming. `isOrderStatus` is absent from the keys, so a post-payment notification is
@@ -794,25 +793,13 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
     if not any(body.get(key) for key in _PAYMENT_REQUEST_KEYS):
         return None
 
-    # 2. The brake, first and by itself. `wa_payment_request.payments_disabled()` is the ONE
-    #    reader implementation; this calls it, it does not re-read the env. Checked before
-    #    readiness so the existing WA_PAY_DISABLED code, 503 status and operator wording keep
-    #    precedence - `payment_readiness.evaluate` would otherwise report a pulled brake as
-    #    CONFIGURATION_UNVERIFIED, which reads as a misconfiguration.
-    if wa_payment_request.payments_disabled():
-        logger.error(json.dumps({'event': 'wa_payment_disabled_refused',
-                                 'code': wa_payment_request.WA_PAY_DISABLED,
-                                 'requestId': request_id}))
-        return _error_response(503, wa_payment_request.WA_PAY_DISABLED,
-                               wa_payment_request.REFUSAL_MESSAGES[
-                                   wa_payment_request.WA_PAY_DISABLED])
-
-    # 3. Only WABA1 may take a payment (owner decision 2026-10-07). This is NOT redundant with
+    # 2. Only WABA1 may take a payment (owner decision 2026-10-07). This is NOT redundant with
     #    `_build_payment_settings`'s own check: `_waba_for_sender` resolves WABA2 SUCCESSFULLY
     #    (direct_send.META_PHONE_TO_WABA holds both), and both WABAs carry an identical
     #    WECAREDIGITAL configuration with the same provider_mid - so without this the gate could
     #    report PAYMENT_READY, and log `payment_readiness_ready`, for a sender that may never
-    #    collect. Placed after the brake so the brake keeps precedence.
+    #    collect. First and by itself, because it is the cheapest and most authoritative refusal
+    #    on the path: one set membership, and no provider read can make a forbidden sender valid.
     if phone_number_id not in wa_payment_request.PAYMENT_SENDERS:
         logger.error(json.dumps({'event': 'wa_payment_sender_not_permitted',
                                  'code': wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED,
@@ -820,7 +807,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
         return _error_response(409, wa_payment_request.WA_PAY_SENDER_NOT_PERMITTED,
                                _NOT_READY_MESSAGE)
 
-    # 4. Both non-resolver envelopes are refused by name. `isInteractivePayment` is a free-form
+    # 3. Both non-resolver envelopes are refused by name. `isInteractivePayment` is a free-form
     #    message, not the approved template; `isPaymentTemplate` is a template whose
     #    order_details dict is attached VERBATIM as the button action and never passes through
     #    `_build_payment_settings` - so the WABA1 refusal, the link refusals and the
@@ -834,7 +821,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
                                    'WhatsApp payments must travel in the approved order_details '
                                    'template through the resolver. Nothing has been charged.')
 
-    # 5. Shape. An EMPTY dict is refused too: it would fall through to the phone map and let the
+    # 4. Shape. An EMPTY dict is refused too: it would fall through to the phone map and let the
     #    gate prove a configuration for a payment request that names no order at all.
     order_details = (body.get('checkoutOrderDetails') or body.get('orderDetails') or {})
     if not isinstance(order_details, dict) or not order_details:
@@ -842,7 +829,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
                                  'requestId': request_id}))
         return _error_response(400, 'ORDER_DETAILS_INVALID', 'Nothing has been charged.')
 
-    # 6. The configuration name, resolved ONCE by the extracted resolver the sender also uses.
+    # 5. The configuration name, resolved ONCE by the extracted resolver the sender also uses.
     try:
         config_name = _resolve_payment_config_name(phone_number_id, order_details)
     except PaymentConfigurationUnresolved as unresolved:
@@ -851,7 +838,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
         return _error_response(409, wa_payment_request.WA_PAY_CONFIG_UNRESOLVED,
                                _NOT_READY_MESSAGE)
 
-    # 7. Only a configuration this deployment can PROVE may be used. `WECAREUPI` is a `upi`
+    # 6. Only a configuration this deployment can PROVE may be used. `WECAREUPI` is a `upi`
     #    configuration with a VPA and no Razorpay merchant id, so `evaluate` - which compares a
     #    merchant id and nothing else - could only ever report it as CONFIGURATION_UNVERIFIED or
     #    RAZORPAY_MID_MISMATCH, sending an operator to look for a configuration error that does
@@ -869,7 +856,7 @@ def _refuse_unless_payment_ready(body: Dict[str, Any], phone_number_id: str,
                                  'requestId': request_id}))
         return _error_response(409, WA_PAY_CONFIG_NOT_PROVABLE, _NOT_READY_MESSAGE)
 
-    # 8. The live readback. The WABA id comes from the SENDER, through the function that already
+    # 7. The live readback. The WABA id comes from the SENDER, through the function that already
     #    owns that derivation; never from the request body, because a caller-supplied WABA id on
     #    a money path is a caller-supplied routing decision. An unresolvable sender yields `''`,
     #    which `evaluate` reports as CONFIGURATION_UNVERIFIED - the fail-closed direction.

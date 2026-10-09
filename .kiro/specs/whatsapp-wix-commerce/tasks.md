@@ -314,12 +314,14 @@ payment (Phase 10/11). This is an in-chat flow; the Wix checkout page is not use
     block rather than preferring it.
   - _Requirements: D1_ · _Verify: `tests/test_whatsapp_payments_are_template_only.py`_
 - [ ] 9.5 Every in-WhatsApp payment send is gated at the `outbound-whatsapp` boundary on
-      `payment_readiness` and on `payments_disabled()`, and the live invoice-collection send is
-      gated again before its reserve-and-send transaction. The configuration name and the
-      expected merchant id carry **no literal defaults**.
-  - The boundary is sufficient because `review_and_pay` is composed in exactly one file. Pulling
-    `WA_PAYMENTS_DISABLED` on `wecare-outbound-whatsapp` now stops every in-WhatsApp payment send
-    in the system; before this, it did not.
+      `payment_readiness`, and the live invoice-collection send is gated again before its
+      reserve-and-send transaction. The configuration name and the expected merchant id carry
+      **no literal defaults**.
+  - The boundary is sufficient because `review_and_pay` is composed in exactly one file. Every
+    in-WhatsApp payment send in the system now crosses a live readiness proof on
+    `wecare-outbound-whatsapp`; before this, it did not. There is no kill-switch env var on this
+    path (owner ruling OD-1): readiness is always on, and the only route to a send is a
+    successful live provider read.
   - _Requirements: statement 9_ · _Verify: `tests/test_outbound_payment_gate.py`,
     `tests/test_native_wa_payment_send.py`_
 - [ ] 9.6 The complete inventory of in-WhatsApp payment surfaces — eight of them — with the gate

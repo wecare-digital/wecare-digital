@@ -3021,22 +3021,8 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # and the boundary gate exists precisely because callers cannot be trusted to carry a gate.
     # A caller-supplied "already proven" flag is NOT an option: that is a bypass.
     #
-    # The kill switch is read FIRST, explicitly. `evaluate` also reads `WA_PAYMENTS_DISABLED`
-    # and reports it as CONFIGURATION_UNVERIFIED, so without this statement a pulled brake would
-    # surface as a readiness verdict instead of the existing WA_PAY_DISABLED refusal with its
-    # existing 503 and its existing operator wording. Checking it first preserves the brake's
-    # precedence, code, status and message, costs one `os.environ` read, and adds no way to turn
-    # payments on. `payments_disabled()` is the ONE reader implementation; this calls it.
-    if wa_payment_request.payments_disabled():
-        logger.info(json.dumps({'event': 'wa_payment_disabled', 'invoiceId': invoice_id,
-                                'code': wa_payment_request.WA_PAY_DISABLED,
-                                'requestId': request_id}))
-        return _resp(503, {'error': wa_payment_request.REFUSAL_MESSAGES[
-                               wa_payment_request.WA_PAY_DISABLED],
-                           'code': wa_payment_request.WA_PAY_DISABLED})
-
-    # Only WABA1 may take a payment, refused by name and with its existing code. Placed after the
-    # brake so the brake keeps precedence, and BEFORE the readiness evaluation on purpose: an
+    # Only WABA1 may take a payment, refused by name and with its existing code. First on the
+    # path, and BEFORE the readiness evaluation on purpose: an
     # unmapped sender yields an empty WABA id, which `evaluate` reports as
     # CONFIGURATION_UNVERIFIED — closed, but under a name that reads as "something is
     # misconfigured" and sends an operator looking for a configuration error that does not exist.

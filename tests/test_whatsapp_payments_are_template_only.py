@@ -339,16 +339,18 @@ def test_no_payment_is_composed_in_a_browser():
 
 
 def test_the_two_payment_gates_expect_the_same_configuration_and_mid():
-    """One logical expectation, two key names, pinned equal.
+    """One logical expectation, three key names, pinned equal.
 
     The drift mode is specific and bad: the invoice engine would prove and reserve against X,
     send `payment_configuration: X`, and the boundary gate would then refuse because its own
     expectation is Y — a guaranteed reserve-then-refuse on every invoice collection, surfacing as
     an outbound error with the reservation already written.
 
-    `wecare-checkout` is DELIBERATELY excluded: it holds the same keys but declares them empty
-    while the native service leg is gated off, so including it would pin an empty expectation
-    onto the two live gates.
+    `wecare-checkout` is INCLUDED rather than excluded. The native service leg is always-on
+    (owner ruling OD-2), so it carries the same two identifiers live, and an empty value there
+    would not read as "gated off" - it would refuse every collection raised on that leg under
+    CONFIGURATION_UNVERIFIED, which reads as a misconfiguration. All three must agree or one of
+    them refuses what the other two proved.
     """
     import json as _json
     import pathlib
@@ -356,10 +358,11 @@ def test_the_two_payment_gates_expect_the_same_configuration_and_mid():
                            .read_text(encoding='utf-8'))['functions']
     invoice = manifest['wecare-invoice-engine']
     outbound_env = manifest['wecare-outbound-whatsapp']
+    checkout = manifest['wecare-checkout']
     assert invoice['WA_PAY_CONFIG_NAME'] == outbound_env['EXPECTED_CONFIGURATION_NAME']
     assert invoice['EXPECTED_PROVIDER_MID'] == outbound_env['EXPECTED_PROVIDER_MID']
-    assert manifest['wecare-checkout']['EXPECTED_CONFIGURATION_NAME'] == ''
-    assert manifest['wecare-checkout']['EXPECTED_PROVIDER_MID'] == ''
+    assert checkout['EXPECTED_CONFIGURATION_NAME'] == invoice['WA_PAY_CONFIG_NAME']
+    assert checkout['EXPECTED_PROVIDER_MID'] == invoice['EXPECTED_PROVIDER_MID']
 
 
 def test_the_two_free_form_payment_composers_are_gone():

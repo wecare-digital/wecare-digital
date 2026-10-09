@@ -1861,6 +1861,10 @@ export interface AWSBillingData {
   // 2026-09-28 because it bills per request). A zero totalCost then means "not
   // measured", not "spent nothing" -- the dashboard must not show it as a bill.
   costReportingEnabled?: boolean;
+  // True when the billing call itself could not be answered, so nothing in this
+  // payload is a measurement. Distinct from costReportingEnabled === false,
+  // which means the backend answered and told us spend is not measured.
+  unavailable?: boolean;
   note?: string;
 }
 
@@ -5437,6 +5441,8 @@ export interface FlowSubmissionItem {
   flowVersion?: string;
   phone: string;
   contactId?: string;
+  /** Public customer id a staff member can quote instead of the phone number. */
+  customerUuid?: string;
   senderName?: string;
   formData?: string;
   orderId?: string;
@@ -5450,11 +5456,14 @@ export interface FlowSubmissionItem {
   paymentStatus: string;
   paymentRefId?: string;
   invoiceId?: string;
+  /** WhatsApp send outcome for an invoice-copy request, e.g. 'ACCEPTED' or 'SEND_FAILED'. */
+  invoiceDeliveryStatus?: string;
   transactionId?: string;
   paidAt?: number;
   status: string;
   assignedTo?: string;
   notes?: string;
+  tags?: string[];
   resolvedAt?: number;
   createdAt: number;
   updatedAt?: number;
@@ -5462,6 +5471,8 @@ export interface FlowSubmissionItem {
   requestId?: string;
   referenceId?: string;
   orderNumber?: string;
+  /** Order reference as the customer typed it — unverified, so never treat it as a linked order. */
+  orderReference?: string;
   product?: string;
   amount?: string;
   customerName?: string;
@@ -6952,6 +6963,8 @@ export async function logCapiEvent ( input: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SecureFile {
+  /** Current name for the paid access record; `paidGrantId` is the legacy alias the backend still mirrors. */
+  paidEntitlementId?: string;
   paidGrantId?: string;
   deliveryStatus?: string;
   vaultPaymentStatus?: string;

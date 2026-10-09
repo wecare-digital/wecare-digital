@@ -979,12 +979,21 @@ def test_the_template_is_not_wired_into_the_amplify_backend():
 
 
 def test_the_manifest_records_the_function_without_the_gate():
+    """The GATE here is the `CHECKOUT_INITIATION_ENABLED` feature flag, and it is gone:
+    initiation is always on, so there is no variable that can switch it off.
+
+    The two readiness identifiers are the opposite case and are asserted LIVE. They are not a
+    switch - they are EXPECTATIONS compared against a live provider readback, so setting them
+    produces a refusal when they disagree and never a send that skipped a check. They must equal
+    the invoice engine's and the boundary gate's own expectations, which
+    `tests/test_whatsapp_payments_are_template_only.py` pins across all three functions.
+    """
     manifest = json.loads(
         (ROOT / "config" / "lambda-env-manifest.json").read_text(encoding="utf-8"))
     entry = manifest["functions"]["wecare-checkout"]
     assert "CHECKOUT_INITIATION_ENABLED" not in entry
-    assert entry["EXPECTED_CONFIGURATION_NAME"] == ""
-    assert entry["EXPECTED_PROVIDER_MID"] == ""
+    assert entry["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert entry["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
     assert entry["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
     assert manifest["_functions"] == len(manifest["functions"])
     assert manifest["_variables"] == sum(len(v) for v in manifest["functions"].values())

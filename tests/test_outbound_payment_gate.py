@@ -191,66 +191,7 @@ def test_the_arming_keys_are_exactly_the_three_payment_request_shapes(outbound):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. the kill switch, first and by itself
-# ══════════════════════════════════════════════════════════════════════════════
-
-@pytest.mark.parametrize('value', ['1', 'true', 'TRUE', 'yes', 'on'])
-@pytest.mark.parametrize('envelope', ['isCheckoutTemplate', 'isPaymentTemplate',
-                                      'isInteractivePayment'])
-def test_the_kill_switch_refuses_every_envelope_before_any_provider_read(outbound, value,
-                                                                        envelope):
-    """THE HARD-CONSTRAINT TEST, across every gated path.
-
-    `payments_disabled()` is the ONE reader implementation; the gate calls it and does not
-    re-read the env. It is checked BEFORE readiness because `payment_readiness.evaluate` also
-    reads the flag and reports it as CONFIGURATION_UNVERIFIED — so without the explicit check
-    first, a pulled brake would surface as a readiness verdict and lose its code, its 503 and its
-    operator wording.
-    """
-    body = {envelope: True, 'templateName': TEMPLATE, 'orderDetails': dict(ORDER_DETAILS),
-            'checkoutOrderDetails': dict(ORDER_DETAILS)}
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': value}):
-        refusal, reads = _gate(outbound, body)
-
-    assert refusal is not None
-    assert refusal['statusCode'] == 503
-    assert _error(refusal)['error'] == wpr.WA_PAY_DISABLED
-    assert _error(refusal)['message'] == wpr.REFUSAL_MESSAGES[wpr.WA_PAY_DISABLED]
-    assert 'Nothing has been charged.' in _error(refusal)['message']
-    # The brake outranks the provider read, not merely the send.
-    assert reads.fetches == 0
-
-
-def test_the_kill_switch_outranks_a_blocking_readiness_verdict(outbound):
-    """With the brake pulled AND a readback that would also block, the answer is the brake's."""
-    reads = _Reads(configurations={'data': []})
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
-        refusal, reads = _gate(outbound, _payment_body(), reads=reads)
-    assert _error(refusal)['error'] == wpr.WA_PAY_DISABLED
-    assert reads.fetches == 0
-
-
-def test_the_kill_switch_outranks_a_forbidden_sender_and_a_refused_envelope(outbound):
-    """Ordering, asserted rather than assumed: the brake is step 2, ahead of both named
-    refusals, so a pulled brake always reads as a pulled brake."""
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
-        refusal, _ = _gate(outbound, _payment_body(isPaymentTemplate=True), phone_id=WABA2)
-    assert refusal['statusCode'] == 503
-    assert _error(refusal)['error'] == wpr.WA_PAY_DISABLED
-
-
-def test_the_gate_calls_the_one_kill_switch_reader_and_does_not_re_read_the_env(outbound):
-    """No second implementation of the env read, and therefore no way for the two to disagree."""
-    import inspect
-    source = inspect.getsource(outbound._refuse_unless_payment_ready)
-    assert 'wa_payment_request.payments_disabled()' in source
-    assert 'WA_PAYMENTS_DISABLED' not in source
-    # And the module imports the reader rather than copying it.
-    assert outbound.wa_payment_request.payments_disabled is wpr.payments_disabled
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 3. only WABA1 may take a payment  (review HIGH-2)
+# 2. only WABA1 may take a payment  (review HIGH-2)
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.parametrize('config', [None, TEST_CONFIG, 'WECAREUPI'])
@@ -299,7 +240,7 @@ def test_a_sender_that_resolves_to_no_waba_at_all_is_refused(outbound):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 4. the two non-resolver envelopes are refused by name  (review HIGH-1)
+# 3. the two non-resolver envelopes are refused by name  (review HIGH-1)
 # ══════════════════════════════════════════════════════════════════════════════
 
 class TestTheNonResolverEnvelopesAreRefused:
@@ -368,18 +309,17 @@ class TestTheNonResolverEnvelopesAreRefused:
         assert not offenders, (
             'a caller of a non-resolver payment envelope appeared: ' + ', '.join(offenders))
 
-    def test_the_envelope_refusal_follows_the_brake_and_the_sender_check(self, outbound):
+    def test_the_envelope_refusal_follows_the_sender_check(self, outbound):
         import inspect
         source = inspect.getsource(outbound._refuse_unless_payment_ready)
-        assert (source.index('payments_disabled()')
-                < source.index('PAYMENT_SENDERS')
+        assert (source.index('PAYMENT_SENDERS')
                 < source.index('_REFUSED_PAYMENT_ENVELOPES')
                 < source.index('_resolve_payment_config_name')
                 < source.index('evaluate_for_delivery'))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 5. the order_details shape
+# 4. the order_details shape
 # ══════════════════════════════════════════════════════════════════════════════
 
 @pytest.mark.parametrize('details', [None, {}, [], 'not-a-dict', 0])
@@ -409,7 +349,7 @@ def test_either_order_details_key_satisfies_the_shape_check(outbound):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 6-7. the configuration name: ONE resolver, and only a provable name
+# 5-6. the configuration name: ONE resolver, and only a provable name
 # ══════════════════════════════════════════════════════════════════════════════
 
 def test_an_unprovable_configuration_is_refused_by_name_before_the_provider_read(outbound):
@@ -478,7 +418,7 @@ def test_the_resolver_extraction_did_not_move_the_senders_refusal(outbound):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 8. the live readback, per blocking state
+# 7. the live readback, per blocking state
 # ══════════════════════════════════════════════════════════════════════════════
 
 def test_a_proven_configuration_and_an_approved_template_let_the_send_proceed(outbound):
@@ -670,17 +610,17 @@ class TestAnUnconfiguredDeploymentRefuses:
         assert 'acc_TTFSyolquKEZEy' not in defaults
 
     def test_no_env_var_introduced_here_can_force_enable_a_payment(self, outbound):
-        """The asymmetry is the whole point of the kill switch. The gate reads exactly two new
-        variables, both EXPECTATIONS compared against a live readback: setting them wrongly
-        produces a refusal, and the only route to PAYMENT_READY is a successful live read."""
+        """The asymmetry is the whole point. The gate reads exactly two new variables, both
+        EXPECTATIONS compared against a live readback: setting them wrongly produces a refusal,
+        and the only route to PAYMENT_READY is a successful live read."""
         import ast
         import inspect
         tree = ast.parse(inspect.getsource(outbound._refuse_unless_payment_ready).lstrip())
         env_reads = [n for n in ast.walk(tree)
                      if isinstance(n, ast.Attribute) and n.attr == 'environ']
         assert env_reads == [], (
-            'the gate must not read the environment directly; expectations are module constants '
-            'and the kill switch has one reader')
+            'the gate must not read the environment directly; expectations are module '
+            'constants')
 
 
 # ══════════════════════════════════════════════════════════════════════════════
