@@ -561,12 +561,16 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     plan = catalog.diff(desired, existing)
     blocked = catalog.blockers(desired)
     counts = plan.counts()
+    plan_hash = plan.fingerprint()
+    approved_hash = os.environ.get("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", "").strip().lower()
+    approved = bool(approved_hash) and hmac.compare_digest(approved_hash, plan_hash.lower())
 
     if isinstance(event, Mapping) and event.get("inspect") is True:
         # Private IAM-protected readback. Never enters the write path, even when
         # synchronization is enabled. Only public product fields are returned.
         return {"ok": True, "enabled": enabled, "dryRun": True, "readOnly": True,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
+                "planHash": plan_hash, "approved": approved,
                 "desiredItems": [catalog.meta_payload(item) for item in desired],
                 "existingItems": [catalog.meta_payload(item) for item in existing],
                 "applied": 0}
@@ -590,25 +594,36 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         "blocked": len(blocked),
         "blockedProducts": blocked,
         "foreignRetailerIds": plan.foreign,
-        "planHash": plan.fingerprint(),
+        "planHash": plan_hash,
+        "approved": approved,
     }))
 
     if not enabled or dry_run:
         # RETURNS BEFORE ANY WRITE REQUEST IS CONSTRUCTED. `_batch_requests` is not called, so
         # there is no payload in memory to send by accident.
         return {"ok": True, "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
-                "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
-                "applied": 0}
+                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                "approved": approved, "applied": 0}
 
     if plan.is_empty:
         return {"ok": True, "enabled": True, "dryRun": False, "catalogId": catalog_id,
-                "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
-                "applied": 0}
+                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                "approved": approved, "applied": 0}
+
+    if blocked:
+        return {"ok": False, "reason": "blocked", "enabled": True, "dryRun": False,
+                "catalogId": catalog_id, "counts": counts, "blocked": blocked,
+                "planHash": plan_hash, "approved": approved, "applied": 0}
+
+    if not approved:
+        return {"ok": False, "reason": "approval_required", "enabled": True, "dryRun": False,
+                "catalogId": catalog_id, "counts": counts, "blocked": blocked,
+                "planHash": plan_hash, "approved": False, "applied": 0}
 
     outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
     return {"ok": outcome["ok"], "enabled": True, "dryRun": False, "catalogId": catalog_id,
-            "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
-            "applied": outcome["applied"], "batchHandles": outcome.get("batchHandles", []),
+            "counts": counts, "blocked": blocked, "planHash": plan_hash,
+            "approved": True, "applied": outcome["applied"], "batchHandles": outcome.get("batchHandles", []),
             "validationErrors": outcome.get("validationErrors", []),
             "responseFields": outcome.get("responseFields", []),
             "validationStatus": outcome.get("validationStatus")}
