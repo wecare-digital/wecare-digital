@@ -78,6 +78,7 @@ def gates_closed(monkeypatch):
     monkeypatch.delenv("META_CATALOG_SYNC_ENABLED", raising=False)
     monkeypatch.delenv("META_CATALOG_SYNC_DRY_RUN", raising=False)
     monkeypatch.delenv("META_CATALOG_ID", raising=False)
+    monkeypatch.delenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", raising=False)
 
 
 @pytest.fixture(scope="module")
@@ -241,23 +242,30 @@ def test_dry_run_switches_off_only_on_an_explicit_false(snapshot_products, monke
     answer = run(wix, graph)
     still_dry = value.strip().lower() not in ("false", "0", "no", "off")
     assert answer["dryRun"] is still_dry
-    assert (graph.writes == []) is still_dry
+    assert graph.writes == []
+    if not still_dry:
+        assert answer["reason"] in ("blocked", "approval_required")
 
 
-def test_both_gates_open_is_the_only_path_that_writes(snapshot_products, monkeypatch):
-    """Recorded so the gate's effect is proven rather than asserted by its absence.
-
-    NOTHING IN THE REPOSITORY SETS THESE VALUES: `config/lambda-env-manifest.json` carries both at
-    their safe defaults and no provisioner or deploy script changes them. This test opens them in
-    its own process only, against a fake.
-    """
+def test_all_write_gates_require_the_exact_approved_plan(snapshot_products, monkeypatch):
+    """Enable + non-dry-run is insufficient; an exact current plan hash is the durable approval."""
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
+        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
+    monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     wix, graph = FakeWix(snapshot_products), FakeGraph()
-    answer = run(wix, graph)
+    proposal = receiver.handler({"inspect": True}, None, wix_requester=wix,
+        graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
+    assert proposal["counts"]["create"] == 4 and proposal["blocked"] == []
+    assert proposal["approved"] is False
+    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
+    answer = run(FakeWix(snapshot_products), graph)
 
     assert answer["dryRun"] is False
-    assert answer["applied"] == 24
+    assert answer["approved"] is True
+    assert answer["applied"] == 4
     assert len(graph.writes) == 1
     write = graph.writes[0]
     assert write["method"] == "POST"
@@ -266,15 +274,45 @@ def test_both_gates_open_is_the_only_path_that_writes(snapshot_products, monkeyp
     assert methods == {"UPDATE"}, "there is no DELETE method anywhere in this function"
 
 
+def test_wrong_or_stale_approval_hash_refuses_without_constructing_a_write(snapshot_products, monkeypatch):
+    monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
+        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
+    monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", "0"*64)
+    graph=FakeGraph()
+    answer=run(FakeWix(snapshot_products), graph)
+    assert answer["reason"]=="approval_required"
+    assert answer["approved"] is False and answer["applied"]==0
+    assert graph.writes==[]
+
+
+def test_blockers_refuse_even_with_a_matching_approval(snapshot_products, monkeypatch):
+    monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    graph=FakeGraph()
+    proposal=receiver.handler({"inspect":True},None,wix_requester=FakeWix(snapshot_products),
+        graph_requester=graph,secret_reader=lambda name:{"access_token":FAKE_TOKEN})
+    assert proposal["blocked"]
+    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
+    answer=run(FakeWix(snapshot_products), graph)
+    assert answer["reason"]=="blocked" and answer["applied"]==0
+    assert graph.writes==[]
+
+
 def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     entry = manifest["functions"]["wecare-meta-catalog-sync"]
     provisioner = _load_provisioner()
     for key in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN",
+                "META_CATALOG_SYNC_APPROVED_PLAN_SHA256",
                 "META_CATALOG_SYNC_VARIANT_IDS", "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"):
         assert entry[key] == provisioner.ENVIRONMENT[key]
     assert entry["META_CATALOG_SYNC_ENABLED"] == "false"
     assert entry["META_CATALOG_SYNC_DRY_RUN"] == "true"
+    assert entry["META_CATALOG_SYNC_APPROVED_PLAN_SHA256"] == ""
     assert entry["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
     assert set(entry["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", "db166bc8-a763-41ec-9f65-0f718f18155a", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
@@ -325,6 +363,10 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
     """
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
+        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
+    monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     wix = FakeWix(snapshot_products)
     graph = FakeGraph(items=[
         {"id": "meta-hand-made", "retailer_id": "WD-PARTNER-UP", "name": "Partner upgrade",
@@ -332,10 +374,14 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
         {"id": "meta-sku", "retailer_id": "htlu35lrs1", "name": "A hand-made item",
          "availability": "in stock"},
     ])
+    proposal = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
+        graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
+    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
 
     answer = run(wix, graph)
 
     assert answer["counts"]["foreign"] == 2
+    assert answer["applied"] == 4
     assert answer["counts"]["retire"] == 0
     rendered = json.dumps([call["payload"] for call in graph.writes])
     assert "WD-PARTNER-UP" not in rendered
@@ -665,12 +711,16 @@ def test_choice_artwork_overrides_stale_variant_index_media():
 
 def test_scoped_rollout_never_retires_unselected_variants(snapshot_products, monkeypatch):
     all_items = sync.desired_items(snapshot_products)
-    wanted = sync.parse_retailer_id(all_items[0]["retailer_id"])[1]
+    wanted = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS", wanted)
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
-    graph = FakeGraph(items=all_items[1:])
+    graph = FakeGraph(items=[item for item in all_items if wanted not in item["retailer_id"]])
+    proposal = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
+        graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
+    assert proposal["blocked"] == [] and proposal["counts"]["create"] == 1
+    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
     answer = run(FakeWix(snapshot_products), graph)
     assert answer["counts"]["create"] == 1
     assert answer["counts"]["retire"] == 0
