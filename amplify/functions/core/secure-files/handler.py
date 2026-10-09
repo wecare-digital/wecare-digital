@@ -1222,7 +1222,7 @@ def _redeem_after_reconcile(
             403,
             {
                 "error": "GRANT_NOT_REDEEMABLE",
-                "message": "This download link is not valid. Please pay again to download.",
+                "message": "This download link is no longer valid. If you have already paid, do not pay again; contact us to restore access.",
             },
             origin,
         )
@@ -1457,7 +1457,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
             403,
             {
                 "error": "GRANT_NOT_REDEEMABLE",
-                "message": "This download link is not valid. Please pay again to download.",
+                "message": "This download link is no longer valid. If you have already paid, do not pay again; contact us to restore access.",
             },
             origin,
         )

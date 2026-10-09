@@ -1369,3 +1369,48 @@ def test_every_stampable_value_is_one_the_otp_gate_accepts(mod, monkeypatch):
         mod._ensure_customer_user("918100640044", "Test")
         stamped = _attr_map(client.created["UserAttributes"])["custom:partner_waba_id"]
         assert stamped in otp_map, phone_id
+
+
+# ── a paid customer is never told to pay again ────────────────────────────────
+
+def _redeem_bodies() -> dict[str, str]:
+    """The two refusal bodies, sliced per function the way this file always does.
+
+    The string was duplicated, so the invariant is only owned if it holds over BOTH.
+    `_redeem_after_reconcile` is not live-reachable while `SECURE_FILES_PAYMENT_ENABLED`
+    is false, which is exactly why this is a source-level assertion: the gate stays shut
+    and the copy is still pinned.
+    """
+    source = (FUNC_DIR / "handler.py").read_text()
+    return {
+        "_redeem": source.split("def _redeem(")[1].split("\ndef ")[0],
+        "_redeem_after_reconcile": (
+            source.split("def _redeem_after_reconcile")[1].split("\ndef ")[0]
+        ),
+    }
+
+
+def test_a_paid_customer_is_never_told_to_pay_again():
+    """Someone who already paid must not be asked to pay a second time.
+
+    A link that expires after redemption is a delivery failure, not an unpaid order.
+    """
+    source = (FUNC_DIR / "handler.py").read_text()
+    assert "Please pay again to download" not in source
+    for name, body in _redeem_bodies().items():
+        assert "do not pay again" in body, name
+
+
+def test_the_redeem_refusal_contract_is_unchanged():
+    """The sensitivity proof that this was copy and nothing else.
+
+    Status, error code and the single-use condition are untouched; only the sentence
+    the customer reads changed.
+    """
+    bodies = _redeem_bodies()
+    for name, body in bodies.items():
+        assert "GRANT_NOT_REDEEMABLE" in body, name
+        assert "403" in body, name
+    reconcile = bodies["_redeem_after_reconcile"]
+    assert "consumed = :false" in reconcile
+    assert "paid = :true" in reconcile
