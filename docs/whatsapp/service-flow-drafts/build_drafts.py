@@ -97,22 +97,8 @@ upload = screen('UPLOAD', 'Drop Docs', [text('TextHeading', 'Add the documents w
     text('TextCaption', 'Shared with our team for your request.')], schema(BASE), True)
 drafts['drop-docs'] = document([choose('UPLOAD', 'Drop Docs', 'Choose the order these documents belong to.'), upload])
 
-vault_data = {**BASE, 'document_id': 'example_document', 'delivery': 'whatsapp'}
-vault = screen('DOCUMENT', 'Vault', [text('TextHeading', 'Your documents, within reach'),
-    text('TextBody', 'Choose the document you would like to receive.'),
-    form([field('Dropdown', 'document_id', 'Your document', **{'data-source': [
-              {'id': 'example_document', 'title': 'Example document · PDF'},
-              {'id': 'document_missing', 'title': 'I cannot find my document'}]}),
-          field('RadioButtonsGroup', 'delivery', 'How would you like it?', **{'data-source': [
-              {'id': 'whatsapp', 'title': 'PDF and download link on WhatsApp'},
-              {'id': 'download', 'title': 'Secure download link'}]}),
-          footer('Review selection', 'REVIEW', {**refs(BASE), **refs(['document_id', 'delivery'], 'form')})])], schema(BASE))
-vault_review = screen('REVIEW', 'Your Vault selection', [text('TextHeading', 'Ready when you need it'),
-    text('TextCaption', 'Order'), text('TextBody', '${data.parent_order}'),
-    text('TextBody', 'Once access is confirmed, your document will be shared here with a secure download link.'),
-    text('TextCaption', 'If the document is missing, our team will help locate it before delivery.'),
-    footer('Request document', payload={'design_service': 'vault', **refs(vault_data)})], schema(vault_data), True)
-drafts['vault'] = document([choose('DOCUMENT', 'Vault', 'Choose the order linked to your document.'), vault, vault_review])
+# Vault uses catalog selection, a native document list, payment and template delivery.
+# Preserve the previously created draft as an unused design record; never route to it.
 
 shipment_data = {**BASE, 'shipment_status': 'Preparing shipment · example',
                  'last_update': 'Your latest shipment update will appear here.',
