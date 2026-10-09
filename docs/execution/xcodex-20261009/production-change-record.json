@@ -369,6 +369,126 @@
   "providerMutations": 0,
   "sourceCommits": [
     "724dcc383b61a7722414659cf7d2cfea405f1718",
-    "c24fab39fbcaa3f01024bf5adcba226453f3a8f8"
-  ]
+    "c24fab39fbcaa3f01024bf5adcba226453f3a8f8",
+    "e006b5f33aa42689e5674e527779ea75b615fdc4"
+  ],
+  "laterConcurrentProduction": [
+    {
+      "function": "wecare-secure-files",
+      "version": "34",
+      "hash": "6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=",
+      "aliasRevision": "01e8e9ef-f514-4829-9dc5-7299321465ab",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "reviewedRepairsRetained": true,
+      "otherChangesCertified": false
+    },
+    {
+      "function": "wecare-service-requests",
+      "version": "5",
+      "hash": "mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=",
+      "aliasRevision": "d17f2cc1-ab47-47f1-8047-2aafe0182b04",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "reviewedRepairsRetained": true,
+      "otherChangesCertified": false
+    },
+    {
+      "function": "wecare-whatsapp-business-api",
+      "version": "86",
+      "hash": "JaFXsvh3b2s0iFPQp9CyZVsO+Ud2IpFpap8z7MZUxy8=",
+      "aliasRevision": "488eb43f-fe9c-4f9f-b49b-9704b61e5dff",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "reviewedRepairsRetained": true,
+      "otherChangesCertified": false
+    }
+  ],
+  "currentProduction": [
+    {
+      "function": "wecare-secure-files",
+      "version": "34",
+      "hash": "6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=",
+      "aliasRevision": "01e8e9ef-f514-4829-9dc5-7299321465ab",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "reviewedRepairsRetained": true,
+      "otherChangesCertified": false
+    },
+    {
+      "function": "wecare-service-requests",
+      "version": "5",
+      "hash": "mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=",
+      "aliasRevision": "d17f2cc1-ab47-47f1-8047-2aafe0182b04",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "reviewedRepairsRetained": true,
+      "otherChangesCertified": false
+    },
+    {
+      "function": "wecare-whatsapp-business-api",
+      "version": "86",
+      "hash": "JaFXsvh3b2s0iFPQp9CyZVsO+Ud2IpFpap8z7MZUxy8=",
+      "aliasRevision": "488eb43f-fe9c-4f9f-b49b-9704b61e5dff",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "reviewedRepairsRetained": true,
+      "otherChangesCertified": false
+    },
+    {
+      "function": "wecare-checkout",
+      "version": "41",
+      "hash": "kfqE0FcwNlzWfzpA2asO9hi8NU27YHouMTixzHFT1F8=",
+      "aliasRevision": "10b82920-f493-4e19-acdf-5200899a9ce5",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "exactPackageTested": true
+    },
+    {
+      "function": "wecare-customer-orders",
+      "version": "7",
+      "hash": "IAHVgfXGsh8H7QwhO77yWefHWhzfBJk87cuFOlv93Ew=",
+      "aliasRevision": "c8bb585f-56e5-422e-9c58-d88ed74b5a45",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "exactPackageTested": true
+    },
+    {
+      "function": "wecare-customer-profile",
+      "version": "10",
+      "hash": "2n/OSNp6qvzBYKJdFFWRnLAZ3tRjXPm50Jv8rnn+I5w=",
+      "aliasRevision": "b89b7e13-515c-49ce-811a-3517889ff3c4",
+      "state": "Active",
+      "snapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "exactPackageTested": true
+    }
+  ],
+  "rollbackRestriction": "Never use this session captured aliases to undo later concurrent34/5/86; obtain their release record"
 }

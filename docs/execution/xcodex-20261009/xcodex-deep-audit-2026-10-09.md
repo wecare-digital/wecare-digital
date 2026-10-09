@@ -41,3 +41,22 @@ AUD-016 and AUD-017 are now **FIXED** for the reviewed paths. Regression tests f
 Guarded deployment and independent readback establish checkout41, customer-orders7 and customer-profile10 as live, Active/Successful, SnapStart=None. Role/runtime/memory/timeout/layers/architectures/environment/SnapStart and other configuration were compared with the old immutable version before publishing and remain unchanged. Code hash, fresh completion revision and conditional alias revisions guarded release. Checkout's inert unauthenticated GET returns401; the other two inert GETs return405 on their exact new versions. These probes are runtime/import/method evidence, not authenticated end-to-end QA.
 
 The captured pre-change rollback versions are checkout40, customer-orders6 and customer-profile9. No contact records were reassigned. Restoring those old versions would restore the identified ownership weakness. Explicit legacy identity reconciliation remains required.
+
+## Final concurrency reconciliation
+
+A later independent read discovered concurrent releases secure-files34, service-requests5 and business-api86. They were preserved. Their immutable ZIP hashes were independently verified, and AST comparison confirms every reviewed permanent-owner/payment-reader repair remains present. Secure-files34 retains the missing delivery module and bounded60–900 second URL expression, with payment and Drop Docs attach flags false. Business86 read-only check/list still agree on two active configurations for both WABA checks. Other changes in these newer packages were not certified by this audit's earlier exact-package test counts.
+
+The profile releases remain checkout41/customer-orders7/customer-profile10 at this final reconciliation. The complete latest-version/hash/alias comparison is `concurrent-release-reconciliation.json`. The earlier production-change record is this session's deployment history, not permission to roll back another session's newer aliases. Do not apply the recorded32/4/83 alias guards or old rollback targets to34/5/86; capture and review the newer release's own before/after state.
+
+### AUD-018 — newer delivery uncertainty contract differs from source
+
+- Severity: MEDIUM. State: CONFIRMED. Component: business86 flows/paid_vault `_send_once` versus source e006b5f3 and its tests.
+- Evidence: existing test expects SEND_FAILED after502; current immutable86 writes SEND_UNKNOWN, qualifies outbound:live, and distinguishes SEND_REJECTED with up to3 attempts/backoff. The original141-check selection yields140 passes and1 compatibility mismatch. No production behavior was changed to satisfy the stale assertion.
+- Impact: a future deployment from older source could replace the newer safer uncertainty/retry contract; accepted/unknown messages must not be blindly resent.
+- Root cause: another session deployed code ahead of the reviewed source contract.
+- Recommended fix: reconcile the owning session's scoped source/test change before rebuilding; preserve unknown reconciliation and bounded definite-rejection retry. Do not silently overwrite the newer live code or stage foreign edits.
+- Tests needed:502 stays unknown/no duplicate send/payment stays paid; definite rejection waits and stops at3 attempts; successful acceptance, duplicate events and stalled claim recovery. Two independent verification-only tests against86 pass; the remaining focused selection passes142 checks with the1 obsolete expectation explicitly excluded.
+- Live verification needed: provider read-only diagnostics execute86 successfully; no customer send occurred. Real delivery/window/unknown reconciliation remains owner/provider QA.
+- Rollback: obtain the newer release's own before/after record. This session's83/79 record cannot undo86 safely.
+
+Fresh exact concurrent-package checks: secure34 passes97 checks with3 unrelated Vault-helper cases deselected; service5 passes38; business86 passes140 compatible existing checks plus2 independently specified uncertainty/retry checks. Other newer code changes are not comprehensively certified. Source e006b5f3 CI independently completed all7 workflows successfully.
