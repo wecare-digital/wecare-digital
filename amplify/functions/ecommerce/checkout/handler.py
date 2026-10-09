@@ -30,14 +30,12 @@ Four rules it enforces, each load-bearing
 4. **The reference is minted once, reserved, and sent byte-for-byte.** `order_keys` mints and
    reserves it under `PAYREF#`; it is never transformed after reservation.
 
-Initiation is disabled by default
-----------------------------------
-`CHECKOUT_INITIATION_ENABLED` gates the actual WhatsApp order_details send. Off (the default), the
-handler does everything up to and including reserving the attempt, and returns the attempt in a
-`PAYMENT_INITIATION_DISABLED` state instead of sending a payable message. This is the same
-posture as the Velo adapter's `initiationEnabled=false`: the plumbing is exercised end to end, but
-no live payment request goes out until someone deliberately turns it on. It can only be turned on,
-never made permissive by a value that also disables readiness.
+Payment initiation is on by default
+-----------------------------------
+There is no payment-disable environment switch in this handler. A payment can proceed only after
+the authenticated ownership checks, authoritative pricing, live provider-readiness readback and
+idempotent payment-attempt reservation succeed. Tests may replace the module-level
+`INITIATION_ENABLED` seam to exercise refusal behavior, but production source defaults it to True.
 
 Nothing plaintext is logged
 ---------------------------
@@ -52,16 +50,14 @@ a RETAINED legacy response: callers still consume it, and it is NOT removed unti
 The in-WhatsApp vs website decision is an owner decision flagged in
 ``.agents/tasks/checkout-audit-2026-10-01/findings.md`` (the repo spec records "pay inside
 WhatsApp" / "WhatsApp-only receipts"; the task asks for a website Razorpay Standard Checkout). Both
-paths coexist behind the SAME ``CHECKOUT_INITIATION_ENABLED`` gate, default off.
+paths coexist behind the same readiness and payment-attempt controls.
 
 The ADDITIVE website path lives in
 ``lambda_utils/ecommerce/website_checkout.py`` + ``lambda_utils/integrations/razorpay_orders.py``.
 Its documented contract, which replaces ``PAYMENT_REQUEST_SENT`` for the website without deleting
 it for the in-chat path, is:
 
-    create  (gate off, the default)  -> ``PAYMENT_INITIATION_DISABLED``
-            {paymentAttemptId}                 no gateway order, no payable attempt
-    create  (gate on)                -> ``CHECKOUT_OPTIONS_READY``
+    create                           -> ``CHECKOUT_OPTIONS_READY``
             {keyId, orderId, amountPaise, currency, prefill, paymentAttemptId}
                                                ONLY these fields; keyId is the PUBLIC key id,
                                                orderId is the SERVER-STORED Razorpay gateway order
@@ -159,9 +155,9 @@ PAYMENT_WABA_ID = os.environ.get("PAYMENT_WABA_ID", "2094615664435155")
 EXPECTED_CONFIGURATION_NAME = os.environ.get("EXPECTED_CONFIGURATION_NAME", "")
 EXPECTED_PROVIDER_MID = os.environ.get("EXPECTED_PROVIDER_MID", "")
 
-#: Off by default. The plumbing runs; the payable message does not go out until this is truthy.
-INITIATION_ENABLED = str(
-    os.environ.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower() in ("1", "true", "yes", "on")
+#: Production initiation defaults ON. This is a test seam, not an environment-controlled kill
+#: switch; readiness, ownership, authoritative pricing and idempotency remain mandatory.
+INITIATION_ENABLED = True
 
 #: The Wix catalogue product id of the live Contribute product, lowercased. NOT a secret -- a
 #: catalogue reference. UNSET MEANS CONTRIBUTIONS ARE REFUSED, not "priced as an ordinary
