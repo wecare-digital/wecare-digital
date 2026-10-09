@@ -67,7 +67,7 @@ OWNER-APPROVED CATALOG MIGRATION, 2026-10-09
 The owner requested the fresh catalog and approval before new product publication.
 ENVIRONMENT stages all four existing paid variants against the fresh catalog, disabled and
 dry-run, held out of stock pending approval and native purchase QA. Inspect remains read-only.
-A persistent revision approval contract must be added before opening both write gates.
+The exact live plan hash must be copied into META_CATALOG_SYNC_APPROVED_PLAN_SHA256 before opening both write gates; any Wix/Meta drift changes the hash and invalidates that approval.
 
 Usage:
     python scripts/provision_meta_catalog_sync.py              # dry run, the default
@@ -123,6 +123,7 @@ ENVIRONMENT = {
     "META_CATALOG_ID": "1457045652952851",
     "META_CATALOG_SYNC_ENABLED": "false",
     "META_CATALOG_SYNC_DRY_RUN": "true",
+    "META_CATALOG_SYNC_APPROVED_PLAN_SHA256": "",
     "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,

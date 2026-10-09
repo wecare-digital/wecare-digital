@@ -46,6 +46,38 @@ def record_order_help(table, identity, contact_id, session_token, data, *, publi
     return request_id
 
 
+def record_order_support(table, identity, contact_id, session_token, order, *, public_customer_id=''):
+    """Create one owner-bound support request per order in this verified Orders session."""
+    if (not identity.customer_id or not contact_id or not session_token
+            or not order.get('order_id') or not order.get('order_number')):
+        raise ValueError('Invalid order support request')
+    request_id = 'WD-SUPPORT-' + hashlib.sha256(
+        (identity.customer_id + ':' + session_token + ':' + order['order_id']).encode()
+    ).hexdigest()[:24].upper()
+    row = {
+        'submissionId': request_id, 'flowType': 'order_support', 'flowName': 'Orders',
+        'flowCode': 'WD_Orders', 'submissionNumber': request_id,
+        'subject': 'Order support', 'paymentStatus': 'none',
+        'customerId': identity.customer_id, 'contactId': contact_id, 'phone': identity.phone,
+        'orderId': order['order_id'], 'orderNumber': order['order_number'],
+        'status': 'open', 'source': 'whatsapp_flow',
+        'tags': ['Orders', 'Customer support'], 'createdAt': int(time.time())
+    }
+    if public_customer_id:
+        row['customerUuid'] = public_customer_id
+    try:
+        table.put_item(Item=row, ConditionExpression='attribute_not_exists(submissionId)')
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') != 'ConditionalCheckFailedException':
+            raise
+        existing = table.get_item(
+            Key={'submissionId': request_id}, ConsistentRead=True).get('Item') or {}
+        if (existing.get('customerId') != identity.customer_id
+                or existing.get('orderId') != order['order_id']):
+            raise customer_auth.CustomerNotAuthorized('support request unavailable')
+    return request_id
+
+
 def _db():
     return boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 
@@ -134,9 +166,15 @@ def order_details(orders, identity, order_id):
         raise customer_auth.CustomerNotAuthorized('order unavailable')
     raw = row.get('amountPaise')
     valid = (type(raw) is int or isinstance(raw, Decimal)) and raw >= 0 and raw == int(raw) and row.get('currency') == 'INR'
+    actions = [
+        {'id': 'invoice_copy', 'title': 'Send invoice copy'},
+        {'id': 'contact_support', 'title': 'Contact support'},
+        {'id': 'done', 'title': 'Finish'},
+    ]
     return {'order_id': str(order_id), 'order_number': str(row['orderNumber']),
             'amount': f'₹{int(raw)/100:.2f}' if valid else 'Amount unavailable',
-            'payment_state': str(row.get('paymentStatus') or 'Status unavailable')}
+            'payment_state': str(row.get('paymentStatus') or 'Status unavailable'),
+            'actions': actions}
 
 
 def order_page(db, identity, session, token, next_page=False):
@@ -203,6 +241,13 @@ def route(action, screen, data, token):
                 if not result.get('reference') or not result.get('message'):
                     raise RuntimeError('invoice copy unavailable')
                 return {'screen': 'RESULT', 'data': {'reference': result['reference'], 'message': result['message']}}
+            if data.get('detail_action') == 'contact_support':
+                reference = record_order_support(
+                    db.Table('stack-wecare-digital-FlowSubmissionTable'),
+                    identity, session.get('contactId', ''), token, owned,
+                    public_customer_id=customer_uuid.from_contact(contact) or '')
+                return {'screen': 'RESULT', 'data': {'reference': reference,
+                    'message': 'Your support request is saved against this order. No payment has been requested.'}}
             return {'screen': 'RESULT', 'data': {'reference': owned['order_number'], 'message': 'No changes were requested.'}}
         if action == 'data_exchange' and screen == 'ORDER_HELP':
             reference = record_order_help(db.Table('stack-wecare-digital-FlowSubmissionTable'),

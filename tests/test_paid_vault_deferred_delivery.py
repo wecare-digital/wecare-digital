@@ -94,9 +94,9 @@ def test_a_paid_vault_purchase_outside_the_window_is_not_reported_ready(
     result, sent = _run(vault_env, monkeypatch, window_open=False)
 
     assert result['outcome'] == 'VAULT_DELIVERY_DEFERRED'
-    # exactly one template send - the share template - plus the review nudge, and no document
-    assert [message['templateName'] for message in sent] == ['wecare_share_pdf',
-                                                             'wecare_leave_review']
+    # exactly one template send - the share template - and no document. The review nudge
+    # left this path upstream: it is now `send_review`, fired on first authenticated access.
+    assert [message['templateName'] for message in sent] == ['wecare_share_pdf']
     assert not [message for message in sent if message.get('mediaType') == 'document']
 
     [record] = [found for found in _records(caplog)

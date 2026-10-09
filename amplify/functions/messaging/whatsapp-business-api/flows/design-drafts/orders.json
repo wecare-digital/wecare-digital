@@ -221,6 +221,34 @@
         "payment_state": {
           "type": "string",
           "__example__": "Status unavailable"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            }
+          },
+          "__example__": [
+            {
+              "id": "invoice_copy",
+              "title": "Send invoice copy"
+            },
+            {
+              "id": "contact_support",
+              "title": "Contact support"
+            },
+            {
+              "id": "done",
+              "title": "Finish"
+            }
+          ]
         }
       },
       "layout": {
@@ -255,16 +283,7 @@
                 "name": "detail_action",
                 "label": "Order action",
                 "required": true,
-                "data-source": [
-                  {
-                    "id": "invoice_copy",
-                    "title": "Send invoice copy"
-                  },
-                  {
-                    "id": "done",
-                    "title": "Finish"
-                  }
-                ]
+                "data-source": "${data.actions}"
               },
               {
                 "type": "Footer",

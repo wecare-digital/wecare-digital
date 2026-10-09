@@ -26,7 +26,7 @@ def module(monkeypatch):
     return module
 
 @pytest.mark.parametrize('kind', ['SUBMIT_REQUEST', 'VAULT'])
-def test_missing_order_or_unpaid_file_never_requests_payment(module, monkeypatch, kind):
+def test_missing_order_or_paid_file_never_requests_new_payment(module, monkeypatch, kind):
     phone = '+919876543210'
     contact = FakeTable(key_attr='id')
     contact.seed({'id': 'contact', 'phone': phone, 'checkoutCustomerId': OWNER})
@@ -51,7 +51,14 @@ def test_missing_order_or_unpaid_file_never_requests_payment(module, monkeypatch
     result = module.handle({'contactId': 'contact', 'senderPhone': phone, 'phoneNumberId': 'sender',
         'sourceMessageId': 'message', 'lines': [{'productId': next(iter(service_requests.SERVICE_PRODUCT_IDS)),
         'variantId': service_requests.SERVICE_VARIANT_BY_KIND[kind], 'quantity': 1}]}, client)
-    assert result['outcome'] in ('SUBMIT_REQUEST_PARENT_ORDER_REQUIRED', 'VAULT_FILE_NOT_READY')
+    if kind == 'SUBMIT_REQUEST':
+        assert result['outcome'] == 'SUBMIT_REQUEST_PARENT_ORDER_REQUIRED'
+        assert len(sends) == 1 and 'payment' in sends[0]['content'].lower()
+    else:
+        assert result['outcome'] == 'VAULT_FILE_SELECTION_SENT'
+        assert len(sends) == 1
+        assert sends[0]['interactiveData']['sections'][0]['rows'][0]['title'].startswith('Paid · ')
+        session = next(v for k,v in keys.rows.items() if str(k).startswith('CATALOGSERVICE#'))
+        assert session['fileChoiceStates'] == ['PAID']
     client.invoke.assert_not_called()
-    assert len(sends) == 1 and 'payment' in sends[0]['content'].lower()
     assert not any(str(k).startswith('NATIVESERVICEACTIVE#') for k in keys.rows)

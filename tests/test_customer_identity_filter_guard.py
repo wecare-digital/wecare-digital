@@ -294,4 +294,6 @@ def test_every_list_users_filter_site_is_guarded():
             assert 'is_cognito_subject' in block.split("Filter='sub")[0], (
                 f"{path.relative_to(ROOT).as_posix()}: a ListUsers filter is built from an "
                 f"unvalidated subject in {block.splitlines()[0]}")
-    assert sites == 7
+    # Eight since `paid_vault.send_review` was split out of the Vault deliver path: the census
+    # moves when a site is genuinely added, and the guard assertion above is what keeps it honest.
+    assert sites == 8

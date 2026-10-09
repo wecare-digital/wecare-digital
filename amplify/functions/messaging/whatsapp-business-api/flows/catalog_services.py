@@ -7,6 +7,8 @@ import boto3
 from lambda_utils import customer_auth
 from lambda_utils.ecommerce import catalog_service_checkout as catalog, service_request_store as store, vault_access as vault
 
+HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
+
 
 def _invoke(client, function, payload):
     result = client.invoke(FunctionName=function, InvocationType='RequestResponse',
@@ -88,27 +90,31 @@ def handle(event, client):
             projected = files.query(IndexName='owner-created-index',
                 KeyConditionExpression='ownerPhone=:p', ExpressionAttributeValues={':p': identity.phone.lstrip('+')},
                 Limit=100, ScanIndexForward=False).get('Items') or []
-            eligible = []
+            choices = []
             for item in projected:
                 file = files.get_item(Key={'fileId': item['fileId']}, ConsistentRead=True).get('Item') or {}
-                if (file.get('status') == 'active' and file.get('ownerPhone') == identity.phone.lstrip('+')
-                        and file.get('ownerCustomerId') in (None, identity.customer_id)
-                        and not file.get('vaultAccessGrantId') and file.get('vaultPaymentStatus') != 'PAID'):
-                    eligible.append(file)
-            if not eligible:
+                if (file.get('status') != 'active' or file.get('ownerPhone') != identity.phone.lstrip('+')
+                        or file.get('ownerCustomerId') not in (None, identity.customer_id)):
+                    continue
+                access_id = str(file.get('vaultEntitlementId') or file.get('vaultAccessGrantId') or '')
+                paid = bool(access_id and file.get('vaultPaymentStatus') == 'PAID')
+                if paid or (not file.get('vaultAccessGrantId') and file.get('vaultPaymentStatus') != 'PAID'):
+                    choices.append((file, paid))
+            if not choices:
                 row['status'] = 'AWAITING_FILE'
                 keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
-                _send(client, row, content='There are no unpaid documents ready for this purchase. If you already paid, open your Vault access message. No new payment has been requested.')
+                _send(client, row, content='No Vault documents are currently available for this verified account. No payment has been requested.')
                 return {'outcome': 'VAULT_FILE_NOT_READY'}
-            # At most ten choices per native list. An additional batch needs a new catalog request.
-            row['fileChoices'] = [file['fileId'] for file in eligible[:10]]
+            # At most ten choices per native list. Paid rows remain visible as refresh actions.
+            row['fileChoices'] = [file['fileId'] for file, _paid in choices[:10]]
+            row['fileChoiceStates'] = ['PAID' if paid else 'UNPAID' for _file, paid in choices[:10]]
             keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
             _send(client, row, isInteractive=True, interactiveType='list', interactiveData={
-                'body': 'Choose the document you want to unlock with this Vault purchase.',
+                'body': 'Choose a document. Paid documents refresh access without another charge.',
                 'button': 'Choose document', 'sections': [{'title': 'Your documents', 'rows': [
                     {'id': 'vaultpick:' + token + ':' + str(i),
-                     'title': str(file.get('displayName') or file.get('originalFilename') or 'Document')[:24]}
-                    for i, file in enumerate(eligible[:10])]}]})
+                     'title': (('Paid · ' if paid else '') + str(file.get('displayName') or file.get('originalFilename') or 'Document'))[:24]}
+                    for i, (file, paid) in enumerate(choices[:10])]}]})
             return {'outcome': 'VAULT_FILE_SELECTION_SENT'}
         keys.put_item(Item=row, ConditionExpression='attribute_not_exists(orderId)')
     elif action == 'select':
@@ -118,9 +124,16 @@ def handle(event, client):
                 or not 0 <= index < len(row.get('fileChoices') or [])):
             return {'outcome': 'VAULT_FILE_SELECTION_UNAVAILABLE'}
         file = vault.bind_file(db.Table(vault.FILES_TABLE), identity, row['fileChoices'][index])
-        if file.get('vaultAccessGrantId') or file.get('vaultPaymentStatus') == 'PAID':
-            _send(client, row, content='This document is already unlocked. Please use your existing Vault access message; no new payment has been requested.')
-            return {'outcome': 'VAULT_ALREADY_UNLOCKED'}
+        state = (row.get('fileChoiceStates') or [])[index] if index < len(row.get('fileChoiceStates') or []) else 'UNPAID'
+        if state == 'PAID' or file.get('vaultEntitlementId') or file.get('vaultAccessGrantId') or file.get('vaultPaymentStatus') == 'PAID':
+            if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() != 'true':
+                return {'outcome': 'VAULT_REFRESH_NOT_RELEASED'}
+            response = _send(client, row, isTemplate=True, templateName='wecare_default_download',
+                             templateParams=[], headerImageUrl=HEADER_IMAGE,
+                             templateUrlButton={'index': 0, 'suffix': file['fileId']})
+            code = int(response.get('statusCode', 500)) if isinstance(response, dict) else 500
+            return {'outcome': 'VAULT_ACCESS_REFRESH_SENT' if 200 <= code < 300 else 'VAULT_ACCESS_REFRESH_PENDING',
+                    'fileId': file['fileId']}
         row['vaultFileId'] = file['fileId']
     else:
         return {'outcome': 'CATALOG_ACTION_UNAVAILABLE'}

@@ -555,5 +555,46 @@
     "draftsDeleted": 0,
     "staleRouting": "Subscribe/Profile UI references require cleanup",
     "evidence": "outputs/flow-retirement-2026-10-09.json"
+  },
+  "chatgptVaultV1V2": {
+    "verifiedAt": "2026-10-09T11:04:00Z",
+    "sourceCheckpoint": "3b9faffd3686c0c5be51a8f046592a8c4680087c",
+    "status": "DEPLOYED_GATES_CLOSED",
+    "deployments": [
+      {
+        "function": "wecare-secure-files",
+        "live": "35",
+        "rollback": "34",
+        "codeSha256": "TsxFbPJSg+w+LQ6FOKJfvb/HP5j6x0Ldx/4Fk5e9yF0="
+      },
+      {
+        "function": "wecare-whatsapp-business-api",
+        "live": "92",
+        "rollback": "91",
+        "codeSha256": "vdj3fItIrPi3Hb3x4PthvTDpyC01yDVG88cwtx+pFfQ="
+      }
+    ],
+    "tests": {
+      "python": "10376 passed; 7 skipped; 3 xfailed",
+      "focusedVault": "124 passed",
+      "frontend": "1607 passed; 2 skipped; 126 files",
+      "build": "PASS",
+      "typecheck": "PASS",
+      "lint": "0 errors; 191 warnings"
+    },
+    "controls": {
+      "SECURE_FILES_PAYMENT_ENABLED": "false",
+      "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "unset",
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "unset",
+      "WIX_WRITEBACK_ENABLED": "unset",
+      "WIX_ECOM_WRITE_CONFIRMED": "unset"
+    },
+    "liveReadback": {
+      "submitFlow": "1107164111921876 PUBLISHED",
+      "paymentTemplate": "1783774039408860 APPROVED",
+      "downloadTemplate": "1410998911012572 APPROVED",
+      "reviewTemplate": "1801972550682516 APPROVED"
+    },
+    "ownerQA": "PENDING"
   }
 }

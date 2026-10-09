@@ -31,7 +31,12 @@ def test_owned_order_only_and_no_false_amount(hub):
     orders=FakeTable(key_attr='orderId'); identity=SimpleNamespace(customer_id='owner')
     orders.seed({'orderId':'a','customerId':'owner','orderNumber':'WD-ORD-A','amountPaise':9900,'currency':'INR','paymentStatus':'paid'})
     orders.seed({'orderId':'b','customerId':'foreign','orderNumber':'WD-ORD-B'})
-    assert hub.order_details(orders,identity,'a')['amount']=='₹99.00'
+    details=hub.order_details(orders,identity,'a')
+    assert details['amount']=='₹99.00'
+    assert details['actions']==[
+        {'id':'invoice_copy','title':'Send invoice copy'},
+        {'id':'contact_support','title':'Contact support'},
+        {'id':'done','title':'Finish'}]
     with pytest.raises(customer_auth.CustomerNotAuthorized): hub.order_details(orders,identity,'b')
     orders.rows['a']['amountPaise']=True
     assert hub.order_details(orders,identity,'a')['amount']=='Amount unavailable'
@@ -50,6 +55,22 @@ def test_order_selection_rechecks_ownership(hub,monkeypatch):
     monkeypatch.setattr(hub,'_context',lambda token:(db,{},SimpleNamespace(customer_id='owner'),{}))
     assert hub.route('data_exchange','ORDERS',{'order_id':'x'},'ignored')['screen']=='UNAVAILABLE'
     assert hub.route('data_exchange','ORDERS',{'order_id':'not_found'},'ignored')['screen']=='ORDER_HELP'
+
+
+def test_order_support_is_owner_bound_idempotent_and_has_no_payment(hub):
+    table=FakeTable(key_attr='submissionId')
+    identity=SimpleNamespace(customer_id='owner',phone='+919000000000')
+    order={'order_id':'order-1','order_number':'WD-ORD-1'}
+    a=hub.record_order_support(table,identity,'contact','opaque-session',order,
+                               public_customer_id='public-customer')
+    b=hub.record_order_support(table,identity,'contact','opaque-session',order,
+                               public_customer_id='public-customer')
+    assert a==b and len(table.rows)==1
+    row=next(iter(table.rows.values()))
+    assert row['customerId']=='owner' and row['orderId']=='order-1'
+    assert row['customerUuid']=='public-customer'
+    assert row['paymentStatus']=='none'
+    assert not any(k in row for k in ['paymentAttemptId','amountPaise','wixOrderId'])
 
 
 def test_missing_order_help_is_saved_once_without_order_or_payment(hub):
@@ -124,3 +145,16 @@ def test_profile_update_changes_contact_only_and_retains_owner_condition(hub):
     assert 'checkoutCustomerId=:owner' in update['ConditionExpression']
     assert update['ExpressionAttributeValues'][':owner']=='owner'
     assert 'emailVerifiedAt' not in update['UpdateExpression']
+
+def test_orders_draft_detail_actions_are_backend_driven():
+    import json
+    draft=json.loads((ROOT/'amplify/functions/messaging/whatsapp-business-api/flows/design-drafts/orders.json').read_text())
+    details=next(screen for screen in draft['screens'] if screen['id']=='DETAILS')
+    assert 'actions' in details['data']
+    form=next(child for child in details['layout']['children']
+              if child.get('type')=='Form' and child.get('name')=='order_actions')
+    dropdown=next(child for child in form['children'] if child.get('name')=='detail_action')
+    assert dropdown['data-source']=='${data.actions}'
+    assert details['data']['actions']['__example__'][1]=={
+        'id':'contact_support','title':'Contact support'}
+
