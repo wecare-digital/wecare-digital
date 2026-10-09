@@ -2331,10 +2331,10 @@ export interface PaymentOrderItem {
 
 export interface SendPaymentMessageRequest {
   contactId: string;
+  customerPhone: string;
   phoneNumberId: string;
   recipientBsuid?: string;    // Send to BSUID recipient
   templateName?: string;
-  referenceId: string;
   items: PaymentOrderItem[];
   discount?: number;      // In paise
   delivery?: number;      // In paise (shipping/delivery)
@@ -2351,67 +2351,44 @@ export interface SendPaymentMessageRequest {
 }
 
 /**
- * Send WhatsApp Payment Message using order_details
- * 
- * Fields shown in WhatsApp message:
- * - Reference ID
- * - Items (name, amount, quantity)
- * - Discount (₹)
- * - Delivery (₹)
- * - Tax (₹) - passed from frontend
- * 
- * NOTE: Convenience Fee is handled by Razorpay Fee Bearer model (not in WhatsApp message)
+ * Create a server-owned invoice, then ask the invoice engine to send its reserved WhatsApp
+ * payment request. The browser never mints the payment reference and never constructs
+ * order_details; the invoice engine owns recipient, amount persistence, reservation/idempotency
+ * and the final template send.
  */
 export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRequest ): Promise<{ messageId: string; status: string } | null> {
-  const subtotal = request.items.reduce( ( sum, item ) => sum + ( item.amount * item.quantity ), 0 );
-  const discount = request.discount || 0;
-  const delivery = request.delivery || 0;
-  const tax = request.tax || 0;
-
-  // Build order_details payload — always physical-goods for checkout template (address + coupons)
-  const orderDetails: any = {
-    reference_id: request.referenceId,
-    type: 'physical-goods',
-    payment_configuration: request.paymentConfiguration || 'WECAREDIGITAL',
-    currency: request.currency || 'INR',
-    itemName: request.items[ 0 ]?.name || 'Service Fee',
-    quantity: request.items[ 0 ]?.quantity || 1,
+  const invoice = await createInvoiceEngine( {
+    customerPhone: request.customerPhone,
+    contactId: request.contactId,
+    customerEmail: '',
+    shippingAddress: '',
+    billingAddress: '',
+    goodsType: 'physical-goods',
+    items: request.items.map( item => ( {
+      name: item.name,
+      amount: item.amount / 100,
+      quantity: item.quantity,
+      productId: item.productId,
+      gstRate: item.gstRate,
+    } ) ),
+    discount: ( request.discount || 0 ) / 100,
+    shipping: ( request.delivery || 0 ) / 100,
     gstin: request.gstin || DEFAULT_GSTIN,
-    orderId: request.orderId || 'Offline',
-    shipping_info: { country: 'IN', addresses: [] },
-    order: {
-      status: 'pending',
-      items: request.items.map( ( item, idx ) => ( {
-        retailer_id: item.productId || `ITEM_${idx + 1}`,
-        name: item.name,
-        amount: { value: item.amount, offset: 100 },
-        quantity: item.quantity,
-        gstRate: item.gstRate ?? 0,
-      } ) ),
-      subtotal: { value: subtotal, offset: 100 },
-      discount: { value: discount, offset: 100, description: 'Promo' },
-      shipping: { value: delivery, offset: 100, description: 'Express' },
-      tax: { value: tax, offset: 100, description: `GSTIN: ${request.gstin || DEFAULT_GSTIN}` },
-    },
-  };
-
-  // Always use checkout button template (wecarepay_wa) — enables address + coupons
-  return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
-    method: 'POST',
-    body: JSON.stringify( {
-      contactId: request.contactId,
-      phoneNumberId: request.phoneNumberId,
-      recipientBsuid: request.recipientBsuid,
-      isCheckoutTemplate: true,
-      isTemplate: true,
-      templateName: 'wecarepay_wa',
-      templateParams: [],
-      checkoutOrderDetails: orderDetails,
-      headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
-    } ),
+    currency: request.currency || 'INR',
+    orderId: request.orderId || '',
+    entryPoint: 'workspace_inbox',
+    paymentConfiguration: request.paymentConfiguration,
   } );
-}
+  if ( !invoice?.invoiceId ) return null;
 
+  const sent = await sendPaymentLink(
+    invoice.invoiceId,
+    request.phoneNumberId,
+    request.paymentConfiguration,
+  );
+  if ( !sent ) return null;
+  return { messageId: sent.referenceId, status: sent.status };
+}
 
 // ============================================================================
 // WABA MANAGEMENT API (Meta Graph API)
