@@ -1080,14 +1080,6 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     # site id on live passed verification. Any key added to `expected_environment` is now checked
     # by construction, which is the only version of this check that cannot drift out of date.
     for key, want in sorted(expected_environment().items()):
-        if key in READINESS_KEYS:
-            # Deliberately presence-only: these are the two values an owner fills in from a live
-            # Meta/Razorpay read, so a non-empty value is legitimate drift from what this script
-            # writes. Absence is not — `payment_readiness` would raise rather than refuse.
-            if key not in live_env:
-                problems.append(f"env {key} absent on live (v{alias['FunctionVersion']}) — "
-                                f"readiness cannot evaluate")
-            continue
         if live_env.get(key) != want:
             problems.append(f"env {key} mismatch on live (v{alias['FunctionVersion']})")
 
@@ -1199,7 +1191,7 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
-    print("\ncheckout provisioning verified (initiation disabled)")
+    print("\ncheckout provisioning verified (initiation on; readiness gated)")
     return 0
 
 
