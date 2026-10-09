@@ -42,7 +42,7 @@ SnapStart: {'None': 76}
 
 Alias read errors: 0
 
-**Without a `live` alias (7)** — `$LATEST` reaches production directly for these:
+**Without a `live` alias in this snapshot (7)** — review each invoker's version qualifier before deployment. Alias absence alone does not establish which version production invokes:
 
 - `wecare-ad-attribution`
 - `wecare-docs-scraper`
