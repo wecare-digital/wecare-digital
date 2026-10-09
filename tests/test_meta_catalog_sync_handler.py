@@ -21,6 +21,7 @@ the live one from Secrets Manager instead and report success.
 from __future__ import annotations
 
 import ast
+from decimal import Decimal
 import importlib.util
 import json
 import pathlib
@@ -108,7 +109,10 @@ class FakeWix:
                 "currency": p.get("currency") or "INR",
                 "plainDescription": p.get("descriptionHtml") or "",
                 "actualPriceRange": {"minValue": {"amount": p.get("price")}},
-                "media": {"itemsInfo": {"items": []}},
+                "media": {"itemsInfo": {"items": [
+                    {"image": {"url": v["image"]}}
+                    for v in p.get("variants") or [] if v.get("image")
+                ] or ([{"image": {"url": p["image"]}}] if p.get("image") else [])}},
             } for p in self.products]}
         if endpoint == receiver.WIX_VARIANTS_ENDPOINT:
             rows = []
@@ -123,7 +127,10 @@ class FakeWix:
                         "inventoryStatus": {"inStock": variant.get("inStock") is True},
                         # The ONLY source of a per-variant price, which is why the handler makes
                         # this second call at all.
-                        "price": {"actualPrice": {"amount": product.get("price")}},
+                        "price": {"actualPrice": {"amount": (
+                            format(Decimal(variant["pricePaise"]) / 100, ".2f")
+                            if "pricePaise" in variant else product.get("price"))}},
+                        "media": {"image": {"url": variant["image"]}} if variant.get("image") else {},
                     })
             return {"variants": rows}
         raise AssertionError(f"unexpected Wix endpoint: {endpoint}")
@@ -495,7 +502,8 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 24
-    assert planned["blocked"] == 10
+    assert planned["blocked"] == 9  # The service product now has verified artwork.
+    assert "WECARE.DIGITAL Services" not in planned["blockedProducts"]
     assert planned["enabled"] is False
     assert planned["dryRun"] is True
     assert planned["planHash"]
