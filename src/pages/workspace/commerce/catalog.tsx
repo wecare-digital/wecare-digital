@@ -219,17 +219,6 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
     }
   }, [] );
 
-  useEffect( () => {
-    if ( activeTab === 'products' ) fetchProducts();
-    else if ( activeTab === 'orders' ) fetchOrders();
-    else if ( activeTab === 'collections' ) fetchCollections();
-    else if ( activeTab === 'settings' ) fetchSites();
-    else if ( activeTab === 'manage' ) fetchSamples();
-    else if ( activeTab === 'admin' ) refreshMetaCatalogPlan();
-  // refreshMetaCatalogPlan intentionally excluded: it is a one-shot tab load, not a render loop.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ activeTab, fetchProducts, fetchOrders, fetchCollections, fetchSites, fetchSamples ] );
-
   const refreshMetaCatalogPlan = async () => {
     setMetaCatalogBusy( true );
     setMetaCatalogMessage( '' );
@@ -243,6 +232,17 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
     }
     setMetaCatalogBusy( false );
   };
+
+  useEffect( () => {
+    if ( activeTab === 'products' ) fetchProducts();
+    else if ( activeTab === 'orders' ) fetchOrders();
+    else if ( activeTab === 'collections' ) fetchCollections();
+    else if ( activeTab === 'settings' ) fetchSites();
+    else if ( activeTab === 'manage' ) fetchSamples();
+    else if ( activeTab === 'admin' ) refreshMetaCatalogPlan();
+  // refreshMetaCatalogPlan intentionally excluded: it is a one-shot tab load, not a render loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ activeTab, fetchProducts, fetchOrders, fetchCollections, fetchSites, fetchSamples ] );
 
   const runMetaCatalogAction = async ( action: 'propose' | 'approve' | 'apply' | 'readback' ) => {
     const planHash = metaCatalog?.planHash || metaCatalog?.currentPlanHash || '';
