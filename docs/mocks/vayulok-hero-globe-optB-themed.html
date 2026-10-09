@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  INTERNAL DUMMY MOCK — NOT A LIVE PAGE, NOT PRODUCTION CODE.
+  OPTION B — WHOLE GLOBE IN OUR THEME (greens/lime earth), PURE CODE, but with
+  the reference's DENSITY + HALO + DEPTH.
+
+  HERO SECTION ONLY. Global header, footer and WhatsApp widget are shared and
+  rendered globally, so they are DELIBERATELY NOT in this mock.
+
+  It keeps the live /vayulok/ hero LEFT column (brand badge + "Bharat
+  <rotating> Intelligence") and the whole rotating-pill mechanism VERBATIM, and
+  swaps ONLY the right column.
+
+  WHAT THIS OPTION IS (owner ask, verbatim intent):
+    "Make the whole globe our theme colours (greens/lime earth), but match the
+    density + halo + depth of the reference (way more dots, thick glowing rim
+    scatter) — not photoreal, but much richer than what we have now."
+
+  So this is NOT a photo Earth. The WHOLE globe is rendered in OUR palette
+  (greens + lime), as a DENSE dot sphere with a THICK glowing rim-scatter halo
+  and real depth/parallax — far more dots and far more halo than the earlier
+  rejected version. It stays PURE CODE: plain <canvas> 2D + vanilla JS, NO
+  WebGL, NO images, NO CDN, NO web fonts — fully self-contained, renders from
+  file:// offline. (Options A and C may use cobe/WebGL; B does not.)
+
+  IT LIVES IN docs/mocks/ DELIBERATELY. docs/ is outside the Next.js build.
+
+  IN-GLOBE MARKERS: Delhi (worse air, terracotta #c2591b, "AQI 182") and
+  Bengaluru (better air, green #3da35a, "AQI 64") as crisp HTML labels pinned
+  to the globe's lat/longs each frame, co-rotating, hidden on the far side.
+  India oriented toward the viewer so both show. Illustrative, schematic
+  values, NOT survey data.
+
+  Per owner constraint, NO RED (#dc2626 / #ff0000 / #ef4444) anywhere.
+
+  LEFT-COLUMN sources: src/pages/vayulok/index.tsx, src/pages/grahak-os/index.tsx,
+  .kiro/steering/grahak-os-design.md, src/components/BrandBadge.tsx,
+  docs/mocks/vayulok-gap-cobe-mock.html (India lat/longs).
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DUMMY MOCK — VayuLok hero (Option B: themed green/lime globe, pure code, internal)</title>
+<style>
+/* NO @font-face / NO WEB-FONT LINK, ON PURPOSE. */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;
+  overflow-x:hidden;
+}
+@supports (overflow-x:clip){body{overflow-x:clip}}
+
+.vm-banner{
+  background:#1a3a2a;color:#d1f470;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.4;
+  padding:14px 24px;text-align:center;
+}
+.vm-banner b{color:#fff}
+
+.brand-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:#d1f470;color:#1a3a2a;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;
+  padding:8px 14px;border-radius:9999px;
+}
+.brand-badge .bb-dot{width:8px;height:8px;border-radius:50%;background:#1a3a2a}
+
+/* HERO — layout copied from .hero / .hero-content on /grahak-os/. */
+.hero{padding:140px 24px 80px;max-width:1300px;margin:0 auto}
+.hero-content{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.hero-left{align-self:center}
+.hero-eyebrow{margin:0 0 20px}
+.hero-left h1{
+  font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+  letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 24px;
+}
+.hero-left p{
+  font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;
+  font-weight:400;margin:0 0 18px;max-width:400px;
+}
+.hero-left p.hero-sub{margin:0}
+
+/* --- Rotating subject pill. Verbatim from .vl-mark. --- */
+.hero-mark{
+  position:relative;display:inline-block;white-space:nowrap;
+  padding:.02em .3em .02em .22em;border-radius:9999px;background:#e0f7c8;
+  transition:background-color .52s cubic-bezier(.16,1,.3,1);
+}
+.hero-mark::before{
+  content:'';position:absolute;inset:0;background:#fff;border-radius:9999px;
+  transform:scaleX(1);transform-origin:right center;
+  transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;z-index:0;
+}
+.hero.show .hero-mark::before{transform:scaleX(0)}
+.hero-mark-dot{
+  position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;
+  background:#3da35a;border-radius:50%;margin-right:.18em;vertical-align:.14em;
+  transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
+}
+.hero.show .hero-mark-dot{transform:scale(1)}
+.hero-cycle{
+  width:max-content;position:relative;z-index:1;display:inline-block;
+  height:1.06em;line-height:1.06em;vertical-align:baseline;overflow:hidden;
+  transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width;
+}
+.hero-cyc-word{
+  position:absolute;left:0;top:0;white-space:nowrap;opacity:0;
+  transform:translateY(.42em);
+  transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
+}
+.hero-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* =======================================================================
+   HERO GLOBE STAGE — Option B: our-theme green/lime dot earth, pure Canvas.
+
+   PANEL CHOICE: a DARK forest panel (#0c1a12 -> near-black). Depth and a
+   glowing rim-scatter halo (the reference look) only read when bright lime and
+   green dots glow against a dark field. This is our theme, not photoreal — the
+   globe is built from greens/lime, not a photo. One dark viewport is the cost
+   of matching the reference's depth + halo; it is deliberate and matches the
+   sorcerer.earth reference the owner keeps attaching.
+   ======================================================================= */
+.globe-stage{
+  position:relative;width:100%;max-width:460px;margin:0 auto;
+  aspect-ratio:1/1;
+  border-radius:16px;border:1px solid #10231a;
+  background:radial-gradient(78% 78% at 50% 44%,#0d2015 0%,#081109 66%,#050a07 100%);
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(8,16,10,.30);
+}
+.globe-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* IN-GLOBE city markers — crisp HTML labels, positioned by JS each frame. */
+.globe-marker{
+  position:absolute;z-index:3;transform:translate(-50%,-50%);
+  pointer-events:none;will-change:left,top,opacity;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.globe-marker .gm-pin{width:12px;height:12px;border-radius:50%;position:relative}
+.globe-marker .gm-pin::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  animation:pinPulse 2.4s ease-in-out infinite;
+}
+.globe-marker .gm-label{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:5px 10px;border-radius:9999px;
+  background:rgba(8,16,10,.70);backdrop-filter:blur(6px);
+  border:1px solid rgba(209,244,112,.22);
+  box-shadow:0 2px 10px rgba(0,0,0,.35);
+  font-size:11.5px;font-weight:600;letter-spacing:-.1px;color:#eafbe0;
+}
+.globe-marker .gm-aqi{font-weight:700}
+.globe-marker.is-warm .gm-pin{background:#e0742a;box-shadow:0 0 10px rgba(224,116,42,.7)}
+.globe-marker.is-warm .gm-pin::after{box-shadow:0 0 0 0 rgba(224,116,42,.45)}
+.globe-marker.is-warm .gm-aqi{color:#f0a46a}
+.globe-marker.is-good .gm-pin{background:#4ade80;box-shadow:0 0 10px rgba(74,222,128,.7)}
+.globe-marker.is-good .gm-pin::after{box-shadow:0 0 0 0 rgba(74,222,128,.45)}
+.globe-marker.is-good .gm-aqi{color:#86efac}
+@keyframes pinPulse{
+  0%{box-shadow:0 0 0 0 rgba(74,222,128,.40)}
+  70%{box-shadow:0 0 0 9px rgba(74,222,128,0)}
+  100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}
+}
+
+/* canvas-unavailable fallback — on-palette dark panel. */
+.globe-fallback{
+  position:absolute;inset:0;display:none;z-index:5;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:30px;text-align:center;
+  background:radial-gradient(70% 70% at 50% 44%,#15321f 0%,#06100a 100%);
+  color:rgba(255,255,255,.78);
+}
+.globe-fallback.is-on{display:flex}
+.globe-fallback b{font-size:15px;font-weight:700;color:#fff}
+.globe-fallback span{font-size:13px;line-height:1.5;max-width:32ch;color:rgba(255,255,255,.70)}
+
+.globe-cap{margin:12px auto 0;max-width:460px;font-size:12px;line-height:1.45;color:rgba(0,0,0,.54);text-align:center}
+
+@media(max-width:860px){
+  .hero-content{grid-template-columns:1fr;gap:40px}
+  .hero{padding:120px 20px 60px}
+  .globe-stage{max-width:400px}
+}
+@media(max-width:767px){
+  .hero{padding:96px 16px 48px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .hero-mark::before{transform:scaleX(0)}
+  .hero-mark-dot{transform:scale(1)}
+  .hero-cycle,.hero-cyc-word{transition:none}
+  .globe-marker .gm-pin::after{animation:none}
+}
+</style>
+</head>
+<body>
+
+<div class="vm-banner">INTERNAL MOCK — <b>not a live page.</b> VayuLok HERO ONLY — Option B (our-theme green/lime globe, pure code, dense + halo + depth). Global header, footer &amp; widget are shared/unchanged and not shown. Copy is placeholder.</div>
+
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <div class="hero-left">
+      <div class="hero-eyebrow">
+        <span class="brand-badge"><span class="bb-dot"></span>VayuLok · by WECARE.DIGITAL</span>
+      </div>
+      <h1>
+        Bharat
+        <span class="hero-mark" id="mark">
+          <i class="hero-mark-dot" id="markDot" aria-hidden="true"></i>
+          <span class="hero-cycle" id="cycle">
+            <span class="sr-only">Air, Pollen, Weather, Forecast, Solar, Heatmap</span>
+          </span>
+        </span>
+        <br>Intelligence
+      </h1>
+      <p>Air quality, weather and forecasts for wherever you are in Bharat — one place, every signal that affects the air you breathe.</p>
+      <p class="hero-sub">See it coming before you feel it, and know exactly what to do about it.</p>
+    </div>
+
+    <!-- RIGHT: pure-code green/lime themed dot-globe, dense + rim halo + depth. -->
+    <div class="hero-right">
+      <div class="globe-stage" id="globeStage">
+        <canvas class="globe-canvas" id="globeCanvas"
+                role="img"
+                aria-label="A globe drawn entirely in greens and lime as a dense field of dots, centred on Bharat, with a thick glowing scatter of dots around the rim and clear front-to-back depth. It slowly spins. Markers over Delhi and Bengaluru carry illustrative air-quality values."></canvas>
+
+        <div class="globe-marker is-warm" id="mkDelhi" aria-hidden="true">
+          <span class="gm-pin"></span>
+          <span class="gm-label">Delhi · <span class="gm-aqi">AQI 182</span></span>
+        </div>
+        <div class="globe-marker is-good" id="mkBlr" aria-hidden="true">
+          <span class="gm-pin"></span>
+          <span class="gm-label">Bengaluru · <span class="gm-aqi">AQI 64</span></span>
+        </div>
+
+        <div class="globe-fallback" id="globeFallback" role="img"
+             aria-label="Static fallback: the dot globe cannot be rendered in this browser.">
+          <b>Globe preview</b>
+          <span>Your browser can’t draw the dot globe here. On a supported browser this panel shows a slowly spinning green-and-lime globe of dots centred on Bharat with the city markers.</span>
+        </div>
+      </div>
+      <p class="globe-cap">Our-theme dot globe, synthesised in-file (no images, no WebGL, no CDN). Marker positions and air-quality values are schematic, not survey data.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* Rotating pill — verbatim from src/pages/vayulok/index.tsx. */
+var cycleWords = [
+  { word:'Air',      tint:'#e0f7c8', dot:'#3da35a' },
+  { word:'Pollen',   tint:'#fef9c3', dot:'#ca8a04' },
+  { word:'Weather',  tint:'#dbeafe', dot:'#2563eb' },
+  { word:'Forecast', tint:'#ede9fe', dot:'#9849e8' },
+  { word:'Solar',    tint:'#fef3c7', dot:'#f0a818' },
+  { word:'Heatmap',  tint:'#fbe6d4', dot:'#c2591b' }
+];
+
+var hero = document.getElementById('hero');
+var cycle = document.getElementById('cycle');
+var mark = document.getElementById('mark');
+var markDot = document.getElementById('markDot');
+
+var wordEls = cycleWords.map(function(c){
+  var s = document.createElement('span');
+  s.className = 'hero-cyc-word';
+  s.textContent = c.word;
+  s.setAttribute('aria-hidden','true');
+  cycle.appendChild(s);
+  return s;
+});
+
+var idx = 0;
+function paint(){
+  var c = cycleWords[idx];
+  wordEls.forEach(function(el,i){ el.classList.toggle('on', i===idx); });
+  mark.style.background = c.tint;
+  markDot.style.background = c.dot;
+  var active = wordEls[idx];
+  if (active) cycle.style.width = active.offsetWidth + 'px';
+}
+paint();
+
+setTimeout(function(){ hero.classList.add('show'); }, 60);
+
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce){
+  setInterval(function(){ idx = (idx + 1) % cycleWords.length; paint(); }, 2400);
+}
+</script>
+
+<script>
+/* ===========================================================================
+   OUR-THEME DOT GLOBE — pure vanilla <script> (NOT type=module, NO import, NO
+   CDN, NO WebGL). Plain <canvas> 2D only. This is a MUCH richer rebuild of the
+   earlier rejected version, tuned to the reference's density + halo + depth
+   while staying 100% our palette (greens + lime, never photoreal).
+
+   DENSITY: ~4600 surface dots on desktop (vs ~2600 before). Two shells of
+   halo scatter: an inner THICK glowing rim-scatter ring and an outer sparse
+   atmosphere, ~900 dots total — the reference's "thick glowing rim scatter".
+
+   DEPTH / PARALLAX: each dot's rotated z drives its radius, opacity AND a soft
+   additive glow, so front dots sit bright and large and back dots sink and
+   fade. A subtle fresnel rim-brighten lifts the sphere's edge like the
+   reference. Additive compositing on the dot layer makes dense overlaps glow.
+
+   DEGRADE: no 2D context -> static fallback. prefers-reduced-motion -> drawn
+   once at rest (India front), no loop.
+   =========================================================================== */
+(function(){
+  var stage    = document.getElementById('globeStage');
+  var canvas   = document.getElementById('globeCanvas');
+  var fallback = document.getElementById('globeFallback');
+  var mkDelhi  = document.getElementById('mkDelhi');
+  var mkBlr    = document.getElementById('mkBlr');
+
+  function showFallback(){
+    if (fallback) fallback.classList.add('is-on');
+    if (canvas) canvas.style.display = 'none';
+    if (mkDelhi) mkDelhi.style.display = 'none';
+    if (mkBlr) mkBlr.style.display = 'none';
+  }
+
+  var ctx = null;
+  try { ctx = canvas.getContext('2d'); } catch(e) { ctx = null; }
+  if (!ctx){ showFallback(); return; }
+
+  var reduceG = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* Palette (NO RED). Bright on dark, so lime + greens glow. RGB triplets. */
+  var COL = {
+    ocean: '46,120,86',     // forest-green "ocean" base dots
+    land:  '150,210,96',    // lime-green "land" bands (brighter)
+    lime:  '209,244,112',   // #d1f470 highlight sprinkle
+    halo:  '150,220,130'    // rim-scatter halo
+  };
+
+  var cities = [
+    { el: mkDelhi, lat:28.6, lon:77.2 },
+    { el: mkBlr,   lat:12.9, lon:77.6 }
+  ];
+
+  var small = Math.min(window.innerWidth, window.innerHeight) < 560;
+  var dpr   = Math.min(window.devicePixelRatio || 1, small ? 1.5 : 2);
+
+  /* fibonacci sphere — DENSE. A latitude-band "land" flag plus a sparse lime
+     sprinkle give variety so it reads as a world, not a uniform mesh. */
+  var N = reduceG ? 2600 : (small ? 3200 : 4600);
+  var base = [];
+  (function build(){
+    var gold = Math.PI * (3 - Math.sqrt(5));
+    var seed = 99173;
+    function rnd(){ seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; }
+    for (var i=0;i<N;i++){
+      var y = 1 - (i/(N-1))*2;
+      var rad = Math.sqrt(Math.max(0,1 - y*y));
+      var th = gold * i;
+      var x = Math.cos(th)*rad;
+      var z = Math.sin(th)*rad;
+      var latDeg = Math.asin(y) * 180/Math.PI;
+      var land = (latDeg > -58 && latDeg < 72) && (Math.abs((latDeg*2.3 + th*18)) % 17 < 8);
+      var lime = rnd() < 0.06;            // sparse bright lime sprinkle
+      base.push({ x:x, y:y, z:z, land:land, lime:lime });
+    }
+  })();
+
+  /* HALO: two scattered shells. Inner = THICK bright rim scatter (dense, close
+     to the rim); outer = sparse faint atmosphere. Screen-space, deterministic.
+     These are the reference's "thick glowing rim scatter". */
+  var HALO_IN  = reduceG ? 320 : (small ? 420 : 620);
+  var HALO_OUT = reduceG ? 160 : (small ? 200 : 300);
+  var halo = [];
+  (function buildHalo(){
+    var seed = 20240914;
+    function rnd(){ seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; }
+    var i;
+    for (i=0;i<HALO_IN;i++){
+      var ang = rnd()*Math.PI*2;
+      var t = rnd(); t = t*t;                       // bias tight to the rim
+      var rr = 1.01 + t*0.22;
+      halo.push({ ang:ang, rr:rr, a:0.18 + rnd()*0.34, s:0.7 + rnd()*1.3 });
+    }
+    for (i=0;i<HALO_OUT;i++){
+      var ang2 = rnd()*Math.PI*2;
+      var t2 = rnd(); t2 = t2*t2;
+      var rr2 = 1.22 + t2*0.40;
+      halo.push({ ang:ang2, rr:rr2, a:0.06 + rnd()*0.16, s:0.6 + rnd()*0.9 });
+    }
+  })();
+
+  var tilt = -20 * Math.PI/180;
+  var yaw  = (-80 + 90) * Math.PI/180;
+  var spin = 0.0030;
+
+  function latLonToVec(lat, lon){
+    var la = lat * Math.PI/180, lo = lon * Math.PI/180;
+    return { x: Math.cos(la)*Math.cos(lo), y: Math.sin(la), z: Math.cos(la)*Math.sin(lo) };
+  }
+
+  var size = 0, cx = 0, cy = 0, R = 0;
+  function resize(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    size = Math.min(w, h);
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    cx = (w*dpr)/2;
+    cy = (h*dpr)/2;
+    R  = (size*dpr) * 0.40;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function project(v){
+    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    var x1 = v.x*cosY + v.z*sinY;
+    var z1 = -v.x*sinY + v.z*cosY;
+    var y1 = v.y;
+    var cosX = Math.cos(tilt), sinX = Math.sin(tilt);
+    var y2 = y1*cosX - z1*sinX;
+    var z2 = y1*sinX + z1*cosX;
+    return { sx: cx + x1*R, sy: cy - y2*R, z: z2 };
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // deep green atmosphere wash + a brighter fresnel ring at the rim (depth)
+    var rg = ctx.createRadialGradient(cx, cy, R*0.35, cx, cy, R*1.30);
+    rg.addColorStop(0,   'rgba(40,120,80,0.14)');
+    rg.addColorStop(0.72,'rgba(60,150,100,0.10)');
+    rg.addColorStop(0.96,'rgba(140,220,130,0.16)');   // bright rim halo band
+    rg.addColorStop(1,   'rgba(140,220,130,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R*1.30, 0, Math.PI*2);
+    ctx.fillStyle = rg;
+    ctx.fill();
+
+    // DOT LAYER with additive glow so dense overlaps bloom (reference depth).
+    ctx.globalCompositeOperation = 'lighter';
+
+    // halo / rim-scatter dots (screen-space)
+    for (var hI=0;hI<halo.length;hI++){
+      var hd = halo[hI];
+      var hx = cx + Math.cos(hd.ang) * R * hd.rr;
+      var hy = cy + Math.sin(hd.ang) * R * hd.rr;
+      ctx.beginPath();
+      ctx.arc(hx, hy, hd.s * dpr, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(' + COL.halo + ',' + hd.a.toFixed(3) + ')';
+      ctx.fill();
+    }
+
+    // sphere dots — dense dot-matrix earth with depth-driven size + opacity
+    for (var i=0;i<base.length;i++){
+      var b = base[i];
+      var p = project(b);
+      var front = p.z;
+      var a = (front + 1) / 2;                 // 0 back .. 1 front
+      if (a < 0.14) continue;                  // back-face cull
+      var alpha = 0.08 + a*a*0.80;
+      var col = b.lime ? COL.lime : (b.land ? COL.land : COL.ocean);
+      var rad = (b.land ? 1.5 : 1.15) * dpr * (0.5 + a*0.85);
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, rad, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(' + col + ',' + alpha.toFixed(3) + ')';
+      ctx.fill();
+    }
+
+    ctx.globalCompositeOperation = 'source-over';
+
+    // crisp HTML city markers
+    for (var m=0;m<cities.length;m++){
+      var c = cities[m];
+      if (!c.el) continue;
+      var mp = project(latLonToVec(c.lat, c.lon));
+      if (mp.z < 0.04){ c.el.style.opacity = '0'; continue; }
+      c.el.style.left = (mp.sx / dpr) + 'px';
+      c.el.style.top  = (mp.sy / dpr) + 'px';
+      var ma = (mp.z + 1) / 2;
+      c.el.style.opacity = (0.4 + 0.6*ma).toFixed(3);
+    }
+  }
+
+  if (reduceG){
+    draw();
+  } else {
+    (function loop(){
+      yaw += spin;
+      draw();
+      requestAnimationFrame(loop);
+    })();
+  }
+
+  window.addEventListener('resize', function(){ if (reduceG) draw(); });
+})();
+</script>
+</body>
+</html>
