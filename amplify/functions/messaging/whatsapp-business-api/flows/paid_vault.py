@@ -6,6 +6,9 @@ from datetime import datetime
 import boto3
 from lambda_utils import customer_auth
 from lambda_utils.ecommerce import vault_access
+from lambda_utils.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 HEADER_IMAGE = 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png'
 
@@ -92,10 +95,14 @@ def prepare_and_send(event, lambda_client):
             'phoneNumberId': '1016149501586345', 'isTemplate': True,
             'templateParams': [], 'headerImageUrl': HEADER_IMAGE}
     ready = dict(base, templateName='wecare_share_pdf')
+    # The share template has an IMAGE header and carries no URL button, so it delivers no
+    # link. Only the dynamic download template does, and it stays closed.
+    link_sent = False
     # Enable only after live Meta readback confirms this exact template is approved.
     if os.environ.get('VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED', 'false').lower() == 'true':
         ready = dict(base, templateName='wecare_default_download',
                      templateUrlButton={'index': 0, 'suffix': file['fileId']})
+        link_sent = True
     if not _send_once(requests, row, 'vaultNotificationStatus', lambda_client, ready):
         return {'outcome': 'VAULT_NOTIFICATION_PENDING'}
     # A PDF attachment is a separate ordinary document message. The approved
@@ -103,6 +110,7 @@ def prepare_and_send(event, lambda_client):
     last = contact.get('lastInboundMessageAt', 0)
     if isinstance(last, str):
         last = datetime.fromisoformat(last.replace('Z', '+00:00')).timestamp()
+    delivered = False
     if file.get('deliverable') == 'pdf' and file.get('deliveryKey') and 0 <= time.time() - float(last or 0) < 86400:
         document = {'contactId': contact['id'], 'recipientPhone': phone,
                     'phoneNumberId': '1016149501586345', 'mediaType': 'document',
@@ -110,8 +118,25 @@ def prepare_and_send(event, lambda_client):
                     'content': 'Your Vault document'}
         if not _send_once(requests, row, 'vaultDocumentStatus', lambda_client, document):
             return {'outcome': 'VAULT_DOCUMENT_PENDING'}
+        delivered = True
     review = dict(base, templateName='wecare_leave_review',
                   flowButton={'index': 0, 'flowKey': 'leave_review'})
     accepted = _send_once(requests, row, 'vaultReviewStatus', lambda_client, review)
+    if accepted and not link_sent and not delivered:
+        # Neither a link nor a file reached the customer, so this is not ready. Reporting it
+        # is what makes the paid-but-undelivered population findable. First match wins,
+        # mirroring the document condition's own left-to-right evaluation: the two
+        # file-shape reasons are permanent data problems, while a closed window is a timing
+        # problem a re-send resolves - so it comes last, being the only one that can be true
+        # while the file is perfectly deliverable.
+        if file.get('deliverable') != 'pdf':
+            reason = 'not_deliverable'
+        elif not file.get('deliveryKey'):
+            reason = 'no_delivery_key'
+        else:
+            reason = 'window_closed'
+        log_event(logger, 'vault_delivery_deferred',
+                  requestId=row['publicRequestId'], reason=reason)
+        return {'outcome': 'VAULT_DELIVERY_DEFERRED', 'requestId': row['publicRequestId']}
     return {'outcome': 'VAULT_READY' if accepted else 'VAULT_REVIEW_PENDING',
             'requestId': row['publicRequestId']}
