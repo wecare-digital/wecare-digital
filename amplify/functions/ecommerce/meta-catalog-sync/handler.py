@@ -45,6 +45,7 @@ import hashlib
 import hmac
 import json
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -105,6 +106,185 @@ GRAPH_TIMEOUT_SECONDS = 15
 #: acceptable here and would not be if the function shipped enabled.
 META_BATCH_PATH = "items_batch"
 META_BATCH_CHUNK = 100
+
+#: Durable owner-approval records share the existing authorization table, but use a namespaced
+#: key so they can never collide with agent tool-plan approvals. Rows intentionally omit the
+#: table's expiresTtl attribute: a catalog decision is an audit record, not a 15-minute bearer
+#: approval. Exact current-plan binding still makes any Wix/Meta drift invalidate the approval.
+CATALOG_APPROVALS_TABLE = os.environ.get(
+    "META_CATALOG_APPROVALS_TABLE", "stack-wecare-digital-AgentApprovalsTable")
+CATALOG_APPROVAL_KEY_PREFIX = "META_CATALOG_SYNC#"
+CATALOG_APPROVAL_RECORD_TYPE = "META_CATALOG_SYNC"
+
+
+def _approval_key(plan_hash: str) -> str:
+    return CATALOG_APPROVAL_KEY_PREFIX + str(plan_hash or "").strip().lower()
+
+
+def _public_approval(row: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not row:
+        return None
+    return {
+        "planHash": str(row.get("exactPlanHash") or ""),
+        "status": str(row.get("status") or ""),
+        "catalogId": str(row.get("catalogId") or ""),
+        "proposedAt": int(row.get("proposedAt") or 0),
+        "approvedAt": int(row.get("approvedAt") or 0),
+        "approvedBy": str(row.get("approvedBy") or ""),
+        "applyStartedAt": int(row.get("applyStartedAt") or 0),
+        "appliedAt": int(row.get("appliedAt") or 0),
+        "verifiedAt": int(row.get("verifiedAt") or 0),
+        "batchHandles": list(row.get("batchHandles") or []),
+        "counts": dict(row.get("counts") or {}),
+        "blocked": list(row.get("blocked") or []),
+        "lastReadbackPlanHash": str(row.get("lastReadbackPlanHash") or ""),
+        "lastReadbackCounts": dict(row.get("lastReadbackCounts") or {}),
+    }
+
+
+class _DynamoCatalogApprovalStore:
+    """Exact-plan proposal/approval/apply audit trail on the existing approvals table."""
+
+    def __init__(self, table_name: str = CATALOG_APPROVALS_TABLE, table: Any = None) -> None:
+        self.table_name = table_name
+        self._table = table
+
+    def _get_table(self):
+        if self._table is None:
+            import boto3
+            self._table = boto3.resource(
+                "dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1")
+            ).Table(self.table_name)
+        return self._table
+
+    def get(self, plan_hash: str) -> Optional[Dict[str, Any]]:
+        row = self._get_table().get_item(
+            Key={"planHash": _approval_key(plan_hash)}, ConsistentRead=True
+        ).get("Item")
+        if row and row.get("recordType") == CATALOG_APPROVAL_RECORD_TYPE:
+            return dict(row)
+        return None
+
+    def propose(self, *, plan_hash: str, catalog_id: str, counts: Mapping[str, Any],
+                blocked: Sequence[str], desired_items: Sequence[Mapping[str, Any]],
+                proposed_by: str = "") -> Dict[str, Any]:
+        from botocore.exceptions import ClientError
+        now = int(time.time())
+        item = {
+            "planHash": _approval_key(plan_hash),
+            "recordType": CATALOG_APPROVAL_RECORD_TYPE,
+            "exactPlanHash": plan_hash.lower(),
+            "catalogId": catalog_id,
+            "status": "PROPOSED",
+            "counts": dict(counts),
+            "blocked": list(blocked),
+            "desiredItems": [dict(x) for x in desired_items],
+            "proposedAt": now,
+            "proposedBy": str(proposed_by or ""),
+        }
+        try:
+            self._get_table().put_item(
+                Item=item, ConditionExpression="attribute_not_exists(planHash)")
+            return item
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+                raise
+            existing = self.get(plan_hash)
+            if existing is None:
+                raise
+            return existing
+
+    def approve(self, *, plan_hash: str, catalog_id: str, approved_by: str) -> Optional[Dict[str, Any]]:
+        from botocore.exceptions import ClientError
+        now = int(time.time())
+        try:
+            result = self._get_table().update_item(
+                Key={"planHash": _approval_key(plan_hash)},
+                UpdateExpression=(
+                    "SET #st=:approved, approvedBy=:by, approvedAt=:now, updatedAt=:now"
+                ),
+                ConditionExpression=(
+                    "recordType=:type AND exactPlanHash=:hash AND catalogId=:catalog "
+                    "AND (#st=:proposed OR #st=:approved)"
+                ),
+                ExpressionAttributeNames={"#st": "status"},
+                ExpressionAttributeValues={
+                    ":approved": "APPROVED", ":proposed": "PROPOSED",
+                    ":by": approved_by, ":now": now, ":type": CATALOG_APPROVAL_RECORD_TYPE,
+                    ":hash": plan_hash.lower(), ":catalog": catalog_id,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return dict(result.get("Attributes") or {})
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def claim_apply(self, *, plan_hash: str, catalog_id: str) -> Optional[Dict[str, Any]]:
+        from botocore.exceptions import ClientError
+        now = int(time.time())
+        try:
+            result = self._get_table().update_item(
+                Key={"planHash": _approval_key(plan_hash)},
+                UpdateExpression="SET #st=:applying, applyStartedAt=:now, updatedAt=:now",
+                ConditionExpression=(
+                    "recordType=:type AND exactPlanHash=:hash AND catalogId=:catalog "
+                    "AND #st=:approved"
+                ),
+                ExpressionAttributeNames={"#st": "status"},
+                ExpressionAttributeValues={
+                    ":applying": "APPLYING", ":approved": "APPROVED", ":now": now,
+                    ":type": CATALOG_APPROVAL_RECORD_TYPE, ":hash": plan_hash.lower(),
+                    ":catalog": catalog_id,
+                },
+                ReturnValues="ALL_NEW",
+            )
+            return dict(result.get("Attributes") or {})
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+
+    def finish_apply(self, *, plan_hash: str, outcome: Mapping[str, Any]) -> Dict[str, Any]:
+        now = int(time.time())
+        ok = bool(outcome.get("ok"))
+        status = "APPLY_SUBMITTED" if ok else "APPLY_FAILED"
+        result = self._get_table().update_item(
+            Key={"planHash": _approval_key(plan_hash)},
+            UpdateExpression=(
+                "SET #st=:status, appliedAt=:now, updatedAt=:now, "
+                "batchHandles=:handles, appliedCount=:count"
+            ),
+            ExpressionAttributeNames={"#st": "status"},
+            ExpressionAttributeValues={
+                ":status": status, ":now": now,
+                ":handles": list(outcome.get("batchHandles") or []),
+                ":count": int(outcome.get("applied") or 0),
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return dict(result.get("Attributes") or {})
+
+    def record_readback(self, *, plan_hash: str, current_plan_hash: str,
+                        counts: Mapping[str, Any], verified: bool) -> Dict[str, Any]:
+        now = int(time.time())
+        status = "APPLIED" if verified else "APPLY_SUBMITTED"
+        result = self._get_table().update_item(
+            Key={"planHash": _approval_key(plan_hash)},
+            UpdateExpression=(
+                "SET #st=:status, updatedAt=:now, lastReadbackAt=:now, "
+                "lastReadbackPlanHash=:current, lastReadbackCounts=:counts"
+                + (", verifiedAt=:now" if verified else "")
+            ),
+            ExpressionAttributeNames={"#st": "status"},
+            ExpressionAttributeValues={
+                ":status": status, ":now": now, ":current": current_plan_hash,
+                ":counts": dict(counts),
+            },
+            ReturnValues="ALL_NEW",
+        )
+        return dict(result.get("Attributes") or {})
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -498,7 +678,7 @@ def _trigger(event: Any) -> Dict[str, str]:
 
 
 def handler(event, context, *, wix_requester=None, graph_requester=None,
-            secret_reader=None):  # noqa: ARG001 - Lambda signature
+            secret_reader=None, approval_store=None):  # noqa: ARG001 - Lambda signature
     """Compute the Wix -> Meta plan, log it, and write only if both gates are open.
 
     The three injection points default to `None` and resolve INSIDE, never as parameter defaults.
@@ -562,8 +742,30 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     blocked = catalog.blockers(desired)
     counts = plan.counts()
     plan_hash = plan.fingerprint()
-    approved_hash = os.environ.get("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", "").strip().lower()
-    approved = bool(approved_hash) and hmac.compare_digest(approved_hash, plan_hash.lower())
+    desired_public = [catalog.meta_payload(item) for item in desired]
+    existing_public = [catalog.meta_payload(item) for item in existing]
+    action = str(event.get("catalogAction") or "") if isinstance(event, Mapping) else ""
+    store = approval_store or _DynamoCatalogApprovalStore()
+
+    approval_row = None
+    approval_store_ready = True
+    if action or (isinstance(event, Mapping) and event.get("inspect") is True):
+        try:
+            approval_row = store.get(plan_hash)
+        except Exception as error:  # fail closed for approval-dependent operations
+            approval_store_ready = False
+            logger.error(json.dumps({
+                "event": "meta_catalog_approval_store_failed",
+                "operation": action or "inspect",
+                "errorType": type(error).__name__,
+            }))
+            if action:
+                return {"ok": False, "reason": "approval_store_unavailable",
+                        "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
+                        "planHash": plan_hash, "applied": 0}
+
+    approved = bool(approval_row and approval_row.get("status") in (
+        "APPROVED", "APPLYING", "APPLY_SUBMITTED", "APPLIED"))
 
     if isinstance(event, Mapping) and event.get("inspect") is True:
         # Private IAM-protected readback. Never enters the write path, even when
@@ -571,9 +773,67 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         return {"ok": True, "enabled": enabled, "dryRun": True, "readOnly": True,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
                 "planHash": plan_hash, "approved": approved,
-                "desiredItems": [catalog.meta_payload(item) for item in desired],
-                "existingItems": [catalog.meta_payload(item) for item in existing],
+                "approvalStoreReady": approval_store_ready,
+                "approval": _public_approval(approval_row),
+                "desiredItems": desired_public, "existingItems": existing_public,
                 "applied": 0}
+
+    if action == "propose":
+        if blocked:
+            return {"ok": False, "reason": "blocked", "catalogId": catalog_id,
+                    "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                    "approved": False, "applied": 0}
+        row = store.propose(
+            plan_hash=plan_hash, catalog_id=catalog_id, counts=counts, blocked=blocked,
+            desired_items=desired_public, proposed_by=str(event.get("proposedBy") or ""))
+        return {"ok": True, "readOnly": False, "catalogId": catalog_id,
+                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+                "approval": _public_approval(row), "applied": 0}
+
+    if action == "status":
+        requested = str(event.get("planHash") or plan_hash).strip().lower()
+        row = store.get(requested)
+        return {"ok": True, "readOnly": True, "catalogId": catalog_id,
+                "currentPlanHash": plan_hash, "requestedPlanHash": requested,
+                "currentPlanMatches": hmac.compare_digest(requested, plan_hash.lower()),
+                "approval": _public_approval(row), "applied": 0}
+
+    if action == "approve":
+        requested = str(event.get("planHash") or "").strip().lower()
+        approved_by = str(event.get("approvedBy") or "").strip()
+        if not requested or not hmac.compare_digest(requested, plan_hash.lower()):
+            return {"ok": False, "reason": "plan_changed", "catalogId": catalog_id,
+                    "currentPlanHash": plan_hash, "requestedPlanHash": requested, "applied": 0}
+        if blocked:
+            return {"ok": False, "reason": "blocked", "catalogId": catalog_id,
+                    "blocked": blocked, "planHash": plan_hash, "applied": 0}
+        if not approved_by:
+            return {"ok": False, "reason": "approver_required", "catalogId": catalog_id,
+                    "planHash": plan_hash, "applied": 0}
+        row = store.approve(
+            plan_hash=plan_hash, catalog_id=catalog_id, approved_by=approved_by)
+        if not row:
+            return {"ok": False, "reason": "proposal_required", "catalogId": catalog_id,
+                    "planHash": plan_hash, "applied": 0}
+        return {"ok": True, "catalogId": catalog_id, "planHash": plan_hash,
+                "approved": True, "approval": _public_approval(row), "applied": 0}
+
+    if action == "readback":
+        requested = str(event.get("planHash") or "").strip().lower()
+        row = store.get(requested)
+        if not requested or not row:
+            return {"ok": False, "reason": "approval_not_found", "catalogId": catalog_id,
+                    "currentPlanHash": plan_hash, "requestedPlanHash": requested, "applied": 0}
+        verified = (
+            not blocked and counts.get("create", 0) == 0
+            and counts.get("update", 0) == 0 and counts.get("retire", 0) == 0
+        )
+        updated = store.record_readback(
+            plan_hash=requested, current_plan_hash=plan_hash, counts=counts, verified=verified)
+        return {"ok": True, "readOnly": True, "catalogId": catalog_id,
+                "currentPlanHash": plan_hash, "requestedPlanHash": requested,
+                "verified": verified, "counts": counts, "blocked": blocked,
+                "approval": _public_approval(updated), "applied": 0}
 
     # ONE structured line, and every field in it is a public catalogue identifier or a count.
     # Product ids, retailer ids and catalog ids are public commerce identifiers; there is no
@@ -603,27 +863,44 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
         # there is no payload in memory to send by accident.
         return {"ok": True, "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
                 "counts": counts, "blocked": blocked, "planHash": plan_hash,
-                "approved": approved, "applied": 0}
+                "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
 
     if plan.is_empty:
         return {"ok": True, "enabled": True, "dryRun": False, "catalogId": catalog_id,
                 "counts": counts, "blocked": blocked, "planHash": plan_hash,
-                "approved": approved, "applied": 0}
+                "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
 
     if blocked:
         return {"ok": False, "reason": "blocked", "enabled": True, "dryRun": False,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
                 "planHash": plan_hash, "approved": approved, "applied": 0}
 
-    if not approved:
-        return {"ok": False, "reason": "approval_required", "enabled": True, "dryRun": False,
-                "catalogId": catalog_id, "counts": counts, "blocked": blocked,
-                "planHash": plan_hash, "approved": False, "applied": 0}
+    # A schedule/webhook is never an APPLY command. Even if both release gates are opened later,
+    # a write still requires a separately authenticated admin action bound to the exact approved
+    # plan. This prevents "approval exists" from becoming "background job may spend it whenever".
+    if action != "apply":
+        return {"ok": False, "reason": "explicit_apply_required", "enabled": True,
+                "dryRun": False, "catalogId": catalog_id, "counts": counts,
+                "blocked": blocked, "planHash": plan_hash, "approved": approved, "applied": 0}
+
+    requested = str(event.get("planHash") or "").strip().lower()
+    if not requested or not hmac.compare_digest(requested, plan_hash.lower()):
+        return {"ok": False, "reason": "plan_changed", "enabled": True, "dryRun": False,
+                "catalogId": catalog_id, "currentPlanHash": plan_hash,
+                "requestedPlanHash": requested, "applied": 0}
+
+    claimed = store.claim_apply(plan_hash=plan_hash, catalog_id=catalog_id)
+    if not claimed:
+        return {"ok": False, "reason": "approval_required", "enabled": True,
+                "dryRun": False, "catalogId": catalog_id, "counts": counts,
+                "blocked": blocked, "planHash": plan_hash, "approved": False, "applied": 0}
 
     outcome = _apply(plan, graph, token=token, app_secret=app_secret, catalog_id=catalog_id)
+    finished = store.finish_apply(plan_hash=plan_hash, outcome=outcome)
     return {"ok": outcome["ok"], "enabled": True, "dryRun": False, "catalogId": catalog_id,
             "counts": counts, "blocked": blocked, "planHash": plan_hash,
-            "approved": True, "applied": outcome["applied"], "batchHandles": outcome.get("batchHandles", []),
+            "approved": True, "approval": _public_approval(finished),
+            "applied": outcome["applied"], "batchHandles": outcome.get("batchHandles", []),
             "validationErrors": outcome.get("validationErrors", []),
             "responseFields": outcome.get("responseFields", []),
             "validationStatus": outcome.get("validationStatus")}
