@@ -83,7 +83,6 @@ import FloatingAgent from '../components/FloatingAgent';
 // floating widget holding BOTH the WhatsApp contact button and the translate control. The
 // external wecare-wa-widget.js that used to inject the WhatsApp button is retired with it.
 import SupportWidget from '../components/SupportWidget';
-import CatalogAnalyticsConsent from '../components/CatalogAnalyticsConsent';
 import ErrorBoundary from '../components/ErrorBoundary';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -1155,7 +1154,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
             no direct gtag.js accompanies it. */}
         <Header />
         <Component { ...pageProps } />
-        <CatalogAnalyticsConsent />
         <Footer />
         {/* WhatsApp contact + page translation. This comment used to read "translation +
             read-aloud, public pages only, and deliberately not on the authenticated
