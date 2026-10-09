@@ -138,7 +138,16 @@ const VayuLokPage: React.FC = () => {
         path="/vayulok/"
       />
 
-      <main className="vl-shell" aria-label="VayuLok">
+      {/* A SECTION, NOT A MAIN, and that is deliberate. VayuLokLive below renders its own
+          main.vl-live-shell, and HTML permits exactly one non-hidden main per document -
+          two of them is what tools/audit/htmlcheck.js flags at HIGH and what
+          src/test/PublicPageTopBand.test.tsx asserts against for the other public pages.
+          The component's markup is not ours to change, so the single main landmark is the
+          live section and the hero is a labelled region above it. Landmark navigation and
+          skip-to-content therefore land on the live widget, which is this page's primary
+          interactive content, not on the headline. Purely semantic: every rule in the
+          style block below selects .vl-shell by class, so nothing moves on screen. */}
+      <section className="vl-shell" aria-label="VayuLok">
         <div className={ `vl-layout ${shown ? 'show' : ''}`.trim() }>
           <div className="vl-hero-grid">
             <div className="vl-hero-copy">
@@ -189,15 +198,17 @@ const VayuLokPage: React.FC = () => {
             </div>
           </div>
         </div>
-      </main>
+      </section>
 
       {/* LIVE CONTENT, DIRECTLY BELOW THE HERO - which is what the .vl-shell note beside
           the padding rule has described ever since the forced 100vh came off, and what
           this file's own header describes. The markup went missing in a revert of the
           "Filling the Gap" globe, leaving both comments pointing at a section that was no
           longer rendered. Restored here as a SIBLING of the hero, not a child: the
-          component's own root wraps a main.vl-live-shell, so nesting it would put a main
-          inside a main.
+          component's own root wraps a main.vl-live-shell, and nesting that inside another
+          main would be invalid - which is also why the hero above is a section.
+          src/test/VayuLokLivePageWiring.test.tsx guards this placement; the section has
+          already been lost twice to edits of the surrounding markup.
           A PLAIN STATIC IMPORT, deliberately not next/dynamic. VayuLokLive touches
           window, document and google only inside effects and in helpers that return
           early on typeof window === 'undefined', and it imports deck.gl dynamically
