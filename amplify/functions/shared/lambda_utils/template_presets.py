@@ -72,11 +72,11 @@ def _preset_order_confirmation() -> Dict[str, Any]:
         'components': [
             {'type': 'BODY',
              'text': 'Hi {{1}}, your order {{2}} is confirmed. Total: {{3}}. We will notify you when it ships.',
-             'example': {'body_text': [['Asha', 'WD-ORD-A1B2C3D4', 'INR 1499']]}},
+             'example': {'body_text': [['Asha', 'WD-ORD-K4M7PQR9', 'INR 1499']]}},
             {'type': 'FOOTER', 'text': 'Thank you for shopping with us'},
             {'type': 'BUTTONS', 'buttons': [
                 {'type': 'URL', 'text': 'View order', 'url': 'https://wecare.digital/orders/?orderId={{1}}',
-                 'example': ['https://wecare.digital/orders/?orderId=A1B2C3D4']},
+                 'example': ['https://wecare.digital/orders/?orderId=WD-ORD-K4M7PQR9']},
             ]},
         ],
     }
@@ -91,10 +91,10 @@ def _preset_order_delivery_update() -> Dict[str, Any]:
         'components': [
             {'type': 'BODY',
              'text': 'Hi {{1}}, your order {{2}} is now {{3}}. Expected by {{4}}.',
-             'example': {'body_text': [['Asha', 'WD-ORD-A1B2C3D4', 'out for delivery', 'today 6 PM']]}},
+             'example': {'body_text': [['Asha', 'WD-ORD-K4M7PQR9', 'out for delivery', 'today 6 PM']]}},
             {'type': 'BUTTONS', 'buttons': [
                 {'type': 'URL', 'text': 'Track', 'url': 'https://wecare.digital/orders/?orderId={{1}}',
-                 'example': ['https://wecare.digital/orders/?orderId=A1B2C3D4']},
+                 'example': ['https://wecare.digital/orders/?orderId=WD-ORD-K4M7PQR9']},
             ]},
         ],
     }

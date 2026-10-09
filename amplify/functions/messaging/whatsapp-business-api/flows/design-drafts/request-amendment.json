@@ -44,8 +44,8 @@
                 "required": true,
                 "data-source": [
                   {
-                    "id": "WD-ORD - A1B2C3D4 - 09-10-2026 - 06:00:00 - IST",
-                    "title": "Example order \u00b7 A1B2C3D4"
+                    "id": "WD-ORD-K4M7PQR9",
+                    "title": "Example order \u00b7 K4M7PQR9"
                   },
                   {
                     "id": "not_found",
@@ -90,7 +90,7 @@
       "data": {
         "parent_order": {
           "type": "string",
-          "__example__": "WD-ORD - A1B2C3D4 - 09-10-2026 - 06:00:00 - IST"
+          "__example__": "WD-ORD-K4M7PQR9"
         },
         "manual_order_number": {
           "type": "string",
@@ -160,7 +160,7 @@
       "data": {
         "parent_order": {
           "type": "string",
-          "__example__": "WD-ORD - A1B2C3D4 - 09-10-2026 - 06:00:00 - IST"
+          "__example__": "WD-ORD-K4M7PQR9"
         },
         "manual_order_number": {
           "type": "string",
