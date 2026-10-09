@@ -1716,7 +1716,7 @@ def _trigger_post_payment_flow(clean_phone: str, phone_id: str, reference_id: st
                     ExpressionAttributeValues={':now': int(_time.time())},
                 )
             except Exception as guard_err:
-                if 'ConditionalCheckFailedException' in str(guard_err):
+                if order_keys.is_conditional_failure(guard_err):
                     logger.info(json.dumps({'event': 'post_payment_flow_skipped', 'reason': 'already sent (idempotent)',
                                             'invoiceId': invoice_id, 'referenceId': reference_id, 'requestId': request_id}))
                     return
@@ -2033,7 +2033,7 @@ def _store_payment_record(payment: Dict, status: str, request_id: str) -> None:
                                 'rank': payment_status.rank(status),
                                 'requestId': request_id}))
     except Exception as e:
-        if 'ConditionalCheckFailedException' in str(e):
+        if order_keys.is_conditional_failure(e):
             # Expected and correct: a stale or out-of-order delivery. Recorded at info,
             # not error, so it does not read as a fault - but recorded, because a high
             # volume here would mean the provider is redelivering heavily.
@@ -2146,7 +2146,7 @@ def _mark_invoice_paid_by_reference(reference_id: str, request_id: str,
                 ExpressionAttributeValues=update_values,
             )
         except Exception as cond_err:  # noqa: BLE001
-            if 'ConditionalCheckFailedException' in str(cond_err):
+            if order_keys.is_conditional_failure(cond_err):
                 # Already paid by a concurrent delivery. Harmless and expected; not an error.
                 logger.info(json.dumps({
                     'event': 'invoice_already_paid_on_settle',
@@ -2743,7 +2743,7 @@ def _handle_refund(event_type: str, event_data: Dict, request_id: str) -> None:
                 },
             )
         except Exception as e:
-            if 'ConditionalCheckFailedException' in str(e):
+            if order_keys.is_conditional_failure(e):
                 logger.info(json.dumps({
                     'event': 'refund_status_not_applied', 'paymentId': payment_id,
                     'refundId': refund_id,
@@ -2863,7 +2863,7 @@ def _store_settlement_record(settlement_id: str, amount_paise: int, settlement: 
                   'createdAt': Decimal(int(time.time()))},
             ConditionExpression='attribute_not_exists(id)')
     except Exception as e:  # noqa: BLE001
-        if 'ConditionalCheckFailedException' in str(e):
+        if order_keys.is_conditional_failure(e):
             logger.info(json.dumps({'event': 'settlement_record_exists',
                                     'settlementId': settlement_id, 'requestId': request_id}))
             return
