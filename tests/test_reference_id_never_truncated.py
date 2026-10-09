@@ -111,15 +111,23 @@ def test_outbound_refuses_to_turn_an_order_number_into_a_reference(outbound):
     Stripping the legacy number's spaces, dashes and colons produced
     `WD-PAY-ORD<8hex><8date><6time>IST` at exactly 35 characters - inside the limit purely
     because the date and time are fixed width. So the old code looked safe on this input and
-    would have truncated silently on a format one character longer. Both spellings are refused.
+    would have truncated silently on a format one character longer.
+
+    All THREE spellings are refused. The spaced legacy value is a literal because the
+    generator no longer emits it (FEAT-005); the current form is the one that matters most,
+    because at 15 characters of permitted charset it is Meta-valid as a string - nothing about
+    its length would have stopped it being sent as a payment reference.
     """
-    from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
-    spaced = _generate_wd_order_number('2026-02-22T18:00:00Z')
+    spaced = 'WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST'
     assert len(spaced) > LIMIT
 
-    for legacy in (spaced, 'WD-ORD-A1B2C3D4'):
+    from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
+    current = _generate_wd_order_number('2026-02-22T18:00:00Z')
+    assert len(current) <= LIMIT
+
+    for number in (spaced, 'WD-ORD-A1B2C3D4', current, 'WD-ORD-K4M7PQR9'):
         with pytest.raises(outbound.ReferenceIdTooLong):
-            outbound._sanitize_reference_id(legacy)
+            outbound._sanitize_reference_id(number)
 
 
 def test_outbound_never_returns_a_value_over_the_limit(outbound):

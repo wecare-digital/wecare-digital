@@ -277,25 +277,32 @@ def _simple_product_to_v3(source: dict) -> dict:
     return product
 def _generate_wd_order_number(order_date: str) -> str:
     """
-    Generate a WD-ORD order number.
-    Format: WD-ORD - {UUID8} - {DD-MM-YYYY} - {HH:MM:SS} - IST
-    Example: WD-ORD - A3F7B2C1 - 22-02-2026 - 17:43:01 - IST
+    Generate a WD-ORD order number in the CURRENT public format.
+    Format: WD-ORD-{8 symbols of order_keys.PUBLIC_ORDER_NUMBER_ALPHABET}
+    Example: WD-ORD-K4M7PQR9
 
-    Uses the order's creation date converted to IST (Asia/Kolkata, UTC+5:30).
-    UUID part is 8 uppercase hex chars for uniqueness.
+    THE OLD SHAPE IS NO LONGER MINTED. This used to emit
+    `WD-ORD - {UUID8} - {DD-MM-YYYY} - {HH:MM:SS} - IST`, so the Wix sync/backfill was the
+    last producer of the legacy form while our own checkout had already moved to
+    `order_keys.reserve_public_order_number`. One system, one number shape.
+
+    It is still RECOGNISED everywhere, and that is not optional: numbers already issued in
+    the old shape are printed on receipts, sitting in customers' WhatsApp history and quoted
+    to support. `order_keys.is_wd_order_number` accepts both legacy spellings and
+    `order_keys.is_public_order_number` accepts the bare 12-character one, unchanged.
+
+    `order_date` is kept in the signature because `order_keys.reserve_order_number` calls
+    every generator with it and `wix-store` passes the Wix order's creation date - but the
+    number no longer encodes a timestamp. Deliberately: a public number carrying the order's
+    date leaks order volume to anyone holding two of them, which is the reasoning recorded on
+    `order_keys.mint_public_order_number`. The date was never the uniqueness mechanism either;
+    the conditional write under `ORDERNO#` is, and it is unchanged.
+
+    Minted via `mint_public_order_number` rather than reimplemented, so the alphabet, the
+    length and the CSPRNG source have exactly one definition.
     """
-    import uuid as _uuid
-    try:
-        dt = datetime.fromisoformat(order_date.replace('Z', '+00:00'))
-    except Exception:
-        dt = datetime.now(timezone.utc)
-    # Convert to IST (UTC+5:30)
-    ist_offset = timezone(timedelta(hours=5, minutes=30))
-    dt_ist = dt.astimezone(ist_offset)
-    date_str = dt_ist.strftime('%d-%m-%Y')
-    time_str = dt_ist.strftime('%H:%M:%S')
-    uid = _uuid.uuid4().hex[:8].upper()
-    return f'WD-ORD - {uid} - {date_str} - {time_str} - IST'
+    from lambda_utils.ecommerce import order_keys
+    return order_keys.mint_public_order_number()
 def _generate_sku(product_name: str) -> str:
     """
     Auto-generate SKU in format WD-XX-XXXX.

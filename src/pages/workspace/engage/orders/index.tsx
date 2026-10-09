@@ -55,10 +55,20 @@ const DETAIL_SELECT_STYLE: React.CSSProperties = { flex: '0 0 200px' };
 
 // ── Helpers ──
 
+// Both order-number shapes, because the Wix sync now mints the current one:
+//
+//   'WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST'  → 'A1B2C3D4'  legacy spaced
+//   'WD-ORD-K4M7PQR9'                                  → 'K4M7PQR9'  current
+//
+// Without the prefix strip the current form has no ' - ' to split on and falls through to
+// the first 8 characters, rendering as 'WD-ORD — WD-ORD-K' - the prefix twice and the only
+// part that identifies the order cut off.
 function extractShortId ( orderId: string ): string {
   if ( !orderId ) return '';
   const parts = orderId.split( ' - ' );
-  return parts.length >= 2 ? parts[ 1 ] : orderId.slice( 0, 8 );
+  if ( parts.length >= 2 ) return parts[ 1 ];
+  if ( orderId.startsWith( 'WD-ORD-' ) && orderId.length > 7 ) return orderId.slice( 7 );
+  return orderId.slice( 0, 8 );
 }
 
 function extractFriendlyDateTime ( orderId: string ): string {

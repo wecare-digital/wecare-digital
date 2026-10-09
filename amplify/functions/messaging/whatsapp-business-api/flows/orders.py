@@ -36,11 +36,25 @@ FLOW_SUBMISSIONS_TABLE = os.environ.get('FLOW_SUBMISSIONS_TABLE', 'stack-wecare-
 
 
 def extract_short_id(wd_order_number: str) -> str:
-    """Extract short ID from WD-ORD number. 'WD-ORD - A1B2C3D4 - ...' → 'A1B2C3D4'"""
+    """Extract the short ID from a WD-ORD number, in either shape.
+
+    'WD-ORD - A1B2C3D4 - ...' → 'A1B2C3D4'   (legacy spaced)
+    'WD-ORD-K4M7PQR9'        → 'K4M7PQR9'   (current)
+
+    The current form has no ' - ' to split on, so it used to fall through to the first 12
+    characters and come out as 'WD-ORD-K4M7' - a truncated prefix with the distinguishing
+    part cut off. This value is what the Flow dropdown shows and what the Wix sync stores as
+    `shortId`, so the prefix strip is not cosmetic here.
+    """
     if not wd_order_number:
         return ''
     parts = wd_order_number.split(' - ')
-    return parts[1] if len(parts) >= 2 else wd_order_number[:12]
+    if len(parts) >= 2:
+        return parts[1]
+    prefix = 'WD-ORD-'
+    if wd_order_number.startswith(prefix) and len(wd_order_number) > len(prefix):
+        return wd_order_number[len(prefix):]
+    return wd_order_number[:12]
 
 
 def format_order_dropdown(wd_id: str, created_date: str = '', total: str = '',

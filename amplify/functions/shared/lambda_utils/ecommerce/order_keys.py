@@ -158,12 +158,27 @@ _LEGACY_PUBLIC_ORDER_NUMBER_RE = re.compile(
 
 _DEFAULT_ATTEMPTS = 5
 
-# Accepts both legacy spellings: the spaced display format the Wix sync path generates
-# ('WD-ORD - A1B2C3D4 - ...') and the compact form the Order table's `orderId` uses
-# ('WD-ORD-A1B2C3D4'). One pattern deliberately - the bug this replaced was a `startswith`
-# that silently recognised only one of them. New checkout orders use the 12-character number
-# instead; this stays for orders synced from Wix, which already exist and are already paid.
-_WD_ORDER_NUMBER_RE = re.compile(r"^WD-ORD\s*-\s*[0-9A-F]{8}\b", re.IGNORECASE)
+# Accepts every `WD-ORD` spelling this system has ever written. THREE, and the third was
+# added when the Wix minter moved to the current format:
+#
+#   1. the spaced display form the Wix sync used to generate ('WD-ORD - A1B2C3D4 - ...'),
+#   2. the compact form the Order table's `orderId` uses ('WD-ORD-A1B2C3D4'), both 8 HEX, and
+#   3. the CURRENT public form, whose tail is 8 symbols of PUBLIC_ORDER_NUMBER_ALPHABET.
+#
+# One pattern deliberately - the bug this replaced was a `startswith` that silently
+# recognised only one of them. Branch 3 exists because the alphabet runs past F, so a
+# hex-only pattern did not match a number the Wix path had just minted. Two live sites ask
+# this question and BOTH fail in the dangerous direction when the answer is wrongly False:
+# `wix-store._get_or_create_wd_order_number` reuses a stored mapping only if it matches, and
+# `outbound-whatsapp._sanitize_reference_id` refuses to send an order number to Meta as a
+# payment reference only if it matches.
+#
+# WIDENING ONLY. Every legacy value this accepted before is still accepted.
+_WD_ORDER_NUMBER_RE = re.compile(
+    r"^WD-ORD\s*-\s*(?:[0-9A-F]{8}|[%s]{%d})\b"
+    % (PUBLIC_ORDER_NUMBER_ALPHABET, PUBLIC_ORDER_NUMBER_ENTROPY),
+    re.IGNORECASE,
+)
 
 
 class OrderIdentityUnavailable(RuntimeError):
@@ -246,10 +261,15 @@ def is_current_public_order_number(value: Any) -> bool:
 
 
 def is_wd_order_number(value: Any) -> bool:
-    """True for a legacy WD order number in either live format.
+    """True for a `WD-ORD` order number in any format this system has written.
 
+    Both legacy spellings - spaced and compact, 8 hex - and the current `WD-ORD-` + 8 form.
     Replaces `startswith('WD-ORD-')`, which never matched the spaced format the generator
-    actually produces and so made the reuse check dead code.
+    used to produce and so made the reuse check dead code.
+
+    Not the same question as `is_public_order_number`. This one asks "is this string one of
+    our order numbers", including the hex-tailed legacy values that fall outside the public
+    alphabet; that one asks "is this a number a customer may quote back to us for lookup".
     """
     return isinstance(value, str) and bool(_WD_ORDER_NUMBER_RE.match(value.strip()))
 
