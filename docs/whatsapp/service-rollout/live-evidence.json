@@ -691,5 +691,57 @@
     "releaseControls": "closed",
     "realCustomerPaymentPerformed": false,
     "catalogWritePerformed": false
+  },
+  "chatgptDurableCatalogApproval": {
+    "observedAt": "2026-10-09T13:05:00Z",
+    "businessApi": {
+      "version": "94",
+      "hash": "iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=",
+      "rollback": "93"
+    },
+    "metaCatalogSync": {
+      "version": "9",
+      "hash": "cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=",
+      "rollback": "8"
+    },
+    "routes": [
+      {
+        "routeKey": "GET /wa-business/catalog-sync",
+        "routeId": "ktbob4d",
+        "target": "integrations/md9yz9g"
+      },
+      {
+        "routeKey": "POST /wa-business/catalog-sync",
+        "routeId": "aqr2wkn",
+        "target": "integrations/md9yz9g"
+      }
+    ],
+    "anonymousStatus": 401,
+    "approvalStore": {
+      "table": "stack-wecare-digital-AgentApprovalsTable",
+      "keyPrefix": "META_CATALOG_SYNC#",
+      "itemCountAtVerification": 0
+    },
+    "livePlan": {
+      "hash": "19b8290495af210b94d819d2bdd3640805bd770fa640d6bb46cda46ae31064d5",
+      "counts": {
+        "create": 4,
+        "update": 0,
+        "retire": 0,
+        "foreign": 0
+      },
+      "blocked": [],
+      "approvalStoreReady": true,
+      "approved": false,
+      "applied": 0
+    },
+    "controls": {
+      "enabled": false,
+      "dryRun": true,
+      "forceOutOfStock": true
+    },
+    "proposalRecorded": false,
+    "approvalRecorded": false,
+    "metaCatalogWritePerformed": false
   }
 }
