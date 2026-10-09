@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  INTERNAL MOCK — NOT A LIVE PAGE, NOT PRODUCTION CODE.
+  WECARE GLOBE RIGHT SECTION — VARIANT B: NO EXTERNAL IMAGE (SELF-CONTAINED).
+
+  HERO RIGHT-COLUMN VISUAL ONLY. The global header, footer and WhatsApp widget
+  are shared across every public page and rendered globally, so they are
+  DELIBERATELY NOT in this mock. We only iterate the /vayulok/ right-side globe.
+
+  WHAT THIS VARIANT IS
+    The SAME approved WebGL2 dot-matrix Earth globe as Variant A, but with NO
+    external image at all — nothing is fetched to render the sphere. The Earth
+    is shaded PROCEDURALLY in the fragment shader (an ocean-blue base graded by
+    latitude) plus the seven-colour WECARE point cloud plus the cyan atmospheric
+    rim/fresnel glow. If WebGL2 is unavailable, it falls back to the reference's
+    radial-gradient ocean sphere drawn in 2D canvas. Either way the file is
+    fully self-contained and needs no texture fetch.
+
+  SAME BEHAVIOUR / MARKERS / TOGGLE / PALETTE AS VARIANT A
+    - WebGL2 vertex + fragment shaders; procedural ocean sphere + point cloud.
+    - Seven-colour WECARE point cloud (mulberry32 + fibonacci sphere + lat/lon
+      clusters).
+    - Black rounded panel with two white "cut-out" corners (frame-cutout--tl/--br).
+    - Transparent "lime-glass" AIR / WEATHER selector pill top-right
+      (AIR = green #3da35a indicator, WEATHER = blue #2563eb indicator).
+    - City markers: Delhi (amber #f0a818), Bengaluru (purple #9849e8), plus a
+      dynamic "selected" marker (blue #2563eb). Transparent glass pills.
+    - India-first resting orientation.
+    - 360-degree horizontal drag + limited vertical tilt + gentle India-focused
+      passive drift after inactivity.
+    - Google Maps Platform live data (Air Quality + Weather + Geocoding) via the
+      <meta name="google-maps-api-key"> tag; loading/error/updated states; NO
+      fabricated values on failure. Click a lit point -> lat/lon ->
+      reverse-geocode -> marker -> live AQI + Weather.
+
+  WECARE PALETTE (preserved exactly)
+    #d1f470 lime · #1a3a2a forest · #3da35a green · #2563eb blue ·
+    #9849e8 purple · #f0a818 amber · #dc2626 red (reserved; error state only).
+
+  THE GOOGLE KEY IS A PLACEHOLDER ON PURPOSE. Do NOT hardcode a real key here.
+  The live Google calls only work on a deployed, referrer-restricted origin.
+
+  IT LIVES IN docs/mocks/ DELIBERATELY. docs/ is outside the Next.js build, so
+  this file cannot be deployed. Do NOT move it to public/ or src/pages/.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<!-- Google Maps Platform browser key. PLACEHOLDER — never commit a real key.
+     On a deployed origin this is a referrer-restricted browser key. -->
+<meta name="google-maps-api-key" content="PASTE_YOUR_RESTRICTED_GOOGLE_BROWSER_KEY_HERE">
+<title>INTERNAL MOCK — WECARE globe right section (Variant B: no external image)</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;
+}
+.vm-banner{
+  background:#1a3a2a;color:#d1f470;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.4;
+  padding:14px 24px;text-align:center;
+}
+.vm-banner b{color:#fff}
+
+.wrap{max-width:560px;margin:40px auto;padding:0 20px}
+
+/* ============================ GLOBE PANEL ============================
+   Black rounded panel with two white "cut-out" corners. */
+.globe-section{
+  position:relative;width:100%;aspect-ratio:1/1;
+  border-radius:28px;background:#05070a;overflow:hidden;
+  box-shadow:0 24px 70px rgba(5,10,16,.45);
+  touch-action:none;user-select:none;cursor:grab;
+}
+.globe-section:active{cursor:grabbing}
+.globe-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+.frame-cutout{position:absolute;width:46px;height:46px;background:#fff;z-index:5;pointer-events:none}
+.frame-cutout--tl{top:0;left:0;border-bottom-right-radius:16px}
+.frame-cutout--br{bottom:0;right:0;border-top-left-radius:16px}
+
+/* ===================== AIR / WEATHER SELECTOR PILL ===================== */
+.mode-pill{
+  position:absolute;top:16px;right:16px;z-index:7;
+  display:inline-flex;align-items:center;gap:2px;
+  padding:4px;border-radius:9999px;
+  background:rgba(209,244,112,.12);
+  border:1px solid rgba(209,244,112,.35);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+.mode-btn{
+  display:inline-flex;align-items:center;gap:7px;
+  border:0;background:transparent;cursor:pointer;
+  padding:6px 13px;border-radius:9999px;
+  font:inherit;font-size:12.5px;font-weight:600;letter-spacing:-.1px;
+  color:rgba(255,255,255,.72);transition:background .2s,color .2s;
+}
+.mode-btn .md-dot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.5}
+.mode-btn.is-active{background:rgba(255,255,255,.1);color:#fff}
+.mode-btn[data-mode="air"].is-active .md-dot{background:#3da35a;opacity:1}
+.mode-btn[data-mode="weather"].is-active .md-dot{background:#2563eb;opacity:1}
+
+/* ===================== CITY MARKERS (glass pills) ===================== */
+.city-marker{
+  position:absolute;z-index:6;transform:translate(-50%,-100%);
+  pointer-events:none;will-change:left,top,opacity;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.city-marker .cm-pin{
+  width:11px;height:11px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.85);
+}
+.city-marker .cm-label{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:5px 10px;border-radius:9999px;
+  background:rgba(10,14,20,.45);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
+  border:1px solid rgba(255,255,255,.18);
+  font-size:11.5px;font-weight:600;letter-spacing:-.1px;color:#f3f7ff;
+}
+.city-marker .cm-val{font-weight:700}
+.city-marker.is-delhi .cm-pin{background:#f0a818;box-shadow:0 0 10px rgba(240,168,24,.75)}
+.city-marker.is-delhi .cm-val{color:#f7c75e}
+.city-marker.is-blr .cm-pin{background:#9849e8;box-shadow:0 0 10px rgba(152,73,232,.75)}
+.city-marker.is-blr .cm-val{color:#c39bf3}
+.city-marker.is-sel .cm-pin{background:#2563eb;box-shadow:0 0 10px rgba(37,99,235,.8)}
+.city-marker.is-sel .cm-val{color:#8fb4ff}
+.city-marker.is-loading .cm-val{color:#cbd5e1;font-weight:600}
+.city-marker.is-error .cm-pin{background:#dc2626;box-shadow:0 0 10px rgba(220,38,38,.75)}
+.city-marker.is-error .cm-val{color:#f3a1a1}
+
+/* ===================== DATA READOUT (bottom-left) ===================== */
+.readout{
+  position:absolute;left:16px;bottom:16px;z-index:7;max-width:62%;
+  padding:11px 14px;border-radius:14px;
+  background:rgba(10,14,20,.5);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+  border:1px solid rgba(255,255,255,.12);color:#eaf0f7;
+  font-size:12px;line-height:1.45;letter-spacing:-.1px;
+}
+.readout .ro-title{font-weight:700;font-size:12.5px;margin-bottom:2px;display:flex;align-items:center;gap:6px}
+.readout .ro-dot{width:7px;height:7px;border-radius:50%;background:#3da35a}
+.readout.mode-weather .ro-dot{background:#2563eb}
+.readout .ro-body{color:rgba(234,240,247,.86)}
+.readout .ro-meta{margin-top:4px;font-size:10.5px;color:rgba(234,240,247,.52)}
+.readout.is-error .ro-dot{background:#dc2626}
+.readout.is-error .ro-body{color:#f3b4b4}
+
+.hint{margin-top:12px;font-size:12px;line-height:1.45;color:rgba(0,0,0,.54);text-align:center}
+
+@media(max-width:560px){
+  .wrap{margin:24px auto}
+  .frame-cutout{width:38px;height:38px}
+}
+@media(prefers-reduced-motion:reduce){
+  .city-marker .cm-pin{animation:none}
+}
+</style>
+</head>
+<body>
+
+<div class="vm-banner">INTERNAL MOCK — <b>not a live page.</b> WECARE globe RIGHT SECTION — Variant B (no external image, fully self-contained). Global header, footer &amp; widget are shared/unchanged and not shown.</div>
+
+<div class="wrap">
+  <div class="globe-section" id="stage" aria-label="Interactive WECARE Earth globe centred on Bharat. Drag to rotate; click a point for live air quality and weather.">
+    <canvas class="globe-canvas" id="glcanvas"></canvas>
+
+    <div class="frame-cutout frame-cutout--tl"></div>
+    <div class="frame-cutout frame-cutout--br"></div>
+
+    <div class="mode-pill" role="tablist" aria-label="Data mode">
+      <button class="mode-btn is-active" data-mode="air" role="tab" aria-selected="true"><span class="md-dot"></span>AIR</button>
+      <button class="mode-btn" data-mode="weather" role="tab" aria-selected="false"><span class="md-dot"></span>WEATHER</button>
+    </div>
+
+    <div class="city-marker is-delhi" id="mkDelhi" aria-hidden="true">
+      <span class="cm-label">Delhi · <span class="cm-val" data-city="delhi">…</span></span>
+      <span class="cm-pin"></span>
+    </div>
+    <div class="city-marker is-blr" id="mkBlr" aria-hidden="true">
+      <span class="cm-label">Bengaluru · <span class="cm-val" data-city="blr">…</span></span>
+      <span class="cm-pin"></span>
+    </div>
+    <div class="city-marker is-sel" id="mkSel" aria-hidden="true" style="display:none">
+      <span class="cm-label"><span class="cm-sel-name">Selected</span> · <span class="cm-val" data-city="sel">…</span></span>
+      <span class="cm-pin"></span>
+    </div>
+
+    <div class="readout mode-air" id="readout">
+      <div class="ro-title"><span class="ro-dot"></span><span id="roTitle">Air quality</span></div>
+      <div class="ro-body" id="roBody">Loading live data…</div>
+      <div class="ro-meta" id="roMeta">Tap a point on the globe to query Google Maps Platform.</div>
+    </div>
+  </div>
+  <p class="hint">Drag to spin · click any lit point to reverse-geocode and fetch live AQI + weather · AIR/WEATHER toggles the readout. Earth is shaded procedurally — no image is fetched. Values come from Google Maps Platform (needs a deployed, referrer-restricted key); none are fabricated.</p>
+</div>
+
+<script>
+/* ===========================================================================
+   WECARE GLOBE — WebGL2 dot-matrix Earth. Procedural sphere, NO external image.
+   =========================================================================== */
+(function(){
+  'use strict';
+
+  var PALETTE = {
+    lime:  [0.820,0.957,0.439], // #d1f470
+    forest:[0.102,0.227,0.165], // #1a3a2a
+    green: [0.239,0.639,0.353], // #3da35a
+    blue:  [0.145,0.388,0.922], // #2563eb
+    purple:[0.596,0.286,0.910], // #9849e8
+    amber: [0.941,0.659,0.094], // #f0a818
+    red:   [0.863,0.149,0.149]  // #dc2626
+  };
+  var POINT_COLORS = [PALETTE.lime,PALETTE.forest,PALETTE.green,PALETTE.blue,PALETTE.purple,PALETTE.amber,PALETTE.red];
+
+  var stage   = document.getElementById('stage');
+  var canvas  = document.getElementById('glcanvas');
+  var readout = document.getElementById('readout');
+  var roTitle = document.getElementById('roTitle');
+  var roBody  = document.getElementById('roBody');
+  var roMeta  = document.getElementById('roMeta');
+
+  // ---- robust stage measurement -----------------------------------------
+  // On first paint (and especially inside the htmlpreview iframe/sandbox)
+  // stage.clientWidth/clientHeight can be 0 before layout settles. A 0 size
+  // makes canvas.width/height 0, gl.viewport(0,0,0,0) rasterizes nothing, and
+  // the panel just looks solid black. Never return 0: fall back to the
+  // bounding rect, then the canvas's own box, and finally a hard 320 floor so
+  // gl.viewport always receives a positive area and the globe recovers once
+  // layout reports a real size on a later frame.
+  function measureStage(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if(!w || !h){
+      var r = stage.getBoundingClientRect();
+      w = w || r.width; h = h || r.height;
+    }
+    if(!w || !h){ w = w || canvas.clientWidth; h = h || canvas.clientHeight; }
+    if(!w) w = 320;
+    if(!h) h = 320;
+    return {w:w, h:h};
+  }
+
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function deg2rad(d){ return d*Math.PI/180; }
+  function latLonToUnit(lat,lon){
+    var la = deg2rad(lat), lo = deg2rad(lon);
+    return [Math.cos(la)*Math.cos(lo), Math.sin(la), Math.cos(la)*Math.sin(lo)];
+  }
+  function buildPointCloud(){
+    var rand = mulberry32(0xC0FFEE);
+    var pts = [];
+    var N = 1600;
+    var gold = Math.PI*(3-Math.sqrt(5));
+    for(var i=0;i<N;i++){
+      var y = 1 - (i/(N-1))*2;
+      var r = Math.sqrt(Math.max(0,1-y*y));
+      var th = gold*i;
+      var p = [Math.cos(th)*r, y, Math.sin(th)*r];
+      var col = POINT_COLORS[(rand()*POINT_COLORS.length)|0];
+      pts.push({pos:p,color:col});
+    }
+    var clusters = [
+      {lat:28.6,lon:77.2,n:90,s:0.07,c:PALETTE.amber},
+      {lat:12.9,lon:77.6,n:90,s:0.07,c:PALETTE.purple},
+      {lat:19.1,lon:72.9,n:70,s:0.06,c:PALETTE.green},
+      {lat:22.6,lon:88.4,n:60,s:0.06,c:PALETTE.lime},
+      {lat:17.4,lon:78.5,n:60,s:0.06,c:PALETTE.blue},
+      {lat:13.1,lon:80.3,n:60,s:0.06,c:PALETTE.green},
+      {lat:23.0,lon:72.6,n:50,s:0.05,c:PALETTE.lime},
+      {lat:26.9,lon:75.8,n:50,s:0.05,c:PALETTE.amber}
+    ];
+    clusters.forEach(function(cl){
+      var base = latLonToUnit(cl.lat,cl.lon);
+      for(var j=0;j<cl.n;j++){
+        var p = [
+          base[0] + (rand()-0.5)*cl.s,
+          base[1] + (rand()-0.5)*cl.s,
+          base[2] + (rand()-0.5)*cl.s
+        ];
+        var len = Math.hypot(p[0],p[1],p[2]) || 1;
+        p = [p[0]/len,p[1]/len,p[2]/len];
+        pts.push({pos:p,color:cl.c});
+      }
+    });
+    return pts;
+  }
+
+  var gl = canvas.getContext('webgl2', {antialias:true, alpha:false, premultipliedAlpha:false});
+
+  var state = {
+    yaw: deg2rad(-80),
+    pitch: deg2rad(12),
+    dragging:false, lastX:0, lastY:0,
+    velYaw:0, velPitch:0,
+    lastInteract: performance.now()
+  };
+  var INDIA_YAW = deg2rad(-80), INDIA_PITCH = deg2rad(12);
+
+  var points = buildPointCloud();
+
+  if(!gl){
+    draw2DFallback();
+    wireInteractions2D();
+    initGoogle();
+  } else {
+    initGL();
+  }
+
+  // ============================ 2D FALLBACK =============================
+  function draw2DFallback(){
+    var ctx = canvas.getContext('2d');
+    function render(){
+      var dpr = Math.min(window.devicePixelRatio||1,2);
+      var m = measureStage(), w = m.w, h = m.h;
+      canvas.width = Math.max(1,Math.round(w*dpr)); canvas.height = Math.max(1,Math.round(h*dpr));
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.clearRect(0,0,w,h);
+      var cx=w/2, cy=h/2, R=Math.min(w,h)*0.38;
+      var g = ctx.createRadialGradient(cx-R*0.3,cy-R*0.3,R*0.1,cx,cy,R);
+      g.addColorStop(0,'#2f6ca8'); g.addColorStop(0.6,'#1b3f68'); g.addColorStop(1,'#0b1f36');
+      ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
+      var rim = ctx.createRadialGradient(cx,cy,R*0.9,cx,cy,R*1.18);
+      rim.addColorStop(0,'rgba(120,230,255,0)'); rim.addColorStop(0.6,'rgba(120,230,255,.35)'); rim.addColorStop(1,'rgba(120,230,255,0)');
+      ctx.beginPath(); ctx.arc(cx,cy,R*1.18,0,Math.PI*2); ctx.fillStyle=rim; ctx.fill();
+      projectAndPlace(w,h,R,function(sx,sy,visible,col,depth){
+        if(!visible) return;
+        ctx.beginPath(); ctx.arc(sx,sy,1.5+depth*1.2,0,Math.PI*2);
+        ctx.fillStyle='rgba('+(col[0]*255|0)+','+(col[1]*255|0)+','+(col[2]*255|0)+','+(0.4+0.6*depth)+')';
+        ctx.fill();
+      });
+      placeCityMarkers(w,h,R);
+      stepPhysics();
+      requestAnimationFrame(render);
+    }
+    render();
+  }
+
+  // ============================ WEBGL2 PATH =============================
+  var buffers={};
+  function initGL(){
+    buildPrograms();
+    buildSphereGeometry();
+    buildPointBuffer();
+    wireInteractionsGL();
+    initGoogle();
+    requestAnimationFrame(renderGL);
+  }
+
+  var SPHERE_VS = [
+    '#version 300 es',
+    'precision highp float;',
+    'in vec3 aPos; in vec2 aUV;',
+    'uniform mat4 uMVP; uniform mat4 uModel;',
+    'out vec2 vUV; out vec3 vNormal; out vec3 vWorld;',
+    'void main(){',
+    '  vUV = aUV;',
+    '  vNormal = normalize(mat3(uModel)*aPos);',
+    '  vWorld = (uModel*vec4(aPos,1.0)).xyz;',
+    '  gl_Position = uMVP*vec4(aPos,1.0);',
+    '}'
+  ].join('\n');
+
+  // Procedural ocean-blue sphere: NO texture sampler at all. Base colour is a
+  // latitude-graded ocean blue; day lighting from upper-left; cyan fresnel rim.
+  var SPHERE_FS = [
+    '#version 300 es',
+    'precision highp float;',
+    'in vec2 vUV; in vec3 vNormal; in vec3 vWorld;',
+    'uniform vec3 uCamera;',
+    'out vec4 frag;',
+    'void main(){',
+    '  vec3 N = normalize(vNormal);',
+    '  vec3 deep = vec3(0.027,0.102,0.196);',
+    '  vec3 shallow = vec3(0.184,0.447,0.671);',
+    '  float band = clamp(N.y*0.5+0.5,0.0,1.0);',
+    '  vec3 base = mix(deep, shallow, smoothstep(0.0,1.0,band));',
+    '  vec3 L = normalize(vec3(-0.5,0.6,0.8));',
+    '  float diff = clamp(dot(N,L),0.0,1.0)*0.85+0.22;',
+    '  base *= diff;',
+    '  vec3 V = normalize(uCamera - vWorld);',
+    '  float fres = pow(1.0 - clamp(dot(N,V),0.0,1.0), 2.4);',
+    '  vec3 rim = vec3(0.45,0.90,1.0)*fres*1.15;',
+    '  frag = vec4(base + rim, 1.0);',
+    '}'
+  ].join('\n');
+
+  var POINT_VS = [
+    '#version 300 es',
+    'precision highp float;',
+    'in vec3 aPos; in vec3 aColor;',
+    'uniform mat4 uMVP; uniform mat4 uModel; uniform float uPixel;',
+    'out vec3 vColor; out float vFacing;',
+    'void main(){',
+    '  vec3 n = normalize(mat3(uModel)*aPos);',
+    '  vFacing = n.z;',
+    '  vColor = aColor;',
+    '  gl_Position = uMVP*vec4(aPos*1.012,1.0);',
+    '  gl_PointSize = uPixel;',
+    '}'
+  ].join('\n');
+
+  var POINT_FS = [
+    '#version 300 es',
+    'precision highp float;',
+    'in vec3 vColor; in float vFacing;',
+    'out vec4 frag;',
+    'void main(){',
+    '  if(vFacing < -0.05) discard;',
+    '  vec2 c = gl_PointCoord - vec2(0.5);',
+    '  float d = length(c);',
+    '  if(d>0.5) discard;',
+    '  float a = smoothstep(0.5,0.3,d) * clamp(vFacing*0.7+0.5,0.25,1.0);',
+    '  frag = vec4(vColor, a);',
+    '}'
+  ].join('\n');
+
+  function compile(type,src){
+    var s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.warn(gl.getShaderInfoLog(s)); }
+    return s;
+  }
+  function link(vs,fs){
+    var p=gl.createProgram(); gl.attachShader(p,compile(gl.VERTEX_SHADER,vs));
+    gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs)); gl.linkProgram(p);
+    if(!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.warn(gl.getProgramInfoLog(p)); }
+    return p;
+  }
+  var sphereProg, pointProg;
+  function buildPrograms(){
+    sphereProg = link(SPHERE_VS,SPHERE_FS);
+    pointProg  = link(POINT_VS,POINT_FS);
+  }
+
+  function buildSphereGeometry(){
+    var lat=48, lon=96, pos=[], uv=[], idx=[];
+    for(var i=0;i<=lat;i++){
+      var v=i/lat, phi=v*Math.PI;
+      for(var j=0;j<=lon;j++){
+        var u=j/lon, th=u*2*Math.PI;
+        var x=Math.sin(phi)*Math.cos(th), y=Math.cos(phi), z=Math.sin(phi)*Math.sin(th);
+        pos.push(x,y,z); uv.push(1-u, v);
+      }
+    }
+    for(var a=0;a<lat;a++){
+      for(var b=0;b<lon;b++){
+        var r1=a*(lon+1)+b, r2=r1+lon+1;
+        idx.push(r1,r2,r1+1, r1+1,r2,r2+1);
+      }
+    }
+    buffers.spherePos=makeBuf(new Float32Array(pos));
+    buffers.sphereUV=makeBuf(new Float32Array(uv));
+    buffers.sphereIdx=makeIndex(new Uint16Array(idx));
+    buffers.sphereCount=idx.length;
+  }
+  function buildPointBuffer(){
+    var pos=[], col=[];
+    points.forEach(function(p){ pos.push(p.pos[0],p.pos[1],p.pos[2]); col.push(p.color[0],p.color[1],p.color[2]); });
+    buffers.pointPos=makeBuf(new Float32Array(pos));
+    buffers.pointCol=makeBuf(new Float32Array(col));
+    buffers.pointCount=points.length;
+  }
+  function makeBuf(data){ var b=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,b); gl.bufferData(gl.ARRAY_BUFFER,data,gl.STATIC_DRAW); return b; }
+  function makeIndex(data){ var b=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,b); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,data,gl.STATIC_DRAW); return b; }
+
+  function mat4Identity(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+  function mat4Mul(a,b){
+    var o=new Array(16);
+    for(var r=0;r<4;r++)for(var c=0;c<4;c++){
+      o[c*4+r]=a[0*4+r]*b[c*4+0]+a[1*4+r]*b[c*4+1]+a[2*4+r]*b[c*4+2]+a[3*4+r]*b[c*4+3];
+    }
+    return o;
+  }
+  function mat4Perspective(fovy,aspect,near,far){
+    var f=1/Math.tan(fovy/2), nf=1/(near-far);
+    return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0];
+  }
+  function mat4Translate(x,y,z){ var m=mat4Identity(); m[12]=x;m[13]=y;m[14]=z; return m; }
+  function mat4RotY(a){ var c=Math.cos(a),s=Math.sin(a); return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]; }
+  function mat4RotX(a){ var c=Math.cos(a),s=Math.sin(a); return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]; }
+
+  var CAM_Z = 3.0;
+  function currentModel(){ return mat4Mul(mat4RotX(state.pitch), mat4RotY(state.yaw)); }
+  function currentMVP(model){
+    var aspect = canvas.width/canvas.height || 1;
+    var proj = mat4Perspective(deg2rad(38), aspect, 0.1, 100);
+    var view = mat4Translate(0,0,-CAM_Z);
+    return mat4Mul(proj, mat4Mul(view, model));
+  }
+
+  function renderGL(){
+    var dpr=Math.min(window.devicePixelRatio||1,2);
+    var m=measureStage(), w=m.w, h=m.h;
+    var cw=Math.max(1,Math.round(w*dpr)), ch=Math.max(1,Math.round(h*dpr));
+    if(canvas.width!==cw||canvas.height!==ch){ canvas.width=cw; canvas.height=ch; }
+    gl.viewport(0,0,canvas.width,canvas.height);
+    gl.clearColor(0.02,0.027,0.039,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+
+    var model=currentModel(), mvp=currentMVP(model);
+
+    gl.useProgram(sphereProg);
+    bindAttrib(sphereProg,'aPos',buffers.spherePos,3);
+    bindAttrib(sphereProg,'aUV',buffers.sphereUV,2);
+    gl.uniformMatrix4fv(gl.getUniformLocation(sphereProg,'uMVP'),false,new Float32Array(mvp));
+    gl.uniformMatrix4fv(gl.getUniformLocation(sphereProg,'uModel'),false,new Float32Array(model));
+    gl.uniform3f(gl.getUniformLocation(sphereProg,'uCamera'),0,0,CAM_Z);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,buffers.sphereIdx);
+    gl.drawElements(gl.TRIANGLES,buffers.sphereCount,gl.UNSIGNED_SHORT,0);
+
+    gl.useProgram(pointProg);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    bindAttrib(pointProg,'aPos',buffers.pointPos,3);
+    bindAttrib(pointProg,'aColor',buffers.pointCol,3);
+    gl.uniformMatrix4fv(gl.getUniformLocation(pointProg,'uMVP'),false,new Float32Array(mvp));
+    gl.uniformMatrix4fv(gl.getUniformLocation(pointProg,'uModel'),false,new Float32Array(model));
+    gl.uniform1f(gl.getUniformLocation(pointProg,'uPixel'),Math.max(3,canvas.width*0.006));
+    gl.drawArrays(gl.POINTS,0,buffers.pointCount);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+
+    placeCityMarkers(w,h,Math.min(w,h)*0.5*fitRadius());
+    stepPhysics();
+    requestAnimationFrame(renderGL);
+  }
+
+  function bindAttrib(prog,name,buf,size){
+    var loc=gl.getAttribLocation(prog,name); if(loc<0) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER,buf); gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc,size,gl.FLOAT,false,0,0);
+  }
+
+  function fitRadius(){ return 0.76; }
+
+  // ============================ PHYSICS =============================
+  function stepPhysics(){
+    var now=performance.now();
+    if(!state.dragging){
+      state.yaw += state.velYaw; state.pitch += state.velPitch;
+      state.velYaw*=0.94; state.velPitch*=0.90;
+      if(now - state.lastInteract > 3200 && Math.abs(state.velYaw)<0.0006){
+        state.yaw += 0.0016;
+        state.pitch += (INDIA_PITCH - state.pitch)*0.004;
+      }
+    }
+    var lim=deg2rad(62);
+    if(state.pitch>lim) state.pitch=lim; if(state.pitch<-lim) state.pitch=-lim;
+  }
+
+  // ============================ INTERACTION =============================
+  function onDown(e){
+    state.dragging=true; state.velYaw=0; state.velPitch=0;
+    var p=pt(e); state.lastX=p.x; state.lastY=p.y; state.lastInteract=performance.now();
+    state._moved=false;
+  }
+  function onMove(e){
+    if(!state.dragging) return;
+    var p=pt(e); var dx=p.x-state.lastX, dy=p.y-state.lastY;
+    if(Math.abs(dx)+Math.abs(dy)>2) state._moved=true;
+    state.yaw += dx*0.006; state.pitch += dy*0.006;
+    state.velYaw=dx*0.006; state.velPitch=dy*0.006;
+    state.lastX=p.x; state.lastY=p.y; state.lastInteract=performance.now();
+  }
+  function onUp(e){
+    state.dragging=false; state.lastInteract=performance.now();
+    if(!state._moved){ handlePick(e); }
+  }
+  function pt(e){ var r=stage.getBoundingClientRect(); var t=e.touches&&e.touches[0]; var cx=t?t.clientX:e.clientX, cy=t?t.clientY:e.clientY; return {x:cx-r.left,y:cy-r.top}; }
+  function wireCommon(){
+    stage.addEventListener('mousedown',onDown);
+    window.addEventListener('mousemove',onMove);
+    window.addEventListener('mouseup',onUp);
+    stage.addEventListener('touchstart',function(e){ onDown(e); },{passive:true});
+    stage.addEventListener('touchmove',function(e){ onMove(e); },{passive:true});
+    stage.addEventListener('touchend',onUp);
+  }
+  function wireInteractionsGL(){ wireCommon(); }
+  function wireInteractions2D(){ wireCommon(); }
+
+  var mode='air';
+  Array.prototype.forEach.call(document.querySelectorAll('.mode-btn'),function(btn){
+    btn.addEventListener('click',function(){
+      mode=btn.getAttribute('data-mode');
+      document.querySelectorAll('.mode-btn').forEach(function(b){
+        var on=b===btn; b.classList.toggle('is-active',on); b.setAttribute('aria-selected',on?'true':'false');
+      });
+      readout.classList.toggle('mode-weather',mode==='weather');
+      readout.classList.toggle('mode-air',mode==='air');
+      roTitle.textContent = mode==='weather'?'Weather':'Air quality';
+      refreshReadout();
+    });
+  });
+
+  // ===================== SCREEN -> LAT/LON PICK =====================
+  function screenToLatLon(px,py){
+    var m=measureStage(), w=m.w, h=m.h;
+    var R = Math.min(w,h)*0.5*fitRadius();
+    var cx=w/2, cy=h/2;
+    var x=(px-cx)/R, y=-(py-cy)/R;
+    var r2=x*x+y*y;
+    if(r2>1) return null;
+    var z=Math.sqrt(1-r2);
+    var cp=Math.cos(-state.pitch), sp=Math.sin(-state.pitch);
+    var y1=y*cp - z*sp, z1=y*sp + z*cp, x1=x;
+    var cy_=Math.cos(-state.yaw), sy_=Math.sin(-state.yaw);
+    var xr=x1*cy_ + z1*sy_;
+    var zr=-x1*sy_ + z1*cy_;
+    var yr=y1;
+    var lat=Math.asin(Math.max(-1,Math.min(1,yr)))*180/Math.PI;
+    var lon=Math.atan2(zr,xr)*180/Math.PI;
+    return {lat:lat,lon:lon};
+  }
+
+  var selMarker=document.getElementById('mkSel');
+  function handlePick(e){
+    var p=pt(e);
+    var ll=screenToLatLon(p.x,p.y);
+    if(!ll) return;
+    selMarker.__ll={lat:ll.lat,lon:ll.lon};
+    selMarker.style.display='';
+    selMarker.setAttribute('aria-hidden','false');
+    selMarker.classList.remove('is-error'); selMarker.classList.add('is-loading');
+    selMarker.querySelector('.cm-sel-name').textContent='…';
+    selMarker.querySelector('[data-city="sel"]').textContent='loading';
+    reverseGeocodeAndFetch(ll.lat,ll.lon);
+  }
+
+  // ===================== CITY MARKER PLACEMENT =====================
+  var mkDelhi=document.getElementById('mkDelhi'), mkBlr=document.getElementById('mkBlr');
+  var fixedCities=[
+    {el:mkDelhi, ll:latLonToUnit(28.6,77.2)},
+    {el:mkBlr,   ll:latLonToUnit(12.9,77.6)}
+  ];
+  function rotateByModel(v){
+    var cy_=Math.cos(state.yaw), sy_=Math.sin(state.yaw);
+    var x1=v[0]*cy_ - v[2]*sy_;
+    var z1=v[0]*sy_ + v[2]*cy_;
+    var y1=v[1];
+    var cp=Math.cos(state.pitch), sp=Math.sin(state.pitch);
+    var y2=y1*cp + z1*sp;
+    var z2=-y1*sp + z1*cp;
+    return [x1,y2,z2];
+  }
+  function placeOne(el,unit,w,h,R){
+    if(!el) return;
+    var r=rotateByModel(unit);
+    var cx=w/2, cy=h/2;
+    el.style.left=(cx + r[0]*R)+'px';
+    el.style.top =(cy - r[1]*R)+'px';
+    if(r[2] < 0.02){ el.style.opacity='0'; }
+    else { el.style.opacity=(0.45+0.55*Math.min(1,r[2]+0.3)).toFixed(3); }
+  }
+  function placeCityMarkers(w,h,R){
+    fixedCities.forEach(function(c){ c.el.setAttribute('aria-hidden','false'); placeOne(c.el,c.ll,w,h,R); });
+    if(selMarker.style.display!=='none' && selMarker.__ll){
+      placeOne(selMarker, latLonToUnit(selMarker.__ll.lat,selMarker.__ll.lon), w,h,R);
+    }
+  }
+
+  function projectAndPlace(w,h,R,cb){
+    var cx=w/2, cy=h/2;
+    for(var i=0;i<points.length;i++){
+      var r=rotateByModel(points[i].pos);
+      var vis=r[2] > -0.02;
+      cb(cx+r[0]*R, cy-r[1]*R, vis, points[i].color, Math.max(0,r[2]));
+    }
+  }
+
+  // ============================ GOOGLE DATA =============================
+  function googleKey(){
+    var m=document.querySelector('meta[name="google-maps-api-key"]');
+    var k=m?m.getAttribute('content'):'';
+    if(!k || /PASTE_YOUR/.test(k)) return null;
+    return k;
+  }
+
+  function setReadout(opts){
+    readout.classList.toggle('is-error',!!opts.error);
+    roBody.textContent=opts.body||'';
+    roMeta.textContent=opts.meta||'';
+  }
+
+  var dataStore={ delhi:{}, blr:{}, sel:{} };
+
+  function renderCityValue(cityKey){
+    var d=dataStore[cityKey]||{};
+    var el=document.querySelector('[data-city="'+cityKey+'"]');
+    if(!el) return;
+    if(d.loading){ el.textContent='…'; return; }
+    if(d.error){ el.textContent='n/a'; return; }
+    if(mode==='air'){ el.textContent = (d.aqi!=null) ? ('AQI '+d.aqi) : 'n/a'; }
+    else { el.textContent = (d.temp!=null) ? (Math.round(d.temp)+'°') : 'n/a'; }
+  }
+
+  var lastActive=null;
+
+  function refreshReadout(){
+    renderCityValue('delhi'); renderCityValue('blr'); renderCityValue('sel');
+    var active = lastActive || 'delhi';
+    var d=dataStore[active]||{};
+    if(d.loading){ setReadout({body:'Loading live data…',meta:'Querying Google Maps Platform.'}); return; }
+    if(d.error){ setReadout({error:true,body:d.error,meta:d.name?('For '+d.name):''}); return; }
+    if(mode==='air'){
+      if(d.aqi==null){ setReadout({body:'No air-quality value returned.',meta:d.name||''}); return; }
+      setReadout({
+        body:'AQI '+d.aqi+(d.category?(' · '+d.category):'')+(d.pollutant?(' · dominant '+d.pollutant):''),
+        meta:(d.name?d.name+' · ':'')+'updated '+ (d.updated||'—')
+      });
+    } else {
+      if(d.temp==null){ setReadout({body:'No weather value returned.',meta:d.name||''}); return; }
+      setReadout({
+        body:Math.round(d.temp)+'° '+(d.condition||'')+(d.humidity!=null?(' · '+d.humidity+'% RH'):'')+(d.precip!=null?(' · '+d.precip+'% precip'):''),
+        meta:(d.name?d.name+' · ':'')+'updated '+ (d.updated||'—')
+      });
+    }
+  }
+
+  function nowStr(){ var d=new Date(); return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}); }
+
+  function fetchAir(lat,lon){
+    var key=googleKey();
+    if(!key) return Promise.reject(new Error('No API key configured (placeholder). Deploy with a referrer-restricted key.'));
+    return fetch('https://airquality.googleapis.com/v1/currentConditions:lookup?key='+encodeURIComponent(key),{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({location:{latitude:lat,longitude:lon}})
+    }).then(function(r){ if(!r.ok) throw new Error('Air Quality API '+r.status); return r.json(); })
+      .then(function(j){
+        var idx=(j.indexes&&j.indexes[0])||null;
+        return { aqi: idx?idx.aqi:null, category: idx?idx.category:null, pollutant: idx?idx.dominantPollutant:null };
+      });
+  }
+
+  function fetchWeather(lat,lon){
+    var key=googleKey();
+    if(!key) return Promise.reject(new Error('No API key configured (placeholder). Deploy with a referrer-restricted key.'));
+    return fetch('https://weather.googleapis.com/v1/currentConditions:lookup?key='+encodeURIComponent(key)+'&location.latitude='+lat+'&location.longitude='+lon)
+      .then(function(r){ if(!r.ok) throw new Error('Weather API '+r.status); return r.json(); })
+      .then(function(j){
+        return {
+          temp: j.temperature&&j.temperature.degrees!=null ? j.temperature.degrees : null,
+          condition: j.weatherCondition&&j.weatherCondition.description ? j.weatherCondition.description.text : null,
+          humidity: j.relativeHumidity!=null ? j.relativeHumidity : null,
+          precip: j.precipitation&&j.precipitation.probability&&j.precipitation.probability.percent!=null ? j.precipitation.probability.percent : null
+        };
+      });
+  }
+
+  function reverseGeocode(lat,lon){
+    var key=googleKey();
+    if(!key) return Promise.reject(new Error('No API key configured (placeholder). Deploy with a referrer-restricted key.'));
+    return fetch('https://maps.googleapis.com/maps/api/geocode/json?latlng='+lat+','+lon+'&key='+encodeURIComponent(key))
+      .then(function(r){ if(!r.ok) throw new Error('Geocoding API '+r.status); return r.json(); })
+      .then(function(j){
+        if(j.status!=='OK' || !j.results || !j.results.length) throw new Error('Geocoding: '+(j.status||'no result'));
+        return j.results[0].formatted_address;
+      });
+  }
+
+  function loadCity(cityKey, lat, lon, name){
+    dataStore[cityKey]={loading:true,name:name};
+    renderCityValue(cityKey);
+    if(lastActive===cityKey) refreshReadout();
+    Promise.all([ fetchAir(lat,lon).catch(function(e){return {__err:e};}),
+                  fetchWeather(lat,lon).catch(function(e){return {__err:e};}) ])
+    .then(function(res){
+      var air=res[0], wx=res[1];
+      var rec={name:name,updated:nowStr()};
+      if(air && !air.__err){ rec.aqi=air.aqi; rec.category=air.category; rec.pollutant=air.pollutant; }
+      if(wx && !wx.__err){ rec.temp=wx.temp; rec.condition=wx.condition; rec.humidity=wx.humidity; rec.precip=wx.precip; }
+      if((!air||air.__err)&&(!wx||wx.__err)){ rec.error=(air&&air.__err?air.__err.message:(wx&&wx.__err?wx.__err.message:'Live data unavailable')); }
+      dataStore[cityKey]=rec;
+      renderCityValue(cityKey);
+      if(lastActive===cityKey||!lastActive){ lastActive=cityKey; refreshReadout(); }
+    });
+  }
+
+  function reverseGeocodeAndFetch(lat,lon){
+    lastActive='sel';
+    dataStore.sel={loading:true};
+    reverseGeocode(lat,lon).then(function(addr){
+      var short=addr.split(',').slice(0,2).join(',');
+      selMarker.querySelector('.cm-sel-name').textContent=short;
+      selMarker.classList.remove('is-loading');
+      loadCity('sel',lat,lon,short);
+    }).catch(function(err){
+      selMarker.classList.remove('is-loading'); selMarker.classList.add('is-error');
+      selMarker.querySelector('.cm-sel-name').textContent='Lookup failed';
+      selMarker.querySelector('[data-city="sel"]').textContent='n/a';
+      dataStore.sel={error:err.message};
+      refreshReadout();
+    });
+  }
+
+  function initGoogle(){
+    loadCity('delhi',28.6139,77.2090,'Delhi');
+    loadCity('blr',12.9716,77.5946,'Bengaluru');
+    lastActive='delhi';
+    if(!googleKey()){
+      setReadout({error:true,
+        body:'Live data unavailable: no API key configured (placeholder).',
+        meta:'Deploy on a referrer-restricted origin with a real Google Maps Platform key.'});
+    }
+    readout.classList.add('mode-air');
+  }
+
+  // ===================== RESIZE / FIRST-PAINT RECOVERY =====================
+  // The render loop (renderGL / draw2DFallback) already re-measures the stage
+  // every frame via measureStage(), so once layout settles it picks up the
+  // real size on its own. These handlers just force an immediate re-measure so
+  // recovery (e.g. the htmlpreview iframe reporting a real size after load) is
+  // visible on the next animation frame rather than only after some other
+  // frame fires. They never latch a zero size because measureStage() floors it.
+  function nudgeResize(){
+    requestAnimationFrame(function(){
+      var m = measureStage();
+      // measureStage() is also what the render loop uses; reading it here is a
+      // no-op side-effect-free touch that keeps the intent explicit.
+      void m;
+    });
+  }
+  window.addEventListener('resize', nudgeResize);
+  window.addEventListener('load', nudgeResize);
+  if(typeof ResizeObserver!=='undefined'){
+    try{ new ResizeObserver(nudgeResize).observe(stage); }catch(e){}
+  }
+})();
+</script>
+</body>
+</html>
