@@ -1,5 +1,49 @@
 # Change authority matrix
 
+## 2026-10-09 — deep audit and permanent file ownership repair
+
+A0_READ: refreshed origin/stack53ed298e, isolated foreign dirty work, audited76Lambdas,
+69livealiases,384routes,85tables,7buckets and5 relevant IAM roles; compared10immutable
+ZIPs; read Meta Flows/templates/payment lists and Wix revision5. Initial audit preceded
+all edits. No provider credentials were retrieved. Root use was authorized by the
+tracked project-completion-20261009 plan. This entry follows the master audit request
+and 01-standing-authorization classes A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION.
+
+A1_LOCAL: exact permanent customer/file/grant ownership, server-resolved upload owner,
+unfiltered/paginated payment diagnostic reader, direct-linkTTL60–900seconds, regressions
+and current-state reconciliation. Exact ZIP preservation restored Secure Files' missing
+whatsapp_delivery.py member specified by its deployment manifest. No flags were enabled.
+
+A3_PRODUCTION: existing private deployment prefix uploaded2testedZIPs. HeadObjectETag,
+functionrevision/livehash and aliasrevision checks preceded writes. UpdateFunctionCode,
+Active/Successful readback, guarded PublishVersion and conditional UpdateAlias:
+
+| Target | Before/rollback | After live | After CodeSha256 | Exact package tests |
+|---|---|---|---|---|
+| wecare-secure-files |31|32|MSP3hq5NKdhELTFojwfJDX2g5G7FIzsfmAELlADgrcY=|97passed/3unrelateddeselected|
+| wecare-service-requests |3|4|4iVRen7bFz/s+SGaDXrwzwJeW9LVP0xRwlsFGj1l20Q=|35passed|
+
+Both Active/Successful, SnapStartNone. Secure payment/DropDocs flagsfalse. GET
+/secure-files/mine executed32 and returned401. Service GET executed4 and returned405.
+Auto-review rejected POST/services/request-intent as potentially mutating on a failed-open
+path; no bypass. Corrected verification uses inert reads plus exact ownership fixtures.
+Business79 repair package passes135checks, but its pending $LATESThash differs fromlive;
+no overwrite/publish/alias change attempted on that function.
+
+Broad verification:10365Pythonpassed/6skipped/3xfailed;1582Vitestpassed/11skipped;
+typecheck/buildpass;eslint0errors/191existingwarnings;diffcheckpass. Build first hit an
+external node_modules symlink and then blocked read-only blog fetches; isolated dependency
+copy and permitted network build resolved those host limitations. Baseline53ed298e has
+7successful GitHub workflows and Amplify1497SUCCEED. Customer/payment E2E unverified.
+
+Exact before/after function and alias revisions, hashes, smoke results, held target and
+rollback evidence: docs/whatsapp/service-rollout/codex-audit-evidence-20261009.json.
+Rollback requires re-read GetAlias and UpdateAlias to31/3 with its current RevisionId;
+never reuse an old aliasrevision. Do not roll back to legacy phone-only ownership without
+assessing exposure. No new IAM, routes, environment, provider settings, sends, payments,
+stockavailability, customer record mutation, bucket creation/deletion or credentials.
+
+
 ## 2026-10-07 — UNAUTHORIZED APPLY of `provision_secure_files_api.py`, and the alias rolled back
 
 **This entry records a mistake, not a change that was decided.** It is first in the file
@@ -3408,3 +3452,30 @@ Owner explicitly requested short Submit Request/Vault catalog copy and repair of
 | 2026-10-09 | A3_PRODUCTION / owner-authorized Wix product media | Site c993128b-26be-41cd-9fcd-904abe23462f, product df976a0a-f582-4535-b2e1-d532f348bd27 | Six artworks imported; four gallery images and four existing choice references assigned, all 4096px. Returned before/after variant IDs and prices match exactly. Revision 5 uses short customer description. Catalog read-only verification returned applied 0/read_failed. | Existing variant identities and stock preserved; media/choice references are reversible from Wix revision history. |
 
 | 2026-10-09 | A1_LOCAL / bounded A3 draft preview | Vault repayment/retry protection, private Drop Docs ownership proof and new Orders read/help screens | Owner requested all customer service tasks. No charge, actual customer send, secret retrieval, provider/payment configuration or published Flow change. Meta Orders draft 2167802357142172 validates without errors. Unaliased executor 84 overlays only fixed draft helper/asset over verified live83 hash3HYGs+lmmpdjY7Gg7Uyx+Fk4pF8tgvB/VhBYuDtZwwI=. Live alias not changed. | Source rollback by named-path forward revert; Orders draft remains unpublished and unrouted. Live83 remains the baseline; do not apply whole old package over concurrent work. |
+
+## 2026-10-09 — scoped push CI follow-up
+
+A2_REMOTE_CODE: scoped repair724dcc38 pushed non-force tostack after a freshfetch,
+all local gatesgreen and clean owncheckout. Existing SEO workflow37875375124 unexpectedly
+matched an ecommerce shared helper and completed its test/deploy/read-only smoke jobs.
+It updates unversioned $LATEST; no alias or retained immutable rollback exists. Cancellation
+was attempted but the run had already completed. This automation did not meet the master's
+revision/rollback safeguards; do not describe it as a guarded deployment.
+
+Fresh AWS and downloaded ZIP verify Active/Successful, CodeSha256
+`dOwOgICnmXUKndOlBAcBcHY0WtAINAyKsbFp+zthwP8=`. Beforehash was
+`j+XvrA1e9qdg5jn6/KoueKX1cjjzD6D3jD+Glhxg0WU=`. All78members match source and the
+prior audited53ed298e byte-for-byte: archive metadata changed, packaged content did not.
+Content recovery is a rebuild of53ed298e with the existing SEO manifest; exact prior ZIP
+rollback unavailable. A1_LOCAL fix narrows the path filter to packaged top-level Python
+modules and computes the complete push range before automatic deployment. Workflow/tests/
+docs-only changes now run tests without redeployment; manual workflow dispatch retains its
+existing deploy behavior.12new scope fixtures cover excluded ecommerce, real package files,
+entire push comparison and fail-closed unknown ranges.
+
+GitHub push also reported2high Dependabot alerts, independently read via API: Amplify
+GraphQL utility versions<=12.0.0 (fixed12.0.1; parent-version compatibility needs validation),
+braces3.0.3 (no fixed version listed). No blanket override or false exposure claim. Exact
+ZIP/config/readback and alert evidence is in codex-audit-evidence-20261009.json.
+
+Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope checks passed; workflow YAML parsed and actual 53ed298e→724dcc38 scope returned deploy=false. All 9 workflows for 724dcc38 succeeded.

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SERVICE_CHOICES } from '../config/services';
 import { catalogContentId, trackCatalogView, trackCatalogAdd, trackCatalogPurchase,
-  setMarketingConsent, META_PIXEL_ID } from '../lib/metaCatalogAnalytics';
+  setMarketingConsent, META_PIXEL_ID, META_DATASET_ID } from '../lib/metaCatalogAnalytics';
 
 const realWindow = window;
 const submit = SERVICE_CHOICES.find( x => x.kind === 'SUBMIT_REQUEST' )!;
@@ -17,6 +17,10 @@ beforeEach( () => {
 afterEach( () => { vi.unstubAllGlobals(); realWindow.localStorage.clear(); } );
 
 describe( 'real catalog actions and consent', () => {
+  it( 'fires into the one shared Conversions API dataset, not a separate pixel', () => {
+    expect( META_DATASET_ID ).toBe( '4554612361454941' );
+    expect( META_PIXEL_ID ).toBe( META_DATASET_ID );
+  } );
   it( 'sends nothing before a positive consent choice or after withdrawal', () => {
     trackCatalogView( submit.path ); trackCatalogAdd( submit.variantId, 9900 );
     expect( fbq ).not.toHaveBeenCalled();

@@ -6985,7 +6985,11 @@ export interface CapiEventLogEntry {
 export interface CapiStatus {
   wabaId: string;
   partnerAgent: string;
-  dataset: { datasetId?: string; wabaId?: string; cached?: boolean; error?: any };
+  // `fixed: true` means the id came from configuration (the one dataset both WABAs share) and
+  // was NOT read back from Meta — so it says the destination is configured, not that Events
+  // Manager has it linked to this WABA. The panel must not render it as a verified state.
+  // `cached: true` is the other non-live source: the per-WABA create path's DynamoDB cache.
+  dataset: { datasetId?: string; wabaId?: string; cached?: boolean; fixed?: boolean; error?: any };
   supportedEvents: string[];
   capturedClicks: CapiCapturedClick[];
   recentEvents: CapiEventLogEntry[];
@@ -6996,8 +7000,8 @@ export async function getCapiStatus ( wabaId?: string ): Promise<CapiStatus | nu
   return apiCall<CapiStatus>( `${API_BASE}/wa-business/capi${qs}` );
 }
 
-export async function createCapiDataset ( wabaId: string ): Promise<{ success: boolean; datasetId?: string; error?: any } | null> {
-  return apiCall<{ success: boolean; datasetId?: string; error?: any }>( `${API_BASE}/wa-business/capi/dataset`, {
+export async function createCapiDataset ( wabaId: string ): Promise<{ success: boolean; datasetId?: string; fixed?: boolean; error?: any } | null> {
+  return apiCall<{ success: boolean; datasetId?: string; fixed?: boolean; error?: any }>( `${API_BASE}/wa-business/capi/dataset`, {
     method: 'POST', body: JSON.stringify( { wabaId } ),
   } );
 }

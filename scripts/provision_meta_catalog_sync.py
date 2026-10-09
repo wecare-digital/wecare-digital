@@ -110,15 +110,16 @@ WEBHOOK_INVOKE_POLICY = f"{WEBHOOK_FUNCTION}-invokes-catalog-sync"
 META_TOKEN_SECRET = "wecare/meta-system-user-token"
 WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
 
-#: No secret value, by construction - only NAMES and public identifiers. The catalog id is WABA1's
-#: from `src/pages/catalog-builder.tsx`; WABA2's `1424934879646296` is reachable by changing this
-#: one variable plus `META_TOKEN_FIELD`.
+#: No secret value, by construction - only NAMES and public identifiers. The catalog id is the ONE
+#: shared `wecare_shop` catalog used by BOTH WABAs, from `src/pages/catalog-builder.tsx`, so this
+#: single sync target covers both business numbers. Another catalog stays reachable by changing
+#: this one variable; `META_TOKEN_FIELD` remains the per-WABA knob, because the token is not shared.
 #:
 # Owner-authorized rollout; scope and availability hold must remain explicit.
 ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
-    "META_CATALOG_ID": "1607047307067517",
+    "META_CATALOG_ID": "1457045652952851",
     "META_CATALOG_SYNC_ENABLED": "true",
     "META_CATALOG_SYNC_DRY_RUN": "false",
     "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",

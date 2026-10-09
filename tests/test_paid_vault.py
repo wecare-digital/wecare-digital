@@ -23,7 +23,7 @@ def vault_env(monkeypatch):
     requests, keys = RequestTable(), KeysTable()
     files = FakeTable(key_attr='fileId', name=vault.FILES_TABLE)
     grants = FakeTable(key_attr='grantId', name=vault.GRANTS_TABLE)
-    file = {'fileId':'file-1','ownerPhone':'910000000000','status':'active',
+    file = {'fileId':'file-1','ownerPhone':'910000000000','ownerCustomerId':ALICE,'status':'active',
             'displayName':'Report','originalFilename':'report.pdf', 'deliverable':'pdf',
             'deliveryKey':'secure/d/report.pdf'}
     files.seed(file)
@@ -178,7 +178,7 @@ def test_outbound_exception_records_ambiguity_without_second_send(vault_env, flo
 @pytest.mark.parametrize('verified',[True,False])
 def test_http_selection_requires_verified_phone_before_binding(env,monkeypatch,verified):
     files=FakeTable(key_attr='fileId',name=vault.FILES_TABLE)
-    files.seed({'fileId':'f','ownerPhone':PHONE[1:],'status':'active','displayName':'Report'})
+    files.seed({'fileId':'f','ownerPhone':PHONE[1:],'ownerCustomerId':ALICE,'status':'active','displayName':'Report'})
     old=env._table
     monkeypatch.setattr(env,'_table',lambda name:files if name==vault.FILES_TABLE else old(name))
     cognito=Mock();cognito.get_user.return_value={'UserAttributes':[
@@ -191,7 +191,7 @@ def test_http_selection_requires_verified_phone_before_binding(env,monkeypatch,v
         assert body['kind']=='VAULT'
         assert files.rows['f']['ownerCustomerId']==ALICE
     else:
-        assert 'ownerCustomerId' not in files.rows['f']
+        assert files.rows['f']['ownerCustomerId']==ALICE
         assert not env.requests_table.rows
 
 

@@ -213,12 +213,9 @@ PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
 # Web redeem: the browser follows this immediately, so it can be very short.
 DOWNLOAD_URL_TTL = int(os.environ.get("DOWNLOAD_URL_TTL_SECONDS", "60"))
-# WhatsApp link delivery: a person reads a message and taps when they get to it, which
-# is not within 60 seconds. Sending a URL that has already expired by the time it is
-# read is worse than useless - the customer has paid and sees a failure. 24 hours is
-# the ceiling anyway, since SigV4 presigned URLs signed with temporary Lambda
-# credentials cannot outlive the role session.
-WHATSAPP_LINK_TTL = int(os.environ.get("WHATSAPP_LINK_TTL_SECONDS", str(6 * 3600)))
+# Direct links are bearer capabilities. Keep the read window bounded; a customer
+# can use authenticated Vault access after the delivery link expires.
+WHATSAPP_LINK_TTL = max(60, min(900, int(os.environ.get("WHATSAPP_LINK_TTL_SECONDS", "900"))))
 GRANT_TTL = int(os.environ.get("GRANT_TTL_SECONDS", "1800"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
 
@@ -360,7 +357,7 @@ def _customer_identity(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     attrs = {a["Name"]: a["Value"] for a in user.get("UserAttributes", [])}
     phone = attrs.get("phone_number", "")
-    if not phone:
+    if not phone or attrs.get('phone_number_verified') != 'true' or not attrs.get('sub'):
         return None
     try:
         return {
@@ -708,6 +705,19 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             origin,
         )
 
+    # Bind at creation to the server-resolved Cognito subject, never to a
+    # browser-provided customer ID or a future account that inherits this phone.
+    try:
+        customer = _cognito_client().admin_get_user(
+            UserPoolId=CUSTOMER_POOL_ID, Username=username)
+        attributes = {a['Name']: a['Value'] for a in customer.get('UserAttributes', [])}
+        owner_customer_id = attributes.get('sub')
+        if (not owner_customer_id or not customer.get('Enabled', True)
+                or normalise_phone(attributes.get('phone_number')) != phone):
+            raise ValueError('customer ownership unavailable')
+    except Exception:
+        return cors_response(503, {'error': 'CUSTOMER_PROVISIONING_UNAVAILABLE'}, origin)
+
     file_id = f"{uuid.uuid4().hex}-{uuid.uuid4().hex}"
     basename = f"wecare-digital-{file_id}{_safe_extension(filename)}"
     key = UPLOAD_PREFIX + basename
@@ -718,6 +728,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "fileId": file_id,
             "s3Key": key,
             "ownerPhone": phone,
+            "ownerCustomerId": owner_customer_id,
             "ownerName": name,
             "cognitoUsername": username,
             "displayName": display_name or filename,
@@ -914,7 +925,7 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
     for projected in result.get('Items', []):
         i = _table(FILES_TABLE).get_item(Key={'fileId': projected['fileId']}, ConsistentRead=True).get('Item') or {}
         if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
-                or i.get('ownerCustomerId') not in (None, identity.get('subject'))):
+                or not identity.get('subject') or i.get('ownerCustomerId') != identity['subject']):
             continue
         view = _public_file(i, admin=False)
         if i.get('vaultAccessGrantId'):
@@ -944,7 +955,7 @@ def _owned_active_file(file_id: str, identity: Dict[str, Any]) -> Optional[Dict[
         return None
     if item.get("ownerPhone") != identity["phone"]:
         return None
-    if item.get('ownerCustomerId') not in (None, identity.get('subject')):
+    if not identity.get('subject') or item.get('ownerCustomerId') != identity['subject']:
         return None
     return item
 
@@ -995,6 +1006,7 @@ def _create_order(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[s
             "grantId": grant_id,
             "fileId": file_id,
             "ownerPhone": identity["phone"],
+            "customerId": identity['subject'],
             "orderId": order["id"],
             "amountPaise": int(item.get("pricePaise", PRICE_PAISE)),
             # paid flips only in the webhook, never from a client callback
@@ -1152,6 +1164,8 @@ def _reconcile_grant(grant_id: str, file_id: str, identity: Dict[str, Any]) -> b
         return False
     if grant.get("fileId") != file_id or grant.get("ownerPhone") != identity["phone"]:
         return False
+    if not identity.get('subject') or grant.get('customerId') != identity['subject']:
+        return False
     if grant.get("consumed"):
         return False
     if grant.get("paid"):
@@ -1191,7 +1205,7 @@ def _redeem_after_reconcile(
             Key={"grantId": grant_id},
             UpdateExpression="SET consumed = :true, consumedAt = :now",
             ConditionExpression=(
-                "attribute_exists(grantId) AND fileId = :fid AND ownerPhone = :p "
+                "attribute_exists(grantId) AND fileId = :fid AND ownerPhone = :p AND customerId = :owner "
                 "AND paid = :true AND consumed = :false"
             ),
             ExpressionAttributeValues={
@@ -1200,6 +1214,7 @@ def _redeem_after_reconcile(
                 ":now": int(time.time()),
                 ":fid": file_id,
                 ":p": identity["phone"],
+                ":owner": identity['subject'],
             },
         )
     except ClientError:
@@ -1279,6 +1294,7 @@ def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
             "grantId": grant_id,
             "fileId": file_id,
             "ownerPhone": identity["phone"],
+            "customerId": identity['subject'],
             # The webhook correlates on this. WhatsApp Pay reports the reference, so
             # the reference IS the order id as far as the order-index GSI is concerned.
             "orderId": reference,
@@ -1343,6 +1359,8 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
         return False, "file is not active"
     if item.get("ownerPhone") != grant.get("ownerPhone"):
         return False, "grant and file disagree on owner"
+    if not grant.get('customerId') or item.get('ownerCustomerId') != grant['customerId']:
+        return False, "grant and file disagree on permanent owner"
 
     from whatsapp_delivery import send_document, send_download_link
 
@@ -1400,7 +1418,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     if not item:
         return _not_registered(origin)
     grant = _table(GRANTS_TABLE).get_item(Key={'grantId': grant_id}, ConsistentRead=True).get('Item') or {}
-    if grant.get('source') == 'wix_vault' and grant.get('customerId') != identity.get('subject'):
+    if not identity.get('subject') or grant.get('customerId') != identity['subject']:
         return _not_registered(origin)
 
     try:
@@ -1408,7 +1426,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
             Key={"grantId": grant_id},
             UpdateExpression="SET consumed = :true, consumedAt = :now",
             ConditionExpression=(
-                "attribute_exists(grantId) AND fileId = :fid AND ownerPhone = :p "
+                "attribute_exists(grantId) AND fileId = :fid AND ownerPhone = :p AND customerId = :owner "
                 "AND paid = :true AND consumed = :false"
             ),
             ExpressionAttributeValues={
@@ -1417,6 +1435,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
                 ":now": int(time.time()),
                 ":fid": file_id,
                 ":p": identity["phone"],
+                ":owner": identity['subject'],
             },
             ReturnValues="ALL_NEW",
         )

@@ -1,5 +1,34 @@
 # Customer service catalog and identity rollout — 9 October 2026
 
+## Fresh audit reconciliation — 9 October 2026
+
+Source baseline `53ed298e` and live AWS/Meta/Wix were re-read before repairs.
+Status: **PARTIALLY COMPLETE**. Secure Files live32 and Service Requests live4
+now enforce permanent file/grant ownership; their tested ZIPs preserve every old
+member. Secure Files adds its missing whatsapp_delivery.py dependency and bounds
+direct WhatsApp links to 60–900 seconds. Payment/Drop Docs flags remain false.
+Rollback targets are31 and3. Unauthenticated GET /secure-files/mine on32 returns401.
+
+The payment diagnostic contract is repaired in source and its exact package passes135
+checks. Business live79 has a different pending $LATEST package, so deployment is held
+to preserve concurrent work. No readiness gate was enabled. QA phone verification
+exists, but the contact still lacks checkoutCustomerId/customerUuid; complete the
+supported account link before a purchase. No messages or real payments were performed.
+
+Paid Submit Request1107164111921876 and Review1578178897413815 are PUBLISHED.
+The four Wix variants/prices and revision5 artwork links were independently read back.
+Live catalog sync6 still targets1607047307067517 and returns read_failed/applied0;
+current source targets1457045652952851, which is readable but empty. Ownership,
+WABA/Pixel connections, approval queue and controlled writeback remain release gates.
+Amplify1497 succeeded on53ed298e. Full source Python10365passed/6skipped/3xfailed;
+Vitest1582passed/11skipped; typecheck/build passed; lint0errors/191warnings.
+
+Current reconciliation is in live-evidence.json.codexAuditReconciliation; exact
+before/after revisions, hashes, tests and rollback are in
+[codex-audit-evidence-20261009.json](codex-audit-evidence-20261009.json).
+The older sections below are dated evidence, not current alias or test assertions.
+
+
 ## Owner scope
 
 One fresh Meta catalog, shared with eligible WECARE WABAs, with owner approval before new products go live. Wix remains the product and price authority. Public website and WhatsApp use the same canonical orders and verified customer identity. Preserve all customer, payment, request and secure-file records. Retire old catalogs only after an inventory of ownership, product data, connections and ads; permanent deletions require a concrete reviewed target list.

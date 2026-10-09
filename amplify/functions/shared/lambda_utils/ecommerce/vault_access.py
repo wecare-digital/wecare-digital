@@ -13,13 +13,14 @@ def bind_file(files, identity, file_id):
     row = files.get_item(Key={'fileId': str(file_id)}, ConsistentRead=True).get('Item') or {}
     phone = ''.join(c for c in identity.phone if c.isdigit())
     if (not row or row.get('status') != 'active' or row.get('ownerPhone') != phone
-            or row.get('ownerCustomerId') not in (None, identity.customer_id)):
+            or not identity.customer_id or row.get('ownerCustomerId') != identity.customer_id):
         raise customer_auth.CustomerNotAuthorized('file unavailable')
-    # Adopt legacy phone-owned files only after an authenticated verified session.
+    # A phone can be reassigned. Legacy ownerless files require explicit staff
+    # reconciliation; a matching verified phone never establishes their original owner.
     files.update_item(Key={'fileId': row['fileId']},
         UpdateExpression='SET ownerCustomerId=:owner',
         ConditionExpression='ownerPhone=:phone AND #s=:active AND '
-                            '(attribute_not_exists(ownerCustomerId) OR ownerCustomerId=:owner)',
+                            'ownerCustomerId=:owner',
         ExpressionAttributeNames={'#s': 'status'},
         ExpressionAttributeValues={':owner': identity.customer_id, ':phone': phone, ':active': 'active'})
     row['ownerCustomerId'] = identity.customer_id

@@ -498,7 +498,7 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
 
     planned = next(json.loads(line) for line in lines
                    if json.loads(line).get("event") == "meta_catalog_sync_planned")
-    assert planned["catalogId"] == "1607047307067517"
+    assert planned["catalogId"] == "1457045652952851"
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 24
@@ -512,15 +512,18 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
 
 
 def test_the_target_catalogue_is_configuration_and_not_a_literal(snapshot_products, monkeypatch):
-    """WABA2's catalog `1424934879646296` must be reachable without a code change (plan D3).
+    """Another catalog must be reachable without a code change (plan D3).
 
-    The default is WABA1's `1607047307067517`, from `catalog-builder.tsx:17-21`.
+    The default is now the ONE shared `wecare_shop` catalog `1457045652952851`, used by both
+    WABAs. The id below is arbitrary and appears nowhere in the code path, so seeing it come back
+    as the plan target AND reach the Graph read path is what proves `META_CATALOG_ID` is
+    configuration rather than a literal.
     """
-    monkeypatch.setenv("META_CATALOG_ID", "1424934879646296")
+    monkeypatch.setenv("META_CATALOG_ID", "9999999999999999")
     wix, graph = FakeWix(snapshot_products), FakeGraph()
     answer = run(wix, graph)
-    assert answer["catalogId"] == "1424934879646296"
-    assert graph.reads[0]["path"].startswith("1424934879646296/")
+    assert answer["catalogId"] == "9999999999999999"
+    assert graph.reads[0]["path"].startswith("9999999999999999/")
 
 
 # ── 6. structural guarantees, asserted by AST ───────────────────────────────

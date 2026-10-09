@@ -1,6 +1,15 @@
 # Native WhatsApp catalog service integration — 8 October 2026
 
-Implementation and AWS deployment are complete for the bounded draft. Customer release is NOT certified: no owner QA number has been supplied, the paid Submit Request Flow is still DRAFT, and external Wix writeback/purchase rollout remain disabled.
+**Current reconciliation — 9 October 2026: PARTIALLY COMPLETE.** Paid Submit Request
+and Review Flows are PUBLISHED. Owner QA recipient ending0044 is nominated and its
+Cognito phone is verified, but its CRM checkout identity link remains absent. Native
+purchase and Wix writeback gates remain closed. Secure Files32 and Service Requests4
+security repairs are live; Business79 payment diagnostics remain pending concurrent
+$LATEST reconciliation. See service-rollout/live-evidence.json.codexAuditReconciliation
+and service-rollout/codex-audit-evidence-20261009.json for current evidence.
+
+The deployment table, tests and release-step wording below describe the historical
+8 October implementation. They must not be used as current deployment or pending facts.
 
 ## Deployed changes
 

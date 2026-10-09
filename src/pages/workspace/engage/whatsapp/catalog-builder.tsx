@@ -15,10 +15,12 @@ import Select, { type SelectOption } from '../../../../components/ui/Select';
 
 interface PageProps { signOut?: () => void; user?: any; }
 
-// Per-WABA catalog + flow identifiers (source of truth for the builder).
+// Per-WABA flow identifiers (source of truth for the builder). The catalog is NOT per-WABA any
+// more: both WABAs share the one `wecare_shop` catalog 1457045652952851, so a product added here
+// is visible from either business number and there is nothing to keep in sync between two copies.
 const ACCOUNTS = [
-    { key: 'waba1', label: 'WABA 1 · WECARE.DIGITAL', wabaId: '2094615664435155', catalogId: '1607047307067517' },
-    { key: 'waba2', label: 'WABA 2 · Catalogue_Products', wabaId: '2513394156072604', catalogId: '1424934879646296' },
+    { key: 'waba1', label: 'WABA 1 · WECARE.DIGITAL', wabaId: '2094615664435155', catalogId: '1457045652952851' },
+    { key: 'waba2', label: 'WABA 2 · Manish Agarwal', wabaId: '2513394156072604', catalogId: '1457045652952851' },
 ];
 
 const FLOW_CATEGORIES = [ 'SIGN_UP', 'SIGN_IN', 'APPOINTMENT_BOOKING', 'LEAD_GENERATION',

@@ -37,8 +37,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api
 const CATALOG_SYNC_UNAVAILABLE = 'Meta catalog product listing and feed sync are not available on this deployment: /wa-business/catalog-products and /wa-business/catalog-feed have no live route.';
 
 const WABAS = [
-    { label: 'WABA1 · +91 93309 94400', phoneId: 'phone-number-id-waba1-direct-1016149501586345', catalog: 'wecare_catalog', catalogId: '1607047307067517', payConfig: 'Razorpay_wecare.digital' },
-    { label: 'WABA2 · +91 99033 00044', phoneId: 'phone-number-id-waba-t-direct-1055232054343117', catalog: 'Catalogue_Products', catalogId: '1424934879646296', payConfig: 'WECAREDIGITAL' },
+    { label: 'WABA1 · +91 93309 94400', phoneId: 'phone-number-id-waba1-direct-1016149501586345', catalog: 'wecare_shop', catalogId: '1457045652952851', payConfig: 'Razorpay_wecare.digital' },
+    { label: 'WABA2 · +91 99033 00044', phoneId: 'phone-number-id-waba-t-direct-1055232054343117', catalog: 'wecare_shop', catalogId: '1457045652952851', payConfig: 'WECAREDIGITAL' },
 ];
 
 /* Hoisted option rows. Same order, same values, same visible text as the <option>s they

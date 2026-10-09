@@ -1264,7 +1264,9 @@ def _update_ai_routing(body: Dict) -> Dict:
 # Uses the whatsapp_business_manage_events permission. Logs conversion events
 # (Purchase, LeadSubmitted, etc.) that happen INSIDE the WhatsApp thread back to
 # Meta so Click-to-WhatsApp ad campaigns can optimize & measure.
-#   Dataset:  GET/POST /{waba_id}/dataset            -> dataset_id (cached)
+#   Dataset:  fixed CONFIGURATION, one dataset shared by BOTH WABAs (see
+#             CAPI_FIXED_DATASET_ID). The per-WABA GET/POST /{waba_id}/dataset
+#             create path is still here, reachable by clearing that variable.
 #   Log:      POST     /{dataset_id}/events          -> event ingested
 #   ctwa_clid captured from the inbound `referral` object (ad-originated msgs).
 # Docs: developers.facebook.com/docs/marketing-api/conversions-api/business-messaging
@@ -1273,6 +1275,27 @@ CAPI_DATASET_PREFIX = 'capi_dataset_'   # SystemConfigTable id: capi_dataset_<wa
 CAPI_CLID_PREFIX = 'capi_clid_'         # SystemConfigTable id: capi_clid_<phone>
 CAPI_EVENT_LOG_ID = 'capi_event_log'    # SystemConfigTable id: bounded recent-events list
 CAPI_PARTNER_AGENT = os.environ.get('CAPI_PARTNER_AGENT', 'wecare-digital')
+
+# The ONE Conversions API dataset both WABAs report into. No waba_id appears in the lookup
+# because the dataset is deliberately shared -- one Events Manager destination for WABA1 and
+# WABA2, matching the single shared `wecare_shop` catalog. Per-WABA attribution is NOT lost:
+# user_data.whatsapp_business_account_id still carries the resolved WABA on every event.
+#
+# Setting this variable to the EMPTY STRING re-enables the per-WABA
+# `POST /{waba_id}/dataset` create-and-cache path below, so nothing is removed. Note what that
+# RESUMES rather than recreates: the `capi_dataset_<wabaId>` rows written by the old path are
+# still in SystemConfigTable and are NOT deleted here, so the status read (create=False) hands
+# back those RETIRED per-WABA dataset ids from cache. Only an explicit re-check (create=True,
+# which skips the cache) calls Graph for a dataset. To get genuinely fresh per-WABA datasets,
+# delete the `capi_dataset_<wabaId>` rows as well -- a data change, so it is left to the owner.
+#
+# Read at MODULE scope, which is correct here: this is CONFIGURATION, not a credential, so the
+# lazy-read rule in lambda-snapstart-deploy.md and secret-handling.md does not apply -- the same
+# justification MM_METRICS_EDGE records below. Per that same rule the variable is NOT added to
+# config/lambda-env-manifest.json while nothing sets it live; the day it is set, add
+# "META_CAPI_DATASET_ID": "4554612361454941" under functions."wecare-whatsapp-business-api"
+# and bump "_variables" in the same change.
+CAPI_FIXED_DATASET_ID = os.environ.get('META_CAPI_DATASET_ID', '4554612361454941')
 CAPI_EVENT_TYPES = {
     'Purchase', 'LeadSubmitted', 'InitiateCheckout', 'AddToCart', 'ViewContent',
     'OrderCreated', 'OrderShipped', 'OrderDelivered', 'OrderCanceled', 'OrderReturned',
@@ -1291,7 +1314,16 @@ def _capi_resolve_waba(src: Dict) -> str:
 
 
 def _capi_get_dataset(waba_id: str, create: bool = False) -> Dict:
-    """Get (or create) the Conversions API dataset for a WABA. Caches the id."""
+    """Resolve the Conversions API dataset for a WABA.
+
+    Normally a constant: both WABAs share CAPI_FIXED_DATASET_ID, so there is nothing to look up,
+    nothing to cache and no Graph create call to make -- `create` is honoured as a no-op re-check.
+    Only when that variable is explicitly cleared does the per-WABA get-or-create path run, and
+    then `create=False` answers from the surviving `capi_dataset_<wabaId>` cache rows (the
+    retired per-WABA ids) before any Graph call -- see the note on CAPI_FIXED_DATASET_ID.
+    """
+    if CAPI_FIXED_DATASET_ID:
+        return {'datasetId': CAPI_FIXED_DATASET_ID, 'wabaId': waba_id, 'fixed': True}
     t = dynamodb.Table(SYSTEM_CONFIG_TABLE)
     cache_id = CAPI_DATASET_PREFIX + waba_id
     if not create:
@@ -3488,6 +3520,35 @@ def _flatten_payment_configurations(raw: Dict) -> Dict:
     return {"data": flat}
 
 
+def _read_payment_configurations(waba_id: str) -> Dict:
+    """One complete unfiltered provider read for checkout and operator diagnostics.
+
+    Meta's fields filter returns an empty collection for this edge. Follow bounded
+    cursor pages using the fixed edge; never follow a provider-supplied absolute URL.
+    Incomplete or repeating pagination fails closed instead of certifying a subset.
+    """
+    configurations = []
+    cursor = None
+    seen = set()
+    for _ in range(20):
+        raw = _graph_api(f'{waba_id}/payment_configurations', waba_id=waba_id,
+                         **({'params': {'after': cursor}} if cursor else {}))
+        flat = _flatten_payment_configurations(raw)
+        if not isinstance(flat, dict) or flat.get('error'):
+            return flat
+        if not isinstance(flat.get('data'), list):
+            return {'error': {'message': 'Payment configuration response is incomplete'}}
+        configurations.extend(flat['data'])
+        paging = raw.get('paging') or {}
+        if not paging.get('next'):
+            return {'data': configurations}
+        cursor = (paging.get('cursors') or {}).get('after')
+        if not isinstance(cursor, str) or not cursor or cursor in seen:
+            break
+        seen.add(cursor)
+    return {'error': {'message': 'Payment configuration pagination is incomplete'}}
+
+
 def _payment_readiness_for(waba_id: str, configuration_name: str) -> Dict:
     """The live verdict on whether a payment could actually be taken, or a reason it cannot.
 
@@ -3506,8 +3567,7 @@ def _payment_readiness_for(waba_id: str, configuration_name: str) -> Dict:
             expected_waba_id=waba_id,
             expected_configuration_name=configuration_name,
             expected_provider_mid=_RAZORPAY_MID,
-            fetch_configurations=lambda wid: _flatten_payment_configurations(
-                _graph_api(f'{wid}/payment_configurations', waba_id=wid)),
+            fetch_configurations=_read_payment_configurations,
         )
         return {
             'ready': verdict.ready,
@@ -3559,11 +3619,7 @@ def _check_payment_gateway(waba_id: str = None) -> Dict:
         local_config = PAYMENT_CONFIGS.get(phone_info.get('phoneId', ''), {})
 
         # Query Meta Graph API for payment configurations on this WABA
-        api_result = _graph_api(
-            f'{wid}/payment_configurations',
-            params={'fields': 'configuration_name,status,payment_gateway,merchant_category_code,purpose_code'},
-            waba_id=wid,
-        )
+        api_result = _read_payment_configurations(wid)
 
         meta_configs = []
         if 'data' in api_result:
@@ -3577,11 +3633,11 @@ def _check_payment_gateway(waba_id: str = None) -> Dict:
             config_checks.append({
                 'name': cfg.get('configuration_name', 'unknown'),
                 'status': cfg.get('status', 'unknown'),
-                'gateway': cfg.get('payment_gateway', {}).get('type', 'unknown') if isinstance(cfg.get('payment_gateway'), dict) else str(cfg.get('payment_gateway', 'unknown')),
-                'mid': cfg.get('payment_gateway', {}).get('merchant_id', '') if isinstance(cfg.get('payment_gateway'), dict) else '',
+                'gateway': cfg.get('provider_name') or (cfg.get('payment_gateway', {}).get('type', 'unknown') if isinstance(cfg.get('payment_gateway'), dict) else str(cfg.get('payment_gateway', 'unknown'))),
+                'mid': cfg.get('provider_mid') or (cfg.get('payment_gateway', {}).get('merchant_id', '') if isinstance(cfg.get('payment_gateway'), dict) else ''),
                 'mcc': cfg.get('merchant_category_code', ''),
                 'purposeCode': cfg.get('purpose_code', ''),
-                'canReceivePayments': cfg.get('status', '').lower() == 'active',
+                'canReceivePayments': str(cfg.get('status') or '').lower() == 'active',
             })
 
         # Also include local configs not found in Meta API (for comparison)
@@ -6326,8 +6382,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             # readiness fetch calls this; it needs the normalised list, not the human
             # paymentConfig/liveReadiness view that /payment-config returns.
             wid = params.get('wabaId') or body.get('wabaId') or WABA1_ID
-            return _resp(200, _flatten_payment_configurations(
-                _graph_api(f'{wid}/payment_configurations', waba_id=wid)))
+            return _resp(200, _read_payment_configurations(wid))
 
         elif '/payment-config' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')
