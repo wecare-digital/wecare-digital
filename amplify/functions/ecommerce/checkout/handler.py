@@ -3170,7 +3170,8 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
     contact = _table(CONTACTS_TABLE).get_item(Key={'id': row.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = contact.get('checkoutCustomerId')
-    if not owner or owner != row.get('customerId'):
+    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
+    if not customer_auth.is_cognito_subject(owner) or owner != row.get('customerId'):
         return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
     users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
         UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []

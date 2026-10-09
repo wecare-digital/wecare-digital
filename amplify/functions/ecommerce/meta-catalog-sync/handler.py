@@ -107,6 +107,13 @@ GRAPH_TIMEOUT_SECONDS = 15
 META_BATCH_PATH = "items_batch"
 META_BATCH_CHUNK = 100
 
+class MetaCatalogReadError(RuntimeError):
+    """Meta catalog read failure with safe structured diagnostics only."""
+
+    status: Optional[int] = None
+    errorKind: Optional[str] = None
+
+
 #: Durable owner-approval records share the existing authorization table, but use a namespaced
 #: key so they can never collide with agent tool-plan approvals. Rows intentionally omit the
 #: table's expiresTtl attribute: a catalog decision is an audit record, not a 15-minute bearer
@@ -396,7 +403,7 @@ def _existing_items(requester, *, token: str, app_secret: str,
                     catalog_id: str) -> List[Dict[str, Any]]:
     """Every item currently in the Meta catalog, by cursor paging `/{catalog_id}/products`.
 
-    Raises `RuntimeError` on a Graph error rather than returning a short list. A PARTIAL read is
+    Raises `MetaCatalogReadError` on a Graph error rather than returning a short list. A PARTIAL
     the one failure mode that must not be tolerated here: items missing from `existing` look
     exactly like items that need creating, so a truncated read would turn into a plan that
     re-creates the whole catalogue.
@@ -410,7 +417,10 @@ def _existing_items(requester, *, token: str, app_secret: str,
         result = requester(f"{catalog_id}/products", method="GET", params=params,
                            token=token, app_secret=app_secret)
         if "error" in result:
-            raise RuntimeError("the Meta catalogue could not be read")
+            failure = MetaCatalogReadError("the Meta catalogue could not be read")
+            failure.status = result["error"].get("status")
+            failure.errorKind = result["error"].get("type")
+            raise failure
         page = result.get("data")
         if isinstance(page, list):
             items.extend(row for row in page if isinstance(row, Mapping))
@@ -733,6 +743,8 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     except Exception as error:  # noqa: BLE001 - a read failure must not become a write attempt
         logger.error(json.dumps({"event": "meta_catalog_sync_read_failed",
                                  "errorType": type(error).__name__,
+                                 "graphStatus": getattr(error, "status", None),
+                                 "graphErrorKind": getattr(error, "errorKind", None),
                                  "catalogId": catalog_id,
                                  "source": trigger["source"]}))
         return {"ok": False, "reason": "read_failed", "enabled": enabled,
@@ -770,7 +782,7 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     if isinstance(event, Mapping) and event.get("inspect") is True:
         # Private IAM-protected readback. Never enters the write path, even when
         # synchronization is enabled. Only public product fields are returned.
-        return {"ok": True, "enabled": enabled, "dryRun": True, "readOnly": True,
+        return {"ok": True, "reason": "read_only_inspect", "enabled": enabled, "dryRun": True, "readOnly": True,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
                 "planHash": plan_hash, "approved": approved,
                 "approvalStoreReady": approval_store_ready,
@@ -868,13 +880,14 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
                     "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
                     "counts": counts, "blocked": blocked, "planHash": plan_hash,
                     "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
-        return {"ok": True, "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
+        return {"ok": True, "reason": "disabled" if not enabled else "dry_run",
+                "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
                 "counts": counts, "blocked": blocked, "planHash": plan_hash,
                 "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
 
     if plan.is_empty:
-        return {"ok": True, "enabled": True, "dryRun": False, "catalogId": catalog_id,
-                "counts": counts, "blocked": blocked, "planHash": plan_hash,
+        return {"ok": True, "reason": "nothing_to_apply", "enabled": True, "dryRun": False,
+                "catalogId": catalog_id, "counts": counts, "blocked": blocked, "planHash": plan_hash,
                 "approved": approved, "approval": _public_approval(approval_row), "applied": 0}
 
     if blocked:

@@ -1,0 +1,305 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "reviewDoc": "/Users/wecaredigital/wecare-digital/wecare-digital/.worktrees/deep-integration-audit/.kiro/work/deep-integration-audit/design-review.md",
+  "reviewRound": 4,
+  "reviewType": "FOCUSED CONFIRMATION of review round 3's 16 findings. Not a fresh full review; prior-round accepted findings not re-litigated.",
+  "reviewedDocuments": [
+    ".kiro/work/deep-integration-audit/design.md",
+    ".kiro/work/deep-integration-audit/answers.md",
+    ".kiro/work/deep-integration-audit/findings.md",
+    ".kiro/work/deep-integration-audit/outputs/whatsapp-customer-service-architecture.md"
+  ],
+  "citationBaseVerified": {
+    "declared_design_md_s0": "061b6e77c8a352d174c713834af0ca7d61b027b9",
+    "declared_answers_md": "061b6e77c8a352d174c713834af0ca7d61b027b9",
+    "actual_origin_stack": "061b6e77c8a352d174c713834af0ca7d61b027b9",
+    "worktreeHead": "0425dce158f87a4cfb22932e20079293fc597e07",
+    "mergeBase": "53ed298e422ac7694acc19bee91551169a7fe042",
+    "divergence": "HEAD...origin/stack = 1 ahead / 12 behind",
+    "result": "MATCHES. origin/stack did NOT move again during round 3's resolution-to-review gap; the author's re-anchor target is the live head.",
+    "command": "git fetch origin && git rev-parse origin/stack -> 061b6e77c8a352d174c713834af0ca7d61b027b9",
+    "hopsSinceRound3Base": [
+      "e9e377ce -> 4fe31824 : 12 files, +2121/-1, docs and outputs only (NO code)",
+      "4fe31824 -> 061b6e77 : 11 files, +1784/-13, INCLUDES amplify/functions/messaging/whatsapp-business-api/handler.py and tests/test_audit_payment_diagnostic.py"
+    ],
+    "aggregate_e9e377ce_to_head": "16 files, +3905/-14, INCLUDING CODE",
+    "driftNote": "design.md §0 documents both hops and the +12/+13 shift in whatsapp-business-api/handler.py correctly, and every bolded current-base value in its shift table reproduces. design.md §9's own re-anchor paragraph contradicts §0 and records a diff output that does not reproduce - finding 1 below."
+  },
+  "counts": { "high": 1, "medium": 3, "nit": 4, "blocking": 4 },
+  "round3FindingConfirmation": {
+    "confirmedResolved": 16,
+    "notConfirmed": 0,
+    "note": "All 16 round-3 findings are independently confirmed resolved at 061b6e77. The 4 findings below are residual defects introduced by, or left inside, the resolution pass itself - not re-raised round-3 findings."
+  },
+  "perRound3Finding": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "title": "F-9 reachability vs SECURE_FILES_PAYMENT_ENABLED=false",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "F-9.0 now states the gate is a local env read whose only four refusal sites are :981, :1058, :1156, :1272, that _redeem (:1405) is NOT among them, and that the live minter is native vault_access.grant_access in a different Lambda with no payment gate. All reproduced. The live residue is scoped to the :1459-1460 'pay again' copy for the gated secure-files origins, and §5 row 4c is split into the copy half (ships regardless) + the route half (needs 4c-read >= 1 durable grant, else demotes to MEDIUM-latent behind item 8) - exactly the review's offered alternative (a)/(b), both written in.",
+      "command": "git grep -n \"_payment_enabled\\|SECURE_FILES_PAYMENT_ENABLED\" origin/stack -- amplify/functions/core/secure-files/handler.py -> 255,261,981,1058,1156,1272; git grep -n \"def _redeem\" origin/stack -- <same> -> 1405; git grep -n expiresAt origin/stack -- amplify/functions/shared/lambda_utils/ecommerce/vault_access.py -> no matches"
+    },
+    {
+      "id": 2,
+      "severity": "HIGH",
+      "title": "F-9 re-issues from a TTL-swept grant row; lifetime never analysed",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Full three-origin lifetime table added. Option (b) chosen: entitlement = file['vaultPaymentStatus']=='PAID' AND file['vaultAccessGrantId'] on SecureFilesTable, whose TTL is DISABLED; the reissueCount cap AND counter moved onto the FILE row so neither can evaporate. Option (a) explicitly rejected as a TTL extension. No TTL created, extended or touched anywhere. test_a_swept_grant_does_not_tell_a_paid_customer_to_pay_again added with an EMPTY grants table fixture, asserting 200 + URL and no 'pay again'/GRANT_NOT_REDEEMABLE. Error table explicitly makes 'grant row absent but file row PAID' a recoverable 200.",
+      "command": "git grep -n expiresAt origin/stack -- .../vault_access.py -> none; git show origin/stack:scripts/check_data_model_drift.py | sed -n '186,196p' -> SecureFilesTable 'TTL DISABLED' at :189, DownloadGrantsTable 'TTL ENABLED on expiresAt' at :193-194; git show origin/stack:.../vault_access.py | sed -n '60,75p' -> grant dict :64-67, file-row write with vaultAccessGrantId/vaultPaymentStatus at :71"
+    },
+    {
+      "id": 3,
+      "severity": "HIGH",
+      "title": "False QA-recipient provenance in answers.md; design.md §8 claimed an unapplied correction",
+      "result": "CONFIRMED RESOLVED (with a residual citation defect - see finding 3 below)",
+      "basis": "answers.md 'Binding authority re-established' now explicitly RETRACTS the 'survives in README §9 and continue-prompt.txt' sentence, states the suffix-only finding in a table, points at F-8 item 6, carries the +919330994400 exclusion and the blockquote 'A suffix cannot authorize a send'. design.md §8 finding 6 / F-8 item 6 are imperative and labelled UNAPPLIED with a blockquote stating docs/execution/qa-recipient.md does not exist. All four commands reproduce.",
+      "command": "git grep -n 918100640044 origin/stack -- docs/whatsapp/service-rollout/ -> no matches; git grep -l 918100640044 origin/stack | wc -l -> 90; git grep -n 0044 origin/stack -- docs/whatsapp/service-rollout/README.md -> 59; ... continue-prompt.txt -> 9; git ls-tree -r --name-only origin/stack | grep -i qa-recipient -> none"
+    },
+    {
+      "id": 4,
+      "severity": "MEDIUM",
+      "title": "answers.md A, D, J, L at revision-2 values; :3080 cited for the native-service gates",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "L's dangerous pair is fixed and the hazard is named in a table: gate :3062, NATIVE_SERVICE_ROLLOUT_DISABLED :3063, is_enabled() :3064, NATIVE_SERVICE_WRITEBACK_NOT_READY :3065, VERIFIED_CUSTOMER_REQUIRED :3078, with :3080 identified as the Cognito Filter='sub' line and :3081 as the verified_identity call. L no longer cites :3080 for any gate. A carries base 061b6e77 / 1-12 / merge base 53ed298e. D carries live 89 with v87-v89 uncertified, tied to O11. J corrects the caller to :3081 (was :3099) and adds customer_orders.py:61. Header softened to §0's promise.",
+      "command": "git show origin/stack:amplify/functions/ecommerce/checkout/handler.py | sed -n '3060,3082p' -> :3062/:3063/:3064/:3065/:3078/:3080/:3081 all exactly as cited; git grep -n verified_identity origin/stack -- amplify -> checkout:3081, catalog_services:56, customer_commands:84, customer_orders:61, def at catalog_service_checkout.py:35"
+    },
+    {
+      "id": 5,
+      "severity": "MEDIUM",
+      "title": "Answer J specified O2 two incompatible ways",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "The stale pessimistic block is deleted. One statement appears identically in answers J (blockquote), answers U O2 row and design.md §7: checkoutCustomerId is null so _claimable is satisfied, linking is the expected outcome (INFERRED), a second row / 409 CONTACT_IDENTITY_CONFLICT is the failure mode at which point the owner chooses, result read after the save, no agent writes checkoutCustomerId. _claimable :147-168 -> :143-168 and docstring :158-160 -> :158-163 both corrected and both verified.",
+      "command": "git grep -n \"def _claimable\" origin/stack -- amplify -> auth/customer-profile/handler.py:143; git show ... | sed -n '156,172p' -> docstring rules :158-163, return at :168; git grep -n CONTACT_IDENTITY_CONFLICT origin/stack -- <same> -> 299, 309, 508, 509"
+    },
+    {
+      "id": 6,
+      "severity": "MEDIUM",
+      "title": "F-5's primary regression test unbuildable (ClientError interpolates its code)",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "The review's premise is accepted and the exact fixture specified: test-local class OpaqueConditionalFailure(ClientError) overriding __str__ while preserving .response, with both premise assertions written out ('ConditionalCheckFailedException' not in str(OPAQUE); is_conditional_failure(OPAQUE) is True). Two-row table splits the halves; the mirror half correctly needs no subclass. Binding invariant added: branch on error.response['Error']['Code'] via order_keys.is_conditional_failure, never on str(error). No production subclass introduced.",
+      "command": "git grep -n \"def is_conditional_failure\" origin/stack -- .../order_keys.py -> 177; git show ... | sed -n '177,190p' -> body reads getattr(error,'response') and compares Error.Code at :186-187"
+    },
+    {
+      "id": 7,
+      "severity": "MEDIUM",
+      "title": "F-2 test 5 contradicted the exception behaviour F-2 verified",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Renamed to test_an_error_outside_the_storage_wrapper_is_not_swallowed, with the _read_row wrapper quoted at :343/:344/:345-347 and the explanation that a bare KeyError arrives as OrderIdentityUnavailable and is caught. Two injection points outside _read_row's try are tabulated: preferred - monkeypatch dynamodb.Table to raise; alternative - non-mapping truthy return so payref.get raises AttributeError. The 'total over storage by construction, deliberately not over programming errors' note is present.",
+      "command": "git show origin/stack:amplify/functions/shared/lambda_utils/ecommerce/order_keys.py | sed -n '335,350p' -> def _read_row :335, try :342, get_item :343, except Exception :344, raise OrderIdentityUnavailable :345-347"
+    },
+    {
+      "id": 8,
+      "severity": "MEDIUM",
+      "title": "F-9 mis-named the auth envelope as require_auth",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Five-row table pins :1827 (customer block opens), :1828 _customer_identity(event), :1829-1830 401 'Verification required', :1836 _redeem, :1840 require_auth(event,'Operator') = admin surface. BINDING blockquote hosts the route at :1827-1836 and prohibits the :1840 block and any staff/role check on a customer route, backed by the docstring at :40-44 and the inline warning at :1806-1807. Corrected identically in outputs §6.5 ('NOT require_auth').",
+      "command": "git show origin/stack:amplify/functions/core/secure-files/handler.py | sed -n '1800,1845p' -> every one of the five lines matches exactly, including the :1806-1807 warning"
+    },
+    {
+      "id": 9,
+      "severity": "MEDIUM",
+      "title": "Route-shape disagreement and a cap condition that can never succeed",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "ONE shape: GET /files/{id}/download?reissue=1; the /download/reissue alternative is deleted from §6.5 and §6.5 now opens with a subordination blockquote making design.md F-9 binding. The full single conditional update is written out with '(attribute_not_exists(reissueCount) OR reissueCount < :cap)' marked mandatory in BOTH documents, ADD reissueCount :one, ReturnValues ALL_NEW. ConditionalCheckFailedException mapped by ConsistentRead re-read, first match wins: at cap -> GRANT_REISSUE_EXHAUSTED; grant present and not consumed -> fall through to _redeem; else -> _not_registered. Per-condition error table and input-validation rules for file_id/reissue are present. Six tests, aligned in both documents.",
+      "command": "git show origin/stack:.../secure-files/handler.py | sed -n '1424,1441p' -> UpdateExpression :1427, ConditionExpression=( :1428-1431 with 'consumed = :false' on :1430 - exactly as cited"
+    },
+    {
+      "id": 10,
+      "severity": "MEDIUM",
+      "title": "F-4 inventory incomplete: seven Filter='sub' sites, not six",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Seven stated: two guarded (customer_commands.py:80-83, customer_orders.py:57-60), five unguarded. The design also correctly corrects the REVIEW: customer_orders' re.fullmatch guard is at :57, not :58 (:58 is the raise). BOTH inline regexes are converted to customer_auth.is_cognito_subject so the literal pattern appears exactly once, meeting the stated goal. test_customer_orders_still_refuses_a_malformed_subject added asserting CustomerNotAuthorized raised with the cognito-idp double never invoked. Deployment widened to both guarded files.",
+      "command": "git grep -n \"Filter='sub\" origin/stack -- amplify -> 7 sites (checkout:3080, catalog_services:55, customer_commands:83, customer_orders:60, paid_submit_request:90 and :142, paid_vault:69); git grep -n is_cognito_subject origin/stack -- amplify -> absent; git grep -n re.fullmatch origin/stack -- .../customer_orders.py -> 57"
+    },
+    {
+      "id": 11,
+      "severity": "MEDIUM",
+      "title": "§5's binding --revision-id rule vs item 7's script, which moves the alias unconditionally",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Row 7 now runs set_lambda_env_flag.py --no-publish for the env write only, then performs the publish and a conditional alias move manually in five numbered steps: get-alias capture of FunctionVersion AND RevisionId -> env write -> publish-version -> update-alias --revision-id <captured> -> independent get-alias read-back. The unconditional-move exception is explicitly REJECTED with its reason (it detects a clash only after overwriting the other session), and the rule is generalised to every §5 alias move while the parallel session is active. The review's 'preferred' option was taken.",
+      "command": "git grep -n \"update_alias\\|publish_version\\|no-publish\" origin/stack -- scripts/set_lambda_env_flag.py -> --no-publish :71, guard :145, publish_version :146, update_alias :147-148 with NO RevisionId"
+    },
+    {
+      "id": 12,
+      "severity": "MEDIUM",
+      "title": "The one production invoke gated by two different owner items",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "A scope table sits above the §5 execution table: O10 = deploys (rows 2, 4b-i, 4b-ii, 4c, 7); O13 = the single production inspect invoke (row 3a only), separately refusable, with the explicit sentence 'Row 3a cites O13 and never O10, and O10 never covers an invoke'. Row 3a reads OWNER CONFIRM (O13); row 5's dependency reads '3a (O13)'; §7 gained an O13 bullet and its v7-invocation bullet reads OWNER CONFIRM (O13); answers U narrows O10.",
+      "command": "grep -n 'O10|O13' design.md -> scope table at :1807-1811, row 3a :1819, row 5 :1826, §7 :2018 and :2049"
+    },
+    {
+      "id": 13,
+      "severity": "NIT",
+      "title": "F-10's reason enum not derivable",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Order stated as code, first match wins: not_deliverable -> no_delivery_key -> window_closed, mirroring :103's left-to-right evaluation, with a rationale and two order-pinning cases added. Matches the review's prescribed order exactly.",
+      "command": "git show origin/stack:.../flows/paid_vault.py | sed -n '103p' -> deliverable=='pdf' and deliveryKey and 0 <= now-last < 86400 (compound, left-to-right as stated)"
+    },
+    {
+      "id": 14,
+      "severity": "NIT",
+      "title": "Off-by-one metaCatalogAnalytics.ts ranges",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Content-id builder :11-12 -> :12-13; Purchase :102 -> :101; pixel comment :2-4 -> :3-5; catalogContentId :64 and META_DATASET_ID/META_PIXEL_ID :6/:8 confirmed correct. Every corrected value reproduces.",
+      "command": "git show origin/stack:src/lib/metaCatalogAnalytics.ts | sed -n '1,14p' -> comment :3-5, META_DATASET_ID :6, META_PIXEL_ID :8, PURCHASE_KEY :11, builder :12-13; git grep -n Purchase ... -> fbq trackSingle 'Purchase' at :101; catalogContentId at :64"
+    },
+    {
+      "id": 15,
+      "severity": "NIT",
+      "title": "F-1's caplog mechanism had no precedent in the file",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Mechanism paragraph added: the handler binds logger = get_logger(__name__) at meta-catalog-sync/handler.py:57; lambda_utils.logging.get_logger (:17) returns a plain stdlib logger - logging.getLogger (:22) + setLevel (:24), no handler added, propagate never disabled - so records reach root and caplog captures them. States the file has no existing caplog precedent, gives the robust logger=handler_module.logger.name form, and warns that get_logger applies LOG_LEVEL at setLevel.",
+      "command": "git show origin/stack:amplify/functions/shared/lambda_utils/logging.py | sed -n '14,32p' -> get_logger :17, getLogger :22, setLevel :24, log_event :28, no addHandler, no propagate=False; git grep -n 'logger = get_logger' origin/stack -- ... -> ecommerce/meta-catalog-sync/handler.py:57"
+    },
+    {
+      "id": 16,
+      "severity": "NIT",
+      "title": "F-6's logging snippet needed two imports, not one",
+      "result": "CONFIRMED RESOLVED",
+      "basis": "Both named and the house helper preferred, exactly as the review proposed: 'from lambda_utils.logging import get_logger, log_event' plus logger = get_logger(__name__), and log_event(logger,'order_choices_unnumbered',skipped=skipped) replacing the hand-rolled json.dumps - which drops the json import entirely. Import inventory reproduces line for line.",
+      "command": "git show origin/stack:amplify/functions/shared/lambda_utils/ecommerce/paid_submit_request.py | sed -n '1,16p' -> hashlib :8, hmac :9, secrets :10, time :11, typing.Any :12, order_keys/store :13; no logger, no json"
+    }
+  ],
+  "findings": [
+    {
+      "id": 1,
+      "severity": "HIGH",
+      "title": "design.md §9's own re-anchor paragraph contradicts §0 and records a git diff output that does not reproduce: it asserts no code citation moved when the second hop moved a code file the plan edits",
+      "where": "design.md §9, opening paragraph and the command block immediately under it (around :2261-2272)",
+      "problem": "§9 states: '**1 ahead / 12 behind**. The single intervening commit is **docs-and-outputs only**, so no code citation moved' and records 'git diff e9e377ce..origin/stack --stat -> 12 files, +2121/-1, no amplify/ scripts/ src/ tests/'. Neither is true at 061b6e77. There are TWO intervening commits (4fe31824, then 061b6e77) and the actual range diff is 16 files, +3905/-14, and it DOES contain amplify/functions/messaging/whatsapp-business-api/handler.py and tests/test_audit_payment_diagnostic.py. The recorded figures are the e9e377ce..4fe31824 hop-1 diff pasted against the full range. §0 of the same document gets this exactly right - it documents both hops, states 'Hop 2 DID touch code', and re-derives the +12/+13 shift for nine citations in that handler. So the two sections disagree on the single most load-bearing fact in the plan: whether the whatsapp-business-api citations moved. Those citations are load-bearing for F-9's native reach-path (:5996-6000), F-4's live sites and F-6, all scheduled under §5 row 4b-ii. A coder or owner who reads §9 - the section the author offers as proof of resolution - concludes no re-derivation is needed in that file and ships against stale line numbers, which is precisely the failure §0 exists to prevent and which round 3 finding 4 already punished once.",
+      "fix": "Replace the §9 paragraph and block with §0's actual facts, and make §9 point at §0 rather than restate it:\n\n'**Base re-anchored first, before any finding was touched.** The review verified against `e9e377ce`; `origin/stack` is now `061b6e77` - **1 ahead / 12 behind**. The base moved **twice** during this resolution pass and **hop 2 changed code**. See §0 for the per-citation re-derivation; the summary is: hop 1 (`e9e377ce`->`4fe31824`) was docs-and-outputs only; hop 2 (`4fe31824`->`061b6e77`) edited `amplify/functions/messaging/whatsapp-business-api/handler.py` and `tests/test_audit_payment_diagnostic.py`, shifting every citation in that handler below line 321 by **+12** and below 6106 by **+13**. Two document citations in the QA-send authority chain also moved.'\n\n```\ngit diff e9e377ce..4fe31824 --stat      -> 12 files, +2121/-1,  docs/outputs only\ngit diff 4fe31824..origin/stack --stat  -> 11 files, +1784/-13, INCLUDES CODE\ngit diff e9e377ce..origin/stack --stat  -> 16 files, +3905/-14, INCLUDES CODE\n```",
+      "verifiedAgainst": "git diff e9e377ce..origin/stack --stat -> 16 files, +3905/-14; git diff e9e377ce..origin/stack --name-only | grep -E '^(amplify|scripts|src|tests)/' -> amplify/functions/messaging/whatsapp-business-api/handler.py, tests/test_audit_payment_diagnostic.py; git log --oneline e9e377ce..origin/stack -> 4fe31824, 061b6e77 (two commits); design.md §0 lines 29-51"
+    },
+    {
+      "id": 2,
+      "severity": "MEDIUM",
+      "title": "§9's verification-coverage claim contradicts itself in consecutive sentences: 139 citations re-verified, 97 pass",
+      "where": "design.md §9 (around :2274-2276)",
+      "problem": "'**139 load-bearing citations were individually re-verified** at `061b6e77` ... All 97 pass.' A reader cannot tell whether the re-derivation covered 97 or 139 citations, nor what became of the 42-citation difference - and 'All 97 pass' reads as a complete pass over a set whose size is contradicted one line earlier. This is the headline assurance the whole §9 table rests on, in a document whose central lesson is that an unverified number is not evidence. Spot-checking found no actually-failing citation among the ones I reproduced, so this is a bookkeeping conflict rather than a hidden failure - but as written the claim cannot be audited.",
+      "fix": "State one number and keep the two concepts separate, e.g.: '**139 load-bearing citations were individually re-verified** at `061b6e77` with `git grep -n` plus a per-line `git show | sed -n '<n>p'` substring assertion. **All 139 reproduce; 11 carried changed values, each listed in the row that uses it.**' If 97 was the count actually re-checked by hand and 139 the total inventory, say exactly that: '139 load-bearing citations exist; **97 were re-verified individually** this pass (the remainder are unchanged document citations in files neither hop touched, named here: ...).'",
+      "verifiedAgainst": "design.md :2274-2276, verbatim"
+    },
+    {
+      "id": 3,
+      "severity": "MEDIUM",
+      "title": "answers.md's QA-authority verification transcript records continue-prompt.txt:7 - the pre-hop-2 value - four lines above its own table that correctly says :9",
+      "where": "answers.md 'Binding authority re-established' block (the fenced command transcript, around :98-102) vs the table immediately below it (:107-111)",
+      "problem": "The fenced block records 'git grep -n \"0044\" origin/stack -- docs/whatsapp/service-rollout/continue-prompt.txt -> 7'. At 061b6e77 that command returns **9**; 7 is the value at 4fe31824 and 5 at e9e377ce. The table four lines below correctly gives :9 and correctly notes it moved from :5, and design.md §0 correctly traces :5 -> :7 -> :9 as 'moved in BOTH hops'. So the transcript captured an intermediate reading and was not refreshed. This is load-bearing: F-8 item 6 has to edit that exact prose line to replace the suffix fragment with a document of record, and line 7 at 061b6e77 is a different line entirely ('HISTORICAL CONTINUATION BELOW - overridden by the current checkpoint above:'). It also sits inside the one block whose purpose is to demonstrate re-derivation discipline on the authority chain for the only rule governing live WhatsApp sends - the subject of round 3's HIGH finding 3.",
+      "fix": "Correct the transcript line to the reproducing value and make the drift explicit, so the block agrees with its own table and with design.md §0:\n\n```\ngit grep -n \"0044\" origin/stack -- docs/whatsapp/service-rollout/continue-prompt.txt -> 9   # :5 at e9e377ce, :7 at 4fe31824 - moved in BOTH hops\n```",
+      "verifiedAgainst": "git grep -n 0044 origin/stack -- docs/whatsapp/service-rollout/continue-prompt.txt -> 9; same at 4fe31824 -> 7; same at e9e377ce -> 5; git show origin/stack:docs/whatsapp/service-rollout/continue-prompt.txt | sed -n '7p' -> 'HISTORICAL CONTINUATION BELOW ...'"
+    },
+    {
+      "id": 4,
+      "severity": "MEDIUM",
+      "title": "F-9's copy correction is scoped to :1459-1460 only, but the identical 'Please pay again' message exists a second time at :1224-1225, and F-9's own invariant table claims the single-site fix owns the invariant",
+      "where": "design.md F-9 (the copy bullet at :1507, the invariant table row at :1540), §5 row 4c half (i); outputs/...architecture.md §6.5 (V-1 copy bullet, :603) and the V-1 severity row (:558)",
+      "problem": "git grep returns TWO occurrences of 'This download link is not valid. Please pay again to download.' in secure-files/handler.py: :1460 in _redeem's refusal arm, and :1225 in _redeem_after_reconcile's ClientError arm. Every document scopes the correction to :1459-1460 and none mentions :1225. The scoping is right for TODAY - _redeem_after_reconcile is reached only via _reconcile_grant returning True (:1453-1454), and _reconcile_grant returns False immediately while the payment flag is off (:1156-1157) - so this is not a live-reachability error and round 3 finding 1's requirement is met. The problem is the fix's completeness claim: F-9's invariant table assigns 'A paid customer is never told to pay again' to 'the :1459-1460 copy', and §5 item 8 (enable native checkout, STOP) lists F-9 as one of its prerequisites. The moment item 8 opens that flag, a paid-and-consumed grant going through the reconcile arm lands on the same misleading sentence at :1225, with F-9 recorded as done.",
+      "fix": "Make the copy half cover both sites and say why. In F-9's copy bullet and the §6.5 mirror: 'Correct the refusal copy at **:1459-1460** (`_redeem`) **and at :1224-1225 (`_redeem_after_reconcile`, the identical string)** so a paid-and-consumed grant is never told to pay again. `:1225` is **not** live-reachable today - `_redeem_after_reconcile` is entered only when `_reconcile_grant` returns True (`:1453-1454`) and that function returns False while `_payment_enabled()` is false (`:1156-1157`) - but it becomes reachable the moment §5 item 8 opens the flag, and item 8 lists F-9 as satisfied. Fixing one site and not the other would re-introduce the defect at the gate opening.' Then amend the invariant-table row to name both line ranges. If the author prefers to leave :1225 alone, that is acceptable only as an explicit, owner-visible exception stating that F-9 does NOT satisfy its own invariant once the payment flag opens, recorded in §5 item 8's prerequisite list.",
+      "verifiedAgainst": "git grep -n 'Please pay again' origin/stack -- amplify/functions/core/secure-files/handler.py -> 1225, 1460; git show ... | sed -n '1191,1232p' -> _redeem_after_reconcile :1191, except ClientError :1220, copy :1224-1225; sed -n '1150,1162p' -> _reconcile_grant gate 'if not _payment_enabled(): return False' at :1156-1157; sed -n '1442,1466p' -> :1453-1454 call, :1456-1463 refusal"
+    },
+    {
+      "id": 5,
+      "severity": "NIT",
+      "title": "§0's shift table labels both value columns with the same base and row 1 repeats the post-shift value against a +12 shift",
+      "where": "design.md §0, the nine-row re-derivation table (header at :53, row 1 at :55)",
+      "problem": "The header reads '| Citation | At `061b6e77` | **At `061b6e77`** | Shift |' - the first value column should be the pre-hop base (`4fe31824`). Row 1 then reads '`:5996-6000` | **`:5996-6000`** | +12', which is arithmetically impossible: identical values cannot carry a +12 shift. The pre-hop value is `:5984`. Every bolded current-base value in the table reproduces exactly (I verified all nine), so no load-bearing number is wrong - but the table cannot be used to sanity-check itself, in the one section that forbids trusting a number.",
+      "fix": "Relabel the header '| Citation | At `4fe31824` | **At `061b6e77`** | Shift |' and set row 1's first cell to `:5984-5988`.",
+      "verifiedAgainst": "git grep -n preparePaidSubmitRequest 4fe31824 -- .../whatsapp-business-api/handler.py -> 5984; same at origin/stack -> 5996; all other bolded values confirmed: :6034, :3535, :3564, :3620, :6399-6404, :5912, :6574"
+    },
+    {
+      "id": 6,
+      "severity": "NIT",
+      "title": "answers.md J calls customer_orders.py:61 'a fifth caller' in a table that lists four callers",
+      "where": "answers.md J, the verified_identity caller table (around :1065-1069); echoed in design.md §9 finding 4's row",
+      "problem": "git grep returns five matches in amplify: four call sites (checkout:3081, catalog_services:56, customer_commands:84, customer_orders:61) and the definition at catalog_service_checkout.py:35. The table lists exactly four rows and labels the last 'a fifth caller revision 3 omitted entirely'. The line number is right and the correction is real; only the ordinal is off, counting the definition as a caller.",
+      "fix": "Change to 'a **fourth caller** revision 3 omitted entirely' and add one clause to the table caption: 'four call sites; the definition is at `catalog_service_checkout.py:35`.' Mirror the wording in design.md §9 finding 4's row."
+    },
+    {
+      "id": 7,
+      "severity": "NIT",
+      "title": "answers.md J labels the _claimable re-derivation 'Re-verified at e9e377ce' under a header that declares 061b6e77",
+      "where": "answers.md J (the line introducing the _claimable / _owned_contact / _upsert_contact bullets, around :1026)",
+      "problem": "The bullets carry corrected values (:143-168, :158-163, :171-182, :280, :299, :308-309, :320, :385, :326, :391, :508-509) and I confirmed each against auth/customer-profile/handler.py at 061b6e77 - the file was touched by neither hop, so the values are right. Only the base label is stale, which is the one thing §0 says a reader must never have to second-guess.",
+      "fix": "Change 'Re-verified at `e9e377ce`:' to 'Re-verified at `061b6e77`:' and append '(file untouched by both upstream hops, so these are unchanged since `e9e377ce`)'."
+    },
+    {
+      "id": 8,
+      "severity": "NIT",
+      "title": "The DownloadGrantsTable TTL citation differs between §9's finding-2 row and F-9.0's body",
+      "where": "design.md §9 finding 2 row (cites check_data_model_drift.py:193-194, and :189-190 for SecureFilesTable) vs F-9.0's lifetime paragraph (cites :191-196)",
+      "problem": "Both land inside the right dict entry, so neither misleads: :191 is the 'DownloadGrantsTable' key, :193-194 carries 'TTL ENABLED on expiresAt', :189 carries SecureFilesTable's 'TTL DISABLED'. But §9's row claims to have corrected the review's :191-196 to :193-194 while the body it is summarising still says :191-196.",
+      "fix": "Use :193-194 in both places, or state the entry range once as ':191-196 (the `DownloadGrantsTable` entry; the TTL sentence is on :193-194)' and reuse that phrasing in the §9 row.",
+      "verifiedAgainst": "git show origin/stack:scripts/check_data_model_drift.py | sed -n '186,196p' -> SecureFilesTable key :186, 'TTL DISABLED' :189; DownloadGrantsTable key :191, 'TTL ENABLED on' :193, '`expiresAt`' :194"
+    }
+  ],
+  "mustResolveBeforeAnyCode": [1, 3, 4],
+  "safetyInvariantsReConfirmed": {
+    "result": "ALL HOLD",
+    "checks": [
+      "No gate opened: WHATSAPP_CATALOG_SERVICES_ENABLED, NATIVE_SERVICE_* and SECURE_FILES_PAYMENT_ENABLED are all read-only in the plan; items 8 and 9 (enable native checkout / Wix writeback) and F-7's remainder are STOP (design.md :1829, :1830, :1831, :1160)",
+      "No payment-config mutation, no payment object created, read or mutated - F-9 explicitly creates no charge",
+      "No deletion: §3 is an inventory deliverable, not an action",
+      "No live send: the QA-send authority chain is the subject of F-8 item 6 and no send is scheduled; 'a suffix cannot authorize a send' is binding in answers.md",
+      "No TTL lengthened: F-9 mints on the ordinary 60 s DOWNLOAD_URL_TTL (:215) and option (a) - SET expiresAt on redeem - was explicitly REJECTED as a TTL extension; entitlement proof comes from the already-durable SecureFilesTable row instead. F-11 LOWERS the stated env value 21600 -> 900 to match the existing clamp, with behaviour unchanged",
+      "No fleet-wide publisher: set_lambda_env_flag.py is run --no-publish with a manual, per-function conditional alias move",
+      "Every production step is OWNER CONFIRM: O10 for deploys (rows 2, 4b-i, 4b-ii, 4c, 7), O13 for the single production inspect invoke (row 3a only), disjoint and consistently cited",
+      "No forbidden secret read: get-secret-value / batch-get-secret-value appear only as prohibitions, and answer G records the Graph 100/subcode 33 value as not independently verifiable for exactly that reason",
+      "Auth/ownership/signature/IAM/isolation only tightened: F-9 adds a fourth caller to the existing _owned_active_file chokepoint and never touches consumed; F-4 adds a guard to five unguarded sites and converts both inline regexes to one shared helper; two F-9 sensitivity tests exist to fail if the fix ever becomes a loosening",
+      "No fabricated evidence of a live read - but see finding 1 and finding 3: two recorded git transcripts carry stale/mislabeled values rather than fabricated ones"
+    ]
+  },
+  "verifiedAssumptions": [
+    "origin/stack = 061b6e77c8a352d174c713834af0ca7d61b027b9 exactly as declared in design.md §0 AND answers.md's CITATION BASE header; worktree 0425dce1; 1 ahead / 12 behind; merge base 53ed298e. The base did NOT move again during the resolution pass, so the author's re-anchor target is current",
+    "The two hops are as §0 describes: e9e377ce->4fe31824 docs/outputs only (12 files, +2121/-1); 4fe31824->061b6e77 includes code (11 files, +1784/-13, whatsapp-business-api/handler.py + tests/test_audit_payment_diagnostic.py)",
+    "All nine re-derived whatsapp-business-api citations reproduce at 061b6e77: preparePaidSubmitRequest :5996, require_auth(event) :6034, _read_payment_configurations :3535, _payment_readiness_for :3564, _check_payment_gateway :3620, /payment-config/raw 410 arm :6399-6404, _svc_list_orders import :5912, call :6574",
+    "checkout/handler.py untouched by both hops: :3062 gate, :3063 ROLLOUT_DISABLED, :3064 is_enabled(), :3065 WRITEBACK_NOT_READY, :3078 VERIFIED_CUSTOMER_REQUIRED, :3080 Cognito Filter='sub', :3081 verified_identity - every F-4/answer-L correction confirmed, and :3080 is no longer cited for any gate",
+    "secure-files/handler.py: _payment_enabled def :255 reading the flag at :261, refusals at :981/:1058/:1156/:1272; _redeem :1405 ungated; _redeem's UpdateExpression :1427 and ConditionExpression :1428-1431 with 'consumed = :false' on :1430; customer envelope :1827-1836 with _customer_identity at :1828 and 401 at :1829-1830; require_auth(event,'Operator') :1840; inline warning :1806-1807; 'pay again' at :1460 and :1225",
+    "vault_access.py writes NO expiresAt (git grep returns nothing); grant dict :64-67; the SecureFilesTable write carrying vaultAccessGrantId + vaultPaymentStatus='PAID' at :71",
+    "check_data_model_drift.py: SecureFilesTable 'TTL DISABLED' :189, DownloadGrantsTable 'TTL ENABLED on expiresAt' :193-194 - so the design's durable-file-row / swept-grant-row asymmetry is real",
+    "order_keys.py: OrderIdentityUnavailable :169, is_conditional_failure :177 branching on response['Error']['Code'] at :186-187, _read_row :335 with try :342 / except Exception :344 / raise :345-347, resolve_payment_reference :380 - F-2 and F-5's premises both hold",
+    "Exactly seven Filter='sub' sites in amplify; customer_commands guard :80 and Filter :83; customer_orders guard :57, raise :58, Filter :60, verified_identity :61; is_cognito_subject absent from the tree (so the helper is genuinely new)",
+    "verified_identity has four call sites plus the definition at catalog_service_checkout.py:35; paid_submit_request.py:90/:142 and paid_vault.py:69 use inline Filter+len checks, not verified_identity - answer J's correction of revision 3 is right",
+    "auth/customer-profile/handler.py: _claimable :143 with docstring rules :158-163 and return :168, _owned_contact :171, checkoutCustomerId writer :263, conditional updates :320/:385, CONTACT_IDENTITY_CONFLICT :299/:309/:508-509",
+    "set_lambda_env_flag.py: --no-publish :71, publish guard :145, publish_version :146, update_alias :147-148 with no RevisionId - item 7's mechanism change is necessary and the chosen route is the review's preferred one",
+    "lambda_utils/logging.py: get_logger :17, logging.getLogger :22, setLevel :24, log_event :28, no handler added and propagate never disabled; meta-catalog-sync handler binds logger at :57 - F-1's caplog mechanism and F-6's log_event switch both work",
+    "paid_submit_request.py imports exactly hashlib :8, hmac :9, secrets :10, time :11, typing.Any :12, order_keys/store :13 - no logger, no json",
+    "src/lib/metaCatalogAnalytics.ts: pixel comment :3-5, META_DATASET_ID :6, META_PIXEL_ID :8, PURCHASE_KEY :11, content-id builder :12-13, catalogContentId :64, Purchase :101",
+    "paid_vault.py:103 is the single compound guard, so F-10's stated left-to-right reason order is derivable",
+    "docs/whatsapp/service-rollout/: no full E.164 anywhere; suffix-only prose at README.md:59 and continue-prompt.txt:9; 90 tracked files carry the full number; docs/execution/qa-recipient.md does not exist",
+    "outputs §6.5 now opens with a subordination blockquote making design.md F-9 binding, carries one route shape, the mandatory OR attribute_not_exists arm, the _customer_identity envelope with an explicit 'NOT require_auth', and six tests matching design.md's six"
+  ],
+  "unverifiedOrWrongAssumptions": {
+    "wrongAndBlocking": [
+      "design.md §9: 'The single intervening commit is docs-and-outputs only, so no code citation moved' and 'git diff e9e377ce..origin/stack --stat -> 12 files, +2121/-1, no amplify/ scripts/ src/ tests/' - two commits, 16 files, +3905/-14, and it includes whatsapp-business-api/handler.py (finding 1). §0 of the same document is correct",
+      "design.md §9: '139 load-bearing citations were individually re-verified ... All 97 pass' - the two counts cannot both be the set size (finding 2)",
+      "answers.md: the recorded 'git grep -n 0044 ... continue-prompt.txt -> 7' - the reproducing value at 061b6e77 is 9; 7 is the 4fe31824 reading (finding 3)",
+      "F-9's invariant 'A paid customer is never told to pay again' is owned by 'the :1459-1460 copy' alone - the identical string also sits at :1224-1225 and becomes reachable when §5 item 8 opens the payment flag, with F-9 listed as item 8's satisfied prerequisite (finding 4)"
+    ],
+    "wrongButNotBlocking": [
+      "§0's shift-table header labels both value columns `061b6e77`, and row 1 shows :5996-6000 -> :5996-6000 with a +12 shift; the pre-hop value is :5984 (finding 5). All nine bolded current-base values reproduce",
+      "answers.md J: customer_orders.py:61 called 'a fifth caller' in a four-row caller table (finding 6)",
+      "answers.md J: '_claimable ... Re-verified at e9e377ce' under a 061b6e77 header; the values are nonetheless correct at 061b6e77 (finding 7)",
+      "DownloadGrantsTable TTL cited :191-196 in F-9.0's body and :193-194 in §9's finding-2 row (finding 8)"
+    ],
+    "correctlyFlaggedUnverifiedNoActionNeeded": [
+      "Graph 100/subcode 33 - second-hand, unobtainable without the Meta token, and get-secret-value is forbidden; recorded as not independently verified",
+      "Deletion vs permission on 1607047307067517 (O1)",
+      "items_batch write authority on 1457045652952851",
+      "wecare_default_download current approval and button (O12)",
+      "Dataset id as a valid fbq browser target (P2/T-1)",
+      "Wix product revision 4 vs 5 (C4)",
+      "v87-v89 of wecare-whatsapp-business-api vs committed source (O11), now correctly stated as uncertified by anyone",
+      "Flow 1107164111921876 DRAFT vs PUBLISHED (C2, self-enforcing in meta_ready)",
+      "Orders Flow 2167802357142172 (explicitly out of scope)",
+      "The durable-grant population count - deliberately deferred to §5 row 4c-read as a live read this design phase does not perform; F-9's route half is branched on its result"
+    ],
+    "notReVerifiedByThisReviewByInstruction": [
+      "All CloudWatch captures: the 15 read_failed records, the two silent v7 invocations, the Wix webhook chain and its 00:24:18Z last delivery",
+      "All Lambda alias, version, RevisionId, CodeSha256 and environment values (including live 34 / RevisionId 01e8e9ef for wecare-secure-files and SECURE_FILES_PAYMENT_ENABLED=false)",
+      "The 157 focused / 10394 whole-suite test baseline",
+      "The DynamoDB and Cognito reads behind answer J",
+      "Note: §0, §5 row 0 and §6 all require these to be re-read immediately before use, so no plan step depends on them still being true"
+    ]
+  }
+}

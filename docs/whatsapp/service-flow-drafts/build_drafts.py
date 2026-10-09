@@ -9,8 +9,13 @@ OUT.mkdir(exist_ok=True)
 review = json.loads((ROOT / 'amplify/functions/messaging/whatsapp-business-api/flows/leave-review-flow-v2.json').read_text())
 BRAND = copy.deepcopy(review['screens'][0]['layout']['children'][0])
 BRAND['alt-text'] = 'WECARE.DIGITAL'
-ORDER = 'WD-ORD - A1B2C3D4 - 09-10-2026 - 06:00:00 - IST'
-ORDERS = [{'id': ORDER, 'title': 'Example order · A1B2C3D4'}, {'id': 'not_found', 'title': 'I cannot find my order'}]
+# The CURRENT public order-number format: WD-ORD- plus 8 symbols of
+# order_keys.PUBLIC_ORDER_NUMBER_ALPHABET. Illustrative only - these drafts are unpublished
+# previews with no customer data - but an example in the old
+# 'WD-ORD - A1B2C3D4 - DD-MM-YYYY - HH:MM:SS - IST' shape shows a reviewer a shape nothing
+# mints any more.
+ORDER = 'WD-ORD-K4M7PQR9'
+ORDERS = [{'id': ORDER, 'title': 'Example order · K4M7PQR9'}, {'id': 'not_found', 'title': 'I cannot find my order'}]
 
 def text(kind, value):
     return {'type': kind, 'text': value}

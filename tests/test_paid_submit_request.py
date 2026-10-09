@@ -18,7 +18,9 @@ def setup():
     submitted(requests, keys)
     row = next(copy.deepcopy(v) for k, v in requests.rows.items() if k.startswith('REQ#'))
     orders = FakeTable(key_attr='orderId', name='orders', indexes={'customerId-createdAt-index': ('customerId','createdAt')})
-    orders.seed({'orderId': 'earlier', 'customerId': ALICE, 'createdAt': 1, 'orderNumber':'WD-ORD-OLD'})
+    # A mintable public order number: `WD-ORD-` plus 8 characters of the minter's alphabet.
+    # 'WD-ORD-OLD' was never mintable - 'O' is not in the alphabet and the suffix is 3 long.
+    orders.seed({'orderId': 'earlier', 'customerId': ALICE, 'createdAt': 1, 'orderNumber':'WD-ORD-HJKMNPQR'})
     orders.seed({'orderId': 'foreign', 'customerId': BOB, 'createdAt': 1})
     orders.seed({'orderId': row['orderId'], 'customerId': ALICE, 'createdAt': 2})
     return requests, keys, orders, row
@@ -52,7 +54,7 @@ def test_no_entitlement_without_matching_paid_purchase(setup, damage):
 
 def test_only_owned_earlier_orders_and_missing_orders_preserve_payment(setup):
     requests, keys, orders, row = setup
-    assert paid.list_orders(orders, row) == [{'id':'earlier','title':'WD-ORD-OLD'}]
+    assert paid.list_orders(orders, row) == [{'id':'earlier','title':'WD-ORD-HJKMNPQR'}]
     orders.rows.clear()
     assert paid.list_orders(orders, row) == []
     assert paid.prepare(requests, keys, row['requestId'])[0]['paidAt']

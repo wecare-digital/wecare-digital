@@ -78,6 +78,24 @@ The normal native purchase starts from an inbound customer message. Paid Submit 
 
 Live invocations verified native preparation/entry return NATIVE_SERVICE_ROLLOUT_DISABLED while gated; HTTP-shaped diagnostic access returns 403; incomplete encrypted Flow input returns 400. These are deployment/safety smoke checks, not customer purchase evidence.
 
+## Hard precondition for Vault — the two flags open together or not at all
+
+Opening WHATSAPP_CATALOG_SERVICES_ENABLED for the Vault service **requires** enabling
+VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED in the **same** change. The approved ready template
+wecare_share_pdf has an IMAGE header and carries no URL button and no file parameter, so it
+delivers no link; only wecare_default_download does, and only while that flag is on. The PDF
+itself travels as a separate ordinary document message, which needs a PDF delivery object and an
+open 24-hour customer-service window — so with the download-template flag off, any purchase that
+misses either of those delivers neither a link nor a file. That outcome is now reported as
+VAULT_DELIVERY_DEFERRED with a reason of not_deliverable, no_delivery_key or window_closed
+(first match wins) rather than as VAULT_READY, which is how the paid-but-undelivered population
+stays findable; it is not a substitute for opening the two flags together.
+
+Readiness and *use* are decoupled today, and only readiness is true: catalog_service_checkout's
+meta_ready check already refuses native checkout unless wecare_default_download is APPROVED with
+that exact URL button, so template readiness is proven before the flag can open. Nothing in that
+staging posture should be disturbed.
+
 ## Remaining release steps
 
 1. Owner approval to publish the exact paid Submit Request draft. Automatic approval review rejected publication because approval for this specific draft was required; approval has been requested. No bypass was attempted.

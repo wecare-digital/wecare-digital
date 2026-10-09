@@ -1716,7 +1716,7 @@ def _trigger_post_payment_flow(clean_phone: str, phone_id: str, reference_id: st
                     ExpressionAttributeValues={':now': int(_time.time())},
                 )
             except Exception as guard_err:
-                if 'ConditionalCheckFailedException' in str(guard_err):
+                if order_keys.is_conditional_failure(guard_err):
                     logger.info(json.dumps({'event': 'post_payment_flow_skipped', 'reason': 'already sent (idempotent)',
                                             'invoiceId': invoice_id, 'referenceId': reference_id, 'requestId': request_id}))
                     return
@@ -2033,7 +2033,7 @@ def _store_payment_record(payment: Dict, status: str, request_id: str) -> None:
                                 'rank': payment_status.rank(status),
                                 'requestId': request_id}))
     except Exception as e:
-        if 'ConditionalCheckFailedException' in str(e):
+        if order_keys.is_conditional_failure(e):
             # Expected and correct: a stale or out-of-order delivery. Recorded at info,
             # not error, so it does not read as a fault - but recorded, because a high
             # volume here would mean the provider is redelivering heavily.
@@ -2146,7 +2146,7 @@ def _mark_invoice_paid_by_reference(reference_id: str, request_id: str,
                 ExpressionAttributeValues=update_values,
             )
         except Exception as cond_err:  # noqa: BLE001
-            if 'ConditionalCheckFailedException' in str(cond_err):
+            if order_keys.is_conditional_failure(cond_err):
                 # Already paid by a concurrent delivery. Harmless and expected; not an error.
                 logger.info(json.dumps({
                     'event': 'invoice_already_paid_on_settle',
@@ -2465,9 +2465,38 @@ def _post_payment_handler(payment_id: str, contact: str,
     # FAIL-OPEN because a feedback send is the least important thing on this path: it must never
     # block or reverse the invoice or the paid state. Idempotent on the invoice, so a redelivered
     # capture asks once.
+    # A native catalogue purchase has its OWN review trigger, which asks AFTER the service was
+    # actually delivered (`flows/paid_submit_request.py`, `flows/paid_vault.py`). This arm asks at
+    # capture, before any fulfilment, so it is the one that yields - otherwise a native purchase
+    # is asked twice, from two unrelated claim namespaces that cannot see each other.
+    #
+    # Step 5 is FAIL-OPEN by contract (the comment block above). It must never raise, because a
+    # raise reaches the handler's top-level `except`, returns 500, and lets the idempotency lease
+    # lapse so Razorpay REPLAYS a captured payment. An unreadable PAYREF# row therefore falls
+    # back to the pre-existing website behaviour: ask for the review. Never invert that default to
+    # "skip on error" - a transient throttle would then silently suppress a legitimate website
+    # review request.
+    #
+    # `OrderIdentityUnavailable` specifically, not bare `Exception`: `order_keys._read_row` wraps
+    # EVERY storage error into that one type, so the narrow catch has no storage blind spot, while
+    # a bare catch would also swallow a genuine programming error and turn it into a permanently
+    # invisible duplicate-review bug. A storage outage must fail open here; a logic bug must be loud.
+    native = False
+    try:
+        payref = order_keys.resolve_payment_reference(
+            dynamodb.Table(COMMERCE_KEYS_TABLE), reference_id) or {}
+        native = bool(payref.get('nativeCatalogService'))
+    except order_keys.OrderIdentityUnavailable:
+        logger.warning(json.dumps({'event': 'review_native_check_unavailable',
+                                   'referenceId': reference_id, 'requestId': request_id}))
+
     if contact and invoice_id:
-        _request_review_on_whatsapp(invoice_id, contact, originating_phone_id,
-                                    reference_id, request_id)
+        if native:
+            logger.info(json.dumps({'event': 'review_request_skipped_native',
+                                    'referenceId': reference_id, 'requestId': request_id}))
+        else:
+            _request_review_on_whatsapp(invoice_id, contact, originating_phone_id,
+                                        reference_id, request_id)
 
     logger.info(json.dumps({'event': 'post_payment_complete', 'paymentId': payment_id,
                             'invoiceId': invoice_id, 'invoiceDelivered': delivered,
@@ -2743,7 +2772,7 @@ def _handle_refund(event_type: str, event_data: Dict, request_id: str) -> None:
                 },
             )
         except Exception as e:
-            if 'ConditionalCheckFailedException' in str(e):
+            if order_keys.is_conditional_failure(e):
                 logger.info(json.dumps({
                     'event': 'refund_status_not_applied', 'paymentId': payment_id,
                     'refundId': refund_id,
@@ -2863,7 +2892,7 @@ def _store_settlement_record(settlement_id: str, amount_paise: int, settlement: 
                   'createdAt': Decimal(int(time.time()))},
             ConditionExpression='attribute_not_exists(id)')
     except Exception as e:  # noqa: BLE001
-        if 'ConditionalCheckFailedException' in str(e):
+        if order_keys.is_conditional_failure(e):
             logger.info(json.dumps({'event': 'settlement_record_exists',
                                     'settlementId': settlement_id, 'requestId': request_id}))
             return

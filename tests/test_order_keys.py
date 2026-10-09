@@ -108,11 +108,31 @@ def test_invalid_reference_ids_are_rejected(value):
 
 
 def test_the_legacy_order_number_can_never_be_a_reference_id():
-    """This is *why* the two identifiers are separate: 46 chars, with spaces and colons."""
-    from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
-    number = _generate_wd_order_number('2026-02-22T18:00:00Z')
+    """Why the two identifiers are separate: 47 chars, with spaces and colons.
+
+    Pinned as a LITERAL rather than taken from the generator. The generator no longer emits
+    this shape - FEAT-005 moved it to `WD-ORD-` + 8 - and the string above is a historical
+    fact about numbers already issued, which is what has to keep being rejected.
+    """
+    number = 'WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST'
     assert len(number) > order_keys.META_REFERENCE_ID_MAX_LENGTH
     assert not order_keys.is_valid_meta_reference_id(number)
+
+
+def test_a_current_order_number_is_meta_valid_and_still_must_not_be_a_reference():
+    """The sensitivity companion, and the reason length was never the real protection.
+
+    A current number is 15 characters of permitted charset, so `is_valid_meta_reference_id`
+    answers True for it as a STRING - which is exactly why the refusal lives in
+    `is_wd_order_number` and in `outbound-whatsapp._sanitize_reference_id`, not in a length
+    check. An order number is not a payment reference regardless of whether Meta would take
+    the bytes.
+    """
+    from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
+    number = _generate_wd_order_number('2026-02-22T18:00:00Z')
+    assert order_keys.is_valid_meta_reference_id(number)
+    assert not number.startswith(order_keys.REFERENCE_ID_PREFIX)
+    assert order_keys.is_wd_order_number(number)
 
 
 def test_assert_valid_reference_never_truncates():
@@ -523,16 +543,24 @@ def test_no_reservation_row_carries_a_ttl(table):
 # ════════════════════════════════════════════════════════════════════════════
 
 def test_is_wd_order_number_matches_the_format_actually_generated():
-    """The original defect: `startswith('WD-ORD-')` is False for every number ever generated,
-    because the generator emits a SPACE at index 6."""
+    """The predicate must match whatever the generator emits TODAY.
+
+    The original defect was `startswith('WD-ORD-')` against a generator that emitted a SPACE
+    at index 6. FEAT-005 moved the generator to the current `WD-ORD-` + 8 form, so the shape
+    being matched is now the prefixed one - and a hex-only tail pattern would have missed it,
+    which is the second half of the same defect pointing the other way.
+    """
     from lambda_utils.ecommerce.wix_domain import _generate_wd_order_number
     number = _generate_wd_order_number('2026-02-22T18:00:00Z')
-    assert not number.startswith('WD-ORD-'), 'format changed; this test is now stale'
+    assert order_keys.is_current_public_order_number(number), \
+        'format changed; this test is now stale'
     assert order_keys.is_wd_order_number(number)
 
 
-def test_is_wd_order_number_also_matches_the_compact_order_table_format():
+def test_is_wd_order_number_also_matches_the_two_legacy_spellings():
+    """Still True for history, which is the half FEAT-005 must not touch."""
     assert order_keys.is_wd_order_number('WD-ORD-A1B2C3D4')
+    assert order_keys.is_wd_order_number('WD-ORD - A1B2C3D4 - 22-02-2026 - 23:30:00 - IST')
 
 
 @pytest.mark.parametrize('value', ['', 'WD-ORD', 'ORD-A1B2C3D4', 'WD-PAY-A1B2C3D4', None])
