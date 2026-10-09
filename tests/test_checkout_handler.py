@@ -608,3 +608,72 @@ def test_handler_never_calls_post_paid_order_keys(env):
         assert post_paid not in source, f"checkout must not call {post_paid}"
     # It DOES use the pre-payment reservation.
     assert 'allocate_payment_reference' in source
+
+
+# ── A2.5: only WABA1 may take a payment on the native catalog-service leg ─────
+#
+# The refusal is asserted TOGETHER WITH the absence of `nativePrepareClaim`, because the two are
+# one guarantee rather than two. `nativePrepareClaim` is written `attribute_not_exists`-
+# conditional, so a claim left behind by a refused preparation is not recoverable by the customer
+# retrying: the retry answers CATALOG_SERVICE_RECONCILIATION_REQUIRED and needs a human. A test
+# that checked only the outcome would still pass with the gate moved below the claim, and that is
+# precisely the regression that matters.
+
+#: WABA2's phone id, per `amplify/functions/shared/config.ts` `PHONE_NUMBER_ID_2`. The sender
+#: resolver can legitimately return it; `PAYMENT_SENDERS` does not permit it to collect.
+WABA2_SENDER = 'phone-number-id-waba-t-direct-1055232054343117'
+
+
+def _seed_preparing_session(fake, *, phone_number_id):
+    """A session row at exactly the state `_native_catalog_service` prepares from.
+
+    `expiresAt` is far future so the staleness branch above the sender check cannot be what
+    refuses, and `paymentAttemptId` is absent so the ALREADY_PREPARED branch cannot be either.
+    Without both, this test would pass for the wrong reason.
+    """
+    row = dict(CATALOG_SESSION)
+    row.update({'phoneNumberId': phone_number_id,
+                'customerId': CUSTOMER,
+                'serviceIntentId': 'INTENT-TEST',
+                'status': 'PREPARING_PAYMENT',
+                'expiresAt': 4070908800})
+    fake.Table(KEYS_TABLE).put_item(Item=row)
+    return row
+
+
+def test_waba2_cannot_prepare_a_native_service_payment_and_leaves_no_claim(env):
+    """A WABA2 session is refused by name, and the one-shot claim is NOT written.
+
+    `_get_aws_phone_number_id` only ever produces the WABA1 id today, so this shape does not
+    occur in production - it guards against WABA2, which the sender resolver can legitimately
+    return and which may never collect.
+    """
+    h, fake, lam, monkeypatch = env
+    monkeypatch.setenv('WHATSAPP_CATALOG_SERVICES_ENABLED', 'true')
+    monkeypatch.setattr(h.wix_writeback, 'is_enabled', lambda: True)
+    _seed_preparing_session(fake, phone_number_id=WABA2_SENDER)
+
+    result = h._native_catalog_service(
+        {'internalAction': 'prepareNativeCatalogService',
+         'catalogToken': 'tok-abcdefghijklmnopqrst'}, 'http://localhost:3000')
+
+    assert result == {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
+    row = fake.Table(KEYS_TABLE).get_item(Key={'orderId': CATALOG_SESSION['orderId']})['Item']
+    assert 'nativePrepareClaim' not in row, 'a refused preparation must leave no claim behind'
+    # Refused before the identity reads, the Meta readiness invoke and any attempt row.
+    assert lam.invocations == []
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+def test_the_sender_refusal_precedes_the_claim_in_source_order():
+    """Structural, because POSITION is what makes "no claim on refusal" true rather than
+    incidental. A gate moved below the claim would still refuse, and would still strand the
+    session on a claim the customer's retry cannot clear.
+
+    Both needles are the executable statements, not the comments that discuss them, so moving the
+    check while leaving its rationale comment in place cannot satisfy this.
+    """
+    source = _HANDLER_PATH.read_text()
+    check = source.index('not in wa_payment_request.PAYMENT_SENDERS')
+    claim = source.index('SET nativePrepareClaim=:claimed')
+    assert check < claim, 'the WABA1-only refusal must come before the one-shot claim write'
