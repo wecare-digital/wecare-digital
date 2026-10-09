@@ -693,8 +693,7 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
             const items = valid.map( it => ( { name: it.name.trim(), amount: Math.round( parseFloat( it.amount ) * 100 ), quantity: parseInt( it.quantity ) || 1, gstRate: parseInt( it.gstRate ) || 0 } ) );
             const tax = items.reduce( ( s, i ) => s + Math.round( i.amount * i.quantity * ( i.gstRate || 0 ) / 100 ), 0 );
             const r = await api.sendWhatsAppPaymentMessage( {
-                contactId, phoneNumberId: payPhone,
-                referenceId: `WD-PAY-${Date.now()}`,
+                contactId, customerPhone: replyTarget.phone, phoneNumberId: payPhone,
                 items,
                 discount: Math.round( parseFloat( payPromo || '0' ) * 100 ),
                 delivery: Math.round( parseFloat( payDelivery || '0' ) * 100 ),
