@@ -253,10 +253,14 @@ def test_an_out_of_stock_variant_is_reported_out_of_stock(desired):
     assert all(i["availability"] == sync.OUT_OF_STOCK for i in services)
 
 
-def test_an_imageless_product_has_NO_image_url_key(desired):
+def test_an_imageless_product_has_NO_image_url_key():
     """Absent rather than empty. An empty string on an update reads to Meta as "clear the image",
     which is a different instruction from "I have nothing to say about the image"."""
-    assert all("image_url" not in item for item in desired)
+    items = sync.desired_items([{
+        "id": TEST_PRODUCT, "slug": "imageless", "name": "Imageless", "price": "1.00",
+        "variants": [{"id": TEST_VARIANT, "label": "Standard", "inStock": True}],
+    }])
+    assert all("image_url" not in item for item in items)
 
 
 def test_an_image_is_carried_through_when_the_row_has_one():
@@ -460,24 +464,23 @@ EXPECTED_BLOCKED = [
     "Paperwork",
     "Referral Partner",
     "Viveka",
-    "WECARE.DIGITAL Services",
     "\u20b91 test product",
 ]
 
 
-def test_every_real_product_is_blocked_today_because_none_has_an_image(desired, products):
+def test_remaining_imageless_products_are_blocked_but_service_artwork_is_ready(desired, products):
     """Meta commerce review rejects an imageless item, so this is the state of the catalogue
     rather than a defect in the plan. Reported in full; no placeholder is invented.
 
-    Ten names for 24 items: media belongs to the Wix PRODUCT and all its variants share it, so
-    reporting per item would name the same ten things twice over.
+    The four service choices gained verified artwork on 9 October. Other missing
+    product images remain explicit blockers; no placeholder is invented.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
-    assert len(EXPECTED_BLOCKED) == 10
+    assert len(EXPECTED_BLOCKED) == 9
 
     syncable = [p for p in products if sync.is_syncable(p)]
     assert len(syncable) == 10
-    assert all(p.get("mediaCount") == 0 for p in syncable), (
+    assert all(p.get("mediaCount") == (4 if p["slug"] == "wecaredigital-services" else 0) for p in syncable), (
         "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening this")
 
 

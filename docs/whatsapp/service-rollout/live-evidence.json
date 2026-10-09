@@ -22,11 +22,12 @@
     }
   ],
   "tests": {
-    "focusedPythonPassed": 269,
+    "focusedPythonPassed": 277,
     "typecheck": "passed",
     "websiteBuild": "passed",
     "customerPurchase": "not performed",
-    "additionalRoutingChecksPassed": 79
+    "additionalRoutingChecksPassed": 79,
+    "catalogSnapshotTestsPassed": 93
   },
   "artwork": {
     "bucket": "wecare-digital-get",
@@ -35,7 +36,11 @@
     "pngHeadVerified": 6,
     "publicCdnHead200": 6,
     "svgUploaded": 6,
-    "wixOrMetaAssignment": "pending"
+    "wixOrMetaAssignment": "Wix four service choices assigned; Meta blocked",
+    "wixMediaManagerUploaded": 6,
+    "wixServiceChoiceAssignmentsVerified": 4,
+    "wixVariantIdsAndPricesPreserved": true,
+    "wixCdnHead200": 6
   },
   "qa": {
     "contactExists": true,
@@ -57,7 +62,9 @@
     ],
     "deleted": [],
     "freshCreated": false,
-    "sdkDisconnect": "pending explicit updated confirmation"
+    "sdkDisconnect": "pending explicit updated confirmation",
+    "readOnlyInspect": "read_failed; applied 0",
+    "wixWebhookDelivery": "received; catalog sync read_failed"
   },
   "flows": {
     "submitRequestPaid": {
@@ -82,10 +89,16 @@
     "Approve concrete permanent-deletion targets at action time",
     "Create and share fresh catalog after authorized cleanup",
     "Persist owner approval queue and actions for new or changed catalog entries",
-    "Assign artworks to four Wix service variants and approved catalog entries",
+    "Assign artworks to approved Meta catalog entries; Wix assignment complete",
     "Validate amendment and document draft ownership and fulfillment",
     "Enable native services only after writeback and payment prerequisites pass",
     "Run real customer Submit Request and Vault QA",
     "Reconcile legacy unlinked orders and legacy public upload originals"
-  ]
+  ],
+  "website": {
+    "keywordDeploymentJob": "1488",
+    "keywordDeploymentStatus": "SUCCEED",
+    "keywordDeploymentCommit": "c2cfa741b35a881813667edde307610a71604952",
+    "artworkSnapshotDeployment": "awaiting next source build"
+  }
 }
