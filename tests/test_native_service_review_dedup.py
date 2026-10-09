@@ -72,6 +72,14 @@ PAYMENT_ID = "pay_LIVE0000000001"
 CONTACT = "+910000000000"
 REQUEST = "req-review-dedup-1"
 
+# The customer's ORIGINAL order, which a Submit Request is now frozen against: `request_intent`
+# refuses a SUBMIT_REQUEST whose `original_order` is not a dict owned by the caller carrying both
+# an order id and a payment reference. It is NOT the service order `pay()` seeds below - a Submit
+# Request is bought against an earlier purchase, and the two order ids stay separate.
+ORIGINAL_ORDER = {"orderId": "order-parent-review-dedup-1", "customerId": ALICE,
+                  "referenceId": "WD-PAY-REF00000000900",
+                  "orderNumber": "WD-ORD-PARENT01"}
+
 
 def _load_webhook():
     """The real webhook handler, BY PATH under a unique module name, with no AWS at import."""
@@ -149,7 +157,8 @@ class _Purchase:
     def __init__(self, *, native: bool, submitted: bool) -> None:
         self.requests = RequestTable()
         self.keys = KeysTable()
-        intent = store.request_intent(self.requests, who(), "SUBMIT_REQUEST")
+        intent = store.request_intent(self.requests, who(), "SUBMIT_REQUEST",
+                                      original_order=ORIGINAL_ORDER)
         self.reference_id, self.attempt_id, self.order_id = pay(self.keys, intent)
         if native:
             # Written by `checkout` into the `extra` of `allocate_payment_reference`. The webhook
