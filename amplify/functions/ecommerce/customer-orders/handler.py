@@ -233,45 +233,10 @@ def _unowned(row: Dict[str, Any]) -> bool:
 
 
 def _profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:
-    """The customer's own contact summary, or `None`. Never raises.
+    """Return personal fields only for an exact permanent customer owner.
 
-    THE WHOLE STEP IS INSIDE ONE `try`, not just the query, and that is not tidiness.
-    `dynamo_reads.query_index` raises `ValueError` BEFORE it reaches `table.query` when the key is
-    blank, and `identity.phone` is not guaranteed to be a phone - so a narrower `try` around the
-    query alone would let that escape to the catch-all 500 and lose an order list that was
-    already correct. The profile is a card beside the list; the list is the answer.
-
-    The index lookup is on the phone, which is not an authorisation key: `phone-index` is
-    hash-only and two rows can share a number (a soft-deleted one and its replacement, which is
-    why both existing copies take `Limit=5` and scan the page). The AUTHORISATION is the
-    `checkoutCustomerId` comparison, and it is a legitimate predicate here rather than the
-    weakness it would be on the order list, because this resolves ONE row to accept or reject -
-    rejecting it yields no profile, never another customer's row.
-
-    AN UNOWNED ROW IS ADOPTED FOR READING, exactly as `checkout._unowned` already does. Only the
-    checkout path writes `checkoutCustomerId`, so a CRM-created contact carries none, and
-    demanding one made a customer who already exists in the CRM see no profile at all on
-    `/orders` - while `ecommerce/checkout` and `auth/customer-profile`, reading the SAME row off
-    the same index, both accepted it. Three readers, two answers, and this was the odd one out.
-
-    READ-ONLY ADOPTION. This function does not stamp the claim, and must not: that is an
-    `UpdateItem` on ContactsTable and this role holds `dynamodb:Query` on the phone index and
-    nothing else, so a write from here would fail with AccessDenied at runtime where no test
-    would see it. `auth/customer-profile` already emits `checkoutCustomerId` on every save and
-    holds the grant to do it. The role is unchanged by this relaxation, which is why its IAM
-    equality tests still pass untouched.
-
-    A ROW OWNED BY A DIFFERENT CUSTOMER IS STILL REFUSED, so this cannot read across customers,
-    and an OWNED row still wins over an unowned one - otherwise a session with its own row could
-    adopt a stray unowned duplicate on the same number and show the wrong name.
-
-    The predicate is deliberately WEAKER than `checkout`'s "ready to pay" (which also demands
-    `emailVerifiedAt` and a non-empty email): a customer with real order history and an
-    unverified email must still see their own name and address. `emailVerified` therefore travels
-    on the wire, because the identity card renders a verified badge beside the email and has to be
-    told when that badge would be a lie. Relaxing ownership does NOT relax that: adopting a row on
-    a phone match says "this row is about me", never "its email is proven", and the badge still
-    reports what the row actually carries.
+    A normalized phone locates candidates; it does not authorize legacy adoption.
+    Profile failure must not discard an independently authorized order history.
     """
     try:
         phone = _profile_phone(identity)
@@ -284,12 +249,8 @@ def _profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any
             key_name="phone", value=phone, limit=5,
         )
         live = [row for row in rows if row.get("deletedAt") is None]
-        # Two passes rather than one scored loop, because the precedence is the security
-        # property: an owned row is preferred, and an unowned one is only ever a fallback.
         owned = next((row for row in live
-                      if str(row.get("checkoutCustomerId") or "") == identity.customer_id), None)
-        if owned is None:
-            owned = next((row for row in live if _unowned(row)), None)
+                      if identity.customer_id and row.get("checkoutCustomerId") == identity.customer_id), None)
         if owned is None:
             return None
         first_name = str(owned.get("firstName") or "")
