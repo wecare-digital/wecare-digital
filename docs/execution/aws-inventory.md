@@ -57,7 +57,7 @@ Alias read errors: 0
 - **zllr9lrg7j** `wecare-digital-api` — 384 routes, 1 authorizers, stages: ['prod']
   - authorizer `workspace-mcp-staff` (JWT) ['$request.header.Authorization']
 
-Routes with an authorizer attached: **2**
+Routes with non-`NONE` authorization: **2** (one JWT authorizer and one AWS IAM route)
 
 - `ANY /workspace/mcp` — JWT
 - `POST /workspace/mcp-iam` — AWS_IAM
