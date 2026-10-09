@@ -3451,6 +3451,7 @@ Owner explicitly requested short Submit Request/Vault catalog copy and repair of
 
 | 2026-10-09 | A3_PRODUCTION / owner-authorized Wix product media | Site c993128b-26be-41cd-9fcd-904abe23462f, product df976a0a-f582-4535-b2e1-d532f348bd27 | Six artworks imported; four gallery images and four existing choice references assigned, all 4096px. Returned before/after variant IDs and prices match exactly. Revision 5 uses short customer description. Catalog read-only verification returned applied 0/read_failed. | Existing variant identities and stock preserved; media/choice references are reversible from Wix revision history. |
 
+| 2026-10-09 | A1_LOCAL / bounded A3 draft preview | Vault repayment/retry protection, private Drop Docs ownership proof and new Orders read/help screens | Owner requested all customer service tasks. No charge, actual customer send, secret retrieval, provider/payment configuration or published Flow change. Meta Orders draft 2167802357142172 validates without errors. Unaliased executor 84 overlays only fixed draft helper/asset over verified live83 hash3HYGs+lmmpdjY7Gg7Uyx+Fk4pF8tgvB/VhBYuDtZwwI=. Live alias not changed. | Source rollback by named-path forward revert; Orders draft remains unpublished and unrouted. Live83 remains the baseline; do not apply whole old package over concurrent work. |
 
 ## 2026-10-09 — scoped push CI follow-up
 
@@ -3478,3 +3479,86 @@ braces3.0.3 (no fixed version listed). No blanket override or false exposure cla
 ZIP/config/readback and alert evidence is in codex-audit-evidence-20261009.json.
 
 Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope checks passed; workflow YAML parsed and actual 53ed298e→724dcc38 scope returned deploy=false. All 9 workflows for 724dcc38 succeeded.
+
+
+### Customer-service continuation release — 2026-10-09
+
+- A1: Orders/profile/invoice-copy and CRM queue changes, focused offline tests, final Python gate 10,319 passed / 7 skipped / 3 expected failures; frontend 1,597 passed / 2 skipped, TypeScript and production build pass. Invoice copy reuses an existing owned invoice and IMAGE template, no financial writes, no actual customer send in verification.
+- A3: business API live 87 -> 88; hash `ATFBwztpvFTaMziX3NNIvPyfc7Z2W8rIM3R+A6hfX88=`. Exact overlaid ZIP import validated, unauthorized HTTP candidate invocations return 403 with no FunctionError. Orders draft 2167802357142172 re-uploaded with eight screens, zero Meta validation errors, endpoint retained; still DRAFT, customer routing off. Immediate rollback 87; original feature baseline 83.
+- A3: secure-files live 34 read back with hash `6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=`; service-requests live 5 hash `mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=`. Secure-files IAM adds only `PrivateIncomingOwnershipProof`, GetItem on exact MessagesTable/ContactsTable; source provisioner matches. Rollbacks 32/4 respectively; remove only that SID if required.
+- A3: catalog-sync live 6 -> 7, code unchanged hash `9Nrpq65Z1Cd5ANxpCdTiHdylN9lijITni+ruPbCiKn4=`. Revision-guarded full environment read/modify/write preserved all 10 variables and all secret references; only catalog ID, enabled/dry-run and four-variant scope changed. New target 1457045652952851, enabled false, dry-run true, existing out-of-stock hold retained. Candidate inspect returns ok/readOnly, four creates proposed, blocked [], existing [], applied 0. No Meta products written. Rollback 6 reintroduces the old catalog target; use only for an actual rollback.
+- Concurrent checkout live 41 discovered on final read; it was not overwritten. Native-service, dynamic Vault and Wix writeback live flags remain absent; secure attachment remains false. End-to-end payment/customer delivery remains unverified. No provider secret values, captures, refunds, or synthetic Purchase events were used.
+
+- A2 final integration: merged origin/stack 4e259800 without conflict or overwrite; merged-tree Python gate 10,332 passed / 7 skipped / 3 expected failures. Frontend/build unchanged by the merge; prior final UI 1,597 passed / 2 skipped and static build pass remain applicable.
+
+### Master execution prompt audit update — 2026-10-09
+
+- A0: fresh origin/stack d03ac81d; nine scoped Lambda hashes/configs, seven table schemas, IAM/private CDN, Meta/Wix read-only inventory, QA linkage and Amplify1502 reread. No secrets, synthetic events, customer messages or financial writes.
+- A1: legacy raw diagnostic regression reproduced; handler route returns410 to list/check, two GET/POST tests added. Full Python10334/7 skipped/3 xfailed, focused165, frontend1597/2 skipped, typecheck pass, lint0 errors/190 existing warnings, production build pass after transient blog503 retry. Five current reports and updated master prompt added; older root evidence archived rather than silently discarded.
+- A3: verified live88/ATFBwztpvFTaMziX3NNIvPyfc7Z2W8rIM3R+A6hfX88=; candidateZIP changes handler.py only. Uploaded secure/deployments/master-audit-20261009/business-api-diagnostic-v1.zip; revision-guarded update/publish89 and alias88→89. New hash r+k6k2WhMDaNbYzFfax39Zi/1e/ckqg8ad891fvCu3E=. Candidate raw410/list200/check200/unauthorized HTTP401; live raw410. Rollback88 with freshly read alias revision; no release flags or provider settings changed.
+- Overall PARTIALLY COMPLETE. Engineering queue/action/recovery/ingestion/writeback gaps remain before actual owner-paid QA. Native checkout remains closed.
+
+### Vault implementation handoff follow-up — 2026-10-09
+
+- A0/A1: source e9e377ce revalidated against origin; read current Business89/Secure Files34/checkout41 safe settings/hashes, three approved template contracts and DownloadGrantsTable TTL. No secret retrieval, financial/customer send/identity write, flag enablement or deployment.
+- Source confirms consumed-before-download and no renewable paid catalog/web access; legacy single-use URL/window wording and bounded TTL drift recorded as pending. Added V1–V9 implementation contract and complete new-session prompt; updated current audit/architecture/state/migration/payment/handoff records without claiming implementation.
+- Verification:121 existing targeted offline tests pass; documentation diff/JSON/link checks. Prior full gates/CI/Amplify1503 remain preceding source evidence. No new production rollback required.
+
+### Explicit owner-requested Flow deprecation —2026-10-09
+
+- Owner directly authorized retiring every Flow outside the plan. A0 full paginated inventory59 across two WABAs; retained six exact planned IDs; nine obsolete published targets selected. Eighteen unused drafts left unpublished because deprecation is not draft deletion.
+- A1/A3: correct Meta /deprecate endpoint with owning-WABA context and bounded pagination; focused135/full10339 passed,7 skipped,3 xfailed. Business89→90 revision-guarded, exact handler-only overlay hash pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI=, code rollback89. Unauthorized HTTP401.
+- Explicit provider operation: ninePOSTdeprecations200 and fresh readbackDEPRECATED. After2PUBLISHED/22DRAFT/35DEPRECATED. No secrets/customer sends/payments/new publication/draft deletion or release flags. No bulk registry sync. Meta deprecation is not reversed by code alias rollback; replacement requires verified migration.
+- Source audit retains pending legacy Subscribe/Profile/UI references; not certified routing cleanup. Evidence outputs/flow-retirement-2026-10-09.json/.md; master/new-session handoffs updated.
+
+## Workspace correctness continuation — 9 October 2026
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | origin/stack a6c74df7 | Refreshed latest source; existing schedule cancellation and system-health fixes retained | Read only |
+| A1_LOCAL | codex/workspace-correctness-20261009 | Require configuration acknowledgement/read-back and truthful UI errors; remove fabricated billing fallback; 24 targeted and1585 full frontend tests pass; TypeScript passes; lint zero errors | Revert scoped source/test commit |
+| A2_REMOTE_CODE | Separate feature branch and PR | Explicit paths only; no production provider/auth/payment/infrastructure changes | Revert PR commit |
+
+## ChatGPT Vault V1/V2 production update — 2026-10-09 11:04 UTC
+
+Status: **PARTIALLY COMPLETE** — Vault V1/V2 engineering is deployed; real owner/customer payment and recovery QA is still required before customer-facing gates may open.
+
+- Source checkpoint before handoff docs: `3b9faffd3686c0c5be51a8f046592a8c4680087c`.
+- Implemented durable non-TTL `VAULT_ENTITLEMENT` records, separate TTL `VAULT_DOWNLOAD_SESSION` records, lazy migration of historical paid/consumed grants, website **Download / Refresh Access**, and native paid-file refresh routing.
+- Transport expiry/interruption no longer consumes the financial purchase; every refresh rechecks permanent customer identity, file ownership/status and active entitlement.
+- Verified-payment finalization now creates/links entitlement once. Duplicate webhook/idempotency behavior remains pinned by tests.
+- Vault review invitation moved from payment/notification time to the first authenticated download-session milestone and uses persisted `vaultReviewStatus` duplicate suppression.
+- Production deploy: `wecare-secure-files` **v35**, SHA `TsxFbPJSg+w+LQ6FOKJfvb/HP5j6x0Ldx/4Fk5e9yF0=`, rollback **v34**; `wecare-whatsapp-business-api` **v92**, SHA `vdj3fItIrPi3Hb3x4PthvTDpyC01yDVG88cwtx+pFfQ=`, rollback **v91**. Both `live` aliases match `$LATEST`, State Active, LastUpdateStatus Successful.
+- Release controls remain closed: `SECURE_FILES_PAYMENT_ENABLED=false`; `VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED`, `WHATSAPP_CATALOG_SERVICES_ENABLED`, `WIX_WRITEBACK_ENABLED`, `WIX_ECOM_WRITE_CONFIRMED` unset.
+- Tests: full Python **10,376 passed / 7 skipped / 3 xfailed**; focused Vault deploy suite **124 passed**; frontend **126 files / 1,607 passed / 2 skipped**; production build and typecheck PASS; lint **0 errors / 191 warnings**. The known Contact map check remains report-only at 12/13.
+- Fresh live provider readback after deploy: Submit Flow `1107164111921876` PUBLISHED; templates `wecarepay_wa` `1783774039408860`, `wecare_default_download` `1410998911012572`, and `wecare_leave_review` `1801972550682516` all APPROVED. Download URL contract remains `https://wecare.digital/vault/?file={{1}}` with authoritative `fileId`.
+- Fresh Wix V3 readback: product `df976a0a-f582-4535-b2e1-d532f348bd27` revision 5; Submit ₹99 `e9f0...`, Amendment ₹99 `864f...`, Drop Docs ₹350 `db166...`, Vault ₹49 `dcff...`, all visible/in stock.
+- No real customer message or payment was sent in this implementation session. Owner QA must prove ₹49 settlement → canonical order/Wix where enabled → entitlement → authenticated download → expiry/interruption → refresh with **no second charge** before opening customer-facing release gates.
+
+
+
+## ChatGPT Orders/catalog production update — 2026-10-09 12:50 UTC
+
+Status remains **PARTIALLY COMPLETE**. Vault V1/V2 remains deployed and closed for owner QA; this phase deployed the next backend-only increments without opening customer-facing gates.
+
+- Current reconciled source checkpoint before this documentation update: `8109471f74e09dcef4958d34343f9ca923ac740a`.
+- Orders/customer profile: backend-owned contextual actions and owner-scoped support handling are now deployed in `wecare-whatsapp-business-api:live` **v93**, SHA `erEMzmiJg7rNjwU1iTb+vR1aEQ4FDTjqfAfSW5lujAQ=`; rollback **v92**.
+- Meta catalog sync: exact approved-plan hash interlock is deployed in `wecare-meta-catalog-sync:live` **v8**, SHA `he0Y8MPVNwBY4r2dZnD5cEEvIfkwVHsd6j+kUex4fNQ=`; rollback **v7**. Runtime remains fail-closed: `META_CATALOG_SYNC_ENABLED=false`, `META_CATALOG_SYNC_DRY_RUN=true`, `META_CATALOG_SYNC_FORCE_OUT_OF_STOCK=true`, approval hash unset.
+- Fresh Meta readback through live Business API: Submit Flow `1107164111921876` PUBLISHED with validation_errors=[]; `wecarepay_wa` `1783774039408860`, `wecare_default_download` `1410998911012572`, and `wecare_leave_review` `1801972550682516` remain APPROVED. Orders `2167802357142172`, Amendment `3678132465672138`, Drop Docs `1211063631104445`, Shipments `849713848195607` remain DRAFT with validation_errors=[].
+- Fresh Wix Catalog V3 readback: product `df976a0a-f582-4535-b2e1-d532f348bd27` revision 5, visible/in stock. Exact variants/prices confirmed: Submit ₹99 `e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b`; Amendment ₹99 `864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b`; Drop Docs ₹350 `db166bc8-a763-41ec-9f65-0f718f18155a`; Vault ₹49 `dcff995e-448c-493a-9259-f6a82ccdc2b4`.
+- Deployment was preceded by focused regression tests in the one-shot workflow; the deployment completed SUCCESS. Temporary workflow and exact-scope OIDC role were deleted afterward.
+- Customer release remains closed. No real customer payment, send, Flow publication, Meta catalog item write, Wix order writeback, or synthetic Purchase event was performed.
+
+
+## ChatGPT durable catalog approval control — 2026-10-09 13:05 UTC
+
+Status remains **PARTIALLY COMPLETE**. This phase completed the catalog proposal/approval control plane without opening catalog sales or writing a Meta item.
+
+- Business API production: **v94**, SHA `iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=`; rollback v93.
+- Meta catalog sync production: **v9**, SHA `cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=`; rollback v8.
+- New authenticated Workspace routes: `GET /wa-business/catalog-sync` (route `ktbob4d`) and `POST /wa-business/catalog-sync` (route `aqr2wkn`), both reusing the existing Business API live integration. Application auth revalidates Cognito Admin and configured Admin MFA; anonymous smoke returned HTTP 401.
+- Durable exact-plan records use existing `stack-wecare-digital-AgentApprovalsTable` with namespaced key `META_CATALOG_SYNC#<sha256>`. Catalog rows omit `expiresTtl`; the Lambda role has only GetItem/PutItem/UpdateItem on that table. Scan/Delete remain denied.
+- Background schedule/webhook executions cannot spend an approval. Apply requires an explicit Admin action, exact current plan, durable APPROVED state, enabled=true and dryRun=false.
+- Live read-only plan: hash `19b8290495af210b94d819d2bdd3640805bd770fa640d6bb46cda46ae31064d5`; create=4, update=0, retire=0, foreign=0, blockers=[]; all desired items held out of stock.
+- Release controls remain closed: enabled=false, dryRun=true, force-out-of-stock=true. Approval table item count remained 0 after smoke tests. No proposal, approval, Meta item write, Wix write, payment, customer send or synthetic event was performed.
+- Focused backend security tests, TypeScript and focused Workspace tests passed before deployment. The one-shot deploy workflow and temporary OIDC role were deleted after successful verification.

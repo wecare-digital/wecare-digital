@@ -59,10 +59,16 @@ def test_file_bound_intent_and_one_grant_per_verified_purchase(vault_env):
     assert row['kind']=='VAULT' and row['amountPaise']==4900
     assert file['ownerCustomerId']==ALICE
     assert grant['orderId']==event['orderId'] and grant['paid'] and not grant['consumed']
+    entitlement_id='vault-entitlement#'+ALICE+'#'+file['fileId']
+    assert grant['entitlementId']==entitlement_id
+    assert grants.rows[entitlement_id]['recordType']=='VAULT_ENTITLEMENT'
+    assert grants.rows[entitlement_id]['entitlementState']=='ACTIVE'
+    assert 'expiresAt' not in grants.rows[entitlement_id]
     assert files.rows[file['fileId']]['vaultAccessGrantId']==grant['grantId']
+    assert files.rows[file['fileId']]['vaultEntitlementId']==entitlement_id
     assert files.rows[file['fileId']]['vaultPaymentStatus']=='PAID'
     assert vault.grant_access(requests,keys,files,grants,event)[2]['grantId']==grant['grantId']
-    assert len(grants.rows)==1
+    assert len(grants.rows)==2
 
 
 @pytest.mark.parametrize('damage',['unpaid','wrong_order','foreign_file','revoked'])
@@ -96,6 +102,17 @@ def test_different_file_changes_intent_before_payment(vault_env):
     assert requests.rows['INTENT#'+b['intentId']]['vaultFileId']=='file-2'
 
 
+@pytest.mark.parametrize('paid_field', ['vaultPaymentStatus', 'vaultAccessGrantId'])
+def test_paid_file_cannot_create_a_new_purchase_intent(vault_env, paid_field):
+    requests, _, files, _, _ = vault_env
+    file = copy.deepcopy(files.rows['file-1'])
+    file[paid_field] = 'PAID' if paid_field == 'vaultPaymentStatus' else 'existing-grant'
+    before = copy.deepcopy(requests.rows)
+    with pytest.raises(store.ServiceRejected, match='VAULT_ALREADY_PAID'):
+        store.request_intent(requests, who(), 'VAULT', vault_file=file)
+    assert requests.rows == before
+
+
 @pytest.mark.parametrize('open_window',[True,False])
 def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_module,monkeypatch,open_window):
     module=importlib.import_module('flows.paid_vault')
@@ -118,13 +135,40 @@ def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_m
     assert module.prepare_and_send(event,client)['outcome']=='VAULT_READY'
     assert module.prepare_and_send(event,client)['outcome']=='VAULT_READY'
     assert sent[0]['templateName']=='wecare_share_pdf'
-    assert sent[-1]['templateName']=='wecare_leave_review'
-    assert sent[-1]['flowButton']['index']==0
-    assert len(sent)==(3 if open_window else 2)
+    assert all(message.get('templateName')!='wecare_leave_review' for message in sent)
+    assert len(sent)==(2 if open_window else 1)
     if open_window: assert sent[1]['mediaType']=='document' and sent[1]['mediaFile']=='secure/d/report.pdf'
 
 
-def test_failed_ready_notification_does_not_send_review(vault_env,flow_module,monkeypatch):
+def test_vault_review_is_due_after_access_and_deduplicated(vault_env,flow_module,monkeypatch):
+    module=importlib.import_module('flows.paid_vault')
+    requests,keys,files,grants,event=vault_env
+    row, _file, _grant = vault.grant_access(requests,keys,files,grants,event)
+    requests.rows[row['requestId']]['paidAt']=int(time.time())
+    contacts=FakeTable(key_attr='id',name='contacts',indexes={'phone-index':('phone',None)})
+    contacts.seed({'id':'c','phone':'+910000000000','checkoutCustomerId':ALICE})
+    tables={requests.name:requests,'stack-wecare-digital-ContactsTable':contacts}
+    db=Mock();db.Table.side_effect=lambda name:tables[name]
+    cognito=Mock();cognito.list_users.return_value={'Users':[{'Enabled':True,'Attributes':[
+        {'Name':'phone_number','Value':'+910000000000'},
+        {'Name':'phone_number_verified','Value':'true'}]}]}
+    monkeypatch.setattr(module.boto3,'resource',lambda *a,**k:db)
+    monkeypatch.setattr(module.boto3,'client',lambda *a,**k:cognito)
+    sent=[]
+    def invoke(**kwargs):
+        sent.append(json.loads(json.loads(kwargs['Payload'])['body']))
+        return {'Payload':io.BytesIO(json.dumps({'statusCode':200}).encode())}
+    client=Mock();client.invoke.side_effect=invoke
+    first=module.send_review({'requestId':row['requestId']},client)
+    second=module.send_review({'requestId':row['requestId']},client)
+    assert first['outcome']=='REVIEW_ACCEPTED'
+    assert second['outcome']=='REVIEW_ACCEPTED'
+    assert len(sent)==1
+    assert sent[0]['templateName']=='wecare_leave_review'
+    assert sent[0]['flowButton']=={'index':0,'flowKey':'leave_review'}
+
+
+def test_ambiguous_ready_notification_never_retries_blindly(vault_env,flow_module,monkeypatch):
     module=importlib.import_module('flows.paid_vault')
     requests,_,_,_,_=vault_env
     row={'requestId':'REQ#test'}; requests.seed(row)
@@ -132,7 +176,36 @@ def test_failed_ready_notification_does_not_send_review(vault_env,flow_module,mo
     assert not module._send_once(requests,row,'vaultNotificationStatus',client,{'templateName':'wecare_share_pdf'})
     assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
     assert client.invoke.call_count==1
-    assert requests.rows[row['requestId']]['vaultNotificationStatus']=='SEND_FAILED'
+    assert requests.rows[row['requestId']]['vaultNotificationStatus']=='SEND_UNKNOWN'
+
+
+def test_definite_send_rejection_can_retry_after_backoff(vault_env, flow_module, monkeypatch):
+    module=importlib.import_module('flows.paid_vault')
+    requests, _, _, _, _=vault_env
+    row={'requestId':'REQ#retry'}; requests.seed(row)
+    clock=[1000]; monkeypatch.setattr(module.time, 'time', lambda: clock[0])
+    client=Mock(); client.invoke.side_effect=[
+        {'Payload':io.BytesIO(b'{"statusCode":400}')},
+        {'Payload':io.BytesIO(b'{"statusCode":200}')},
+    ]
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert client.invoke.call_count==1
+    clock[0]+=31
+    assert module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert client.invoke.call_count==2
+
+
+def test_outbound_exception_records_ambiguity_without_second_send(vault_env, flow_module):
+    module=importlib.import_module('flows.paid_vault')
+    requests, _, _, _, _=vault_env
+    row={'requestId':'REQ#unknown'}; requests.seed(row)
+    client=Mock(); client.invoke.side_effect=TimeoutError('provider acceptance unknown')
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert client.invoke.call_count==1
+    assert requests.rows[row['requestId']]['vaultNotificationStatus']=='SEND_UNKNOWN'
 
 
 @pytest.mark.parametrize('verified',[True,False])
@@ -155,20 +228,68 @@ def test_http_selection_requires_verified_phone_before_binding(env,monkeypatch,v
         assert not env.requests_table.rows
 
 
-def test_vault_file_list_exposes_paid_access_only_to_permanent_owner(mod,monkeypatch):
+def test_vault_file_list_exposes_renewable_paid_access_only_to_permanent_owner(mod,monkeypatch):
     files=FakeTable(key_attr='fileId',name='files',indexes={'owner-created-index':('ownerPhone','createdAt')})
     grants=FakeTable(key_attr='grantId',name='grants')
     files.seed({'fileId':'f','ownerPhone':'910000000000','ownerCustomerId':ALICE,
                 'status':'active','createdAt':1,'vaultAccessGrantId':'g'})
-    grants.seed({'grantId':'g','fileId':'f','customerId':ALICE,'paid':True,'consumed':False})
+    # Historical paid+consumed evidence must still migrate to durable entitlement.
+    grants.seed({'grantId':'g','fileId':'f','ownerPhone':'910000000000',
+                 'customerId':ALICE,'paid':True,'consumed':True,'orderId':'o1'})
     monkeypatch.setattr(mod,'_table',lambda name:files if name==mod.FILES_TABLE else grants)
     response=mod._customer_list({'phone':'910000000000','subject':ALICE},'')
-    assert json.loads(response['body'])['files'][0]['paidGrantId']=='g'
+    body=json.loads(response['body'])
+    eid='vault-entitlement#'+ALICE+'#f'
+    assert body['files'][0]['paidEntitlementId']==eid
+    assert body['files'][0]['paidGrantId']==eid
+    assert grants.rows[eid]['recordType']=='VAULT_ENTITLEMENT'
+    assert 'expiresAt' not in grants.rows[eid]
     response=mod._customer_list({'phone':'910000000000','subject':BOB},'')
     assert json.loads(response['body'])['files']==[]
-    grants.rows['g']['consumed']=True
-    response=mod._customer_list({'phone':'910000000000','subject':ALICE},'')
-    assert 'paidGrantId' not in json.loads(response['body'])['files'][0]
+
+
+def test_paid_entitlement_can_issue_repeated_fresh_sessions_without_second_payment(mod,monkeypatch):
+    files=FakeTable(key_attr='fileId',name='files')
+    grants=FakeTable(key_attr='grantId',name='grants')
+    files.seed({'fileId':'f','ownerPhone':'910000000000','ownerCustomerId':ALICE,
+                'status':'active','s3Key':'secure/u/f.pdf','originalFilename':'f.pdf'})
+    eid='vault-entitlement#'+ALICE+'#f'
+    grants.seed({'grantId':eid,'recordType':'VAULT_ENTITLEMENT','entitlementState':'ACTIVE',
+                 'fileId':'f','ownerPhone':'910000000000','customerId':ALICE,'paidAt':1})
+    monkeypatch.setattr(mod,'_table',lambda name:files if name==mod.FILES_TABLE else grants)
+    counter={'n':0}
+    def fresh(_item, ttl=None):
+        counter['n']+=1
+        return 'https://signed.example/'+str(counter['n'])
+    monkeypatch.setattr(mod,'_download_url',fresh)
+    identity={'phone':'910000000000','subject':ALICE}
+    event={'queryStringParameters':{'grant':eid}}
+    first=mod._redeem('f',event,identity,'')
+    second=mod._redeem('f',event,identity,'')
+    a=json.loads(first['body']); b=json.loads(second['body'])
+    assert first['statusCode']==200 and second['statusCode']==200
+    assert a['downloadUrl']!=b['downloadUrl']
+    assert a['downloadSessionId']!=b['downloadSessionId']
+    assert a['entitlementId']==eid==b['entitlementId']
+    assert grants.rows[eid]['entitlementState']=='ACTIVE'
+    sessions=[x for x in grants.rows.values() if x.get('recordType')=='VAULT_DOWNLOAD_SESSION']
+    assert len(sessions)==2
+    assert all(x.get('expiresAt') for x in sessions)
+
+
+def test_revoked_file_blocks_refresh_even_with_active_entitlement(mod,monkeypatch):
+    files=FakeTable(key_attr='fileId',name='files')
+    grants=FakeTable(key_attr='grantId',name='grants')
+    files.seed({'fileId':'f','ownerPhone':'910000000000','ownerCustomerId':ALICE,
+                'status':'revoked','s3Key':'secure/u/f.pdf'})
+    eid='vault-entitlement#'+ALICE+'#f'
+    grants.seed({'grantId':eid,'recordType':'VAULT_ENTITLEMENT','entitlementState':'ACTIVE',
+                 'fileId':'f','ownerPhone':'910000000000','customerId':ALICE})
+    monkeypatch.setattr(mod,'_table',lambda name:files if name==mod.FILES_TABLE else grants)
+    response=mod._redeem('f',{'queryStringParameters':{'grant':eid}},
+                         {'phone':'910000000000','subject':ALICE},'')
+    assert response['statusCode']==403
+    assert not [x for x in grants.rows.values() if x.get('recordType')=='VAULT_DOWNLOAD_SESSION']
 
 
 def test_vault_grant_cannot_be_downloaded_by_recreated_different_identity(mod,monkeypatch):
@@ -181,3 +302,16 @@ def test_vault_grant_cannot_be_downloaded_by_recreated_different_identity(mod,mo
     response=mod._redeem('f',{'queryStringParameters':{'grant':'g'}},{'phone':'910000000000','subject':BOB},'')
     assert response['statusCode']==403
     assert not grants.rows['g']['consumed']
+
+
+def test_rejected_send_stops_after_three_attempts(vault_env,flow_module,monkeypatch):
+    module=importlib.import_module('flows.paid_vault')
+    requests,_,_,_,_=vault_env
+    row={'requestId':'REQ#bounded'};requests.seed(row)
+    clock=[1000];monkeypatch.setattr(module.time,'time',lambda:clock[0])
+    client=Mock();client.invoke.side_effect=lambda **kwargs:{'Payload':io.BytesIO(b'{"statusCode":400}')}
+    for _ in range(5):
+        assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+        clock[0]+=31
+    assert client.invoke.call_count==3
+    assert requests.rows[row['requestId']]['vaultNotificationStatusAttempts']==3

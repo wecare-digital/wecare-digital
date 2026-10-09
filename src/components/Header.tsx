@@ -79,10 +79,11 @@ interface NavColumn {
 //   Orders             -> /orders/
 //   Drop Docs          -> /drop-docs/
 //   Leave Review       -> /leave-review/
+//   Subscribe          -> /subscribe/
 //   Refer & Earn       -> /refer-and-earn/
 //   Contact us         -> /contact/
 //
-// Header.test.tsx asserts all seven rows exist, so a typo here cannot silently drop one.
+// Header.test.tsx asserts all eight rows exist, so a typo here cannot silently drop one.
 
 // One structure, rendered as columns, rather than the single flat list this used to
 // be. The Customer service group is why: seven children under one parent made a
@@ -182,8 +183,8 @@ const COLUMNS: NavColumn[] = [
           { label: 'Vault', href: '/vault/', match: '/vault' },
           // SHIPMENTS SITS DIRECTLY ABOVE LEAVE REVIEW, on owner instruction: it is the single
           // place that gathers "track it, arrange it, keep it moving" for a request, delivery or
-          // pickup, so it rounds out the request actions just before Leave Review (which must
-          // stay last). THE ROUTE MOVED FROM /zip/ TO /shipments/ on owner instruction
+          // pickup, so it rounds out the request actions just before Leave Review (which was the
+          // last row until Subscribe was added after it, below). THE ROUTE MOVED FROM /zip/ TO /shipments/ on owner instruction
           // (2026-10-02): the page was called "Zip" and the name is gone everywhere, not just on
           // the label. The earlier change renamed only this label and left the route, the
           // PUBLIC_PAGE_META `name` ('Zip') and the legal copy intact, which is why the owner kept
@@ -197,6 +198,13 @@ const COLUMNS: NavColumn[] = [
           // delivery-status) as a clearly non-transacting affordance.
           { label: 'Shipments', href: '/shipments/', match: '/shipments' },
           { label: 'Leave Review', href: '/leave-review/', match: '/leave-review' },
+          // SUBSCRIBE SITS DIRECTLY AFTER LEAVE REVIEW AND IS NOW THE LAST ROW, on owner
+          // instruction (2026-10-09). This supersedes the earlier rule that Leave Review stays
+          // last. Route /subscribe/ is registered in PUBLIC_PAGE_META (_app.tsx), PUBLIC_EXACT
+          // (scripts/generate-sitemap.js) and STRUCTURAL (scripts/generate-public-pages.js). Its
+          // CTA goes to /contact/ until the subscription backend exists. `match` is slashless
+          // because it is compared against router.pathname; `href` keeps the trailing slash.
+          { label: 'Subscribe', href: '/subscribe/', match: '/subscribe' },
           // CONTACT MOVED OUT of Customer service into the third column (Work with us), on
           // owner instruction - the Customer service column is now the request ACTIONS only,
           // and Contact sits with Refer & Earn as a way to reach the company.

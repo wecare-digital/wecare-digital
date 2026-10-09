@@ -95,11 +95,24 @@ const AutoResponsePageBody: React.FC<Props> = () => {
     if (tab === 'welcome') loadWelcome();
   }, [tab, loadTriggers, loadSsMenu, loadMainMenu, loadWelcome]);
 
-  // Savers
-  const saveTriggers = async () => { setSaving(true); try { await api.updateSystemConfig('flow_triggers_config', triggers); toast.success('Flow triggers saved'); } catch { toast.error('Save failed'); } setSaving(false); };
-  const saveSsMenu = async () => { setSaving(true); try { await api.updateSystemConfig('customerservice_menu_config', ssMenu); toast.success('Selfservice menu saved'); } catch { toast.error('Save failed'); } setSaving(false); };
-  const saveMainMenu = async () => { setSaving(true); try { await api.updateSystemConfig('welcome_message_config', mainMenu); toast.success('Main menu saved'); } catch { toast.error('Save failed'); } setSaving(false); };
-  const saveWelcome = async () => { setSaving(true); try { await api.updateSystemConfig('wa_auto_response', { welcomeMessage: welcomeText, welcomeEnabled }); toast.success('Welcome saved'); } catch { toast.error('Save failed'); } setSaving(false); };
+  // Keep the draft when either the write or its read-back cannot be confirmed.
+  const saveSetting = async (key: string, value: any, message: string) => {
+    setSaving(true);
+    try {
+      if (!(await api.updateSystemConfig(key, value))) {
+        throw new Error('Save could not be confirmed. Refresh before trying again.');
+      }
+      toast.success(message);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Save could not be confirmed');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveTriggers = () => saveSetting('flow_triggers_config', triggers, 'Flow triggers saved');
+  const saveSsMenu = () => saveSetting('customerservice_menu_config', ssMenu, 'Selfservice menu saved');
+  const saveMainMenu = () => saveSetting('welcome_message_config', mainMenu, 'Main menu saved');
+  const saveWelcome = () => saveSetting('wa_auto_response', { welcomeMessage: welcomeText, welcomeEnabled }, 'Welcome saved');
 
   // Trigger helpers
   const updateTrig = (k: string, f: string, v: any) => setTriggers(p => ({ ...p, [k]: { ...p[k], [f]: v } }));

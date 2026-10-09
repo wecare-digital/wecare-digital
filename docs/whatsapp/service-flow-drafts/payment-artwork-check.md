@@ -1,5 +1,7 @@
 # Service payment and artwork check — 9 October 2026
 
+Historical checkpoint: versions and repair gaps below describe the earlier inspection. For the subsequent deployed Vault retry/paid-state repairs, business API 88, checkout 41 readback and catalog-sync 7 staging, use [the current execution ledger](../../superpowers/plans/2026-10-09-whatsapp-customer-service.md). Native payment/customer QA remains incomplete.
+
 Vault does not require a WhatsApp Flow. The owner-selected journey is catalog → choose an owned document in a native WhatsApp list → Review and Pay → verified payment and order association → paid file grant → dynamic download template/PDF → review. The prior Vault design draft is unused and must not be published or connected.
 
 ## Verified live

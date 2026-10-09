@@ -2333,6 +2333,72 @@ export async function generateAIResponse ( message: string, context?: {
 
 
 // ============================================================================
+// META CATALOG OWNER-APPROVAL CONTROL
+// ============================================================================
+
+export interface MetaCatalogApproval {
+  planHash: string;
+  status: 'PROPOSED' | 'APPROVED' | 'APPLYING' | 'APPLY_SUBMITTED' | 'APPLIED' | 'APPLY_FAILED' | string;
+  catalogId: string;
+  proposedAt?: number;
+  approvedAt?: number;
+  approvedBy?: string;
+  applyStartedAt?: number;
+  appliedAt?: number;
+  verifiedAt?: number;
+  batchHandles?: string[];
+  counts?: Record<string, number>;
+  blocked?: string[];
+  lastReadbackPlanHash?: string;
+  lastReadbackCounts?: Record<string, number>;
+}
+
+export interface MetaCatalogSyncControl {
+  ok: boolean;
+  reason?: string;
+  enabled?: boolean;
+  dryRun?: boolean;
+  readOnly?: boolean;
+  catalogId: string;
+  counts?: Record<string, number>;
+  blocked?: string[];
+  planHash?: string;
+  currentPlanHash?: string;
+  requestedPlanHash?: string;
+  currentPlanMatches?: boolean;
+  approved?: boolean;
+  approvalStoreReady?: boolean;
+  approval?: MetaCatalogApproval | null;
+  desiredItems?: any[];
+  existingItems?: any[];
+  applied?: number;
+  batchHandles?: string[];
+  verified?: boolean;
+}
+
+export async function getMetaCatalogSyncPlan (): Promise<ApiResult<MetaCatalogSyncControl>> {
+  return apiCallResult<MetaCatalogSyncControl>( `${API_BASE}/wa-business/catalog-sync` );
+}
+
+export async function getMetaCatalogApprovalStatus ( planHash: string ): Promise<ApiResult<MetaCatalogSyncControl>> {
+  const params = new URLSearchParams( { action: 'status', planHash } );
+  return apiCallResult<MetaCatalogSyncControl>(
+    `${API_BASE}/wa-business/catalog-sync?${params.toString()}`,
+  );
+}
+
+export async function controlMetaCatalogSync (
+  action: 'propose' | 'approve' | 'apply' | 'readback',
+  planHash?: string,
+): Promise<ApiResult<MetaCatalogSyncControl>> {
+  return apiCallResult<MetaCatalogSyncControl>( `${API_BASE}/wa-business/catalog-sync`, {
+    method: 'POST',
+    body: JSON.stringify( { action, ...( planHash ? { planHash } : {} ) } ),
+  } );
+}
+
+
+// ============================================================================
 // WABA MANAGEMENT API (Meta Graph API)
 // ============================================================================
 

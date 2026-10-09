@@ -69,7 +69,9 @@ const WelcomeConfigPage: React.FC<PageProps> = ({ signOut, user, embedded = fals
     setSaving(true);
     try {
       const key = activePhone === WHATSAPP_PHONES.primary.id ? 'welcome_message' : 'welcome_message_2';
-      await api.updateSystemConfig(key, config);
+      if (!(await api.updateSystemConfig(key, config))) {
+        throw new Error('Save could not be confirmed. Refresh before trying again.');
+      }
       toast.success('Configuration saved!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to save');

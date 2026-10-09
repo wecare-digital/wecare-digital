@@ -1,0 +1,1485 @@
+{
+  "before": {
+    "flows": [
+      {
+        "id": "2167802357142172",
+        "name": "WD_Orders_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1728231914933139",
+        "name": "WD_Submit_Request_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "849713848195607",
+        "name": "WD_Shipments_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1735480734227899",
+        "name": "WD_Vault_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1605008471323578",
+        "name": "WD_Drop_Docs_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "959792226650003",
+        "name": "WD_Request_Amendment_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2352304845587149",
+        "name": "WD_Leave_Review_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1107164111921876",
+        "name": "WD_Submit_Request_Paid_v1",
+        "status": "PUBLISHED",
+        "categories": [
+          "CUSTOMER_SUPPORT"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1297215335805199",
+        "name": "Message templates_wecare_review_flow_UTILITY_d46cd",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1578178897413815",
+        "name": "WD_Leave_Review_v2",
+        "status": "PUBLISHED",
+        "categories": [
+          "SURVEY"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1876722620408573",
+        "name": "wecare_review_flow",
+        "status": "DRAFT",
+        "categories": [
+          "CUSTOMER_SUPPORT"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2672013166527523",
+        "name": "03.WD_POSTPAY_REQUEST",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1018621047428701",
+        "name": "WD Submit Request v2",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1529800232178121",
+        "name": "WD Post-Payment Details v1",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1434731571172691",
+        "name": "WD_Order_Notes_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "4423166114671543",
+        "name": "WD_Feedback_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1707170524029465",
+        "name": "WD_Ent_Assist_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "808379601885651",
+        "name": "WD_Leave_Feedback",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2403289380136652",
+        "name": "WD_Enterprise_Enquiry",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1211063631104445",
+        "name": "WD_Drop_Documents",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "895208030185211",
+        "name": "WD_Book_RX_Slot",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "26575380852083467",
+        "name": "WD_Book_Appointment",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2130804851108272",
+        "name": "05.WD_RX_Slot",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1687382612283340",
+        "name": "04.WD_Appointment",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "3678132465672138",
+        "name": "03.WD_Amend_Request",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "977485124633104",
+        "name": "03.WD_AR",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1486454129852338",
+        "name": "02.WD_TR",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1469093721293830",
+        "name": "01.WD_SR_v3",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1262971692700761",
+        "name": "02.WD_Profile",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1260659006190210",
+        "name": "01.WD_Profile",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "898942616479117",
+        "name": "WD_Profile_01",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1112566051931271",
+        "name": "WD_Flow_Subscribe_04",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2304946243249589",
+        "name": "WD_Flow_Subscribe_03",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1702572434306315",
+        "name": "WD_Flow_Subscribe_02",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1557815099200456",
+        "name": "WD_Flow_Subscribe_01",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "931522532810297",
+        "name": "01.WD_SR_PAY",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1533536534833353",
+        "name": "WD Amend Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1475722977488573",
+        "name": "WD Schedule Appointment",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1892784521355352",
+        "name": "WD RX Slot",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1737801600902350",
+        "name": "WD Drop Docs",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2132515287534606",
+        "name": "WD Enterprise Assist",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "963443293213262",
+        "name": "WD Leave Review",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "727503180451487",
+        "name": "WD Order Notes",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "973888792200167",
+        "name": "WD Track Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "932104319588449",
+        "name": "WD Subscribe",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1600900134468186",
+        "name": "01.WD_SR",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1892499671452879",
+        "name": "Submit Request v3",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1263620345248013",
+        "name": "Submit a Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "3585768888255988",
+        "name": "Submit Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1021379973921053",
+        "name": "03.WD_POSTPAY_REQUEST",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1935472957154109",
+        "name": "WD Submit Request v2",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "959273520451230",
+        "name": "WD Post-Payment Details v1",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "2150051392227837",
+        "name": "WD Post-Payment Details (Test)",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1886481288717319",
+        "name": "WD_Flow_Subscribe_04",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "951987930811295",
+        "name": "02.WD_Profile",
+        "status": "PUBLISHED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "4429197177312296",
+        "name": "01.WD_Profile",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "957962523627318",
+        "name": "WD_Flow_Subscribe_03",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "890449297356355",
+        "name": "WD_Flow_Subscribe_02",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1462138465710485",
+        "name": "WD_Flow_Subscribe_01",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      }
+    ],
+    "unauthorizedStatus": 401
+  },
+  "retirementRequests": {
+    "retirementRequests": [
+      {
+        "id": "2672013166527523",
+        "name": "03.WD_POSTPAY_REQUEST",
+        "wabaId": "2094615664435155",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "1018621047428701",
+        "name": "WD Submit Request v2",
+        "wabaId": "2094615664435155",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "1529800232178121",
+        "name": "WD Post-Payment Details v1",
+        "wabaId": "2094615664435155",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "1262971692700761",
+        "name": "02.WD_Profile",
+        "wabaId": "2094615664435155",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "1021379973921053",
+        "name": "03.WD_POSTPAY_REQUEST",
+        "wabaId": "2513394156072604",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "1935472957154109",
+        "name": "WD Submit Request v2",
+        "wabaId": "2513394156072604",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "959273520451230",
+        "name": "WD Post-Payment Details v1",
+        "wabaId": "2513394156072604",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "2150051392227837",
+        "name": "WD Post-Payment Details (Test)",
+        "wabaId": "2513394156072604",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      },
+      {
+        "id": "951987930811295",
+        "name": "02.WD_Profile",
+        "wabaId": "2513394156072604",
+        "statusCode": 200,
+        "response": {
+          "success": true
+        }
+      }
+    ]
+  },
+  "after": {
+    "flows": [
+      {
+        "id": "1262971692700761",
+        "name": "02.WD_Profile",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1529800232178121",
+        "name": "WD Post-Payment Details v1",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1018621047428701",
+        "name": "WD Submit Request v2",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2672013166527523",
+        "name": "03.WD_POSTPAY_REQUEST",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2167802357142172",
+        "name": "WD_Orders_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1728231914933139",
+        "name": "WD_Submit_Request_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "849713848195607",
+        "name": "WD_Shipments_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1735480734227899",
+        "name": "WD_Vault_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1605008471323578",
+        "name": "WD_Drop_Docs_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "959792226650003",
+        "name": "WD_Request_Amendment_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2352304845587149",
+        "name": "WD_Leave_Review_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1107164111921876",
+        "name": "WD_Submit_Request_Paid_v1",
+        "status": "PUBLISHED",
+        "categories": [
+          "CUSTOMER_SUPPORT"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1297215335805199",
+        "name": "Message templates_wecare_review_flow_UTILITY_d46cd",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1578178897413815",
+        "name": "WD_Leave_Review_v2",
+        "status": "PUBLISHED",
+        "categories": [
+          "SURVEY"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1876722620408573",
+        "name": "wecare_review_flow",
+        "status": "DRAFT",
+        "categories": [
+          "CUSTOMER_SUPPORT"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1434731571172691",
+        "name": "WD_Order_Notes_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "4423166114671543",
+        "name": "WD_Feedback_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1707170524029465",
+        "name": "WD_Ent_Assist_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "808379601885651",
+        "name": "WD_Leave_Feedback",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2403289380136652",
+        "name": "WD_Enterprise_Enquiry",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1211063631104445",
+        "name": "WD_Drop_Documents",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "895208030185211",
+        "name": "WD_Book_RX_Slot",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "26575380852083467",
+        "name": "WD_Book_Appointment",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2130804851108272",
+        "name": "05.WD_RX_Slot",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1687382612283340",
+        "name": "04.WD_Appointment",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "3678132465672138",
+        "name": "03.WD_Amend_Request",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "977485124633104",
+        "name": "03.WD_AR",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1486454129852338",
+        "name": "02.WD_TR",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1469093721293830",
+        "name": "01.WD_SR_v3",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1260659006190210",
+        "name": "01.WD_Profile",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "898942616479117",
+        "name": "WD_Profile_01",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1112566051931271",
+        "name": "WD_Flow_Subscribe_04",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2304946243249589",
+        "name": "WD_Flow_Subscribe_03",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1702572434306315",
+        "name": "WD_Flow_Subscribe_02",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1557815099200456",
+        "name": "WD_Flow_Subscribe_01",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "931522532810297",
+        "name": "01.WD_SR_PAY",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1533536534833353",
+        "name": "WD Amend Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1475722977488573",
+        "name": "WD Schedule Appointment",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1892784521355352",
+        "name": "WD RX Slot",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1737801600902350",
+        "name": "WD Drop Docs",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "2132515287534606",
+        "name": "WD Enterprise Assist",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "963443293213262",
+        "name": "WD Leave Review",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "727503180451487",
+        "name": "WD Order Notes",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "973888792200167",
+        "name": "WD Track Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "932104319588449",
+        "name": "WD Subscribe",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1600900134468186",
+        "name": "01.WD_SR",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1892499671452879",
+        "name": "Submit Request v3",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1263620345248013",
+        "name": "Submit a Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "3585768888255988",
+        "name": "Submit Request",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "951987930811295",
+        "name": "02.WD_Profile",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "2150051392227837",
+        "name": "WD Post-Payment Details (Test)",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "959273520451230",
+        "name": "WD Post-Payment Details v1",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1935472957154109",
+        "name": "WD Submit Request v2",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1021379973921053",
+        "name": "03.WD_POSTPAY_REQUEST",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1886481288717319",
+        "name": "WD_Flow_Subscribe_04",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "4429197177312296",
+        "name": "01.WD_Profile",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "957962523627318",
+        "name": "WD_Flow_Subscribe_03",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "890449297356355",
+        "name": "WD_Flow_Subscribe_02",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      },
+      {
+        "id": "1462138465710485",
+        "name": "WD_Flow_Subscribe_01",
+        "status": "DEPRECATED",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2513394156072604"
+      }
+    ],
+    "counts": {
+      "DEPRECATED": 35,
+      "DRAFT": 22,
+      "PUBLISHED": 2
+    }
+  },
+  "keepIds": [
+    "1107164111921876",
+    "1578178897413815",
+    "2167802357142172",
+    "3678132465672138",
+    "1211063631104445",
+    "849713848195607"
+  ],
+  "deployment": {
+    "function": "wecare-whatsapp-business-api",
+    "version": "90",
+    "hash": "pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI=",
+    "rollback": "89",
+    "revision": "62d5be2c-00ad-4179-b3af-1d42fc9584c9"
+  },
+  "tests": {
+    "focusedPassed": 135,
+    "backendPassed": 10339,
+    "skipped": 7,
+    "xfailed": 3
+  },
+  "unusedDrafts": [
+    {
+      "id": "1728231914933139",
+      "name": "WD_Submit_Request_Design_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1735480734227899",
+      "name": "WD_Vault_Design_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1605008471323578",
+      "name": "WD_Drop_Docs_Design_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "959792226650003",
+      "name": "WD_Request_Amendment_Design_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "2352304845587149",
+      "name": "WD_Leave_Review_Design_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1876722620408573",
+      "name": "wecare_review_flow",
+      "status": "DRAFT",
+      "categories": [
+        "CUSTOMER_SUPPORT"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1434731571172691",
+      "name": "WD_Order_Notes_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "4423166114671543",
+      "name": "WD_Feedback_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1707170524029465",
+      "name": "WD_Ent_Assist_v1",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "808379601885651",
+      "name": "WD_Leave_Feedback",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "2403289380136652",
+      "name": "WD_Enterprise_Enquiry",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "895208030185211",
+      "name": "WD_Book_RX_Slot",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "26575380852083467",
+      "name": "WD_Book_Appointment",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "2130804851108272",
+      "name": "05.WD_RX_Slot",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1687382612283340",
+      "name": "04.WD_Appointment",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "977485124633104",
+      "name": "03.WD_AR",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1486454129852338",
+      "name": "02.WD_TR",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    },
+    {
+      "id": "1469093721293830",
+      "name": "01.WD_SR_v3",
+      "status": "DRAFT",
+      "categories": [
+        "OTHER"
+      ],
+      "validation_errors": [],
+      "wabaId": "2094615664435155"
+    }
+  ],
+  "note": "No draft deletion or new publication. Meta deprecation is not undone by Lambda alias rollback; rebuild/replacement Flow and repoint integrations required for recovery."
+}

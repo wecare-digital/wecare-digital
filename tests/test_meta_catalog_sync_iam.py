@@ -1,4 +1,4 @@
-"""`wecare-meta-catalog-sync-role` is two statements, and the shared fleet role is untouched.
+"""`wecare-meta-catalog-sync-role` is three exact statements, and the shared fleet role is untouched.
 
 PHASE W, FEAT-001. Every assertion here is EQUALITY rather than containment. A test that checks
 the policy *contains* the statements it wants passes just as happily when a third is added, which
@@ -35,7 +35,7 @@ SHARED_FLEET_ROLE = "wecare-digital-lambda-role"
 #: Anything that could change data, invoke code, message a person or widen access. None of these
 #: may appear anywhere in the new role's policy.
 FORBIDDEN_ACTION_PREFIXES = (
-    "dynamodb:", "s3:", "sns:", "sqs:", "ses:", "kms:", "iam:", "sts:",
+    "s3:", "sns:", "sqs:", "ses:", "kms:", "iam:", "sts:",
     "cognito-idp:", "lambda:", "events:", "apigateway:", "execute-api:",
     "secretsmanager:Put", "secretsmanager:Update", "secretsmanager:Create",
     "secretsmanager:Delete", "secretsmanager:Describe", "secretsmanager:List",
@@ -57,15 +57,8 @@ def provisioner():
 # ── 1. the document, exactly ─────────────────────────────────────────────────
 
 
-def test_the_policy_is_exactly_these_two_statements(provisioner):
-    """Equality, not containment, so a widening is a FAILURE rather than an unnoticed addition.
-
-    Note the second statement names TWO secrets and no more. The brief described this role as the
-    Meta token plus logs; the Wix key is there because `lambda_utils.wix_ecom` reads it and the
-    function cannot read Wix at all without it, which would make the sync permanently inert. Named
-    individually rather than as `wecare/*`, which would include every provider credential in the
-    account.
-    """
+def test_the_policy_is_exactly_the_three_required_statements(provisioner):
+    """Logs + two exact secrets + the single existing approvals table."""
     assert provisioner.expected_role_policy(ACCOUNT) == {
         "Version": "2012-10-17",
         "Statement": [
@@ -91,14 +84,24 @@ def test_the_policy_is_exactly_these_two_statements(provisioner):
                     "wecare/wix/headless-api-key-*",
                 ],
             },
+            {
+                "Sid": "CatalogProposalApprovalRecords",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/"
+                    "stack-wecare-digital-AgentApprovalsTable"
+                ],
+            },
         ],
     }
 
 
-def test_the_policy_has_no_statement_beyond_those_two(provisioner):
+def test_the_policy_has_no_statement_beyond_the_three_required(provisioner):
     statements = provisioner.expected_role_policy(ACCOUNT)["Statement"]
-    assert len(statements) == 2
-    assert [s["Sid"] for s in statements] == ["OwnLogs", "ReadTheTwoSecretsItNeeds"]
+    assert len(statements) == 3
+    assert [s["Sid"] for s in statements] == [
+        "OwnLogs", "ReadTheTwoSecretsItNeeds", "CatalogProposalApprovalRecords"]
     assert all(s["Effect"] == "Allow" for s in statements)
 
 
@@ -112,8 +115,18 @@ def test_no_forbidden_action_appears_anywhere_in_the_policy(provisioner):
     for action in actions:
         for forbidden in FORBIDDEN_ACTION_PREFIXES:
             assert not action.startswith(forbidden), f"{action} is not least privilege here"
-    assert sorted(actions) == ["logs:CreateLogStream", "logs:PutLogEvents",
-                               "secretsmanager:GetSecretValue"]
+    assert sorted(actions) == [
+        "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem",
+        "logs:CreateLogStream", "logs:PutLogEvents", "secretsmanager:GetSecretValue"]
+
+
+def test_dynamodb_is_limited_to_one_table_and_three_item_actions(provisioner):
+    statement = provisioner.expected_role_policy(ACCOUNT)["Statement"][2]
+    assert statement["Action"] == ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem"]
+    assert statement["Resource"] == [
+        f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-AgentApprovalsTable"]
+    rendered = json.dumps(statement)
+    assert "Scan" not in rendered and "Query" not in rendered and "Delete" not in rendered
 
 
 def test_no_resource_is_a_wildcard(provisioner):
@@ -230,18 +243,18 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 
 
 def test_the_provisioned_environment_matches_the_owner_scoped_rollout(provisioner):
-    """Keep the authorized two-variant rollout and its availability hold explicit.
+    """Keep the fresh-catalog four-variant approval hold explicit.
 
     Fresh handler defaults remain closed. This provisioner records the separately
-    authorized live rollout, so testing it as an unprovisioned disabled feature
+    authorized staged rollout, so testing it as an unprovisioned disabled feature
     would contradict the checked-in deployment manifest.
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
     expected = {
-        "META_CATALOG_SYNC_ENABLED": "true",
-        "META_CATALOG_SYNC_DRY_RUN": "false",
-        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "META_CATALOG_SYNC_ENABLED": "false",
+        "META_CATALOG_SYNC_DRY_RUN": "true",
+        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
         "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     }
     for key, value in expected.items():

@@ -57,6 +57,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
+import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 
 
 const VayuLokPage: React.FC = () => {
@@ -136,46 +137,54 @@ const VayuLokPage: React.FC = () => {
 
       <main className="vl-shell" aria-label="VayuLok">
         <div className={ `vl-layout ${shown ? 'show' : ''}`.trim() }>
-          {/* Same component as the Grahak OS hero and the home page, so the three
-              pills cannot drift apart. The wrapper carries the spacing because
-              styled-jsx cannot style a composite component from here. */}
-          <div className="vl-eyebrow">
-            <BrandBadge label="VayuLok by WECARE.DIGITAL" />
-          </div>
+          <div className="vl-hero-grid">
+            <div className="vl-hero-copy">
+              {/* Same component as the Grahak OS hero and the home page, so the three
+                  pills cannot drift apart. The wrapper carries the spacing because
+                  styled-jsx cannot style a composite component from here. */}
+              <div className="vl-eyebrow">
+                <BrandBadge label="VayuLok by WECARE.DIGITAL" />
+              </div>
 
-          <h1 className="vl-head">
-            <span className="vl-head-line vl-head-line-one">
-              <span>Bharat</span>{ ' ' }
-              <span
-                className="vl-mark"
-                style={ { background: cycleWords[ cycleIndex ].tint } }
-              >
-                <i
-                  className="vl-mark-dot"
-                  style={ { background: cycleWords[ cycleIndex ].dot } }
-                  aria-hidden="true"
-                />
-                <span
-                  className="vl-cycle"
-                  style={ cycleW ? { width: `${cycleW}px` } : undefined }
-                >
-                  <span className="vl-sr-only">{ cycleWords.map( c => c.word ).join( ', ' ) }</span>
-                  { cycleWords.map( ( c, i ) => (
-                    <span
-                      key={ c.word }
-                      ref={ el => { wordRefs.current[ i ] = el; } }
-                      className={ `vl-cyc-word ${i === cycleIndex ? 'on' : ''}`.trim() }
-                      data-wc-translate="true"
+              <h1 className="vl-head">
+                <span className="vl-head-line vl-head-line-one">
+                  <span>Bharat</span>{ ' ' }
+                  <span
+                    className="vl-mark"
+                    style={ { background: cycleWords[ cycleIndex ].tint } }
+                  >
+                    <i
+                      className="vl-mark-dot"
+                      style={ { background: cycleWords[ cycleIndex ].dot } }
                       aria-hidden="true"
-                    >{ c.word }</span>
-                  ) ) }
+                    />
+                    <span
+                      className="vl-cycle"
+                      style={ cycleW ? { width: `${cycleW}px` } : undefined }
+                    >
+                      <span className="vl-sr-only">{ cycleWords.map( c => c.word ).join( ', ' ) }</span>
+                      { cycleWords.map( ( c, i ) => (
+                        <span
+                          key={ c.word }
+                          ref={ el => { wordRefs.current[ i ] = el; } }
+                          className={ `vl-cyc-word ${i === cycleIndex ? 'on' : ''}`.trim() }
+                          data-wc-translate="true"
+                          aria-hidden="true"
+                        >{ c.word }</span>
+                      ) ) }
+                    </span>
+                  </span>
                 </span>
-              </span>
-            </span>
-            <span className="vl-head-line vl-head-line-two">
-              <span className="vl-head-tail">Intelligence</span>
-            </span>
-          </h1>
+                <span className="vl-head-line vl-head-line-two">
+                  <span className="vl-head-tail">Intelligence</span>
+                </span>
+              </h1>
+            </div>
+
+            <div className="vl-hero-visual">
+              <VayuLokApprovedGlobe />
+            </div>
+          </div>
         </div>
       </main>
 
@@ -201,6 +210,9 @@ const VayuLokPage: React.FC = () => {
            owns it. A column gap would apply to nothing and quietly mislead whoever
            adds the second element. */
         .vl-layout{width:100%;max-width:1300px;margin:0 auto;padding:80px 24px 48px;box-sizing:border-box}
+        .vl-hero-grid{display:grid;grid-template-columns:minmax(0,.88fr) minmax(540px,1.12fr);gap:48px;align-items:center}
+        .vl-hero-copy{min-width:0}
+        .vl-hero-visual{min-width:0;width:100%}
 
         /* Spacing only. The badge paints itself inside BrandBadge. */
         .vl-eyebrow{margin:0 0 20px}
@@ -291,10 +303,18 @@ const VayuLokPage: React.FC = () => {
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
 
+        @media(max-width:1024px){
+          .vl-hero-grid{grid-template-columns:minmax(0,.9fr) minmax(460px,1.1fr);gap:32px}
+        }
+        @media(max-width:860px){
+          .vl-hero-grid{grid-template-columns:1fr;gap:36px}
+          .vl-hero-visual{max-width:760px;margin:0 auto}
+        }
         @media(max-width:767px){
           .vl-shell{padding-top:96px}
           .vl-layout{padding:48px 16px 32px}
           .vl-head{line-height:1.1}
+          .vl-hero-grid{gap:28px}
         }
         @media(max-width:359px){
           .vl-head{font-size:clamp(31px,9vw,36px)}

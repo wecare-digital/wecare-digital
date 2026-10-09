@@ -82,6 +82,9 @@ const PUBLIC_EXACT = new Set( [
   // repaired destination for the gift-card links.
   '/perks',
   '/shipments',
+  // Subscribe is a way to contact us (its CTA is /contact/), added after Leave Review in the
+  // Request menu. It must stay in step with PUBLIC_PAGE_META in _app.tsx, like every group above.
+  '/subscribe',
 ] );
 // '/blog/page/' is pages 2..N of the paginated blog index. It has to be a prefix rather than
 // exact entries because the count moves with the corpus - 834 posts at 24 a page is 35 pages

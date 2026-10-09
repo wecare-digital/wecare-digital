@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  INTERNAL DUMMY MOCK — NOT A LIVE PAGE, NOT PRODUCTION CODE.
+  OPTION B — abstract LIVE-DATA BOARD hero variant (precip.ai look:
+  "live pins", floating value chips). NO GEOGRAPHIC MAP / NO INDIA-BHARAT
+  OUTLINE — per owner direction this variant drops the landmass silhouette and
+  keeps only the "live data" feel: a soft panel of pulsing data pins and
+  floating value chips arranged as a free constellation.
+
+  HERO SECTION ONLY. The global header, footer and WhatsApp widget are
+  unchanged, shared across every public page, and rendered globally — so they
+  are DELIBERATELY NOT in this mock. We are only iterating on the /vayulok/
+  hero here. Do not re-add page chrome: when this lands on the real page the
+  hero slots inside the existing global header/footer/widget shell.
+
+  This is one of three hero-visual explorations (A globe, B live-data board,
+  C atmosphere). It keeps the live /vayulok/ hero LEFT column (brand badge +
+  "Bharat <rotating> Intelligence") and the whole rotating-pill mechanism
+  VERBATIM, and swaps ONLY the right column: instead of the phone/AQI card it
+  shows a soft rounded panel holding a constellation of pulsing live-data pins
+  and floating value chips — the precip.ai "live pins" signature WITHOUT any
+  map outline.
+
+  FULLY SELF-CONTAINED ON PURPOSE: NO external resources at ALL. No images, no
+  web fonts, no CDN scripts, no ES-module imports, no external url(). The pins
+  are inline <svg> circles pulsed by CSS @keyframes; the chips are plain HTML.
+  NOTHING is fetched. This DIFFERS from docs/mocks/vayulok-gap-cobe-mock.html,
+  which pulled the `cobe` globe from a CDN — here every pixel is drawn in-file,
+  so this renders identically from file:// offline with zero network requests.
+  No GeoJSON, no map tile, no survey data is loaded or needed.
+
+  THE PIN CONSTELLATION IS DECORATIVE, NOT GEOGRAPHIC. The pin positions below
+  are purely illustrative SVG coordinates scattered for a pleasing "live board"
+  rhythm — they are NOT cities, NOT a map, NOT geocoded. The owner supplies the
+  real artwork / live data; nothing here is a data feed.
+
+  IT LIVES IN docs/mocks/ DELIBERATELY. docs/ is outside the Next.js build, so
+  this file cannot be deployed. Do NOT move it to public/ or src/pages/ —
+  both ship to the live site.
+
+  EVERY COLOUR, TYPE VALUE AND ANIMATION TIMING IN THE LEFT COLUMN IS COPIED
+  FROM REAL CODE. Sources, so this mock can be checked against source rather
+  than trusted:
+    src/pages/grahak-os/index.tsx       — hero layout + rotating pill CSS
+    src/pages/vayulok/index.tsx         — the 6 subject tint/dot pairs, pill,
+                                          one-shot entrance (not an observer)
+    .kiro/steering/grahak-os-design.md  — palette, type ladder, hairlines
+    src/components/BrandBadge.tsx        — the lime brand pill (#d1f470/#1a3a2a)
+    docs/mocks/vayulok-grahak-aligned-mock.html — the authoritative template
+    src/lib/design-tokens.ts            — exact hex tokens
+
+  COPY IS PLACEHOLDER. The owner supplies the real body copy and rates; the
+  pins / value chips are illustrative, not live data.
+  Per owner constraint, NO RED (#dc2626) anywhere — the "heatmap" subject uses
+  terracotta #c2591b, matching the live page; the board uses lime / green /
+  amber / terracotta only.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DUMMY MOCK — VayuLok hero (Option B: live-data board, no map, internal, not a live page)</title>
+<style>
+/* ===========================================================================
+   NO @font-face AND NO WEB-FONT LINK, ON PURPOSE. The font stack string is the
+   one from .page (src/pages/grahak-os/index.tsx) and .vl-shell
+   (src/pages/vayulok/index.tsx) character for character; it resolves to
+   whatever Inter/system font the viewer has, which keeps this file
+   self-contained.
+   =========================================================================== */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;
+  overflow-x:hidden;
+}
+@supports (overflow-x:clip){body{overflow-x:clip}}
+
+/* --- MOCK-ONLY CHROME. Not part of the theme, and the ONLY non-hero element
+   here on purpose: a banner so this file can never be mistaken for the real
+   page. #1a3a2a fill with #d1f470 type is the third of the three lime
+   treatments the contract allows (grahak-os-design.md, "inverted, dark"). --- */
+.vm-banner{
+  background:#1a3a2a;color:#d1f470;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.4;
+  padding:14px 24px;text-align:center;
+}
+.vm-banner b{color:#fff}
+
+/* BrandBadge, copied: #d1f470 fill, #1a3a2a type, no border, fully rounded.
+   (grahak-os-design.md Palette: "our own surfaces, full voice"). This is the
+   hero eyebrow — the SAME component the global header also renders, shown here
+   only because it sits inside the hero on the live page too. */
+.brand-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:#d1f470;color:#1a3a2a;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;
+  padding:8px 14px;border-radius:9999px;
+}
+.brand-badge .bb-dot{width:8px;height:8px;border-radius:50%;background:#1a3a2a}
+
+/* =======================================================================
+   HERO — layout copied from .hero / .hero-content on /grahak-os/.
+   padding-top clears the global fixed header (108px, 96px <=767px) that will
+   sit above this hero on the real page, even though that header is not drawn
+   in this mock.
+   ======================================================================= */
+.hero{padding:140px 24px 80px;max-width:1300px;margin:0 auto}
+.hero-content{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.hero-left{align-self:center}
+.hero-eyebrow{margin:0 0 20px}
+/* Hero h1: clamp(36,4.3vw,60) / 600 / lh 1.04 / ls -0.04em / rgba(0,0,0,.95).
+   600 weight is deliberate — the section headings elsewhere on the site are
+   the heavier 700; that inversion is notion's and intentional (design
+   contract, "Type ladder"). */
+.hero-left h1{
+  font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+  letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 24px;
+}
+/* One body level only: 20 / 400 / lh 1.4 / ls -0.125px / rgba(0,0,0,.898). */
+.hero-left p{
+  font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;
+  font-weight:400;margin:0 0 18px;max-width:400px;
+}
+.hero-left p.hero-sub{margin:0}
+
+/* --- Rotating subject pill. Geometry/easing/timing copied verbatim from
+   .vl-mark on src/pages/vayulok/index.tsx (itself ported from .hero-mark on
+   /grahak-os/). Tint/dot set inline per word by the script.
+   .hero.show is added once on load; it drives the one-shot entrance wipe and
+   dot pop, exactly like .vl-layout.show on the live page. ------------------ */
+.hero-mark{
+  position:relative;display:inline-block;white-space:nowrap;
+  padding:.02em .3em .02em .22em;border-radius:9999px;background:#e0f7c8;
+  transition:background-color .52s cubic-bezier(.16,1,.3,1);
+}
+.hero-mark::before{
+  content:'';position:absolute;inset:0;background:#fff;border-radius:9999px;
+  transform:scaleX(1);transform-origin:right center;
+  transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;z-index:0;
+}
+.hero.show .hero-mark::before{transform:scaleX(0)}
+.hero-mark-dot{
+  position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;
+  background:#3da35a;border-radius:50%;margin-right:.18em;vertical-align:.14em;
+  transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
+}
+.hero.show .hero-mark-dot{transform:scale(1)}
+.hero-cycle{
+  width:max-content;position:relative;z-index:1;display:inline-block;
+  height:1.06em;line-height:1.06em;vertical-align:baseline;overflow:hidden;
+  transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width;
+}
+.hero-cyc-word{
+  position:absolute;left:0;top:0;white-space:nowrap;opacity:0;
+  transform:translateY(.42em);
+  transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
+}
+.hero-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* =======================================================================
+   HERO LIVE-DATA BOARD STAGE — replaces the /grahak-os/ phone+code /
+   live-AQI card. NO MAP: an abstract constellation of pulsing data pins and
+   floating value chips on a soft neutral card.
+
+   PANEL CHOICE: LIGHT panel, NOT the dark one Option A used. Justification:
+   the precip.ai reference is a bright, airy "board" — a soft neutral surface
+   with crisp coloured pins and value chips floating on top. A light panel also
+   keeps this variant distinct from the dark globe (Option A) and lets the lime
+   / green / amber pins read as data markers. The panel is a rounded card
+   (border-radius 16px) with a 1px #e5e7eb hairline — the lighter 1px weight is
+   right for a static light card (the heavier 2px .mockup-wrapper weight is
+   reserved for the live phone frame it replaces).
+
+   The stage sits exactly where the phone card did: width:100%, capped at
+   460px, centred, square-ish via aspect-ratio so pins have room to float. The
+   <svg> pin layer scales fluidly with the panel via its viewBox +
+   preserveAspectRatio; everything inside is pure code.
+   ======================================================================= */
+.board-stage{
+  position:relative;width:100%;max-width:460px;margin:0 auto;
+  aspect-ratio:1/1;
+  border-radius:16px;border:1px solid #e5e7eb;   /* 1px hairline for a static light card */
+  /* faint lime-tinted neutral surface so the board reads warmly on-palette */
+  background:
+    radial-gradient(60% 60% at 32% 30%,rgba(209,244,112,.14) 0%,rgba(209,244,112,0) 60%),
+    linear-gradient(180deg,#fcfdfb 0%,#f9fafb 100%);
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(26,58,42,.08);
+}
+
+/* faint on-palette grid so the pins read as plotted on a "board", not floating
+   in a void. Pure CSS gradients, no asset. */
+.board-grid{
+  position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.6;
+  background-image:
+    linear-gradient(to right,rgba(26,58,42,.05) 1px,transparent 1px),
+    linear-gradient(to bottom,rgba(26,58,42,.05) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+/* the SVG pin layer fills the stage; aspect held by the viewBox */
+.board-svg{position:absolute;inset:0;z-index:1;width:100%;height:100%;display:block}
+
+/* ---- pulsing data pins. Each pin = a solid core <circle> plus a <circle>
+   "ring" that expands and fades on a loop (the precip.ai "live pin"). Colours
+   are palette-only: lime #d1f470, green #3da35a, amber #f0a818, terracotta
+   #c2591b for the one "warmer air" point — NEVER red. Staggered via
+   animation-delay so the board feels alive, not synchronised. --------------- */
+.pin-core{
+  filter:drop-shadow(0 1px 1px rgba(26,58,42,.25));  /* core colour set per-pin via fill attr */
+}
+.pin-ring{
+  fill:none;
+  stroke-width:2;
+  transform-box:fill-box;
+  transform-origin:center;
+  transform-origin:50% 50%;
+  animation:pinPulse 2.4s cubic-bezier(.16,1,.3,1) infinite;  /* ring colour set per-pin via stroke */
+}
+@keyframes pinPulse{
+  0%   {transform:scale(.4);opacity:.85}
+  70%  {opacity:0}
+  100% {transform:scale(2.6);opacity:0}
+}
+/* staggered starts so pins don't pulse in lock-step */
+.pin-ring.d0{animation-delay:0s}
+.pin-ring.d1{animation-delay:.4s}
+.pin-ring.d2{animation-delay:.8s}
+.pin-ring.d3{animation-delay:1.2s}
+.pin-ring.d4{animation-delay:1.6s}
+.pin-ring.d5{animation-delay:2.0s}
+
+/* faint lime connector lines between a few pins, so the constellation reads as
+   a linked "network" rather than scattered dots. Static, on-palette. */
+.board-link{stroke:rgba(61,163,90,.28);stroke-width:1.5;stroke-dasharray:3 5}
+
+/* soft on-palette "live" shimmer sweeping across the board, lime at low alpha.
+   Stays entirely within the panel and never introduces a new hue. */
+.board-shimmer{
+  fill:url(#shimmerGrad);
+  opacity:0;
+  animation:boardShimmer 6s ease-in-out infinite;
+  mix-blend-mode:multiply;
+  pointer-events:none;
+}
+@keyframes boardShimmer{
+  0%,100%{opacity:0;transform:translateX(-16%)}
+  50%    {opacity:.5;transform:translateX(16%)}
+}
+
+/* ---- floating placeholder value chips — echo the live-AQI "data" feel.
+   Two treatments: a neutral/lime chip and the amber (#fef3c7 / #8a5a00) warm
+   chip copied from the template. All clearly placeholders, not a feed. ------ */
+.board-chip{
+  position:absolute;z-index:3;
+  display:inline-flex;align-items:center;gap:7px;
+  padding:7px 11px;border-radius:9999px;
+  font-size:11px;font-weight:600;letter-spacing:-.1px;white-space:nowrap;
+  box-shadow:0 4px 14px rgba(26,58,42,.10);
+  pointer-events:none;
+}
+.board-chip.is-amber{background:#fef3c7;color:#8a5a00}
+.board-chip.is-lime{background:#eaf7cf;color:#1a3a2a}
+.board-chip .chip-dot{
+  width:7px;height:7px;border-radius:50%;flex:0 0 auto;
+  animation:chipPulse 2.4s ease-in-out infinite;
+}
+.board-chip.is-amber .chip-dot{background:#f0a818;box-shadow:0 0 0 0 rgba(240,168,24,.55)}
+.board-chip.is-lime  .chip-dot{background:#3da35a;box-shadow:0 0 0 0 rgba(61,163,90,.55)}
+@keyframes chipPulse{
+  0%  {box-shadow:0 0 0 0 currentColor}
+  70% {box-shadow:0 0 0 7px rgba(0,0,0,0)}
+  100%{box-shadow:0 0 0 0 rgba(0,0,0,0)}
+}
+.chip-aqi{top:13%;right:7%}
+.chip-wind{bottom:22%;left:7%}
+
+/* ---- static legend caption (NOT interactive) --------------------------- */
+.board-legend{
+  position:absolute;left:16px;bottom:16px;z-index:3;
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;border-radius:11px;
+  background:rgba(255,255,255,.86);backdrop-filter:blur(6px);
+  border:1px solid #e5e7eb;
+  font-size:11px;font-weight:600;letter-spacing:-.1px;color:#1a3a2a;
+  pointer-events:none;
+}
+.board-legend .lg-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;
+  background:#d1f470;box-shadow:0 0 0 3px rgba(209,244,112,.35)}
+
+/* caption under the stage */
+.board-cap{margin:12px auto 0;max-width:460px;font-size:12px;line-height:1.45;color:rgba(0,0,0,.54);text-align:center}
+
+@media(max-width:860px){
+  .hero-content{grid-template-columns:1fr;gap:40px}
+  .hero{padding:120px 20px 60px}
+  .board-stage{max-width:420px}
+}
+@media(max-width:767px){
+  .hero{padding:96px 16px 48px}
+}
+
+/* The rotation is already disabled in JS under reduced motion; this settles
+   the pill into its resting state so nothing is caught mid-transition. Here we
+   ALSO stop the board's pin pulses, the chip pulses and the shimmer so nothing
+   animates — pins settle to a quiet resting ring (static, barely visible) and
+   the chip dots sit still. */
+@media(prefers-reduced-motion:reduce){
+  .hero-mark::before{transform:scaleX(0)}
+  .hero-mark-dot{transform:scale(1)}
+  .hero-cycle,.hero-cyc-word{transition:none}
+  .pin-ring{animation:none;opacity:.25;transform:scale(1)}
+  .board-chip .chip-dot{animation:none}
+  .board-shimmer{animation:none;opacity:0}
+}
+</style>
+</head>
+<body>
+
+<div class="vm-banner">INTERNAL MOCK — <b>not a live page.</b> VayuLok HERO ONLY — Option B (live-data board, no map). Global header, footer &amp; widget are shared/unchanged and not shown. Copy is placeholder.</div>
+
+<!-- HERO ONLY. No <header>, no <footer>, no floating widget — those are global
+     and unchanged; the hero slots inside them on the real page. -->
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <div class="hero-left">
+      <div class="hero-eyebrow">
+        <span class="brand-badge"><span class="bb-dot"></span>VayuLok · by WECARE.DIGITAL</span>
+      </div>
+      <h1>
+        Bharat
+        <span class="hero-mark" id="mark">
+          <i class="hero-mark-dot" id="markDot" aria-hidden="true"></i>
+          <span class="hero-cycle" id="cycle">
+            <span class="sr-only">Air, Pollen, Weather, Forecast, Solar, Heatmap</span>
+          </span>
+        </span>
+        <br>Intelligence
+      </h1>
+      <!-- PLACEHOLDER COPY — owner supplies real wording + rates. -->
+      <p>Air quality, weather and forecasts for wherever you are in Bharat — one place, every signal that affects the air you breathe.</p>
+      <p class="hero-sub">Built on Google environmental data, wired through WECARE.DIGITAL.</p>
+    </div>
+
+    <!-- RIGHT: abstract live-data board (replaces the phone/AQI card). NO MAP /
+         NO geographic outline — a constellation of pulsing SVG pins, faint
+         connector lines and floating value chips. NO <img>, NO external map. -->
+    <div class="hero-right">
+      <div class="board-stage" id="boardStage">
+        <div class="board-grid" aria-hidden="true"></div>
+
+        <!-- viewBox 0 0 400 400. preserveAspectRatio keeps the constellation
+             centred as the panel scales. Pin positions are DECORATIVE SVG
+             coordinates (NOT cities, NOT a map, NOT geocoded). -->
+        <svg class="board-svg" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet"
+             role="img"
+             aria-label="An abstract live-data board: pulsing lime, green, amber and terracotta data pins linked by faint lines on a soft panel. Decorative only, not a map.">
+          <defs>
+            <!-- lime shimmer gradient for the subtle live sweep -->
+            <linearGradient id="shimmerGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stop-color="#d1f470" stop-opacity="0"/>
+              <stop offset=".5" stop-color="#d1f470" stop-opacity=".55"/>
+              <stop offset="1" stop-color="#d1f470" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- faint connector lines linking a few pins into a network -->
+          <path class="board-link" d="M96 108 L196 92 L300 140 L250 236 L150 300 L96 108"/>
+          <path class="board-link" d="M196 92 L250 236 M300 140 L150 300"/>
+
+          <!-- subtle lime "live" shimmer sweeping across the board -->
+          <rect class="board-shimmer" x="60" y="40" width="150" height="320" rx="24"/>
+
+          <!-- ================= PULSING DATA PINS =================
+               Each node = a pulse ring (expanding + fading) UNDER a solid core
+               dot, so the ring reads as a radar ping behind the pin. Positions
+               are decorative SVG coordinates, not geocoded. Colours: lime
+               #d1f470, green #3da35a default; amber #f0a818 and terracotta
+               #c2591b for warmer points. NO RED. -->
+
+          <!-- node A (green) -->
+          <circle class="pin-ring d0" cx="96"  cy="108" r="7" stroke="#3da35a"/>
+          <circle class="pin-core"    cx="96"  cy="108" r="4" fill="#3da35a"/>
+          <!-- node B (lime) -->
+          <circle class="pin-ring d2" cx="196" cy="92"  r="7" stroke="#d1f470"/>
+          <circle class="pin-core"    cx="196" cy="92"  r="3.5" fill="#d1f470"/>
+          <!-- node C (green) -->
+          <circle class="pin-ring d4" cx="300" cy="140" r="7" stroke="#3da35a"/>
+          <circle class="pin-core"    cx="300" cy="140" r="3.5" fill="#3da35a"/>
+          <!-- node D (amber — warmer) -->
+          <circle class="pin-ring d1" cx="250" cy="236" r="8" stroke="#f0a818"/>
+          <circle class="pin-core"    cx="250" cy="236" r="4" fill="#f0a818"/>
+          <!-- node E (lime) -->
+          <circle class="pin-ring d3" cx="150" cy="300" r="7" stroke="#d1f470"/>
+          <circle class="pin-core"    cx="150" cy="300" r="3.5" fill="#d1f470"/>
+          <!-- node F (terracotta — warm/heat accent) -->
+          <circle class="pin-ring d5" cx="320" cy="300" r="8" stroke="#c2591b"/>
+          <circle class="pin-core"    cx="320" cy="300" r="4" fill="#c2591b"/>
+          <!-- node G (green, small) -->
+          <circle class="pin-ring d2" cx="118" cy="210" r="6" stroke="#3da35a"/>
+          <circle class="pin-core"    cx="118" cy="210" r="3" fill="#3da35a"/>
+        </svg>
+
+        <!-- Floating PLACEHOLDER value chips — echo the "live data" feel.
+             Amber #fef3c7 / #8a5a00 and a lime chip. Not a feed. -->
+        <div class="board-chip is-amber chip-aqi" aria-hidden="true">
+          <span class="chip-dot"></span>AQI 78 · Moderate
+        </div>
+        <div class="board-chip is-lime chip-wind" aria-hidden="true">
+          <span class="chip-dot"></span>Wind 12 km/h · Fresh
+        </div>
+
+        <!-- static legend caption (NOT a control) -->
+        <div class="board-legend" aria-hidden="true">
+          <span class="lg-dot"></span>VayuLok coverage · Bharat
+        </div>
+      </div>
+      <p class="board-cap">Illustrative live-data board, drawn in-file as inline SVG + CSS (no images, no CDN, no map). Pins and value chips are decorative placeholders, not live data or locations.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------------------------------------------------------------------------
+   The six subject words with their tint/dot pairs are COPIED VERBATIM from
+   cycleWords in src/pages/vayulok/index.tsx. No new colours. Heatmap is
+   terracotta (#c2591b), not red, per the owner "NO RED" constraint.
+   The rotation (2400ms), width measuring and tint/dot swap reproduce the live
+   .vl-mark / .hero-mark behaviour.
+--------------------------------------------------------------------------- */
+var cycleWords = [
+  { word:'Air',      tint:'#e0f7c8', dot:'#3da35a' },
+  { word:'Pollen',   tint:'#fef9c3', dot:'#ca8a04' },
+  { word:'Weather',  tint:'#dbeafe', dot:'#2563eb' },
+  { word:'Forecast', tint:'#ede9fe', dot:'#9849e8' },
+  { word:'Solar',    tint:'#fef3c7', dot:'#f0a818' },
+  { word:'Heatmap',  tint:'#fbe6d4', dot:'#c2591b' }
+];
+
+var hero = document.getElementById('hero');
+var cycle = document.getElementById('cycle');
+var mark = document.getElementById('mark');
+var markDot = document.getElementById('markDot');
+
+/* Build one absolutely-stacked span per word (the live page's measured-width
+   technique: the active word returns to flow and gives the box its width). */
+var wordEls = cycleWords.map(function(c){
+  var s = document.createElement('span');
+  s.className = 'hero-cyc-word';
+  s.textContent = c.word;
+  s.setAttribute('aria-hidden','true');
+  cycle.appendChild(s);
+  return s;
+});
+
+var idx = 0;
+function paint(){
+  var c = cycleWords[idx];
+  wordEls.forEach(function(el,i){ el.classList.toggle('on', i===idx); });
+  mark.style.background = c.tint;
+  markDot.style.background = c.dot;
+  var active = wordEls[idx];
+  if (active) cycle.style.width = active.offsetWidth + 'px';
+}
+paint();
+
+/* One-shot entrance: add .hero.show after a tick, matching the live page's
+   setTimeout(() => setShown(true), 60). This drives the wipe + dot pop once. */
+setTimeout(function(){ hero.classList.add('show'); }, 60);
+
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce){
+  setInterval(function(){ idx = (idx + 1) % cycleWords.length; paint(); }, 2400);
+}
+</script>
+</body>
+</html>

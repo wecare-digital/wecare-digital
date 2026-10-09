@@ -28,7 +28,7 @@ describe( 'Vault file-bound purchase', () => {
     window.location.search = '?file=f';
     vi.mocked( api.listMySecureFiles ).mockResolvedValue( { ok: true, data: { files: [ { ...file, paidGrantId: 'paid' }, { ...file, fileId: 'other', displayName: 'Other file' } ], count: 2, pricePaise: 4900 } } );
     render( <VaultFilePurchase /> );
-    expect( await screen.findByRole( 'button', { name: 'Download your file' } ) ).toBeTruthy();
+    expect( await screen.findByRole( 'button', { name: 'Download / Refresh Access' } ) ).toBeTruthy();
     expect( screen.queryByText( 'Other file' ) ).toBeNull();
     expect( api.redeemSecureFileDownload ).not.toHaveBeenCalled();
     expect( sessionStorage.getItem( 'wecare.vault.selectedFile' ) ).toBe( 'f' );
@@ -59,7 +59,7 @@ describe( 'Vault file-bound purchase', () => {
     vi.mocked( api.listMySecureFiles ).mockResolvedValue( { ok: true, data: { files: [ { ...file, paidGrantId: 'paid' } ], count: 1, pricePaise: 4900 } } );
     vi.mocked( api.redeemSecureFileDownload ).mockResolvedValue( { ok: true, data: { downloadUrl: 'https://example.com/private.pdf', expiresInSeconds: 60 } } );
     render( <VaultFilePurchase /> );
-    fireEvent.click( await screen.findByRole( 'button', { name: 'Download your file' } ) );
+    fireEvent.click( await screen.findByRole( 'button', { name: 'Download / Refresh Access' } ) );
     await waitFor( () => expect( api.redeemSecureFileDownload ).toHaveBeenCalledWith( 'f', 'paid' ) );
     expect( requests.postRequestIntent ).not.toHaveBeenCalled();
   } );
@@ -69,4 +69,13 @@ describe( 'Vault file-bound purchase', () => {
     expect( await screen.findByText( /No documents are ready yet/ ) ).toBeTruthy();
     expect( screen.queryByRole( 'button', { name: 'Continue to payment' } ) ).toBeNull();
   } );
+} );
+
+it( 'does not offer another payment for a paid file whose grant is consumed or unavailable', async () => {
+  vi.mocked( api.listMySecureFiles ).mockResolvedValue( { ok: true, data: { files: [ { ...file, vaultPaymentStatus: 'PAID' } ], count: 1, pricePaise: 4900 } } );
+  render( <VaultFilePurchase /> );
+  await screen.findByText( 'Report' );
+  expect( screen.queryByRole( 'button', { name: 'Continue to payment' } ) ).toBeNull();
+  expect( screen.getByText( /Already paid/ ) ).toBeInTheDocument();
+  expect( requests.postRequestIntent ).not.toHaveBeenCalled();
 } );
