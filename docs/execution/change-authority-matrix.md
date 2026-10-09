@@ -3510,3 +3510,11 @@ Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope c
 - A1/A3: correct Meta /deprecate endpoint with owning-WABA context and bounded pagination; focused135/full10339 passed,7 skipped,3 xfailed. Business89→90 revision-guarded, exact handler-only overlay hash pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI=, code rollback89. Unauthorized HTTP401.
 - Explicit provider operation: ninePOSTdeprecations200 and fresh readbackDEPRECATED. After2PUBLISHED/22DRAFT/35DEPRECATED. No secrets/customer sends/payments/new publication/draft deletion or release flags. No bulk registry sync. Meta deprecation is not reversed by code alias rollback; replacement requires verified migration.
 - Source audit retains pending legacy Subscribe/Profile/UI references; not certified routing cleanup. Evidence outputs/flow-retirement-2026-10-09.json/.md; master/new-session handoffs updated.
+
+## Workspace correctness continuation — 9 October 2026
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | origin/stack a6c74df7 | Refreshed latest source; existing schedule cancellation and system-health fixes retained | Read only |
+| A1_LOCAL | codex/workspace-correctness-20261009 | Require configuration acknowledgement/read-back and truthful UI errors; remove fabricated billing fallback; 24 targeted and1585 full frontend tests pass; TypeScript passes; lint zero errors | Revert scoped source/test commit |
+| A2_REMOTE_CODE | Separate feature branch and PR | Explicit paths only; no production provider/auth/payment/infrastructure changes | Revert PR commit |
