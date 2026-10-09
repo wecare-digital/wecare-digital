@@ -1,6 +1,7 @@
 """Admin catalog sync control stays authenticated and never trusts a browser approver."""
 
 import importlib
+import importlib.util
 import json
 import os
 import sys
@@ -37,12 +38,22 @@ class _Lambda:
 
 @pytest.fixture
 def api():
-    sys.modules.pop("handler", None)
+    # Load the whatsapp-business-api handler under a UNIQUE module name rather than the bare
+    # `handler`. Several Lambda functions each have a file literally named `handler.py`, so
+    # `importlib.import_module("handler")` binds whichever one an earlier test already cached in
+    # sys.modules — which is why these tests passed in isolation but failed in the full suite with
+    # `module 'handler' from .../ad-attribution/handler.py has no attribute 'require_auth'`. Loading
+    # by file path under its own name (the pattern test_customer_orders_flow.py already uses) makes
+    # the import order-independent. BIZ/SHARED stay on sys.path so the handler's own submodule
+    # imports still resolve.
+    handler_path = BIZ / "handler.py"
+    spec = importlib.util.spec_from_file_location(
+        "catalog_sync_control_biz_handler", handler_path)
+    module = importlib.util.module_from_spec(spec)
     with patch.dict(os.environ, {"AWS_REGION": "us-east-1"}), \
          patch("boto3.resource"), patch("boto3.client"):
-        module = importlib.import_module("handler")
+        spec.loader.exec_module(module)
     yield module
-    sys.modules.pop("handler", None)
 
 
 def _body(response):
