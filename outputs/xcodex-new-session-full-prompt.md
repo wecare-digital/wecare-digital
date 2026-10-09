@@ -1,4 +1,87 @@
-LATEST VAULT FOLLOW-UP: read outputs/xcodex-new-session-full-prompt.md and outputs/vault-payment-download-implementation.md first. Same-catalog paid-file renewal is NOT IMPLEMENTED; consumed grant/expired-link recovery is engineering work. Approved download template uses authenticated Vault file pointer, then fresh short-lived S3 URL. This supersedes the older next-action ordering below; begin V1/V2 after fresh audit. No live change in this follow-up.
+# WECARE.DIGITAL — FULL NEW-SESSION EXECUTION PROMPT
+
+## Latest owner requirement — Vault delivery and renewable paid access
+
+Continue the existing WECARE.DIGITAL customer-service implementation. Deep audit first, then build the proven pending parts. Do not stop after another general plan. The complete original master prompt is included below; this current checkpoint overrides stale states and earlier next-action ordering.
+
+Owner wants: Vault catalog selection → correct owned file → ₹49 payment order message → independently confirmed settlement → canonical website-style order/receipt → approved download template → private S3 download for limited duration. When that URL expires or the transfer fails, the customer can return through the same Vault catalog/keyword/website entry and get access to the SAME paid file/version without another ₹49 charge, while file/entitlement remain active and authorized. Vault does not need a new Flow. Do not promise access after revocation/deletion or unlimited object retention.
+
+## Workspace and current checkpoint
+
+Primary isolated worktree: /Users/wecaredigital/Documents/Codex/2026-10-08/ca/work/wecare-digital/.scratch/catalog-design-push
+Current audited source before this documentation follow-up: e9e377ce01598877af867da16b989abd6ea40234, pushed stack; all7 triggered CI workflows passed, Amplify1503 SUCCEED. This handoff may be followed by a newer docs commit: git fetch origin stack, compare exact HEAD/remote/worktrees and current deployment before editing. Never reset or overwrite another checkout's concurrent changes.
+
+Read applicable AGENTS.md and .kiro/steering owner overrides/standing authorization/secret handling/SnapStart rules. User authorization persists across sessions within the recorded scope; do not ask again for safe reads, documentation, tests or already-authorized bounded code/deployment. Never read provider secrets into tool outputs. Do not send to unrelated customer numbers, capture/refund, invent identity, force-push or enable native purchase gates to conceal missing engineering.
+
+Read these artifacts first:
+- outputs/xcodex-deep-audit-2026-10-09.md
+- outputs/xcodex-current-state.json
+- outputs/vault-payment-download-implementation.md
+- outputs/whatsapp-customer-service-architecture.md
+- outputs/whatsapp-payment-state-machine.md
+- outputs/website-to-whatsapp-migration-matrix.md
+- docs/execution/change-authority-matrix.md
+- docs/whatsapp/service-rollout/live-evidence.json
+- /Users/wecaredigital/Documents/Codex/2026-10-08/ca/outputs/xcodex-release-verification-2026-10-09.json
+
+Status PARTIALLY COMPLETE. Do not label engineering complete while renewal, catalog approval/apply, A/B/P/R binding, terminal recovery, encrypted upload ingestion or writeback remains unfinished.
+
+## Fresh provider/AWS facts to revalidate
+
+AWS account775261844268, regionus-east-1. Prefer official AWS MCP run_script; no direct secrets reads.
+Business API89, secure-files34, service-requests5, catalog-sync7, checkout41, customer-profile10, customer-orders7, inbound92, messages-read29. Full hashes are in current-state JSON. Fresh follow-up rechecked89/34/41; they match the preceding checkpoint. Do not overlay old packages over newer live code.
+
+Catalog1457045652952851 only, intended dataset4554612361454941 only. Current catalog read works: four creates proposed, no blocks, existing[], applied0. Disabled/dry-run/out-of-stock. Approval queue, application and both-WABA/new-dataset linkage/event matching remain unfinished. Never fabricate Purchase to clear an advertising warning. Utility Shipments/Leave Review have no invented paid SKU.
+
+Wix is internal; customers see WECARE website/WhatsApp. Service productdf976a0a-f582-4535-b2e1-d532f348bd27 variants: Submit Requeste9f0eb8b-ca76-4b4f-b00c-be909c02bb2b ₹99; Amendment864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b ₹99; Drop Docsdb166bc8-a763-41ec-9f65-0f718f18155a ₹350; Vaultdcff995e-448c-493a-9259-f6a82ccdc2b4 ₹49. Always obtain frozen server quote, integer INR paise; do not trust browser/catalog price as settlement authority.
+
+Submit1107164111921876 and Review1578178897413815 PUBLISHED. Reuse Orders2167802357142172, DRAFT eight screens, validation_errors[]. Profile/owned order/detail/missing-order/existing-invoice adapters exist; don't recreate them from old pending claims. No new Vault Flow.
+
+Templates freshly APPROVED/en: wecarepay_wa1783774039408860 IMAGE + ORDER_DETAILS; wecare_default_download1410998911012572 IMAGE + URL https://wecare.digital/vault/?file={{1}}; wecare_leave_review1801972550682516 IMAGE + review Flow. Send URL suffix=fileId only, no arbitrary URL/token or raw S3 URL. The IMAGE template cannot carry a PDF header. Verify any legacy wd_file_delivery DOCUMENT template live separately before using it.
+
+Native-service/writeback/dynamic Vault flags unset/off. SECURE_FILES_PAYMENT_ENABLED=false; DROPDOCS_ATTACH_ENABLED=false. Do not enable another independent payment path as a workaround. QA personal WhatsApp+918100640044; business sender+919330994400 is excluded. QA contact lacks permanent checkoutCustomerId/customerUuid; use supported sign-in/linkage, never fabricate identifiers. Owner completes actual payment. No real customer sends/payments performed in these audit turns.
+
+## Confirmed Vault defects and source paths
+
+1. amplify/functions/core/secure-files/handler.py _redeem/_redeem_after_reconcile consume paid grant before actual S3 GET. Expiry/failed transfer leaves consumed; no automatic renewable paid access. _customer_list exposes paidGrantId only for unconsumed grant. Some errors incorrectly say pay again.
+2. src/components/VaultFilePurchase.tsx explicitly says one purchase unlocks one download and paid consumed access directs to support. Implement new owner-requested same-purchase recovery rather than assume already ready.
+3. amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py excludes paid files/rejects repurchase. Preserve no-second-charge protection; add a separate paid Download/Refresh branch on catalog/keyword re-entry.
+4. amplify/functions/shared/lambda_utils/ecommerce/vault_access.py creates deterministic paid Wix grant with no expiresAt. Preserve owner/order/payment proof; don't globally unset consumed on every legacy grant.
+5. DownloadGrantsTable TTL enabled on expiresAt; legacy grants expireAt+1800. Temporary tokens/session TTL must not delete durable financial entitlement. Plan migration/reconciliation explicitly, preserve historical charge evidence.
+6. Web S3 URL TTL60 seconds. WHATSAPP_LINK_TTL_SECONDS env21600 but current handler clamps60–900, so effective900. Do not report six-hour exposure; reconcile drift only in a guarded change.
+7. whatsapp_delivery.py claims a raw S3 URL is single-use and paying opens a free-form messaging window. Neither assumption is safe. S3 GET is reusable until expiry; use last inbound message/current policy for window and approved template outside it.
+8. paid_vault.py chooses share IMAGE template while dynamic flag off, default_download when on; PDF ordinary document only in verified window. _send_once has definite-rejection retries/backoff/max3, ambiguous sends held. Extend explicit re-entry send claim instead of repeating automatic notification/review indefinitely.
+9. Current downloadCount counts issued URL, not proven completed transfer. Keep URL issuance, Meta acceptance, delivery and completed download distinct.
+
+## Execute in this order
+
+A. Revalidate source/live hashes and current owner/financial/file schema. Record initial truth before modifying.
+B. Implement V1/V2 from vault-payment-download-implementation.md: durable owner/file/version/order/payment entitlement and separate expiring download sessions; authenticated renewal API that never creates a payment/order/invoice or transfers ownership.
+C. Implement V3: website, native catalog and Vault keyword route to paid access/resume for previously purchased files. Preserve same authenticated file pointer after sign-in; expired/interrupted download offers Refresh access without charge.
+D. Implement V4: exact approved payment/download message contracts; server-derived verified recipient/business sender; window checks, no-store/token redaction, idempotent accepted/rejected/unknown behavior; do not use a raw S3 URL as approved template suffix.
+E. Complete V5/V6 canonical order/Wix/receipt/CRM/review orchestration. One paid service order for one purchase; independent receipt/download recovery; no duplicate automatic review.
+F. Complete catalog proposal/approval/apply/readback and both-WABA/dataset checks using APIs, then broader service binding/recovery/upload requirements from the master below. Six4096 artwork objects under wecare-digital-get/o/catalog/services/{slug}/v1/image-4096.png; private uploads/delivery remain secure/u and secure/d. No public private-file catalog entries.
+G. Run meaningful own/foreign, expired, interrupted, consumed/TTL-deleted session, revoked, same-phone/new-sub, concurrent renewal, double tap/webhook, paid downstream failure and messaging-window tests. Build exact immutable deployment packages from revalidated live baseline, retain all required members, inspect deny/read-only candidate smoke then revision-guard alias move with rollback captured. No blind flag enablement.
+H. Complete supported QA account verification, then owner-observed actual₹49 payment, website/WhatsApp order+receipt, download, expiry and return through catalog without another charge. Only then publish/activate customer entry under existing authorization and report exact proof.
+
+Prior checkpoint full gates: Python10334 passed/7 skipped/3 xfailed, frontend1597/2 skipped, typecheck/build pass, lint0 errors190 warnings. This follow-up's121 Vault/secure-file/catalog tests pass. These tests do not prove the new renewal feature. Two high dependency alerts in amplify lockfile remain open; validate compatible targeted remediation. Do not claim100% error-free.
+
+## Required delivery and continuation record
+
+Keep the audit/current-state/architecture/payment/migration/Vault implementation reports in sync after each real implementation. Include completed vs pending by V1–V9, exact source commit/live versions/hashes/flags, tests actually run, provider/customer delivery proof, rollback and next executable action. Preserve historical snapshots and concurrent source. If context/session ends, update this full prompt and mark unfinished work clearly so the next agent continues instead of repeating the audit.
+
+Report exactly one status: COMPLETE / ENGINEERING COMPLETE — OWNER QA REQUIRED / PARTIALLY COMPLETE / BLOCKED. Current status remains PARTIALLY COMPLETE. Do not hide engineering gaps behind owner QA.
+
+## Primary references already checked
+
+AWS S3 presigned URLs: https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html
+S3 security: https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html
+Meta URL suffix semantics: https://whatsapp.github.io/WhatsApp-Nodejs-SDK/api-reference/types/button_parameter_object/
+Current WhatsApp messaging policy: https://whatsappbusiness.com/policy/
+
+---
+
+# Complete original master requirements with preceding audit checkpoint
 
 # Current checkpoint and continuation precedence — 9 October 2026
 

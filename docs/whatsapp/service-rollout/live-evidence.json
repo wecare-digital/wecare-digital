@@ -446,5 +446,29 @@
         "unauthorizedHttp": 401
       }
     }
+  },
+  "latestVaultFollowup": {
+    "observedAt": "2026-10-09T04:41:38.223589+00:00",
+    "sourceCheckpoint": "e9e377ce01598877af867da16b989abd6ea40234",
+    "classification": "PARTIALLY COMPLETE",
+    "implementation": "SPECIFIED NOT BUILT",
+    "newProductionMutation": false,
+    "targetedTestsPassed": 121,
+    "renewal": "NOT IMPLEMENTED",
+    "webSignedUrlSeconds": 60,
+    "directLinkRawEnvSeconds": 21600,
+    "directLinkEffectiveSourceClampSeconds": 900,
+    "legacyGrantSeconds": 1800,
+    "grantsTableTTL": {
+      "status": "ENABLED",
+      "attribute": "expiresAt"
+    },
+    "templatesFreshApproved": [
+      "wecarepay_wa",
+      "wecare_default_download",
+      "wecare_leave_review"
+    ],
+    "approvedDownloadBase": "https://wecare.digital/vault/?file={{1}}",
+    "nextAction": "V1/V2 durable paid entitlement plus authenticated temporary-session renewal"
   }
 }

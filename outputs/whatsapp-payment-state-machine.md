@@ -95,3 +95,7 @@ Get Invoice must select the authoritative existing financial invoice and asset. 
 Paid Submit Request resumes the same paid B/session and completes R about A without charging again. Paid Vault access verifies the permanent owner, active file and grant/revocation; it does not convert a failed entitlement write into another payment. Completed review suppresses another automatic invitation.
 
 Release tests must simulate double taps, delivery retries, delayed/duplicated provider events, pending/unknown/cancel/expiry, exact amount mismatch, same-phone/new-sub, foreign A/B/R/file, late capture after a new retry, every downstream failure and owner-visible paid recovery. Current primitive tests and exact ZIP tests do not certify that every projected state is already implemented or rendered in WhatsApp.
+
+## Latest Vault implementation boundary
+
+Owner now requires repeated same-catalog access to the existing paid file when a temporary URL expires or download fails. This is NOT IMPLEMENTED: current consumed grant permits one redemption, paid re-entry directs to support, and catalog selection excludes paid files. Separate durable paid entitlement from short-lived sessions; preserve no-second-charge and permanent-owner checks. Approved template points to authenticated Vault/?file=<fileId>, which must resolve a fresh private S3 URL. Read vault-payment-download-implementation.md and xcodex-new-session-full-prompt.md for V1–V9 and exact acceptance tests. Link expiry does not revoke the payment or a saved PDF.

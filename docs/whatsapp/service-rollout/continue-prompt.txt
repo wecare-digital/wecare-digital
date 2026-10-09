@@ -1,3 +1,5 @@
+LATEST: start from outputs/xcodex-new-session-full-prompt.md. Owner requires same-catalog paid-file access and short-lived renewable S3 transport; V1/V2 renewal is not implemented. Read outputs/vault-payment-download-implementation.md before altering grants. Preserve permanent owner, paid proof and closed release flags; never charge again merely because URL expired.
+
 LATEST CHECKPOINT — use outputs/xcodex-master-execution-prompt-updated-2026-10-09.md and outputs/xcodex-current-state.json first. Overall PARTIALLY COMPLETE. Business89/secure34/service5/catalog7/checkout41; catalog1457045652952851 read works, empty, four proposals, no apply; Orders2167802357142172 DRAFT eight screens. Existing invoice/profile/order adapters are built. Engineering gates remain before owner QA. Do not redeploy historical packages over newer live revisions. Latest owner authorizes scoped unrelated catalog/SDK cleanup; inventory exact objects first, no fresh redundant confirmation requirement.
 
 HISTORICAL CONTINUATION BELOW — overridden by the current checkpoint above:

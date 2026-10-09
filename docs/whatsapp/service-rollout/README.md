@@ -1,5 +1,7 @@
 # Customer service catalog and identity rollout — 9 October 2026
 
+Latest Vault follow-up: [implementation](../../../outputs/vault-payment-download-implementation.md), [full new-session prompt](../../../outputs/xcodex-new-session-full-prompt.md). Same-catalog paid-file renewal after expired/interrupted/consumed download is pending engineering. Approved download template is confirmed; activation remains off. No live change in this follow-up.
+
 ## Current master audit checkpoint — supersedes older snapshots below
 
 Status: **PARTIALLY COMPLETE**. Source baseline d03ac81d; fresh provider/source audit and diagnostic-only repair deployed Business API89 (rollback88). Secure Files34, Service Requests5, catalog sync7 and checkout41 remain current. Catalog1457045652952851 is readable and empty: four Wix create proposals, no blocks, applied0. Sync is disabled/dry-run/out-of-stock. Native service/writeback/dynamic Vault gates remain off, attachments false. Intended dataset4554612361454941 connection/event matching is not verified.
