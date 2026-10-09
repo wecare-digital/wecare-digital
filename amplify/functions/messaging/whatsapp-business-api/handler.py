@@ -3970,6 +3970,32 @@ def _update_submission_status(body: Dict) -> Dict:
         return _resp(500, {'error': str(e)})
 
 
+def _project_submission_attachments(attachments):
+    """Sign private staff downloads on read; never persist bearer URLs."""
+    if not isinstance(attachments, list):
+        return attachments
+    projected = []
+    for attachment in attachments:
+        if not isinstance(attachment, dict):
+            projected.append(attachment)
+            continue
+        entry = dict(attachment)
+        key = entry.get('key')
+        if isinstance(key, str) and media_paths.is_gated(key):
+            entry.pop('url', None)
+            entry.pop('link', None)
+            allowed = key.startswith(('secure/u/service-requests/', 'secure/u/whatsapp/incoming/'))
+            if allowed and not any(part in ('', '.', '..') for part in key.split('/')) and '\\' not in key:
+                try:
+                    entry['url'] = s3_client.generate_presigned_url(
+                        'get_object', Params={'Bucket': MEDIA_BUCKET, 'Key': key}, ExpiresIn=300)
+                except Exception as error:
+                    logger.warning(json.dumps({'event': 'submission_download_unavailable',
+                                               'errorType': type(error).__name__}))
+        projected.append(entry)
+    return projected
+
+
 def _list_flow_submissions(params: Dict) -> Dict:
     """List flow submissions with filtering."""
     try:
@@ -4008,7 +4034,10 @@ def _list_flow_submissions(params: Dict) -> Dict:
         else:
             resp = table.scan(Limit=limit)
 
-        items = resp.get('Items', [])
+        items = [dict(item) for item in resp.get('Items', [])]
+        for item in items:
+            if 'attachments' in item:
+                item['attachments'] = _project_submission_attachments(item['attachments'])
         for item in items:
             for k, v in item.items():
                 if isinstance(v, Decimal):
