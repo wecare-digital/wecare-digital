@@ -680,9 +680,27 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         }
     };
 
+    /**
+     * Raise an invoice, then ask the server to send its payment request.
+     *
+     * This browser composes NO payment. It used to build the whole Meta `order_details` here and
+     * POST it to `/whatsapp/send`, which had two defects no server-side gate can reach:
+     *
+     *   - the `reference_id` was minted in the browser as `WD-PAY-${Date.now()}` and reserved
+     *     nowhere, so it had no `PAYREF#` row — and a capture against an unreserved reference
+     *     resolves to nothing and quarantines as PAID_BUT_NO_ORDER, the exact failure the
+     *     reservation module exists to prevent;
+     *   - the payment configuration name fell back to a client-side literal.
+     *
+     * Both close by going through the invoice path instead: `POST /invoices` reserves the
+     * reference before anything is sent, the per-invoice interlock applies, the convenience fee
+     * is computed once on the server, and both readiness gates apply. It is the same two calls
+     * the staff invoice flow already makes.
+     */
     const handleSendPayment = useCallback( async () => {
-        const { contactId } = replyTarget;
+        const { contactId, phone } = replyTarget;
         if ( !contactId ) { toast.error( 'Payment needs a saved contact' ); return; }
+        if ( !phone ) { toast.error( 'Payment needs the customer phone' ); return; }
         const phoneObj = PAYMENT_PHONES.find( p => p.id === payPhone );
         if ( phoneObj?.paymentProtected && !payUnlocked ) { toast.error( 'Unlock this number first' ); return; }
         const valid = payItems.filter( i => i.name.trim() && parseFloat( i.amount ) > 0 );
@@ -690,20 +708,34 @@ const UnifiedInbox: React.FC<PageProps> = ( { signOut, user, embedded, channel }
         setSending( true );
         try
         {
-            const items = valid.map( it => ( { name: it.name.trim(), amount: Math.round( parseFloat( it.amount ) * 100 ), quantity: parseInt( it.quantity ) || 1, gstRate: parseInt( it.gstRate ) || 0 } ) );
-            const tax = items.reduce( ( s, i ) => s + Math.round( i.amount * i.quantity * ( i.gstRate || 0 ) / 100 ), 0 );
-            const r = await api.sendWhatsAppPaymentMessage( {
-                contactId, customerPhone: replyTarget.phone, phoneNumberId: payPhone,
-                items,
-                discount: Math.round( parseFloat( payPromo || '0' ) * 100 ),
-                delivery: Math.round( parseFloat( payDelivery || '0' ) * 100 ),
-                tax, gstin: payGstin || DEFAULT_GSTIN, orderId: payOrderId || 'Offline',
-                useInteractive: true,
-                paymentConfiguration: phoneObj?.paymentConfigName || 'WECAREDIGITAL',
+            // Rupees, not paise: `CreateInvoiceEngineRequest.items[].amount` is a rupee figure
+            // and the server converts with exact integer arithmetic. No total, no tax and no fee
+            // is computed here — every figure on the invoice is the server's.
+            const invoice = await api.createInvoiceEngine( {
+                customerPhone: phone,
+                customerEmail: '',
+                shippingAddress: '',
+                billingAddress: '',
+                contactId,
+                items: valid.map( it => ( {
+                    name: it.name.trim(),
+                    amount: parseFloat( it.amount ),
+                    quantity: parseInt( it.quantity ) || 1,
+                    gstRate: parseInt( it.gstRate ) || 0,
+                } ) ),
+                discount: parseFloat( payPromo || '0' ) || 0,
+                shipping: parseFloat( payDelivery || '0' ) || 0,
+                gstin: payGstin || DEFAULT_GSTIN,
+                orderId: payOrderId || 'Offline',
+                entryPoint: 'inbox',
             } );
-            if ( r )
+            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice' ); return; }
+            // The configuration name is NOT defaulted here. Omitted, the server resolves it from
+            // the invoice row and then from its own proven expectation.
+            const sent = await api.sendPaymentLink( invoice.invoiceId, payPhone );
+            if ( sent )
             {
-                toast.success( 'Payment request sent' );
+                toast.success( `Payment request sent (invoice ${invoice.invoiceNumber})` );
                 setComposer( null );
                 setPayItems( [ { name: '', amount: '', quantity: '1', gstRate: '0' } ] );
                 setPayPromo( '0' ); setPayDelivery( '0' ); setPayOrderId( '' );

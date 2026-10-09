@@ -38,6 +38,7 @@ There are two, and counting one would miss half the sends:
 * `lambda_client.invoke` — everything routed through `wecare-outbound-whatsapp`,
   including the payment `order_details`.
 """
+import ast
 import importlib.util
 import json
 import os
@@ -513,15 +514,47 @@ class TestTheMoneyPath:
             assert 'isInteractivePayment' not in payload, \
                 'the deleted in-thread Review & Pay came back'
 
-    def test_the_guard_precedes_the_mint_in_source(self, h):
-        """Structural, because the ordering is the whole fix and a later edit could move
-        the mint above the guard without any test noticing."""
+    def test_there_is_no_payment_mint_left_to_guard(self):
+        """REPLACES `test_the_guard_precedes_the_mint_in_source`, with a stronger property.
+
+        That test pinned an ORDERING inside `_send_payment_request`: the `_may_send` check had to
+        precede the `WD-PAY-` reference mint, because a send Meta refused would otherwise leave a
+        minted reference and a `status: 'pending'` row behind it, and a customer who retried would
+        produce the duplicate-paid-order shape this domain must never have.
+
+        `_send_payment_request` has been DELETED. It had zero callers, and it composed a free-form
+        `isInteractivePayment` order_details with float GST and a reference reserved nowhere — an
+        unreserved reference has no `PAYREF#` row, so a capture against it quarantines as
+        PAID_BUT_NO_ORDER regardless of any ordering.
+
+        So the ordering has no subject any more, and the honest assertion is the one that
+        subsumes it: this file mints no payment reference and composes no payment at all, so there
+        is nothing for a guard to be on the wrong side of. Payments are collected through
+        `invoice-engine.send_payment_link`, which reserves identity before it sends.
+        """
         source = HANDLER_PATH.read_text(encoding='utf-8')
-        start = source.index('def _send_payment_request')
-        body = source[start:start + 6000]
-        guard = body.index("_may_send('payment_request')")
-        mint = body.index('WD-PAY-{uuid.uuid4()')
-        assert guard < mint, 'the may-send check must precede the reference_id mint'
+        tree = ast.parse(source)
+        defined = {node.name for node in ast.walk(tree)
+                   if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))}
+        assert '_send_payment_request' not in defined
+
+        # No payment ENVELOPE is composed here any more. Keyed on the request keys rather than on
+        # the `WD-PAY-` prefix, because that prefix is also the POS receipt-image reference in
+        # `_generate_and_send_invoice` — a display string on an already-paid entry, which
+        # initiates nothing and reserves nothing.
+        #
+        # AST, so the comment recording the deletion does not pass the test.
+        composers = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Dict):
+                for key in node.keys:
+                    if (isinstance(key, ast.Constant)
+                            and key.value in ('isInteractivePayment', 'isPaymentTemplate',
+                                              'isCheckoutTemplate', 'orderDetails',
+                                              'checkoutOrderDetails')):
+                        composers.append(f'{key.value}@{node.lineno}')
+        assert not composers, (
+            'a payment composer reappeared in the inbound handler: ' + ', '.join(composers))
 
 
 class TestTheReadReceiptStaysUngated:
@@ -844,13 +877,21 @@ class TestGuardCoverage:
     send without a guard is visible."""
 
     def test_the_expected_guards_are_all_present(self):
+        """`payment_request` has left the list, and it left with its send.
+
+        That guard lived inside `_send_payment_request`, which has been deleted: zero callers, a
+        free-form `isInteractivePayment` envelope rather than the approved template, float GST,
+        and a reference reserved nowhere. There is no payment send in this file to guard, which
+        `TestTheMoneyPath` asserts directly. Adding one back without a guard would fail there.
+        """
         source = HANDLER_PATH.read_text(encoding='utf-8')
         for purpose in ('automation_auto_reply', 'button_reply_menu', 'list_reply_route',
                         'address_submission', 'postpay_submission', 'cart_order',
                         'auto_reaction', 'auto_reaction_aws', 'request_welcome_menu',
                         'button_text_menu', 'text_keyword_routing',
-                        'brand_new_contact_welcome', 'payment_request'):
+                        'brand_new_contact_welcome'):
             assert f"_may_send('{purpose}')" in source, f'missing guard: {purpose}'
+        assert "_may_send('payment_request')" not in source
 
     def test_the_welcome_write_still_runs_when_the_send_is_suppressed(self):
         """Deliberate asymmetry with a named cost: the contact is still marked welcomed,

@@ -401,6 +401,7 @@
       "WA_DOC_TEMPLATE": "wd_file_delivery",
       "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",
       "WA_PAY_TEMPLATE": "wecarepay_wa",
+      "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
       "WA_SENDER_FUNCTION": "wecare-outbound-whatsapp",
       "WHATSAPP_LINK_TTL_SECONDS": "21600"
     },

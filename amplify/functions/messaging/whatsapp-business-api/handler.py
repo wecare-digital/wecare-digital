@@ -312,23 +312,11 @@ def _update_business_profile(phone_id: str, body: Dict) -> Dict:
 def _list_flows(waba_id: str) -> Dict:
     if not waba_id:
         return _resp(400, {'error': 'wabaId required'})
-    rows, after, seen = [], None, set()
-    while True:
-        params = {'fields': 'id,name,status,categories,validation_errors', 'limit': 100}
-        if after:
-            params['after'] = after
-        result = _graph_api(f'{waba_id}/flows', params=params, waba_id=waba_id)
-        if 'error' in result:
-            return _resp(400, result)
-        rows.extend(result.get('data') or [])
-        paging = result.get('paging') or {}
-        if not paging.get('next'):
-            return _resp(200, {'flows': rows})
-        after = (paging.get('cursors') or {}).get('after')
-        if not after or after in seen or len(rows) >= 1000:
-            return _resp(502, {'error': 'Incomplete Flow inventory'})
-        seen.add(after)
-
+    result = _graph_api(f'{waba_id}/flows', params={'fields': 'id,name,status,categories,validation_errors'}, waba_id=waba_id)
+    if 'error' in result:
+        logger.error(f'List flows error for WABA {waba_id}: {result}')
+        return _resp(400, result)
+    return _resp(200, {'flows': result.get('data', [])})
 
 def _get_flow(flow_id: str) -> Dict:
     if not flow_id:
@@ -392,10 +380,10 @@ def _publish_flow(flow_id: str) -> Dict:
     _emit_event('flow_published', severity='info', data={'flowId': flow_id})
     return _resp(200, {'success': True})
 
-def _deprecate_flow(flow_id: str, waba_id: str = None) -> Dict:
+def _deprecate_flow(flow_id: str) -> Dict:
     if not flow_id:
         return _resp(400, {'error': 'flowId required'})
-    result = _graph_api(f'{flow_id}/deprecate', method='POST', waba_id=waba_id)
+    result = _graph_api(flow_id, method='POST', payload={'status': 'DEPRECATED'})
     if 'error' in result:
         return _resp(400, result)
     _emit_event('flow_deprecated', severity='warning', data={'flowId': flow_id})
@@ -3967,7 +3955,7 @@ def _update_submission_status(body: Dict) -> Dict:
     if not submission_id or not new_status:
         return _resp(400, {'error': 'submissionId and status required'})
 
-    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled', 'awaiting_order_verification'}
+    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled'}
     if new_status not in valid_statuses:
         return _resp(400, {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'})
 
@@ -5217,10 +5205,12 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
                 'response': create_body,
                 'requestId': request_id,
             }))
-            # Fallback: send payment directly via outbound (old behavior)
-            _send_payment_direct_fallback(phone, order_id, subject, ref_id, contact_id, request_id,
-                                          phone_number_id=phone_number_id,
-                                          payment_amount_paise=payment_amount_paise)
+            # No fallback send. `_send_payment_direct_fallback` used to fire here: a free-form
+            # interactive order_details with float GST, no reservation, no interlock and no
+            # readiness check. Now that the invoice path is readiness-gated, an invoice-engine
+            # refusal is a LEGITIMATE outcome, and papering over it with an ungated, unreserved
+            # send is the one path that could take money while every gate says no. The flow now
+            # reports the failure it actually had.
             return ''
 
         # Store invoiceId on the SubmitRequest record
@@ -5273,17 +5263,41 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
             })
         )
         send_result = json.loads(send_resp['Payload'].read())
-        send_status = send_result.get('statusCode', 0)
+        send_status = int(send_result.get('statusCode') or 0)
 
-        logger.info(json.dumps({
-            'event': 'flow_payment_link_sent',
-            'invoiceId': invoice_id,
-            'invoiceNumber': invoice_number,
-            'referenceId': ref_id,
-            'phone': phone[:6] + '***',
-            'statusCode': send_status,
-            'requestId': request_id,
-        }))
+        # Conditional on a 2xx. This used to log `flow_payment_link_sent` unconditionally,
+        # having read the status and discarded it — so a readiness refusal was recorded as a
+        # successful send, which is the worst possible log line on a money path.
+        if 200 <= send_status < 300:
+            logger.info(json.dumps({
+                'event': 'flow_payment_link_sent',
+                'invoiceId': invoice_id,
+                'invoiceNumber': invoice_number,
+                'referenceId': ref_id,
+                'phone': phone[:6] + '***',
+                'statusCode': send_status,
+                'requestId': request_id,
+            }))
+        else:
+            send_body = send_result.get('body')
+            if isinstance(send_body, str):
+                try:
+                    send_body = json.loads(send_body)
+                except (ValueError, TypeError):
+                    send_body = {}
+            logger.error(json.dumps({
+                'event': 'flow_payment_link_refused',
+                'invoiceId': invoice_id,
+                'invoiceNumber': invoice_number,
+                'referenceId': ref_id,
+                'phone': phone[:6] + '***',
+                'statusCode': send_status,
+                # A stable refusal code only. `invoice-engine._resp` carries `code`; the
+                # outbound gate's code travels in `error`.
+                'code': str((send_body or {}).get('code')
+                            or (send_body or {}).get('error') or '')[:64],
+                'requestId': request_id,
+            }))
 
         return invoice_number
 
@@ -5294,94 +5308,8 @@ def _send_payment_after_flow(phone: str, order_id: str, subject: str, request_id
             'error': str(e),
             'requestId': request_id,
         }))
-        # Fallback: send payment directly via outbound (old behavior)
-        try:
-            _send_payment_direct_fallback(phone, order_id, subject, ref_id, contact_id, request_id,
-                                          phone_number_id=phone_number_id,
-                                          payment_amount_paise=payment_amount_paise)
-        except Exception as fb_err:
-            logger.error(json.dumps({
-                'event': 'flow_payment_fallback_error',
-                'error': str(fb_err),
-                'requestId': request_id,
-            }))
+        # No fallback send here either, for the reason given above.
         return ''
-
-
-def _send_payment_direct_fallback(phone: str, order_id: str, subject: str,
-                                   ref_id: str, contact_id: str, request_id: str,
-                                   phone_number_id: str = '', payment_amount_paise: int = 0):
-    """Fallback: send payment directly via outbound-whatsapp if invoice-engine fails.
-    
-    CRITICAL: payment_amount_paise MUST be passed by the caller from flow registry.
-    Do NOT default to any hardcoded amount.
-    """
-    # Use the explicitly passed phone_number_id — do NOT guess from customer phone
-    send_phone_id = phone_number_id or PHONE1_ID
-    if not phone_number_id:
-        logger.warning(json.dumps({
-            'event': 'flow_payment_fallback_no_phone_id',
-            'phone_suffix': phone[-4:] if phone else '',
-            'defaulting_to': PHONE1_ID,
-        }))
-    if not payment_amount_paise:
-        logger.error(json.dumps({
-            'event': 'flow_payment_fallback_no_amount',
-            'phone_suffix': phone[-4:] if phone else '',
-            'requestId': request_id,
-            'reason': 'payment_amount_paise is 0 — caller must pass flow-specific amount',
-        }))
-        return
-    amount_paise = payment_amount_paise
-    gst_rate = 18
-    gst_paise = round(amount_paise * gst_rate / 100)
-
-    payload = {
-        'body': json.dumps({
-            'contactId': contact_id or '',
-            'recipientPhone': phone if not contact_id else '',
-            'phoneNumberId': send_phone_id,
-            'isInteractivePayment': True,
-            'orderDetails': {
-                'reference_id': ref_id,
-                'type': 'digital-goods',
-                'currency': 'INR',
-                'itemName': 'Service Request',
-                'quantity': 1,
-                'gstRate': gst_rate,
-                'gstin': '19AAFFW7196L1Z8',
-                'orderId': order_id,
-                'order': {
-                    'status': 'pending',
-                    'items': [{
-                        'retailer_id': 'SR-REQUEST',
-                        'name': 'Service Request',
-                        'amount': {'value': amount_paise, 'offset': 100},
-                        'quantity': 1,
-                        'gstRate': gst_rate,
-                    }],
-                    'subtotal': {'value': amount_paise, 'offset': 100},
-                    'discount': {'value': 0, 'offset': 100, 'description': 'None'},
-                    'shipping': {'value': 0, 'offset': 100, 'description': 'N/A'},
-                    'tax': {'value': gst_paise, 'offset': 100, 'description': f'GST {gst_rate}%'},
-                },
-            }
-        })
-    }
-
-    response = lambda_client.invoke(
-        FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-        InvocationType='Event',
-        Payload=json.dumps(payload)
-    )
-
-    logger.info(json.dumps({
-        'event': 'flow_payment_fallback_sent',
-        'phone': phone[:6] + '***',
-        'referenceId': ref_id,
-        'lambdaStatus': response.get('StatusCode'),
-        'requestId': request_id,
-    }))
 
 
 def _send_flow_confirmation(phone: str, order_id: str, subject: str, request_id: str,
@@ -6030,29 +5958,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
-    if event.get('internalAction') == 'customerInvoiceCopy':
-        from flows.customer_invoice import handle
-        return handle(event, lambda name: _graph_api('2094615664435155/message_templates',
-            params={'name': name, 'fields': 'name,status,language,components', 'limit': 100}, waba_id='2094615664435155'),
-            lambda_client, s3_client)
-
-    if event.get('internalAction') == 'prepareCustomerOrdersFlow':
-        from flows.customer_orders import prepare
-        return prepare(event)
-
     if event.get('internalAction') == 'serviceDesignDrafts':
         from flows.service_design_drafts import handle
-        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow, _update_flow)
+        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow)
 
-    if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview', 'vaultReview'):
+    if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
         if event['internalAction'] == 'catalogServiceReadiness':
             from flows.catalog_services import readiness
             return readiness(_get_flow, _graph_api)
-        if event['internalAction'] == 'vaultReview':
-            from flows.paid_vault import send_review
-            return send_review(event, lambda_client)
         from flows.paid_submit_request import send_review
         return send_review(event, lambda_client)
 
@@ -6181,8 +6096,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif '/flows/publish' in path:
             return _publish_flow(params.get('flowId') or body.get('flowId'))
         elif '/flows/deprecate' in path:
-            return _deprecate_flow(params.get('flowId') or body.get('flowId'),
-                                   params.get('wabaId') or body.get('wabaId'))
+            return _deprecate_flow(params.get('flowId') or body.get('flowId'))
         elif '/flows/preview' in path:
             return _get_flow_preview(params.get('flowId') or body.get('flowId'))
         elif '/flows/assets' in path:
@@ -6326,6 +6240,32 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not waba_id:
                 return _resp(400, {'error': 'wabaId required'})
             return _list_generated_templates(waba_id)
+
+        elif '/payment-templates/list' in path:
+            # The UNFILTERED WABA template list, for the A0 payment gate's template proof.
+            #
+            # A separate arm from `/direct-send/templates` on purpose: that route filters
+            # `source=AUTO_GENERATED`, and `wecarepay_wa` is manually created and manually
+            # approved, so it can never appear in that response - a gate reading it would block
+            # every payment send on PAYMENT_TEMPLATE_MISSING. This arm drops the `source`
+            # filter and narrows the fields to the three `_approved_template_names` reads,
+            # returning the `{data:[{name,status,language}]}` shape it consumes.
+            #
+            # WABA-scoped, so a request from one WABA is never proven against another's
+            # templates. That is the whole reason the `catalogServiceReadiness` action is not
+            # used here: it takes no wabaId and reads three hardcoded template ids.
+            waba_id = params.get('wabaId') or body.get('wabaId')
+            if not waba_id:
+                return _resp(400, {'error': 'wabaId required'})
+            tpl_result = _graph_api(f'{waba_id}/message_templates', method='GET',
+                                    params={'limit': 200, 'fields': 'name,status,language'},
+                                    waba_id=waba_id)
+            if 'error' in tpl_result:
+                # A 502 so the caller's injected fetch raises and `payment_readiness` reports
+                # META_UNAVAILABLE. Never an empty list: "we could not read" must not read the
+                # same as "nothing is approved".
+                return _resp(502, {'error': 'template list unavailable'})
+            return _resp(200, {'data': tpl_result.get('data', []) or []})
 
         elif '/direct-send' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')
@@ -6473,13 +6413,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             amount_paise = int(body.get('amountPaise', 0))
             speed = body.get('speed', 'normal')
             return _payment_refund(phone_id, reference_id, config_name, amount_paise, speed)
-
-        elif path.rstrip('/').endswith('/payment-config/raw'):
-            # Retired diagnostics must not fall through to phone-level settings.
-            # Native readiness consumes the normalized list; this route never writes.
-            return _resp(410, {'error': 'Payment configuration raw endpoint retired',
-                'replacement': '/wa-business/payment-config/list',
-                'diagnostic': '/wa-business/payment-config/check'})
 
         elif '/payment-config/list' in path:
             # Flattened live `{data:[config,...]}` for payment_readiness.evaluate. checkout's

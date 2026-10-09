@@ -30,12 +30,14 @@ Four rules it enforces, each load-bearing
 4. **The reference is minted once, reserved, and sent byte-for-byte.** `order_keys` mints and
    reserves it under `PAYREF#`; it is never transformed after reservation.
 
-Payment initiation is on by default
------------------------------------
-There is no payment-disable environment switch in this handler. A payment can proceed only after
-the authenticated ownership checks, authoritative pricing, live provider-readiness readback and
-idempotent payment-attempt reservation succeed. Tests may replace the module-level
-`INITIATION_ENABLED` seam to exercise refusal behavior, but production source defaults it to True.
+Initiation is disabled by default
+----------------------------------
+`CHECKOUT_INITIATION_ENABLED` gates the actual WhatsApp order_details send. Off (the default), the
+handler does everything up to and including reserving the attempt, and returns the attempt in a
+`PAYMENT_INITIATION_DISABLED` state instead of sending a payable message. This is the same
+posture as the Velo adapter's `initiationEnabled=false`: the plumbing is exercised end to end, but
+no live payment request goes out until someone deliberately turns it on. It can only be turned on,
+never made permissive by a value that also disables readiness.
 
 Nothing plaintext is logged
 ---------------------------
@@ -50,14 +52,16 @@ a RETAINED legacy response: callers still consume it, and it is NOT removed unti
 The in-WhatsApp vs website decision is an owner decision flagged in
 ``.agents/tasks/checkout-audit-2026-10-01/findings.md`` (the repo spec records "pay inside
 WhatsApp" / "WhatsApp-only receipts"; the task asks for a website Razorpay Standard Checkout). Both
-paths coexist behind the same readiness and payment-attempt controls.
+paths coexist behind the SAME ``CHECKOUT_INITIATION_ENABLED`` gate, default off.
 
 The ADDITIVE website path lives in
 ``lambda_utils/ecommerce/website_checkout.py`` + ``lambda_utils/integrations/razorpay_orders.py``.
 Its documented contract, which replaces ``PAYMENT_REQUEST_SENT`` for the website without deleting
 it for the in-chat path, is:
 
-    create                           -> ``CHECKOUT_OPTIONS_READY``
+    create  (gate off, the default)  -> ``PAYMENT_INITIATION_DISABLED``
+            {paymentAttemptId}                 no gateway order, no payable attempt
+    create  (gate on)                -> ``CHECKOUT_OPTIONS_READY``
             {keyId, orderId, amountPaise, currency, prefill, paymentAttemptId}
                                                ONLY these fields; keyId is the PUBLIC key id,
                                                orderId is the SERVER-STORED Razorpay gateway order
@@ -90,8 +94,8 @@ from lambda_utils import contact_key, customer_auth, customer_session, payment_r
 from lambda_utils.ecommerce import (
     blog_contribution, cart_v2, catalog_analytics, checkout_pricing, contact_address, customer_cart, finalization,
     gift_card_settlement, order_channel, order_creation, order_keys, payment_address,
-    payment_attempt, purchase_intent, website_checkout, whatsapp_basket, wix_address,
-    wix_writeback)
+    payment_attempt, purchase_intent, wa_payment_request, website_checkout, whatsapp_basket,
+    wix_address, wix_writeback)
 # The committed recognition set and the three allowed contributions live in `blog_contribution`
 # and are IMPORTED rather than re-declared, so they are stated once and the TS<->Python drift test
 # that pins them stays meaningful. Its own payment surface (`prepare_contribution` and friends) is
@@ -144,9 +148,25 @@ _CART_BLOCKED = (website_checkout.CART_ALREADY_PAID,
 #: can assert which flow created it. Headless WhatsApp/Razorpay, not the (set-aside) Velo provider.
 CHECKOUT_MODE = "WIX_HEADLESS"
 
-#: The in-chat payment sender and the identity of the paying WABA/config. These name the existing
-#: order_details path; this handler invokes it rather than reimplementing the message build.
-SENDER_FUNCTION = os.environ.get("SENDER_FUNCTION", "wecare-whatsapp-business-api:live")
+#: The business-API Lambda, which holds the Meta token and answers the readiness readback. It is
+#: NOT a payment sender and has not been one since the in-chat send moved to
+#: `OUTBOUND_SENDER_FUNCTION` below; the identifier was renamed from `SENDER_FUNCTION` so the
+#: name stops lying, and its ONE remaining use is `_fetch_payment_configurations`.
+#:
+#: The ENV KEY stays `SENDER_FUNCTION`, deliberately: renaming it would change a live environment
+#: variable and would need an edit to `provision_checkout.expected_environment()`. Only the Python
+#: identifier and this comment changed.
+PAYMENT_CONFIG_READER_FUNCTION = os.environ.get("SENDER_FUNCTION",
+                                                "wecare-whatsapp-business-api:live")
+
+#: The in-chat payment sender: the ONLY function in this repository that composes a Meta
+#: `review_and_pay` message, and therefore the only one that owns `_build_payment_settings`.
+#:
+#: A LITERAL rather than an env var. It is a function name, not a Meta-registered string, so the
+#: "one home, env-read" argument that justifies the template name does not transfer, and a stale
+#: env value here would surface as a send failure that looks like a Meta problem.
+OUTBOUND_SENDER_FUNCTION = "wecare-outbound-whatsapp:live"
+
 PAYMENT_WABA_ID = os.environ.get("PAYMENT_WABA_ID", "2094615664435155")
 
 #: Readiness inputs. Deliberately have NO safe default that could read as "ready": an empty MID or
@@ -155,9 +175,9 @@ PAYMENT_WABA_ID = os.environ.get("PAYMENT_WABA_ID", "2094615664435155")
 EXPECTED_CONFIGURATION_NAME = os.environ.get("EXPECTED_CONFIGURATION_NAME", "")
 EXPECTED_PROVIDER_MID = os.environ.get("EXPECTED_PROVIDER_MID", "")
 
-#: Production initiation defaults ON. This is a test seam, not an environment-controlled kill
-#: switch; readiness, ownership, authoritative pricing and idempotency remain mandatory.
-INITIATION_ENABLED = True
+#: Off by default. The plumbing runs; the payable message does not go out until this is truthy.
+INITIATION_ENABLED = str(
+    os.environ.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower() in ("1", "true", "yes", "on")
 
 #: The Wix catalogue product id of the live Contribute product, lowercased. NOT a secret -- a
 #: catalogue reference. UNSET MEANS CONTRIBUTIONS ARE REFUSED, not "priced as an ordinary
@@ -300,7 +320,7 @@ def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
         "queryStringParameters": {"wabaId": waba_id},
     }
     response = _lambda_client().invoke(
-        FunctionName=SENDER_FUNCTION,
+        FunctionName=PAYMENT_CONFIG_READER_FUNCTION,
         InvocationType="RequestResponse",
         Payload=json.dumps(invoke_event).encode("utf-8"),
     )
@@ -2668,6 +2688,32 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         return cors_response(409, service_requests.refusal(
             service_requests.SERVICE_WEBSITE_ONLY), origin)
 
+    # A2.6 — CART PURCHASES ARE COLLECTED ON THE WEBSITE, refused here and before any I/O.
+    #
+    # Requirements statement 8 and the owner's direction both say cart purchases are collected on
+    # the website via Razorpay Standard Checkout; native in-WhatsApp payment is retained for
+    # invoice collection and service purchases. With `_send_order_details` repaired onto a working
+    # envelope, the non-catalog leg of this function would otherwise have become a working in-chat
+    # cart payment, which is the opposite of that ruling.
+    #
+    # POSITION IS THE POINT, and it is why this sits above everything rather than beside the
+    # initiation gate further down. By that point `_create` has already made a live Wix call,
+    # run the readiness gate, durably reserved a `PAYREF#` and written an attempt row — so a
+    # PERMANENT POLICY refusal would burn a reference and store an attempt for a payment that can
+    # never be sent. The service refusal immediately above is "refused first and before any I/O"
+    # for the same reason.
+    #
+    # 200, not 409, matching the `PAYMENT_INITIATION_DISABLED` sibling for the reason recorded
+    # there: `cart.tsx` answers it with the "no charge was made" copy, which is only honest
+    # because the server stopped before the payment rail. No `paymentAttemptId` is returned,
+    # because no attempt exists.
+    if catalog_session is None:
+        logger.info(json.dumps({"event": "cart_payment_website_only"}))
+        return cors_response(200, {
+            "status": "CART_PAYMENT_IS_WEBSITE_ONLY",
+            "message": "Please complete this payment on the website. "
+                       "Nothing has been charged."}, origin)
+
     # 1. Authoritative total, from Wix. The browser sent catalogue references and quantities;
     #    Wix computes the price. A non-INR or non-whole-paise total fails closed.
     #
@@ -2760,8 +2806,23 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
         item_summary = wix_ecom.line_item_summary(checkout)
 
     if catalog_session is not None:
+        # The native leg REQUIRES Cart V2, refused explicitly rather than crashed into.
+        #
+        # Everything below this point reads `snapshot` and `_calculated`, and both are produced
+        # only by the V2 branch above — so on V1 this function previously raised
+        # `UnboundLocalError` on the per-line assertion and would have raised `AttributeError` on
+        # `snapshot.snapshot_hash` a few frames later. In production the crash was unreachable,
+        # because a catalog basket always carries a service line and `checkout_preflight` refuses
+        # a service line with V2 off; this makes the precondition structural instead of argued.
+        # 503 and the same vocabulary `checkout_preflight` uses, so a V2-off deployment reads as
+        # one condition rather than two.
+        if not cart_v2.is_enabled():
+            logger.warning(json.dumps({"event": "service_refused",
+                                       "reason": service_requests.SERVICE_UNAVAILABLE}))
+            return cors_response(503, service_requests.refusal(
+                service_requests.SERVICE_UNAVAILABLE), origin)
         # Native services require the same authoritative per-line guard as website services.
-        guard = service_requests.checkout_preflight(line_items, body, v2_enabled=cart_v2.is_enabled())
+        guard = service_requests.checkout_preflight(line_items, body, v2_enabled=True)
         if guard is not None:
             return cors_response(guard[0], guard[1], origin)
         service_requests.assert_service_line_price(_calculated, line_items, delivery_required=False)
@@ -2769,7 +2830,11 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
     # 2. Readiness gate. A live provider readback must confirm PAYMENT_READY, or the CTA is refused
     #    with the blocking state. No local constant makes this pass.
     readiness = _readiness()
-    if not readiness.ready:
+    # Membership in `BLOCKING_STATES`, not `not readiness.ready`. Equivalent today
+    # (`ALL_STATES == {PAYMENT_READY} | BLOCKING_STATES`), but the enumerated form is what the
+    # module asks for in its own words, so a state added later without being classified cannot
+    # become permissive by omission. Same form as the invoice-engine and outbound gates.
+    if readiness.state in payment_readiness.BLOCKING_STATES:
         logger.info(json.dumps({"event": "checkout_not_ready", "state": readiness.state}))
         return cors_response(409, {
             "status": "payment_unavailable",
@@ -2863,24 +2928,23 @@ def _create(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
                 ':intent': body['serviceIntentId'], ':preparing': 'PREPARING_PAYMENT'})
 
 
-    if catalog_session is not None:
-        from lambda_utils.ecommerce.catalog_service_checkout import payment_details
-        payload = {'body': json.dumps({'contactId': catalog_session['contactId'],
-            'recipientPhone': identity.phone, 'phoneNumberId': catalog_session['phoneNumberId'],
-            'isTemplate': True, 'isPaymentTemplate': True, 'templateName': 'wecarepay_wa',
-            'templateParams': [],
-            'headerImageUrl': 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
-            'orderDetails': payment_details(catalog_session, snapshot.quote, reference_id,
-                                           EXPECTED_CONFIGURATION_NAME, int(time.time()))})}
-        response = _lambda_client().invoke(FunctionName='wecare-outbound-whatsapp:live',
-            InvocationType='RequestResponse', Payload=json.dumps(payload).encode())
-        result = json.loads(response['Payload'].read())
-        sent = not response.get('FunctionError') and 200 <= int(result.get('statusCode') or 500) < 300
-    else:
-        sent = _send_order_details(
-            phone=identity.phone, reference_id=reference_id,
-            amount_paise=amount_paise, configuration_name=EXPECTED_CONFIGURATION_NAME,
-            items=item_summary)
+    # ONE in-chat sender for this handler. The `catalog_session is None` branch that used to sit
+    # here is gone: A2.6 refuses that case at the top of `_create`, so the catalog leg is the only
+    # leg that reaches this line, and keeping a second call shape would have left a dead branch
+    # holding a call that no longer matches the signature.
+    #
+    # The envelope changed from `isPaymentTemplate` + `orderDetails` to `isCheckoutTemplate` +
+    # `checkoutOrderDetails`, which is the correctness fix open task 9.4 asks for. The old
+    # envelope attaches the caller's dict VERBATIM as the button action and never calls
+    # `_build_payment_settings`, so this leg reached Meta without passing the resolver at all —
+    # not the WABA1-only refusal, not the link refusals, not the `VALID_PAYMENT_CONFIGS`
+    # membership check. It is now refused by name at the boundary gate.
+    from lambda_utils.ecommerce.catalog_service_checkout import payment_details
+    sent = _send_order_details(
+        phone=identity.phone, contact_id=catalog_session['contactId'],
+        phone_number_id=catalog_session['phoneNumberId'],
+        order_details=payment_details(catalog_session, snapshot.quote, reference_id,
+                                      EXPECTED_CONFIGURATION_NAME, int(time.time())))
     if not sent:
         # The attempt is stored and ready; the message did not go. A soft failure the client can
         # retry, and crucially still NO order and NO second charge — the reference is reusable for a
@@ -2968,31 +3032,46 @@ def _status(identity: customer_auth.CustomerIdentity, body: Dict[str, Any],
 
 # ── the WhatsApp order_details handoff ──────────────────────────────────────────
 
-def _send_order_details(*, phone: str, reference_id: str, amount_paise: int,
-                        configuration_name: str, items: list) -> bool:
-    """Invoke the existing in-chat payment-request sender. Returns True on a 2xx.
+def _send_order_details(*, phone: str, contact_id: str, phone_number_id: str,
+                        order_details: dict) -> bool:
+    """Invoke the in-chat payment-request sender. Returns True on a 2xx. THE ONLY SENDER HERE.
 
-    This does NOT build the order_details payload itself — `outbound-whatsapp`/`whatsapp-business-api`
-    own that (`_build_payment_settings`, the interactive-payment path). We pass the reserved
-    reference byte-for-byte, the authoritative paise amount, the configuration name and a price-free
-    item summary, and let the sender construct the Meta message. Meta + Razorpay collect the money
-    in-chat; nothing here charges anything.
+    This does NOT build `payment_settings` — `outbound-whatsapp._build_payment_settings` owns
+    Mode 3, and the whole point of this shape is that it reaches that resolver. `payment_settings`
+    is deliberately ABSENT from the payload: the `isCheckoutTemplate` branch builds them from the
+    sender's configured gateway and now REFUSES a caller-supplied block outright, so the WABA1-only
+    refusal, the `payment_link_uri` / `upi_intent_link` refusals and the `VALID_PAYMENT_CONFIGS`
+    membership check all apply. The configuration NAME still travels, inside `order_details`, so
+    the configuration `payment_readiness` proved is the configuration Meta is told to use.
+
+    THE ROUTE IT USED TO CALL DID NOT EXIST. It POSTed
+    `/wa-business/messages/send/interactive-payment` at the business-API Lambda, whose send
+    dispatcher handles ten paths and then falls through to a 404 `Unknown send path`. The 404 read
+    as a non-2xx and surfaced as this handler's 502 `SEND_FAILED`, so the function could never
+    have sent anything. It is repaired onto `wecare-outbound-whatsapp:live` with the envelope that
+    function's checkout-template branch owns.
+
+    `headerImageUrl` is deliberately not passed. The `isCheckoutTemplate` branch forces its own
+    fixed header for the approved template and ignores a per-call value, so supplying one is
+    misleading.
+
+    Meta + Razorpay collect the money in-chat; nothing here charges anything.
     """
     invoke_event = {
-        "httpMethod": "POST",
-        "path": "/wa-business/messages/send/interactive-payment",
         "body": json.dumps({
-            "to": "".join(ch for ch in str(phone or "") if ch.isdigit()),
-            "reference_id": reference_id,
-            "payment_configuration": configuration_name,
-            "amount_paise": amount_paise,
-            "currency": "INR",
-            "items": items,
+            "contactId": contact_id,
+            "recipientPhone": phone,
+            "phoneNumberId": phone_number_id,
+            "isTemplate": True,
+            "isCheckoutTemplate": True,
+            "templateName": "wecarepay_wa",
+            "templateParams": [],
+            "checkoutOrderDetails": order_details,
         }),
     }
     try:
         response = _lambda_client().invoke(
-            FunctionName=SENDER_FUNCTION,
+            FunctionName=OUTBOUND_SENDER_FUNCTION,
             InvocationType="RequestResponse",
             Payload=json.dumps(invoke_event).encode("utf-8"),
         )
@@ -3000,8 +3079,14 @@ def _send_order_details(*, phone: str, reference_id: str, amount_paise: int,
         if response.get("FunctionError"):
             return False
         result = json.loads(raw.decode("utf-8")) if raw else {}
-        return int(result.get("statusCode") or 500) < 300
+        # TIGHTENED to add the lower bound; this is a change, not a preservation. The old form
+        # was `< 300` with no floor, so a `statusCode` of 0, 100 or 204 read as success. Nothing
+        # emits a sub-200 status today, so the 502 `SEND_FAILED` contract is unchanged in practice.
+        return 200 <= int(result.get("statusCode") or 500) < 300
     except Exception as error:  # noqa: BLE001
+        # Includes `AccessDeniedException` until the `wecare-checkout-role` invoke grant lands in
+        # both of its homes. The attempt is stored and no order exists, so the reference stays
+        # reusable for a delivery retry.
         logger.error(json.dumps({"event": "checkout_send_failed",
                                  "error": type(error).__name__}))
         return False
@@ -3068,6 +3153,21 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
     if row.get('paymentAttemptId'):
         return {'outcome': 'CATALOG_SERVICE_ALREADY_PREPARED', 'paymentAttemptId': row['paymentAttemptId']}
+    # A2.5 — ONLY WABA1 MAY TAKE A PAYMENT, refused here with a named cause.
+    #
+    # Switching this leg onto the `isCheckoutTemplate` envelope newly subjects it to the
+    # resolver's `PAYMENT_SENDERS` refusal, which raises rather than returning an outcome. The
+    # shape this guards against is not one that occurs today — the session's `phoneNumberId` is
+    # written from `_get_aws_phone_number_id`, which returns only an AWS-style id — it guards
+    # against WABA2, which that resolver can legitimately return and which must never collect.
+    #
+    # POSITION: before the one-shot `nativePrepareClaim` write below. `nativePrepareClaim` is
+    # `attribute_not_exists`-conditional, so a check placed after it would make the customer's
+    # retry answer CATALOG_SERVICE_RECONCILIATION_REQUIRED and need a human.
+    if str(row.get('phoneNumberId') or '') not in wa_payment_request.PAYMENT_SENDERS:
+        logger.error(json.dumps({'event': 'catalog_session_sender_not_permitted',
+                                 'sessionToken': token[:8]}))
+        return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
     contact = _table(CONTACTS_TABLE).get_item(Key={'id': row.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = contact.get('checkoutCustomerId')
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.

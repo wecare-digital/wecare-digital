@@ -151,15 +151,6 @@ def policy_document() -> dict:
                 "Resource": f"arn:aws:s3:::{BUCKET}/{PUBLIC_WHATSAPP_INCOMING_PREFIX}*",
             },
             {
-                "Sid": "PrivateIncomingOwnershipProof",
-                "Effect": "Allow",
-                "Action": ["dynamodb:GetItem"],
-                "Resource": [
-                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-MessagesTable",
-                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ContactsTable",
-                ],
-            },
-            {
                 "Sid": "DropDocsRequestRows",
                 "Effect": "Allow",
                 # Enough to resolve the caller's own REQ# row and register a DOC# row, and
@@ -314,7 +305,16 @@ def environment(payment_enabled: bool = False) -> dict:
         "CUSTOMER_USER_POOL_ID": CUSTOMER_POOL_ID,
         "COGNITO_USER_POOL_ID": ADMIN_POOL_ID,  # require_auth resolves admins here
         "META_WABA_ID": META_WABA_ID,
+        # Meta's OWN phone-number id, which is what the business-API `/wa-business/media` route
+        # wants. It is NOT a valid `phoneNumberId` for `wecare-outbound-whatsapp`.
         "META_PHONE_NUMBER_ID": "1016149501586345",
+        # The AWS-style sender id `outbound-whatsapp` requires, for the three sends that go
+        # there. Every WhatsApp send from this function used to pass the bare Meta id above, and
+        # `_resolve_meta_phone_id` refuses that outright rather than falling back to another
+        # WABA — so all three were structurally broken, and the payment one was refused a second
+        # time by `PAYMENT_SENDERS`. This makes the surface CORRECT, not ENABLED:
+        # SECURE_FILES_PAYMENT_ENABLED stays "false".
+        "WA_SEND_PHONE_ID": "phone-number-id-waba1-direct-1016149501586345",
         "PARTNER_GROUP": "Partner",
         # Both templates are already APPROVED; nothing here waits on Meta.
         # wecare_pay    [IMAGE, BODY, FOOTER, BUTTONS(ORDER_DETAILS)]

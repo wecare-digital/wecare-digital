@@ -143,6 +143,22 @@ const ALLOWED = [
       /MapsJsInternalService/.test( text )
       || ( /Failed to load resource/.test( text ) && /MapsJsInternalService/.test( url || '' ) ),
   },
+  {
+    // KEYLESS-CI ARTIFACT, scoped exactly like the two entries above. /vayulok/'s
+    // VayuLokLive reads NEXT_PUBLIC_GOOGLE_MAPS_KEY, which CI leaves unset (build-test.yml
+    // documents the key as owner-only, which is why contactcheck's keyed assertion is
+    // reported-not-enforced). With an empty key its Air Quality and Weather calls to
+    // *.googleapis.com are rejected 403, producing the generic "Failed to load resource"
+    // line with no identifying text - so, like the site-language and Maps RPC entries, it
+    // is matched on the REQUEST URL, not the message. Scoped to these two Google service
+    // hosts only: on the deployed site the key is present and these calls succeed, so a
+    // real failure there still fails this gate, and any OTHER host's 403 is untouched.
+    why: 'keyless CI: /vayulok/ Air Quality + Weather calls 403 without a Maps key - '
+      + 'the key is owner-only and unset in CI, exactly as contactcheck documents',
+    test: ( text, url ) =>
+      /Failed to load resource/.test( text )
+      && /\b(airquality|weather)\.googleapis\.com\//.test( url || '' ),
+  },
 ];
 
 function isAllowed( text, url ) {

@@ -45,20 +45,21 @@ def provisioner():
     sys.modules.pop("provision_checkout", None)
 
 
-# ── payment defaults and readiness identifiers ────────────────────────────────
+# ── the gate ──────────────────────────────────────────────────────────────────
 
-def test_no_payment_disable_flag_is_provisioned(provisioner):
-    """Payment initiation is on in source; no environment switch may turn it off."""
+def test_the_initiation_flag_is_absent_not_false(provisioner):
+    """Absent, so enabling it is an addition rather than an edit of an existing value."""
     env = provisioner.expected_environment()
     assert "CHECKOUT_INITIATION_ENABLED" not in env
-    assert "WA_PAYMENTS_DISABLED" not in env
 
 
-def test_verified_readiness_identifiers_are_declared(provisioner):
-    """A fresh deployment carries the same verified identifiers as production."""
+def test_both_readiness_inputs_are_empty(provisioner):
+    """The second, independent block. `payment_readiness.evaluate` returns
+    CONFIGURATION_UNVERIFIED on an empty configuration name or MID, so flipping the gate alone
+    still cannot produce a payable message."""
     env = provisioner.expected_environment()
-    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
-    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
+    assert env["EXPECTED_CONFIGURATION_NAME"] == ""
+    assert env["EXPECTED_PROVIDER_MID"] == ""
 
 
 def test_no_environment_value_looks_like_a_credential(provisioner):
@@ -317,6 +318,106 @@ def test_the_role_reads_only_the_two_canonical_provider_secrets(provisioner):
     assert "wecare/razorpay-webhook" not in json.dumps(_policy(provisioner))
 
 
+# ── A2.4: the invoke grant, in BOTH of its homes ──────────────────────────────
+#
+# `wecare-checkout-role` is defined TWICE — here in the provisioner's `expected_role_policy()`
+# and in `amplify/infra/checkout.json`'s `CheckoutRole` — and the two have already drifted apart
+# once. These are the only offline catch for that class of regression.
+
+EXPECTED_INVOKE_ARNS = sorted([
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api",
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp",
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp:live",
+])
+
+
+def _checkout_role_policy() -> dict:
+    """The CloudFormation copy of the same inline policy, unwrapped to the document."""
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    policy = template["Resources"]["CheckoutRole"]["Properties"]["Policies"][0]
+    document = dict(policy["PolicyDocument"])
+    document["PolicyName"] = policy["PolicyName"]
+    return document
+
+
+def _normalise(resource) -> str:
+    """`Fn::Sub` with the two pseudo-parameters resolved, so the two homes are comparable."""
+    if isinstance(resource, dict):
+        resource = resource["Fn::Sub"]
+    return (str(resource).replace("${AWS::Region}", "us-east-1")
+            .replace("${AWS::AccountId}", "775261844268"))
+
+
+def _statement(policy: dict, sid: str) -> dict:
+    return next(s for s in policy["Statement"] if s["Sid"] == sid)
+
+
+def test_the_invoke_grant_names_the_outbound_sender_in_the_provisioner(provisioner):
+    """Without this grant the in-chat send raises `AccessDeniedException` — and for the catalog
+    leg it does so AFTER the attempt, the reference and the one-shot claim are written, surfacing
+    as a 500 that looks like a Meta problem.
+
+    Four ARNs, NO wildcard. This is a widening of a least-privilege policy by one function and
+    its alias, on a role used by one function; it grants no new data access and no ability to
+    charge.
+    """
+    statement = _statement(_policy(provisioner), "InvokeWhatsAppSender")
+    assert statement["Action"] == ["lambda:InvokeFunction"]
+    assert sorted(statement["Resource"]) == EXPECTED_INVOKE_ARNS
+    assert not any("*" in arn for arn in statement["Resource"])
+
+
+def test_the_invoke_grant_names_the_outbound_sender_in_cloudformation():
+    statement = _statement(_checkout_role_policy(), "InvokeWhatsAppSender")
+    assert statement["Action"] == ["lambda:InvokeFunction"]
+    assert sorted(_normalise(r) for r in statement["Resource"]) == EXPECTED_INVOKE_ARNS
+    assert not any("*" in _normalise(r) for r in statement["Resource"])
+
+
+def test_the_two_homes_agree_on_the_invoke_grant(provisioner):
+    """Pinned EQUAL, because whichever home is applied last wins."""
+    script = sorted(_statement(_policy(provisioner), "InvokeWhatsAppSender")["Resource"])
+    template = sorted(_normalise(r) for r in
+                      _statement(_checkout_role_policy(), "InvokeWhatsAppSender")["Resource"])
+    assert script == template
+
+
+def test_the_two_homes_agree_on_every_statement(provisioner):
+    """The two definitions of `wecare-checkout-role` carry the SAME statement set — no drift.
+
+    Owner ruling (resolved): `amplify/infra/checkout.json` previously carried a
+    `CouponAndGiftCardRedemption` statement granting the role GetItem/PutItem/UpdateItem/DeleteItem
+    on `CouponsTable` and `GiftCardsTable` that `expected_role_policy()` did not. Because both
+    documents use the same `PolicyName` (`CheckoutLeastPrivilege`) and `ensure_role` calls
+    `put_role_policy` (replace, not merge), running the provisioner would have STRIPPED that
+    statement from the live role.
+
+    Verified before resolving: the checkout function closure references neither table — coupons and
+    gift cards on the website path are Wix-authoritative (`wixGiftCardRedeemPaise`, `wix-giftcard-spi`,
+    `gift_card_settlement`), and the only functions touching the legacy `CouponsTable`/`GiftCardsTable`
+    are `wix-giftcard-spi` and the shared `coupon_store`/`gift_card_store` modules — NOT this role.
+    So the grant was a stale over-grant, not a needed permission. The owner's resolution is to drop
+    the stale statement from `checkout.json` (least-privilege), making the two homes agree, so the
+    provisioner can be run safely without removing anything the role actually uses.
+
+    What this test buys going forward: ANY divergence — a statement in one home and not the other,
+    in EITHER direction — fails, so the two cannot silently drift apart again.
+    """
+    script_sids = {s["Sid"] for s in _policy(provisioner)["Statement"]}
+    template_sids = {s["Sid"] for s in _checkout_role_policy()["Statement"]}
+    assert template_sids - script_sids == set(), (
+        "a statement-level drift appeared between the two definitions of "
+        "wecare-checkout-role; reconcile it or record it here with a reason")
+    assert script_sids - template_sids == set(), (
+        "a statement-level drift appeared between the two definitions of "
+        "wecare-checkout-role; reconcile it or record it here with a reason")
+    # Same PolicyName in both, which is WHY any drift matters: the provisioner replaces, it does
+    # not merge.
+    assert _checkout_role_policy()["PolicyName"] == "CheckoutLeastPrivilege"
+    assert 'PolicyName="CheckoutLeastPrivilege"' in SCRIPT.read_text(encoding="utf-8")
+
+
 def test_the_environment_holds_secret_names_not_values(provisioner):
     env = provisioner.expected_environment()
     assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"
@@ -325,11 +426,10 @@ def test_the_environment_holds_secret_names_not_values(provisioner):
     assert env["ORDERS_TABLE"] == "stack-wecare-digital-OrderTable"
 
 
-def test_verifier_has_no_payment_disable_gate(provisioner):
-    """The production verifier judges readiness/configuration, not an obsolete enable flag."""
+def test_readiness_set_message_is_only_for_gate_off(provisioner):
+    """Do not report the gate as OFF when CHECKOUT_INITIATION_ENABLED is actually truthy."""
     body = SCRIPT.read_text(encoding="utf-8").split("def verify(")[1].split("\ndef ")[0]
-    assert "CHECKOUT_INITIATION_ENABLED" not in body
-    assert "payment-disable environment switch" in body
+    assert 'if not readiness_empty and initiation not in ("1", "true", "yes", "on"):' in body
 
 
 def test_the_role_cannot_delete_checkout_evidence(provisioner):
@@ -827,14 +927,13 @@ def test_the_template_declares_the_same_routes_the_script_creates(provisioner):
         ["GET /ecommerce/service-prices"]
 
 
-def test_the_template_declares_always_on_readiness_defaults():
+def test_the_template_keeps_the_gate_absent():
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     env = (template["Resources"]["CheckoutFunction"]["Properties"]
            ["Environment"]["Variables"])
     assert "CHECKOUT_INITIATION_ENABLED" not in env
-    assert "WA_PAYMENTS_DISABLED" not in env
-    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
-    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
+    assert env["EXPECTED_CONFIGURATION_NAME"] == ""
+    assert env["EXPECTED_PROVIDER_MID"] == ""
 
 
 def test_the_template_qualifies_every_invoke_permission(provisioner):
@@ -879,14 +978,13 @@ def test_the_template_is_not_wired_into_the_amplify_backend():
     assert "checkout.json" not in backend
 
 
-def test_the_manifest_records_always_on_readiness_defaults():
+def test_the_manifest_records_the_function_without_the_gate():
     manifest = json.loads(
         (ROOT / "config" / "lambda-env-manifest.json").read_text(encoding="utf-8"))
     entry = manifest["functions"]["wecare-checkout"]
     assert "CHECKOUT_INITIATION_ENABLED" not in entry
-    assert "WA_PAYMENTS_DISABLED" not in entry
-    assert entry["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
-    assert entry["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
+    assert entry["EXPECTED_CONFIGURATION_NAME"] == ""
+    assert entry["EXPECTED_PROVIDER_MID"] == ""
     assert entry["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
     assert manifest["_functions"] == len(manifest["functions"])
     assert manifest["_variables"] == sum(len(v) for v in manifest["functions"].values())
@@ -1136,15 +1234,42 @@ def test_every_non_readiness_key_is_actually_checked(provisioner, verify_run):
         assert verify_run({key: f"wrong-{want}-x"}) == 1, f"{key} is not verified on live"
 
 
-def test_readiness_identifiers_are_checked_exactly(provisioner, verify_run):
-    """A missing or changed config/MID is configuration drift and must fail verification."""
+def test_a_readiness_key_is_checked_for_presence_not_for_an_empty_value(provisioner, verify_run):
+    """Presence-only, and both halves of that matter.
+
+    An owner filling these in from a live Meta/Razorpay read is legitimate drift from what this
+    script writes, so a non-empty value must not be an env MISMATCH - it is reported by the
+    readiness check instead, with the right explanation. A missing key is a different fault:
+    `payment_readiness` has nothing to evaluate.
+    """
     for key in provisioner.READINESS_KEYS:
         assert verify_run(drop=(key,)) == 1, f"{key} absent from live is not reported"
-        assert verify_run({key: "wrong-value"}) == 1, f"{key} drift is not reported"
+    # Present-but-empty is the provisioned state, and must stay clean.
     assert verify_run() == 0
 
 
-def test_legacy_enable_flag_does_not_control_verification(verify_run):
-    """A stale old flag is inert; production source no longer reads it."""
-    assert verify_run({"CHECKOUT_INITIATION_ENABLED": "true"}) == 0
-    assert verify_run({"CHECKOUT_INITIATION_ENABLED": "false"}) == 0
+def test_the_gate_being_on_is_a_problem(verify_run):
+    assert verify_run({"CHECKOUT_INITIATION_ENABLED": "true"}) == 1
+
+
+def test_readiness_set_with_the_gate_off_is_a_problem(verify_run):
+    """The state the evidence document singles out and the verifier used to PRINT.
+
+    The gate is the LAST check in `handler._create`. The measured order is
+    `wix_ecom.create_checkout` (a live Wix write) -> currency compare -> `payment_readiness`
+    -> `allocate_payment_reference` -> `put_item` on PaymentAttemptsTable -> `if not
+    INITIATION_ENABLED`. While readiness is empty it refuses early and the table stays at 0 rows.
+    The moment an owner fills the readiness values in with the flag still off, every authenticated
+    `action=create` performs a live Wix write and writes an attempt row before refusing. No money
+    moves, but "gate off" has stopped meaning "inert", and an operator who set those values
+    expecting inertness deserves a non-zero exit rather than a note.
+    """
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "some-config"}) == 1
+    assert verify_run({"EXPECTED_PROVIDER_MID": "some-mid"}) == 1
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c", "EXPECTED_PROVIDER_MID": "m"}) == 1
+
+
+def test_readiness_set_with_the_gate_on_is_still_a_problem(verify_run):
+    """Both conditions report; neither masks the other."""
+    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c",
+                       "CHECKOUT_INITIATION_ENABLED": "true"}) == 1

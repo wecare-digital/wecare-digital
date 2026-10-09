@@ -3,8 +3,12 @@
  *
  * WHAT IT DOES. Lists the cart (name + Wix formattedPrice for DISPLAY only), lets the shopper
  * change quantities or remove lines, and on "Proceed to checkout" ensures a customer session then
- * POSTs {action:'create', lineItems} to {NEXT_PUBLIC_API_BASE}/ecommerce/checkout with a
- * Authorization: Bearer token from getSession(). The lineItems carry catalogue references and
+ * POSTs {action:'profile'}, {action:'prepare'} and {action:'verify'} to
+ * {NEXT_PUBLIC_API_BASE}/ecommerce/checkout with a Authorization: Bearer token from getSession().
+ * It does NOT post {action:'create'} and has not for some time; that line said so for long enough
+ * to mislead anyone tracing which payment path the storefront uses. Cart purchases are collected
+ * HERE, on the website, through Razorpay Standard Checkout — `create` is the in-WhatsApp leg and
+ * it refuses a non-catalog session outright. The lineItems carry catalogue references and
  * quantities ONLY (src/lib/cart.ts, toLineItems) - the browser never sends a price.
  *
  * THE AUTH GATE. The checkout create endpoint requires an authenticated customer

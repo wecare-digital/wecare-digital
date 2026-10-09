@@ -20,11 +20,12 @@ What it stands up
   wildcard at all — see `source_arn`, which records why the obvious `/ecommerce/*` prefix was not
   good enough.
 
-Payment initiation defaults ON in source; there is no payment-disable environment switch.
-The provisioner records the verified Meta configuration name and Razorpay provider MID so a fresh
-deployment can pass the same live-readback readiness check as production. Readiness is still
-fail-closed: the provider configuration must exist, be active, belong to the expected WABA and
-report the expected Razorpay MID before a payable request is created.
+Initiation stays OFF. `CHECKOUT_INITIATION_ENABLED` is deliberately absent from the environment
+this script sets, so the deployed function prepares attempts and reserves references but sends no
+payable message until someone sets that flag on purpose. Readiness inputs
+(`EXPECTED_CONFIGURATION_NAME`, `EXPECTED_PROVIDER_MID`) are also left empty here, so even if
+initiation were flipped on, `payment_readiness` blocks until an owner supplies the values from a
+live Meta/Razorpay read. There is no path from this script to a live charge.
 
 Packaging is delegated, deliberately
 ------------------------------------
@@ -166,7 +167,13 @@ CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 #: explicitly NOT DeleteItem or Scan: an order record is evidence that money moved.
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
 WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
+#: The business-API Lambda. Holds the Meta token; answers the readiness readback.
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
+#: The in-chat payment sender — the only function that composes a Meta `review_and_pay` message.
+#: `wecare-checkout` invokes it for the native service leg, and WITHOUT the grant below that
+#: invoke raises `AccessDeniedException` after the attempt, the reference and the one-shot claim
+#: are all written, surfacing as a 500 that looks like a Meta problem.
+OUTBOUND_SENDER_FUNCTION = "wecare-outbound-whatsapp"
 PAYMENT_WABA_ID = "2094615664435155"
 
 _account_id_cache = None
@@ -437,12 +444,20 @@ def expected_role_policy(acct: str | None = None) -> dict:
                 "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{ORDERS_TABLE}"],
             },
             {
+                # Four ARNs, no wildcard. The two `wecare-outbound-whatsapp` entries are the
+                # grant the in-chat send needs; this role is used by one function, the widening
+                # grants no new data access and no ability to charge. The SAME four ARNs are
+                # declared in `amplify/infra/checkout.json`'s `CheckoutRole`, and a test pins the
+                # two homes equal — they have already drifted apart once.
                 "Sid": "InvokeWhatsAppSender",
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
                 "Resource": [
                     f"arn:aws:lambda:{REGION}:{acct}:function:{SENDER_FUNCTION}",
                     f"arn:aws:lambda:{REGION}:{acct}:function:{SENDER_FUNCTION}:{LIVE_ALIAS}",
+                    f"arn:aws:lambda:{REGION}:{acct}:function:{OUTBOUND_SENDER_FUNCTION}",
+                    f"arn:aws:lambda:{REGION}:{acct}:function:"
+                    f"{OUTBOUND_SENDER_FUNCTION}:{LIVE_ALIAS}",
                 ],
             },
         ],
@@ -509,8 +524,9 @@ def ensure_log_group(dry_run: bool) -> str:
     return "exists; retention verified" if exists else "created"
 
 
-#: Verified non-secret payment identifiers. These are checked exactly because a different
-#: configuration name or merchant MID changes where a payable request can settle.
+#: Environment keys this script seeds empty and an owner later fills from a live Meta/Razorpay
+#: read. `--verify` checks them for PRESENCE only; every other key in `expected_environment()` is
+#: checked for an exact value.
 READINESS_KEYS = ("EXPECTED_CONFIGURATION_NAME", "EXPECTED_PROVIDER_MID")
 
 
@@ -525,10 +541,11 @@ def expected_environment() -> dict:
         "WIX_SITE_ID": WIX_SITE_ID,
         "SENDER_FUNCTION": f"{SENDER_FUNCTION}:{LIVE_ALIAS}",
         "PAYMENT_WABA_ID": PAYMENT_WABA_ID,
-        # Verified live identifiers, not credentials. Payment readiness still performs a live
-        # Meta readback and refuses any status/WABA/gateway/MID mismatch.
-        "EXPECTED_CONFIGURATION_NAME": "WECAREDIGITAL",
-        "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
+        # Deliberately empty: payment_readiness returns CONFIGURATION_UNVERIFIED until an owner sets
+        # these from a live Meta/Razorpay read. No value here can enable a payment.
+        "EXPECTED_CONFIGURATION_NAME": "",
+        "EXPECTED_PROVIDER_MID": "",
+        # CHECKOUT_INITIATION_ENABLED intentionally omitted -> initiation OFF.
     }
 
 
@@ -548,7 +565,7 @@ def ensure_function(dry_run: bool, zip_bytes: bytes) -> str:
                 Handler="handler.handler",
                 Code={"ZipFile": zip_bytes},
                 Description="Customer checkout: authoritative Wix total, readiness gate, "
-                            "PaymentAttempt, readiness-gated payment handoff.",
+                            "PaymentAttempt, in-chat handoff. Initiation off by default.",
                 Timeout=20,
                 MemorySize=256,
                 Environment={"Variables": expected_environment()},
@@ -569,9 +586,13 @@ def reconcile_environment(dry_run: bool) -> str:
     config = lam().get_function_configuration(FunctionName=FUNCTION_NAME)
     current = dict((config.get("Environment") or {}).get("Variables") or {})
     wanted = expected_environment()
-    # Only ADD/repair the keys this script owns. Readiness identifiers are declared
-    # configuration and are verified exactly; credential material remains secret-by-reference.
-    drifted = {k: v for k, v in wanted.items() if current.get(k) != v}
+    # Only ADD/repair the keys this script owns; never clobber an operator-set
+    # CHECKOUT_INITIATION_ENABLED or a live-read EXPECTED_* value.
+    drifted = {k: v for k, v in wanted.items()
+               if k not in READINESS_KEYS and current.get(k) != v}
+    for k in READINESS_KEYS:
+        if k not in current:
+            drifted[k] = wanted[k]
     if not drifted:
         return "env already correct"
     if dry_run:
@@ -593,7 +614,7 @@ def ensure_live_alias(dry_run: bool) -> str:
     if dry_run:
         return "would publish v1 and create live alias"
     published = lam().publish_version(
-        FunctionName=FUNCTION_NAME, Description="initial checkout release (readiness gated)")
+        FunctionName=FUNCTION_NAME, Description="initial checkout release (initiation off)")
     version = published["Version"]
     lam().get_waiter("function_active_v2").wait(
         FunctionName=FUNCTION_NAME, Qualifier=version)
@@ -1080,13 +1101,48 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
     # site id on live passed verification. Any key added to `expected_environment` is now checked
     # by construction, which is the only version of this check that cannot drift out of date.
     for key, want in sorted(expected_environment().items()):
+        if key in READINESS_KEYS:
+            # Deliberately presence-only: these are the two values an owner fills in from a live
+            # Meta/Razorpay read, so a non-empty value is legitimate drift from what this script
+            # writes. Absence is not — `payment_readiness` would raise rather than refuse.
+            if key not in live_env:
+                problems.append(f"env {key} absent on live (v{alias['FunctionVersion']}) — "
+                                f"readiness cannot evaluate")
+            continue
         if live_env.get(key) != want:
             problems.append(f"env {key} mismatch on live (v{alias['FunctionVersion']})")
 
+    initiation = str(live_env.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower()
+    if initiation in ("1", "true", "yes", "on"):
+        problems.append("CHECKOUT_INITIATION_ENABLED is ON — live payment initiation is enabled")
+
+    # Readiness blocks independently of the gate. Both empty means `payment_readiness.evaluate`
+    # returns CONFIGURATION_UNVERIFIED, so a flipped flag alone still cannot produce a payment.
+    readiness_empty = not (live_env.get("EXPECTED_CONFIGURATION_NAME")
+                           or live_env.get("EXPECTED_PROVIDER_MID"))
+
     print(f"function: present (live v{alias['FunctionVersion']})")
-    print("initiation: ON by source; no payment-disable environment switch")
-    print("readiness inputs: verified identifiers are set and checked against live Meta state")
+    print(f"initiation: {'ON' if initiation in ('1','true','yes','on') else 'OFF (expected)'}")
+    print(f"readiness inputs: {'empty — blocks regardless of the gate' if readiness_empty else 'SET by an operator'}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
+
+    # Gate off is NOT the same as nothing happens, and this used to be a print that exited 0.
+    # The gate is the LAST check in `handler._create`; the measured order is
+    #   wix_ecom.create_checkout (a live Wix write) -> currency compare -> payment_readiness
+    #   -> order_keys.allocate_payment_reference -> put_item on PaymentAttemptsTable
+    #   -> `if not INITIATION_ENABLED: refuse`.
+    # So while readiness is empty it refuses early and the table stays at 0 rows. The moment an
+    # owner supplies both readiness values with the flag still off, every authenticated
+    # action=create performs a live Wix write and writes an attempt row before refusing. No money
+    # moves and no gateway order is created, but "the gate is off" stops meaning "inert" — and an
+    # operator who set those values expecting inertness deserves a non-zero exit, not a note.
+    if not readiness_empty and initiation not in ("1", "true", "yes", "on"):
+        problems.append(
+            "readiness inputs are SET while CHECKOUT_INITIATION_ENABLED is off: every "
+            "authenticated action=create now reaches wix_ecom.create_checkout (a live Wix write) "
+            "and writes a PaymentAttempt row BEFORE the gate refuses. Either enable initiation "
+            "deliberately or clear EXPECTED_CONFIGURATION_NAME/EXPECTED_PROVIDER_MID to keep the "
+            "endpoint inert")
 
     # Routes + integration: the half that turns a deployed function into a reachable endpoint.
     want_uri = function_arn(qualified=True)
@@ -1191,7 +1247,7 @@ def verify(members: dict | None = None, source_note: str = "") -> int:
         for p in problems:
             print(f"  - {p}")
         return 1
-    print("\ncheckout provisioning verified (initiation on; readiness gated)")
+    print("\ncheckout provisioning verified (initiation disabled)")
     return 0
 
 
@@ -1223,7 +1279,7 @@ def main(argv=None) -> int:
     print(f"region: {REGION}")
     print(f"source root: {why}")
     print(f"sender: {SENDER_FUNCTION}:{LIVE_ALIAS}; WABA {PAYMENT_WABA_ID}")
-    print("initiation: ON by source; no payment-disable environment switch")
+    print("initiation: OFF (CHECKOUT_INITIATION_ENABLED not set)")
     print(f"dry run: {args.dry_run}\n")
 
     zip_bytes, members, errors, warnings = build_package(source_root)

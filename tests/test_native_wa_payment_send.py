@@ -53,12 +53,24 @@ WABA2 = 'phone-number-id-waba-t-direct-1055232054343117'
 # fixtures
 # ══════════════════════════════════════════════════════════════════════════════
 
+#: The merchant id the readiness stub reports and the fixture expects. A test value, never the
+#: live one: the point of the gate is that the expectation is COMPARED, not that it is correct.
+TEST_MID = 'acc_TESTMID'
+TEST_CONFIG = 'WECAREDIGITAL'
+
+
 @pytest.fixture
 def engine():
     for stale in [m for m in sys.modules if m == 'handler' or m.startswith('handler.')]:
         del sys.modules[stale]
     sys.path.insert(0, ENGINE_DIR)
-    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1'}):
+    # The two readiness EXPECTATIONS must be set in the fixture, because the handler no longer
+    # carries literal defaults for them: an unconfigured deployment refuses, by design. Reading
+    # them at import time is why this has to be `patch.dict` around the import rather than a
+    # per-test patch.
+    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1',
+                                 'WA_PAY_CONFIG_NAME': TEST_CONFIG,
+                                 'EXPECTED_PROVIDER_MID': TEST_MID}):
         with patch('boto3.resource'), patch('boto3.client'):
             module = importlib.import_module('handler')
     return module
@@ -74,18 +86,58 @@ def fake():
         base_query_tables={ITEMS, DELIVERY})
 
 
-class _RecordingLambda:
-    """Records every invoke so "nothing was sent" is an assertion rather than a hope."""
+def _ready_configurations(*, name=TEST_CONFIG, mid=TEST_MID, status='active',
+                          provider='Razorpay'):
+    """The flattened `{data:[config,...]}` shape `payment_readiness.evaluate` consumes."""
+    return {'data': [{'configuration_name': name, 'status': status,
+                      'provider_name': provider, 'provider_mid': mid,
+                      'waba_id': wpr.PHONE_ID_TO_WABA[WABA1]}]}
 
-    def __init__(self, status=200):
+
+class _RecordingLambda:
+    """Records every invoke so "nothing was sent" is an assertion rather than a hope.
+
+    DISPATCHES ON PATH, because this handler now makes two different invokes through the one
+    client: the readiness readback against `/wa-business/payment-config/list`, and the send.
+    Without the split, every existing test in this file would see the readiness invoke answered
+    with a send response and refuse with META_UNAVAILABLE — which is also why the readiness fetch
+    is a module-level seam rather than inline code.
+
+    `readiness` may be:
+      * a dict      - returned as the readback body,
+      * an Exception - raised, so META_UNAVAILABLE is reachable,
+      * None        - a ready configuration is synthesised.
+    """
+
+    def __init__(self, status=200, readiness=None):
         self.invokes = []
         self.status = status
+        self.readiness = readiness
+        #: Counted separately so "zero readiness-fetch calls" is an assertion. Every refusal
+        #: ordered ahead of the provider read must leave this at 0.
+        self.readiness_calls = 0
+
+    @staticmethod
+    def _path(kwargs):
+        try:
+            return str(json.loads(kwargs.get('Payload') or '{}').get('path') or '')
+        except (ValueError, TypeError):
+            return ''
 
     def invoke(self, **kwargs):
         self.invokes.append(kwargs)
-        body = json.dumps({'statusCode': self.status,
-                           'body': json.dumps({'status': 'sent',
-                                               'whatsappMessageId': 'wamid.TEST'})})
+        if '/payment-config/list' in self._path(kwargs):
+            self.readiness_calls += 1
+            if isinstance(self.readiness, Exception):
+                raise self.readiness
+            body = json.dumps({
+                'statusCode': 200,
+                'body': json.dumps(self.readiness if self.readiness is not None
+                                   else _ready_configurations())})
+        else:
+            body = json.dumps({'statusCode': self.status,
+                               'body': json.dumps({'status': 'sent',
+                                                   'whatsappMessageId': 'wamid.TEST'})})
 
         class _Payload:
             def read(self_inner):
@@ -93,9 +145,13 @@ class _RecordingLambda:
 
         return {'Payload': _Payload(), 'StatusCode': 200}
 
+    def sends(self):
+        """Only the SEND invokes. The readiness readback is not a send."""
+        return [c for c in self.invokes if '/payment-config/list' not in self._path(c)]
+
     def payloads(self):
         out = []
-        for call in self.invokes:
+        for call in self.sends():
             raw = json.loads(call['Payload'])
             out.append(json.loads(raw['body']) if 'body' in raw else raw)
         return out
@@ -121,10 +177,8 @@ def _drive(engine, fake, lam, *, phone_id=WABA1, config='', verify_phone=''):
     with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
-        ready = engine.payment_readiness.PaymentReadiness(engine.payment_readiness.PAYMENT_READY)
-        with patch.object(engine, '_payment_readiness_for_sender', return_value=ready), \
-                patch.object(engine, '_lookup_contact_by_phone',
-                             return_value={'contactId': CUSTOMER}):
+        with patch.object(engine, '_lookup_contact_by_phone',
+                          return_value={'contactId': CUSTOMER}):
             return engine.send_payment_link(INVOICE_ID, phone_id, config, 'req-1',
                                             verify_phone=verify_phone)
 
@@ -153,7 +207,10 @@ def test_every_reservation_row_exists_and_the_send_happens_after(engine, fake):
     assert len(_rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX)) == 1
     assert len(_rows(fake, order_keys.INVOICE_COLLECT_PREFIX)) == 1
     assert fake.count(ATTEMPTS) == 1
-    assert len(lam.invokes) == 1
+    # SENDS, not invokes: the readiness readback is an invoke through the same client and is not
+    # a send. It runs BEFORE the transaction, which is the point of the gate's placement.
+    assert len(lam.sends()) == 1
+    assert lam.readiness_calls == 1
 
     # The transaction precedes the invoke in the recorded call order.
     ordering = [op for _table, op in fake.calls]
@@ -204,7 +261,9 @@ def test_a_retried_send_reuses_the_same_reference_and_sends_once(engine, fake):
     assert len(_rows(fake, order_keys.REQUEST_KEY_PREFIX)) == 1
     assert fake.count(ATTEMPTS) == 1
     # The `sendStatus` claim is already PENDING, so the second call does NOT invoke the sender.
-    assert lam2.invokes == []
+    # It does re-read readiness, because the gate runs before the claim is consulted — the gate's
+    # whole job is to refuse before anything is reserved, and that ordering is unchanged here.
+    assert lam2.sends() == []
     assert _body(second)['deduplicated'] is True
 
 
@@ -269,20 +328,235 @@ def test_the_payref_row_carries_the_binding_inputs(engine, fake):
     assert payref['invoiceId'] == INVOICE_ID
 
 
-def test_the_configuration_name_defaults_rather_than_refusing(engine, fake):
-    """T-S25. Both routed callers can legitimately supply an empty configuration, and
-    `payment_attempt.build` refuses an empty one - so a required-with-no-default field here would
-    turn a send that works today into a 409."""
+def test_the_proven_configuration_name_is_the_sent_configuration_name(engine, fake):
+    """T-S25, REWRITTEN. The half worth keeping from `..._defaults_rather_than_refusing`.
+
+    That test asserted `engine.WA_PAY_CONFIG_NAME == 'WECAREDIGITAL'` as a literal default and
+    that an empty `payment_configuration` still sends. Both halves are gone deliberately: a
+    literal default is what requirements statement 9 forbids, and a send that "works" by falling
+    back to an unproven constant is the defect rather than the behaviour to preserve. See
+    `test_an_unconfigured_deployment_refuses_rather_than_defaulting` below for the inverse.
+
+    What survives, and what actually matters: with the expectation SET, the name reserved on the
+    attempt row and the name sent to Meta are the same string. Two copies of the resolution
+    expression is how a proven name and a sent name diverge.
+    """
     _seed_invoice(fake)
     lam = _RecordingLambda()
     resp = _drive(engine, fake, lam, config='')
 
-    assert resp['statusCode'] == 200
+    assert resp['statusCode'] == 200, _body(resp)
     attempt = list(fake.tables[ATTEMPTS].values())[0]
-    assert attempt['configurationName'] == engine.WA_PAY_CONFIG_NAME == 'WECAREDIGITAL'
+    assert attempt['configurationName'] == engine.WA_PAY_CONFIG_NAME == TEST_CONFIG
     # Reserved name and SENT name are the same string.
     assert (lam.payloads()[0]['checkoutOrderDetails']['payment_configuration']
             == attempt['configurationName'])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# A1 — the readiness gate refuses BEFORE anything is reserved
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _unconfigured_engine():
+    """The handler imported with NEITHER expectation set — an unconfigured deployment."""
+    for stale in [m for m in sys.modules if m == 'handler' or m.startswith('handler.')]:
+        del sys.modules[stale]
+    sys.path.insert(0, ENGINE_DIR)
+    env = {k: v for k, v in os.environ.items()
+           if k not in ('WA_PAY_CONFIG_NAME', 'EXPECTED_CONFIGURATION_NAME',
+                        'EXPECTED_PROVIDER_MID')}
+    env['AWS_REGION'] = 'us-east-1'
+    with patch.dict(os.environ, env, clear=True):
+        with patch('boto3.resource'), patch('boto3.client'):
+            return importlib.import_module('handler')
+
+
+def test_neither_hardcoded_literal_survives_as_a_default():
+    """The AST half of A1.4, and AST rather than a text search for the reason the template-name
+    gate states outright: the comments explaining this rule necessarily contain the values, so a
+    textual search flags its own explanation.
+
+    Scoped to `os.environ.get` DEFAULTS, which is the only place a literal could read as "ready".
+    """
+    import ast
+    import pathlib
+
+    source = (pathlib.Path(REPO) / 'amplify' / 'functions' / 'payments' / 'invoice-engine'
+              / 'handler.py').read_text(encoding='utf-8')
+    defaults = set()
+    for node in ast.walk(ast.parse(source)):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr == 'get'
+                and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == 'environ'
+                and len(node.args) == 2 and isinstance(node.args[1], ast.Constant)):
+            defaults.add(node.args[1].value)
+
+    assert 'WECAREDIGITAL' not in defaults, (
+        'a payment configuration name must not have an env default that reads as "ready"')
+    assert 'acc_TTFSyolquKEZEy' not in defaults, (
+        'the expected merchant id must not have an env default; "we did not compare the merchant '
+        'id" must never read the same as "the merchant id matched"')
+
+
+def test_an_unconfigured_deployment_refuses_rather_than_defaulting(fake):
+    """A1.4's inverse, and the behaviour the old test asserted the opposite of.
+
+    With neither expectation set, the resolution chain yields `''` and `evaluate` reports
+    CONFIGURATION_UNVERIFIED. The refusal is the INTENDED outcome on an unconfigured deployment,
+    not a regression — and it leaves no reservation behind.
+    """
+    engine = _unconfigured_engine()
+    assert engine.WA_PAY_CONFIG_NAME == ''
+    assert engine.WA_PAY_PROVIDER_MID == ''
+
+    _seed_invoice(fake)
+    lam = _RecordingLambda()
+    resp = _drive(engine, fake, lam, config='')
+
+    assert resp['statusCode'] == 409
+    assert _body(resp)['code'] == engine.WA_PAY_NOT_READY
+    assert _body(resp)['readiness'] == 'CONFIGURATION_UNVERIFIED'
+    assert 'Nothing has been charged.' in _body(resp)['error']
+    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
+    assert _rows(fake, order_keys.REQUEST_KEY_PREFIX) == []
+    assert fake.count(ATTEMPTS) == 0
+    assert lam.sends() == []
+
+
+def test_an_empty_expected_mid_alone_refuses(engine, fake):
+    """`evaluate` blocks on an empty `expected_provider_mid` REGARDLESS of what the configuration
+    name resolved to, and `build_request` refuses WA_PAY_PROVIDER_MID_REQUIRED independently. A
+    stored `paymentConfiguration` on the invoice does not rescue the call."""
+    _seed_invoice(fake, extra={'paymentConfiguration': TEST_CONFIG})
+    lam = _RecordingLambda()
+    with patch.object(engine, 'WA_PAY_PROVIDER_MID', ''):
+        resp = _drive(engine, fake, lam, config='')
+
+    assert resp['statusCode'] == 409
+    assert _body(resp)['readiness'] == 'CONFIGURATION_UNVERIFIED'
+    assert fake.count(ATTEMPTS) == 0
+    assert lam.sends() == []
+
+
+def test_the_kill_switch_outranks_a_blocking_readiness_verdict(engine, fake):
+    """THE HARD-CONSTRAINT REGRESSION TEST.
+
+    With `WA_PAYMENTS_DISABLED` set AND a readiness stub that would also block, the answer is
+    503 `WA_PAY_DISABLED` — not a readiness state. `evaluate` also reads the kill switch and
+    reports it as CONFIGURATION_UNVERIFIED, so without the explicit check first a pulled brake
+    would surface as a readiness verdict and lose its code, its 503 and its operator wording.
+
+    Nothing is written, nothing is sent, and the provider is never read.
+    """
+    _seed_invoice(fake)
+    lam = _RecordingLambda(readiness={'data': []})
+    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
+        resp = _drive(engine, fake, lam, config='')
+
+    assert resp['statusCode'] == 503
+    assert _body(resp)['code'] == wpr.WA_PAY_DISABLED
+    assert _body(resp)['error'] == wpr.REFUSAL_MESSAGES[wpr.WA_PAY_DISABLED]
+    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
+    assert fake.count(ATTEMPTS) == 0
+    assert lam.sends() == []
+    # The brake is checked BEFORE readiness, so the provider is never consulted.
+    assert lam.readiness_calls == 0
+
+
+@pytest.mark.parametrize('readiness,state,status', [
+    ({'data': []}, 'PAYMENT_CONFIG_MISSING', 409),
+    ({'data': [{'configuration_name': 'SOMETHINGELSE', 'status': 'active',
+                'provider_name': 'Razorpay', 'provider_mid': TEST_MID}]},
+     'PAYMENT_CONFIG_NAME_UNKNOWN', 409),
+    ({'data': [{'configuration_name': TEST_CONFIG, 'status': 'inactive',
+                'provider_name': 'Razorpay', 'provider_mid': TEST_MID}]},
+     'PAYMENT_CONFIG_INACTIVE', 409),
+    ({'data': [{'configuration_name': TEST_CONFIG, 'status': 'active',
+                'provider_name': 'Razorpay', 'provider_mid': 'acc_SOMEONEELSE'}]},
+     'RAZORPAY_MID_MISMATCH', 409),
+    ({}, 'META_UNAVAILABLE', 503),
+    (RuntimeError('provider unreachable'), 'META_UNAVAILABLE', 503),
+])
+def test_each_blocking_verdict_refuses_with_the_right_status(engine, fake, readiness, state,
+                                                             status):
+    """Per-state coverage, and the 503/409 split.
+
+    A 409 tells the staff UI "this will not succeed"; META_UNAVAILABLE and RAZORPAY_UNAVAILABLE
+    will. Every one of them leaves ZERO reservation rows, which is the property that makes the
+    gate's placement — before the transaction — the thing under test rather than its verdict.
+    """
+    _seed_invoice(fake)
+    lam = _RecordingLambda(readiness=readiness)
+    resp = _drive(engine, fake, lam, config='')
+
+    assert resp['statusCode'] == status
+    assert _body(resp)['code'] == engine.WA_PAY_NOT_READY
+    assert _body(resp)['readiness'] == state
+    assert 'Nothing has been charged.' in _body(resp)['error']
+    assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
+    assert _rows(fake, order_keys.REQUEST_KEY_PREFIX) == []
+    assert _rows(fake, order_keys.INVOICE_COLLECT_PREFIX) == []
+    assert fake.count(ATTEMPTS) == 0
+    assert lam.sends() == []
+
+
+def test_an_unprovable_configuration_is_refused_by_name_before_the_provider_read(engine, fake):
+    """`WECAREUPI` is a `upi` configuration with a VPA and no Razorpay merchant id, so `evaluate`
+    could only ever report it as a misconfiguration — sending an operator to look for a
+    configuration error that does not exist. Refused by name instead, with a cause, and before
+    the provider is read at all."""
+    _seed_invoice(fake)
+    lam = _RecordingLambda()
+    resp = _drive(engine, fake, lam, config='WECAREUPI')
+
+    assert resp['statusCode'] == 409
+    assert _body(resp)['code'] == engine.WA_PAY_CONFIG_NOT_PROVABLE
+    assert 'Nothing has been charged.' in _body(resp)['error']
+    assert fake.count(ATTEMPTS) == 0
+    assert lam.sends() == []
+    assert lam.readiness_calls == 0
+
+
+def test_a_forbidden_sender_is_refused_before_the_provider_read(engine, fake):
+    """WABA2 by name, ahead of readiness. An unmapped sender would yield an empty WABA id and
+    `evaluate` would answer CONFIGURATION_UNVERIFIED — closed, but under a name that reads as a
+    misconfiguration. The named refusal is the earlier and more honest of the two."""
+    _seed_invoice(fake)
+    lam = _RecordingLambda()
+    resp = _drive(engine, fake, lam, phone_id=WABA2)
+
+    assert resp['statusCode'] == 409
+    assert _body(resp)['code'] == wpr.WA_PAY_SENDER_NOT_PERMITTED
+    assert lam.readiness_calls == 0
+
+
+def test_the_waba_id_is_derived_from_the_sender_and_never_from_a_request(engine, fake):
+    """A caller-supplied WABA id on a money path is a caller-supplied routing decision. The gate
+    reads it from `PHONE_ID_TO_WABA` keyed on the RESOLVED sender, so the id in the readiness
+    readback is the sender's own."""
+    _seed_invoice(fake)
+    lam = _RecordingLambda()
+    _drive(engine, fake, lam, config='')
+
+    readback = [c for c in lam.invokes
+                if '/payment-config/list' in str(json.loads(c['Payload']).get('path') or '')]
+    assert len(readback) == 1
+    queried = json.loads(readback[0]['Payload'])['queryStringParameters']['wabaId']
+    assert queried == wpr.PHONE_ID_TO_WABA[WABA1]
+
+
+def test_the_gate_runs_before_the_reservation_in_source_order(engine):
+    """Structural, because POSITION is what makes "a refusal leaves no reservation" true. Intent
+    is not enough: a gate moved below the transaction would still refuse, and would still burn a
+    reference doing it."""
+    import inspect
+
+    source = inspect.getsource(engine.send_payment_link)
+    assert (source.index('payments_disabled()')
+            < source.index('payment_readiness.evaluate(')
+            < source.index('wa_payment_request.build_request(')), (
+        'the brake, then readiness, then the reserve-and-send transaction')
 
 
 def test_the_attempt_advances_to_request_sent_after_a_successful_send(engine, fake):
@@ -378,22 +652,16 @@ def test_every_validation_rule_refuses_before_any_write(kwargs, code):
     assert refused.value.code == code
 
 
-def test_live_readiness_refuses_before_reservation_or_send(engine, fake):
-    """Provider readiness is the server-side payment gate now that the env kill switch is gone."""
+def test_payments_disabled_refuses_before_any_write(engine, fake):
+    """T-S15. `WA_PAYMENTS_DISABLED` is a single opt-out that can only ever tighten. There is
+    deliberately no env var that can turn payments ON."""
     _seed_invoice(fake)
     lam = _RecordingLambda()
-    blocked = engine.payment_readiness.PaymentReadiness(
-        engine.payment_readiness.PAYMENT_CONFIG_MISSING, 'no live configuration')
-    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
-        ddb.Table.side_effect = fake.Table
-        ddb.meta.client = fake.client()
-        with patch.object(engine, '_payment_readiness_for_sender', return_value=blocked), \
-                patch.object(engine, '_lookup_contact_by_phone',
-                             return_value={'contactId': CUSTOMER}):
-            resp = engine.send_payment_link(INVOICE_ID, WABA1, '', 'req-1')
+    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
+        resp = _drive(engine, fake, lam)
 
     assert resp['statusCode'] == 503
-    assert _body(resp)['code'] == engine.payment_readiness.PAYMENT_CONFIG_MISSING
+    assert _body(resp)['code'] == wpr.WA_PAY_DISABLED
     assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
     assert lam.invokes == []
 
@@ -413,7 +681,7 @@ def test_a_junk_invoice_reference_is_refused_rather_than_re_minted(engine, fake)
     resp = _drive(engine, fake, lam)
 
     assert _body(resp)['code'] == wpr.WA_PAY_REFERENCE_INVALID
-    assert lam.invokes == []
+    assert lam.sends() == []
 
 
 # ══════════════════════════════════════════════════════════════════════════════
