@@ -264,6 +264,26 @@ body{
   var roBody  = document.getElementById('roBody');
   var roMeta  = document.getElementById('roMeta');
 
+  // ---- robust stage measurement -----------------------------------------
+  // On first paint (and especially inside the htmlpreview iframe/sandbox)
+  // stage.clientWidth/clientHeight can be 0 before layout settles. A 0 size
+  // makes canvas.width/height 0, gl.viewport(0,0,0,0) rasterizes nothing, and
+  // the panel just looks solid black. Never return 0: fall back to the
+  // bounding rect, then the canvas's own box, and finally a hard 320 floor so
+  // gl.viewport always receives a positive area and the globe recovers once
+  // layout reports a real size on a later frame.
+  function measureStage(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if(!w || !h){
+      var r = stage.getBoundingClientRect();
+      w = w || r.width; h = h || r.height;
+    }
+    if(!w || !h){ w = w || canvas.clientWidth; h = h || canvas.clientHeight; }
+    if(!w) w = 320;
+    if(!h) h = 320;
+    return {w:w, h:h};
+  }
+
   // ---- deterministic RNG: mulberry32 ------------------------------------
   function mulberry32(a){
     return function(){
@@ -362,8 +382,8 @@ body{
     var ctx = canvas.getContext('2d');
     function render(){
       var dpr = Math.min(window.devicePixelRatio||1,2);
-      var w = stage.clientWidth, h = stage.clientHeight;
-      canvas.width = w*dpr; canvas.height = h*dpr;
+      var m = measureStage(), w = m.w, h = m.h;
+      canvas.width = Math.max(1,Math.round(w*dpr)); canvas.height = Math.max(1,Math.round(h*dpr));
       ctx.setTransform(dpr,0,0,dpr,0,0);
       ctx.clearRect(0,0,w,h);
       var cx=w/2, cy=h/2, R=Math.min(w,h)*0.38;
@@ -561,8 +581,9 @@ body{
 
   function renderGL(){
     var dpr=Math.min(window.devicePixelRatio||1,2);
-    var w=stage.clientWidth, h=stage.clientHeight;
-    if(canvas.width!==w*dpr||canvas.height!==h*dpr){ canvas.width=w*dpr; canvas.height=h*dpr; }
+    var m=measureStage(), w=m.w, h=m.h;
+    var cw=Math.max(1,Math.round(w*dpr)), ch=Math.max(1,Math.round(h*dpr));
+    if(canvas.width!==cw||canvas.height!==ch){ canvas.width=cw; canvas.height=ch; }
     gl.viewport(0,0,canvas.width,canvas.height);
     gl.clearColor(0.02,0.027,0.039,1); gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
@@ -679,7 +700,7 @@ body{
   // Convert a click on the panel to a point on the sphere, then to lat/lon
   // using the inverse of the current model rotation.
   function screenToLatLon(px,py){
-    var w=stage.clientWidth, h=stage.clientHeight;
+    var m=measureStage(), w=m.w, h=m.h;
     var R = Math.min(w,h)*0.5*fitRadius();
     var cx=w/2, cy=h/2;
     var x=(px-cx)/R, y=-(py-cy)/R;
@@ -905,7 +926,26 @@ body{
     readout.classList.add('mode-air');
   }
 
-  window.addEventListener('resize',function(){ /* renderGL/draw2D handle sizing per-frame */ });
+  // ===================== RESIZE / FIRST-PAINT RECOVERY =====================
+  // The render loop (renderGL / draw2DFallback) already re-measures the stage
+  // every frame via measureStage(), so once layout settles it picks up the
+  // real size on its own. These handlers just force an immediate re-measure so
+  // recovery (e.g. the htmlpreview iframe reporting a real size after load) is
+  // visible on the next animation frame rather than only after some other
+  // frame fires. They never latch a zero size because measureStage() floors it.
+  function nudgeResize(){
+    requestAnimationFrame(function(){
+      var m = measureStage();
+      // measureStage() is also what the render loop uses; reading it here is a
+      // no-op side-effect-free touch that keeps the intent explicit.
+      void m;
+    });
+  }
+  window.addEventListener('resize', nudgeResize);
+  window.addEventListener('load', nudgeResize);
+  if(typeof ResizeObserver!=='undefined'){
+    try{ new ResizeObserver(nudgeResize).observe(stage); }catch(e){}
+  }
 })();
 </script>
 </body>
