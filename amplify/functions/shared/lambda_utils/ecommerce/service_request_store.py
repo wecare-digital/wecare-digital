@@ -436,9 +436,14 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
             if str(existing.get("intentFingerprint") or "") == fingerprint:
                 return _intent_view(existing)
 
-            # A different target request: SUPERSEDE, in ONE transaction.
+            # A different target request: SUPERSEDE, in ONE transaction. The frozen original
+            # order must be carried onto the superseding intent exactly as the mint path does
+            # (see line ~398); _new_intent made original_order a required keyword-only arg, so
+            # omitting it here raised TypeError -> ServiceIdentityUnavailable (a live 503 on every
+            # intent supersede). `original_order` is in scope as the request_intent parameter.
             intent = _new_intent(intent_id=new_id(), owner=owner, kind=kind,
                                  variant_id=variant_id, target=target,
+                                 original_order=original_order,
                                  fingerprint=fingerprint, now=now)
             new_claim = {KEY_ATTR: open_key, "ownerCustomerId": owner,
                          "targetIntentId": intent[KEY_ATTR][len(INTENT_PREFIX):],
