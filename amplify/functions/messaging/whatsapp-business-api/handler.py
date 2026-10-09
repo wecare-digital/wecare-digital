@@ -1264,7 +1264,9 @@ def _update_ai_routing(body: Dict) -> Dict:
 # Uses the whatsapp_business_manage_events permission. Logs conversion events
 # (Purchase, LeadSubmitted, etc.) that happen INSIDE the WhatsApp thread back to
 # Meta so Click-to-WhatsApp ad campaigns can optimize & measure.
-#   Dataset:  GET/POST /{waba_id}/dataset            -> dataset_id (cached)
+#   Dataset:  fixed CONFIGURATION, one dataset shared by BOTH WABAs (see
+#             CAPI_FIXED_DATASET_ID). The per-WABA GET/POST /{waba_id}/dataset
+#             create path is still here, reachable by clearing that variable.
 #   Log:      POST     /{dataset_id}/events          -> event ingested
 #   ctwa_clid captured from the inbound `referral` object (ad-originated msgs).
 # Docs: developers.facebook.com/docs/marketing-api/conversions-api/business-messaging
@@ -1273,6 +1275,22 @@ CAPI_DATASET_PREFIX = 'capi_dataset_'   # SystemConfigTable id: capi_dataset_<wa
 CAPI_CLID_PREFIX = 'capi_clid_'         # SystemConfigTable id: capi_clid_<phone>
 CAPI_EVENT_LOG_ID = 'capi_event_log'    # SystemConfigTable id: bounded recent-events list
 CAPI_PARTNER_AGENT = os.environ.get('CAPI_PARTNER_AGENT', 'wecare-digital')
+
+# The ONE Conversions API dataset both WABAs report into. No waba_id appears in the lookup
+# because the dataset is deliberately shared -- one Events Manager destination for WABA1 and
+# WABA2, matching the single shared `wecare_shop` catalog. Per-WABA attribution is NOT lost:
+# user_data.whatsapp_business_account_id still carries the resolved WABA on every event.
+#
+# Setting this variable to the EMPTY STRING restores the per-WABA
+# `POST /{waba_id}/dataset` create-and-cache path below, so nothing is removed.
+#
+# Read at MODULE scope, which is correct here: this is CONFIGURATION, not a credential, so the
+# lazy-read rule in lambda-snapstart-deploy.md and secret-handling.md does not apply -- the same
+# justification MM_METRICS_EDGE records below. Per that same rule the variable is NOT added to
+# config/lambda-env-manifest.json while nothing sets it live; the day it is set, add
+# "META_CAPI_DATASET_ID": "4554612361454941" under functions."wecare-whatsapp-business-api"
+# and bump "_variables" in the same change.
+CAPI_FIXED_DATASET_ID = os.environ.get('META_CAPI_DATASET_ID', '4554612361454941')
 CAPI_EVENT_TYPES = {
     'Purchase', 'LeadSubmitted', 'InitiateCheckout', 'AddToCart', 'ViewContent',
     'OrderCreated', 'OrderShipped', 'OrderDelivered', 'OrderCanceled', 'OrderReturned',
@@ -1291,7 +1309,14 @@ def _capi_resolve_waba(src: Dict) -> str:
 
 
 def _capi_get_dataset(waba_id: str, create: bool = False) -> Dict:
-    """Get (or create) the Conversions API dataset for a WABA. Caches the id."""
+    """Resolve the Conversions API dataset for a WABA.
+
+    Normally a constant: both WABAs share CAPI_FIXED_DATASET_ID, so there is nothing to look up,
+    nothing to cache and no Graph create call to make -- `create` is honoured as a no-op re-check.
+    Only when that variable is explicitly cleared does the per-WABA get-or-create path run.
+    """
+    if CAPI_FIXED_DATASET_ID:
+        return {'datasetId': CAPI_FIXED_DATASET_ID, 'wabaId': waba_id, 'fixed': True}
     t = dynamodb.Table(SYSTEM_CONFIG_TABLE)
     cache_id = CAPI_DATASET_PREFIX + waba_id
     if not create:

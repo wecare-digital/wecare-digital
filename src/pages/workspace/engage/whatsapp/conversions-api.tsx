@@ -6,7 +6,7 @@
  * (Purchase, LeadSubmitted, ...) to Meta so ad campaigns that click to WhatsApp
  * can optimize and measure. Backed by:
  *   GET  /wa-business/capi              (dataset + captured click ids + event log)
- *   POST /wa-business/capi/dataset      (get/create the dataset for a WABA)
+ *   POST /wa-business/capi/dataset      (re-check the dataset; one fixed dataset serves both WABAs)
  *   POST /wa-business/capi/event        (log a conversion event)
  *
  * ctwa_clid is captured automatically from the inbound `referral` object when a
@@ -124,14 +124,17 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
             <div style={ card }>
                 <h2 style={ { fontSize: 16, fontWeight: 700, marginBottom: 8 } }>1 · Dataset</h2>
                 <p style={ { fontSize: 13, color: '#6b7280', marginBottom: 10 } }>
-                    Meta needs a dataset (created from the WhatsApp Business Account ID) as the destination for events.
-                    One dataset links per WABA; the business owns it and can see events in Events Manager.
+                    Meta needs a dataset as the destination for events. One shared dataset
+                    <code> 4554612361454941</code> serves <strong>both</strong> WABAs, so events from either
+                    business number land in the same Events Manager destination, and per-WABA attribution is
+                    kept on each event rather than by having two datasets. The dataset must be linked to each
+                    WABA once in Events Manager; Meta rejects business-messaging events for a WABA that is not.
                 </p>
                 { dsId
                     ? <div style={ { fontSize: 14 } }>Dataset ID: <code style={ { background: '#ecfdf5', padding: '2px 6px', borderRadius: 4, color: '#065f46' } }>{ dsId }</code></div>
                     : <div style={ { fontSize: 14, color: '#b45309' } }>{ dsErr ? `Error: ${dsErr?.message || JSON.stringify( dsErr )}` : 'No dataset linked yet.' }</div> }
                 <div style={ { marginTop: 10 } }>
-                    <Button onClick={ doCreateDataset } disabled={ busy !== '' }>{ busy === 'dataset' ? 'Working…' : ( dsId ? 'Re-check / link dataset' : 'Create / link dataset' ) }</Button>
+                    <Button onClick={ doCreateDataset } disabled={ busy !== '' }>{ busy === 'dataset' ? 'Working…' : 'Re-check dataset' }</Button>
                 </div>
             </div>
 

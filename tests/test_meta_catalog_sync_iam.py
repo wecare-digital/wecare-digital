@@ -267,6 +267,6 @@ def test_the_handler_defaults_agree_with_the_provisioned_environment():
     disagreement here is a silent repoint of a customer-visible catalogue.
     """
     text = HANDLER.read_text(encoding="utf-8")
-    assert '"META_CATALOG_ID", "1607047307067517"' in text
+    assert '"META_CATALOG_ID", "1457045652952851"' in text
     assert '"META_TOKEN_SECRET", "wecare/meta-system-user-token"' in text
     assert '"META_TOKEN_FIELD", "access_token"' in text

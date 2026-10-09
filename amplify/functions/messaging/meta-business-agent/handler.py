@@ -85,10 +85,12 @@ def _appsecret_proof(token: str, secret: str) -> str:
 # X-Agent-Token header (secret wecare/agent-connector-token). Read-only.
 # ─────────────────────────────────────────────────────────────────────────
 AGENT_TOOL_SECRET = os.environ.get("AGENT_TOOL_SECRET", "wecare/agent-connector-token")
-# WABA phone-number-id -> its Meta product catalog id
+# WABA phone-number-id -> its Meta product catalog id. Both WABAs now share the ONE
+# `wecare_shop` catalog 1457045652952851, so the two values are deliberately identical -
+# not a copy-paste slip. The mapping stays so a per-entity catalog remains one edit away.
 _CATALOG_BY_ENTITY = {
-    "1016149501586345": "1607047307067517",   # WABA1 wecare_catalog
-    "1055232054343117": "1424934879646296",   # WABA2 Catalogue_Products
+    "1016149501586345": "1457045652952851",   # WABA1 wecare_shop
+    "1055232054343117": "1457045652952851",   # WABA2 wecare_shop (shared)
 }
 
 
@@ -110,7 +112,7 @@ def _tool_product_lookup(body: dict):
     query = (body.get("query") or body.get("product") or "").strip().lower()
     retailer_id = (body.get("retailer_id") or "").strip()
     entity_id = str(body.get("entity_id") or "1016149501586345")
-    catalog_id = _CATALOG_BY_ENTITY.get(entity_id, "1607047307067517")
+    catalog_id = _CATALOG_BY_ENTITY.get(entity_id, "1457045652952851")
     token, secret = _creds()
     fields = "retailer_id,name,price,sale_price,availability,description,url"
     # GRAPH (defined below) rather than a second hardcoded version, so the

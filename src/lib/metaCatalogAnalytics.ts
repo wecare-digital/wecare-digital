@@ -1,6 +1,11 @@
 import { SERVICES_PRODUCT_ID, SERVICE_CHOICES } from '../config/services';
 
-export const META_PIXEL_ID = '3411484995761247';
+/* The Meta Conversions API dataset both WABAs share. Events Manager unified pixels and datasets,
+   so a dataset id is a valid `fbq('init', …)` / `fbq('trackSingle', …)` target, and sending the
+   browser events here puts them in the same dataset as the in-thread business-messaging events. */
+export const META_DATASET_ID = '4554612361454941';
+/** Back-compat alias only - kept so existing importers keep compiling. Same value. */
+export const META_PIXEL_ID = META_DATASET_ID;
 export const MARKETING_CONSENT_EVENT = 'wecare:marketing-consent';
 const CONSENT_KEY = 'wecare.marketing-consent.v1';
 const PURCHASE_KEY = 'wecare.catalog-purchases.v1';
@@ -49,8 +54,8 @@ function pixel (): Pixel | null {
     script.id = 'meta-catalog-pixel'; script.async = true;
     script.src = 'https://connect.facebook.net/en_US/fbevents.js';
     document.head.appendChild( script );
-    queue( 'set', 'autoConfig', false, META_PIXEL_ID );
-    queue( 'init', META_PIXEL_ID );
+    queue( 'set', 'autoConfig', false, META_DATASET_ID );
+    queue( 'init', META_DATASET_ID );
     queue( 'consent', 'grant' );
   }
   return w.fbq;
@@ -65,7 +70,7 @@ export function trackCatalogView ( path: string ): void {
   const choice = listed.find( row => row.path.replace( /\/$/, '' ) === path.split( '?' )[0].replace( /\/$/, '' ) );
   const fbq = choice && pixel();
   if ( !choice || !fbq ) return;
-  fbq( 'trackSingle', META_PIXEL_ID, 'ViewContent', {
+  fbq( 'trackSingle', META_DATASET_ID, 'ViewContent', {
     content_type: 'product', content_ids: [ catalogContentId( choice.variantId ) ],
     contents: [ { id: catalogContentId( choice.variantId ), quantity: 1 } ], currency: 'INR',
   } );
@@ -74,7 +79,7 @@ export function trackCatalogView ( path: string ): void {
 export function trackCatalogAdd ( variantId: string, amountPaise: number ): void {
   const id = catalogContentId( variantId );
   if ( !id || !Number.isSafeInteger( amountPaise ) || amountPaise <= 0 ) return;
-  pixel()?.( 'trackSingle', META_PIXEL_ID, 'AddToCart', {
+  pixel()?.( 'trackSingle', META_DATASET_ID, 'AddToCart', {
     content_type: 'product', content_ids: [ id ], contents: [ { id, quantity: 1 } ],
     currency: 'INR', value: amountPaise / 100,
   } );
@@ -93,7 +98,7 @@ export function trackCatalogPurchase ( attemptId: string, facts?: CatalogPurchas
     const recorded: unknown = JSON.parse( window.localStorage.getItem( PURCHASE_KEY ) || '[]' );
     const sent = Array.isArray( recorded ) ? recorded.filter( x => typeof x === 'string' ) : [];
     if ( sent.includes( attemptId ) ) return false;
-    fbq( 'trackSingle', META_PIXEL_ID, 'Purchase', {
+    fbq( 'trackSingle', META_DATASET_ID, 'Purchase', {
       content_type: 'product', content_ids: facts.contents.map( row => row.id ),
       contents: facts.contents, currency: facts.currency, value: facts.amountPaise / 100,
     }, { eventID: `wecare-purchase-${attemptId}` } );

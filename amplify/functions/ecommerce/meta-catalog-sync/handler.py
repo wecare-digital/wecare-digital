@@ -64,11 +64,13 @@ META_TOKEN_SECRET = os.environ.get("META_TOKEN_SECRET", "wecare/meta-system-user
 #: WABA is two environment variables and no code change.
 META_TOKEN_FIELD = os.environ.get("META_TOKEN_FIELD", "access_token")
 
-#: The target catalog. WABA1's, from `catalog-builder.tsx:17-21`:
-#:     WABA1 2094615664435155 -> catalog 1607047307067517
-#:     WABA2 2513394156072604 -> catalog 1424934879646296
-#: Configuration, not a literal in the code path, so WABA2 is reachable by environment variable.
-META_CATALOG_ID = os.environ.get("META_CATALOG_ID", "1607047307067517")
+#: The target catalog - ONE shared catalog for both WABAs, from `catalog-builder.tsx`:
+#:     WABA1 2094615664435155 -> catalog 1457045652952851 (wecare_shop)
+#:     WABA2 2513394156072604 -> catalog 1457045652952851 (wecare_shop)
+#: So one sync run feeds both business numbers and there is no second catalog to keep in step.
+#: Still configuration and not a literal in the code path, so another catalog is reachable by
+#: environment variable alone.
+META_CATALOG_ID = os.environ.get("META_CATALOG_ID", "1457045652952851")
 
 #: The same `fields` set `catalog-management._list_products` asks for, plus nothing. Asking for
 #: less would make the diff report a change on a field we never read.
