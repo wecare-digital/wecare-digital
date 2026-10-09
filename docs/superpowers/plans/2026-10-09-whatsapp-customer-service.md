@@ -70,7 +70,7 @@ This is a partial release, not end-to-end customer certification. Keep unchecked
 | 13 | Business 88, secure-files 34, service-requests 5 and catalog-sync 7 read back; Orders draft validated without publication | Final source deployment checks, remaining provider-contract deployment |
 | 14 | Test contact exists but lacked permanent customer account link at the last read | Owner verifies +918100640044 account, personally pays, and completes real journeys |
 
-Backend final-tree offline gate: 10,319 passed, 7 skipped, 3 expected failures. Exact ZIP import checks pass for all three customer-service candidates, including the new invoice module. Orders/invoice inert candidate invocations reject unauthorized HTTP with 403 and no function error. No actual invoice send, customer purchase, capture, refund, or fabricated Purchase event was executed by those checks.
+Backend merged-tree offline gate: 10,332 passed, 7 skipped, 3 expected failures. Exact ZIP import checks pass for all three customer-service candidates, including the new invoice module. Orders/invoice inert candidate invocations reject unauthorized HTTP with 403 and no function error. No actual invoice send, customer purchase, capture, refund, or fabricated Purchase event was executed by those checks.
 
 The four Wix proposals have concise public descriptions and the original IDs/prices: Submit Request ₹99; Request Amendment ₹99; Drop Docs ₹350; Vault ₹49. All proposals remain out of stock. Their Wix image URLs are assigned; the six original ultra-HD catalog PNGs remain separately stored under `o/catalog/services/<slug>/v1/image-4096.png` in `wecare-digital-get`.
 
