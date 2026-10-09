@@ -98,8 +98,8 @@
     "wecare-checkout": {
       "COMMERCE_KEYS_TABLE": "stack-wecare-digital-WixOrderIds",
       "CONTRIBUTION_PRODUCT_ID": "8514c405-3971-4786-ad0d-15406ca23407",
-      "EXPECTED_CONFIGURATION_NAME": "",
-      "EXPECTED_PROVIDER_MID": "",
+      "EXPECTED_CONFIGURATION_NAME": "WECAREDIGITAL",
+      "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy",
       "PAYMENT_ATTEMPTS_TABLE": "stack-wecare-digital-PaymentAttemptsTable",
       "PAYMENT_WABA_ID": "2094615664435155",
       "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
