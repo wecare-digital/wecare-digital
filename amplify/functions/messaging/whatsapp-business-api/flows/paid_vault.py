@@ -107,8 +107,54 @@ def prepare_and_send(event, lambda_client):
                     'content': 'Your Vault document'}
         if not _send_once(requests, row, 'vaultDocumentStatus', lambda_client, document):
             return {'outcome': 'VAULT_DOCUMENT_PENDING'}
-    review = dict(base, templateName='wecare_leave_review',
-                  flowButton={'index': 0, 'flowKey': 'leave_review'})
-    accepted = _send_once(requests, row, 'vaultReviewStatus', lambda_client, review)
-    return {'outcome': 'VAULT_READY' if accepted else 'VAULT_REVIEW_PENDING',
-            'requestId': row['publicRequestId']}
+    return {'outcome': 'VAULT_READY', 'requestId': row['publicRequestId']}
+
+
+def send_review(event, lambda_client):
+    """Send the Vault review only after the first authenticated access attempt.
+
+    The persisted send state on the service request means repeated refreshes or duplicate
+    async invokes converge on one accepted invitation.
+    """
+    db = boto3.resource('dynamodb')
+    requests = db.Table('stack-wecare-digital-ServiceRequestsTable')
+    row = requests.get_item(
+        Key={'requestId': str(event.get('requestId') or '')},
+        ConsistentRead=True).get('Item') or {}
+    if row.get('kind') != 'VAULT' or not row.get('paidAt') or not row.get('customerId'):
+        return {'outcome': 'REVIEW_NOT_DUE'}
+
+    users = boto3.client('cognito-idp').list_users(
+        UserPoolId=customer_auth.CUSTOMER_POOL_ID,
+        Filter='sub = "' + row['customerId'] + '"', Limit=2).get('Users') or []
+    if len(users) != 1 or not users[0].get('Enabled', True):
+        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
+    attrs = {a['Name']: a['Value'] for a in users[0].get('Attributes', [])}
+    phone = attrs.get('phone_number', '')
+    if attrs.get('phone_number_verified') != 'true' or not phone:
+        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
+
+    contacts = db.Table('stack-wecare-digital-ContactsTable')
+    matches = contacts.query(
+        IndexName='phone-index', KeyConditionExpression='phone=:p',
+        ExpressionAttributeValues={':p': phone}).get('Items') or []
+    valid = []
+    for projection in matches:
+        contact = contacts.get_item(
+            Key={'id': projection['id']}, ConsistentRead=True).get('Item') or {}
+        if (contact.get('checkoutCustomerId') == row['customerId']
+                and not contact.get('isDeleted') and contact.get('deletedAt') is None):
+            valid.append(contact)
+    if len(valid) != 1:
+        return {'outcome': 'CONTACT_LINK_UNAVAILABLE'}
+
+    body = {
+        'contactId': valid[0]['id'], 'recipientPhone': phone,
+        'phoneNumberId': '1016149501586345', 'isTemplate': True,
+        'templateName': 'wecare_leave_review', 'templateParams': [],
+        'headerImageUrl': HEADER_IMAGE,
+        'flowButton': {'index': 0, 'flowKey': 'leave_review'},
+    }
+    accepted = _send_once(
+        requests, row, 'vaultReviewStatus', lambda_client, body)
+    return {'outcome': 'REVIEW_ACCEPTED' if accepted else 'REVIEW_PENDING'}

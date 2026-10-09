@@ -48,15 +48,16 @@ export default function VaultFilePurchase () {
   const collect = async ( file: SecureFile ) => {
     if ( busy ) return;
     setBusy( file.fileId ); setMessage( '' );
-    if ( file.paidGrantId )
+    if ( file.paidEntitlementId || file.paidGrantId )
     {
-      const result = await api.redeemSecureFileDownload( file.fileId, file.paidGrantId );
+      const accessId = file.paidEntitlementId || file.paidGrantId || '';
+      const result = await api.redeemSecureFileDownload( file.fileId, accessId );
       if ( result.ok ) { window.location.assign( result.data.downloadUrl ); return; }
-      setMessage( result.failure.message || 'Your paid file is not available right now. Please contact us before paying again.' );
+      setMessage( result.failure.message || 'Your paid access could not be refreshed right now. Please try again or contact us; do not pay again.' );
     }
     else if ( file.vaultPaymentStatus === 'PAID' )
     {
-      setMessage( 'This file is already paid. Contact us to restore access; please do not pay again.' );
+      setMessage( 'This file is already paid. We could not verify the access record yet. Please contact us; do not pay again.' );
     }
     else if ( price?.available )
     {
@@ -75,7 +76,7 @@ export default function VaultFilePurchase () {
 
   return <section className="vault-panel" aria-labelledby="vault-files-title">
     <h2 id="vault-files-title">Your documents, ready when you are</h2>
-    <p>Choose a file shared with your verified WhatsApp number. One purchase unlocks one download. We will send the access message on WhatsApp, followed by an invitation to review your experience.</p>
+    <p>Choose a file shared with your verified WhatsApp number. One purchase unlocks authorized access to that file; if a temporary link expires, you can refresh access without paying again.</p>
     { !checked && <p>Loading your Vault…</p> }
     { checked && !token && <PillButton as="a" href="/account/sign-in/?return=%2Fvault%2F" action="Sign in on WhatsApp" /> }
     { checked && token && files.length === 0 && !message && <p>No documents are ready yet. Our team will upload your file here before you pay.</p> }
@@ -88,9 +89,9 @@ export default function VaultFilePurchase () {
     } } /> }
     <div className="vault-files">{ visibleFiles.map( file => <article key={ file.fileId }>
       <div><h3>{ file.displayName || file.originalFilename }</h3>
-        <p>{ file.paidGrantId ? 'Paid · Ready to download' : file.vaultPaymentStatus === 'PAID' ? 'Already paid · Contact us if you need access restored.' : price?.available ? `₹${ price.rupees } + the convenience fee shown at checkout` : 'Price currently unavailable' }</p>
+        <p>{ ( file.paidEntitlementId || file.paidGrantId ) ? 'Paid · Download or refresh access' : file.vaultPaymentStatus === 'PAID' ? 'Already paid · Access reconciliation required; do not pay again.' : price?.available ? `₹${ price.rupees } + the convenience fee shown at checkout` : 'Price currently unavailable' }</p>
         { file.vaultOrderNumber && <p>Order { file.vaultOrderNumber }</p> }</div>
-      { ( file.paidGrantId || ( file.vaultPaymentStatus !== 'PAID' && price?.available ) ) && <PillButton action={ file.paidGrantId ? 'Download your file' : 'Continue to payment' } disabled={ !!busy } onClick={ () => void collect( file ) } /> }
+      { ( file.paidEntitlementId || file.paidGrantId || ( file.vaultPaymentStatus !== 'PAID' && price?.available ) ) && <PillButton action={ ( file.paidEntitlementId || file.paidGrantId ) ? 'Download / Refresh Access' : 'Continue to payment' } disabled={ !!busy } onClick={ () => void collect( file ) } /> }
     </article> ) }</div>
     <style jsx>{`
       .vault-panel{max-width:1040px;margin:0 auto 72px;padding:32px;border:2px solid #1a3a2a;border-radius:14px;color:#1a3a2a;background:#fff}
