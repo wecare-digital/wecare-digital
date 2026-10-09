@@ -16,6 +16,8 @@ import json
 import logging
 import uuid
 import boto3
+from botocore.exceptions import ClientError
+from botocore.config import Config
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, Any, List, Optional
@@ -28,7 +30,9 @@ from lambda_utils.middleware import require_auth
 logger = get_logger(__name__)
 
 dynamodb = boto3.resource('dynamodb', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
-lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+# RequestResponse is a side effect: retrying an ambiguous transport can duplicate delivery.
+lambda_client = boto3.client('lambda', region_name=os.environ.get('AWS_REGION', 'us-east-1'),
+    config=Config(retries={'mode': 'standard', 'total_max_attempts': 1}))
 
 SCHEDULED_TABLE = os.environ.get('SCHEDULED_TABLE', 'stack-wecare-digital-ScheduledMessagesTable')
 CONTACTS_TABLE = os.environ.get('CONTACTS_TABLE', 'stack-wecare-digital-ContactsTable')
@@ -73,7 +77,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         body = json.loads(event.get('body', '{}')) if event.get('body') else {}
-        
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return _error_response(400, 'Invalid JSON request body')
+    if not isinstance(body, dict):
+        return _error_response(400, 'Request body must be a JSON object')
+
+    try:
         if http_method == 'GET':
             return _list_scheduled(query_params, request_id)
         
@@ -145,6 +154,22 @@ def _list_scheduled(query_params: Dict[str, str], request_id: str) -> Dict[str, 
         return _error_response(500, f'Failed to list scheduled messages: {str(e)}')
 
 
+def _scheduled_at_utc(value: Any) -> str:
+    """Validate an explicit future instant and canonicalise it for lexical due queries."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError('Invalid scheduledAt format. Use timezone-aware ISO 8601.')
+    try:
+        instant = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        if instant.tzinfo is None or instant.utcoffset() is None:
+            raise ValueError('Timezone required')
+        instant = instant.astimezone(timezone.utc)
+    except (ValueError, TypeError, OverflowError):
+        raise ValueError('Invalid scheduledAt format. Use timezone-aware ISO 8601.') from None
+    if instant <= datetime.now(timezone.utc):
+        raise ValueError('scheduledAt must be in the future')
+    return instant.isoformat(timespec='microseconds')
+
+
 def _create_scheduled(body: Dict[str, Any], request_id: str) -> Dict[str, Any]:
     """Create a new scheduled message."""
     table = dynamodb.Table(SCHEDULED_TABLE)
@@ -164,11 +189,9 @@ def _create_scheduled(body: Dict[str, Any], request_id: str) -> Dict[str, Any]:
     
     # Validate scheduled time is in the future
     try:
-        scheduled_dt = datetime.fromisoformat(scheduled_at.replace('Z', '+00:00'))
-        if scheduled_dt <= datetime.now(timezone.utc):
-            return _error_response(400, 'scheduledAt must be in the future')
-    except ValueError:
-        return _error_response(400, 'Invalid scheduledAt format. Use ISO 8601.')
+        scheduled_at = _scheduled_at_utc(scheduled_at)
+    except ValueError as exc:
+        return _error_response(400, str(exc))
     
     # Get contact details
     contact_name = None
@@ -243,15 +266,13 @@ def _update_scheduled(scheduled_id: str, body: Dict[str, Any], request_id: str) 
     if 'scheduledAt' in body:
         # Validate new scheduled time
         try:
-            scheduled_dt = datetime.fromisoformat(body['scheduledAt'].replace('Z', '+00:00'))
-            if scheduled_dt <= datetime.now(timezone.utc):
-                return _error_response(400, 'scheduledAt must be in the future')
-        except ValueError:
-            return _error_response(400, 'Invalid scheduledAt format')
+            scheduled_at = _scheduled_at_utc(body['scheduledAt'])
+        except ValueError as exc:
+            return _error_response(400, str(exc))
         
         update_parts.append('#scheduledAt = :scheduledAt')
         expr_names['#scheduledAt'] = 'scheduledAt'
-        expr_values[':scheduledAt'] = body['scheduledAt']
+        expr_values[':scheduledAt'] = scheduled_at
     
     if 'templateParams' in body:
         update_parts.append('#templateParams = :templateParams')
@@ -266,12 +287,14 @@ def _update_scheduled(scheduled_id: str, body: Dict[str, Any], request_id: str) 
     expr_names['#updatedAt'] = 'updatedAt'
     expr_values[':updatedAt'] = datetime.now(timezone.utc).isoformat()
     
+    condition = _pending_snapshot_condition(existing, expr_names, expr_values)
     try:
         response = table.update_item(
             Key={'id': scheduled_id},
             UpdateExpression='SET ' + ', '.join(update_parts),
             ExpressionAttributeNames=expr_names,
             ExpressionAttributeValues=expr_values,
+            ConditionExpression=condition,
             ReturnValues='ALL_NEW'
         )
         
@@ -281,6 +304,8 @@ def _update_scheduled(scheduled_id: str, body: Dict[str, Any], request_id: str) 
             'body': json.dumps(_normalize_item(response['Attributes']))
         }
     except Exception as e:
+        if _conditional_conflict(e):
+            return _error_response(409, 'Scheduled message changed; refresh and retry')
         logger.error(f'Update scheduled error: {str(e)}')
         return _error_response(500, f'Failed to update scheduled message: {str(e)}')
 
@@ -303,12 +328,16 @@ def _cancel_scheduled(scheduled_id: str, request_id: str) -> Dict[str, Any]:
             return _error_response(400, 'Only PENDING messages can be cancelled')
         
         # Update status to CANCELLED
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc).isoformat(timespec='microseconds')
+        names = {'#status': 'status', '#updatedAt': 'updatedAt'}
+        values = {':status': 'CANCELLED', ':updatedAt': now}
+        condition = _pending_snapshot_condition(existing, names, values)
         table.update_item(
             Key={'id': scheduled_id},
             UpdateExpression='SET #status = :status, #updatedAt = :updatedAt',
-            ExpressionAttributeNames={'#status': 'status', '#updatedAt': 'updatedAt'},
-            ExpressionAttributeValues={':status': 'CANCELLED', ':updatedAt': now}
+            ConditionExpression=condition,
+            ExpressionAttributeNames=names,
+            ExpressionAttributeValues=values
         )
         
         logger.info(f'Cancelled scheduled message: {scheduled_id}')
@@ -319,157 +348,150 @@ def _cancel_scheduled(scheduled_id: str, request_id: str) -> Dict[str, Any]:
             'body': json.dumps({'success': True, 'scheduledId': scheduled_id, 'status': 'CANCELLED'})
         }
     except Exception as e:
+        if _conditional_conflict(e):
+            return _error_response(409, 'Scheduled message changed; refresh and retry')
         logger.error(f'Cancel scheduled error: {str(e)}')
         return _error_response(500, f'Failed to cancel scheduled message: {str(e)}')
 
 
-def _process_due_messages(request_id: str) -> Dict[str, Any]:
-    """Process messages that are due to be sent (called by CloudWatch Events)."""
-    table = dynamodb.Table(SCHEDULED_TABLE)
-    now = datetime.now(timezone.utc).isoformat()
-    
-    logger.info(f'Processing due messages at {now}')
-    
+def _pending_snapshot_condition(existing, names, values):
+    """Only mutate the exact pending row read; legacy absent fields stay absent."""
+    names['#status'] = 'status'
+    values[':pending'] = 'PENDING'
+    parts = ['#status = :pending']
+    for field in ('scheduledAt', 'updatedAt'):
+        alias = '#' + field
+        names[alias] = field
+        if field in existing:
+            value = ':expected_' + field
+            values[value] = existing[field]
+            parts.append(alias + ' = ' + value)
+        else:
+            parts.append('attribute_not_exists(' + alias + ')')
+    return ' AND '.join(parts)
+
+
+def _conditional_conflict(exc):
+    return isinstance(exc, ClientError) and exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException'
+
+
+def _dispatch_outcome(response):
+    """Submission evidence only; ambiguous results never certify sending or retry safety."""
+    if response.get('StatusCode') != 200 or response.get('FunctionError'):
+        return 'DISPATCH_UNKNOWN', 'OUTBOUND_INVOCATION_UNRESOLVED'
     try:
-        # Query PENDING messages where scheduledAt <= now — paginate fully
+        result = json.loads(response['Payload'].read())
+        if not isinstance(result, dict):
+            raise ValueError()
+        code = result.get('statusCode')
+        if type(code) is not int:
+            raise ValueError()
+        body = json.loads(result.get('body', '{}'))
+        if not isinstance(body, dict):
+            raise ValueError()
+    except (ValueError, TypeError, KeyError, AttributeError):
+        return 'DISPATCH_UNKNOWN', 'OUTBOUND_RESPONSE_UNRESOLVED'
+    if code in (200, 201):
+        if body.get('status') == 'dry_run' or body.get('mode') == 'DRY_RUN':
+            return 'FAILED', 'OUTBOUND_DRY_RUN_NOT_SENT'
+        provider_id = body.get('whatsappMessageId')
+        if isinstance(provider_id, str) and provider_id.strip() and (
+                (body.get('status') == 'sent' and body.get('mode') == 'LIVE')
+                or body.get('idempotent') is True):
+            return 'SENT', ''
+        return 'DISPATCH_UNKNOWN', 'OUTBOUND_SEND_NOT_CONFIRMED'
+    if 400 <= code < 500 and code != 408:
+        return 'FAILED', 'OUTBOUND_REQUEST_REFUSED'
+    return 'DISPATCH_UNKNOWN', 'OUTBOUND_SEND_UNRESOLVED'
+
+
+def _process_due_messages(request_id: str) -> Dict[str, Any]:
+    """Claim pending rows once; an interrupted/ambiguous dispatch requires staff review."""
+    table = dynamodb.Table(SCHEDULED_TABLE)
+    now = datetime.now(timezone.utc).isoformat(timespec='microseconds')
+    counts = {'processed': 0, 'sent': 0, 'failed': 0, 'unknown': 0, 'skipped': 0}
+    try:
         items = []
-        query_kwargs = {
+        kwargs = {
             'IndexName': 'status-scheduledAt-index',
             'KeyConditionExpression': '#status = :status AND #scheduledAt <= :now',
             'ExpressionAttributeNames': {'#status': 'status', '#scheduledAt': 'scheduledAt'},
             'ExpressionAttributeValues': {':status': 'PENDING', ':now': now},
-            'Limit': 50  # Process up to 50 at a time
         }
-        response = table.query(**query_kwargs)
-        items = response.get('Items', [])
-        # For due messages, we cap at 50 per invocation (Limit applies to evaluated items)
-        while 'LastEvaluatedKey' in response and len(items) < 50:
-            query_kwargs['ExclusiveStartKey'] = response['LastEvaluatedKey']
-            response = table.query(**query_kwargs)
-            items.extend(response.get('Items', []))
-        items = items[:50]
-        
-        logger.info(f'Found {len(items)} due messages')
-        
-        sent_count = 0
-        failed_count = 0
-        
+        while len(items) < 50:
+            kwargs['Limit'] = 50 - len(items)
+            page = table.query(**kwargs)
+            items.extend(page.get('Items', [])[:kwargs['Limit']])
+            if not page.get('LastEvaluatedKey') or len(items) >= 50:
+                break
+            kwargs['ExclusiveStartKey'] = page['LastEvaluatedKey']
         for item in items:
-            scheduled_id = item.get('scheduledId', item.get('id', ''))
-            if not scheduled_id:
-                logger.warning('Skipping item with no scheduledId')
+            scheduled_id = item.get('id') or item.get('scheduledId')
+            if not scheduled_id or not item.get('scheduledAt'):
+                counts['skipped'] += 1
                 continue
-            
+            token = str(uuid.uuid4())
+            names = {'#dispatchToken': 'dispatchToken', '#dispatchStartedAt': 'dispatchStartedAt'}
+            values = {':dispatching': 'DISPATCHING', ':token': token, ':now': now}
+            condition = _pending_snapshot_condition(item, names, values)
             try:
-                contact_id = item.get('contactId')
-                template_name = item.get('templateName')
-                if not contact_id or not template_name:
-                    logger.warning(f'Skipping scheduled message {scheduled_id}: missing contactId or templateName')
-                    table.update_item(
-                        Key={'id': scheduled_id},
-                        UpdateExpression='SET #status = :status, #errorMessage = :error, #updatedAt = :updatedAt',
-                        ExpressionAttributeNames={
-                            '#status': 'status',
-                            '#errorMessage': 'errorMessage',
-                            '#updatedAt': 'updatedAt'
-                        },
-                        ExpressionAttributeValues={
-                            ':status': 'FAILED',
-                            ':error': 'Missing contactId or templateName',
-                            ':updatedAt': now
-                        }
-                    )
-                    failed_count += 1
-                    continue
-                
-                # Send the message via outbound Lambda
-                payload = {
-                    'body': json.dumps({
-                        'contactId': contact_id,
-                        'isTemplate': True,
-                        'templateName': template_name,
-                        'templateParams': item.get('templateParams', []),
-                        'phoneNumberId': item.get('phoneNumberId', ''),
-                        'recipientBsuid': item.get('recipientBsuid', ''),
-                    })
-                }
-                
-                response = lambda_client.invoke(
-                    FunctionName=OUTBOUND_LAMBDA,
-                    InvocationType='RequestResponse',
-                    Payload=json.dumps(payload)
-                )
-                
-                result = json.loads(response['Payload'].read())
-                
-                if response.get('StatusCode') == 200 and result.get('statusCode') in [200, 201]:
-                    # Mark as SENT
-                    table.update_item(
-                        Key={'id': scheduled_id},
-                        UpdateExpression='SET #status = :status, #sentAt = :sentAt, #updatedAt = :updatedAt',
-                        ExpressionAttributeNames={
-                            '#status': 'status',
-                            '#sentAt': 'sentAt',
-                            '#updatedAt': 'updatedAt'
-                        },
-                        ExpressionAttributeValues={
-                            ':status': 'SENT',
-                            ':sentAt': now,
-                            ':updatedAt': now
-                        }
-                    )
-                    sent_count += 1
-                    logger.info(f'Sent scheduled message: {scheduled_id}')
-                else:
-                    # Mark as FAILED
-                    error_msg = result.get('body', 'Unknown error')
-                    table.update_item(
-                        Key={'id': scheduled_id},
-                        UpdateExpression='SET #status = :status, #errorMessage = :error, #updatedAt = :updatedAt',
-                        ExpressionAttributeNames={
-                            '#status': 'status',
-                            '#errorMessage': 'errorMessage',
-                            '#updatedAt': 'updatedAt'
-                        },
-                        ExpressionAttributeValues={
-                            ':status': 'FAILED',
-                            ':error': str(error_msg)[:500],
-                            ':updatedAt': now
-                        }
-                    )
-                    failed_count += 1
-                    logger.error(f'Failed to send scheduled message {scheduled_id}: {error_msg}')
-                    
-            except Exception as e:
-                # Mark as FAILED
                 table.update_item(
                     Key={'id': scheduled_id},
-                    UpdateExpression='SET #status = :status, #errorMessage = :error, #updatedAt = :updatedAt',
-                    ExpressionAttributeNames={
-                        '#status': 'status',
-                        '#errorMessage': 'errorMessage',
-                        '#updatedAt': 'updatedAt'
-                    },
-                    ExpressionAttributeValues={
-                        ':status': 'FAILED',
-                        ':error': str(e)[:500],
-                        ':updatedAt': now
-                    }
+                    UpdateExpression='SET #status = :dispatching, #dispatchToken = :token, #dispatchStartedAt = :now, #updatedAt = :now',
+                    ConditionExpression=condition,
+                    ExpressionAttributeNames=names, ExpressionAttributeValues=values,
                 )
-                failed_count += 1
-                logger.error(f'Exception sending scheduled message {scheduled_id}: {str(e)}')
-        
-        return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'processed': len(items),
-                'sent': sent_count,
-                'failed': failed_count
-            })
-        }
-    except Exception as e:
-        logger.error(f'Process due messages error: {str(e)}')
-        return {'statusCode': 500, 'headers': cors_headers(origin), 'body': json.dumps({'error': str(e)})}
+            except ClientError as exc:
+                if _conditional_conflict(exc):
+                    counts['skipped'] += 1
+                    continue
+                raise
+            counts['processed'] += 1
+            if not item.get('contactId') or not item.get('templateName'):
+                outcome, reason = 'FAILED', 'MISSING_RECIPIENT_OR_TEMPLATE'
+            else:
+                payload = {'body': json.dumps({
+                    'contactId': item['contactId'], 'isTemplate': True,
+                    'templateName': item['templateName'],
+                    'templateParams': item.get('templateParams', []),
+                    'phoneNumberId': item.get('phoneNumberId', ''),
+                    'recipientBsuid': item.get('recipientBsuid', ''),
+                })}
+                try:
+                    response = lambda_client.invoke(FunctionName=OUTBOUND_LAMBDA,
+                        InvocationType='RequestResponse', Payload=json.dumps(payload))
+                    outcome, reason = _dispatch_outcome(response)
+                except Exception:
+                    outcome, reason = 'DISPATCH_UNKNOWN', 'OUTBOUND_INVOCATION_UNRESOLVED'
+            final_names = {'#status': 'status', '#dispatchToken': 'dispatchToken',
+                '#updatedAt': 'updatedAt', '#errorMessage': 'errorMessage'}
+            final_values = {':status': outcome, ':dispatching': 'DISPATCHING', ':token': token,
+                ':now': now, ':error': reason}
+            expression = 'SET #status = :status, #updatedAt = :now, #errorMessage = :error'
+            if outcome == 'SENT':
+                final_names['#sentAt'] = 'sentAt'
+                expression += ', #sentAt = :now'
+            try:
+                table.update_item(Key={'id': scheduled_id}, UpdateExpression=expression,
+                    ConditionExpression='#status = :dispatching AND #dispatchToken = :token',
+                    ExpressionAttributeNames=final_names, ExpressionAttributeValues=final_values)
+            except Exception:
+                # Keep the claim excluded from future PENDING queries even if finalisation
+                # fails. A staff member must reconcile outbound/provider evidence before retry.
+                outcome = 'DISPATCH_UNKNOWN'
+                try:
+                    table.update_item(Key={'id': scheduled_id},
+                        UpdateExpression='SET #status = :status, #updatedAt = :now, #errorMessage = :error',
+                        ConditionExpression='#status = :dispatching AND #dispatchToken = :token',
+                        ExpressionAttributeNames={k: v for k, v in final_names.items() if k != '#sentAt'},
+                        ExpressionAttributeValues={**final_values, ':status': outcome, ':error': 'DISPATCH_RESULT_PERSISTENCE_UNRESOLVED'})
+                except Exception:
+                    logger.error(json.dumps({'event': 'scheduled_dispatch_review_required', 'requestId': request_id}))
+            counts[{'SENT': 'sent', 'FAILED': 'failed', 'DISPATCH_UNKNOWN': 'unknown'}[outcome]] += 1
+        return {'statusCode': 200, 'body': json.dumps(counts)}
+    except Exception:
+        logger.error(json.dumps({'event': 'scheduled_dispatch_store_unavailable', 'requestId': request_id}))
+        return _error_response(503, 'Scheduled dispatch unavailable; review any claimed dispatch before retry')
 
 
 def _normalize_item(item: Dict[str, Any]) -> Dict[str, Any]:

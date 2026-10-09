@@ -1152,21 +1152,6 @@ export default function App ( { Component, pageProps }: AppProps ) {
             the static HTML and could not be found by grepping the export - only a
             request log shows it. tagcheck.js now asserts the container loads once and
             no direct gtag.js accompanies it. */}
-        {/* Facebook SDK for JavaScript */ }
-        <Script id="facebook-sdk-init-public" strategy="afterInteractive">
-          { `
-            window.fbAsyncInit = function() {
-              FB.init({
-                appId: '${process.env.NEXT_PUBLIC_FB_APP_ID || ''}',
-                cookie: true,
-                xfbml: true,
-                version: 'v25.0'
-              });
-              FB.AppEvents.logPageView();
-            };
-          `}
-        </Script>
-        <Script src="https://connect.facebook.net/en_US/sdk.js" strategy="afterInteractive" id="facebook-jssdk-public" />
         <Header />
         <Component { ...pageProps } />
         <Footer />
@@ -1287,4 +1272,3 @@ export default function App ( { Component, pageProps }: AppProps ) {
     </ErrorBoundary>
   );
 }
-

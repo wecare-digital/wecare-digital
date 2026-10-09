@@ -131,8 +131,8 @@ def _candidate(record: Dict[str, Any]) -> Any:
     """Where an audit keeps its FAQ.
 
     Two places are checked because the generator's output is stored twice: `suggestedJsonLd` is
-    `result.jsonLd` and `fullAiResponse` is the whole `result`, and src/lib/seo-prompt.ts asks
-    for `faqSchema` at the TOP level of the result rather than inside `jsonLd`. Reading only one
+    `result.jsonLd` and `fullAiResponse` is the whole `result`, and the retained legacy audit contract stores
+    `faqSchema` at the TOP level of the result rather than inside `jsonLd`. Reading only one
     of them would work or silently not, depending on how the model nested its reply.
     """
     suggested = record.get('suggestedJsonLd')

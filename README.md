@@ -5,7 +5,7 @@ Multi-channel messaging platform for WhatsApp, SMS, Email, and Voice communicati
 ## Quick Start
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -85,6 +85,8 @@ Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
 |------|---------|---------|
 | WECARE.DIGITAL | 2094615664435155 | waba-e47d916f3c7a47e1a34a19653893dd4b |
 | Manish Agarwal | 2513394156072604 | waba-dbe343f210204752b74c80a0a59631a6 |
+
+See [repository layout and maintenance boundaries](docs/execution/repository-layout.md) for the active web/backend install roots, operational scripts, generated outputs and retained history.
 
 ## Project Structure
 

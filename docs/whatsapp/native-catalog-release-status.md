@@ -1,6 +1,26 @@
 # Native WhatsApp catalog service integration — 8 October 2026
 
-Implementation and AWS deployment are complete for the bounded draft. Customer release is NOT certified: no owner QA number has been supplied, the paid Submit Request Flow is still DRAFT, and external Wix writeback/purchase rollout remain disabled.
+## Current master audit checkpoint — supersedes older snapshots below
+
+Status: **PARTIALLY COMPLETE**. Source baseline d03ac81d; fresh provider/source audit and diagnostic-only repair deployed Business API89 (rollback88). Secure Files34, Service Requests5, catalog sync7 and checkout41 remain current. Catalog1457045652952851 is readable and empty: four Wix create proposals, no blocks, applied0. Sync is disabled/dry-run/out-of-stock. Native service/writeback/dynamic Vault gates remain off, attachments false. Intended dataset4554612361454941 connection/event matching is not verified.
+
+Orders2167802357142172 is an eight-screen DRAFT with zero validation errors and implemented profile/owned-order/missing-order/existing-invoice adapters. Paid Submit1107164111921876 and Review1578178897413815 remain PUBLISHED. QA contact lacks permanent account link/public UUID. Catalog approval/apply, native A/B/P/R binding, terminal payment recovery, encrypted ingestion, writeback and owner-paid delivery QA remain unfinished. Do not call engineering complete.
+
+Master audit outputs: [audit](../../outputs/xcodex-deep-audit-2026-10-09.md), [current state](../../outputs/xcodex-current-state.json), [architecture](../../outputs/whatsapp-customer-service-architecture.md), [payment recovery](../../outputs/whatsapp-payment-state-machine.md), [migration](../../outputs/website-to-whatsapp-migration-matrix.md). Backend10334/7 skipped/3 xfailed; frontend1597/2 skipped; typecheck/build pass; lint0 errors/190 warnings. No customer sends/payments performed.
+
+The following sections are preserved historical evidence; their older versions/read_failed/pending-adapter statements are not current facts.
+
+
+**Current reconciliation — 9 October 2026: PARTIALLY COMPLETE.** Paid Submit Request
+and Review Flows are PUBLISHED. Owner QA recipient ending0044 is nominated and its
+Cognito phone is verified, but its CRM checkout identity link remains absent. Native
+purchase and Wix writeback gates remain closed. Secure Files32 and Service Requests4
+security repairs are live; Business79 payment diagnostics remain pending concurrent
+$LATEST reconciliation. See service-rollout/live-evidence.json.codexAuditReconciliation
+and service-rollout/codex-audit-evidence-20261009.json for current evidence.
+
+The deployment table, tests and release-step wording below describe the historical
+8 October implementation. They must not be used as current deployment or pending facts.
 
 ## Deployed changes
 

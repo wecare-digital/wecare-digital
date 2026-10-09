@@ -367,7 +367,9 @@ def drive_send(engine, fake, recorder):
          patch.object(engine, 'PAYMENT_ATTEMPTS_TABLE', ATTEMPTS):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
+        ready = engine.payment_readiness.PaymentReadiness(engine.payment_readiness.PAYMENT_READY)
         with patch('urllib.request.urlopen', recorder.urlopen), \
+             patch.object(engine, '_payment_readiness_for_sender', return_value=ready), \
              patch.object(engine, '_lookup_contact_by_phone',
                           return_value={'contactId': 'contact-nc-1'}):
             return engine.send_payment_link(INVOICE_ID, WABA1, '', 'req-send')

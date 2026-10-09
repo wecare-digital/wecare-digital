@@ -59,7 +59,6 @@ from a human. The customer-facing surface must render none of that detail (see
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -137,11 +136,6 @@ def template_required(last_inbound_at: Optional[int], *,
 
 #: Meta reports a configuration's status as a string. Only this one may take money.
 _ACTIVE_STATUS = "active"
-
-#: A single opt-out that can only ever tighten. There is deliberately no env var that can turn
-#: readiness ON: the only route to PAYMENT_READY is a successful live readback.
-_KILL_SWITCH = "WA_PAYMENTS_DISABLED"
-
 
 class PaymentReadiness:
     """The verdict, with enough detail for an operator and none for a customer."""
@@ -232,10 +226,6 @@ def evaluate(*,
     `CONFIGURATION_UNVERIFIED` rather than skipping the check, because "we did not compare the
     merchant id" must never read the same as "the merchant id matched".
     """
-    if str(os.environ.get(_KILL_SWITCH, "")).strip().lower() in ("1", "true", "yes", "on"):
-        return _blocked(CONFIGURATION_UNVERIFIED,
-                        f"{_KILL_SWITCH} is set; payments are administratively disabled")
-
     if not expected_waba_id:
         return _blocked(CONFIGURATION_UNVERIFIED, "no expected WABA id was supplied")
     if not expected_configuration_name:

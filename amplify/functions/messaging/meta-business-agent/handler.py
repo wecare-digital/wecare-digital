@@ -85,10 +85,12 @@ def _appsecret_proof(token: str, secret: str) -> str:
 # X-Agent-Token header (secret wecare/agent-connector-token). Read-only.
 # ─────────────────────────────────────────────────────────────────────────
 AGENT_TOOL_SECRET = os.environ.get("AGENT_TOOL_SECRET", "wecare/agent-connector-token")
-# WABA phone-number-id -> its Meta product catalog id
+# WABA phone-number-id -> its Meta product catalog id. Both WABAs now share the ONE
+# `wecare_shop` catalog 1457045652952851, so the two values are deliberately identical -
+# not a copy-paste slip. The mapping stays so a per-entity catalog remains one edit away.
 _CATALOG_BY_ENTITY = {
-    "1016149501586345": "1607047307067517",   # WABA1 wecare_catalog
-    "1055232054343117": "1424934879646296",   # WABA2 Catalogue_Products
+    "1016149501586345": "1457045652952851",   # WABA1 wecare_shop
+    "1055232054343117": "1457045652952851",   # WABA2 wecare_shop (shared)
 }
 
 
@@ -110,7 +112,7 @@ def _tool_product_lookup(body: dict):
     query = (body.get("query") or body.get("product") or "").strip().lower()
     retailer_id = (body.get("retailer_id") or "").strip()
     entity_id = str(body.get("entity_id") or "1016149501586345")
-    catalog_id = _CATALOG_BY_ENTITY.get(entity_id, "1607047307067517")
+    catalog_id = _CATALOG_BY_ENTITY.get(entity_id, "1457045652952851")
     token, secret = _creds()
     fields = "retailer_id,name,price,sale_price,availability,description,url"
     # GRAPH (defined below) rather than a second hardcoded version, so the
@@ -775,21 +777,11 @@ _THREAD_CONTROL_ACTIONS = ("release", "pass", "take")
 
 
 def _thread_control_recipient(bsuid: str, to: str) -> dict:
-    """The thread_control recipient shape, in one place.
+    """Meta thread control accepts exactly one flat to or bare-string recipient.
 
-    UNVERIFIED. This repository's only PROVEN BSUID-recipient form is FLAT:
-    whatsapp-business-api._send_message:2096-2102 sets message['recipient'] = '<bsuid>'
-    as a bare string, and the _thread_control this replaced sent a flat "to". The
-    nested object below is what Conversation Routing is believed to want, and no live
-    round trip can settle it here because a routing configuration is owner answer O1,
-    which is unanswered.
-
-    So this is the one correction point. The tests read this helper rather than
-    asserting a literal nesting, which means a corrected shape costs one function body
-    and zero test edits -- the same discipline the carousel action key and the MM edge
-    name get.
+    https://developers.facebook.com/documentation/business-messaging/whatsapp/conversation-routing/thread-control/
     """
-    return {"recipient": {"user_id": bsuid} if bsuid else {"to": to}}
+    return {"recipient": bsuid} if bsuid else {"to": to}
 
 
 def _thread_control(body: dict):
@@ -813,6 +805,8 @@ def _thread_control(body: dict):
 
     if not phone_id:
         return _resp(400, {"error": "entityId (phone_number_id) required"})
+    if bsuid and to:
+        return _resp(400, {"error": "provide exactly one of bsuid or to"})
     if not bsuid and not to:
         return _resp(400, {"error": "one of bsuid (business-scoped user id) or to "
                                     "(consumer phone, E.164) required"})

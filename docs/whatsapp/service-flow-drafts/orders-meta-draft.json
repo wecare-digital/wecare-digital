@@ -1,0 +1,23 @@
+{
+  "id": "2167802357142172",
+  "name": "WD_Orders_Design_v1",
+  "status": "DRAFT",
+  "validation_errors": [],
+  "preview_url": "https://business.facebook.com/wa/manage/flows/2167802357142172/preview/?token=a30a60d0-8027-495f-a463-584b04d7adf4",
+  "expires_at": "2026-11-08T02:52:53+0000",
+  "draft_executor_version": "88",
+  "draft_executor_sha256": "ATFBwztpvFTaMziX3NNIvPyfc7Z2W8rIM3R+A6hfX88=",
+  "live_baseline_version": "83",
+  "live_baseline_sha256": "3HYGs+lmmpdjY7Gg7Uyx+Fk4pF8tgvB/VhBYuDtZwwI=",
+  "endpoint_connected": true,
+  "customer_routing_enabled": false,
+  "customer_tested": false,
+  "screen_count": 8,
+  "includes": [
+    "verified customer profile",
+    "owned order pagination",
+    "optional missing-order reference",
+    "name and address update",
+    "free existing invoice copy"
+  ]
+}

@@ -87,3 +87,19 @@ def test_for_wix_india_returns_wix_shape():
     out = pa.for_wix(_india())
     assert out.get("country") == "IN"
     assert "subdivision" in out
+
+
+@pytest.mark.parametrize("channel", ["unknown", "", None, 17, [], {}])
+@pytest.mark.parametrize("address", [_india(), _non_india(state="US-CA")], ids=["india", "international"])
+def test_unknown_channel_is_refused_before_country_acceptance(address, channel):
+    with pytest.raises(pa.UnpayableAddress) as exc:
+        pa.assert_payable(address, channel=channel)
+    assert exc.value.code == "UNKNOWN_CHANNEL"
+    assert exc.value.field == ""
+
+
+@pytest.mark.parametrize("channel", ["unknown", "", None, 17, [], {}])
+def test_unknown_channel_precedes_address_access(channel):
+    with pytest.raises(pa.UnpayableAddress) as exc:
+        pa.assert_payable(None, channel=channel)
+    assert exc.value.code == "UNKNOWN_CHANNEL"

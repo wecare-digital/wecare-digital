@@ -63,9 +63,9 @@ refund releases the committed redemption back. All of this lives in ``order_keys
 The gate, identical to website checkout
 ---------------------------------------
 Nothing here creates a gateway order. The REDUCED Razorpay payable after a redemption, AND a
-zero-remaining (fully gift-card-covered) order, both settle through the SAME gated
-``website_checkout`` path behind the SAME ``CHECKOUT_INITIATION_ENABLED`` gate (default OFF) plus
-readiness. This module computes the authoritative payable; the gate decides whether a gateway
+zero-remaining (fully gift-card-covered) order, both settle through the SAME governed
+``website_checkout`` path behind authenticated ownership, authoritative pricing, idempotency and
+live payment readiness. This module computes the authoritative payable; the gate decides whether a gateway
 order is ever created. A zero-remaining order is still gated and still settles through the
 authoritative verification path - it never auto-completes from browser state. ``build_payable``
 makes the zero-remaining case explicit and refuses to pretend a zero total is a captured payment.

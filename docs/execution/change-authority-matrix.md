@@ -1,5 +1,49 @@
 # Change authority matrix
 
+## 2026-10-09 — deep audit and permanent file ownership repair
+
+A0_READ: refreshed origin/stack53ed298e, isolated foreign dirty work, audited76Lambdas,
+69livealiases,384routes,85tables,7buckets and5 relevant IAM roles; compared10immutable
+ZIPs; read Meta Flows/templates/payment lists and Wix revision5. Initial audit preceded
+all edits. No provider credentials were retrieved. Root use was authorized by the
+tracked project-completion-20261009 plan. This entry follows the master audit request
+and 01-standing-authorization classes A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION.
+
+A1_LOCAL: exact permanent customer/file/grant ownership, server-resolved upload owner,
+unfiltered/paginated payment diagnostic reader, direct-linkTTL60–900seconds, regressions
+and current-state reconciliation. Exact ZIP preservation restored Secure Files' missing
+whatsapp_delivery.py member specified by its deployment manifest. No flags were enabled.
+
+A3_PRODUCTION: existing private deployment prefix uploaded2testedZIPs. HeadObjectETag,
+functionrevision/livehash and aliasrevision checks preceded writes. UpdateFunctionCode,
+Active/Successful readback, guarded PublishVersion and conditional UpdateAlias:
+
+| Target | Before/rollback | After live | After CodeSha256 | Exact package tests |
+|---|---|---|---|---|
+| wecare-secure-files |31|32|MSP3hq5NKdhELTFojwfJDX2g5G7FIzsfmAELlADgrcY=|97passed/3unrelateddeselected|
+| wecare-service-requests |3|4|4iVRen7bFz/s+SGaDXrwzwJeW9LVP0xRwlsFGj1l20Q=|35passed|
+
+Both Active/Successful, SnapStartNone. Secure payment/DropDocs flagsfalse. GET
+/secure-files/mine executed32 and returned401. Service GET executed4 and returned405.
+Auto-review rejected POST/services/request-intent as potentially mutating on a failed-open
+path; no bypass. Corrected verification uses inert reads plus exact ownership fixtures.
+Business79 repair package passes135checks, but its pending $LATESThash differs fromlive;
+no overwrite/publish/alias change attempted on that function.
+
+Broad verification:10365Pythonpassed/6skipped/3xfailed;1582Vitestpassed/11skipped;
+typecheck/buildpass;eslint0errors/191existingwarnings;diffcheckpass. Build first hit an
+external node_modules symlink and then blocked read-only blog fetches; isolated dependency
+copy and permitted network build resolved those host limitations. Baseline53ed298e has
+7successful GitHub workflows and Amplify1497SUCCEED. Customer/payment E2E unverified.
+
+Exact before/after function and alias revisions, hashes, smoke results, held target and
+rollback evidence: docs/whatsapp/service-rollout/codex-audit-evidence-20261009.json.
+Rollback requires re-read GetAlias and UpdateAlias to31/3 with its current RevisionId;
+never reuse an old aliasrevision. Do not roll back to legacy phone-only ownership without
+assessing exposure. No new IAM, routes, environment, provider settings, sends, payments,
+stockavailability, customer record mutation, bucket creation/deletion or credentials.
+
+
 ## 2026-10-07 — UNAUTHORIZED APPLY of `provision_secure_files_api.py`, and the alias rolled back
 
 **This entry records a mistake, not a change that was decided.** It is first in the file
@@ -3390,3 +3434,87 @@ Class A1_LOCAL / A2_REMOTE_CODE. Baseline 88856c1936d58c86f1d379deab0e5059406d63
 Evidence: full integrated offline Python gate10134passed/6skipped/3xfail, frontend1583passed/2skipped, typecheckPASS, lint0errors197warnings, static export1521pages, blog/schemaPASS; new retention guard4casesPASS. Unit tests use dummy credentials and denied network transports; no live provider/payment/customer journey certification.
 
 Rollback: revert only this commit's named source paths through a normal forward commit; zero-byte files restore from baseline Git. No force/history rewrite. Retention is not applied; its future rollback would restore prior policy from the read-only plan, with actual change ownership and timestamp recorded first.
+
+
+## 2026-10-09 — owner-authorized root and reviewed project closure
+
+A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION: direct owner authorizes root use for this project and completion/deep cleanup. Supersedes the 2026-10-08 root retention apply blocker and AI-test501 state. Exact account775261844268/us-east-1, existing authentication, no credentials retrieved/rotated. Two named customer log groups verified30days; thirteen revision/hash/alias-guarded code rollouts across ten functions.117 reviewed unused files removed; retained lock versions unchanged; upgrade automation derives the manifest. History replay isolation and canonical recipient/handover fixes deployed without provider configuration or receipt/typing gate changes. AI preview is real bounded text-only output with no executor tools/writes.
+
+Evidence/rollback: project-completion-20261009.md/.json; Python10187pass/6skip/3xfail, frontend1583pass/2skip, typecheck/build/browser/schema/blog pass, live public synthetic AI preview200/READY. Exact alias prior versions recorded; revert source through named forward commits. Wix removal intent, durable coexistence ingestion, live provider/payment journey authorization, unpatched braces and operation-specific IAM narrowing remain explicit. Historical entries are snapshots, not current blockers when superseded here.
+
+
+## 2026-10-09 — Catalog copy and consented product events
+
+Owner explicitly requested short Submit Request/Vault catalog copy and repair of catalog event diagnostics. A1_LOCAL/A2_REMOTE_CODE: bounded projection and website Pixel changes; existing checkout status adds a customer-safe analytics projection after ownership/payment verification. A3_EXISTING_PROVIDER_CONFIG: resume catalog matching; review only obsolete catalog advertising event association. No ads/spend, payment capture/refund, stock release, credential retrieval, or customer send. Rollback: catalog alias 5, checkout alias 38, scoped source revert. Evidence: docs/whatsapp/catalog-events-repair-20261009.md and JSON.
+
+| 2026-10-09 | A1_LOCAL / A3_PRODUCTION | Customer service catalog artwork, verified Orders/Customer ID commands, secure inbound storage and staff signed media | Owner explicitly requested six service artworks, S3 existing bucket, identity/order parity, private uploads and full backend/frontend work. No customer sends or payments occur in fixtures. IAM GetObject/PutObject allowed on private arrivals; source baselines read before overlay. | Roll back business API to 77, inbound to 90, messages read to 28; artwork v1 is additive and not assigned to a fresh catalog until approved. |
+
+| 2026-10-09 | A3_PRODUCTION / owner-authorized Wix product media | Site c993128b-26be-41cd-9fcd-904abe23462f, product df976a0a-f582-4535-b2e1-d532f348bd27 | Six artworks imported; four gallery images and four existing choice references assigned, all 4096px. Returned before/after variant IDs and prices match exactly. Revision 5 uses short customer description. Catalog read-only verification returned applied 0/read_failed. | Existing variant identities and stock preserved; media/choice references are reversible from Wix revision history. |
+
+| 2026-10-09 | A1_LOCAL / bounded A3 draft preview | Vault repayment/retry protection, private Drop Docs ownership proof and new Orders read/help screens | Owner requested all customer service tasks. No charge, actual customer send, secret retrieval, provider/payment configuration or published Flow change. Meta Orders draft 2167802357142172 validates without errors. Unaliased executor 84 overlays only fixed draft helper/asset over verified live83 hash3HYGs+lmmpdjY7Gg7Uyx+Fk4pF8tgvB/VhBYuDtZwwI=. Live alias not changed. | Source rollback by named-path forward revert; Orders draft remains unpublished and unrouted. Live83 remains the baseline; do not apply whole old package over concurrent work. |
+
+## 2026-10-09 — scoped push CI follow-up
+
+A2_REMOTE_CODE: scoped repair724dcc38 pushed non-force tostack after a freshfetch,
+all local gatesgreen and clean owncheckout. Existing SEO workflow37875375124 unexpectedly
+matched an ecommerce shared helper and completed its test/deploy/read-only smoke jobs.
+It updates unversioned $LATEST; no alias or retained immutable rollback exists. Cancellation
+was attempted but the run had already completed. This automation did not meet the master's
+revision/rollback safeguards; do not describe it as a guarded deployment.
+
+Fresh AWS and downloaded ZIP verify Active/Successful, CodeSha256
+`dOwOgICnmXUKndOlBAcBcHY0WtAINAyKsbFp+zthwP8=`. Beforehash was
+`j+XvrA1e9qdg5jn6/KoueKX1cjjzD6D3jD+Glhxg0WU=`. All78members match source and the
+prior audited53ed298e byte-for-byte: archive metadata changed, packaged content did not.
+Content recovery is a rebuild of53ed298e with the existing SEO manifest; exact prior ZIP
+rollback unavailable. A1_LOCAL fix narrows the path filter to packaged top-level Python
+modules and computes the complete push range before automatic deployment. Workflow/tests/
+docs-only changes now run tests without redeployment; manual workflow dispatch retains its
+existing deploy behavior.12new scope fixtures cover excluded ecommerce, real package files,
+entire push comparison and fail-closed unknown ranges.
+
+GitHub push also reported2high Dependabot alerts, independently read via API: Amplify
+GraphQL utility versions<=12.0.0 (fixed12.0.1; parent-version compatibility needs validation),
+braces3.0.3 (no fixed version listed). No blanket override or false exposure claim. Exact
+ZIP/config/readback and alert evidence is in codex-audit-evidence-20261009.json.
+
+Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope checks passed; workflow YAML parsed and actual 53ed298e→724dcc38 scope returned deploy=false. All 9 workflows for 724dcc38 succeeded.
+
+
+### Customer-service continuation release — 2026-10-09
+
+- A1: Orders/profile/invoice-copy and CRM queue changes, focused offline tests, final Python gate 10,319 passed / 7 skipped / 3 expected failures; frontend 1,597 passed / 2 skipped, TypeScript and production build pass. Invoice copy reuses an existing owned invoice and IMAGE template, no financial writes, no actual customer send in verification.
+- A3: business API live 87 -> 88; hash `ATFBwztpvFTaMziX3NNIvPyfc7Z2W8rIM3R+A6hfX88=`. Exact overlaid ZIP import validated, unauthorized HTTP candidate invocations return 403 with no FunctionError. Orders draft 2167802357142172 re-uploaded with eight screens, zero Meta validation errors, endpoint retained; still DRAFT, customer routing off. Immediate rollback 87; original feature baseline 83.
+- A3: secure-files live 34 read back with hash `6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=`; service-requests live 5 hash `mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=`. Secure-files IAM adds only `PrivateIncomingOwnershipProof`, GetItem on exact MessagesTable/ContactsTable; source provisioner matches. Rollbacks 32/4 respectively; remove only that SID if required.
+- A3: catalog-sync live 6 -> 7, code unchanged hash `9Nrpq65Z1Cd5ANxpCdTiHdylN9lijITni+ruPbCiKn4=`. Revision-guarded full environment read/modify/write preserved all 10 variables and all secret references; only catalog ID, enabled/dry-run and four-variant scope changed. New target 1457045652952851, enabled false, dry-run true, existing out-of-stock hold retained. Candidate inspect returns ok/readOnly, four creates proposed, blocked [], existing [], applied 0. No Meta products written. Rollback 6 reintroduces the old catalog target; use only for an actual rollback.
+- Concurrent checkout live 41 discovered on final read; it was not overwritten. Native-service, dynamic Vault and Wix writeback live flags remain absent; secure attachment remains false. End-to-end payment/customer delivery remains unverified. No provider secret values, captures, refunds, or synthetic Purchase events were used.
+
+- A2 final integration: merged origin/stack 4e259800 without conflict or overwrite; merged-tree Python gate 10,332 passed / 7 skipped / 3 expected failures. Frontend/build unchanged by the merge; prior final UI 1,597 passed / 2 skipped and static build pass remain applicable.
+
+### Master execution prompt audit update — 2026-10-09
+
+- A0: fresh origin/stack d03ac81d; nine scoped Lambda hashes/configs, seven table schemas, IAM/private CDN, Meta/Wix read-only inventory, QA linkage and Amplify1502 reread. No secrets, synthetic events, customer messages or financial writes.
+- A1: legacy raw diagnostic regression reproduced; handler route returns410 to list/check, two GET/POST tests added. Full Python10334/7 skipped/3 xfailed, focused165, frontend1597/2 skipped, typecheck pass, lint0 errors/190 existing warnings, production build pass after transient blog503 retry. Five current reports and updated master prompt added; older root evidence archived rather than silently discarded.
+- A3: verified live88/ATFBwztpvFTaMziX3NNIvPyfc7Z2W8rIM3R+A6hfX88=; candidateZIP changes handler.py only. Uploaded secure/deployments/master-audit-20261009/business-api-diagnostic-v1.zip; revision-guarded update/publish89 and alias88→89. New hash r+k6k2WhMDaNbYzFfax39Zi/1e/ckqg8ad891fvCu3E=. Candidate raw410/list200/check200/unauthorized HTTP401; live raw410. Rollback88 with freshly read alias revision; no release flags or provider settings changed.
+- Overall PARTIALLY COMPLETE. Engineering queue/action/recovery/ingestion/writeback gaps remain before actual owner-paid QA. Native checkout remains closed.
+
+### Vault implementation handoff follow-up — 2026-10-09
+
+- A0/A1: source e9e377ce revalidated against origin; read current Business89/Secure Files34/checkout41 safe settings/hashes, three approved template contracts and DownloadGrantsTable TTL. No secret retrieval, financial/customer send/identity write, flag enablement or deployment.
+- Source confirms consumed-before-download and no renewable paid catalog/web access; legacy single-use URL/window wording and bounded TTL drift recorded as pending. Added V1–V9 implementation contract and complete new-session prompt; updated current audit/architecture/state/migration/payment/handoff records without claiming implementation.
+- Verification:121 existing targeted offline tests pass; documentation diff/JSON/link checks. Prior full gates/CI/Amplify1503 remain preceding source evidence. No new production rollback required.
+
+### Explicit owner-requested Flow deprecation —2026-10-09
+
+- Owner directly authorized retiring every Flow outside the plan. A0 full paginated inventory59 across two WABAs; retained six exact planned IDs; nine obsolete published targets selected. Eighteen unused drafts left unpublished because deprecation is not draft deletion.
+- A1/A3: correct Meta /deprecate endpoint with owning-WABA context and bounded pagination; focused135/full10339 passed,7 skipped,3 xfailed. Business89→90 revision-guarded, exact handler-only overlay hash pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI=, code rollback89. Unauthorized HTTP401.
+- Explicit provider operation: ninePOSTdeprecations200 and fresh readbackDEPRECATED. After2PUBLISHED/22DRAFT/35DEPRECATED. No secrets/customer sends/payments/new publication/draft deletion or release flags. No bulk registry sync. Meta deprecation is not reversed by code alias rollback; replacement requires verified migration.
+- Source audit retains pending legacy Subscribe/Profile/UI references; not certified routing cleanup. Evidence outputs/flow-retirement-2026-10-09.json/.md; master/new-session handoffs updated.
+
+## Workspace correctness continuation — 9 October 2026
+
+| Class | Target | Evidence and change | Rollback |
+| --- | --- | --- | --- |
+| A0_READ | origin/stack a6c74df7 | Refreshed latest source; existing schedule cancellation and system-health fixes retained | Read only |
+| A1_LOCAL | codex/workspace-correctness-20261009 | Require configuration acknowledgement/read-back and truthful UI errors; remove fabricated billing fallback; 24 targeted and1585 full frontend tests pass; TypeScript passes; lint zero errors | Revert scoped source/test commit |
+| A2_REMOTE_CODE | Separate feature branch and PR | Explicit paths only; no production provider/auth/payment/infrastructure changes | Revert PR commit |

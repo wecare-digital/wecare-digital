@@ -539,7 +539,10 @@ def test_the_provider_is_the_only_concrete_redemption_provider_under_amplify():
     disagreeing, so its absence is a gate rather than a convention."""
     implementations = []
     for path in sorted((ROOT / "amplify").rglob("*.py")):
-        if "__pycache__" in path.parts:
+        # Vendored, untracked `amplify/node_modules` is not "under amplify" in the sense
+        # this gate means. Including it lets a dependency that happens to define both
+        # provider methods read as a second implementation of ours and fail the gate.
+        if "__pycache__" in path.parts or "node_modules" in path.parts:
             continue
         text = path.read_text(encoding="utf-8")
         if "def validate_coupon" not in text or "def read_gift_card" not in text:

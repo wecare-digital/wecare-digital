@@ -2,6 +2,7 @@
 import ast
 import io
 import json
+import re
 import logging
 import uuid
 from pathlib import Path
@@ -22,7 +23,7 @@ def load_entry(source=None):
     def invoke(**kwargs):
         calls.append(json.loads(kwargs['Payload']))
         return {'Payload': io.BytesIO(b'{"statusCode":200}')}
-    ns = {'Dict': dict, 'json': json, 'uuid': uuid, 'logger': logging.getLogger('test'),
+    ns = {'Dict': dict, 'json': json, 're': re, 'uuid': uuid, 'logger': logging.getLogger('test'),
           'PHONE_NUMBER_ID_1': 'phone1', 'PHONE_NUMBER_ID_2': 'phone2',
           'OUTBOUND_WHATSAPP_FUNCTION': 'fixture-outbound',
           'lambda_client': SimpleNamespace(invoke=invoke),

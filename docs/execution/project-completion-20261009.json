@@ -1,0 +1,335 @@
+{
+  "date": "2026-10-09",
+  "authority": "Owner explicitly authorized root for this project and completion/deep cleanup",
+  "account": "775261844268",
+  "region": "us-east-1",
+  "rootIdentityNoLongerBlocker": true,
+  "rollouts": [
+    {
+      "function": "wecare-ai-config-management",
+      "beforeVersion": "26",
+      "afterVersion": "27",
+      "beforeCodeSha256": "sj3w3gW9VWUYu929W78n1wGPj6jcqY2raphJEa6ZfFA=",
+      "afterCodeSha256": "BKfRcp0OWBw9o/e0j0oe/Av22YfCeY0tA1DrjQI8s5s=",
+      "aliasRevisionId": "1d923822-2ce3-448a-a903-3edc292d21b1",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 26 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-ai-generate-response",
+      "beforeVersion": "38",
+      "afterVersion": "39",
+      "beforeCodeSha256": "78q0ROBHJ3c/FZw00+UISP1hbtfufkWn+OsouTViLXI=",
+      "afterCodeSha256": "4Zp0wfcVBSCHBrlZ5b67W2MGTpYGzD5NapsvBbw/Wf4=",
+      "aliasRevisionId": "771ccd80-72cd-4afa-be6a-fc5424b3a9e0",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 38 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-invoice-engine",
+      "beforeVersion": "48",
+      "afterVersion": "49",
+      "beforeCodeSha256": "hSEs26ORumqwTMBxKhKvHsyTR3CWZWFIurM/yo+At9M=",
+      "afterCodeSha256": "XPBw76dLHOAzUVsNz5drw9huk47bfHgxYpVZUi+kDbw=",
+      "aliasRevisionId": "460d1d6f-b0fb-4fcc-a85d-b4d9b5a7bfe8",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 48 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-whatsapp-templates",
+      "beforeVersion": "29",
+      "afterVersion": "30",
+      "beforeCodeSha256": "7XO9ll7KkAd6pGvYt4HuYf9sgPPAPD6u31ldPb0jMgg=",
+      "afterCodeSha256": "yGVA2e9eu2kYqoSNjc9TnzF0iSNR7LQ++2egLDvbmwg=",
+      "aliasRevisionId": "17b76efd-f9a6-4d65-aa50-1305f4289bf2",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 29 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-customer-orders",
+      "beforeVersion": "4",
+      "afterVersion": "5",
+      "beforeCodeSha256": "CmoW7yv/XKBycGhpcbeCr1UL6D8aZJys63wszK2HqbQ=",
+      "afterCodeSha256": "EenNnFL2quiyJZkiI8KESbdrsNf1r2b096+FGtGvTS4=",
+      "aliasRevisionId": "ea4a2f4c-e1a2-4a51-93b1-3820d8ecb508",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [
+        "lambda_utils/ecommerce/order_channel.py",
+        "lambda_utils/identity/customer_uuid.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 4 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-customer-profile",
+      "beforeVersion": "7",
+      "afterVersion": "8",
+      "beforeCodeSha256": "J0zMH7Yzug/nbschSVJ5o5Ytb8FO5Qh9jiI3wOq+IFI=",
+      "afterCodeSha256": "rMzi3JJgXtn9u5BLUuoA1j4sXqyLQq3fq1cEJol511g=",
+      "aliasRevisionId": "2a2bc7ee-34cb-4429-a0c2-8a9170d11b09",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [
+        "lambda_utils/identity/customer_uuid.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 7 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-service-api",
+      "beforeVersion": "22",
+      "afterVersion": "23",
+      "beforeCodeSha256": "hyy3ohU8YHnQz1LQVvHcV/UtLG27LjQase/r+0O9IXY=",
+      "afterCodeSha256": "mr/K3UKH0q3cWo+ZG28ztan9rnY724+v1g5AUngxyDU=",
+      "aliasRevisionId": "4e266340-790e-4be6-a417-693dcd30552e",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 22 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-workspace-mcp",
+      "beforeVersion": "10",
+      "afterVersion": "11",
+      "beforeCodeSha256": "PiENyw1+sRjrIIQZ4R0CuHNNklpYHFwNO54AM9CJm64=",
+      "afterCodeSha256": "C+xXFaCVmTf/omSXkMP8IY/lgspcw8As6KyxI3wAJaA=",
+      "aliasRevisionId": "8329afc7-bb9f-4354-acd9-c1a61d093c61",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 10 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-customer-profile",
+      "beforeVersion": "8",
+      "afterVersion": "9",
+      "beforeCodeSha256": "rMzi3JJgXtn9u5BLUuoA1j4sXqyLQq3fq1cEJol511g=",
+      "afterCodeSha256": "vywhLH0tp5LZ1hnlhjrSc4eJp+HC7diNibnuUvCADf0=",
+      "aliasRevisionId": "5f02cf53-8d6d-4875-8e3b-d4cd3f5449a6",
+      "changedMembers": [
+        "lambda_utils/ecommerce/contact_address.py"
+      ],
+      "addedMembers": [
+        "lambda_utils/ecommerce/payment_address.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 8 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-customer-orders",
+      "beforeVersion": "5",
+      "afterVersion": "6",
+      "beforeCodeSha256": "EenNnFL2quiyJZkiI8KESbdrsNf1r2b096+FGtGvTS4=",
+      "afterCodeSha256": "Isl/eyjE5ffuTIdZz5uBawQ4xZ23goQaeth69/bsYzk=",
+      "aliasRevisionId": "4ee834ca-b692-494a-86f0-fdb4a61df6c8",
+      "changedMembers": [
+        "lambda_utils/ecommerce/contact_address.py"
+      ],
+      "addedMembers": [
+        "lambda_utils/ecommerce/payment_address.py"
+      ],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 5 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-inbound-whatsapp",
+      "beforeVersion": "89",
+      "afterVersion": "90",
+      "beforeCodeSha256": "ft6WHUzXr5CnYPgxSfCQOLE59mzHh9BfkRkPgNqV3f4=",
+      "afterCodeSha256": "0j3YoL91t2WXHQk+HbFIdBZmt7T+JEiAsD9o3+dVSvE=",
+      "aliasRevisionId": "66cd1af1-f158-4351-b561-7a2b79800b45",
+      "changedMembers": [
+        "handler.py",
+        "lambda_utils/thread_ownership.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 89 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-meta-business-agent",
+      "beforeVersion": "37",
+      "afterVersion": "38",
+      "beforeCodeSha256": "ee6oPGlqYuTqRqI5GmzuMfZuYRUJYONlcynmjtkK/4Y=",
+      "afterCodeSha256": "+6wfCdkyYmWxNDE4zvkYQDV4wt++Hc/20VjFZXWhTrM=",
+      "aliasRevisionId": "52f6aa73-203b-4f06-a847-0e4666f4fea7",
+      "changedMembers": [
+        "handler.py",
+        "lambda_utils/thread_ownership.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 37 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-ai-config-management",
+      "beforeVersion": "27",
+      "afterVersion": "28",
+      "beforeCodeSha256": "BKfRcp0OWBw9o/e0j0oe/Av22YfCeY0tA1DrjQI8s5s=",
+      "afterCodeSha256": "oYYvXNdnG/1IhM3Ooxfk24rvrPUz8kpo9b2hRwM+oBI=",
+      "aliasRevisionId": "0f45efbb-350e-4964-8597-f6d07cdafca7",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 27 using fresh alias RevisionId"
+    }
+  ],
+  "finalFunctions": [
+    {
+      "function": "wecare-ai-config-management",
+      "beforeVersion": "26",
+      "afterVersion": "28",
+      "codeSha256": "oYYvXNdnG/1IhM3Ooxfk24rvrPUz8kpo9b2hRwM+oBI=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-ai-generate-response",
+      "beforeVersion": "38",
+      "afterVersion": "39",
+      "codeSha256": "4Zp0wfcVBSCHBrlZ5b67W2MGTpYGzD5NapsvBbw/Wf4=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-invoice-engine",
+      "beforeVersion": "48",
+      "afterVersion": "49",
+      "codeSha256": "XPBw76dLHOAzUVsNz5drw9huk47bfHgxYpVZUi+kDbw=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-whatsapp-templates",
+      "beforeVersion": "29",
+      "afterVersion": "30",
+      "codeSha256": "yGVA2e9eu2kYqoSNjc9TnzF0iSNR7LQ++2egLDvbmwg=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-customer-orders",
+      "beforeVersion": "4",
+      "afterVersion": "6",
+      "codeSha256": "Isl/eyjE5ffuTIdZz5uBawQ4xZ23goQaeth69/bsYzk=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-customer-profile",
+      "beforeVersion": "7",
+      "afterVersion": "9",
+      "codeSha256": "vywhLH0tp5LZ1hnlhjrSc4eJp+HC7diNibnuUvCADf0=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-service-api",
+      "beforeVersion": "22",
+      "afterVersion": "23",
+      "codeSha256": "mr/K3UKH0q3cWo+ZG28ztan9rnY724+v1g5AUngxyDU=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-workspace-mcp",
+      "beforeVersion": "10",
+      "afterVersion": "11",
+      "codeSha256": "C+xXFaCVmTf/omSXkMP8IY/lgspcw8As6KyxI3wAJaA=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-inbound-whatsapp",
+      "beforeVersion": "89",
+      "afterVersion": "90",
+      "codeSha256": "0j3YoL91t2WXHQk+HbFIdBZmt7T+JEiAsD9o3+dVSvE=",
+      "state": "Active"
+    },
+    {
+      "function": "wecare-meta-business-agent",
+      "beforeVersion": "37",
+      "afterVersion": "38",
+      "codeSha256": "+6wfCdkyYmWxNDE4zvkYQDV4wt++Hc/20VjFZXWhTrM=",
+      "state": "Active"
+    }
+  ],
+  "logRetentionDays": 30,
+  "logGroups": [
+    "/aws/lambda/wecare-customer-profile",
+    "/aws/lambda/wecare-customer-session"
+  ],
+  "cleanup": {
+    "trackedFilesRemoved": 117,
+    "trackedBytesRemoved": 1137238,
+    "gitHistoryRewritten": false,
+    "remainingLockPackageVersionsChanged": false
+  },
+  "verification": {
+    "python": {
+      "passed": 10187,
+      "skipped": 6,
+      "xfailed": 3
+    },
+    "frontend": {
+      "files": 122,
+      "passed": 1583,
+      "skipped": 2
+    },
+    "typecheck": "PASS",
+    "buildPages": 1521,
+    "schemaBlocks": 6261,
+    "lintErrors": 0,
+    "lintWarnings": 196,
+    "browserChecks": 5,
+    "liveTextPreview": {
+      "function": "wecare-ai-config-management",
+      "executedVersion": "28",
+      "functionError": null,
+      "statusCode": 200,
+      "publicSyntheticInput": true,
+      "toolsProvided": false,
+      "customerRecordsProvided": false,
+      "modelId": "amazon.nova-lite-v1:0",
+      "detectedLanguage": "und",
+      "responseLanguage": "en",
+      "responseCharacters": 5,
+      "responseWasReady": true,
+      "error": null
+    }
+  },
+  "remaining": [
+    "Wix12 missing-product intent; mass-removal guard preserved",
+    "Durable coexistence history ingestion and account-specific Routing/standby evidence",
+    "Provider/customer live journey authorization and handset verification",
+    "Five braces advisories with no compatible patched upstream release",
+    "IAM per-operation resource mapping before shared-role narrowing"
+  ]
+}

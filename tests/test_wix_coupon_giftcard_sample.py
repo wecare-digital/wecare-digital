@@ -798,8 +798,12 @@ def test_a_gift_card_wix_failure_of_any_status_escapes_as_a_status_only_message(
 # ══ GROUP D — the structural guarantees ══════════════════════════════════════
 
 def _amplify_python_files() -> list:
+    # `node_modules` is excluded because `amplify/node_modules` is untracked vendored
+    # code (aws-cdk-lib custom-resource handlers). An import gate that reads it lets a
+    # dependency, rather than a handler of ours, decide whether the gate passes.
     return sorted(path for path in AMPLIFY.rglob("*.py")
-                  if "__pycache__" not in path.parts)
+                  if "__pycache__" not in path.parts
+                  and "node_modules" not in path.parts)
 
 
 def test_no_handler_imports_the_wix_native_adapter():

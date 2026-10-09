@@ -7,9 +7,10 @@
       "description": "On every session start, verifies the three deny guards, their scripts, the fleet agents, the wide permission policy and the kirocrew symlink, and repairs anything that drifted. Restores deleted hooks from git. Clears stale session locks from dead processes. Silent when healthy. Exists because block-inline-secrets.json was deleted from disk mid-session on 2026-09-20 while three sessions were live, which silently removed the justification for the wide permission policy.",
       "action": {
         "type": "command",
-        "command": "D=/Users/wecaredigital/wecare-store; if [ -x \"$D/.venv/bin/python\" ]; then exec \"$D/.venv/bin/python\" \"$D/scripts/bootstrap_parallel_setup.py\" --heal --quiet; else exec /usr/bin/python3 \"$D/scripts/bootstrap_parallel_setup.py\" --heal --quiet; fi",
+        "command": "D=/Users/wecaredigital/wecare-digital/wecare-digital; if [ -x \"$D/.venv/bin/python\" ]; then exec \"$D/.venv/bin/python\" \"$D/scripts/bootstrap_parallel_setup.py\" --heal --quiet; else exec /usr/bin/python3 \"$D/scripts/bootstrap_parallel_setup.py\" --heal --quiet; fi",
         "timeout": 60
-      }
+      },
+      "enabled": true
     }
   ]
 }

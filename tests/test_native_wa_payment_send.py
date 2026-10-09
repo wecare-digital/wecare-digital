@@ -121,8 +121,10 @@ def _drive(engine, fake, lam, *, phone_id=WABA1, config='', verify_phone=''):
     with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
-        with patch.object(engine, '_lookup_contact_by_phone',
-                          return_value={'contactId': CUSTOMER}):
+        ready = engine.payment_readiness.PaymentReadiness(engine.payment_readiness.PAYMENT_READY)
+        with patch.object(engine, '_payment_readiness_for_sender', return_value=ready), \
+                patch.object(engine, '_lookup_contact_by_phone',
+                             return_value={'contactId': CUSTOMER}):
             return engine.send_payment_link(INVOICE_ID, phone_id, config, 'req-1',
                                             verify_phone=verify_phone)
 
@@ -376,16 +378,22 @@ def test_every_validation_rule_refuses_before_any_write(kwargs, code):
     assert refused.value.code == code
 
 
-def test_payments_disabled_refuses_before_any_write(engine, fake):
-    """T-S15. `WA_PAYMENTS_DISABLED` is a single opt-out that can only ever tighten. There is
-    deliberately no env var that can turn payments ON."""
+def test_live_readiness_refuses_before_reservation_or_send(engine, fake):
+    """Provider readiness is the server-side payment gate now that the env kill switch is gone."""
     _seed_invoice(fake)
     lam = _RecordingLambda()
-    with patch.dict(os.environ, {'WA_PAYMENTS_DISABLED': 'true'}):
-        resp = _drive(engine, fake, lam)
+    blocked = engine.payment_readiness.PaymentReadiness(
+        engine.payment_readiness.PAYMENT_CONFIG_MISSING, 'no live configuration')
+    with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
+        ddb.Table.side_effect = fake.Table
+        ddb.meta.client = fake.client()
+        with patch.object(engine, '_payment_readiness_for_sender', return_value=blocked), \
+                patch.object(engine, '_lookup_contact_by_phone',
+                             return_value={'contactId': CUSTOMER}):
+            resp = engine.send_payment_link(INVOICE_ID, WABA1, '', 'req-1')
 
     assert resp['statusCode'] == 503
-    assert _body(resp)['code'] == wpr.WA_PAY_DISABLED
+    assert _body(resp)['code'] == engine.payment_readiness.PAYMENT_CONFIG_MISSING
     assert _rows(fake, order_keys.PAYMENT_REFERENCE_PREFIX) == []
     assert lam.invokes == []
 

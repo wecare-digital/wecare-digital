@@ -193,11 +193,13 @@ def test_only_the_webhook_sets_paid_true():
     assert '"paid": True' not in source
 
 
-def test_redeem_requires_paid_and_unconsumed():
+def test_redeem_requires_paid_durable_entitlement():
     source = (FUNC_DIR / "handler.py").read_text()
-    assert "paid = :true" in source
-    assert "consumed = :false" in source
-    assert "ConditionalCheckFailedException" in source
+    body = source.split("def _redeem(file_id:")[1].split("\n# ── Drop Docs:", 1)[0]
+    assert "_active_entitlement(" in body
+    assert "_issue_download_session(" in body
+    assert "consumed = :true" not in body
+    assert "Please pay again" not in body
 
 
 WEBHOOK_SOURCE = (
@@ -268,7 +270,7 @@ class _RecordingTable:
         self._by_order = by_order if by_order is not None else ([item] if item else [])
         self.updates = []
 
-    def get_item(self, Key):  # noqa: N803 - boto3 casing
+    def get_item(self, Key, **_kwargs):  # noqa: N803 - boto3 casing
         return {"Item": self._item} if self._item else {}
 
     def query(self, **_kwargs):
@@ -323,14 +325,19 @@ def test_real_payment_grants_and_records_the_amount_razorpay_reported(mod, monke
     """The amount written is Razorpay's, never the caller's."""
     monkeypatch.setenv("SECURE_FILES_PAYMENT_ENABLED", "true")
     table = _RecordingTable(_grant())
-    monkeypatch.setattr(mod, "_table", lambda _name: table)
+    files = _RecordingTable()
+    monkeypatch.setattr(
+        mod, "_table", lambda name: table if name == mod.GRANTS_TABLE else files)
+    monkeypatch.setattr(
+        mod, "_ensure_entitlement", lambda _grant: {"grantId": "vault-entitlement#owner#f1"})
     _stub_razorpay(monkeypatch, paid=True, payment_id="pay_real", amount=4900)
 
     ok, detail = mod.confirm_and_deliver("order_ABC")
 
     assert ok is True
-    assert detail == "confirmed; web channel collects by redeem"
+    assert detail == "confirmed; web channel collects by renewable entitlement"
     assert len(table.updates) == 1
+    assert len(files.updates) == 1
     values = table.updates[0]["ExpressionAttributeValues"]
     assert values[":pid"] == "pay_real"
     assert values[":amt"] == 4900
@@ -857,11 +864,12 @@ def test_reconcile_verifies_ownership_before_paying():
     assert 'grant.get("ownerPhone") != identity["phone"]' in body
 
 
-def test_redeem_after_reconcile_is_still_single_use():
+def test_redeem_after_reconcile_creates_entitlement_and_session_without_consuming_purchase():
     source = (FUNC_DIR / "handler.py").read_text()
     body = source.split("def _redeem_after_reconcile")[1].split("\ndef ")[0]
-    assert "consumed = :false" in body
-    assert "paid = :true" in body
+    assert "_ensure_entitlement(" in body
+    assert "_issue_download_session(" in body
+    assert "consumed = :true" not in body
 
 
 def test_reconciliation_is_flagged_in_logs_for_visibility():

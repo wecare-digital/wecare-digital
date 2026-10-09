@@ -53,10 +53,6 @@ def _evaluate(response, *, config=CONFIG, mid=MID, waba=WABA):
     )
 
 
-@pytest.fixture(autouse=True)
-def _no_kill_switch(monkeypatch):
-    monkeypatch.delenv('WA_PAYMENTS_DISABLED', raising=False)
-
 
 # ── the seven required cases ────────────────────────────────────────────────────
 
@@ -164,24 +160,13 @@ def test_missing_expectations_block_rather_than_default(missing):
     assert verdict.state == pr.CONFIGURATION_UNVERIFIED
 
 
-def test_the_kill_switch_can_only_tighten(monkeypatch):
-    """There is deliberately no env var that turns readiness ON: the only route to
-    PAYMENT_READY is a successful live readback."""
-    monkeypatch.setenv('WA_PAYMENTS_DISABLED', 'true')
-    assert _evaluate({'data': [_configuration()]}).state == pr.CONFIGURATION_UNVERIFIED
-
-    monkeypatch.setenv('WA_PAYMENTS_DISABLED', 'false')
-    assert _evaluate({'data': [_configuration()]}).state == pr.PAYMENT_READY
-
-
 def test_no_environment_variable_can_force_readiness():
     """A grep-level guarantee: the module must not read a 'payments enabled' style flag that
     could short-circuit the readback."""
     import inspect
     source = inspect.getsource(pr)
     assert 'WA_PAYMENTS_ENABLED' not in source
-    assert source.count('os.environ') == 1, \
-        'the only env read should be the tightening kill switch'
+    assert 'os.environ' not in source, 'readiness must come only from live provider state'
 
 
 def test_every_blocking_state_is_falsy_and_enumerated():

@@ -1861,6 +1861,7 @@ export interface AWSBillingData {
   // 2026-09-28 because it bills per request). A zero totalCost then means "not
   // measured", not "spent nothing" -- the dashboard must not show it as a bill.
   costReportingEnabled?: boolean;
+  unavailable?: boolean;
   note?: string;
 }
 
@@ -1898,13 +1899,13 @@ export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBill
 
   const data = await apiCall<any>( url );
 
-  if ( data && data.services )
+  if ( data && Array.isArray( data.services ) )
   {
     return {
       totalCost: data.totalCost || 0,
-      period: data.period || `${new Date().toISOString().slice( 0, 7 )}-01 to ${new Date().toISOString().slice( 0, 10 )}`,
+      period: data.period || '',
       services: data.services,
-      lastUpdated: data.lastUpdated || new Date().toISOString(),
+      lastUpdated: data.lastUpdated || '',
       accountId: data.accountId,
       currency: data.currency || 'USD',
       previousMonthCost: data.previousMonthCost,
@@ -1918,40 +1919,16 @@ export async function getAWSBilling ( monthOffset: number = 0 ): Promise<AWSBill
     };
   }
 
-  // Fallback: Return cached/estimated data
-  return getEstimatedBilling();
-}
-
-// Fallback function with estimated billing data
-function getEstimatedBilling (): AWSBillingData {
-  const now = new Date();
-  const startOfMonth = new Date( now.getFullYear(), now.getMonth(), 1 );
-
-  const services: AWSServiceUsage[] = [
-    { service: 'Amazon Bedrock', cost: 0, usage: 61, unit: 'requests', freeLimit: '3-month trial', status: 'free' },
-    { service: 'AWS Lambda', cost: 0, usage: 6709, unit: 'requests', freeLimit: '1M/month', status: 'free' },
-    { service: 'Amazon DynamoDB', cost: 0, usage: 22977, unit: 'operations', freeLimit: '200M/month', status: 'free' },
-    { service: 'Amazon S3', cost: 0, usage: 13186, unit: 'operations', freeLimit: '20K GET', status: 'free' },
-    { service: 'Amazon API Gateway', cost: 0, usage: 5157, unit: 'requests', freeLimit: '1M/month', status: 'free' },
-    { service: 'Amazon CloudFront', cost: 0, usage: 1981, unit: 'requests', freeLimit: '1TB/month', status: 'free' },
-    { service: 'AWS Amplify', cost: 0, usage: 774, unit: 'minutes', freeLimit: '1000 mins/month', status: 'free' },
-    { service: 'Amazon SNS', cost: 0, usage: 3387, unit: 'notifications', freeLimit: '1M/month', status: 'free' },
-    { service: 'Amazon SQS', cost: 0, usage: 429, unit: 'requests', freeLimit: '1M/month', status: 'free' },
-    { service: 'Meta WhatsApp Cloud API', cost: 0, usage: 381, unit: 'conversations', freeLimit: '1000 free/mo', status: 'free' },
-    { service: 'AWS Pinpoint (SMS/Voice)', cost: 2, usage: 47, unit: 'messages/calls', freeLimit: '$2/mo toll-free', status: 'paid' },
-    { service: 'Amazon Polly', cost: 0, usage: 12, unit: 'TTS requests', freeLimit: '5M chars/month', status: 'free' },
-    { service: 'AWS Secrets Manager', cost: 0.40, usage: 1, unit: 'secrets', freeLimit: '$0.40/secret/mo', status: 'paid' },
-    { service: 'Amazon OpenSearch', cost: 0, usage: 182, unit: 'operations', freeLimit: 'Serverless', status: 'free' },
-    { service: 'Amazon Route 53', cost: 0, usage: 94671, unit: 'queries', freeLimit: '$0.50/zone', status: 'free' },
-    { service: 'Amazon Cognito', cost: 0, usage: 1, unit: 'users', freeLimit: '50K MAU', status: 'free' },
-    { service: 'CloudWatch', cost: 0, usage: 370, unit: 'metrics', freeLimit: '10 metrics', status: 'free' },
-  ];
-
+  // A failed read supplies no evidence of spend, usage or measurement time.
+  // Keep the numeric interface, but the dashboard must hide it behind these flags.
   return {
-    totalCost: 2.40,
-    period: `${startOfMonth.toISOString().slice( 0, 10 )} to ${now.toISOString().slice( 0, 10 )}`,
-    services,
-    lastUpdated: now.toISOString(),
+    totalCost: 0,
+    period: '',
+    services: [],
+    lastUpdated: '',
+    costReportingEnabled: false,
+    unavailable: true,
+    note: 'Billing data is unavailable. Check the connection or refresh to try again.',
   };
 }
 
@@ -2331,10 +2308,10 @@ export interface PaymentOrderItem {
 
 export interface SendPaymentMessageRequest {
   contactId: string;
+  customerPhone: string;
   phoneNumberId: string;
   recipientBsuid?: string;    // Send to BSUID recipient
   templateName?: string;
-  referenceId: string;
   items: PaymentOrderItem[];
   discount?: number;      // In paise
   delivery?: number;      // In paise (shipping/delivery)
@@ -2351,67 +2328,44 @@ export interface SendPaymentMessageRequest {
 }
 
 /**
- * Send WhatsApp Payment Message using order_details
- * 
- * Fields shown in WhatsApp message:
- * - Reference ID
- * - Items (name, amount, quantity)
- * - Discount (₹)
- * - Delivery (₹)
- * - Tax (₹) - passed from frontend
- * 
- * NOTE: Convenience Fee is handled by Razorpay Fee Bearer model (not in WhatsApp message)
+ * Create a server-owned invoice, then ask the invoice engine to send its reserved WhatsApp
+ * payment request. The browser never mints the payment reference and never constructs
+ * order_details; the invoice engine owns recipient, amount persistence, reservation/idempotency
+ * and the final template send.
  */
 export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRequest ): Promise<{ messageId: string; status: string } | null> {
-  const subtotal = request.items.reduce( ( sum, item ) => sum + ( item.amount * item.quantity ), 0 );
-  const discount = request.discount || 0;
-  const delivery = request.delivery || 0;
-  const tax = request.tax || 0;
-
-  // Build order_details payload — always physical-goods for checkout template (address + coupons)
-  const orderDetails: any = {
-    reference_id: request.referenceId,
-    type: 'physical-goods',
-    payment_configuration: request.paymentConfiguration || 'WECAREDIGITAL',
-    currency: request.currency || 'INR',
-    itemName: request.items[ 0 ]?.name || 'Service Fee',
-    quantity: request.items[ 0 ]?.quantity || 1,
+  const invoice = await createInvoiceEngine( {
+    customerPhone: request.customerPhone,
+    contactId: request.contactId,
+    customerEmail: '',
+    shippingAddress: '',
+    billingAddress: '',
+    goodsType: 'physical-goods',
+    items: request.items.map( item => ( {
+      name: item.name,
+      amount: item.amount / 100,
+      quantity: item.quantity,
+      productId: item.productId,
+      gstRate: item.gstRate,
+    } ) ),
+    discount: ( request.discount || 0 ) / 100,
+    shipping: ( request.delivery || 0 ) / 100,
     gstin: request.gstin || DEFAULT_GSTIN,
-    orderId: request.orderId || 'Offline',
-    shipping_info: { country: 'IN', addresses: [] },
-    order: {
-      status: 'pending',
-      items: request.items.map( ( item, idx ) => ( {
-        retailer_id: item.productId || `ITEM_${idx + 1}`,
-        name: item.name,
-        amount: { value: item.amount, offset: 100 },
-        quantity: item.quantity,
-        gstRate: item.gstRate ?? 0,
-      } ) ),
-      subtotal: { value: subtotal, offset: 100 },
-      discount: { value: discount, offset: 100, description: 'Promo' },
-      shipping: { value: delivery, offset: 100, description: 'Express' },
-      tax: { value: tax, offset: 100, description: `GSTIN: ${request.gstin || DEFAULT_GSTIN}` },
-    },
-  };
-
-  // Always use checkout button template (wecarepay_wa) — enables address + coupons
-  return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
-    method: 'POST',
-    body: JSON.stringify( {
-      contactId: request.contactId,
-      phoneNumberId: request.phoneNumberId,
-      recipientBsuid: request.recipientBsuid,
-      isCheckoutTemplate: true,
-      isTemplate: true,
-      templateName: 'wecarepay_wa',
-      templateParams: [],
-      checkoutOrderDetails: orderDetails,
-      headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
-    } ),
+    currency: request.currency || 'INR',
+    orderId: request.orderId || '',
+    entryPoint: 'workspace_inbox',
+    paymentConfiguration: request.paymentConfiguration,
   } );
-}
+  if ( !invoice?.invoiceId ) return null;
 
+  const sent = await sendPaymentLink(
+    invoice.invoiceId,
+    request.phoneNumberId,
+    request.paymentConfiguration,
+  );
+  if ( !sent ) return null;
+  return { messageId: sent.referenceId, status: sent.status };
+}
 
 // ============================================================================
 // WABA MANAGEMENT API (Meta Graph API)
@@ -3042,20 +2996,23 @@ export async function getSupportedLanguages (): Promise<SupportedLanguages> {
  * Test AI response generation
  * API: POST /ai/test
  */
-export async function testBedrockAIResponse ( message: string ): Promise<{ message: string; response: string; detectedLanguage: string }> {
+export async function testBedrockAIResponse ( message: string ): Promise<{
+  message: string; response: string; detectedLanguage: string;
+  responseLanguage: string; languageSource: string; modelId: string;
+} | null> {
   const data = await apiCall<any>( `${API_BASE}/ai/test`, {
     method: 'POST',
     body: JSON.stringify( { message } ),
   } );
-  if ( data )
-  {
-    return {
-      message: data.message || message,
-      response: data.response || 'AI test response would appear here',
-      detectedLanguage: data.detectedLanguage || 'en',
-    };
-  }
-  return { message, response: 'AI service unavailable', detectedLanguage: 'en' };
+  if ( !data || typeof data.response !== 'string' || !data.response.trim() ) return null;
+  return {
+    message: typeof data.message === 'string' ? data.message : message,
+    response: data.response,
+    detectedLanguage: data.detectedLanguage || 'und',
+    responseLanguage: data.responseLanguage || '',
+    languageSource: data.languageSource || '',
+    modelId: data.modelId || '',
+  };
 }
 
 
@@ -3367,7 +3324,7 @@ export interface ScheduledMessage {
   templateParams: string[];
   phoneNumberId: string;
   scheduledAt: string;  // ISO timestamp
-  status: 'PENDING' | 'SENT' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'DISPATCHING' | 'DISPATCH_UNKNOWN' | 'SENT' | 'FAILED' | 'CANCELLED';
   createdAt: string;
   sentAt?: string;
   errorMessage?: string;
@@ -3401,9 +3358,10 @@ export async function scheduleTemplateMessage ( request: {
  */
 export async function listScheduledMessages ( status?: string ): Promise<ScheduledMessage[]> {
   let url = `${API_BASE}/scheduled`;
-  if ( status ) url += `?status=${status}`;
+  if ( status !== undefined ) url += `?status=${encodeURIComponent( status )}`;
 
   const data = await apiCall<any>( url );
+  if ( !data || !Array.isArray( data.scheduledMessages ) ) throw new Error( 'Scheduled messages are unavailable' );
   if ( data && data.scheduledMessages )
   {
     return data.scheduledMessages.map( normalizeScheduledMessage );
@@ -3923,7 +3881,7 @@ export interface SystemConfig {
  * Lambda: wecare-ai-config-management
  */
 export async function getSystemConfig ( configKey: string ): Promise<SystemConfig | null> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${configKey}` );
+  const data = await apiCall<any>( `${API_BASE}/ai/config?key=${encodeURIComponent( configKey )}` );
   if ( data && data.config )
   {
     return data.config;
@@ -3931,16 +3889,29 @@ export async function getSystemConfig ( configKey: string ): Promise<SystemConfi
   return null;
 }
 
+// The backend merges object settings, so retained keys are allowed. Arrays are
+// ordered values: a different element or length means the requested save is unconfirmed.
+function containsConfig ( stored: any, requested: any ): boolean {
+  if ( Array.isArray( requested ) )
+    return Array.isArray( stored ) && stored.length === requested.length
+      && requested.every( ( value, index ) => containsConfig( stored[ index ], value ) );
+  if ( requested !== null && typeof requested === 'object' )
+    return stored !== null && typeof stored === 'object' && !Array.isArray( stored )
+      && Object.keys( requested ).every( key => Object.prototype.hasOwnProperty.call( stored, key )
+        && containsConfig( stored[ key ], requested[ key ] ) );
+  return stored === requested;
+}
+
 /**
  * Update system configuration
  * Lambda: wecare-ai-config-management
  */
 export async function updateSystemConfig ( configKey: string, config: any ): Promise<boolean> {
-  const data = await apiCall<any>( `${API_BASE}/ai/config`, {
-    method: 'PUT',
-    body: JSON.stringify( { key: configKey, config } ),
-  } );
-  return data !== null;
+  const body = JSON.stringify( { key: configKey, config } );
+  const data = await apiCall<any>( `${API_BASE}/ai/config`, { method: 'PUT', body } );
+  if ( data?.success !== true ) return false;
+  const stored = await getSystemConfig( configKey );
+  return stored !== null && containsConfig( stored, JSON.parse( body ).config );
 }
 
 /**
@@ -5506,6 +5477,10 @@ export interface FlowSubmissionItem {
   flowCode: string;
   flowType?: string;
   flowVersion?: string;
+  invoiceDeliveryStatus?: string;
+  orderReference?: string;
+  customerUuid?: string;
+  tags?: string[];
   phone: string;
   contactId?: string;
   senderName?: string;
@@ -6981,7 +6956,11 @@ export interface CapiEventLogEntry {
 export interface CapiStatus {
   wabaId: string;
   partnerAgent: string;
-  dataset: { datasetId?: string; wabaId?: string; cached?: boolean; error?: any };
+  // `fixed: true` means the id came from configuration (the one dataset both WABAs share) and
+  // was NOT read back from Meta — so it says the destination is configured, not that Events
+  // Manager has it linked to this WABA. The panel must not render it as a verified state.
+  // `cached: true` is the other non-live source: the per-WABA create path's DynamoDB cache.
+  dataset: { datasetId?: string; wabaId?: string; cached?: boolean; fixed?: boolean; error?: any };
   supportedEvents: string[];
   capturedClicks: CapiCapturedClick[];
   recentEvents: CapiEventLogEntry[];
@@ -6992,8 +6971,8 @@ export async function getCapiStatus ( wabaId?: string ): Promise<CapiStatus | nu
   return apiCall<CapiStatus>( `${API_BASE}/wa-business/capi${qs}` );
 }
 
-export async function createCapiDataset ( wabaId: string ): Promise<{ success: boolean; datasetId?: string; error?: any } | null> {
-  return apiCall<{ success: boolean; datasetId?: string; error?: any }>( `${API_BASE}/wa-business/capi/dataset`, {
+export async function createCapiDataset ( wabaId: string ): Promise<{ success: boolean; datasetId?: string; fixed?: boolean; error?: any } | null> {
+  return apiCall<{ success: boolean; datasetId?: string; fixed?: boolean; error?: any }>( `${API_BASE}/wa-business/capi/dataset`, {
     method: 'POST', body: JSON.stringify( { wabaId } ),
   } );
 }
@@ -7019,6 +6998,7 @@ export async function logCapiEvent ( input: {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SecureFile {
+  paidEntitlementId?: string;
   paidGrantId?: string;
   deliveryStatus?: string;
   vaultPaymentStatus?: string;
@@ -7230,10 +7210,10 @@ export async function createSecureFileOrder ( fileId: string ): Promise<ApiResul
 }
 
 /**
- * Redeem a paid grant for a short-lived download URL.
+ * Exchange durable paid access for a fresh short-lived download URL.
  *
- * Single use: the backend spends the grant with a conditional write, so calling
- * this twice fails the second time by design. Do not retry on a 403.
+ * The access identifier may be a durable entitlement or a historical paid grant that the
+ * backend migrates safely. Expiring or interrupted transport does not consume the purchase.
  */
 export async function redeemSecureFileDownload ( fileId: string, grantId: string ): Promise<ApiResult<{
   downloadUrl: string; expiresInSeconds: number;

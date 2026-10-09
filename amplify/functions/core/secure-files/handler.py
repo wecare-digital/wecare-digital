@@ -4,8 +4,8 @@ Three tiers exist on the ``wecare-digital-get`` bucket. This function owns the
 gated one:
 
     o/       open, auto-download, served straight off CloudFront. Not our concern.
-    secure/  this file. A named customer, verified by WhatsApp OTP, pays per
-             download and receives a single-use short-lived presigned URL.
+    secure/  this file. A named customer, verified by WhatsApp OTP, buys durable
+             access to one owned file and receives renewable short-lived presigned URLs.
 
 Why the object key is opaque
 ----------------------------
@@ -213,12 +213,9 @@ PRICE_PAISE = int(os.environ.get("SECURE_FILE_PRICE_PAISE", "4900"))  # Rs. 49
 UPLOAD_URL_TTL = int(os.environ.get("UPLOAD_URL_TTL_SECONDS", "900"))
 # Web redeem: the browser follows this immediately, so it can be very short.
 DOWNLOAD_URL_TTL = int(os.environ.get("DOWNLOAD_URL_TTL_SECONDS", "60"))
-# WhatsApp link delivery: a person reads a message and taps when they get to it, which
-# is not within 60 seconds. Sending a URL that has already expired by the time it is
-# read is worse than useless - the customer has paid and sees a failure. 24 hours is
-# the ceiling anyway, since SigV4 presigned URLs signed with temporary Lambda
-# credentials cannot outlive the role session.
-WHATSAPP_LINK_TTL = int(os.environ.get("WHATSAPP_LINK_TTL_SECONDS", str(6 * 3600)))
+# Direct links are bearer capabilities. Keep the read window bounded; a customer
+# can use authenticated Vault access after the delivery link expires.
+WHATSAPP_LINK_TTL = max(60, min(900, int(os.environ.get("WHATSAPP_LINK_TTL_SECONDS", "900"))))
 GRANT_TTL = int(os.environ.get("GRANT_TTL_SECONDS", "1800"))
 MAX_UPLOAD_BYTES = int(os.environ.get("MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
 
@@ -360,7 +357,7 @@ def _customer_identity(event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
     attrs = {a["Name"]: a["Value"] for a in user.get("UserAttributes", [])}
     phone = attrs.get("phone_number", "")
-    if not phone:
+    if not phone or attrs.get('phone_number_verified') != 'true' or not attrs.get('sub'):
         return None
     try:
         return {
@@ -708,6 +705,19 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             origin,
         )
 
+    # Bind at creation to the server-resolved Cognito subject, never to a
+    # browser-provided customer ID or a future account that inherits this phone.
+    try:
+        customer = _cognito_client().admin_get_user(
+            UserPoolId=CUSTOMER_POOL_ID, Username=username)
+        attributes = {a['Name']: a['Value'] for a in customer.get('UserAttributes', [])}
+        owner_customer_id = attributes.get('sub')
+        if (not owner_customer_id or not customer.get('Enabled', True)
+                or normalise_phone(attributes.get('phone_number')) != phone):
+            raise ValueError('customer ownership unavailable')
+    except Exception:
+        return cors_response(503, {'error': 'CUSTOMER_PROVISIONING_UNAVAILABLE'}, origin)
+
     file_id = f"{uuid.uuid4().hex}-{uuid.uuid4().hex}"
     basename = f"wecare-digital-{file_id}{_safe_extension(filename)}"
     key = UPLOAD_PREFIX + basename
@@ -718,6 +728,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "fileId": file_id,
             "s3Key": key,
             "ownerPhone": phone,
+            "ownerCustomerId": owner_customer_id,
             "ownerName": name,
             "cognitoUsername": username,
             "displayName": display_name or filename,
@@ -900,6 +911,113 @@ def _admin_revoke(file_id: str, origin: str) -> Dict[str, Any]:
     return cors_response(200, {"fileId": file_id, "status": "revoked"}, origin)
 
 
+# ── durable paid entitlement + renewable transport sessions ──────────────────
+
+ENTITLEMENT_PREFIX = "vault-entitlement#"
+SESSION_PREFIX = "vault-session#"
+
+
+def _entitlement_id(customer_id: str, file_id: str) -> str:
+    return ENTITLEMENT_PREFIX + str(customer_id) + "#" + str(file_id)
+
+
+def _ensure_entitlement(grant: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Create/read non-TTL paid entitlement from authoritative paid evidence."""
+    customer_id = str(grant.get("customerId") or "")
+    file_id = str(grant.get("fileId") or "")
+    owner_phone = str(grant.get("ownerPhone") or "")
+    if not customer_id or not file_id or not owner_phone or not grant.get("paid"):
+        return None
+    eid = _entitlement_id(customer_id, file_id)
+    table = _table(GRANTS_TABLE)
+    existing = table.get_item(Key={"grantId": eid}, ConsistentRead=True).get("Item") or {}
+    if existing:
+        if (existing.get("recordType") == "VAULT_ENTITLEMENT"
+                and existing.get("entitlementState") == "ACTIVE"
+                and existing.get("customerId") == customer_id
+                and existing.get("fileId") == file_id):
+            return existing
+        return None
+    now = int(time.time())
+    entitlement = {
+        "grantId": eid, "recordType": "VAULT_ENTITLEMENT", "entitlementState": "ACTIVE",
+        "customerId": customer_id, "fileId": file_id, "ownerPhone": owner_phone,
+        "sourceGrantId": str(grant.get("grantId") or ""),
+        "orderId": str(grant.get("orderId") or ""),
+        "paymentId": str(grant.get("paymentId") or ""),
+        "paidAmountPaise": int(grant.get("paidAmountPaise") or grant.get("amountPaise") or 0),
+        "reference": str(grant.get("reference") or ""),
+        "requestId": str(grant.get("requestId") or ""),
+        "createdAt": now, "paidAt": int(grant.get("paidAt") or now),
+    }
+    try:
+        table.put_item(Item=entitlement, ConditionExpression="attribute_not_exists(grantId)")
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        entitlement = table.get_item(Key={"grantId": eid}, ConsistentRead=True).get("Item") or {}
+    return entitlement if entitlement.get("entitlementState") == "ACTIVE" else None
+
+
+def _active_entitlement(access_id: str, file_id: str,
+                        identity: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Resolve entitlement or lazily migrate a historical paid grant, even if consumed."""
+    row = _table(GRANTS_TABLE).get_item(Key={"grantId": access_id}, ConsistentRead=True).get("Item") or {}
+    if not row:
+        return None
+    if row.get("recordType") != "VAULT_ENTITLEMENT":
+        row = _ensure_entitlement(row) or {}
+    if (row.get("recordType") != "VAULT_ENTITLEMENT"
+            or row.get("entitlementState") != "ACTIVE"
+            or row.get("fileId") != file_id
+            or row.get("ownerPhone") != identity.get("phone")
+            or not identity.get("subject")
+            or row.get("customerId") != identity.get("subject")):
+        return None
+    return row
+
+
+def _issue_download_session(entitlement: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
+    """Record one expiring transport attempt without changing financial entitlement."""
+    now = int(time.time())
+    session_id = SESSION_PREFIX + uuid.uuid4().hex
+    _table(GRANTS_TABLE).put_item(Item={
+        "grantId": session_id, "recordType": "VAULT_DOWNLOAD_SESSION",
+        "entitlementId": entitlement["grantId"], "customerId": entitlement["customerId"],
+        "fileId": entitlement["fileId"], "ownerPhone": entitlement["ownerPhone"],
+        "createdAt": now, "expiresAt": now + int(DOWNLOAD_URL_TTL),
+    })
+    return {
+        "downloadUrl": _download_url(item),
+        "expiresInSeconds": DOWNLOAD_URL_TTL,
+        "downloadSessionId": session_id,
+        "entitlementId": entitlement["grantId"],
+    }
+
+
+def _queue_vault_review(entitlement: Dict[str, Any]) -> None:
+    """Queue the review milestone after authenticated access, never after payment alone."""
+    request_id = str(entitlement.get("requestId") or "")
+    if not request_id:
+        return
+    try:
+        boto3.client("lambda", region_name=REGION).invoke(
+            FunctionName="wecare-whatsapp-business-api:live",
+            InvocationType="Event",
+            Payload=json.dumps({
+                "internalAction": "vaultReview",
+                "requestId": request_id,
+            }).encode("utf-8"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Access has already been authorized. Review failure is recoverable and cannot revoke it.
+        logger.warning(json.dumps({
+            "event": "vault_review_queue_failed",
+            "requestId": request_id,
+            "error": type(exc).__name__,
+        }))
+
+
 # ── customer: list, order, download ───────────────────────────────────────────
 
 def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -914,13 +1032,15 @@ def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
     for projected in result.get('Items', []):
         i = _table(FILES_TABLE).get_item(Key={'fileId': projected['fileId']}, ConsistentRead=True).get('Item') or {}
         if (i.get('status') != 'active' or i.get('ownerPhone') != identity['phone']
-                or i.get('ownerCustomerId') not in (None, identity.get('subject'))):
+                or not identity.get('subject') or i.get('ownerCustomerId') != identity['subject']):
             continue
         view = _public_file(i, admin=False)
-        if i.get('vaultAccessGrantId'):
-            grant = _table(GRANTS_TABLE).get_item(Key={'grantId': i['vaultAccessGrantId']}, ConsistentRead=True).get('Item') or {}
-            if grant.get('customerId') == identity.get('subject') and grant.get('fileId') == i['fileId'] and grant.get('paid') and not grant.get('consumed'):
-                view['paidGrantId'] = grant['grantId']
+        access_id = str(i.get('vaultEntitlementId') or i.get('vaultAccessGrantId') or '')
+        if access_id:
+            entitlement = _active_entitlement(access_id, i['fileId'], identity)
+            if entitlement:
+                view['paidEntitlementId'] = entitlement['grantId']
+                view['paidGrantId'] = entitlement['grantId']  # old website bundles
                 view['deliveryStatus'] = 'READY'
         items.append(view)
     return cors_response(
@@ -944,7 +1064,7 @@ def _owned_active_file(file_id: str, identity: Dict[str, Any]) -> Optional[Dict[
         return None
     if item.get("ownerPhone") != identity["phone"]:
         return None
-    if item.get('ownerCustomerId') not in (None, identity.get('subject')):
+    if not identity.get('subject') or item.get('ownerCustomerId') != identity['subject']:
         return None
     return item
 
@@ -995,6 +1115,7 @@ def _create_order(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[s
             "grantId": grant_id,
             "fileId": file_id,
             "ownerPhone": identity["phone"],
+            "customerId": identity['subject'],
             "orderId": order["id"],
             "amountPaise": int(item.get("pricePaise", PRICE_PAISE)),
             # paid flips only in the webhook, never from a client callback
@@ -1124,8 +1245,29 @@ def confirm_and_deliver(order_id: str) -> Tuple[bool, str]:
             )
             return False, detail
 
+    refreshed = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": grant["grantId"]}, ConsistentRead=True).get("Item") or grant
+    entitlement = _ensure_entitlement(refreshed)
+    if not entitlement:
+        return False, "paid entitlement could not be established"
+    # Make future customer-list reads direct and independent of the expiring legacy grant.
+    try:
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": grant["fileId"]},
+            UpdateExpression="SET vaultEntitlementId = :e, vaultPaymentStatus = :paid",
+            ConditionExpression="ownerCustomerId = :owner AND #s = :active",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={
+                ":e": entitlement["grantId"], ":paid": "PAID",
+                ":owner": grant["customerId"], ":active": "active",
+            },
+        )
+    except ClientError:
+        # Payment/entitlement stay durable even if this derived pointer needs reconciliation.
+        logger.warning(json.dumps({"event": "vault_entitlement_pointer_write_failed",
+                                   "fileId": grant.get("fileId", "")}))
     if grant.get("channel") != "whatsapp":
-        return True, "confirmed; web channel collects by redeem"
+        return True, "confirmed; web channel collects by renewable entitlement"
     return deliver_over_whatsapp(str(grant["grantId"]))
 
 
@@ -1152,10 +1294,13 @@ def _reconcile_grant(grant_id: str, file_id: str, identity: Dict[str, Any]) -> b
         return False
     if grant.get("fileId") != file_id or grant.get("ownerPhone") != identity["phone"]:
         return False
-    if grant.get("consumed"):
+    if not identity.get('subject') or grant.get('customerId') != identity['subject']:
         return False
     if grant.get("paid"):
-        # Already paid but the redeem still failed, so the cause was something else.
+        return False
+    # A consumed+unpaid legacy row is internally inconsistent: historical redeem only consumed
+    # rows that were already paid. Do not let reconciliation turn corrupted state into access.
+    if grant.get("consumed"):
         return False
 
     ok, _detail = _confirm_with_razorpay(grant, via="reconcile")
@@ -1175,52 +1320,23 @@ def _reconcile_grant(grant_id: str, file_id: str, identity: Dict[str, Any]) -> b
 
 
 def _redeem_after_reconcile(
-    file_id: str,
-    grant_id: str,
-    identity: Dict[str, Any],
-    item: Dict[str, Any],
-    origin: str,
+    file_id: str, grant_id: str, identity: Dict[str, Any],
+    item: Dict[str, Any], origin: str,
 ):
-    """Spend a grant that reconciliation just marked paid.
-
-    Still a conditional update, still single use - reconciliation changes only whether
-    the grant is payable, never whether it has already been spent.
-    """
-    try:
-        _table(GRANTS_TABLE).update_item(
-            Key={"grantId": grant_id},
-            UpdateExpression="SET consumed = :true, consumedAt = :now",
-            ConditionExpression=(
-                "attribute_exists(grantId) AND fileId = :fid AND ownerPhone = :p "
-                "AND paid = :true AND consumed = :false"
-            ),
-            ExpressionAttributeValues={
-                ":true": True,
-                ":false": False,
-                ":now": int(time.time()),
-                ":fid": file_id,
-                ":p": identity["phone"],
-            },
-        )
-    except ClientError:
+    grant = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": grant_id}, ConsistentRead=True).get("Item") or {}
+    entitlement = _ensure_entitlement(grant)
+    if not entitlement:
         return cors_response(
-            403,
-            {
-                "error": "GRANT_NOT_REDEEMABLE",
-                "message": "This download link is not valid. Please pay again to download.",
-            },
-            origin,
-        )
-
-    return cors_response(
-        200,
-        {
-            "downloadUrl": _download_url(item),
-            "expiresInSeconds": DOWNLOAD_URL_TTL,
-        },
-        origin,
-    )
-
+            403, {"error": "ACCESS_NOT_AUTHORIZED",
+                  "message": "Paid access could not be verified. Please contact support; do not pay again."},
+            origin)
+    entitlement = _active_entitlement(entitlement["grantId"], file_id, identity)
+    if not entitlement:
+        return _not_registered(origin)
+    payload = _issue_download_session(entitlement, item)
+    _queue_vault_review(entitlement)
+    return cors_response(200, payload, origin)
 
 def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     """A presigned GET that downloads under the readable filename.
@@ -1279,6 +1395,7 @@ def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
             "grantId": grant_id,
             "fileId": file_id,
             "ownerPhone": identity["phone"],
+            "customerId": identity['subject'],
             # The webhook correlates on this. WhatsApp Pay reports the reference, so
             # the reference IS the order id as far as the order-index GSI is concerned.
             "orderId": reference,
@@ -1343,6 +1460,8 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
         return False, "file is not active"
     if item.get("ownerPhone") != grant.get("ownerPhone"):
         return False, "grant and file disagree on owner"
+    if not grant.get('customerId') or item.get('ownerCustomerId') != grant['customerId']:
+        return False, "grant and file disagree on permanent owner"
 
     from whatsapp_delivery import send_document, send_download_link
 
@@ -1385,67 +1504,32 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
 
 
 def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origin: str):
-    """Spend a paid grant for a 60-second presigned URL.
-
-    The conditional update is the whole mechanism: it flips ``consumed`` only if it
-    is currently false, so two concurrent requests cannot both win and a forwarded
-    link is dead on second use.
-    """
+    """Issue renewable transport from durable paid entitlement; never consume the purchase."""
     params = event.get("queryStringParameters") or {}
-    grant_id = str(params.get("grant") or "").strip()
-    if not grant_id:
+    access_id = str(params.get("grant") or "").strip()
+    if not access_id:
         return cors_response(400, {"error": "grant is required"}, origin)
-
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
-    grant = _table(GRANTS_TABLE).get_item(Key={'grantId': grant_id}, ConsistentRead=True).get('Item') or {}
-    if grant.get('source') == 'wix_vault' and grant.get('customerId') != identity.get('subject'):
-        return _not_registered(origin)
 
-    try:
-        updated = _table(GRANTS_TABLE).update_item(
-            Key={"grantId": grant_id},
-            UpdateExpression="SET consumed = :true, consumedAt = :now",
-            ConditionExpression=(
-                "attribute_exists(grantId) AND fileId = :fid AND ownerPhone = :p "
-                "AND paid = :true AND consumed = :false"
-            ),
-            ExpressionAttributeValues={
-                ":true": True,
-                ":false": False,
-                ":now": int(time.time()),
-                ":fid": file_id,
-                ":p": identity["phone"],
-            },
-            ReturnValues="ALL_NEW",
-        )
-    except ClientError as exc:
-        if exc.response["Error"]["Code"] != "ConditionalCheckFailedException":
-            raise
-
-        # The grant is unpaid, already spent, expired, or not this caller's - the
-        # condition cannot say which. Before refusing, check whether it is merely
-        # unpaid *as far as we know*: the webhook may never have arrived.
-        #
-        # This is the difference between "the customer was charged and gets nothing"
-        # and "the customer waits two seconds". It asks Razorpay directly, which is
-        # the same authority the webhook relays, and never trusts the client.
-        if _reconcile_grant(grant_id, file_id, identity):
-            return _redeem_after_reconcile(file_id, grant_id, identity, item, origin)
-
+    entitlement = _active_entitlement(access_id, file_id, identity)
+    if not entitlement:
+        legacy = _table(GRANTS_TABLE).get_item(
+            Key={"grantId": access_id}, ConsistentRead=True).get("Item") or {}
+        if (legacy and not legacy.get("paid")
+                and legacy.get("fileId") == file_id
+                and legacy.get("ownerPhone") == identity.get("phone")
+                and legacy.get("customerId") == identity.get("subject")
+                and _reconcile_grant(access_id, file_id, identity)):
+            return _redeem_after_reconcile(file_id, access_id, identity, item, origin)
         return cors_response(
-            403,
-            {
-                "error": "GRANT_NOT_REDEEMABLE",
-                "message": "This download link is not valid. Please pay again to download.",
-            },
-            origin,
-        )
+            403, {"error": "ACCESS_NOT_AUTHORIZED",
+                  "message": "This file is not authorized for this account. If you already paid, contact support; do not pay again."},
+            origin)
 
-    # downloads under the readable name, never the opaque key
-    url = _download_url(item)
-
+    payload = _issue_download_session(entitlement, item)
+    _queue_vault_review(entitlement)
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": file_id},
@@ -1453,21 +1537,13 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
             ExpressionAttributeValues={":one": 1},
         )
     except ClientError:
-        pass  # a missed counter must never fail a paid download
+        pass
+    logger.info(json.dumps({
+        "event": "secure_file_download_session_issued", "fileId": file_id,
+        "ownerPhone": mask_phone(identity["phone"]),
+    }))
+    return cors_response(200, payload, origin)
 
-    logger.info(
-        json.dumps(
-            {
-                "event": "secure_file_downloaded",
-                "fileId": file_id,
-                "ownerPhone": mask_phone(identity["phone"]),
-                "paymentId": _decimal_safe(updated.get("Attributes", {})).get("paymentId", ""),
-            }
-        )
-    )
-    return cors_response(
-        200, {"downloadUrl": url, "expiresInSeconds": DOWNLOAD_URL_TTL}, origin
-    )
 
 
 # ── Drop Docs: make a document private BEFORE it is a document ────────────────
@@ -1565,8 +1641,18 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
             503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
 
     try:
+        from lambda_utils.ecommerce.document_source import PRIVATE_INCOMING_PREFIX, owned_message_source
+        verified_source = False
+        if source_key.startswith(PRIVATE_INCOMING_PREFIX):
+            verified_source = owned_message_source(
+                _table('stack-wecare-digital-MessagesTable'),
+                _table('stack-wecare-digital-ContactsTable'), proven,
+                source_key, body.get('messageId'))
+            if not verified_source:
+                raise document_errors.DocumentRejected('document source unavailable')
         promoted = dropdocs_storage.promote_to_secure(
-            _s3_client(), bucket=BUCKET, source_key=source_key)
+            _s3_client(), bucket=BUCKET, source_key=source_key,
+            **({'verified_private_source': True} if verified_source else {}))
     except document_errors.DocumentRejected as exc:
         # 400, not 503. `sourceKey` is caller-supplied, and the one prefix this route
         # accepts is the WhatsApp arrival tree - naming anything else (another customer's

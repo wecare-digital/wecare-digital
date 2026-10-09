@@ -8,8 +8,8 @@ a reference, gates on Meta payment readiness and (when initiation is enabled) se
 consume `PAYMENT_REQUEST_SENT` — and must not be removed until they are migrated.
 
 This module is the WEBSITE path section 8 asks for: a hosted browser Razorpay Standard Checkout
-modal. It is ADDITIVE and lives behind the SAME disabled initiation gate (`CHECKOUT_INITIATION_ENABLED`,
-default off), so turning nothing on creates no payable gateway order. It is written handler-free —
+modal. It is ADDITIVE and is governed by the same authenticated ownership, authoritative pricing,
+live provider-readiness and idempotent attempt controls as the retained in-chat path. It is written handler-free —
 every external dependency (the keys table, the quote loader, the Razorpay client) is injected — so
 it is fully testable offline with the same `FakeDynamo` the other payment tests use.
 

@@ -63,9 +63,17 @@ PROVIDER_METHODS = {"validate_coupon", "read_gift_card"}
 
 
 def _python_sources():
-    """Every tracked `.py` file under `amplify/`, skipping build artefacts."""
+    """Every tracked `.py` file under `amplify/`, skipping build artefacts.
+
+    `node_modules` is excluded for the same reason `_frontend_sources` excludes it:
+    `amplify/node_modules` is untracked, so reading it contradicts "tracked" above. It
+    holds 15 `aws-cdk-lib` custom-resource handlers, and letting them into this walk
+    makes a dependency able to fail one of our gates — a vendored file defining both
+    provider methods would read as a second implementation of ours.
+    """
     for path in sorted(AMPLIFY.rglob("*.py")):
-        if "__pycache__" in path.parts or ".aws-sam" in path.parts:
+        if ("__pycache__" in path.parts or ".aws-sam" in path.parts
+                or "node_modules" in path.parts):
             continue
         yield path
 

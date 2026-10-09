@@ -40,7 +40,6 @@ bug. A transaction removes that window instead of documenting it.
 from __future__ import annotations
 
 import logging
-import os
 import re
 import time
 from decimal import Decimal, InvalidOperation
@@ -122,7 +121,6 @@ WA_PAY_REFERENCE_ALREADY_RESERVED = 'WA_PAY_REFERENCE_ALREADY_RESERVED'
 WA_PAY_ALREADY_IN_FLIGHT = 'WA_PAY_ALREADY_IN_FLIGHT'
 WA_PAY_LINK_NOT_PERMITTED = 'WA_PAY_LINK_NOT_PERMITTED'
 WA_PAY_IDENTITY_UNAVAILABLE = 'WA_PAY_IDENTITY_UNAVAILABLE'
-WA_PAY_DISABLED = 'WA_PAY_DISABLED'
 
 REFUSAL_MESSAGES = {
     WA_PAY_SENDER_NOT_PERMITTED: 'This business number may not take payments. Nothing has been charged.',
@@ -140,14 +138,12 @@ REFUSAL_MESSAGES = {
     WA_PAY_ALREADY_IN_FLIGHT: 'A payment request for this invoice is already in flight. Nothing has been charged.',
     WA_PAY_LINK_NOT_PERMITTED: 'WhatsApp payments must travel in the approved template, not a link. Nothing has been charged.',
     WA_PAY_IDENTITY_UNAVAILABLE: 'The payment reservation could not be stored. Nothing has been charged.',
-    WA_PAY_DISABLED: 'WhatsApp payments are currently disabled. Nothing has been charged.',
 }
 
 #: HTTP status per refusal, so the caller maps once rather than per branch. 503 for the two that
 #: are a retry rather than a refusal.
 REFUSAL_STATUS = {
     WA_PAY_IDENTITY_UNAVAILABLE: 503,
-    WA_PAY_DISABLED: 503,
 }
 
 
@@ -166,20 +162,6 @@ class PaymentRequestRefused(ValueError):
     @property
     def status_code(self) -> int:
         return REFUSAL_STATUS.get(self.code, 409)
-
-
-def payments_disabled() -> bool:
-    """`WA_PAYMENTS_DISABLED`, honoured as a pre-write refusal.
-
-    Read at call time rather than at import, deliberately: a module-scope read is cached for the
-    life of the execution environment, so a freshly-set kill switch would not take effect until
-    every warm sandbox recycled.
-
-    Note the asymmetry, which is the whole point of the flag: there is deliberately no env var
-    that can turn payments ON. This one can only ever tighten.
-    """
-    return str(os.environ.get('WA_PAYMENTS_DISABLED', '')).strip().lower() in (
-        '1', 'true', 'yes', 'on')
 
 
 def exact_paise(value: Any) -> int:
@@ -246,8 +228,6 @@ def build_request(*,
     bypasses `configuration_name`, and with it the merchant-id verification that proves where the
     money lands.
     """
-    _require(not payments_disabled(), WA_PAY_DISABLED)
-
     if order_details:
         for forbidden in ('payment_link_uri', 'upi_intent_link'):
             _require(not order_details.get(forbidden), WA_PAY_LINK_NOT_PERMITTED, forbidden)
@@ -438,9 +418,6 @@ def reserve(client: Any, keys_table: Any, attempts_table: Any, *,
     and `attribute_not_exists(orderId)` is the authority. A racer that slips between them loses
     the transaction and is handled as the lost-race case.
     """
-    if payments_disabled():
-        raise PaymentRequestRefused(WA_PAY_DISABLED)
-
     customer_id = request['customerId']
     request_key = request['requestKey']
 
@@ -618,7 +595,6 @@ __all__ = [
     'REFUSAL_MESSAGES',
     'REFUSAL_STATUS',
     'PaymentRequestRefused',
-    'payments_disabled',
     'exact_paise',
     'collection_request_key',
     'build_request',
@@ -641,5 +617,4 @@ __all__ = [
     'WA_PAY_ALREADY_IN_FLIGHT',
     'WA_PAY_LINK_NOT_PERMITTED',
     'WA_PAY_IDENTITY_UNAVAILABLE',
-    'WA_PAY_DISABLED',
 ]

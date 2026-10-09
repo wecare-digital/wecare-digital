@@ -169,42 +169,17 @@ def _claimable(item: Dict[str, Any]) -> bool:
 
 
 def _owned_contact(phone: str, customer_id: str) -> Optional[Dict[str, Any]]:
-    """The non-deleted contact row this session is allowed to edit, or `None`.
-
-    Three different questions get asked about a contact row and they have three different
-    answers. This one is "may this session edit this row?" — non-deleted **and** either already
-    owned by this customer or owned by nobody (see `_claimable`). It is deliberately WEAKER than
-    `checkout/handler.py::_checkout_profile` ("is this customer ready to pay?", which also
-    demands `emailVerifiedAt` and a non-empty `email`), because the required-field and
-    email-proof rules below have to be able to see a row that exists but is unverified. The
-    stronger predicate would hide it and demote an edit to a creation.
-
-    Keyed on the **normalised** phone — the exact value `_upsert_contact` writes.
-    `normalize_phone_preserving_country` is non-trivial (its docstring records `+6591234567`
-    becoming `+916591234567` under the older `normalize_phone`), so a lookup on the raw session
-    phone could miss the row this request is about to write to, flipping an edit into a creation
-    and demanding a full name + email + address + proof from a customer who already has all four.
-    """
+    """Locate an editable contact without adopting a legacy or another owner's row."""
+    if not customer_id:
+        return None
     result = _table(CONTACTS_TABLE).query(
         IndexName="phone-index",
         KeyConditionExpression=Key("phone").eq(phone),
         Limit=5,
     )
-    # An already-owned row is preferred over a claimable one, so a session that has its own row
-    # never adopts a stray unowned duplicate on the same number.
-    claimable: Optional[Dict[str, Any]] = None
-    for item in result.get("Items") or []:
-        if item.get("deletedAt") is not None:
-            continue
-        if item.get("checkoutCustomerId") == customer_id:
-            return item
-        if claimable is None and _claimable(item):
-            claimable = item
-    # The claim itself is a WRITE, and it happens in `_upsert_contact`'s edit path, which already
-    # emits `checkoutCustomerId=:customer` on every save. Returning the row here is what routes
-    # the request down that path instead of the create path.
-    return claimable
-
+    return next((item for item in result.get("Items") or []
+                 if item.get("deletedAt") is None
+                 and item.get("checkoutCustomerId") == customer_id), None)
 
 def _merge_tags(existing: Any) -> list[str]:
     values = existing if isinstance(existing, list) else []
@@ -330,6 +305,8 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
     table = _table(CONTACTS_TABLE)
 
     if existing:
+        if not customer_id or existing.get("checkoutCustomerId") != customer_id:
+            raise ValueError("CONTACT_IDENTITY_CONFLICT")
         # Site (1): the edit path. It holds the row, so tags are a real merge.
         contact_id = contact_key.resolve(existing)
         expression, names, values = _set_fragments(
@@ -338,9 +315,16 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             tags=_merge_tags(existing.get("tags")), tags_if_absent=False,
             customer_id=customer_id, now=now,
         )
-        table.update_item(Key={"id": contact_id}, UpdateExpression=expression,
-                          ExpressionAttributeValues=values,
-                          **({"ExpressionAttributeNames": names} if names else {}))
+        try:
+            table.update_item(Key={"id": contact_id}, UpdateExpression=expression,
+                              ConditionExpression="attribute_exists(id) AND checkoutCustomerId=:customer",
+                              ExpressionAttributeValues=values,
+                              **({"ExpressionAttributeNames": names} if names else {}))
+        except Exception as exc:  # noqa: BLE001
+            response = getattr(exc, "response", None) or {}
+            if response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise ValueError("CONTACT_IDENTITY_CONFLICT") from exc
+            raise
         return {"contactId": contact_id, "created": False}
 
     # Site (2): one signed-in customer converges onto one deterministic CRM id when no prior
@@ -396,9 +380,16 @@ def _upsert_contact(*, customer_id: str, phone: str, email: Optional[str] = None
             tags=[CUSTOMER_TAG], tags_if_absent=True,
             customer_id=customer_id, now=now,
         )
-        table.update_item(Key={"id": contact_id}, UpdateExpression=expression,
-                          ExpressionAttributeValues=values,
-                          **({"ExpressionAttributeNames": names} if names else {}))
+        try:
+            table.update_item(Key={"id": contact_id}, UpdateExpression=expression,
+                              ConditionExpression="attribute_exists(id) AND checkoutCustomerId=:customer",
+                              ExpressionAttributeValues=values,
+                              **({"ExpressionAttributeNames": names} if names else {}))
+        except Exception as exc:  # noqa: BLE001
+            response = getattr(exc, "response", None) or {}
+            if response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                raise ValueError("CONTACT_IDENTITY_CONFLICT") from exc
+            raise
         return {"contactId": contact_id, "created": False}
 
 
@@ -482,30 +473,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if creating:
         # Row 1: a new row needs a proof bound to the submitted email before it can be stamped.
         #
-        # A CLAIMED row (phone-matched, previously unowned — see `_claimable`) no longer lands
-        # here: `_owned_contact` now returns it, so `creating` is False and the rows below apply.
-        #
-        # WHAT A CLAIMED ROW CAN AND CANNOT INHERIT, because this is the question the widening
-        # actually turns on and there are TWO writers of `emailVerifiedAt` on `ContactsTable`:
-        #
-        # 1. `_upsert_contact` here, only with `proof_validated`. A row it wrote already carries
-        #    a `checkoutCustomerId`, so it is never claimable in the first place.
-        # 2. `auth/blog-subscribe/handler.py` — `:345` on its update path and `:373` in its
-        #    new-item map — which writes `phone`, `email`, `phoneVerifiedAt` and
-        #    `emailVerifiedAt` and NEVER writes `checkoutCustomerId`. That row IS claimable.
-        #
-        # So a claimed row CAN reach row 4 and save its own stored email with no email proof.
-        # That is sound rather than a hole, and the reason is specific: `blog-subscribe` refuses
-        # to write the row at all unless it holds BOTH a phone proof and an email proof
-        # (`handler.py:408-409`), each minted by its own OTP exchange and each re-checked against
-        # the normalised phone/email pair. The binding behind that `emailVerifiedAt` is therefore
-        # at least as strong as the one this handler mints, and the claim itself is keyed on a
-        # phone a Cognito session proved. Row 4 additionally requires the submitted email to
-        # EQUAL the stored one, so no new address can ride in on it.
-        #
-        # What a claimed row still cannot do is inherit verification nothing ever proved: a
-        # CRM-typed or imported row carries no `emailVerifiedAt`, so row 4 cannot match it and
-        # any email it submits falls to rows 5/6, which demand a proof.
         proof_required = True
     elif _present(body.get("emailProof")) and email is None:
         # Row 2, and it beats row 3: a proof is a claim about an ADDRESS. Binding it to the

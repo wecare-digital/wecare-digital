@@ -80,6 +80,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import PageTopBand from '../../components/PageTopBand';
 import { getSession, restoreSession } from '../../lib/customerAuth';
 import { amountLabel, isInFlight, isOrderNumber, isPaid, isRetryable } from '../../lib/paymentVocabulary';
+import { MARKETING_CONSENT_EVENT, trackCatalogPurchase, type CatalogPurchaseFacts } from '../../lib/metaCatalogAnalytics';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api';
 const CHECKOUT_STATUS_URL = `${API_BASE}/ecommerce/checkout/status`;
@@ -97,6 +98,7 @@ type View =
   | 'unavailable';
 
 interface AttemptView {
+  catalogEvent?: CatalogPurchaseFacts;
   status?: string;
   orderNumber?: string | null;
   amountPaise?: number | null;
@@ -181,6 +183,13 @@ export default function CheckoutStatus (): React.ReactElement {
   // value comes from the URL: the URL carries the opaque attempt id and nothing else.
   const [ orderNumber, setOrderNumber ] = useState<string>( '' );
   const [ amount, setAmount ] = useState<string>( '' );
+  const [ paidEvent, setPaidEvent ] = useState<{ id: string; facts: CatalogPurchaseFacts } | null>( null );
+  useEffect( () => {
+    const send = () => { if ( paidEvent ) trackCatalogPurchase( paidEvent.id, paidEvent.facts ); };
+    send();
+    window.addEventListener( MARKETING_CONSENT_EVENT, send );
+    return () => window.removeEventListener( MARKETING_CONSENT_EVENT, send );
+  }, [ paidEvent ] );
 
   const poll = useCallback( async ( attemptId: string ): Promise<boolean> => {
     let session;
@@ -215,6 +224,8 @@ export default function CheckoutStatus (): React.ReactElement {
         // the attempt was created with, rendered by the integer helper - never recomputed here.
         setOrderNumber( String( attempt.orderNumber ) );
         setAmount( amountLabel( attempt.amountPaise, attempt.currency ) );
+        // Only facts returned by this authenticated, paid status read are eligible.
+        if ( attempt.catalogEvent ) setPaidEvent( { id: attemptId, facts: attempt.catalogEvent } );
       }
       setView( nextView );
       // Keep polling only while still in flight. Paid, failed and unavailable are not going to
