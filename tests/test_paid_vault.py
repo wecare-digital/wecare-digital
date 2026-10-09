@@ -135,10 +135,37 @@ def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_m
     assert module.prepare_and_send(event,client)['outcome']=='VAULT_READY'
     assert module.prepare_and_send(event,client)['outcome']=='VAULT_READY'
     assert sent[0]['templateName']=='wecare_share_pdf'
-    assert sent[-1]['templateName']=='wecare_leave_review'
-    assert sent[-1]['flowButton']['index']==0
-    assert len(sent)==(3 if open_window else 2)
+    assert all(message.get('templateName')!='wecare_leave_review' for message in sent)
+    assert len(sent)==(2 if open_window else 1)
     if open_window: assert sent[1]['mediaType']=='document' and sent[1]['mediaFile']=='secure/d/report.pdf'
+
+
+def test_vault_review_is_due_after_access_and_deduplicated(vault_env,flow_module,monkeypatch):
+    module=importlib.import_module('flows.paid_vault')
+    requests,keys,files,grants,event=vault_env
+    row, _file, _grant = vault.grant_access(requests,keys,files,grants,event)
+    requests.rows[row['requestId']]['paidAt']=int(time.time())
+    contacts=FakeTable(key_attr='id',name='contacts',indexes={'phone-index':('phone',None)})
+    contacts.seed({'id':'c','phone':'+910000000000','checkoutCustomerId':ALICE})
+    tables={requests.name:requests,'stack-wecare-digital-ContactsTable':contacts}
+    db=Mock();db.Table.side_effect=lambda name:tables[name]
+    cognito=Mock();cognito.list_users.return_value={'Users':[{'Enabled':True,'Attributes':[
+        {'Name':'phone_number','Value':'+910000000000'},
+        {'Name':'phone_number_verified','Value':'true'}]}]}
+    monkeypatch.setattr(module.boto3,'resource',lambda *a,**k:db)
+    monkeypatch.setattr(module.boto3,'client',lambda *a,**k:cognito)
+    sent=[]
+    def invoke(**kwargs):
+        sent.append(json.loads(json.loads(kwargs['Payload'])['body']))
+        return {'Payload':io.BytesIO(json.dumps({'statusCode':200}).encode())}
+    client=Mock();client.invoke.side_effect=invoke
+    first=module.send_review({'requestId':row['requestId']},client)
+    second=module.send_review({'requestId':row['requestId']},client)
+    assert first['outcome']=='REVIEW_ACCEPTED'
+    assert second['outcome']=='REVIEW_ACCEPTED'
+    assert len(sent)==1
+    assert sent[0]['templateName']=='wecare_leave_review'
+    assert sent[0]['flowButton']=={'index':0,'flowKey':'leave_review'}
 
 
 def test_ambiguous_ready_notification_never_retries_blindly(vault_env,flow_module,monkeypatch):
