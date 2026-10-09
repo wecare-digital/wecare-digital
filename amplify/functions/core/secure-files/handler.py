@@ -995,6 +995,29 @@ def _issue_download_session(entitlement: Dict[str, Any], item: Dict[str, Any]) -
     }
 
 
+def _queue_vault_review(entitlement: Dict[str, Any]) -> None:
+    """Queue the review milestone after authenticated access, never after payment alone."""
+    request_id = str(entitlement.get("requestId") or "")
+    if not request_id:
+        return
+    try:
+        boto3.client("lambda", region_name=REGION).invoke(
+            FunctionName="wecare-whatsapp-business-api:live",
+            InvocationType="Event",
+            Payload=json.dumps({
+                "internalAction": "vaultReview",
+                "requestId": request_id,
+            }).encode("utf-8"),
+        )
+    except Exception as exc:  # noqa: BLE001
+        # Access has already been authorized. Review failure is recoverable and cannot revoke it.
+        logger.warning(json.dumps({
+            "event": "vault_review_queue_failed",
+            "requestId": request_id,
+            "error": type(exc).__name__,
+        }))
+
+
 # ── customer: list, order, download ───────────────────────────────────────────
 
 def _customer_list(identity: Dict[str, Any], origin: str) -> Dict[str, Any]:
@@ -1307,7 +1330,9 @@ def _redeem_after_reconcile(
     entitlement = _active_entitlement(entitlement["grantId"], file_id, identity)
     if not entitlement:
         return _not_registered(origin)
-    return cors_response(200, _issue_download_session(entitlement, item), origin)
+    payload = _issue_download_session(entitlement, item)
+    _queue_vault_review(entitlement)
+    return cors_response(200, payload, origin)
 
 def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     """A presigned GET that downloads under the readable filename.
@@ -1500,6 +1525,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
             origin)
 
     payload = _issue_download_session(entitlement, item)
+    _queue_vault_review(entitlement)
     try:
         _table(FILES_TABLE).update_item(
             Key={"fileId": file_id},
