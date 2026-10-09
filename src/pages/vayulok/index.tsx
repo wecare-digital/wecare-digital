@@ -2,10 +2,12 @@
  * VayuLok public product page
  * Bharat Air Intelligence, by WECARE.DIGITAL
  *
- * DELIBERATELY CLEAR. The page is the tag and the rotating line beneath it, nothing
- * else. That is the owner's call, and it also happens to be the honest one: nothing
- * in this repository describes what VayuLok does beyond the capabilities the rotating
- * words name, so any further copy here would be invented, on a public page.
+ * DELIBERATELY CLEAR. The page is the hero - the tag, the rotating line beneath it and
+ * the approved globe beside them - followed by the live VayuLok section. That is the
+ * owner's call, and it is still the honest one: no MARKETING copy is invented here.
+ * Nothing in this repository describes what VayuLok does beyond the capabilities the
+ * rotating words name, so the section below the hero adds no new claims of its own -
+ * it shows real fetched air and weather data, or nothing at all when it has none.
  *
  * THE ROTATING WORDS, AND WHICH OF THEM ARE BACKED TODAY.
  *
@@ -58,6 +60,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import PageMeta from '../../components/PageMeta';
 import BrandBadge from '../../components/BrandBadge';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
+import VayuLokLive from '../../components/VayuLokLive';
 
 
 const VayuLokPage: React.FC = () => {
@@ -187,6 +190,24 @@ const VayuLokPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* LIVE CONTENT, DIRECTLY BELOW THE HERO - which is what the .vl-shell note beside
+          the padding rule has described ever since the forced 100vh came off, and what
+          this file's own header describes. The markup went missing in a revert of the
+          "Filling the Gap" globe, leaving both comments pointing at a section that was no
+          longer rendered. Restored here as a SIBLING of the hero, not a child: the
+          component's own root wraps a main.vl-live-shell, so nesting it would put a main
+          inside a main.
+          A PLAIN STATIC IMPORT, deliberately not next/dynamic. VayuLokLive touches
+          window, document and google only inside effects and in helpers that return
+          early on typeof window === 'undefined', and it imports deck.gl dynamically
+          inside the layer-activation effect, so it prerenders safely under the
+          output:'export' build. ssr:false would merely empty this section out of the
+          exported HTML for no SSR gain. It is self-styling under a vl-live- scope, so
+          it needs no wrapper and no rule here, and it degrades honestly to the content
+          shell - no map, no live panels, zero network calls - when
+          NEXT_PUBLIC_GOOGLE_MAPS_KEY is unset, which is every CI and sandbox run. */}
+      <VayuLokLive />
 
 
       <style jsx>{`
