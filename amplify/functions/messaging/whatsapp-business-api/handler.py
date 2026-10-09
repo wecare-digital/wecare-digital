@@ -310,11 +310,23 @@ def _update_business_profile(phone_id: str, body: Dict) -> Dict:
 def _list_flows(waba_id: str) -> Dict:
     if not waba_id:
         return _resp(400, {'error': 'wabaId required'})
-    result = _graph_api(f'{waba_id}/flows', params={'fields': 'id,name,status,categories,validation_errors'}, waba_id=waba_id)
-    if 'error' in result:
-        logger.error(f'List flows error for WABA {waba_id}: {result}')
-        return _resp(400, result)
-    return _resp(200, {'flows': result.get('data', [])})
+    rows, after, seen = [], None, set()
+    while True:
+        params = {'fields': 'id,name,status,categories,validation_errors', 'limit': 100}
+        if after:
+            params['after'] = after
+        result = _graph_api(f'{waba_id}/flows', params=params, waba_id=waba_id)
+        if 'error' in result:
+            return _resp(400, result)
+        rows.extend(result.get('data') or [])
+        paging = result.get('paging') or {}
+        if not paging.get('next'):
+            return _resp(200, {'flows': rows})
+        after = (paging.get('cursors') or {}).get('after')
+        if not after or after in seen or len(rows) >= 1000:
+            return _resp(502, {'error': 'Incomplete Flow inventory'})
+        seen.add(after)
+
 
 def _get_flow(flow_id: str) -> Dict:
     if not flow_id:
@@ -378,10 +390,10 @@ def _publish_flow(flow_id: str) -> Dict:
     _emit_event('flow_published', severity='info', data={'flowId': flow_id})
     return _resp(200, {'success': True})
 
-def _deprecate_flow(flow_id: str) -> Dict:
+def _deprecate_flow(flow_id: str, waba_id: str = None) -> Dict:
     if not flow_id:
         return _resp(400, {'error': 'flowId required'})
-    result = _graph_api(flow_id, method='POST', payload={'status': 'DEPRECATED'})
+    result = _graph_api(f'{flow_id}/deprecate', method='POST', waba_id=waba_id)
     if 'error' in result:
         return _resp(400, result)
     _emit_event('flow_deprecated', severity='warning', data={'flowId': flow_id})
@@ -3520,6 +3532,35 @@ def _flatten_payment_configurations(raw: Dict) -> Dict:
     return {"data": flat}
 
 
+def _read_payment_configurations(waba_id: str) -> Dict:
+    """One complete unfiltered provider read for checkout and operator diagnostics.
+
+    Meta's fields filter returns an empty collection for this edge. Follow bounded
+    cursor pages using the fixed edge; never follow a provider-supplied absolute URL.
+    Incomplete or repeating pagination fails closed instead of certifying a subset.
+    """
+    configurations = []
+    cursor = None
+    seen = set()
+    for _ in range(20):
+        raw = _graph_api(f'{waba_id}/payment_configurations', waba_id=waba_id,
+                         **({'params': {'after': cursor}} if cursor else {}))
+        flat = _flatten_payment_configurations(raw)
+        if not isinstance(flat, dict) or flat.get('error'):
+            return flat
+        if not isinstance(flat.get('data'), list):
+            return {'error': {'message': 'Payment configuration response is incomplete'}}
+        configurations.extend(flat['data'])
+        paging = raw.get('paging') or {}
+        if not paging.get('next'):
+            return {'data': configurations}
+        cursor = (paging.get('cursors') or {}).get('after')
+        if not isinstance(cursor, str) or not cursor or cursor in seen:
+            break
+        seen.add(cursor)
+    return {'error': {'message': 'Payment configuration pagination is incomplete'}}
+
+
 def _payment_readiness_for(waba_id: str, configuration_name: str) -> Dict:
     """The live verdict on whether a payment could actually be taken, or a reason it cannot.
 
@@ -3538,8 +3579,7 @@ def _payment_readiness_for(waba_id: str, configuration_name: str) -> Dict:
             expected_waba_id=waba_id,
             expected_configuration_name=configuration_name,
             expected_provider_mid=_RAZORPAY_MID,
-            fetch_configurations=lambda wid: _flatten_payment_configurations(
-                _graph_api(f'{wid}/payment_configurations', waba_id=wid)),
+            fetch_configurations=_read_payment_configurations,
         )
         return {
             'ready': verdict.ready,
@@ -3591,11 +3631,7 @@ def _check_payment_gateway(waba_id: str = None) -> Dict:
         local_config = PAYMENT_CONFIGS.get(phone_info.get('phoneId', ''), {})
 
         # Query Meta Graph API for payment configurations on this WABA
-        api_result = _graph_api(
-            f'{wid}/payment_configurations',
-            params={'fields': 'configuration_name,status,payment_gateway,merchant_category_code,purpose_code'},
-            waba_id=wid,
-        )
+        api_result = _read_payment_configurations(wid)
 
         meta_configs = []
         if 'data' in api_result:
@@ -3609,11 +3645,11 @@ def _check_payment_gateway(waba_id: str = None) -> Dict:
             config_checks.append({
                 'name': cfg.get('configuration_name', 'unknown'),
                 'status': cfg.get('status', 'unknown'),
-                'gateway': cfg.get('payment_gateway', {}).get('type', 'unknown') if isinstance(cfg.get('payment_gateway'), dict) else str(cfg.get('payment_gateway', 'unknown')),
-                'mid': cfg.get('payment_gateway', {}).get('merchant_id', '') if isinstance(cfg.get('payment_gateway'), dict) else '',
+                'gateway': cfg.get('provider_name') or (cfg.get('payment_gateway', {}).get('type', 'unknown') if isinstance(cfg.get('payment_gateway'), dict) else str(cfg.get('payment_gateway', 'unknown'))),
+                'mid': cfg.get('provider_mid') or (cfg.get('payment_gateway', {}).get('merchant_id', '') if isinstance(cfg.get('payment_gateway'), dict) else ''),
                 'mcc': cfg.get('merchant_category_code', ''),
                 'purposeCode': cfg.get('purpose_code', ''),
-                'canReceivePayments': cfg.get('status', '').lower() == 'active',
+                'canReceivePayments': str(cfg.get('status') or '').lower() == 'active',
             })
 
         # Also include local configs not found in Meta API (for comparison)
@@ -3929,7 +3965,7 @@ def _update_submission_status(body: Dict) -> Dict:
     if not submission_id or not new_status:
         return _resp(400, {'error': 'submissionId and status required'})
 
-    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled'}
+    valid_statuses = {'open', 'in_progress', 'resolved', 'closed', 'cancelled', 'awaiting_order_verification'}
     if new_status not in valid_statuses:
         return _resp(400, {'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'})
 
@@ -5922,9 +5958,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'customerInvoiceCopy':
+        from flows.customer_invoice import handle
+        return handle(event, lambda name: _graph_api('2094615664435155/message_templates',
+            params={'name': name, 'fields': 'name,status,language,components', 'limit': 100}, waba_id='2094615664435155'),
+            lambda_client, s3_client)
+
+    if event.get('internalAction') == 'prepareCustomerOrdersFlow':
+        from flows.customer_orders import prepare
+        return prepare(event)
+
     if event.get('internalAction') == 'serviceDesignDrafts':
         from flows.service_design_drafts import handle
-        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow)
+        return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow, _update_flow)
 
     if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
@@ -6060,7 +6106,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         elif '/flows/publish' in path:
             return _publish_flow(params.get('flowId') or body.get('flowId'))
         elif '/flows/deprecate' in path:
-            return _deprecate_flow(params.get('flowId') or body.get('flowId'))
+            return _deprecate_flow(params.get('flowId') or body.get('flowId'),
+                                   params.get('wabaId') or body.get('wabaId'))
         elif '/flows/preview' in path:
             return _get_flow_preview(params.get('flowId') or body.get('flowId'))
         elif '/flows/assets' in path:
@@ -6349,13 +6396,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             speed = body.get('speed', 'normal')
             return _payment_refund(phone_id, reference_id, config_name, amount_paise, speed)
 
+        elif path.rstrip('/').endswith('/payment-config/raw'):
+            # Retired diagnostics must not fall through to phone-level settings.
+            # Native readiness consumes the normalized list; this route never writes.
+            return _resp(410, {'error': 'Payment configuration raw endpoint retired',
+                'replacement': '/wa-business/payment-config/list',
+                'diagnostic': '/wa-business/payment-config/check'})
+
         elif '/payment-config/list' in path:
             # Flattened live `{data:[config,...]}` for payment_readiness.evaluate. checkout's
             # readiness fetch calls this; it needs the normalised list, not the human
             # paymentConfig/liveReadiness view that /payment-config returns.
             wid = params.get('wabaId') or body.get('wabaId') or WABA1_ID
-            return _resp(200, _flatten_payment_configurations(
-                _graph_api(f'{wid}/payment_configurations', waba_id=wid)))
+            return _resp(200, _read_payment_configurations(wid))
 
         elif '/payment-config' in path:
             phone_id = params.get('phoneId') or body.get('phoneId')

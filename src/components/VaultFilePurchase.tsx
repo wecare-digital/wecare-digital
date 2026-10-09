@@ -54,6 +54,10 @@ export default function VaultFilePurchase () {
       if ( result.ok ) { window.location.assign( result.data.downloadUrl ); return; }
       setMessage( result.failure.message || 'Your paid file is not available right now. Please contact us before paying again.' );
     }
+    else if ( file.vaultPaymentStatus === 'PAID' )
+    {
+      setMessage( 'This file is already paid. Contact us to restore access; please do not pay again.' );
+    }
     else if ( price?.available )
     {
       const result = await postRequestIntent( token, 'VAULT', undefined, file.fileId );
@@ -84,9 +88,9 @@ export default function VaultFilePurchase () {
     } } /> }
     <div className="vault-files">{ visibleFiles.map( file => <article key={ file.fileId }>
       <div><h3>{ file.displayName || file.originalFilename }</h3>
-        <p>{ file.paidGrantId ? 'Paid · Ready to download' : price?.available ? `₹${ price.rupees } + the convenience fee shown at checkout` : 'Price currently unavailable' }</p>
+        <p>{ file.paidGrantId ? 'Paid · Ready to download' : file.vaultPaymentStatus === 'PAID' ? 'Already paid · Contact us if you need access restored.' : price?.available ? `₹${ price.rupees } + the convenience fee shown at checkout` : 'Price currently unavailable' }</p>
         { file.vaultOrderNumber && <p>Order { file.vaultOrderNumber }</p> }</div>
-      { ( file.paidGrantId || price?.available ) && <PillButton action={ file.paidGrantId ? 'Download your file' : 'Continue to payment' } disabled={ !!busy } onClick={ () => void collect( file ) } /> }
+      { ( file.paidGrantId || ( file.vaultPaymentStatus !== 'PAID' && price?.available ) ) && <PillButton action={ file.paidGrantId ? 'Download your file' : 'Continue to payment' } disabled={ !!busy } onClick={ () => void collect( file ) } /> }
     </article> ) }</div>
     <style jsx>{`
       .vault-panel{max-width:1040px;margin:0 auto 72px;padding:32px;border:2px solid #1a3a2a;border-radius:14px;color:#1a3a2a;background:#fff}

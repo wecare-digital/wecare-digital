@@ -34,7 +34,7 @@ from decimal import Decimal
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.logging import get_logger
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
-from lambda_utils import media_paths
+from lambda_utils import media_paths, payment_readiness
 # Aliased: `payment_status` is a local parameter in the invoice renderers below, holding the raw
 # stored word. `pay_status` is the module that says what the word means.
 from lambda_utils import payment_status as pay_status
@@ -143,6 +143,42 @@ WA_PAY_CONFIG_NAME = os.environ.get('WA_PAY_CONFIG_NAME', 'WECAREDIGITAL')
 #: `payment_readiness`. Required on the reservation because "we did not compare the merchant id"
 #: must never read the same as "the merchant id matched".
 WA_PAY_PROVIDER_MID = os.environ.get('EXPECTED_PROVIDER_MID', 'acc_TTFSyolquKEZEy')
+WA_PAY_READINESS_FUNCTION = os.environ.get(
+    'WA_PAY_READINESS_FUNCTION', 'wecare-whatsapp-business-api:live')
+
+
+def _fetch_payment_configurations(waba_id: str) -> Dict[str, Any]:
+    """Read Meta payment configuration through the credential-owning business API Lambda."""
+    event = {
+        'httpMethod': 'GET',
+        'path': '/wa-business/payment-config/list',
+        'queryStringParameters': {'wabaId': waba_id},
+    }
+    response = lambda_client.invoke(
+        FunctionName=WA_PAY_READINESS_FUNCTION,
+        InvocationType='RequestResponse',
+        Payload=json.dumps(event).encode('utf-8'),
+    )
+    if response.get('FunctionError'):
+        raise RuntimeError('payment configuration read failed')
+    raw = response['Payload'].read()
+    result = json.loads(raw.decode('utf-8')) if raw else {}
+    body = result.get('body', {})
+    if isinstance(body, str):
+        body = json.loads(body)
+    return body if isinstance(body, dict) else {}
+
+
+def _payment_readiness_for_sender(phone_number_id: str,
+                                  configuration_name: str) -> payment_readiness.PaymentReadiness:
+    """Live provider readiness for the sender that will carry this payment request."""
+    waba_id = wa_payment_request.PHONE_ID_TO_WABA.get(str(phone_number_id or ''), '')
+    return payment_readiness.evaluate(
+        expected_waba_id=waba_id,
+        expected_configuration_name=configuration_name,
+        expected_provider_mid=WA_PAY_PROVIDER_MID,
+        fetch_configurations=_fetch_payment_configurations,
+    )
 
 # Keys in this handler are rooted, never bare. See lambda_utils/media_paths: the merge moved
 # `<X>` to `o/<X>`, so an un-rooted key read one level above the data and returned NoSuchKey —
@@ -2910,6 +2946,18 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     configuration_name = (payment_configuration
                           or invoice.get('paymentConfiguration', '')
                           or WA_PAY_CONFIG_NAME)
+
+    # Provider state is checked immediately before reservation/send. This is the shared server-side
+    # gate for operator UI, business API, flow completion, inbound auto-send and staff Inbox/Commerce
+    # callers; none of those surfaces may rely on a browser-built payment payload.
+    readiness = _payment_readiness_for_sender(phone_number_id, configuration_name)
+    if not readiness.ready:
+        logger.warning(json.dumps({
+            'event': 'wa_payment_readiness_refused', 'invoiceId': invoice_id,
+            'state': readiness.state, 'requestId': request_id,
+        }))
+        return _resp(503, {'error': readiness.customer_message(), 'code': readiness.state})
+
     customer_id = str(invoice.get('contactId') or invoice.get('customerId') or contact_id or '')
     # The COLLECTION SEQUENCE, so a cancelled collection is re-raisable. `cancel_invoice`
     # records `seq + 1`, which makes the next collection compose a different request key: the old

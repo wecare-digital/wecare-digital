@@ -1,31 +1,8 @@
-"""The CRM and the checkout stop being two systems that cannot see each other's contacts.
+"""CRM address visibility and permanent customer ownership.
 
-Two defects, one shape
-----------------------
-`auth/customer-profile` and `core/contacts` write to the SAME `ContactsTable` row and had two
-different vocabularies for the same two facts, so each was invisible to the other:
-
-1. **The address.** Checkout writes `checkoutDeliveryAddress` (a Map, via
-   `lambda_utils.ecommerce.contact_address`); the CRM rendered `shippingAddress`. An address a
-   customer typed at checkout appeared nowhere in the CRM - the owner's "ZZZ / SSS would not
-   have shown up even if the save had worked".
-2. **The owner.** Only the checkout path writes `checkoutCustomerId`, and both the profile
-   editor and the checkout read refused any row without one. A contact created in the CRM was
-   therefore invisible to a signed-in customer standing on the same phone number, and was pushed
-   through the entire first-time flow: name, email, a fresh email code, address. Worse, it was
-   self-perpetuating - the only thing that could stamp the attribute was a save, and the save was
-   blocked by the OTP 503.
-
-The owner's decisions, which these tests encode rather than re-litigate
------------------------------------------------------------------------
-- The CRM READS the checkout attribute. Checkout's write is unchanged, so a checkout-captured
-  address stays distinguishable from a hand-curated one, and there is no migration.
-- An unowned row IS claimed on a phone match, because the phone comes from a Cognito session only
-  a WhatsApp OTP can mint.
-- **The email-verified gate is NOT relaxed.** That is the one assertion here worth reading twice:
-  claiming a row says "this row is about me", not "its email is proven". Several tests below exist
-  only to pin that distinction, because relaxing it is the easy mistake and it would let somebody
-  pay against an address nobody verified.
+Legacy phone-only adoption was superseded by the 2026-10-09 security contract.
+Existing contact edits require explicit permanent ownership; email verification
+and stable public customer identifiers retain their original guarantees.
 """
 
 from __future__ import annotations
@@ -225,11 +202,11 @@ def crm_row(fake, **overrides):
     return row
 
 
-def test_an_unowned_crm_row_is_claimable(profile):
+def test_an_unowned_crm_row_requires_staff_reconciliation(profile):
     h, fake, _ = profile
     crm_row(fake)
     owned = h._owned_contact(STORED_PHONE, CUSTOMER)
-    assert owned is not None and owned["id"] == "crm-1"
+    assert owned is None
 
 
 def test_a_crm_create_stores_the_EXACT_string_the_website_looks_up(monkeypatch):
@@ -253,12 +230,10 @@ def test_a_crm_create_stores_the_EXACT_string_the_website_looks_up(monkeypatch):
     assert table.puts[0]["phone"] == STORED_PHONE
 
 
-def test_a_crm_created_unowned_row_is_claimable_and_its_address_resolves(profile):
-    """Claimable AND usable. A row that is adopted but whose address will not resolve leaves the
-    customer at `409 DELIVERY_DETAILS_REQUIRED`, which looks identical to not being found at all.
-    """
+def test_a_crm_created_owned_row_is_editable_and_its_address_resolves(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake, **{contact_address.ATTRIBUTE: dict(ADDRESS)})
+    crm_row(fake, checkoutCustomerId=CUSTOMER, **{contact_address.ATTRIBUTE: dict(ADDRESS)})
     owned = h._owned_contact(STORED_PHONE, CUSTOMER)
     assert owned is not None and owned["id"] == "crm-1"
     resolved = contact_address.from_contact(owned)
@@ -283,11 +258,10 @@ def test_an_already_owned_row_wins_over_a_claimable_duplicate(profile):
     assert owned is not None and owned["id"] == "mine-1"
 
 
-def test_a_claimed_row_is_stamped_with_the_session_customer_id(profile):
-    """The claim is a WRITE, and this is where it lands: `_upsert_contact`'s edit path already
-    emits `checkoutCustomerId` on every save, so routing the request there IS the claim."""
+def test_a_owned_row_is_stamped_with_the_session_customer_id(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake)
+    crm_row(fake, checkoutCustomerId=CUSTOMER)
     response = h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
@@ -303,14 +277,10 @@ def test_a_claimed_row_is_stamped_with_the_session_customer_id(profile):
     assert {key: stored[key] for key in ADDRESS} == ADDRESS
 
 
-def test_claiming_does_not_verify_the_email(profile):
-    """THE GUARDRAIL. A claimed row must not inherit verification it never had.
-
-    A CRM row carries no `emailVerifiedAt`, so an address-only save stamps ownership and nothing
-    else - and `checkout`'s own predicate still refuses to let it pay.
-    """
+def test_editing_does_not_verify_the_email(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake)
+    crm_row(fake, checkoutCustomerId=CUSTOMER)
     h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
@@ -319,27 +289,13 @@ def test_claiming_does_not_verify_the_email(profile):
     row = fake.all_rows(CONTACTS)[0]
     assert row["checkoutCustomerId"] == CUSTOMER
     assert "emailVerifiedAt" not in row, \
-        "claiming a row must not stamp it verified; only a validated proof may do that"
+        "editing a row must not stamp it verified; only a validated proof may do that"
 
 
-def test_a_claimed_blog_subscriber_row_keeps_the_verification_it_already_proved(profile):
-    """The claim path CAN inherit an `emailVerifiedAt`, and this is the one writer that produces
-    such a row. Stated as a test because the original justification for the widening was wrong.
-
-    `auth/blog-subscribe` writes `phone`, `email`, `phoneVerifiedAt` and `emailVerifiedAt` onto a
-    ContactsTable row and never writes `checkoutCustomerId` (`handler.py:345` on its update path,
-    `:373` in its new-item map). That row is `_claimable`, so a phone-proven session adopts it,
-    `creating` is False, and re-submitting the SAME stored email matches row 4 of the ladder -
-    saved with no email proof.
-
-    Sound rather than a hole, and the reason is the proof chain rather than the attribute:
-    `blog-subscribe` refuses to write the row unless it holds BOTH a phone proof and an email
-    proof, each re-checked against the normalised pair (`handler.py:408-409`). Row 4 also
-    requires equality with the stored email, so no new address rides in. Pinned here so that a
-    future change to either writer has to confront the consequence rather than rediscover it.
-    """
+def test_a_owned_blog_subscriber_row_keeps_the_verification_it_already_proved(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake, emailVerifiedAt=1700000000)
+    crm_row(fake, checkoutCustomerId=CUSTOMER, emailVerifiedAt=1700000000)
     response = h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
@@ -352,10 +308,10 @@ def test_a_claimed_blog_subscriber_row_keeps_the_verification_it_already_proved(
         "an inherited verification must not be re-stamped; the timestamp records when it was proved"
 
 
-def test_a_claimed_verified_row_still_demands_a_proof_for_a_DIFFERENT_email(profile):
-    """Row 4's equality test is what bounds the case above. A changed address falls to row 5."""
+def test_a_owned_verified_row_still_demands_a_proof_for_a_DIFFERENT_email(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake, emailVerifiedAt=1700000000)
+    crm_row(fake, checkoutCustomerId=CUSTOMER, emailVerifiedAt=1700000000)
     response = h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
@@ -367,11 +323,10 @@ def test_a_claimed_verified_row_still_demands_a_proof_for_a_DIFFERENT_email(prof
     assert row["email"] == EMAIL, "the unproven address must not have been written"
 
 
-def test_a_claimed_row_still_needs_a_proof_before_its_email_is_trusted(profile):
-    """The same guardrail from the other direction: submitting an email on a claimed row whose
-    stored email was never verified falls to the proof-required rows, not to the exempt one."""
+def test_a_owned_row_still_needs_a_proof_before_its_email_is_trusted(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake)
+    crm_row(fake, checkoutCustomerId=CUSTOMER)
     response = h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
@@ -428,11 +383,11 @@ def payable_row(fake, **overrides):
     return row
 
 
-def test_an_unowned_but_verified_row_is_this_session_s_profile(checkout):
+def test_an_unowned_but_verified_row_is_not_this_session_s_profile(checkout):
     h, fake, _ = checkout
     payable_row(fake, checkoutCustomerId=None)
     row = h._checkout_profile(CheckoutIdentity())
-    assert row is not None and row["id"] == "contact-1"
+    assert row is None
 
 
 def test_an_unowned_row_with_no_verified_email_still_cannot_pay(checkout):
@@ -526,14 +481,11 @@ def test_a_profile_save_mints_a_public_customer_id(profile):
     assert customer_uuid.is_customer_uuid(row[customer_uuid.ATTRIBUTE])
 
 
-def test_claiming_a_crm_row_does_NOT_replace_its_public_customer_id(profile):
-    """THE property that makes the id safe to print. A contact added by hand in the CRM already
-    has an id; when that person later signs in on the website and their row is claimed, the id
-    must be the same one - otherwise the invoice in their possession stops matching the record.
-    """
+def test_editing_a_crm_row_does_NOT_replace_its_public_customer_id(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
     existing = "11111111-1111-4111-8111-111111111111"
-    crm_row(fake, **{customer_uuid.ATTRIBUTE: existing})
+    crm_row(fake, checkoutCustomerId=CUSTOMER, **{customer_uuid.ATTRIBUTE: existing})
 
     response = h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
@@ -546,11 +498,10 @@ def test_claiming_a_crm_row_does_NOT_replace_its_public_customer_id(profile):
     assert row[customer_uuid.ATTRIBUTE] == existing
 
 
-def test_a_claimed_crm_row_with_no_id_yet_gains_one(profile):
-    """Every row written before this attribute existed carries none. The claim is the natural
-    moment to backfill, and `if_not_exists` makes doing it on every save harmless."""
+def test_a_owned_crm_row_with_no_id_yet_gains_one(profile):
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake)
+    crm_row(fake, checkoutCustomerId=CUSTOMER)
     response = h.handler({
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},
@@ -562,10 +513,9 @@ def test_a_claimed_crm_row_with_no_id_yet_gains_one(profile):
 
 
 def test_two_consecutive_saves_do_not_issue_two_ids(profile):
-    """The mint runs on every save by design - a fresh uuid4 is cheap and needs no read. What
-    must not happen is the second one landing on the row."""
+    """An explicitly owned contact preserves address, email-proof and public-ID semantics."""
     h, fake, _ = profile
-    crm_row(fake)
+    crm_row(fake, checkoutCustomerId=CUSTOMER)
     event = {
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.9"}},
         "headers": {"origin": "http://localhost:3000", "authorization": "Bearer fixture"},

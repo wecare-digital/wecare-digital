@@ -676,33 +676,23 @@ def test_first_and_last_name_travel_separately(ctx):
     assert body["profile"]["lastName"] == "Sen Gupta"
 
 
-def test_a_crm_created_unowned_row_IS_the_profile(ctx):
-    """Only the checkout path writes `checkoutCustomerId`, so a CRM-created contact carries none.
-
-    Demanding one made this the odd reader out: `ecommerce/checkout._unowned` and
-    `auth/customer-profile._owned_contact` already adopt such a row off the same index, so a
-    customer who exists in the CRM saw a profile at checkout and no profile on `/orders`. The
-    address has to arrive too - a card with a name and no address still sends them to re-type it.
-    """
+def test_a_crm_created_unowned_row_is_not_a_customer_profile(ctx):
+    """A matching phone never authorizes an ownerless contact disclosure."""
     module, _, contacts, _ = ctx
     row = contact_row()
     row.pop("checkoutCustomerId")
     contacts.items = [row]
     _, body = call(module, body={})
     profile = body["profile"]
-    assert profile is not None
-    assert profile["name"] == "Asha Sen"
-    assert profile["addressComplete"] is True
-    assert profile["address"]["addressLine1"] == "12 MG Road"
+    assert profile is None
 
 
 def test_an_empty_string_owner_counts_as_unowned(ctx):
-    """`_unowned` strips before it tests, because an attribute written as `""` by some other
-    writer is "owned by nobody" and not "owned by a customer whose id is the empty string"."""
+    """A matching phone never authorizes an ownerless contact disclosure."""
     module, _, contacts, _ = ctx
     contacts.items = [contact_row(checkoutCustomerId="   ")]
     _, body = call(module, body={})
-    assert body["profile"] is not None
+    assert body["profile"] is None
 
 
 def test_an_owned_row_wins_over_an_unowned_one_on_the_same_number(ctx):

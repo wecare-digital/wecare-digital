@@ -343,6 +343,8 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         if (kind != VAULT or target_public_id or vault_file.get('ownerCustomerId') != owner
                 or vault_file.get('status') != 'active' or not vault_file.get('fileId')):
             raise customer_auth.CustomerNotAuthorized('resource does not exist or is not yours')
+        if vault_file.get('vaultPaymentStatus') == 'PAID' or vault_file.get('vaultAccessGrantId'):
+            raise ServiceRejected('VAULT_ALREADY_PAID')
         target = {KEY_ATTR: 'FILE#' + str(vault_file['fileId']),
                   'vaultFileId': str(vault_file['fileId']),
                   'vaultFileName': str(vault_file.get('displayName') or 'Document'),

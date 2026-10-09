@@ -230,18 +230,18 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 
 
 def test_the_provisioned_environment_matches_the_owner_scoped_rollout(provisioner):
-    """Keep the authorized two-variant rollout and its availability hold explicit.
+    """Keep the fresh-catalog four-variant approval hold explicit.
 
     Fresh handler defaults remain closed. This provisioner records the separately
-    authorized live rollout, so testing it as an unprovisioned disabled feature
+    authorized staged rollout, so testing it as an unprovisioned disabled feature
     would contradict the checked-in deployment manifest.
     """
     manifest = json.loads((ROOT / "config/lambda-env-manifest.json").read_text())
     live = manifest["functions"]["wecare-meta-catalog-sync"]
     expected = {
-        "META_CATALOG_SYNC_ENABLED": "true",
-        "META_CATALOG_SYNC_DRY_RUN": "false",
-        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "META_CATALOG_SYNC_ENABLED": "false",
+        "META_CATALOG_SYNC_DRY_RUN": "true",
+        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
         "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     }
     for key, value in expected.items():

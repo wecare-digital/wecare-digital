@@ -30,14 +30,12 @@ Four rules it enforces, each load-bearing
 4. **The reference is minted once, reserved, and sent byte-for-byte.** `order_keys` mints and
    reserves it under `PAYREF#`; it is never transformed after reservation.
 
-Initiation is disabled by default
-----------------------------------
-`CHECKOUT_INITIATION_ENABLED` gates the actual WhatsApp order_details send. Off (the default), the
-handler does everything up to and including reserving the attempt, and returns the attempt in a
-`PAYMENT_INITIATION_DISABLED` state instead of sending a payable message. This is the same
-posture as the Velo adapter's `initiationEnabled=false`: the plumbing is exercised end to end, but
-no live payment request goes out until someone deliberately turns it on. It can only be turned on,
-never made permissive by a value that also disables readiness.
+Payment initiation is on by default
+-----------------------------------
+There is no payment-disable environment switch in this handler. A payment can proceed only after
+the authenticated ownership checks, authoritative pricing, live provider-readiness readback and
+idempotent payment-attempt reservation succeed. Tests may replace the module-level
+`INITIATION_ENABLED` seam to exercise refusal behavior, but production source defaults it to True.
 
 Nothing plaintext is logged
 ---------------------------
@@ -52,16 +50,14 @@ a RETAINED legacy response: callers still consume it, and it is NOT removed unti
 The in-WhatsApp vs website decision is an owner decision flagged in
 ``.agents/tasks/checkout-audit-2026-10-01/findings.md`` (the repo spec records "pay inside
 WhatsApp" / "WhatsApp-only receipts"; the task asks for a website Razorpay Standard Checkout). Both
-paths coexist behind the SAME ``CHECKOUT_INITIATION_ENABLED`` gate, default off.
+paths coexist behind the same readiness and payment-attempt controls.
 
 The ADDITIVE website path lives in
 ``lambda_utils/ecommerce/website_checkout.py`` + ``lambda_utils/integrations/razorpay_orders.py``.
 Its documented contract, which replaces ``PAYMENT_REQUEST_SENT`` for the website without deleting
 it for the in-chat path, is:
 
-    create  (gate off, the default)  -> ``PAYMENT_INITIATION_DISABLED``
-            {paymentAttemptId}                 no gateway order, no payable attempt
-    create  (gate on)                -> ``CHECKOUT_OPTIONS_READY``
+    create                           -> ``CHECKOUT_OPTIONS_READY``
             {keyId, orderId, amountPaise, currency, prefill, paymentAttemptId}
                                                ONLY these fields; keyId is the PUBLIC key id,
                                                orderId is the SERVER-STORED Razorpay gateway order
@@ -159,9 +155,9 @@ PAYMENT_WABA_ID = os.environ.get("PAYMENT_WABA_ID", "2094615664435155")
 EXPECTED_CONFIGURATION_NAME = os.environ.get("EXPECTED_CONFIGURATION_NAME", "")
 EXPECTED_PROVIDER_MID = os.environ.get("EXPECTED_PROVIDER_MID", "")
 
-#: Off by default. The plumbing runs; the payable message does not go out until this is truthy.
-INITIATION_ENABLED = str(
-    os.environ.get("CHECKOUT_INITIATION_ENABLED", "")).strip().lower() in ("1", "true", "yes", "on")
+#: Production initiation defaults ON. This is a test seam, not an environment-controlled kill
+#: switch; readiness, ownership, authoritative pricing and idempotency remain mandatory.
+INITIATION_ENABLED = True
 
 #: The Wix catalogue product id of the live Contribute product, lowercased. NOT a secret -- a
 #: catalogue reference. UNSET MEANS CONTRIBUTIONS ARE REFUSED, not "priced as an ordinary
@@ -550,18 +546,10 @@ def _unowned(item: Dict[str, Any]) -> bool:
 
 
 def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:
-    """The verified CRM profile for this signed-in phone, or None.
+    """Return a verified profile only for an exact permanent customer owner.
 
-    The lookup key comes from the proven session, through `_profile_phone` so it is the same
-    string `customer-profile` stored the row under. A browser cannot choose a phone/customer id.
-    A row is accepted when it is either owned by this customer or owned by nobody (see
-    `_unowned`), and in BOTH cases it must still carry `emailVerifiedAt` and a non-empty email
-    before its name/email are allowed into Razorpay prefill.
-
-    **The email gate is not relaxed, deliberately.** Claiming a row on a phone match says "this
-    row is about me"; it says nothing about the email on it. Paying against an unverified email
-    is a worse problem than being asked to verify one, so a claimed-but-unverified row still
-    answers `PROFILE_REQUIRED` and goes through email verification first.
+    Phone matching locates candidates; ownerless contacts require staff reconciliation.
+    Email verification remains mandatory for payment prefill.
     """
     try:
         response = _table(CONTACTS_TABLE).query(
@@ -573,25 +561,15 @@ def _checkout_profile(identity: customer_auth.CustomerIdentity) -> Optional[Dict
         logger.error(json.dumps({"event": "checkout_profile_lookup_failed",
                                  "error": type(error).__name__}))
         raise
-    # An owned row wins over an unowned one, so a customer with their own row never reads a
-    # stray unowned duplicate on the same number. Both still pass the email-verified gate.
-    claimable: Optional[Dict[str, Any]] = None
     for item in response.get("Items") or []:
         if item.get("deletedAt") is not None:
             continue
-        owned = str(item.get("checkoutCustomerId") or "") == identity.customer_id
-        if not owned and not _unowned(item):
+        if not identity.customer_id or item.get("checkoutCustomerId") != identity.customer_id:
             continue
-        if not item.get("emailVerifiedAt"):
+        if not item.get("emailVerifiedAt") or not str(item.get("email") or "").strip():
             continue
-        if not str(item.get("email") or "").strip():
-            continue
-        if owned:
-            return item
-        if claimable is None:
-            claimable = item
-    return claimable
-
+        return item
+    return None
 
 def _load_owned_address(
         identity: customer_auth.CustomerIdentity) -> Optional[Dict[str, Any]]:

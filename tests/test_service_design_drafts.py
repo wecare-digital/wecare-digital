@@ -60,3 +60,25 @@ def test_missing_local_asset_does_not_create_empty_flow(tmp_path, monkeypatch):
     else:
         raise AssertionError('missing fixed asset must fail closed')
     create.assert_not_called()
+
+
+def test_orders_endpoint_uses_fixed_published_flow_not_client_url():
+    graph=Mock(return_value={'data':[{'id':'draft','name':drafts.NAMES['orders'],'status':'DRAFT'}]})
+    endpoint='https://wecare.digital/api/wa-business/flow-data'
+    get=Mock(side_effect=[{'flow':{'id':'1107164111921876','status':'PUBLISHED','validation_errors':[],'endpoint_uri':endpoint}},
+                         {'flow':{'status':'DRAFT','validation_errors':[],'endpoint_uri':endpoint}}])
+    update=Mock(return_value={'success':True})
+    result=drafts.handle({'action':'connect_orders_endpoint','service':'orders','endpoint_uri':'https://attacker.example'},graph,Mock(),Mock(),get,update)
+    assert result['endpoint_connected'] is True
+    update.assert_called_once_with('draft',{'endpoint_uri':endpoint})
+    assert get.call_args_list[0].args==('1107164111921876',)
+
+
+def test_orders_endpoint_cannot_connect_another_service_or_an_unverified_source():
+    graph=Mock();update=Mock()
+    assert 'error' in drafts.handle({'action':'connect_orders_endpoint','service':'vault'},graph,Mock(),Mock(),Mock(),update)
+    graph.assert_not_called()
+    graph.return_value={'data':[{'id':'draft','name':drafts.NAMES['orders'],'status':'DRAFT'}]}
+    get=Mock(return_value={'flow':{'id':'1107164111921876','status':'DRAFT','endpoint_uri':'https://wecare.digital/api'}})
+    assert 'error' in drafts.handle({'action':'connect_orders_endpoint','service':'orders'},graph,Mock(),Mock(),get,update)
+    update.assert_not_called()

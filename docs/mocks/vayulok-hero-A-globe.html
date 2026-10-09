@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  INTERNAL DUMMY MOCK — NOT A LIVE PAGE, NOT PRODUCTION CODE.
+  OPTION A — animated dot-matrix GLOBE hero variant (sorcerer.earth look,
+  rebuilt on OUR light palette).
+
+  HERO SECTION ONLY. The global header, footer and WhatsApp widget are
+  unchanged, shared across every public page, and rendered globally — so they
+  are DELIBERATELY NOT in this mock. We are only iterating on the /vayulok/
+  hero here. Do not re-add page chrome: when this lands on the real page the
+  hero slots inside the existing global header/footer/widget shell.
+
+  It keeps the live /vayulok/ hero LEFT column (brand badge + "Bharat
+  <rotating> Intelligence") and the whole rotating-pill mechanism VERBATIM, and
+  swaps ONLY the right column: instead of the phone/AQI card it shows a
+  pure-code rotating dot-matrix globe centred on Bharat.
+
+  THIS ROUND (owner feedback on Option A):
+    1. GLOBE REBUILT to feel ~100% like the dot-matrix globe on
+       https://www.sorcerer.earth/ — a DENSE sphere rendered as thousands of
+       small dots, a surrounding halo/atmosphere ring of scattered dots, slow
+       rotation and depth/parallax (front dots bright, back dots faded). BUT in
+       OUR palette and taste, never Sorcerer's yellow/green-on-black look.
+    2. BLACK BACKGROUND REMOVED. The stage now sits on our LIGHT surface
+       (#fff / #f9fafb, #e5e7eb hairline) to match src/pages/vayulok/index.tsx
+       (.vl-shell background:#fff) and docs/mocks/home-hero/index.html.
+    3. ALL TEXT AROUND THE GLOBE REMOVED. No Sorcerer-style legend / "existing
+       data / sorcerer data" labels, no about copy ringing the globe. None of
+       Sorcerer's own copy is used anywhere.
+    4. ONE honest disclaimer caption kept UNDER the stage (not around the
+       globe): "Illustrative dot-matrix globe, synthesised in-file …" — this is
+       our own honest label, not Sorcerer copy.
+    5. IN-GLOBE MARKERS kept: Delhi and Bengaluru pins ON the sphere, each with
+       a crisp HTML label carrying a schematic AIR-QUALITY value
+       ("Delhi · AQI 182" amber-warm, "Bengaluru · AQI 64" green). India is
+       oriented toward the viewer so both pins are visible. Values are
+       illustrative, NOT survey data.
+    6. SUB COPY REWRITTEN in WECARE.DIGITAL's own brand voice (plain,
+       benefit-led, Bharat-first; from wecare.digital: "Everyday AI, built for
+       Bharat", "Updates find you", "the part you don't have to think about").
+
+  NO WEBGL / NO GL. "dont adopt gl" — the globe is drawn with a plain <canvas>
+  2D context and vanilla JS (fibonacci-sphere dot distribution projected onto a
+  rotating sphere, back-face depth fade, halo ring). No Three.js, no WebGL.
+
+  FULLY SELF-CONTAINED ON PURPOSE: NO external resources at ALL. No images, no
+  web fonts, no CDN scripts, no ES-module imports, no external url(). It renders
+  identically from file:// offline and via htmlpreview with zero network
+  requests. (This DIFFERS from docs/mocks/vayulok-gap-cobe-mock.html, which
+  pulled the `cobe` globe from a CDN — that mock is prior art for the LOOK and
+  the India city lat/longs only, not for the loading approach.)
+
+  IT LIVES IN docs/mocks/ DELIBERATELY. docs/ is outside the Next.js build, so
+  this file cannot be deployed. Do NOT move it to public/ or src/pages/ —
+  both ship to the live site.
+
+  EVERY COLOUR, TYPE VALUE AND ANIMATION TIMING IN THE LEFT COLUMN IS COPIED
+  FROM REAL CODE. Sources, so this mock can be checked against source rather
+  than trusted:
+    src/pages/grahak-os/index.tsx       — hero layout + rotating pill CSS
+    src/pages/vayulok/index.tsx         — the 6 subject tint/dot pairs, pill,
+                                          one-shot entrance (not an observer)
+    .kiro/steering/grahak-os-design.md  — palette, type ladder, hairlines
+    src/components/BrandBadge.tsx        — the lime brand pill (#d1f470/#1a3a2a)
+    docs/mocks/home-hero/index.html      — the light hero surface (#f9fafb/#fff)
+    docs/mocks/vayulok-gap-cobe-mock.html — the globe LOOK + India lat/longs
+    src/lib/design-tokens.ts            — exact hex tokens
+
+  COPY IS PLACEHOLDER. The owner supplies the real body copy and rates; the
+  globe markers / AQI values are illustrative, not live data.
+  Per owner constraint, NO RED (#dc2626 / #ff0000 / #ef4444) anywhere — the
+  "heatmap" subject uses terracotta #c2591b, matching the live page; the globe
+  uses green / lime / amber / terracotta only. Nothing red.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DUMMY MOCK — VayuLok hero (Option A: dot-matrix globe, internal, not a live page)</title>
+<style>
+/* ===========================================================================
+   NO @font-face AND NO WEB-FONT LINK, ON PURPOSE. The font stack string is the
+   one from .page (src/pages/grahak-os/index.tsx) and .vl-shell
+   (src/pages/vayulok/index.tsx) character for character; it resolves to
+   whatever Inter/system font the viewer has, which keeps this file
+   self-contained.
+   =========================================================================== */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;
+  overflow-x:hidden;
+}
+@supports (overflow-x:clip){body{overflow-x:clip}}
+
+/* --- MOCK-ONLY CHROME. Not part of the theme, and the ONLY non-hero element
+   here on purpose: a banner so this file can never be mistaken for the real
+   page. #1a3a2a fill with #d1f470 type is the third of the three lime
+   treatments the contract allows (grahak-os-design.md, "inverted, dark"). --- */
+.vm-banner{
+  background:#1a3a2a;color:#d1f470;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.4;
+  padding:14px 24px;text-align:center;
+}
+.vm-banner b{color:#fff}
+
+/* BrandBadge, copied: #d1f470 fill, #1a3a2a type, no border, fully rounded.
+   (grahak-os-design.md Palette: "our own surfaces, full voice"). This is the
+   hero eyebrow — the SAME component the global header also renders, shown here
+   only because it sits inside the hero on the live page too. */
+.brand-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:#d1f470;color:#1a3a2a;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;
+  padding:8px 14px;border-radius:9999px;
+}
+.brand-badge .bb-dot{width:8px;height:8px;border-radius:50%;background:#1a3a2a}
+
+/* =======================================================================
+   HERO — layout copied from .hero / .hero-content on /grahak-os/.
+   padding-top clears the global fixed header (108px, 96px <=767px) that will
+   sit above this hero on the real page, even though that header is not drawn
+   in this mock.
+   ======================================================================= */
+.hero{padding:140px 24px 80px;max-width:1300px;margin:0 auto}
+.hero-content{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.hero-left{align-self:center}
+.hero-eyebrow{margin:0 0 20px}
+/* Hero h1: clamp(36,4.3vw,60) / 600 / lh 1.04 / ls -0.04em / rgba(0,0,0,.95).
+   600 weight is deliberate — the section headings elsewhere on the site are
+   the heavier 700; that inversion is notion's and intentional (design
+   contract, "Type ladder"). */
+.hero-left h1{
+  font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+  letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 24px;
+}
+/* One body level only: 20 / 400 / lh 1.4 / ls -0.125px / rgba(0,0,0,.898). */
+.hero-left p{
+  font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;
+  font-weight:400;margin:0 0 18px;max-width:400px;
+}
+.hero-left p.hero-sub{margin:0}
+
+/* --- Rotating subject pill. Geometry/easing/timing copied verbatim from
+   .vl-mark on src/pages/vayulok/index.tsx (itself ported from .hero-mark on
+   /grahak-os/). Tint/dot set inline per word by the script.
+   .hero.show is added once on load; it drives the one-shot entrance wipe and
+   dot pop, exactly like .vl-layout.show on the live page. ------------------ */
+.hero-mark{
+  position:relative;display:inline-block;white-space:nowrap;
+  padding:.02em .3em .02em .22em;border-radius:9999px;background:#e0f7c8;
+  transition:background-color .52s cubic-bezier(.16,1,.3,1);
+}
+.hero-mark::before{
+  content:'';position:absolute;inset:0;background:#fff;border-radius:9999px;
+  transform:scaleX(1);transform-origin:right center;
+  transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;z-index:0;
+}
+.hero.show .hero-mark::before{transform:scaleX(0)}
+.hero-mark-dot{
+  position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;
+  background:#3da35a;border-radius:50%;margin-right:.18em;vertical-align:.14em;
+  transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
+}
+.hero.show .hero-mark-dot{transform:scale(1)}
+.hero-cycle{
+  width:max-content;position:relative;z-index:1;display:inline-block;
+  height:1.06em;line-height:1.06em;vertical-align:baseline;overflow:hidden;
+  transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width;
+}
+.hero-cyc-word{
+  position:absolute;left:0;top:0;white-space:nowrap;opacity:0;
+  transform:translateY(.42em);
+  transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
+}
+.hero-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* =======================================================================
+   HERO GLOBE STAGE — replaces the /grahak-os/ phone+code / live-AQI card.
+
+   PANEL CHOICE (CHANGED THIS ROUND): LIGHT panel, not dark. The owner removed
+   the black background so the globe matches our home pages. The stage is now a
+   soft near-white surface (#fff lifting to #f9fafb) with the standard #e5e7eb
+   hairline, exactly like .vl-shell on src/pages/vayulok/index.tsx and
+   docs/mocks/home-hero/index.html. The dot-matrix globe is drawn in our GREENS
+   on that light surface: dots read as a sphere by density + depth fade, not by
+   glowing on black. This keeps the whole hero on ONE light surface instead of
+   punching a dark viewport into it.
+
+   The stage sits exactly where the phone card did: width:100%, square via
+   aspect-ratio 1/1, capped at 460px, centred. Everything inside is pure code —
+   a <canvas> dot-globe plus two absolutely-positioned HTML marker labels whose
+   text stays crisp (projected from the canvas coords each frame).
+   ======================================================================= */
+.globe-stage{
+  position:relative;width:100%;max-width:460px;margin:0 auto;
+  aspect-ratio:1/1;
+  border-radius:16px;border:1px solid #e5e7eb;        /* standard light hairline */
+  /* light surface: #fff lifting to a faint #f9fafb, matching .vl-shell/home hero */
+  background:radial-gradient(78% 78% at 50% 44%,#ffffff 0%,#f9fafb 70%,#f3f5f1 100%);
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(26,58,42,.07);
+}
+.globe-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* ---- IN-GLOBE city markers. Crisp HTML labels positioned by JS from the
+   projected canvas coords each frame, so the AQI text never blurs with the
+   canvas. On a LIGHT panel the pills are white with a hairline (not a dark
+   translucent pill). One warm (terracotta, worse air), one green (better air).
+   NEVER red. Hidden when their point swings to the far hemisphere. --------- */
+.globe-marker{
+  position:absolute;z-index:3;transform:translate(-50%,-50%);
+  pointer-events:none;will-change:left,top,opacity;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+.globe-marker .gm-pin{
+  width:12px;height:12px;border-radius:50%;position:relative;
+}
+.globe-marker .gm-pin::after{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  animation:pinPulse 2.4s ease-in-out infinite;
+}
+.globe-marker .gm-label{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:5px 10px;border-radius:9999px;
+  background:#fff;border:1px solid #e5e7eb;
+  box-shadow:0 2px 8px rgba(26,58,42,.10);
+  font-size:11.5px;font-weight:600;letter-spacing:-.1px;color:#1a3a2a;
+}
+.globe-marker .gm-aqi{
+  font-weight:700;
+}
+/* worse air — terracotta #c2591b (warm, never red) */
+.globe-marker.is-warm .gm-pin{background:#c2591b}
+.globe-marker.is-warm .gm-pin::after{box-shadow:0 0 0 0 rgba(194,89,27,.45)}
+.globe-marker.is-warm .gm-aqi{color:#c2591b}
+/* better air — green #3da35a */
+.globe-marker.is-good .gm-pin{background:#3da35a}
+.globe-marker.is-good .gm-pin::after{box-shadow:0 0 0 0 rgba(61,163,90,.45)}
+.globe-marker.is-good .gm-aqi{color:#2f7d46}
+@keyframes pinPulse{
+  0%{box-shadow:0 0 0 0 rgba(61,163,90,.40)}
+  70%{box-shadow:0 0 0 9px rgba(61,163,90,0)}
+  100%{box-shadow:0 0 0 0 rgba(61,163,90,0)}
+}
+
+/* ---- canvas-unavailable fallback (shown only when a 2D context cannot be
+   created). On-palette light panel, never a blank/broken canvas. ---------- */
+.globe-fallback{
+  position:absolute;inset:0;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:30px;text-align:center;
+  background:radial-gradient(70% 70% at 50% 44%,#ffffff 0%,#f3f5f1 100%);
+  color:rgba(0,0,0,.70);
+}
+.globe-fallback.is-on{display:flex}
+.globe-fallback b{font-size:15px;font-weight:700;color:#1a3a2a}
+.globe-fallback span{font-size:13px;line-height:1.5;max-width:32ch;color:rgba(0,0,0,.60)}
+
+/* caption under the stage — the one honest disclaimer (our label, not Sorcerer
+   copy). It sits BELOW the stage, not ringing the globe. */
+.globe-cap{margin:12px auto 0;max-width:460px;font-size:12px;line-height:1.45;color:rgba(0,0,0,.54);text-align:center}
+
+@media(max-width:860px){
+  .hero-content{grid-template-columns:1fr;gap:40px}
+  .hero{padding:120px 20px 60px}
+  .globe-stage{max-width:400px}
+}
+@media(max-width:767px){
+  .hero{padding:96px 16px 48px}
+}
+
+/* The rotation is already disabled in JS under reduced motion; this settles
+   the pill into its resting state so nothing is caught mid-transition. The
+   globe spin is likewise disabled in JS (drawn once at rest, India front);
+   here we also stop the marker pulse so nothing animates. */
+@media(prefers-reduced-motion:reduce){
+  .hero-mark::before{transform:scaleX(0)}
+  .hero-mark-dot{transform:scale(1)}
+  .hero-cycle,.hero-cyc-word{transition:none}
+  .globe-marker .gm-pin::after{animation:none}
+}
+</style>
+</head>
+<body>
+
+<div class="vm-banner">INTERNAL MOCK — <b>not a live page.</b> VayuLok HERO ONLY — Option A (dot-matrix globe). Global header, footer &amp; widget are shared/unchanged and not shown. Copy is placeholder.</div>
+
+<!-- HERO ONLY. No <header>, no <footer>, no floating widget — those are global
+     and unchanged; the hero slots inside them on the real page. -->
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <div class="hero-left">
+      <div class="hero-eyebrow">
+        <span class="brand-badge"><span class="bb-dot"></span>VayuLok · by WECARE.DIGITAL</span>
+      </div>
+      <h1>
+        Bharat
+        <span class="hero-mark" id="mark">
+          <i class="hero-mark-dot" id="markDot" aria-hidden="true"></i>
+          <span class="hero-cycle" id="cycle">
+            <span class="sr-only">Air, Pollen, Weather, Forecast, Solar, Heatmap</span>
+          </span>
+        </span>
+        <br>Intelligence
+      </h1>
+      <!-- PLACEHOLDER COPY — owner supplies real wording + rates. -->
+      <p>Air quality, weather and forecasts for wherever you are in Bharat — one place, every signal that affects the air you breathe.</p>
+      <!-- SUB LINE rewritten in WECARE.DIGITAL's own voice, from a deep read of
+           their live site (wecare.digital): "Everyday AI, built for Bharat";
+           short declarative benefit lines — "Updates find you.", "The part you
+           don't have to think about.", "Pick up where you left off." — plain
+           English, Bharat-first, no feature-promising. This replaces "Built on
+           Google environmental data, wired through WECARE.DIGITAL." It does not
+           restate the brand name (already in the badge), does not promise
+           unbuilt features, and echoes their "the part you don't have to think
+           about" register without copying it. -->
+      <p class="hero-sub">Everyday air intelligence for Bharat, in plain language — the part you don’t have to keep checking.</p>
+    </div>
+
+    <!-- RIGHT: pure-code dot-matrix globe centred on Bharat (replaces the
+         phone/AQI card). Light panel. Canvas globe + two in-globe city markers
+         (crisp HTML labels with schematic AQI). NO legend text around it. -->
+    <div class="hero-right">
+      <div class="globe-stage" id="globeStage">
+        <canvas class="globe-canvas" id="globeCanvas"
+                role="img"
+                aria-label="A dot-matrix globe centred on Bharat, drawn in greens on a light panel. The sphere is rendered as thousands of fine dots with a scattered atmosphere ring; it rotates slowly. Markers over Delhi and Bengaluru carry illustrative air-quality values and co-rotate with the globe."></canvas>
+
+        <!-- In-globe markers — positions set by JS each frame from the globe
+             projection, so the AQI text stays crisp. Delhi = worse air
+             (terracotta), Bengaluru = better air (green). Illustrative values. -->
+        <div class="globe-marker is-warm" id="mkDelhi" aria-hidden="true">
+          <span class="gm-pin"></span>
+          <span class="gm-label">Delhi · <span class="gm-aqi">AQI 182</span></span>
+        </div>
+        <div class="globe-marker is-good" id="mkBlr" aria-hidden="true">
+          <span class="gm-pin"></span>
+          <span class="gm-label">Bengaluru · <span class="gm-aqi">AQI 64</span></span>
+        </div>
+
+        <!-- Canvas-unavailable fallback. Shown only if a 2D context can't be
+             created. On-palette light panel, never a blank canvas. -->
+        <div class="globe-fallback" id="globeFallback" role="img"
+             aria-label="Static fallback: the dot-matrix globe cannot be rendered in this browser.">
+          <b>Globe preview</b>
+          <span>Your browser can’t draw the dot-matrix globe here. On a supported browser this panel shows a slowly spinning globe of dots centred on Bharat with the city markers.</span>
+        </div>
+      </div>
+      <p class="globe-cap">Illustrative dot-matrix globe, synthesised in-file (no images, no CDN). Marker positions and air-quality values are schematic, not survey data.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------------------------------------------------------------------------
+   The six subject words with their tint/dot pairs are COPIED VERBATIM from
+   cycleWords in src/pages/vayulok/index.tsx. No new colours. Heatmap is
+   terracotta (#c2591b), not red, per the owner "NO RED" constraint.
+   The rotation (2400ms), width measuring and tint/dot swap reproduce the live
+   .vl-mark / .hero-mark behaviour.
+--------------------------------------------------------------------------- */
+var cycleWords = [
+  { word:'Air',      tint:'#e0f7c8', dot:'#3da35a' },
+  { word:'Pollen',   tint:'#fef9c3', dot:'#ca8a04' },
+  { word:'Weather',  tint:'#dbeafe', dot:'#2563eb' },
+  { word:'Forecast', tint:'#ede9fe', dot:'#9849e8' },
+  { word:'Solar',    tint:'#fef3c7', dot:'#f0a818' },
+  { word:'Heatmap',  tint:'#fbe6d4', dot:'#c2591b' }
+];
+
+var hero = document.getElementById('hero');
+var cycle = document.getElementById('cycle');
+var mark = document.getElementById('mark');
+var markDot = document.getElementById('markDot');
+
+/* Build one absolutely-stacked span per word (the live page's measured-width
+   technique: the active word returns to flow and gives the box its width). */
+var wordEls = cycleWords.map(function(c){
+  var s = document.createElement('span');
+  s.className = 'hero-cyc-word';
+  s.textContent = c.word;
+  s.setAttribute('aria-hidden','true');
+  cycle.appendChild(s);
+  return s;
+});
+
+var idx = 0;
+function paint(){
+  var c = cycleWords[idx];
+  wordEls.forEach(function(el,i){ el.classList.toggle('on', i===idx); });
+  mark.style.background = c.tint;
+  markDot.style.background = c.dot;
+  var active = wordEls[idx];
+  if (active) cycle.style.width = active.offsetWidth + 'px';
+}
+paint();
+
+/* One-shot entrance: add .hero.show after a tick, matching the live page's
+   setTimeout(() => setShown(true), 60). This drives the wipe + dot pop once. */
+setTimeout(function(){ hero.classList.add('show'); }, 60);
+
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce){
+  setInterval(function(){ idx = (idx + 1) % cycleWords.length; paint(); }, 2400);
+}
+</script>
+
+<script>
+/* ===========================================================================
+   DOT-MATRIX GLOBE — pure vanilla <script> (NOT type=module, NO import, NO
+   CDN). Everything is drawn with a plain <canvas> 2D context. NO WebGL / NO GL
+   and NO `cobe` dependency — this is the self-contained in-file replacement for
+   the CDN globe used by docs/mocks/vayulok-gap-cobe-mock.html, rebuilt this
+   round to feel like the sorcerer.earth dot-matrix globe but in OUR palette on
+   a LIGHT panel.
+
+   HOW IT WORKS
+     - A fibonacci sphere gives an even, DENSE dot distribution over a unit
+       sphere (the sorcerer.earth "earth as thousands of dots" read).
+     - A second, sparser shell of scattered dots sits just outside the sphere
+       as a halo / atmosphere ring (dots thin out with radius).
+     - Each frame we rotate every point about the vertical (Y) axis by a small
+       angle (slow auto-spin), then project orthographically to 2D.
+     - DEPTH / PARALLAX: a dot's z after rotation drives its size and opacity —
+       front dots are larger and more opaque, back dots fade out and are culled,
+       so the sphere reads as solid and has visible depth.
+     - Bharat (~80°E, ~22°N) is oriented to face the viewer at rest so BOTH
+       city markers are visible.
+     - City markers (Delhi, Bengaluru) are placed on the same sphere so they
+       co-rotate; their projected screen position drives the crisp HTML label
+       overlays, and the labels hide when the point swings to the back.
+
+   PALETTE (NO RED): dots are our greens on the light panel — a soft mid green
+   for the sphere body, a slightly deeper green for the "land-ish" latitude
+   bands, a faint green for the halo. Markers: terracotta #c2591b (worse air)
+   and green #3da35a (better air). Nothing red anywhere.
+
+   DEGRADE
+     - No 2D context  -> show the static .globe-fallback panel (never a blank
+       or broken canvas).
+     - prefers-reduced-motion -> draw the globe ONCE at rest (India front),
+       place the markers once, and do not start the animation loop.
+     - small screens / low DPR -> fewer dots, capped devicePixelRatio.
+   =========================================================================== */
+(function(){
+  var stage    = document.getElementById('globeStage');
+  var canvas   = document.getElementById('globeCanvas');
+  var fallback = document.getElementById('globeFallback');
+  var mkDelhi  = document.getElementById('mkDelhi');
+  var mkBlr    = document.getElementById('mkBlr');
+
+  function showFallback(){
+    if (fallback) fallback.classList.add('is-on');
+    if (canvas) canvas.style.display = 'none';
+    if (mkDelhi) mkDelhi.style.display = 'none';
+    if (mkBlr) mkBlr.style.display = 'none';
+  }
+
+  var ctx = null;
+  try { ctx = canvas.getContext('2d'); } catch(e) { ctx = null; }
+  if (!ctx){ showFallback(); return; }
+
+  var reduceG = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- Palette (NO RED). RGB triplets so we can set alpha per dot. --------
+     On a LIGHT panel the dots must be darker than the surface to read, so these
+     are mid / deep greens, not the pale-on-black tones used before. */
+  var COL = {
+    sphere: '92,150,96',    // soft mid green — the sphere body dots
+    land:   '45,110,66',    // deeper green — "land-ish" latitude bands
+    halo:   '120,170,120'   // faint green — scattered atmosphere ring
+  };
+
+  /* ---- City markers on the sphere. lat/lon reused from the India markers in
+     docs/mocks/vayulok-gap-cobe-mock.html. These two drive the HTML labels. -- */
+  var cities = [
+    { el: mkDelhi, lat:28.6, lon:77.2 },   // Delhi    — worse air (terracotta)
+    { el: mkBlr,   lat:12.9, lon:77.6 }    // Bengaluru — better air (green)
+  ];
+
+  /* ---- device + screen aware sizing so mobile stays at ~60fps ------------- */
+  var small = Math.min(window.innerWidth, window.innerHeight) < 560;
+  var dpr   = Math.min(window.devicePixelRatio || 1, small ? 1.5 : 2);
+
+  /* ---- fibonacci sphere: N evenly spread unit vectors (the dense dot earth).
+     Each gets a coarse "land" flag by latitude band so some dots sit a touch
+     deeper/larger — cosmetic only (no real land mask needed to read as a
+     globe). Dot count degrades on small screens / reduced motion. ---------- */
+  var N = reduceG ? 1400 : (small ? 1700 : 2600);
+  var base = [];
+  (function build(){
+    var gold = Math.PI * (3 - Math.sqrt(5));   // golden angle
+    for (var i=0;i<N;i++){
+      var y = 1 - (i/(N-1))*2;                  // y in [1,-1]
+      var rad = Math.sqrt(Math.max(0,1 - y*y));
+      var th = gold * i;
+      var x = Math.cos(th)*rad;
+      var z = Math.sin(th)*rad;
+      var latDeg = Math.asin(y) * 180/Math.PI;
+      // coarse band: mid-latitudes read as "land-ish" (purely decorative)
+      var land = (latDeg > -58 && latDeg < 72) && (Math.abs(latDeg) % 13 < 6);
+      base.push({ x:x, y:y, z:z, land:land });
+    }
+  })();
+
+  /* ---- halo / atmosphere ring: a sparse shell of dots scattered just OUTSIDE
+     the sphere, thinning out with radius — the sorcerer.earth "glow of dots"
+     around the globe, in our faint green. Deterministic pseudo-random so it is
+     stable frame to frame; these do not rotate (they sit in screen space). -- */
+  var HALO_N = reduceG ? 90 : (small ? 110 : 190);
+  var halo = [];
+  (function buildHalo(){
+    var seed = 20240607;
+    function rnd(){ seed = (seed*1664525 + 1013904223) % 4294967296; return seed/4294967296; }
+    for (var i=0;i<HALO_N;i++){
+      var ang = rnd()*Math.PI*2;
+      // radius between the rim (1.02) and ~1.42, biased toward the rim
+      var t = rnd(); t = t*t;                       // bias dense near the rim
+      var rr = 1.03 + t*0.40;
+      halo.push({ ang:ang, rr:rr, a:0.10 + rnd()*0.22, s:0.7 + rnd()*0.9 });
+    }
+  })();
+
+  /* ---- orientation so Bharat (~80°E, ~22°N) faces the viewer at rest, with
+     both city markers in view. We spin about Y (longitude). ---------------- */
+  var tilt = -20 * Math.PI/180;          // lean ~20°N up toward the camera
+  var yaw  = (-80 + 90) * Math.PI/180;   // front meridian ≈ 80°E
+  var spin = 0.0032;                     // slow auto-spin, rad/frame
+
+  function latLonToVec(lat, lon){
+    var la = lat * Math.PI/180, lo = lon * Math.PI/180;
+    return {
+      x: Math.cos(la)*Math.cos(lo),
+      y: Math.sin(la),
+      z: Math.cos(la)*Math.sin(lo)
+    };
+  }
+
+  var size = 0, cx = 0, cy = 0, R = 0;
+
+  function resize(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    size = Math.min(w, h);
+    canvas.width  = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    cx = (w*dpr)/2;
+    cy = (h*dpr)/2;
+    R  = (size*dpr) * 0.40;              // globe radius, with margin
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // rotate (yaw about Y, then tilt about X) and project orthographically
+  function project(v){
+    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    var x1 = v.x*cosY + v.z*sinY;
+    var z1 = -v.x*sinY + v.z*cosY;
+    var y1 = v.y;
+    var cosX = Math.cos(tilt), sinX = Math.sin(tilt);
+    var y2 = y1*cosX - z1*sinX;
+    var z2 = y1*sinX + z1*cosX;
+    return { sx: cx + x1*R, sy: cy - y2*R, z: z2 };
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // soft green atmosphere wash behind the dots (very light, on the light panel)
+    var rg = ctx.createRadialGradient(cx, cy, R*0.55, cx, cy, R*1.42);
+    rg.addColorStop(0,  'rgba(61,163,90,0.05)');
+    rg.addColorStop(0.72,'rgba(61,163,90,0.03)');
+    rg.addColorStop(1,  'rgba(61,163,90,0)');
+    ctx.beginPath();
+    ctx.arc(cx, cy, R*1.42, 0, Math.PI*2);
+    ctx.fillStyle = rg;
+    ctx.fill();
+
+    // halo / atmosphere ring of scattered dots (screen-space, faint green)
+    for (var hI=0;hI<halo.length;hI++){
+      var hd = halo[hI];
+      var hx = cx + Math.cos(hd.ang) * R * hd.rr;
+      var hy = cy + Math.sin(hd.ang) * R * hd.rr;
+      ctx.beginPath();
+      ctx.arc(hx, hy, hd.s * dpr, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(' + COL.halo + ',' + hd.a.toFixed(3) + ')';
+      ctx.fill();
+    }
+
+    // sphere dots (the dense dot-matrix earth)
+    for (var i=0;i<base.length;i++){
+      var p = project(base[i]);
+      var front = p.z;                        // relative depth, [-1,1]
+      var a = (front + 1) / 2;                // 0 (back) .. 1 (front)
+      if (a < 0.16) continue;                 // back-face cull
+      // depth-driven opacity + size (parallax read)
+      var alpha = 0.10 + a*a*0.72;
+      var rad = (base[i].land ? 1.5 : 1.1) * dpr * (0.55 + a*0.7);
+      ctx.beginPath();
+      ctx.arc(p.sx, p.sy, rad, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(' + (base[i].land ? COL.land : COL.sphere) + ',' + alpha.toFixed(3) + ')';
+      ctx.fill();
+    }
+
+    // position the crisp HTML city markers from their projected coords; hide
+    // the ones on the far hemisphere.
+    for (var m=0;m<cities.length;m++){
+      var c = cities[m];
+      if (!c.el) continue;
+      var mp = project(latLonToVec(c.lat, c.lon));
+      if (mp.z < 0.04){
+        c.el.style.opacity = '0';
+        continue;
+      }
+      // convert canvas (dpr) coords back to CSS px for the HTML overlay
+      var left = (mp.sx / dpr);
+      var top  = (mp.sy / dpr);
+      c.el.style.left = left + 'px';
+      c.el.style.top  = top + 'px';
+      // fade in a touch as it rounds toward the front
+      var ma = (mp.z + 1) / 2;
+      c.el.style.opacity = (0.35 + 0.65*ma).toFixed(3);
+    }
+  }
+
+  if (reduceG){
+    // Draw ONCE at rest (India facing front); no loop.
+    draw();
+  } else {
+    (function loop(){
+      yaw += spin;
+      draw();
+      requestAnimationFrame(loop);
+    })();
+  }
+
+  // keep marker positions correct after a resize even under reduced motion
+  window.addEventListener('resize', function(){ if (reduceG) draw(); });
+})();
+</script>
+</body>
+</html>

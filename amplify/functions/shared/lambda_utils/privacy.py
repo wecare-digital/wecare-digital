@@ -95,8 +95,9 @@ def mask_flow_token(token: str) -> str:
     """
     if not token or not isinstance(token, str):
         return ''
-    if token.startswith('paidsr:'):
-        return 'paidsr:***'
+    for prefix in ('paidsr:', 'orders:'):
+        if token.startswith(prefix):
+            return prefix + '***'
     head, separator, _ = token.partition('-ph-')
     return head + '-ph-***' if separator else token
 

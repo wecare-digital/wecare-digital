@@ -19,6 +19,7 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 const SUBMISSION_STATUS_FILTER_OPTIONS: SelectOption[] = [
   { value: '', label: 'All Statuses' },
   { value: 'open', label: 'Open' },
+  { value: 'awaiting_order_verification', label: 'Awaiting order verification' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'resolved', label: 'Resolved' },
   { value: 'closed', label: 'Closed' },
@@ -42,6 +43,7 @@ const FILTER_SELECT_STYLE: React.CSSProperties = { flex: '0 1 220px', minWidth: 
 
 /** The per-row Update control. `cancelled` is in this list and in no filter list. */
 const SUBMISSION_STATUS_UPDATE_OPTIONS: SelectOption[] = [
+  { value: 'awaiting_order_verification', label: 'Awaiting order verification' },
   { value: 'open', label: 'Open' },
   { value: 'in_progress', label: 'In Progress' },
   { value: 'resolved', label: 'Resolved' },
@@ -182,10 +184,11 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
       pending: '#f59e0b', paid: '#10b981', captured: '#10b981', completed: '#10b981',
       failed: '#ef4444', expired: '#9ca3af', none: '#6b7280', open: '#3b82f6',
       in_progress: '#f59e0b', resolved: '#10b981', closed: '#6b7280', cancelled: '#ef4444',
+      awaiting_order_verification: '#b45309',
     };
     return (
       <span style={ { padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: colors[ status ] || '#6b7280' } }>
-        { status?.toUpperCase() || 'UNKNOWN' }
+        { status === 'awaiting_order_verification' ? 'AWAITING ORDER VERIFICATION' : status?.toUpperCase() || 'UNKNOWN' }
       </span>
     );
   };
@@ -274,6 +277,24 @@ const FlowResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded = fal
                               <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{s.description}</p>
                               <p style={{ fontSize: 12 }}>{s.contactId ? "Linked to this sender's contact record." : 'Contact link unavailable'}</p>
                               <p style={{ fontSize: 12 }}>Saved in customer reviews.</p>
+                            </details>
+                          ) : s.flowType === 'invoice_copy' ? (
+                            <details>
+                              <summary style={{ cursor: 'pointer' }}>Invoice copy</summary>
+                              <p>Order: {s.orderNumber}</p>
+                              <p>Customer ID: {s.customerUuid || 'Not available yet'}</p>
+                              <p>Copy of the existing invoice. No new payment or invoice is created.</p>
+                              <p>Delivery: {s.invoiceDeliveryStatus || 'Waiting for invoice preparation'}</p>
+                              <p>{s.tags?.join(' · ')}</p>
+                            </details>
+                          ) : s.flowType === 'order_lookup' ? (
+                            <details>
+                              <summary style={{ cursor: 'pointer' }}>{s.subject || 'Help finding an order'}</summary>
+                              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{s.description}</p>
+                              <p>Customer reference: {s.orderReference || 'Not provided'}</p>
+                              <p>Customer ID: {s.customerUuid || 'Not available yet'}</p>
+                              <p>No verified order is linked. Verify ownership before requesting a service payment.</p>
+                              <p>{s.tags?.join(' · ')}</p>
                             </details>
                           ) : s.subject || s.requestType || '-'}
                         </td>

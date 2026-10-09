@@ -273,11 +273,11 @@ def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
     for key in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN",
                 "META_CATALOG_SYNC_VARIANT_IDS", "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"):
         assert entry[key] == provisioner.ENVIRONMENT[key]
-    assert entry["META_CATALOG_SYNC_ENABLED"] == "true"
-    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "false"
+    assert entry["META_CATALOG_SYNC_ENABLED"] == "false"
+    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "true"
     assert entry["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
     assert set(entry["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
-        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", "db166bc8-a763-41ec-9f65-0f718f18155a", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
 
 
 def _load_provisioner():

@@ -151,6 +151,15 @@ def policy_document() -> dict:
                 "Resource": f"arn:aws:s3:::{BUCKET}/{PUBLIC_WHATSAPP_INCOMING_PREFIX}*",
             },
             {
+                "Sid": "PrivateIncomingOwnershipProof",
+                "Effect": "Allow",
+                "Action": ["dynamodb:GetItem"],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-MessagesTable",
+                    f"arn:aws:dynamodb:{REGION}:{ACCOUNT}:table/stack-wecare-digital-ContactsTable",
+                ],
+            },
+            {
                 "Sid": "DropDocsRequestRows",
                 "Effect": "Allow",
                 # Enough to resolve the caller's own REQ# row and register a DOC# row, and

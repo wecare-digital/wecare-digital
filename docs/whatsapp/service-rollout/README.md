@@ -1,5 +1,47 @@
 # Customer service catalog and identity rollout — 9 October 2026
 
+Latest Vault follow-up: [implementation](../../../outputs/vault-payment-download-implementation.md), [full new-session prompt](../../../outputs/xcodex-new-session-full-prompt.md). Same-catalog paid-file renewal after expired/interrupted/consumed download is pending engineering. Approved download template is confirmed; activation remains off. No live change in this follow-up.
+
+## Current master audit checkpoint — supersedes older snapshots below
+
+Status: **PARTIALLY COMPLETE**. Source baseline d03ac81d; fresh provider/source audit and diagnostic-only repair deployed Business API89 (rollback88). Secure Files34, Service Requests5, catalog sync7 and checkout41 remain current. Catalog1457045652952851 is readable and empty: four Wix create proposals, no blocks, applied0. Sync is disabled/dry-run/out-of-stock. Native service/writeback/dynamic Vault gates remain off, attachments false. Intended dataset4554612361454941 connection/event matching is not verified.
+
+Orders2167802357142172 is an eight-screen DRAFT with zero validation errors and implemented profile/owned-order/missing-order/existing-invoice adapters. Paid Submit1107164111921876 and Review1578178897413815 remain PUBLISHED. QA contact lacks permanent account link/public UUID. Catalog approval/apply, native A/B/P/R binding, terminal payment recovery, encrypted ingestion, writeback and owner-paid delivery QA remain unfinished. Do not call engineering complete.
+
+Master audit outputs: [audit](../../../outputs/xcodex-deep-audit-2026-10-09.md), [current state](../../../outputs/xcodex-current-state.json), [architecture](../../../outputs/whatsapp-customer-service-architecture.md), [payment recovery](../../../outputs/whatsapp-payment-state-machine.md), [migration](../../../outputs/website-to-whatsapp-migration-matrix.md). Backend10334/7 skipped/3 xfailed; frontend1597/2 skipped; typecheck/build pass; lint0 errors/190 warnings. No customer sends/payments performed.
+
+The following sections are preserved historical evidence; their older versions/read_failed/pending-adapter statements are not current facts.
+
+
+## Fresh audit reconciliation — 9 October 2026
+
+Source baseline `53ed298e` and live AWS/Meta/Wix were re-read before repairs.
+Status: **PARTIALLY COMPLETE**. Secure Files live32 and Service Requests live4
+now enforce permanent file/grant ownership; their tested ZIPs preserve every old
+member. Secure Files adds its missing whatsapp_delivery.py dependency and bounds
+direct WhatsApp links to 60–900 seconds. Payment/Drop Docs flags remain false.
+Rollback targets are31 and3. Unauthenticated GET /secure-files/mine on32 returns401.
+
+The payment diagnostic contract is repaired in source and its exact package passes135
+checks. Business live79 has a different pending $LATEST package, so deployment is held
+to preserve concurrent work. No readiness gate was enabled. QA phone verification
+exists, but the contact still lacks checkoutCustomerId/customerUuid; complete the
+supported account link before a purchase. No messages or real payments were performed.
+
+Paid Submit Request1107164111921876 and Review1578178897413815 are PUBLISHED.
+The four Wix variants/prices and revision5 artwork links were independently read back.
+Live catalog sync6 still targets1607047307067517 and returns read_failed/applied0;
+current source targets1457045652952851, which is readable but empty. Ownership,
+WABA/Pixel connections, approval queue and controlled writeback remain release gates.
+Amplify1497 succeeded on53ed298e. Full source Python10365passed/6skipped/3xfailed;
+Vitest1582passed/11skipped; typecheck/build passed; lint0errors/191warnings.
+
+Current reconciliation is in live-evidence.json.codexAuditReconciliation; exact
+before/after revisions, hashes, tests and rollback are in
+[codex-audit-evidence-20261009.json](codex-audit-evidence-20261009.json).
+The older sections below are dated evidence, not current alias or test assertions.
+
+
 ## Owner scope
 
 One fresh Meta catalog, shared with eligible WECARE WABAs, with owner approval before new products go live. Wix remains the product and price authority. Public website and WhatsApp use the same canonical orders and verified customer identity. Preserve all customer, payment, request and secure-file records. Retire old catalogs only after an inventory of ownership, product data, connections and ads; permanent deletions require a concrete reviewed target list.

@@ -1,33 +1,71 @@
 {
   "verifiedDate": "2026-10-09",
-  "sourceBaseline": "310b78fe5e9026da38fa6adfd1a4b847f9e81214",
+  "sourceBaseline": "d03ac81dfda8d1a5da461f01b4005559b2a3ada4",
   "deployment": [
     {
       "function": "wecare-whatsapp-business-api",
-      "live": "79",
-      "rollback": "78",
-      "codeSha256": "fGW4u2Knkc33y/ppQZylVOY5PH30hrmVVBsYJ3UJeDo="
+      "live": "90",
+      "codeSha256": "pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI="
     },
     {
-      "function": "wecare-messages-read",
-      "live": "29",
-      "rollback": "28",
-      "codeSha256": "SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY="
+      "function": "wecare-secure-files",
+      "live": "34",
+      "codeSha256": "6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8="
+    },
+    {
+      "function": "wecare-service-requests",
+      "live": "5",
+      "codeSha256": "mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0="
+    },
+    {
+      "function": "wecare-meta-catalog-sync",
+      "live": "7",
+      "codeSha256": "9Nrpq65Z1Cd5ANxpCdTiHdylN9lijITni+ruPbCiKn4="
+    },
+    {
+      "function": "wecare-checkout",
+      "live": "41",
+      "codeSha256": "kfqE0FcwNlzWfzpA2asO9hi8NU27YHouMTixzHFT1F8="
+    },
+    {
+      "function": "wecare-customer-profile",
+      "live": "10",
+      "codeSha256": "2n/OSNp6qvzBYKJdFFWRnLAZ3tRjXPm50Jv8rnn+I5w="
+    },
+    {
+      "function": "wecare-customer-orders",
+      "live": "7",
+      "codeSha256": "IAHVgfXGsh8H7QwhO77yWefHWhzfBJk87cuFOlv93Ew="
     },
     {
       "function": "wecare-inbound-whatsapp",
       "live": "92",
-      "rollback": "90",
       "codeSha256": "uMQnayCVA6Px3rgKI5JgftfYIobT1Q4pKZqHBNe57us="
+    },
+    {
+      "function": "wecare-messages-read",
+      "live": "29",
+      "codeSha256": "SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY="
     }
   ],
   "tests": {
-    "focusedPythonPassed": 277,
-    "typecheck": "passed",
-    "websiteBuild": "passed",
-    "customerPurchase": "not performed",
-    "additionalRoutingChecksPassed": 79,
-    "catalogSnapshotTestsPassed": 93
+    "python": {
+      "passed": 10334,
+      "skipped": 7,
+      "xfailed": 3
+    },
+    "frontend": {
+      "passed": 1597,
+      "skipped": 2,
+      "files": 125
+    },
+    "typecheck": "PASS",
+    "eslint": {
+      "errors": 0,
+      "warnings": 190
+    },
+    "productionBuild": "PASS on retry; initial public blog HTTP503 fail-closed",
+    "customerEndToEnd": "NOT RUN"
   },
   "artwork": {
     "bucket": "wecare-digital-get",
@@ -45,57 +83,52 @@
   "qa": {
     "contactExists": true,
     "verifiedCheckoutCustomerLink": false,
-    "readOnlyOrdersSmoke": "VERIFIED_CUSTOMER_REQUIRED",
-    "messagesSent": 0,
-    "paymentPerformed": false,
-    "customerTestPhoneSuffix": "0044"
+    "publicCustomerUuid": false,
+    "phoneSuffix": "0044",
+    "messagesSentInAudit": 0,
+    "paymentPerformedInAudit": false
   },
   "catalog": {
-    "current": "1607047307067517",
-    "nativeServicesFlag": "absent; disabled",
-    "syncLive": "6",
-    "syncVariantScope": "Submit Request and Vault only",
+    "current": "1457045652952851",
+    "syncLive": "7",
+    "readOnlyInspect": "ok; four creates proposed; blocked []; existing []; applied0",
+    "syncVariantScope": "Submit Request, Request Amendment, Drop Docs, Vault",
+    "nativeServicesFlag": "unset/off",
     "forceOutOfStock": true,
-    "apiInventory": "empty owned/shared response; contradicted by visible UI inventory",
-    "uiPermissionDenied": [
-      "1088514403989109",
-      "1607047307067517"
-    ],
-    "deleted": [],
-    "freshCreated": false,
-    "sdkDisconnect": "pending explicit updated confirmation",
-    "readOnlyInspect": "read_failed; applied 0",
-    "wixWebhookDelivery": "received; catalog sync read_failed",
-    "wixWriteback": "disabled; writeback and confirmed-contract flags absent"
+    "enabled": false,
+    "dryRun": true,
+    "approvalQueue": "NOT IMPLEMENTED",
+    "intendedDataset": "4554612361454941",
+    "datasetProviderConnection": "NOT VERIFIED",
+    "wabaCatalogConnections": "NOT VERIFIED",
+    "wixWriteback": "flags unset/off",
+    "sdkCleanup": "latest owner authorizes scoped cleanup; exact inventory/apply not performed in this audit"
   },
   "flows": {
-    "submitRequestPaid": {
+    "orders": {
+      "id": "2167802357142172",
+      "status": "DRAFT",
+      "screens": 8,
+      "validationErrors": []
+    },
+    "submit": {
       "id": "1107164111921876",
       "status": "PUBLISHED"
     },
-    "leaveReview": {
+    "review": {
       "id": "1578178897413815",
       "status": "PUBLISHED"
     },
-    "requestAmendment": {
-      "id": "3678132465672138",
-      "status": "DRAFT"
-    },
-    "dropDocs": {
-      "id": "1211063631104445",
-      "status": "DRAFT"
-    }
+    "inventoryCount": 49,
+    "otherServiceRelease": "draft/backend integration pending; Vault needs no separate Flow"
   },
   "remaining": [
-    "Restore catalog-management access and verify API ownership inventory",
-    "Approve concrete permanent-deletion targets at action time",
-    "Create and share fresh catalog after authorized cleanup",
-    "Persist owner approval queue and actions for new or changed catalog entries",
-    "Assign artworks to approved Meta catalog entries; Wix assignment complete",
-    "Validate amendment and document draft ownership and fulfillment",
-    "Enable native services only after writeback and payment prerequisites pass",
-    "Run real customer Submit Request and Vault QA",
-    "Reconcile legacy unlinked orders and legacy public upload originals"
+    "Durable catalog approval/apply/readback and provider connections",
+    "A/B/P/R native action binding",
+    "Definite-terminal payment retry/resume and paid recovery",
+    "Encrypted private picker ingestion/CRM projection",
+    "Safe site-bound Wix writeback enablement",
+    "Permanent QA account binding and actual owner-paid end-to-end delivery"
   ],
   "auditFollowup": {
     "pythonFullPassed": 10328,
@@ -114,21 +147,413 @@
     "paymentsPerformed": false
   },
   "website": {
-    "keywordDeploymentJob": "1488",
-    "keywordDeploymentStatus": "SUCCEED",
-    "keywordDeploymentCommit": "c2cfa741b35a881813667edde307610a71604952",
-    "artworkSnapshotDeployment": "job 1490 RUNNING at last check",
-    "liveServicePricesPaise": {
-      "submit-request": 9900,
-      "request-amendment": 9900,
-      "drop-docs": 35000,
-      "vault": 4900
-    },
-    "existingOrderCopy": "build and typecheck passed; source ready for deployment"
+    "currentBaselineDeployment": "Amplify job1502 SUCCEED at d03ac81d",
+    "publicRoutes": "9 returned200 HTML; reachability only",
+    "customerReady": false
   },
   "templates": {
     "wecarepay_wa": "APPROVED",
     "wecare_default_download": "APPROVED",
     "wecare_leave_review": "APPROVED"
+  },
+  "codexAuditReconciliation": {
+    "date": "2026-10-09",
+    "sourceBaseline": "53ed298e422ac7694acc19bee91551169a7fe042",
+    "classification": "PARTIALLY COMPLETE",
+    "productionChanges": [
+      {
+        "function": "wecare-secure-files",
+        "live": "32",
+        "codeSha256": "MSP3hq5NKdhELTFojwfJDX2g5G7FIzsfmAELlADgrcY=",
+        "rollback": "31"
+      },
+      {
+        "function": "wecare-service-requests",
+        "live": "4",
+        "codeSha256": "4iVRen7bFz/s+SGaDXrwzwJeW9LVP0xRwlsFGj1l20Q=",
+        "rollback": "3"
+      }
+    ],
+    "paymentDiagnostic": {
+      "sourceFixed": true,
+      "packageTestsPassed": 135,
+      "deployment": "HELD_CONCURRENT_LATEST",
+      "live": "79"
+    },
+    "catalog": {
+      "sourceTarget": "1457045652952851",
+      "liveSyncTarget": "1607047307067517",
+      "newTargetProductsRead": "200; empty",
+      "oldTargetRead": "Graph 100/subcode 33; permission versus deletion unresolved",
+      "mutations": 0
+    },
+    "qa": {
+      "phoneVerified": true,
+      "checkoutCustomerLinkPresent": false,
+      "permanentUuidPresent": false,
+      "messagesSent": 0,
+      "realPaymentPerformed": false
+    },
+    "tests": {
+      "pythonPassed": 10365,
+      "pythonSkipped": 6,
+      "pythonXfailed": 3,
+      "vitestPassed": 1582,
+      "vitestSkipped": 11,
+      "typecheck": "passed",
+      "lint": "0 errors; 191 warnings",
+      "productionBuild": "passed",
+      "exactSecureFilesPassed": 97,
+      "exactServiceRequestsPassed": 35
+    },
+    "amplify": {
+      "job": "1497",
+      "commit": "53ed298e422ac7694acc19bee91551169a7fe042",
+      "state": "SUCCEED"
+    },
+    "record": "codex-audit-evidence-20261009.json",
+    "customerReady": false,
+    "ciTriggeredDeployment": {
+      "beforeHash": "j+XvrA1e9qdg5jn6/KoueKX1cjjzD6D3jD+Glhxg0WU=",
+      "after": {
+        "CodeSha256": "dOwOgICnmXUKndOlBAcBcHY0WtAINAyKsbFp+zthwP8=",
+        "RevisionId": "1695da44-b662-4cbb-8e15-bc2d80b9721b",
+        "LastModified": "2026-10-09T02:37:13.000+0000",
+        "State": "Active",
+        "LastUpdateStatus": "Successful",
+        "Version": "$LATEST"
+      },
+      "archiveMembers": [
+        "seo_tools_handler.py",
+        "operations/seo-tools/ai.py",
+        "operations/seo-tools/blog_analysis.py",
+        "operations/seo-tools/blog_batches.py",
+        "operations/seo-tools/blog_draft.py",
+        "operations/seo-tools/blog_gate.py",
+        "operations/seo-tools/blog_publish.py",
+        "operations/seo-tools/blog_qa.py",
+        "operations/seo-tools/blog_queue.py",
+        "operations/seo-tools/blog_repetition.py",
+        "operations/seo-tools/blog_sources.py",
+        "operations/seo-tools/blog_templates.py",
+        "operations/seo-tools/blog_verify.py",
+        "operations/seo-tools/faq.py",
+        "operations/seo-tools/handler.py",
+        "operations/seo-tools/seo_config.py",
+        "operations/seo-tools/seo_engine.py",
+        "operations/seo-tools/seo_freshness.py",
+        "operations/seo-tools/seo_refresh.py",
+        "operations/seo-tools/storage.py",
+        "operations/seo-tools/wix.py",
+        "shared/lambda_utils/__init__.py",
+        "shared/lambda_utils/appsecret.py",
+        "shared/lambda_utils/audit.py",
+        "shared/lambda_utils/automation.py",
+        "shared/lambda_utils/contact_key.py",
+        "shared/lambda_utils/cost_flags.py",
+        "shared/lambda_utils/customer_auth.py",
+        "shared/lambda_utils/customer_ideas.py",
+        "shared/lambda_utils/customer_session.py",
+        "shared/lambda_utils/customer_session_config.py",
+        "shared/lambda_utils/customer_session_store.py",
+        "shared/lambda_utils/direct_send.py",
+        "shared/lambda_utils/dynamo_reads.py",
+        "shared/lambda_utils/flow_completion.py",
+        "shared/lambda_utils/gdpr.py",
+        "shared/lambda_utils/graph_errors.py",
+        "shared/lambda_utils/http_path.py",
+        "shared/lambda_utils/idempotency.py",
+        "shared/lambda_utils/identifiers.py",
+        "shared/lambda_utils/live_smoke.py",
+        "shared/lambda_utils/logging.py",
+        "shared/lambda_utils/masking.py",
+        "shared/lambda_utils/media_paths.py",
+        "shared/lambda_utils/message_store.py",
+        "shared/lambda_utils/meta_client.py",
+        "shared/lambda_utils/meta_signature.py",
+        "shared/lambda_utils/meta_version.py",
+        "shared/lambda_utils/middleware.py",
+        "shared/lambda_utils/otp_challenge.py",
+        "shared/lambda_utils/otp_throttle.py",
+        "shared/lambda_utils/pagination.py",
+        "shared/lambda_utils/partner_billing.py",
+        "shared/lambda_utils/partner_tokens.py",
+        "shared/lambda_utils/payment_readiness.py",
+        "shared/lambda_utils/payment_status.py",
+        "shared/lambda_utils/plivo_signature.py",
+        "shared/lambda_utils/privacy.py",
+        "shared/lambda_utils/rate_limit.py",
+        "shared/lambda_utils/rcs_status.py",
+        "shared/lambda_utils/receipt_links.py",
+        "shared/lambda_utils/response.py",
+        "shared/lambda_utils/retired_store.py",
+        "shared/lambda_utils/sinch_rcs.py",
+        "shared/lambda_utils/sinch_signature.py",
+        "shared/lambda_utils/system_events.py",
+        "shared/lambda_utils/template_presets.py",
+        "shared/lambda_utils/template_ttl.py",
+        "shared/lambda_utils/template_validation.py",
+        "shared/lambda_utils/thread_ownership.py",
+        "shared/lambda_utils/validation.py",
+        "shared/lambda_utils/wa_internal_event.py",
+        "shared/lambda_utils/wa_status.py",
+        "shared/lambda_utils/webhook_dedup.py",
+        "shared/lambda_utils/whatsapp_types.py",
+        "shared/lambda_utils/wix_ecom.py",
+        "shared/lambda_utils/wix_guard.py",
+        "shared/static_knowledge_base.py"
+      ],
+      "sourceDifferences": [],
+      "trigger": "Existing SEO workflow broad shared-module filter on repair commit",
+      "workflow": "37875375124",
+      "testJob": "success",
+      "deployJob": "success",
+      "providerReadSmoke": "success",
+      "versionAliasRollback": "Unavailable: existing workflow updates unversioned $LATEST",
+      "contentRollback": "Rebuild prior audited53ed298e with existing SEO manifest; exact old ZIP not retained",
+      "correction": "Narrow trigger to packaged top-level shared modules",
+      "baseline53ed298eMemberDifferences": [],
+      "memberContentUnchangedFromBaseline": true
+    },
+    "dependencyAlerts": "Two high alerts; see codex-audit-evidence-20261009.json",
+    "finalFollowupTests": {
+      "pythonPassed": 10378,
+      "pythonSkipped": 6,
+      "pythonXfailed": 3,
+      "seoScopeFocusedPassed": 27
+    }
+  },
+  "historicalSnapshots": [
+    {
+      "label": "Pre-master-audit root preserved; historical only",
+      "snapshot": {
+        "verifiedDate": "2026-10-09",
+        "sourceBaseline": "310b78fe5e9026da38fa6adfd1a4b847f9e81214",
+        "deployment": [
+          {
+            "function": "wecare-whatsapp-business-api",
+            "live": "79",
+            "rollback": "78",
+            "codeSha256": "fGW4u2Knkc33y/ppQZylVOY5PH30hrmVVBsYJ3UJeDo="
+          },
+          {
+            "function": "wecare-messages-read",
+            "live": "29",
+            "rollback": "28",
+            "codeSha256": "SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY="
+          },
+          {
+            "function": "wecare-inbound-whatsapp",
+            "live": "92",
+            "rollback": "90",
+            "codeSha256": "uMQnayCVA6Px3rgKI5JgftfYIobT1Q4pKZqHBNe57us="
+          }
+        ],
+        "tests": {
+          "focusedPythonPassed": 277,
+          "typecheck": "passed",
+          "websiteBuild": "passed",
+          "customerPurchase": "not performed",
+          "additionalRoutingChecksPassed": 79,
+          "catalogSnapshotTestsPassed": 93
+        },
+        "qa": {
+          "contactExists": true,
+          "verifiedCheckoutCustomerLink": false,
+          "readOnlyOrdersSmoke": "VERIFIED_CUSTOMER_REQUIRED",
+          "messagesSent": 0,
+          "paymentPerformed": false,
+          "customerTestPhoneSuffix": "0044"
+        },
+        "catalog": {
+          "current": "1607047307067517",
+          "nativeServicesFlag": "absent; disabled",
+          "syncLive": "6",
+          "syncVariantScope": "Submit Request and Vault only",
+          "forceOutOfStock": true,
+          "apiInventory": "empty owned/shared response; contradicted by visible UI inventory",
+          "uiPermissionDenied": [
+            "1088514403989109",
+            "1607047307067517"
+          ],
+          "deleted": [],
+          "freshCreated": false,
+          "sdkDisconnect": "pending explicit updated confirmation",
+          "readOnlyInspect": "read_failed; applied 0",
+          "wixWebhookDelivery": "received; catalog sync read_failed",
+          "wixWriteback": "disabled; writeback and confirmed-contract flags absent"
+        },
+        "flows": {
+          "submitRequestPaid": {
+            "id": "1107164111921876",
+            "status": "PUBLISHED"
+          },
+          "leaveReview": {
+            "id": "1578178897413815",
+            "status": "PUBLISHED"
+          },
+          "requestAmendment": {
+            "id": "3678132465672138",
+            "status": "DRAFT"
+          },
+          "dropDocs": {
+            "id": "1211063631104445",
+            "status": "DRAFT"
+          }
+        },
+        "remaining": [
+          "Restore catalog-management access and verify API ownership inventory",
+          "Approve concrete permanent-deletion targets at action time",
+          "Create and share fresh catalog after authorized cleanup",
+          "Persist owner approval queue and actions for new or changed catalog entries",
+          "Assign artworks to approved Meta catalog entries; Wix assignment complete",
+          "Validate amendment and document draft ownership and fulfillment",
+          "Enable native services only after writeback and payment prerequisites pass",
+          "Run real customer Submit Request and Vault QA",
+          "Reconcile legacy unlinked orders and legacy public upload originals"
+        ],
+        "website": {
+          "keywordDeploymentJob": "1488",
+          "keywordDeploymentStatus": "SUCCEED",
+          "keywordDeploymentCommit": "c2cfa741b35a881813667edde307610a71604952",
+          "artworkSnapshotDeployment": "job 1490 RUNNING at last check",
+          "liveServicePricesPaise": {
+            "submit-request": 9900,
+            "request-amendment": 9900,
+            "drop-docs": 35000,
+            "vault": 4900
+          },
+          "existingOrderCopy": "build and typecheck passed; source ready for deployment"
+        }
+      }
+    }
+  ],
+  "status": "PARTIALLY COMPLETE",
+  "latestMasterAudit": {
+    "report": "outputs/xcodex-deep-audit-2026-10-09.md",
+    "machineReadable": "outputs/xcodex-current-state.json",
+    "diagnosticRepair": {
+      "function": "wecare-whatsapp-business-api",
+      "liveVersion": "89",
+      "aliasRevision": "766722c7-05d8-4664-ab37-5be8c38d9f57",
+      "rollbackVersion": "88",
+      "codeSha256": "r+k6k2WhMDaNbYzFfax39Zi/1e/ckqg8ad891fvCu3E=",
+      "liveRawStatus": 410,
+      "candidateChecks": {
+        "raw": 410,
+        "list": 200,
+        "check": 200,
+        "unauthorizedHttp": 401
+      }
+    }
+  },
+  "latestVaultFollowup": {
+    "observedAt": "2026-10-09T04:41:38.223589+00:00",
+    "sourceCheckpoint": "e9e377ce01598877af867da16b989abd6ea40234",
+    "classification": "PARTIALLY COMPLETE",
+    "implementation": "SPECIFIED NOT BUILT",
+    "newProductionMutation": false,
+    "targetedTestsPassed": 121,
+    "renewal": "NOT IMPLEMENTED",
+    "webSignedUrlSeconds": 60,
+    "directLinkRawEnvSeconds": 21600,
+    "directLinkEffectiveSourceClampSeconds": 900,
+    "legacyGrantSeconds": 1800,
+    "grantsTableTTL": {
+      "status": "ENABLED",
+      "attribute": "expiresAt"
+    },
+    "templatesFreshApproved": [
+      "wecarepay_wa",
+      "wecare_default_download",
+      "wecare_leave_review"
+    ],
+    "approvedDownloadBase": "https://wecare.digital/vault/?file={{1}}",
+    "nextAction": "V1/V2 durable paid entitlement plus authenticated temporary-session renewal"
+  },
+  "latestFlowRetirement": {
+    "counts": {
+      "DEPRECATED": 35,
+      "DRAFT": 22,
+      "PUBLISHED": 2
+    },
+    "total": 59,
+    "retiredIds": [
+      "2672013166527523",
+      "1018621047428701",
+      "1529800232178121",
+      "1262971692700761",
+      "1021379973921053",
+      "1935472957154109",
+      "959273520451230",
+      "2150051392227837",
+      "951987930811295"
+    ],
+    "retained": [
+      {
+        "id": "2167802357142172",
+        "name": "WD_Orders_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "849713848195607",
+        "name": "WD_Shipments_Design_v1",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1107164111921876",
+        "name": "WD_Submit_Request_Paid_v1",
+        "status": "PUBLISHED",
+        "categories": [
+          "CUSTOMER_SUPPORT"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1578178897413815",
+        "name": "WD_Leave_Review_v2",
+        "status": "PUBLISHED",
+        "categories": [
+          "SURVEY"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "1211063631104445",
+        "name": "WD_Drop_Documents",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      },
+      {
+        "id": "3678132465672138",
+        "name": "03.WD_Amend_Request",
+        "status": "DRAFT",
+        "categories": [
+          "OTHER"
+        ],
+        "validation_errors": [],
+        "wabaId": "2094615664435155"
+      }
+    ],
+    "unusedDraftCount": 18,
+    "draftsDeleted": 0,
+    "staleRouting": "Subscribe/Profile UI references require cleanup",
+    "evidence": "outputs/flow-retirement-2026-10-09.json"
   }
 }
