@@ -130,5 +130,63 @@
     "wecarepay_wa": "APPROVED",
     "wecare_default_download": "APPROVED",
     "wecare_leave_review": "APPROVED"
+  },
+  "codexAuditReconciliation": {
+    "date": "2026-10-09",
+    "sourceBaseline": "53ed298e422ac7694acc19bee91551169a7fe042",
+    "classification": "PARTIALLY COMPLETE",
+    "productionChanges": [
+      {
+        "function": "wecare-secure-files",
+        "live": "32",
+        "codeSha256": "MSP3hq5NKdhELTFojwfJDX2g5G7FIzsfmAELlADgrcY=",
+        "rollback": "31"
+      },
+      {
+        "function": "wecare-service-requests",
+        "live": "4",
+        "codeSha256": "4iVRen7bFz/s+SGaDXrwzwJeW9LVP0xRwlsFGj1l20Q=",
+        "rollback": "3"
+      }
+    ],
+    "paymentDiagnostic": {
+      "sourceFixed": true,
+      "packageTestsPassed": 135,
+      "deployment": "HELD_CONCURRENT_LATEST",
+      "live": "79"
+    },
+    "catalog": {
+      "sourceTarget": "1457045652952851",
+      "liveSyncTarget": "1607047307067517",
+      "newTargetProductsRead": "200; empty",
+      "oldTargetRead": "Graph 100/subcode 33; permission versus deletion unresolved",
+      "mutations": 0
+    },
+    "qa": {
+      "phoneVerified": true,
+      "checkoutCustomerLinkPresent": false,
+      "permanentUuidPresent": false,
+      "messagesSent": 0,
+      "realPaymentPerformed": false
+    },
+    "tests": {
+      "pythonPassed": 10365,
+      "pythonSkipped": 6,
+      "pythonXfailed": 3,
+      "vitestPassed": 1582,
+      "vitestSkipped": 11,
+      "typecheck": "passed",
+      "lint": "0 errors; 191 warnings",
+      "productionBuild": "passed",
+      "exactSecureFilesPassed": 97,
+      "exactServiceRequestsPassed": 35
+    },
+    "amplify": {
+      "job": "1497",
+      "commit": "53ed298e422ac7694acc19bee91551169a7fe042",
+      "state": "SUCCEED"
+    },
+    "record": "codex-audit-evidence-20261009.json",
+    "customerReady": false
   }
 }

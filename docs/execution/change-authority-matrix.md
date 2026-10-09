@@ -1,5 +1,49 @@
 # Change authority matrix
 
+## 2026-10-09 — deep audit and permanent file ownership repair
+
+A0_READ: refreshed origin/stack53ed298e, isolated foreign dirty work, audited76Lambdas,
+69livealiases,384routes,85tables,7buckets and5 relevant IAM roles; compared10immutable
+ZIPs; read Meta Flows/templates/payment lists and Wix revision5. Initial audit preceded
+all edits. No provider credentials were retrieved. Root use was authorized by the
+tracked project-completion-20261009 plan. This entry follows the master audit request
+and 01-standing-authorization classes A1_LOCAL/A2_REMOTE_CODE/A3_PRODUCTION.
+
+A1_LOCAL: exact permanent customer/file/grant ownership, server-resolved upload owner,
+unfiltered/paginated payment diagnostic reader, direct-linkTTL60–900seconds, regressions
+and current-state reconciliation. Exact ZIP preservation restored Secure Files' missing
+whatsapp_delivery.py member specified by its deployment manifest. No flags were enabled.
+
+A3_PRODUCTION: existing private deployment prefix uploaded2testedZIPs. HeadObjectETag,
+functionrevision/livehash and aliasrevision checks preceded writes. UpdateFunctionCode,
+Active/Successful readback, guarded PublishVersion and conditional UpdateAlias:
+
+| Target | Before/rollback | After live | After CodeSha256 | Exact package tests |
+|---|---|---|---|---|
+| wecare-secure-files |31|32|MSP3hq5NKdhELTFojwfJDX2g5G7FIzsfmAELlADgrcY=|97passed/3unrelateddeselected|
+| wecare-service-requests |3|4|4iVRen7bFz/s+SGaDXrwzwJeW9LVP0xRwlsFGj1l20Q=|35passed|
+
+Both Active/Successful, SnapStartNone. Secure payment/DropDocs flagsfalse. GET
+/secure-files/mine executed32 and returned401. Service GET executed4 and returned405.
+Auto-review rejected POST/services/request-intent as potentially mutating on a failed-open
+path; no bypass. Corrected verification uses inert reads plus exact ownership fixtures.
+Business79 repair package passes135checks, but its pending $LATESThash differs fromlive;
+no overwrite/publish/alias change attempted on that function.
+
+Broad verification:10365Pythonpassed/6skipped/3xfailed;1582Vitestpassed/11skipped;
+typecheck/buildpass;eslint0errors/191existingwarnings;diffcheckpass. Build first hit an
+external node_modules symlink and then blocked read-only blog fetches; isolated dependency
+copy and permitted network build resolved those host limitations. Baseline53ed298e has
+7successful GitHub workflows and Amplify1497SUCCEED. Customer/payment E2E unverified.
+
+Exact before/after function and alias revisions, hashes, smoke results, held target and
+rollback evidence: docs/whatsapp/service-rollout/codex-audit-evidence-20261009.json.
+Rollback requires re-read GetAlias and UpdateAlias to31/3 with its current RevisionId;
+never reuse an old aliasrevision. Do not roll back to legacy phone-only ownership without
+assessing exposure. No new IAM, routes, environment, provider settings, sends, payments,
+stockavailability, customer record mutation, bucket creation/deletion or credentials.
+
+
 ## 2026-10-07 — UNAUTHORIZED APPLY of `provision_secure_files_api.py`, and the alias rolled back
 
 **This entry records a mistake, not a change that was decided.** It is first in the file
