@@ -1,15 +1,15 @@
 {
   "classification": "PARTIALLY COMPLETE",
-  "observedAt": "2026-10-09 04:10:00 UTC",
-  "sourceBaseline": "d03ac81dfda8d1a5da461f01b4005559b2a3ada4",
+  "observedAt": "2026-10-09T11:04:00Z",
+  "sourceBaseline": "3b9faffd3686c0c5be51a8f046592a8c4680087c",
   "aws": {
     "region": "us-east-1",
     "functions": [
       {
         "function": "wecare-whatsapp-business-api",
-        "version": "90",
-        "aliasRevision": "62d5be2c-00ad-4179-b3af-1d42fc9584c9",
-        "hash": "pAiHGtHkI2cK9AYiUHlNtDlWtiqTXS4++KbMZX1CioI=",
+        "version": "92",
+        "aliasRevision": "e75ecb1a-cfcf-4009-af1f-a5726c591175",
+        "hash": "vdj3fItIrPi3Hb3x4PthvTDpyC01yDVG88cwtx+pFfQ=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -57,9 +57,9 @@
       },
       {
         "function": "wecare-secure-files",
-        "version": "34",
-        "aliasRevision": "01e8e9ef-f514-4829-9dc5-7299321465ab",
-        "hash": "6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=",
+        "version": "35",
+        "aliasRevision": "226f8110-22d1-433e-a250-e2a7592786d6",
+        "hash": "TsxFbPJSg+w+LQ6FOKJfvb/HP5j6x0Ldx/4Fk5e9yF0=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -92,7 +92,8 @@
           "WHATSAPP_LINK_TTL_SECONDS"
         ],
         "safeControls": {
-          "DROPDOCS_ATTACH_ENABLED": "false"
+          "DROPDOCS_ATTACH_ENABLED": "false",
+          "SECURE_FILES_PAYMENT_ENABLED": "false"
         }
       },
       {
@@ -1282,7 +1283,7 @@
               },
               {
                 "type": "BODY",
-                "text": "\ud83d\udcc4 Your document is ready \u2014 tap below to download!"
+                "text": "📄 Your document is ready — tap below to download!"
               },
               {
                 "type": "FOOTER",
@@ -1315,7 +1316,7 @@
               },
               {
                 "type": "BODY",
-                "text": "\u2b50 How was your experience? We\u2019d love your feedback!"
+                "text": "⭐ How was your experience? We’d love your feedback!"
               },
               {
                 "type": "FOOTER",
@@ -1518,5 +1519,61 @@
     "skipped": 7,
     "xfailed": 3,
     "focused": 135
+  },
+  "status": "PARTIALLY COMPLETE",
+  "latestChatGPTVaultV1V2": {
+    "observedAt": "2026-10-09T11:04:00Z",
+    "classification": "PARTIALLY COMPLETE",
+    "sourceCheckpoint": "3b9faffd3686c0c5be51a8f046592a8c4680087c",
+    "implementation": "BUILT_TESTED_DEPLOYED_GATES_CLOSED",
+    "durableEntitlement": "VAULT_ENTITLEMENT non-TTL row in DownloadGrantsTable",
+    "downloadSession": "VAULT_DOWNLOAD_SESSION expiresAt TTL row; fresh presigned URL per authenticated access",
+    "historicalMigration": "paid historical grants including consumed paid grants lazily project to entitlement after owner/file checks",
+    "websiteAction": "Download / Refresh Access",
+    "nativePaidRefresh": "implemented but release remains gated by VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED",
+    "reviewMilestone": "first authenticated access session; vaultReviewStatus deduplicates",
+    "tests": {
+      "pythonPassed": 10376,
+      "pythonSkipped": 7,
+      "pythonXfailed": 3,
+      "focusedVaultPassed": 124,
+      "frontendFiles": 126,
+      "frontendPassed": 1607,
+      "frontendSkipped": 2,
+      "typecheck": "PASS",
+      "productionBuild": "PASS",
+      "lintErrors": 0,
+      "lintWarnings": 191
+    },
+    "production": [
+      {
+        "function": "wecare-secure-files",
+        "before": "34",
+        "after": "35",
+        "codeSha256": "TsxFbPJSg+w+LQ6FOKJfvb/HP5j6x0Ldx/4Fk5e9yF0=",
+        "rollback": "34"
+      },
+      {
+        "function": "wecare-whatsapp-business-api",
+        "before": "91",
+        "after": "92",
+        "codeSha256": "vdj3fItIrPi3Hb3x4PthvTDpyC01yDVG88cwtx+pFfQ=",
+        "rollback": "91"
+      }
+    ],
+    "gates": {
+      "SECURE_FILES_PAYMENT_ENABLED": "false",
+      "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "unset",
+      "WHATSAPP_CATALOG_SERVICES_ENABLED": "unset",
+      "WIX_WRITEBACK_ENABLED": "unset",
+      "WIX_ECOM_WRITE_CONFIRMED": "unset"
+    },
+    "provider": {
+      "submitFlow": "1107164111921876 PUBLISHED",
+      "wecarepay_wa": "1783774039408860 APPROVED",
+      "wecare_default_download": "1410998911012572 APPROVED",
+      "wecare_leave_review": "1801972550682516 APPROVED"
+    },
+    "ownerQA": "PENDING — no real message/payment performed; prove paid purchase + expiry/interruption refresh with no second charge"
   }
 }
