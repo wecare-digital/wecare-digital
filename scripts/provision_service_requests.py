@@ -50,6 +50,7 @@ CUSTOMER_INDEX = "customerId-createdAt-index"
 ORDER_INDEX = "orderId-index"
 COMMERCE_KEYS_TABLE = "stack-wecare-digital-WixOrderIds"
 RATE_LIMIT_TABLE = "stack-wecare-digital-RateLimitTable"
+ORDERS_TABLE = "stack-wecare-digital-OrderTable"
 CUSTOMER_POOL_ID = "us-east-1_46ULYuukt"
 
 #: The commerce-keys row families activation reads. Nothing else on that table is reachable.
@@ -113,6 +114,9 @@ def expected_role_policy(acct: str | None = None) -> dict:
              "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{COMMERCE_KEYS_TABLE}"],
              "Condition": {"ForAllValues:StringLike": {
                  "dynamodb:LeadingKeys": list(COMMERCE_KEY_PREFIXES)}}},
+            {"Sid": "ReadOriginalOwnedOrder", "Effect": "Allow",
+             "Action": ["dynamodb:GetItem"],
+             "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{ORDERS_TABLE}"]},
             {"Sid": "RateLimitCounter", "Effect": "Allow",
              "Action": ["dynamodb:UpdateItem"],
              "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{RATE_LIMIT_TABLE}"]},
@@ -139,6 +143,7 @@ def expected_environment() -> dict:
         "SERVICE_REQUESTS_TABLE": SERVICE_REQUESTS_TABLE,
         "COMMERCE_KEYS_TABLE": COMMERCE_KEYS_TABLE,
         "RATE_LIMIT_TABLE": RATE_LIMIT_TABLE,
+        "ORDERS_TABLE": ORDERS_TABLE,
         "CUSTOMER_POOL_ID": CUSTOMER_POOL_ID,
     }
 

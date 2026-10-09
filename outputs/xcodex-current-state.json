@@ -1,15 +1,15 @@
 {
   "classification": "PARTIALLY COMPLETE",
-  "observedAt": "2026-10-09T12:50:00Z",
-  "sourceBaseline": "8109471f74e09dcef4958d34343f9ca923ac740a",
+  "observedAt": "2026-10-09T13:05:00Z",
+  "sourceBaseline": "7c0ba37382a281b4439508806288409276cc1abf",
   "aws": {
     "region": "us-east-1",
     "functions": [
       {
         "function": "wecare-whatsapp-business-api",
-        "version": "93",
-        "aliasRevision": "5df38bed-f97b-47d6-bc6a-6f277d4e1278",
-        "hash": "erEMzmiJg7rNjwU1iTb+vR1aEQ4FDTjqfAfSW5lujAQ=",
+        "version": "94",
+        "aliasRevision": "493d22e1-dcfd-4072-be78-dd40a25a9d7c",
+        "hash": "iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -119,9 +119,9 @@
       },
       {
         "function": "wecare-meta-catalog-sync",
-        "version": "8",
-        "aliasRevision": "ad73c017-caa7-4284-8e71-a8cf07991222",
-        "hash": "he0Y8MPVNwBY4r2dZnD5cEEvIfkwVHsd6j+kUex4fNQ=",
+        "version": "9",
+        "aliasRevision": "61f6fc98-8f45-47cb-9f2c-c6ff27e6e4f1",
+        "hash": "cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -148,7 +148,8 @@
           "META_CATALOG_SYNC_DRY_RUN": "true",
           "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
           "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
-          "META_CATALOG_SYNC_APPROVED_PLAN_SHA256": "unset"
+          "META_CATALOG_SYNC_APPROVED_PLAN_SHA256": "removed",
+          "META_CATALOG_APPROVALS_TABLE": "stack-wecare-digital-AgentApprovalsTable"
         }
       },
       {
@@ -1659,5 +1660,81 @@
       "temporaryOidcRoleDeleted": true
     },
     "ownerQaRequired": true
+  },
+  "latestChatGPTCatalogApproval": {
+    "observedAt": "2026-10-09T13:05:00Z",
+    "sourceCheckpoint": "7c0ba37382a281b4439508806288409276cc1abf",
+    "businessApi": {
+      "version": "94",
+      "hash": "iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=",
+      "rollback": "93"
+    },
+    "metaCatalogSync": {
+      "version": "9",
+      "hash": "cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=",
+      "rollback": "8"
+    },
+    "routes": {
+      "get": {
+        "routeKey": "GET /wa-business/catalog-sync",
+        "routeId": "ktbob4d",
+        "target": "integrations/md9yz9g"
+      },
+      "post": {
+        "routeKey": "POST /wa-business/catalog-sync",
+        "routeId": "aqr2wkn",
+        "target": "integrations/md9yz9g"
+      },
+      "unauthenticatedStatus": 401
+    },
+    "approvalStore": {
+      "table": "stack-wecare-digital-AgentApprovalsTable",
+      "keyPrefix": "META_CATALOG_SYNC#",
+      "durable": true,
+      "ttlAttribute": "expiresTtl",
+      "catalogRowsOmitTtl": true,
+      "permissions": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "denied": [
+        "dynamodb:Scan",
+        "dynamodb:DeleteItem"
+      ],
+      "itemCountAtVerification": 0
+    },
+    "livePlan": {
+      "planHash": "19b8290495af210b94d819d2bdd3640805bd770fa640d6bb46cda46ae31064d5",
+      "counts": {
+        "create": 4,
+        "update": 0,
+        "retire": 0,
+        "foreign": 0
+      },
+      "blocked": [],
+      "approvalStoreReady": true,
+      "approved": false,
+      "applied": 0,
+      "forceOutOfStock": true
+    },
+    "releaseControls": {
+      "enabled": false,
+      "dryRun": true,
+      "forceOutOfStock": true,
+      "proposalNotRecorded": true,
+      "approvalNotRecorded": true,
+      "metaItemsWritten": false
+    },
+    "tests": {
+      "focusedBackendSecurity": "passed",
+      "typeScript": "passed",
+      "focusedWorkspace": "passed",
+      "deploymentWorkflow": "success"
+    },
+    "cleanup": {
+      "temporaryDeployWorkflowDeleted": true,
+      "temporaryOidcRoleDeleted": true
+    }
   }
 }

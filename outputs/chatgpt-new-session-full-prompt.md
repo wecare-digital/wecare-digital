@@ -96,3 +96,16 @@ Current source checkpoint before this documentation update: `8109471f74e09dcef49
 - No real customer payment/send, Flow publication, catalog apply, Wix writeback or synthetic Purchase event occurred. Overall status remains PARTIALLY COMPLETE.
 
 Exact next engineering action: finish the catalog proposal → durable approval → apply/readback mechanism while keeping the live sync gates closed by default, then continue Submit A/B/P/R and Request Amendment/Drop Docs engineering. Owner-paid Vault E2E QA is still mandatory before customer release.
+
+
+## 2026-10-09 13:05 UTC durable catalog approval delta
+
+- Business API live **v94**, SHA `iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=`, rollback v93.
+- Meta catalog sync live **v9**, SHA `cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=`, rollback v8.
+- Durable proposal/approval/apply/readback control is implemented on the existing AgentApprovals table with catalog-specific namespaced keys and no TTL on catalog audit records. Least privilege is GetItem/PutItem/UpdateItem only.
+- Workspace Store Admin has exact-plan proposal/approval controls. Business API derives approver identity from authenticated Cognito Admin + MFA; the browser cannot supply approvedBy.
+- New routes GET/POST `/wa-business/catalog-sync` reuse Business API live integration. Anonymous smoke is 401.
+- Live read-only plan hash is `19b8290495af210b94d819d2bdd3640805bd770fa640d6bb46cda46ae31064d5`, 4 creates / 0 updates / 0 retires / 0 blockers, all out of stock.
+- Catalog release gates remain closed: enabled=false, dryRun=true, force-out-of-stock=true. No proposal/approval/apply was performed; approval table item count remained 0.
+- Focused security tests + TypeScript + Workspace control test passed before deploy. Temporary workflow/OIDC role removed.
+- Overall status remains PARTIALLY COMPLETE. Next implementation target: Submit Request A/B/P/R full convergence and terminal recovery, then Request Amendment/Drop Docs. Do not open catalog sales or perform owner payment on the user's behalf.

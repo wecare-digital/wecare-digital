@@ -205,3 +205,17 @@ Status remains **PARTIALLY COMPLETE**. Vault V1/V2 remains deployed and closed f
 - Fresh Wix Catalog V3 readback: product `df976a0a-f582-4535-b2e1-d532f348bd27` revision 5, visible/in stock. Exact variants/prices confirmed: Submit ₹99 `e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b`; Amendment ₹99 `864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b`; Drop Docs ₹350 `db166bc8-a763-41ec-9f65-0f718f18155a`; Vault ₹49 `dcff995e-448c-493a-9259-f6a82ccdc2b4`.
 - Deployment was preceded by focused regression tests in the one-shot workflow; the deployment completed SUCCESS. Temporary workflow and exact-scope OIDC role were deleted afterward.
 - Customer release remains closed. No real customer payment, send, Flow publication, Meta catalog item write, Wix order writeback, or synthetic Purchase event was performed.
+
+
+## ChatGPT durable catalog approval control — 2026-10-09 13:05 UTC
+
+Status remains **PARTIALLY COMPLETE**. This phase completed the catalog proposal/approval control plane without opening catalog sales or writing a Meta item.
+
+- Business API production: **v94**, SHA `iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=`; rollback v93.
+- Meta catalog sync production: **v9**, SHA `cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=`; rollback v8.
+- New authenticated Workspace routes: `GET /wa-business/catalog-sync` (route `ktbob4d`) and `POST /wa-business/catalog-sync` (route `aqr2wkn`), both reusing the existing Business API live integration. Application auth revalidates Cognito Admin and configured Admin MFA; anonymous smoke returned HTTP 401.
+- Durable exact-plan records use existing `stack-wecare-digital-AgentApprovalsTable` with namespaced key `META_CATALOG_SYNC#<sha256>`. Catalog rows omit `expiresTtl`; the Lambda role has only GetItem/PutItem/UpdateItem on that table. Scan/Delete remain denied.
+- Background schedule/webhook executions cannot spend an approval. Apply requires an explicit Admin action, exact current plan, durable APPROVED state, enabled=true and dryRun=false.
+- Live read-only plan: hash `19b8290495af210b94d819d2bdd3640805bd770fa640d6bb46cda46ae31064d5`; create=4, update=0, retire=0, foreign=0, blockers=[]; all desired items held out of stock.
+- Release controls remain closed: enabled=false, dryRun=true, force-out-of-stock=true. Approval table item count remained 0 after smoke tests. No proposal, approval, Meta item write, Wix write, payment, customer send or synthetic event was performed.
+- Focused backend security tests, TypeScript and focused Workspace tests passed before deployment. The one-shot deploy workflow and temporary OIDC role were deleted after successful verification.

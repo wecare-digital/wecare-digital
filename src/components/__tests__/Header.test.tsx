@@ -134,13 +134,14 @@ describe( 'Header', () => {
     const request = screen.getByText( 'Request' ).closest( '.nav-group' );
     expect( request?.textContent ).toContain( 'Shipments' );
 
-    // Order: Shipments sits immediately BEFORE Leave Review, and Leave Review stays the last item
-    // of the group (the new order is Orders, Submit Request, Request Amendment, Drop Docs, Vault,
-    // Shipments, Leave Review).
+    // Order: Shipments sits immediately BEFORE Leave Review. Leave Review is no longer the last
+    // item of the group: on owner instruction Subscribe now follows it (the order is Orders,
+    // Submit Request, Request Amendment, Drop Docs, Vault, Shipments, Leave Review, Subscribe).
     const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] )
       .map( node => node.textContent );
     expect( labels.indexOf( 'Shipments' ) ).toBe( labels.indexOf( 'Leave Review' ) - 1 );
-    expect( labels.indexOf( 'Leave Review' ) ).toBe( labels.length - 1 );
+    expect( labels.indexOf( 'Subscribe' ) ).toBe( labels.indexOf( 'Leave Review' ) + 1 );
+    expect( labels.indexOf( 'Subscribe' ) ).toBe( labels.length - 1 );
     // Orders remains the first row in the group.
     expect( labels.indexOf( 'Orders' ) ).toBe( 0 );
   } );
@@ -151,6 +152,41 @@ describe( 'Header', () => {
     fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
     expect( screen.getByRole( 'link', { name: 'Shipments' } ) ).toHaveAttribute( 'aria-current', 'page' );
     routerState.pathname = '/';
+  } );
+
+  it( 'adds a Subscribe row to the Request group, directly after Leave Review and last', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+
+    // Subscribe is a real public page at /subscribe/. The trailing slash is load-bearing
+    // (trailingSlash is set, so /subscribe would redirect before resolving).
+    expect( screen.getByRole( 'link', { name: 'Subscribe' } ) ).toHaveAttribute( 'href', '/subscribe/' );
+
+    // It lives in the Request group, and the whole group reads in this exact order. Pinning the
+    // full list, not just the tail, so a reorder anywhere in the group is caught.
+    const request = screen.getByText( 'Request' ).closest( '.nav-group' );
+    expect( request?.textContent ).toContain( 'Subscribe' );
+    const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] )
+      .map( node => node.textContent );
+    expect( labels ).toEqual( [
+      'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Shipments',
+      'Leave Review', 'Subscribe',
+    ] );
+  } );
+
+  it( 'marks Subscribe active on its public /subscribe route', () => {
+    routerState.pathname = '/subscribe';
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    expect( screen.getByRole( 'link', { name: 'Subscribe' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    routerState.pathname = '/';
+  } );
+
+  it( 'finds Subscribe through the navigation search', () => {
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    fireEvent.change( screen.getByLabelText( 'Search navigation' ), { target: { value: 'subscribe' } } );
+    expect( screen.getByRole( 'link', { name: 'Subscribe' } ) ).toHaveAttribute( 'href', '/subscribe/' );
   } );
 
   it( 'adds an Extras group immediately above Legal Stuff', () => {

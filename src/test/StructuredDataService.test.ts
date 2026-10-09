@@ -86,6 +86,8 @@ const NOT_OFFERINGS = [
   // gift-card / offers / rewards sections on Perks were removed on owner instruction, so Perks no
   // longer "gathers" anything; and the Shipments route moved from /zip/ on 2026-10-02.)
   '/shipments', '/perks',
+  // Subscribe is a way to contact us (its CTA is /contact/), not something we sell.
+  '/subscribe',
 ];
 
 describe( 'per-page Service structured data', () => {
