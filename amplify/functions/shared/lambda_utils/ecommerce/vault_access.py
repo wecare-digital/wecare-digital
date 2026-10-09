@@ -60,18 +60,48 @@ def grant_access(requests, keys, files, grants, event):
         if (existing.get('customerId') != row['customerId'] or existing.get('fileId') != file['fileId']
                 or existing.get('orderId') != oid or not existing.get('paid')):
             raise ValueError('grant ownership mismatch')
+        entitlement_id = existing.get('entitlementId') or (
+            'vault-entitlement#' + row['customerId'] + '#' + file['fileId'])
+        entitlement = grants.get_item(
+            Key={'grantId': entitlement_id}, ConsistentRead=True).get('Item') or {}
+        if not entitlement:
+            entitlement = {
+                'grantId': entitlement_id, 'recordType': 'VAULT_ENTITLEMENT',
+                'entitlementState': 'ACTIVE', 'customerId': row['customerId'],
+                'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
+                'sourceGrantId': existing['grantId'], 'orderId': oid, 'reference': ref,
+                'requestId': row['requestId'], 'createdAt': int(time.time()),
+                'paidAt': int(row.get('paidAt') or time.time()),
+            }
+            try:
+                grants.put_item(Item=entitlement, ConditionExpression='attribute_not_exists(grantId)')
+            except Exception:
+                entitlement = grants.get_item(
+                    Key={'grantId': entitlement_id}, ConsistentRead=True).get('Item') or {}
+        if entitlement.get('entitlementState') != 'ACTIVE':
+            raise ValueError('entitlement unavailable')
+        existing['entitlementId'] = entitlement_id
         return row, file, existing
+    now = int(time.time())
+    entitlement_id = 'vault-entitlement#' + row['customerId'] + '#' + file['fileId']
     grant = {'grantId': gid, 'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
              'customerId': row['customerId'], 'orderId': oid, 'reference': ref,
              'requestId': row['requestId'], 'source': 'wix_vault', 'paid': True,
-             'consumed': False, 'createdAt': int(time.time())}
+             'consumed': False, 'entitlementId': entitlement_id, 'createdAt': now}
+    entitlement = {'grantId': entitlement_id, 'recordType': 'VAULT_ENTITLEMENT',
+                   'entitlementState': 'ACTIVE', 'customerId': row['customerId'],
+                   'fileId': file['fileId'], 'ownerPhone': file['ownerPhone'],
+                   'sourceGrantId': gid, 'orderId': oid, 'reference': ref,
+                   'requestId': row['requestId'], 'createdAt': now,
+                   'paidAt': int(row.get('paidAt') or now)}
     # The original private file must still be active and owned at the grant commit.
     items = [store._put(grants.name, grant, 'attribute_not_exists(grantId)'),
+        store._put(grants.name, entitlement, 'attribute_not_exists(grantId)'),
         {'Update': {'TableName': files.name, 'Key': store._marshal_item({'fileId': file['fileId']}),
-                    'UpdateExpression': 'SET vaultAccessGrantId=:g, vaultPaymentStatus=:paid, vaultOrderNumber=:number, vaultRequestNumber=:request',
+                    'UpdateExpression': 'SET vaultAccessGrantId=:g, vaultEntitlementId=:e, vaultPaymentStatus=:paid, vaultOrderNumber=:number, vaultRequestNumber=:request',
                     'ConditionExpression': 'ownerCustomerId=:owner AND #s=:active',
                     'ExpressionAttributeNames': {'#s': 'status'},
-                    'ExpressionAttributeValues': store._marshal_item({':g': gid, ':owner': row['customerId'], ':active': 'active', ':paid': 'PAID', ':number': str(row.get('orderNumber') or oid), ':request': row['publicRequestId']})}},
+                    'ExpressionAttributeValues': store._marshal_item({':g': gid, ':e': entitlement_id, ':owner': row['customerId'], ':active': 'active', ':paid': 'PAID', ':number': str(row.get('orderNumber') or oid), ':request': row['publicRequestId']})}},
         {'Update': {'TableName': requests.name, 'Key': store._marshal_item({'requestId': row['requestId']}),
                     'UpdateExpression': 'SET vaultStatus=:ready, vaultGrantId=:g',
                     'ConditionExpression': 'customerId=:owner AND orderId=:o',
