@@ -1,0 +1,259 @@
+{
+  "date": "2026-10-09",
+  "authority": "Owner master prompt and repository 01-standing-authorization A3_PRODUCTION; project-completion-20261009 root authorization",
+  "sourceBaseline": "53ed298e422ac7694acc19bee91551169a7fe042",
+  "changes": [
+    {
+      "target": "wecare-secure-files",
+      "before": {
+        "function": "wecare-secure-files",
+        "alias": {
+          "AliasArn": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
+          "Name": "live",
+          "FunctionVersion": "31",
+          "Description": "",
+          "RevisionId": "565f0b54-05d4-40e3-a482-f76121487de2"
+        },
+        "latest": {
+          "CodeSha256": "AToCbKYvSEN9JZAZPu6K4DQMCOT5rbsotoz3CyqiA1s=",
+          "RevisionId": "0cf7b9d2-7f73-44c1-9f21-99bff1e5cdc1",
+          "LastModified": "2026-10-08T08:20:34.000+0000",
+          "State": "Active",
+          "LastUpdateStatus": "Successful"
+        },
+        "live": {
+          "CodeSha256": "AToCbKYvSEN9JZAZPu6K4DQMCOT5rbsotoz3CyqiA1s=",
+          "RevisionId": "60f605c4-0355-488b-a4a8-06cb1aa4e901",
+          "LastModified": "2026-10-08T08:20:34.000+0000",
+          "State": "Active"
+        }
+      },
+      "after": {
+        "function": "wecare-secure-files",
+        "version": "32",
+        "hash": "MSP3hq5NKdhELTFojwfJDX2g5G7FIzsfmAELlADgrcY=",
+        "aliasRevision": "7e955e0f-281e-4b9d-93f4-551bdb7e1b7c",
+        "state": "Active",
+        "lastUpdate": "Successful",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "flags": {
+          "SECURE_FILES_PAYMENT_ENABLED": "false",
+          "DROPDOCS_ATTACH_ENABLED": "false"
+        },
+        "smoke": {
+          "StatusCode": 200,
+          "ExecutedVersion": "32",
+          "Payload": "{\"statusCode\": 404, \"headers\": {\"Content-Type\": \"application/json\", \"Access-Control-Allow-Origin\": \"https://wecare.digital\", \"Access-Control-Allow-Headers\": \"Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Razorpay-Signature\", \"Access-Control-Allow-Methods\": \"GET,POST,PUT,DELETE,OPTIONS\"}, \"body\": \"{\\\"error\\\": \\\"Unknown route /secure-files/customer/list\\\"}\"}"
+        }
+      },
+      "tests": "97 passed, 3 unrelated Vault tests deselected",
+      "rollbackVersion": "31"
+    },
+    {
+      "target": "wecare-service-requests",
+      "before": {
+        "function": "wecare-service-requests",
+        "alias": {
+          "AliasArn": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-requests:live",
+          "Name": "live",
+          "FunctionVersion": "3",
+          "Description": "",
+          "RevisionId": "79f63e10-4c93-4a08-a894-268ee62792d6"
+        },
+        "latest": {
+          "CodeSha256": "f+NT3wxCRCSfRelSupJTAEvyYaQETGUfTrD6uXqjxDk=",
+          "RevisionId": "6533a96e-d70b-41bc-ac2b-1d11726554b2",
+          "LastModified": "2026-10-08T08:20:33.000+0000",
+          "State": "Active",
+          "LastUpdateStatus": "Successful"
+        },
+        "live": {
+          "CodeSha256": "f+NT3wxCRCSfRelSupJTAEvyYaQETGUfTrD6uXqjxDk=",
+          "RevisionId": "bfab5ead-0977-4c71-913a-e1ad71505cbc",
+          "LastModified": "2026-10-08T08:20:33.000+0000",
+          "State": "Active"
+        }
+      },
+      "after": {
+        "function": "wecare-service-requests",
+        "version": "4",
+        "hash": "4iVRen7bFz/s+SGaDXrwzwJeW9LVP0xRwlsFGj1l20Q=",
+        "aliasRevision": "2bc0920f-5645-4cdc-8509-21b86c58f3d8",
+        "state": "Active",
+        "lastUpdate": "Successful",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "flags": {},
+        "smoke": {
+          "StatusCode": 200,
+          "ExecutedVersion": "4",
+          "Payload": "{\"statusCode\": 405, \"headers\": {\"Content-Type\": \"application/json\", \"Access-Control-Allow-Origin\": \"https://wecare.digital\", \"Access-Control-Allow-Headers\": \"Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Razorpay-Signature\", \"Access-Control-Allow-Methods\": \"GET,POST,PUT,DELETE,OPTIONS\", \"Cache-Control\": \"no-store\", \"Pragma\": \"no-cache\"}, \"body\": \"{\\\"error\\\": \\\"METHOD_NOT_ALLOWED\\\"}\"}"
+        }
+      },
+      "tests": "35 passed",
+      "rollbackVersion": "3"
+    }
+  ],
+  "held": {
+    "target": "wecare-whatsapp-business-api",
+    "reason": "Concurrent $LATEST differs from live; preserve pending code",
+    "live": "79",
+    "liveHash": "fGW4u2Knkc33y/ppQZylVOY5PH30hrmVVBsYJ3UJeDo=",
+    "latestHash": "qPv6qP6tplGBeKhDN1P2ZMiVpeYfRsPZ2deLo84+z9Q=",
+    "packageTests": "135 passed"
+  },
+  "safeAuthenticationSmoke": {
+    "status": "success",
+    "stdout": "",
+    "return_value": {
+      "function": "wecare-secure-files",
+      "path": "/secure-files/mine",
+      "response": {
+        "StatusCode": 200,
+        "ExecutedVersion": "32",
+        "Payload": "{\"statusCode\": 401, \"headers\": {\"Content-Type\": \"application/json\", \"Access-Control-Allow-Origin\": \"https://wecare.digital\", \"Access-Control-Allow-Headers\": \"Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Razorpay-Signature\", \"Access-Control-Allow-Methods\": \"GET,POST,PUT,DELETE,OPTIONS\"}, \"body\": \"{\\\"error\\\": \\\"Verification required\\\"}\"}"
+      }
+    },
+    "api_calls": [
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      }
+    ]
+  },
+  "restrictedProbe": {
+    "state": "AUTO_REVIEW_REJECTED",
+    "target": "POST /services/request-intent without auth",
+    "reason": "Potential side effects if authentication fails open",
+    "replacement": "GET /secure-files/mine => 401; service GET =>405; exact package tests"
+  },
+  "paymentPerformed": false,
+  "messagesSent": 0,
+  "providerMutations": 0,
+  "ciTriggeredDeployment": {
+    "beforeHash": "j+XvrA1e9qdg5jn6/KoueKX1cjjzD6D3jD+Glhxg0WU=",
+    "after": {
+      "CodeSha256": "dOwOgICnmXUKndOlBAcBcHY0WtAINAyKsbFp+zthwP8=",
+      "RevisionId": "1695da44-b662-4cbb-8e15-bc2d80b9721b",
+      "LastModified": "2026-10-09T02:37:13.000+0000",
+      "State": "Active",
+      "LastUpdateStatus": "Successful",
+      "Version": "$LATEST"
+    },
+    "archiveMembers": [
+      "seo_tools_handler.py",
+      "operations/seo-tools/ai.py",
+      "operations/seo-tools/blog_analysis.py",
+      "operations/seo-tools/blog_batches.py",
+      "operations/seo-tools/blog_draft.py",
+      "operations/seo-tools/blog_gate.py",
+      "operations/seo-tools/blog_publish.py",
+      "operations/seo-tools/blog_qa.py",
+      "operations/seo-tools/blog_queue.py",
+      "operations/seo-tools/blog_repetition.py",
+      "operations/seo-tools/blog_sources.py",
+      "operations/seo-tools/blog_templates.py",
+      "operations/seo-tools/blog_verify.py",
+      "operations/seo-tools/faq.py",
+      "operations/seo-tools/handler.py",
+      "operations/seo-tools/seo_config.py",
+      "operations/seo-tools/seo_engine.py",
+      "operations/seo-tools/seo_freshness.py",
+      "operations/seo-tools/seo_refresh.py",
+      "operations/seo-tools/storage.py",
+      "operations/seo-tools/wix.py",
+      "shared/lambda_utils/__init__.py",
+      "shared/lambda_utils/appsecret.py",
+      "shared/lambda_utils/audit.py",
+      "shared/lambda_utils/automation.py",
+      "shared/lambda_utils/contact_key.py",
+      "shared/lambda_utils/cost_flags.py",
+      "shared/lambda_utils/customer_auth.py",
+      "shared/lambda_utils/customer_ideas.py",
+      "shared/lambda_utils/customer_session.py",
+      "shared/lambda_utils/customer_session_config.py",
+      "shared/lambda_utils/customer_session_store.py",
+      "shared/lambda_utils/direct_send.py",
+      "shared/lambda_utils/dynamo_reads.py",
+      "shared/lambda_utils/flow_completion.py",
+      "shared/lambda_utils/gdpr.py",
+      "shared/lambda_utils/graph_errors.py",
+      "shared/lambda_utils/http_path.py",
+      "shared/lambda_utils/idempotency.py",
+      "shared/lambda_utils/identifiers.py",
+      "shared/lambda_utils/live_smoke.py",
+      "shared/lambda_utils/logging.py",
+      "shared/lambda_utils/masking.py",
+      "shared/lambda_utils/media_paths.py",
+      "shared/lambda_utils/message_store.py",
+      "shared/lambda_utils/meta_client.py",
+      "shared/lambda_utils/meta_signature.py",
+      "shared/lambda_utils/meta_version.py",
+      "shared/lambda_utils/middleware.py",
+      "shared/lambda_utils/otp_challenge.py",
+      "shared/lambda_utils/otp_throttle.py",
+      "shared/lambda_utils/pagination.py",
+      "shared/lambda_utils/partner_billing.py",
+      "shared/lambda_utils/partner_tokens.py",
+      "shared/lambda_utils/payment_readiness.py",
+      "shared/lambda_utils/payment_status.py",
+      "shared/lambda_utils/plivo_signature.py",
+      "shared/lambda_utils/privacy.py",
+      "shared/lambda_utils/rate_limit.py",
+      "shared/lambda_utils/rcs_status.py",
+      "shared/lambda_utils/receipt_links.py",
+      "shared/lambda_utils/response.py",
+      "shared/lambda_utils/retired_store.py",
+      "shared/lambda_utils/sinch_rcs.py",
+      "shared/lambda_utils/sinch_signature.py",
+      "shared/lambda_utils/system_events.py",
+      "shared/lambda_utils/template_presets.py",
+      "shared/lambda_utils/template_ttl.py",
+      "shared/lambda_utils/template_validation.py",
+      "shared/lambda_utils/thread_ownership.py",
+      "shared/lambda_utils/validation.py",
+      "shared/lambda_utils/wa_internal_event.py",
+      "shared/lambda_utils/wa_status.py",
+      "shared/lambda_utils/webhook_dedup.py",
+      "shared/lambda_utils/whatsapp_types.py",
+      "shared/lambda_utils/wix_ecom.py",
+      "shared/lambda_utils/wix_guard.py",
+      "shared/static_knowledge_base.py"
+    ],
+    "sourceDifferences": [],
+    "trigger": "Existing SEO workflow broad shared-module filter on repair commit",
+    "workflow": "37875375124",
+    "testJob": "success",
+    "deployJob": "success",
+    "providerReadSmoke": "success",
+    "versionAliasRollback": "Unavailable: existing workflow updates unversioned $LATEST",
+    "contentRollback": "Rebuild prior audited53ed298e with existing SEO manifest; exact old ZIP not retained",
+    "correction": "Narrow trigger to packaged top-level shared modules",
+    "baseline53ed298eMemberDifferences": [],
+    "memberContentUnchangedFromBaseline": true
+  },
+  "dependencyAlerts": [
+    {
+      "number": 63,
+      "package": "@graphql-tools/utils",
+      "severity": "high",
+      "affected": "Multiple Amplify lockfile versions <=12.0.0",
+      "patched": "12.0.1",
+      "exposure": "Runtime exploitability not verified; compatibility upgrade pending"
+    },
+    {
+      "number": 61,
+      "package": "braces",
+      "severity": "high",
+      "affected": "3.0.3 in both lockfiles",
+      "patched": "No patched version listed",
+      "exposure": "Untrusted glob input reachability not verified"
+    }
+  ]
+}

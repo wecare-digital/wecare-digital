@@ -336,11 +336,17 @@ def test_d_the_pre_existing_statements_are_unchanged():
                                                             "s3:PutObject"]
     assert _resources(by_sid["CustomerPoolOnly"]) == [
         "arn:aws:cognito-idp:us-east-1:775261844268:userpool/us-east-1_46ULYuukt"]
-    # the two new statements, and no others
+    # Existing statements plus the exact read-only private incoming ownership proof.
     assert set(by_sid) == {"SecurePrefixOnly", "ReadWhatsAppIncomingToPromote",
                            "DropDocsRequestRows", "Catalogue", "CustomerPoolOnly",
                            "ValidateCallerToken", "AdminRoleLookup", "RazorpayKeyByArn",
-                           "WhatsAppDelivery", "Logs"}
+                           "WhatsAppDelivery", "Logs", "PrivateIncomingOwnershipProof"}
+    proof = by_sid["PrivateIncomingOwnershipProof"]
+    assert _actions(proof) == ["dynamodb:GetItem"]
+    assert sorted(_resources(proof)) == sorted([
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-MessagesTable",
+        "arn:aws:dynamodb:us-east-1:775261844268:table/stack-wecare-digital-ContactsTable",
+    ])
 
 
 # ── the enumeration is not vacuous ────────────────────────────────────────────

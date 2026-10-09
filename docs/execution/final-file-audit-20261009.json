@@ -1,0 +1,162 @@
+{
+  "date": "2026-10-09",
+  "baseline": "9dc8882e0c0e6145d40e2ae5adb73b19b96678fc",
+  "trackedFileAudit": {
+    "baseline": "9dc8882e0c0e6145d40e2ae5adb73b19b96678fc",
+    "uniqueTrackedFiles": 2091,
+    "coverage": {
+      "frontend": 456,
+      "backend": 698,
+      "toolingDocsPlatformsHiddenConfig": 937
+    },
+    "missing": [],
+    "frontendLocalImportFailures": 0,
+    "pythonParseFailures": 0,
+    "pythonCollectedTests": 10196,
+    "reviewLimit": "Complete inventory/hash/reference/syntax coverage plus targeted semantic contract review; historical claims and live provider/customer outcomes are not certified by static classification."
+  },
+  "cleanup": {
+    "filesRemoved": 11,
+    "trackedBytesRemoved": 143806,
+    "priorCleanupFilesRemoved": 117,
+    "priorCleanupBytesRemoved": 1137238,
+    "totalAcrossTwoScopedPassesFilesRemoved": 128,
+    "totalAcrossTwoScopedPassesTrackedBytesRemoved": 1281044,
+    "historyRewritten": false
+  },
+  "verification": {
+    "pythonPassed": 10273,
+    "pythonSkipped": 6,
+    "pythonXfailed": 3,
+    "frontendPassed": 1590,
+    "frontendSkipped": 2,
+    "frontendFiles": 123,
+    "typecheck": "PASS",
+    "staticExportCheckedPages": 1521,
+    "schemaBlocks": 6261,
+    "blogChecksPassed": 10,
+    "lintErrors": 0,
+    "lintWarnings": 191,
+    "exactRuntimePackageCases": 121,
+    "secretVerification": "PASS",
+    "uiLabels": "PASS",
+    "controlSkinFixtureCurrent": "PASS",
+    "browserSuites": [
+      {
+        "suite": "animcheck",
+        "exit": 0
+      },
+      {
+        "suite": "seocheck",
+        "exit": 0
+      },
+      {
+        "suite": "typecheck",
+        "exit": 0
+      },
+      {
+        "suite": "uicheck",
+        "exit": 0
+      },
+      {
+        "suite": "chromecheck",
+        "exit": 0
+      }
+    ],
+    "finalFrontendGraph": {
+      "sources": 431,
+      "reachableFromRouteOrTest": 429,
+      "unresolvedLocalImports": 0,
+      "retainedOtherConsumers": [
+        "src/components/ErrorState.tsx",
+        "src/config/wix.ts"
+      ]
+    }
+  },
+  "rollouts": [
+    {
+      "function": "wecare-checkout",
+      "beforeVersion": "37",
+      "afterVersion": "38",
+      "beforeCodeSha256": "tV2jAKm7MpC/QOzEvMredC5Wi+br3hRu4D2hYWA33YE=",
+      "afterCodeSha256": "utJw69evLC2cbvsq75+Zhnvoai/2KaLn5IUy0cY3DKY=",
+      "aliasRevisionId": "cac74903-57f6-4e5e-bff4-85b1baac7f10",
+      "changedMembers": [
+        "lambda_utils/ecommerce/payment_address.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 37 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-outbound-whatsapp",
+      "beforeVersion": "55",
+      "afterVersion": "56",
+      "beforeCodeSha256": "4l5puJr1dzOq67CZHDOiMbMNtwNZw9eK8GHtoCTJ+2A=",
+      "afterCodeSha256": "vETlj63GfKtbwQwEAOE1CmlzF2/d/PvVS7lhiL/qDtU=",
+      "aliasRevisionId": "6307da00-d3c1-48ef-be5a-02ba740c36a3",
+      "changedMembers": [
+        "lambda_utils/ecommerce/payment_address.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 55 using fresh alias RevisionId"
+    },
+    {
+      "function": "wecare-scheduled-messages",
+      "beforeVersion": "24",
+      "afterVersion": "25",
+      "beforeCodeSha256": "C7+Ku7GNC7EoOrymQuki41c/ZdK0t9/TMDf+1IgAS30=",
+      "afterCodeSha256": "/hCjUkPltb3zvUuSBHGuPL9O2iGJpewpt+877pNUagc=",
+      "aliasRevisionId": "22036e51-ed94-4c3e-8e61-98330d4c5084",
+      "changedMembers": [
+        "handler.py"
+      ],
+      "addedMembers": [],
+      "state": "Active",
+      "lastUpdateStatus": "Successful",
+      "rollback": "UpdateAlias live to 24 using fresh alias RevisionId"
+    }
+  ],
+  "inertRuntimeSmokes": [
+    {
+      "function": "wecare-checkout",
+      "executedVersion": "38",
+      "inertProbe": "OPTIONS",
+      "statusCode": 200,
+      "functionError": null
+    },
+    {
+      "function": "wecare-outbound-whatsapp",
+      "executedVersion": "56",
+      "inertProbe": "invalid JSON",
+      "statusCode": 400,
+      "functionError": null
+    },
+    {
+      "function": "wecare-scheduled-messages",
+      "executedVersion": "25",
+      "inertProbe": "OPTIONS",
+      "statusCode": 200,
+      "functionError": null
+    },
+    {
+      "function": "wecare-scheduled-messages",
+      "executedVersion": "25",
+      "syntheticNonObjectBody": true,
+      "statusCode": 400,
+      "noScheduledRecordProvided": true
+    }
+  ],
+  "scheduledExistingRows": 0,
+  "operationalLimits": [
+    "Coexistence ingestion remains audit-only pending durable tenant-scoped ingestion and account-specific consent/routing metadata",
+    "Wix12missing-product intent unresolved; mass-removal stop preserved",
+    "Live customer/provider/handset/payment journey checks are not certified by offline tests",
+    "Unpatched dependency advisories remain; broad IAM narrowing requires per-operation evidence",
+    "Scheduler claim prevents repeat worker submissions; downstream provider retries do not establish globally exactly-once delivery",
+    "191 lint warnings remain; zero errors"
+  ]
+}

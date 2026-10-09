@@ -2308,10 +2308,10 @@ export interface PaymentOrderItem {
 
 export interface SendPaymentMessageRequest {
   contactId: string;
+  customerPhone: string;
   phoneNumberId: string;
   recipientBsuid?: string;    // Send to BSUID recipient
   templateName?: string;
-  referenceId: string;
   items: PaymentOrderItem[];
   discount?: number;      // In paise
   delivery?: number;      // In paise (shipping/delivery)
@@ -2328,67 +2328,44 @@ export interface SendPaymentMessageRequest {
 }
 
 /**
- * Send WhatsApp Payment Message using order_details
- * 
- * Fields shown in WhatsApp message:
- * - Reference ID
- * - Items (name, amount, quantity)
- * - Discount (₹)
- * - Delivery (₹)
- * - Tax (₹) - passed from frontend
- * 
- * NOTE: Convenience Fee is handled by Razorpay Fee Bearer model (not in WhatsApp message)
+ * Create a server-owned invoice, then ask the invoice engine to send its reserved WhatsApp
+ * payment request. The browser never mints the payment reference and never constructs
+ * order_details; the invoice engine owns recipient, amount persistence, reservation/idempotency
+ * and the final template send.
  */
 export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRequest ): Promise<{ messageId: string; status: string } | null> {
-  const subtotal = request.items.reduce( ( sum, item ) => sum + ( item.amount * item.quantity ), 0 );
-  const discount = request.discount || 0;
-  const delivery = request.delivery || 0;
-  const tax = request.tax || 0;
-
-  // Build order_details payload — always physical-goods for checkout template (address + coupons)
-  const orderDetails: any = {
-    reference_id: request.referenceId,
-    type: 'physical-goods',
-    payment_configuration: request.paymentConfiguration || 'WECAREDIGITAL',
-    currency: request.currency || 'INR',
-    itemName: request.items[ 0 ]?.name || 'Service Fee',
-    quantity: request.items[ 0 ]?.quantity || 1,
+  const invoice = await createInvoiceEngine( {
+    customerPhone: request.customerPhone,
+    contactId: request.contactId,
+    customerEmail: '',
+    shippingAddress: '',
+    billingAddress: '',
+    goodsType: 'physical-goods',
+    items: request.items.map( item => ( {
+      name: item.name,
+      amount: item.amount / 100,
+      quantity: item.quantity,
+      productId: item.productId,
+      gstRate: item.gstRate,
+    } ) ),
+    discount: ( request.discount || 0 ) / 100,
+    shipping: ( request.delivery || 0 ) / 100,
     gstin: request.gstin || DEFAULT_GSTIN,
-    orderId: request.orderId || 'Offline',
-    shipping_info: { country: 'IN', addresses: [] },
-    order: {
-      status: 'pending',
-      items: request.items.map( ( item, idx ) => ( {
-        retailer_id: item.productId || `ITEM_${idx + 1}`,
-        name: item.name,
-        amount: { value: item.amount, offset: 100 },
-        quantity: item.quantity,
-        gstRate: item.gstRate ?? 0,
-      } ) ),
-      subtotal: { value: subtotal, offset: 100 },
-      discount: { value: discount, offset: 100, description: 'Promo' },
-      shipping: { value: delivery, offset: 100, description: 'Express' },
-      tax: { value: tax, offset: 100, description: `GSTIN: ${request.gstin || DEFAULT_GSTIN}` },
-    },
-  };
-
-  // Always use checkout button template (wecarepay_wa) — enables address + coupons
-  return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
-    method: 'POST',
-    body: JSON.stringify( {
-      contactId: request.contactId,
-      phoneNumberId: request.phoneNumberId,
-      recipientBsuid: request.recipientBsuid,
-      isCheckoutTemplate: true,
-      isTemplate: true,
-      templateName: 'wecarepay_wa',
-      templateParams: [],
-      checkoutOrderDetails: orderDetails,
-      headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
-    } ),
+    currency: request.currency || 'INR',
+    orderId: request.orderId || '',
+    entryPoint: 'workspace_inbox',
+    paymentConfiguration: request.paymentConfiguration,
   } );
-}
+  if ( !invoice?.invoiceId ) return null;
 
+  const sent = await sendPaymentLink(
+    invoice.invoiceId,
+    request.phoneNumberId,
+    request.paymentConfiguration,
+  );
+  if ( !sent ) return null;
+  return { messageId: sent.referenceId, status: sent.status };
+}
 
 // ============================================================================
 // WABA MANAGEMENT API (Meta Graph API)
@@ -3019,20 +2996,23 @@ export async function getSupportedLanguages (): Promise<SupportedLanguages> {
  * Test AI response generation
  * API: POST /ai/test
  */
-export async function testBedrockAIResponse ( message: string ): Promise<{ message: string; response: string; detectedLanguage: string }> {
+export async function testBedrockAIResponse ( message: string ): Promise<{
+  message: string; response: string; detectedLanguage: string;
+  responseLanguage: string; languageSource: string; modelId: string;
+} | null> {
   const data = await apiCall<any>( `${API_BASE}/ai/test`, {
     method: 'POST',
     body: JSON.stringify( { message } ),
   } );
-  if ( data )
-  {
-    return {
-      message: data.message || message,
-      response: data.response || 'AI test response would appear here',
-      detectedLanguage: data.detectedLanguage || 'en',
-    };
-  }
-  return { message, response: 'AI service unavailable', detectedLanguage: 'en' };
+  if ( !data || typeof data.response !== 'string' || !data.response.trim() ) return null;
+  return {
+    message: typeof data.message === 'string' ? data.message : message,
+    response: data.response,
+    detectedLanguage: data.detectedLanguage || 'und',
+    responseLanguage: data.responseLanguage || '',
+    languageSource: data.languageSource || '',
+    modelId: data.modelId || '',
+  };
 }
 
 
@@ -3344,7 +3324,7 @@ export interface ScheduledMessage {
   templateParams: string[];
   phoneNumberId: string;
   scheduledAt: string;  // ISO timestamp
-  status: 'PENDING' | 'SENT' | 'FAILED' | 'CANCELLED';
+  status: 'PENDING' | 'DISPATCHING' | 'DISPATCH_UNKNOWN' | 'SENT' | 'FAILED' | 'CANCELLED';
   createdAt: string;
   sentAt?: string;
   errorMessage?: string;
@@ -3378,9 +3358,10 @@ export async function scheduleTemplateMessage ( request: {
  */
 export async function listScheduledMessages ( status?: string ): Promise<ScheduledMessage[]> {
   let url = `${API_BASE}/scheduled`;
-  if ( status ) url += `?status=${status}`;
+  if ( status !== undefined ) url += `?status=${encodeURIComponent( status )}`;
 
   const data = await apiCall<any>( url );
+  if ( !data || !Array.isArray( data.scheduledMessages ) ) throw new Error( 'Scheduled messages are unavailable' );
   if ( data && data.scheduledMessages )
   {
     return data.scheduledMessages.map( normalizeScheduledMessage );
@@ -5496,6 +5477,10 @@ export interface FlowSubmissionItem {
   flowCode: string;
   flowType?: string;
   flowVersion?: string;
+  invoiceDeliveryStatus?: string;
+  orderReference?: string;
+  customerUuid?: string;
+  tags?: string[];
   phone: string;
   contactId?: string;
   senderName?: string;
@@ -6971,7 +6956,11 @@ export interface CapiEventLogEntry {
 export interface CapiStatus {
   wabaId: string;
   partnerAgent: string;
-  dataset: { datasetId?: string; wabaId?: string; cached?: boolean; error?: any };
+  // `fixed: true` means the id came from configuration (the one dataset both WABAs share) and
+  // was NOT read back from Meta — so it says the destination is configured, not that Events
+  // Manager has it linked to this WABA. The panel must not render it as a verified state.
+  // `cached: true` is the other non-live source: the per-WABA create path's DynamoDB cache.
+  dataset: { datasetId?: string; wabaId?: string; cached?: boolean; fixed?: boolean; error?: any };
   supportedEvents: string[];
   capturedClicks: CapiCapturedClick[];
   recentEvents: CapiEventLogEntry[];
@@ -6982,8 +6971,8 @@ export async function getCapiStatus ( wabaId?: string ): Promise<CapiStatus | nu
   return apiCall<CapiStatus>( `${API_BASE}/wa-business/capi${qs}` );
 }
 
-export async function createCapiDataset ( wabaId: string ): Promise<{ success: boolean; datasetId?: string; error?: any } | null> {
-  return apiCall<{ success: boolean; datasetId?: string; error?: any }>( `${API_BASE}/wa-business/capi/dataset`, {
+export async function createCapiDataset ( wabaId: string ): Promise<{ success: boolean; datasetId?: string; fixed?: boolean; error?: any } | null> {
+  return apiCall<{ success: boolean; datasetId?: string; fixed?: boolean; error?: any }>( `${API_BASE}/wa-business/capi/dataset`, {
     method: 'POST', body: JSON.stringify( { wabaId } ),
   } );
 }

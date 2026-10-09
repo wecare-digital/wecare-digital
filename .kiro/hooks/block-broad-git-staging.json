@@ -8,7 +8,7 @@
       "matcher": "execute_bash|control_bash_process",
       "action": {
         "type": "command",
-        "command": "D=/Users/wecaredigital/wecare-store; if [ -x \"$D/.venv/bin/python\" ]; then exec \"$D/.venv/bin/python\" \"$D/scripts/block_broad_git_staging.py\"; else exec /usr/bin/python3 \"$D/scripts/block_broad_git_staging.py\"; fi",
+        "command": "D=/Users/wecaredigital/wecare-digital/wecare-digital; if [ -x \"$D/.venv/bin/python\" ]; then exec \"$D/.venv/bin/python\" \"$D/scripts/block_broad_git_staging.py\"; else exec /usr/bin/python3 \"$D/scripts/block_broad_git_staging.py\"; fi",
         "timeout": 15
       }
     }

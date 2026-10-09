@@ -52,7 +52,10 @@ def test_it_is_not_referenced_anywhere_in_the_function_tree():
 
     hits = []
     for path in (ROOT / "amplify").rglob("*.py"):
-        if "__pycache__" in path.parts:
+        # `amplify/node_modules` is untracked vendored code (aws-cdk-lib custom-resource
+        # handlers). Parsing it cannot tell us anything about OUR call graph, and a
+        # vendored reference to this name would make a dependency able to fail the gate.
+        if "__pycache__" in path.parts or "node_modules" in path.parts:
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))

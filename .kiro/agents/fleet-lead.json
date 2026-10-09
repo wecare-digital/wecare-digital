@@ -36,7 +36,8 @@
     }
   },
   "resources": [
-    "file://.kiro/steering/**/*.md"
+    "file://README.md",
+    "file://tools/browser/README.md"
   ],
   "permissions": {
     "rules": [

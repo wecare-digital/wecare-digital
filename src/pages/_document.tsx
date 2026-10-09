@@ -21,6 +21,25 @@ import { Html, Head, Main, NextScript } from 'next/document';
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TXZ8JT78';
 
 /**
+ * GOOGLE TAG GATEWAY (first-party serving) — OPT-IN, OFF BY DEFAULT.
+ *
+ * When NEXT_PUBLIC_GTM_GATEWAY_PATH is set to a measurement path (e.g. '/y9dq'),
+ * the container, the gtm.js loader, and the noscript iframe are served from that
+ * SAME-ORIGIN path instead of www.googletagmanager.com. The hosting edge must
+ * reverse-proxy that path to <container>.fps.goog, forwarding viewer geo headers
+ * (set up outside this repo: an Amplify Console rewrite of /<path>/<*> ->
+ * https://GTM-TXZ8JT78.fps.goog/<*>, or an owner-managed CloudFront behavior).
+ *
+ * UNSET (the default) keeps the proven third-party loader below byte-for-byte, so
+ * a missing or broken gateway can never take tracking down. Flip it on only after
+ * the path answers `ok` at https://wecare.digital/<path>/?validate_geo=healthy.
+ *
+ * Same-origin means no CSP change is needed: script-src/img-src/frame-src 'self'
+ * in customHttp.yml already permits it.
+ */
+const GTM_GATEWAY_PATH = ( process.env.NEXT_PUBLIC_GTM_GATEWAY_PATH ?? '' ).replace( /\/+$/, '' );
+
+/**
  * Google Consent Mode v2 defaults. Denied-by-default means GA4 and Ads send
  * only cookieless pings until consent is granted, so analytics never loads
  * ahead of a consent decision. Grant it by calling, from your consent UI:
@@ -45,10 +64,17 @@ gtag('consent', 'default', {
 });
 `.trim();
 
+// When the gateway is on, src becomes '<path>?id=<container>&l=<layer>' on this origin;
+// when off, it stays the canonical 'https://www.googletagmanager.com/gtm.js?id=<container>...'.
+// The '?id=' prefix carries the container id to the gateway exactly as GTM's own loader does.
+const GTM_SRC_BASE = GTM_GATEWAY_PATH
+  ? `${GTM_GATEWAY_PATH}?id=`
+  : 'https://www.googletagmanager.com/gtm.js?id=';
+
 const gtmLoader = `
 (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});
 var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';
-j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+j.async=true;j.src='${GTM_SRC_BASE}'+i+dl;f.parentNode.insertBefore(j,f);
 })(window,document,'script','dataLayer','${GTM_ID}');
 `.trim();
 
@@ -88,7 +114,10 @@ export default function Document () {
           <>
             {/* Consent Mode v2 must run BEFORE the container loads. */ }
             <script dangerouslySetInnerHTML={ { __html: consentBootstrap } } />
-            <link rel="preconnect" href="https://www.googletagmanager.com" />
+            {/* Preconnect only helps the third-party host; first-party serving is same-origin. */ }
+            { GTM_GATEWAY_PATH ? null : (
+              <link rel="preconnect" href="https://www.googletagmanager.com" />
+            ) }
             <script dangerouslySetInnerHTML={ { __html: gtmLoader } } />
           </>
         ) : null }
@@ -98,7 +127,11 @@ export default function Document () {
           <noscript
             dangerouslySetInnerHTML={ {
               __html:
-                `<iframe src="https://www.googletagmanager.com/ns.html?id=${GTM_ID}"` +
+                `<iframe src="${
+                  GTM_GATEWAY_PATH
+                    ? `${GTM_GATEWAY_PATH}/ns.html?id=${GTM_ID}`
+                    : `https://www.googletagmanager.com/ns.html?id=${GTM_ID}`
+                }"` +
                 ` height="0" width="0" style="display:none;visibility:hidden"></iframe>`,
             } }
           />

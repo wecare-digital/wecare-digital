@@ -177,3 +177,27 @@ public/vendor/amplify-ui.css
 # R2 full generated audit graph retained locally under outputs instead of Git.
 /docs/execution/workspace-page-inventory-20261008-r2.json
 /docs/execution/workspace-rescan-aws-20261008-r2.json
+# Local tooling/output dirs only. Do NOT ignore .github/ (CI workflows) or
+# .kiro/ (steering, hooks, agents, specs) — those are tracked project config.
+.omni/
+.claude/
+.cursor/
+
+# Machine-local Kiro state that must stay out of git, now that `.kiro/` is no longer
+# ignored wholesale. Each entry is a specific path, never a blanket directory, so a new
+# steering rule, hook, agent or spec still shows up in `git status` the way it should.
+#
+# Per-machine permission grants (shell/fs/mcp allow-rules for THIS workspace root).
+# Tracking it would publish one machine's trust decisions and conflict on every clone;
+# `.kiro/settings/` deliberately tracks only mcp.example.json.
+.kiro/settings/permissions.json
+# Skills installed by the CloudWatch Omni IDE extension, not authored here. They carry
+# `surfaces: [resources, install]` frontmatter, are reinstalled by the extension, and
+# would reappear as a 21-file diff on any machine with a different extension version.
+# The project's own skills (api-health, new-public-page, search-docs, ...) ARE tracked.
+.kiro/skills/omni-*/
+# Durable audit working state. Repo-wide convention across .kiro/work/ is that only
+# plan.md is tracked (blog-production, ia-consolidation, phases-5-10 all do this), so the
+# plan survives a fresh clone and a handover while the per-run notes stay local.
+.kiro/work/deep-repository-audit/*
+!.kiro/work/deep-repository-audit/plan.md

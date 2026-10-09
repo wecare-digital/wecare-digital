@@ -1,0 +1,84 @@
+{
+  "verifiedDate": "2026-10-09",
+  "method": "AWS S3 GetObject bytes 0-23; PNG IHDR width and height decoded",
+  "artwork": [
+    {
+      "service": "submit-request",
+      "bucket": "wecare-digital-get",
+      "key": "o/catalog/services/submit-request/v1/image-4096.png",
+      "contentRange": "bytes 0-23/436435",
+      "contentType": "image/png",
+      "etag": "\"4be76ebddcf967d199f0beee4ea301d0\"",
+      "width": 4096,
+      "height": 4096
+    },
+    {
+      "service": "request-amendment",
+      "bucket": "wecare-digital-get",
+      "key": "o/catalog/services/request-amendment/v1/image-4096.png",
+      "contentRange": "bytes 0-23/413036",
+      "contentType": "image/png",
+      "etag": "\"44ef9421bf890487e5b50024260d2245\"",
+      "width": 4096,
+      "height": 4096
+    },
+    {
+      "service": "drop-docs",
+      "bucket": "wecare-digital-get",
+      "key": "o/catalog/services/drop-docs/v1/image-4096.png",
+      "contentRange": "bytes 0-23/408245",
+      "contentType": "image/png",
+      "etag": "\"fdbe3e2fc3ebbc0f434601f64560198e\"",
+      "width": 4096,
+      "height": 4096
+    },
+    {
+      "service": "vault",
+      "bucket": "wecare-digital-get",
+      "key": "o/catalog/services/vault/v1/image-4096.png",
+      "contentRange": "bytes 0-23/416627",
+      "contentType": "image/png",
+      "etag": "\"171b43c3af84adbda41d0f31b85ca7bc\"",
+      "width": 4096,
+      "height": 4096
+    },
+    {
+      "service": "shipments",
+      "bucket": "wecare-digital-get",
+      "key": "o/catalog/services/shipments/v1/image-4096.png",
+      "contentRange": "bytes 0-23/414079",
+      "contentType": "image/png",
+      "etag": "\"6712337e11385e150a8e4fc26fed2f8b\"",
+      "width": 4096,
+      "height": 4096
+    },
+    {
+      "service": "leave-review",
+      "bucket": "wecare-digital-get",
+      "key": "o/catalog/services/leave-review/v1/image-4096.png",
+      "contentRange": "bytes 0-23/437345",
+      "contentType": "image/png",
+      "etag": "\"e1e075a14c8334517346303738c06ccc\"",
+      "width": 4096,
+      "height": 4096
+    }
+  ],
+  "liveFlags": {
+    "businessApiVersion": "79",
+    "checkoutVersion": "40",
+    "WHATSAPP_CATALOG_SERVICES_ENABLED": "UNSET (off)",
+    "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "UNSET (off)",
+    "WIX_WRITEBACK_ENABLED": "UNSET (off)",
+    "WIX_ECOM_WRITE_CONFIRMED": "UNSET (off)"
+  },
+  "approvedDownloadTemplate": {
+    "id": "1410998911012572",
+    "name": "wecare_default_download",
+    "language": "en",
+    "status": "APPROVED",
+    "header": "IMAGE",
+    "url": "https://wecare.digital/vault/?file={{1}}"
+  },
+  "customerMessagesSent": 0,
+  "paymentPerformed": false
+}

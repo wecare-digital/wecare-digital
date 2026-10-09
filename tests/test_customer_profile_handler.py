@@ -201,6 +201,7 @@ def test_merges_existing_phone_contact_and_preserves_explicit_consent(env):
     fake.Table(CONTACTS_TABLE).put_item(Item={
         "id": "contact-1", "contactId": "contact-1",
         "phone": PHONE, "email": "old@example.com", "name": "Asha",
+        "checkoutCustomerId": CUSTOMER,
         "tags": ["VIP"], "optInEmail": True, "allowlistEmail": True,
         "createdAt": 1, "updatedAt": 1, "deletedAt": None,
     })
@@ -275,13 +276,9 @@ def test_creation_without_an_email_is_refused(env):
     assert fake.count(CONTACTS_TABLE) == 0
 
 
-def test_an_adopted_phone_row_is_stamped_but_still_had_to_prove_its_email(env):
+def test_email_proof_does_not_adopt_a_legacy_phone_row(env):
     h, fake, _ = env
-    # No `checkoutCustomerId`, so the row is CLAIMABLE: `_owned_contact` adopts it and this is an
-    # EDIT, not a creation. The outcome asserted below is unchanged, and that is the point - the
-    # submitted email differs from the stored one and the row carries no `emailVerifiedAt`, so the
-    # ordered proof rules still land on "proof required". A claimed row cannot inherit
-    # verification it never had.
+    # Email proof cannot authorize adoption of a legacy contact.
     fake.Table(CONTACTS_TABLE).put_item(Item={
         "id": "legacy-1", "contactId": "legacy-1", "phone": PHONE,
         "email": "old@example.com", "tags": [], "deletedAt": None,
@@ -295,10 +292,10 @@ def test_an_adopted_phone_row_is_stamped_but_still_had_to_prove_its_email(env):
     token = proof(h, fake)
     resp = h.handler(event(firstName="Asha", lastName="Sen", email=EMAIL,
                            emailProof=token, address=dict(ADDRESS)), None)
-    assert resp["statusCode"] == 200
+    assert resp["statusCode"] == 409
     row = row_of(fake)
-    assert row["checkoutCustomerId"] == CUSTOMER
-    assert row["emailVerifiedAt"]
+    assert "checkoutCustomerId" not in row
+    assert "emailVerifiedAt" not in row
 
 
 # -- the email index is only consulted when there is a second identity to reconcile --------
@@ -570,6 +567,7 @@ def test_the_conditional_check_fallback_writes_the_address_and_leaves_merged_tag
     # matches and this request takes the put_item path.
     fake.Table(CONTACTS_TABLE).put_item(Item={
         "id": deterministic, "contactId": deterministic,
+        "checkoutCustomerId": CUSTOMER,
         "tags": ["VIP", "Customer"], "deletedAt": None,
     })
     fake.arm_failure(CONTACTS_TABLE, "put_item",

@@ -73,6 +73,9 @@ def assert_payable(address: Dict[str, Any], *, channel: str) -> None:
     (`contact_address.normalize_for_storage`'s output). This asks only the channel/tax
     question; it does not re-validate structure.
     """
+    if not isinstance(channel, str) or channel not in {WEBSITE_RAZORPAY, WHATSAPP_ORDER_DETAILS}:
+        raise UnpayableAddress("UNKNOWN_CHANNEL", "")
+
     cc = _country_code(address)
 
     if cc == owned_address.DEFAULT_COUNTRY_CODE:

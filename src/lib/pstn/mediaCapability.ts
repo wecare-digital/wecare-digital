@@ -8,7 +8,7 @@
  *
  *     TypeError: Cannot read properties of undefined (reading 'getUserMedia')
  *
- * `useWebRTCCalling` shows failures with `setError(e.message)`, so that string was
+ * the WhatsApp calling page shows failures with `setError(e.message)`, so that string was
  * what an operator saw. It names the wrong layer: nothing is undefined by mistake,
  * the container simply does not expose the API. Each reason it might not has a
  * different fix, and several of them are in the native project rather than in any

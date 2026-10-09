@@ -19,7 +19,7 @@ def test_dry_run_never_changes_logs():
     assert all(row['status'] == 'READY' for row in result['plan'])
     logs.put_retention_policy.assert_not_called()
 
-def test_root_cannot_apply():
+def test_root_requires_explicit_owner_opt_in():
     sts, logs = clients(f'arn:aws:iam::{module.ACCOUNT}:root')
     with pytest.raises(PermissionError): module.execute(sts, logs, apply=True, now_ms=NOW)
     logs.put_retention_policy.assert_not_called()
@@ -37,3 +37,21 @@ def test_apply_sets_only_exact_groups_and_verifies():
     result = module.execute(sts, logs, apply=True, now_ms=NOW)
     assert result['applied'] == list(module.GROUPS)
     assert logs.put_retention_policy.call_count == 2
+
+
+def test_owner_root_opt_in_applies_and_verifies_exact_groups():
+    sts, logs = clients(module.OWNER_ROOT_ARN)
+    configured = set()
+    logs.put_retention_policy.side_effect = lambda **kw: configured.add(kw['logGroupName'])
+    logs.get_paginator.return_value.paginate.side_effect = lambda **kw: [{'logGroups': [{'logGroupName': kw['logGroupNamePrefix'], 'creationTime': NOW-86400000, **({'retentionInDays': 30} if kw['logGroupNamePrefix'] in configured else {})}]}]
+    result = module.execute(sts, logs, apply=True, now_ms=NOW, owner_authorized_root=True)
+    assert result['applied'] == list(module.GROUPS)
+    assert result['ownerAuthorizedRoot'] is True
+    assert logs.put_retention_policy.call_count == 2
+
+def test_root_opt_in_never_allows_other_account():
+    sts, logs = clients('arn:aws:iam::000000000000:root')
+    sts.get_caller_identity.return_value['Account'] = '000000000000'
+    with pytest.raises(PermissionError):
+        module.execute(sts, logs, apply=True, now_ms=NOW, owner_authorized_root=True)
+    logs.put_retention_policy.assert_not_called()

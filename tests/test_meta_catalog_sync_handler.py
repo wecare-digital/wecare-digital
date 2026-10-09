@@ -21,6 +21,7 @@ the live one from Secrets Manager instead and report success.
 from __future__ import annotations
 
 import ast
+from decimal import Decimal
 import importlib.util
 import json
 import pathlib
@@ -108,7 +109,10 @@ class FakeWix:
                 "currency": p.get("currency") or "INR",
                 "plainDescription": p.get("descriptionHtml") or "",
                 "actualPriceRange": {"minValue": {"amount": p.get("price")}},
-                "media": {"itemsInfo": {"items": []}},
+                "media": {"itemsInfo": {"items": [
+                    {"image": {"url": v["image"]}}
+                    for v in p.get("variants") or [] if v.get("image")
+                ] or ([{"image": {"url": p["image"]}}] if p.get("image") else [])}},
             } for p in self.products]}
         if endpoint == receiver.WIX_VARIANTS_ENDPOINT:
             rows = []
@@ -123,7 +127,10 @@ class FakeWix:
                         "inventoryStatus": {"inStock": variant.get("inStock") is True},
                         # The ONLY source of a per-variant price, which is why the handler makes
                         # this second call at all.
-                        "price": {"actualPrice": {"amount": product.get("price")}},
+                        "price": {"actualPrice": {"amount": (
+                            format(Decimal(variant["pricePaise"]) / 100, ".2f")
+                            if "pricePaise" in variant else product.get("price"))}},
+                        "media": {"image": {"url": variant["image"]}} if variant.get("image") else {},
                     })
             return {"variants": rows}
         raise AssertionError(f"unexpected Wix endpoint: {endpoint}")
@@ -266,11 +273,11 @@ def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
     for key in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN",
                 "META_CATALOG_SYNC_VARIANT_IDS", "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"):
         assert entry[key] == provisioner.ENVIRONMENT[key]
-    assert entry["META_CATALOG_SYNC_ENABLED"] == "true"
-    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "false"
+    assert entry["META_CATALOG_SYNC_ENABLED"] == "false"
+    assert entry["META_CATALOG_SYNC_DRY_RUN"] == "true"
     assert entry["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
     assert set(entry["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
-        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", "db166bc8-a763-41ec-9f65-0f718f18155a", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
 
 
 def _load_provisioner():
@@ -491,11 +498,12 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
 
     planned = next(json.loads(line) for line in lines
                    if json.loads(line).get("event") == "meta_catalog_sync_planned")
-    assert planned["catalogId"] == "1607047307067517"
+    assert planned["catalogId"] == "1457045652952851"
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 24
-    assert planned["blocked"] == 10
+    assert planned["blocked"] == 9  # The service product now has verified artwork.
+    assert "WECARE.DIGITAL Services" not in planned["blockedProducts"]
     assert planned["enabled"] is False
     assert planned["dryRun"] is True
     assert planned["planHash"]
@@ -504,15 +512,18 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
 
 
 def test_the_target_catalogue_is_configuration_and_not_a_literal(snapshot_products, monkeypatch):
-    """WABA2's catalog `1424934879646296` must be reachable without a code change (plan D3).
+    """Another catalog must be reachable without a code change (plan D3).
 
-    The default is WABA1's `1607047307067517`, from `catalog-builder.tsx:17-21`.
+    The default is now the ONE shared `wecare_shop` catalog `1457045652952851`, used by both
+    WABAs. The id below is arbitrary and appears nowhere in the code path, so seeing it come back
+    as the plan target AND reach the Graph read path is what proves `META_CATALOG_ID` is
+    configuration rather than a literal.
     """
-    monkeypatch.setenv("META_CATALOG_ID", "1424934879646296")
+    monkeypatch.setenv("META_CATALOG_ID", "9999999999999999")
     wix, graph = FakeWix(snapshot_products), FakeGraph()
     answer = run(wix, graph)
-    assert answer["catalogId"] == "1424934879646296"
-    assert graph.reads[0]["path"].startswith("1424934879646296/")
+    assert answer["catalogId"] == "9999999999999999"
+    assert graph.reads[0]["path"].startswith("9999999999999999/")
 
 
 # ── 6. structural guarantees, asserted by AST ───────────────────────────────

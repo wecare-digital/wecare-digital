@@ -14,7 +14,7 @@
  *   src/pages/cart.tsx:124        `Math.round( paise ) / 100` then toLocaleString - a float
  *                                 division on the display path. cart.tsx belongs to another
  *                                 phase and is deliberately left alone.
- *   src/lib/formatters.ts:47      `formatCurrency( amount, currency = 'INR' )`: divides by 100,
+ *   retired formatters pilot      `formatCurrency( amount, currency = 'INR' )`: divides by 100,
  *                                 DEFAULTS the currency instead of comparing it, has no en-IN
  *                                 grouping, and renders a formatted FOREIGN amount rather than
  *                                 refusing it - the exact behaviour this module forbids.

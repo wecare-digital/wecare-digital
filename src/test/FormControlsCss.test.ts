@@ -4,6 +4,10 @@ import path from 'path';
 
 import census from './fixtures/control-skin-census.json';
 
+// Census regenerated after retiring the unused RichTextEditor stylesheet and
+// previously retired pay-link page: 62 select rules across20files,27geometry rules.
+// Checkbox/radio rules are unchanged; the no-new-skins gate remains enforced.
+
 /**
  * INVARIANT 4 — the chevron is declared in exactly one file, and no NEW file starts skinning a
  * select, in any of the three authoring mechanisms.
@@ -124,14 +128,12 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/pages/workspace/engage/whatsapp/templates.tsx',
       'src/pages/workspace/engage/whatsapp/waba-dashboard.tsx',
       'src/pages/workspace/forms/responses.tsx',
-      'src/pages/workspace/pay/link/index.tsx',
       'src/pages/workspace/pay/records.tsx',
       'src/pages/workspace/task/index.tsx',
       'src/styles/Dashboard.css',
       'src/styles/Layout.css',
       'src/styles/MCPConnections.module.css',
       'src/styles/Pages.css',
-      'src/styles/RichTextEditor.module.css',
       'src/styles/form-controls.css',
       'src/styles/inner-pages.css',
       'src/styles/inner-ux.css',
@@ -141,14 +143,14 @@ describe( 'form-controls.css — invariant 4', () => {
     // The counts are asserted SEPARATELY from the file set, so a new rule added to an
     // already-allowed file is caught as well as a new file. The arithmetic from 1.3a's frozen
     // 83/41/29 to these figures is in this file's header, property by property.
-    expect( census.summary.ruleSets ).toBe( 67 );
-    expect( census.summary.files ).toBe( 22 );
-    expect( census.summary.geometryRuleSets ).toBe( 29 );
+    expect( census.summary.ruleSets ).toBe( 62 );
+    expect( census.summary.files ).toBe( 20 );
+    expect( census.summary.geometryRuleSets ).toBe( 27 );
     // A-global, A-module and C-injected are UNCHANGED from 1.3a. Only mechanism B moved, and
     // only because elements moved - so a regression in the global stylesheets still fails here.
-    expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 42, files: 9 } );
+    expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 40, files: 8 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 22, files: 11 } );
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 19, files: 10 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and
@@ -207,7 +209,7 @@ describe( 'form-controls.css — invariant 4', () => {
     expect( phone ).toMatch( /min-width:\s*var\(--tap-target\)/ );
   } );
 
-  it( '7. the pairing count is 21', () => {
+  it( '7. the current pairing count is 19', () => {
     // A pairing rule is a geometry rule whose selector list names BOTH an input and a select, so
     // form-controls.css reaches one half of it and not the other - which is the criterion the
     // design uses to decide rewrite-versus-accept. It was 22 before this batch; tokens.css's
@@ -219,7 +221,7 @@ describe( 'form-controls.css — invariant 4', () => {
     // still a pairing, and still counted, because the input half is live.
     // A TWENTY-SECOND means a new pairing exists whose accept-versus-rewrite decision has not
     // been taken rather than inherited.
-    expect( census.summary.pairings ).toBe( 21 );
+    expect( census.summary.pairings ).toBe( 19 );
   } );
 
   it( '8. every global rule setting a border width or radius on a select sets 2px and 13px', () => {
@@ -241,11 +243,9 @@ describe( 'form-controls.css — invariant 4', () => {
       'src/styles/Pages.css': [ '1.5px' ],
       'src/styles/Dashboard.css': [ '1px' ],
       'src/styles/MCPConnections.module.css': [ '1px' ],
-      'src/styles/RichTextEditor.module.css': [ '1px' ],
     };
     const RADIUS_EXCEPT: Record<string, string[]> = {
       'src/styles/Dashboard.css': [ 'var(--radius-sm)' ],
-      'src/styles/RichTextEditor.module.css': [ '6px' ],
       // Both are inside @media (max-width: 768px); the base rule at :876 is 13px and agrees.
       'src/styles/Pages.css': [ '12px', '10px' ],
     };

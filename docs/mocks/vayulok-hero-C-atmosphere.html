@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  INTERNAL DUMMY MOCK — NOT A LIVE PAGE, NOT PRODUCTION CODE.
+  OPTION C — ABSTRACT ATMOSPHERE hero variant (flowing air / particle field).
+  NO GEOGRAPHIC SHAPE OF ANY KIND — per owner direction (steer-98803df9
+  "no india or bharat map") this variant has NO India/Bharat outline, NO globe,
+  NO map. It is the pure "moving air" direction: a canvas particle field whose
+  dots drift along a smooth flow, reading as atmosphere in motion.
+
+  HERO SECTION ONLY. The global header, footer and WhatsApp widget are
+  unchanged, shared across every public page, and rendered globally — so they
+  are DELIBERATELY NOT in this mock. We are only iterating on the /vayulok/
+  hero here. Do not re-add page chrome: when this lands on the real page the
+  hero slots inside the existing global header/footer/widget shell.
+
+  This is one of three hero-visual explorations (A globe, B live-data board,
+  C atmosphere). It keeps the live /vayulok/ hero LEFT column (brand badge +
+  "Bharat <rotating> Intelligence") and the whole rotating-pill mechanism
+  VERBATIM, and swaps ONLY the right column: instead of the phone/AQI card it
+  shows a soft rounded panel holding a <canvas> flow field — drifting
+  translucent particles following layered sine fields (a cheap curl-noise
+  approximation), with slow soft radial-gradient "clouds" behind them. It reads
+  as continuous moving air.
+
+  DELIBERATELY DISTINCT FROM OPTION B. Option B (now also map-free) is discrete
+  pulsing SVG DATA PINS + floating value chips on a gridded board. Option C has
+  NO discrete pin markers, NO value chips and NO board grid — it is CONTINUOUS
+  flowing air/particles, so the two options are clearly different directions,
+  not two versions of the same thing.
+
+  FULLY SELF-CONTAINED ON PURPOSE: NO external resources at ALL. No images, no
+  web fonts, no CDN scripts, no ES-module imports, no external url(). The flow
+  field is drawn with a plain <canvas> 2D context and vanilla JS; the clouds
+  are canvas radial gradients. NOTHING is fetched. This DIFFERS from
+  docs/mocks/vayulok-gap-cobe-mock.html, which pulled the `cobe` globe from a
+  CDN — here every pixel is drawn in-file, so this renders identically from
+  file:// offline with zero network requests.
+
+  IT LIVES IN docs/mocks/ DELIBERATELY. docs/ is outside the Next.js build, so
+  this file cannot be deployed. Do NOT move it to public/ or src/pages/ —
+  both ship to the live site.
+
+  EVERY COLOUR, TYPE VALUE AND ANIMATION TIMING IN THE LEFT COLUMN IS COPIED
+  FROM REAL CODE. Sources, so this mock can be checked against source rather
+  than trusted:
+    src/pages/grahak-os/index.tsx       — hero layout + rotating pill CSS
+    src/pages/vayulok/index.tsx         — the 6 subject tint/dot pairs, pill,
+                                          one-shot entrance (not an observer)
+    .kiro/steering/grahak-os-design.md  — palette, type ladder, hairlines
+    src/components/BrandBadge.tsx        — the lime brand pill (#d1f470/#1a3a2a)
+    docs/mocks/vayulok-grahak-aligned-mock.html — the authoritative template
+    src/lib/design-tokens.ts            — exact hex tokens
+
+  COPY IS PLACEHOLDER. The owner supplies the real body copy and rates; the
+  atmosphere field is purely decorative, not live data.
+  Per owner constraint, NO RED (#dc2626) anywhere — the particles use lime
+  #d1f470, green #3da35a / #1a3a2a, neutral greys, with at most a hint of amber
+  #f0a818 / terracotta #c2591b for "warm air" — NEVER red.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>DUMMY MOCK — VayuLok hero (Option C: abstract atmosphere, no map, internal, not a live page)</title>
+<style>
+/* ===========================================================================
+   NO @font-face AND NO WEB-FONT LINK, ON PURPOSE. The font stack string is the
+   one from .page (src/pages/grahak-os/index.tsx) and .vl-shell
+   (src/pages/vayulok/index.tsx) character for character; it resolves to
+   whatever Inter/system font the viewer has, which keeps this file
+   self-contained.
+   =========================================================================== */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:#fff;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#1a1a1a;
+  overflow-x:hidden;
+}
+@supports (overflow-x:clip){body{overflow-x:clip}}
+
+/* --- MOCK-ONLY CHROME. Not part of the theme, and the ONLY non-hero element
+   here on purpose: a banner so this file can never be mistaken for the real
+   page. #1a3a2a fill with #d1f470 type is the third of the three lime
+   treatments the contract allows (grahak-os-design.md, "inverted, dark"). --- */
+.vm-banner{
+  background:#1a3a2a;color:#d1f470;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;line-height:1.4;
+  padding:14px 24px;text-align:center;
+}
+.vm-banner b{color:#fff}
+
+/* BrandBadge, copied: #d1f470 fill, #1a3a2a type, no border, fully rounded.
+   (grahak-os-design.md Palette: "our own surfaces, full voice"). This is the
+   hero eyebrow — the SAME component the global header also renders, shown here
+   only because it sits inside the hero on the live page too. */
+.brand-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  background:#d1f470;color:#1a3a2a;
+  font-size:14px;font-weight:600;letter-spacing:-.125px;
+  padding:8px 14px;border-radius:9999px;
+}
+.brand-badge .bb-dot{width:8px;height:8px;border-radius:50%;background:#1a3a2a}
+
+/* =======================================================================
+   HERO — layout copied from .hero / .hero-content on /grahak-os/.
+   padding-top clears the global fixed header (108px, 96px <=767px) that will
+   sit above this hero on the real page, even though that header is not drawn
+   in this mock.
+   ======================================================================= */
+.hero{padding:140px 24px 80px;max-width:1300px;margin:0 auto}
+.hero-content{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+.hero-left{align-self:center}
+.hero-eyebrow{margin:0 0 20px}
+/* Hero h1: clamp(36,4.3vw,60) / 600 / lh 1.04 / ls -0.04em / rgba(0,0,0,.95).
+   600 weight is deliberate — the section headings elsewhere on the site are
+   the heavier 700; that inversion is notion's and intentional (design
+   contract, "Type ladder"). */
+.hero-left h1{
+  font-size:clamp(36px,4.3vw,60px);font-weight:600;line-height:1.04;
+  letter-spacing:-0.04em;color:rgba(0,0,0,.95);margin:0 0 24px;
+}
+/* One body level only: 20 / 400 / lh 1.4 / ls -0.125px / rgba(0,0,0,.898). */
+.hero-left p{
+  font-size:20px;color:rgba(0,0,0,.898);line-height:1.4;letter-spacing:-.125px;
+  font-weight:400;margin:0 0 18px;max-width:400px;
+}
+.hero-left p.hero-sub{margin:0}
+
+/* --- Rotating subject pill. Geometry/easing/timing copied verbatim from
+   .vl-mark on src/pages/vayulok/index.tsx (itself ported from .hero-mark on
+   /grahak-os/). Tint/dot set inline per word by the script.
+   .hero.show is added once on load; it drives the one-shot entrance wipe and
+   dot pop, exactly like .vl-layout.show on the live page. ------------------ */
+.hero-mark{
+  position:relative;display:inline-block;white-space:nowrap;
+  padding:.02em .3em .02em .22em;border-radius:9999px;background:#e0f7c8;
+  transition:background-color .52s cubic-bezier(.16,1,.3,1);
+}
+.hero-mark::before{
+  content:'';position:absolute;inset:0;background:#fff;border-radius:9999px;
+  transform:scaleX(1);transform-origin:right center;
+  transition:transform .78s cubic-bezier(.16,1,.3,1) .18s;z-index:0;
+}
+.hero.show .hero-mark::before{transform:scaleX(0)}
+.hero-mark-dot{
+  position:relative;z-index:1;display:inline-block;width:.33em;height:.33em;
+  background:#3da35a;border-radius:50%;margin-right:.18em;vertical-align:.14em;
+  transform:scale(0);transition:transform .5s cubic-bezier(.34,1.56,.64,1) .72s;
+}
+.hero.show .hero-mark-dot{transform:scale(1)}
+.hero-cycle{
+  width:max-content;position:relative;z-index:1;display:inline-block;
+  height:1.06em;line-height:1.06em;vertical-align:baseline;overflow:hidden;
+  transition:width .52s cubic-bezier(.16,1,.3,1);will-change:width;
+}
+.hero-cyc-word{
+  position:absolute;left:0;top:0;white-space:nowrap;opacity:0;
+  transform:translateY(.42em);
+  transition:opacity .42s cubic-bezier(.16,1,.3,1),transform .42s cubic-bezier(.16,1,.3,1);
+}
+.hero-cyc-word.on{opacity:1;transform:translateY(0);position:static;display:inline-block}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* =======================================================================
+   HERO ATMOSPHERE STAGE — replaces the /grahak-os/ phone+code / live-AQI card.
+   NO MAP, NO GLOBE, NO PINS, NO CHIPS, NO GRID: an abstract field of drifting
+   particles that reads as moving air.
+
+   PANEL CHOICE: LIGHT panel with a soft green-tinted gradient, NOT the dark
+   globe panel Option A used and NOT the gridded board Option B used.
+   Justification: "atmosphere" wants openness and air, so a bright, soft
+   surface with faint drifting particles reads calmer than a dark viewport and
+   keeps C clearly distinct from both other options. A gentle lime/green radial
+   wash harmonises with the left hero's lime brand pill. The panel is a rounded
+   card (border-radius 16px) with a 1px #e5e7eb hairline — the lighter 1px
+   weight is right for a soft light card (the heavier 2px .mockup-wrapper weight
+   is reserved for the live phone frame it replaces).
+
+   The stage sits exactly where the phone card did: width:100%, capped at
+   460px, centred, square-ish via aspect-ratio so the air has room to drift.
+   The <canvas> fills the panel and everything inside is pure code.
+   ======================================================================= */
+.atmo-stage{
+  position:relative;width:100%;max-width:460px;margin:0 auto;
+  aspect-ratio:1/1;
+  border-radius:16px;border:1px solid #e5e7eb;   /* 1px hairline for a soft light card */
+  /* soft green-tinted neutral wash so the air reads warmly on-palette */
+  background:
+    radial-gradient(70% 60% at 30% 28%,rgba(209,244,112,.16) 0%,rgba(209,244,112,0) 62%),
+    radial-gradient(60% 60% at 78% 76%,rgba(61,163,90,.12) 0%,rgba(61,163,90,0) 60%),
+    linear-gradient(180deg,#fcfdfb 0%,#f6f9f3 100%);
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(26,58,42,.08);
+}
+/* the canvas flow field fills the stage */
+.atmo-canvas{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:1}
+
+/* ---- static legend caption (NOT interactive) --------------------------- */
+.atmo-legend{
+  position:absolute;left:16px;bottom:16px;z-index:3;
+  display:flex;align-items:center;gap:8px;
+  padding:9px 12px;border-radius:11px;
+  background:rgba(255,255,255,.84);backdrop-filter:blur(6px);
+  border:1px solid #e5e7eb;
+  font-size:11px;font-weight:600;letter-spacing:-.1px;color:#1a3a2a;
+  pointer-events:none;
+}
+.atmo-legend .lg-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;
+  background:#d1f470;box-shadow:0 0 0 3px rgba(209,244,112,.35)}
+
+/* ---- canvas-unavailable fallback: shown only when a 2D context cannot be
+   created, so the panel is never blank. On-palette static gradient + caption,
+   styled to match the stage. ------------------------------------------- */
+.atmo-fallback{
+  position:absolute;inset:0;z-index:2;display:none;
+  flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  padding:30px;text-align:center;
+  background:
+    radial-gradient(60% 60% at 42% 36%,rgba(209,244,112,.26) 0%,rgba(209,244,112,0) 60%),
+    radial-gradient(60% 60% at 70% 72%,rgba(61,163,90,.18) 0%,rgba(61,163,90,0) 60%),
+    linear-gradient(180deg,#fbfdf8 0%,#eef5e8 100%);
+  color:#1a3a2a;
+}
+.atmo-fallback.is-on{display:flex}
+.atmo-fallback b{font-size:15px;font-weight:700;color:#1a3a2a}
+.atmo-fallback span{font-size:13px;line-height:1.5;max-width:32ch;color:rgba(0,0,0,.54)}
+
+/* caption under the stage */
+.atmo-cap{margin:12px auto 0;max-width:460px;font-size:12px;line-height:1.45;color:rgba(0,0,0,.54);text-align:center}
+
+@media(max-width:860px){
+  .hero-content{grid-template-columns:1fr;gap:40px}
+  .hero{padding:120px 20px 60px}
+  .atmo-stage{max-width:420px}
+}
+@media(max-width:767px){
+  .hero{padding:96px 16px 48px}
+}
+
+/* The rotation is already disabled in JS under reduced motion; this settles
+   the pill into its resting state so nothing is caught mid-transition. The
+   atmosphere flow is likewise disabled in JS (a single settled frame is drawn
+   and no loop runs). Nothing animates here. */
+@media(prefers-reduced-motion:reduce){
+  .hero-mark::before{transform:scaleX(0)}
+  .hero-mark-dot{transform:scale(1)}
+  .hero-cycle,.hero-cyc-word{transition:none}
+}
+</style>
+</head>
+<body>
+
+<div class="vm-banner">INTERNAL MOCK — <b>not a live page.</b> VayuLok HERO ONLY — Option C (abstract atmosphere, no map). Global header, footer &amp; widget are shared/unchanged and not shown. Copy is placeholder.</div>
+
+<!-- HERO ONLY. No <header>, no <footer>, no floating widget — those are global
+     and unchanged; the hero slots inside them on the real page. -->
+<section class="hero" id="hero">
+  <div class="hero-content">
+    <div class="hero-left">
+      <div class="hero-eyebrow">
+        <span class="brand-badge"><span class="bb-dot"></span>VayuLok · by WECARE.DIGITAL</span>
+      </div>
+      <h1>
+        Bharat
+        <span class="hero-mark" id="mark">
+          <i class="hero-mark-dot" id="markDot" aria-hidden="true"></i>
+          <span class="hero-cycle" id="cycle">
+            <span class="sr-only">Air, Pollen, Weather, Forecast, Solar, Heatmap</span>
+          </span>
+        </span>
+        <br>Intelligence
+      </h1>
+      <!-- PLACEHOLDER COPY — owner supplies real wording + rates. -->
+      <p>Air quality, weather and forecasts for wherever you are in Bharat — one place, every signal that affects the air you breathe.</p>
+      <p class="hero-sub">Built on Google environmental data, wired through WECARE.DIGITAL.</p>
+    </div>
+
+    <!-- RIGHT: abstract atmosphere field (replaces the phone/AQI card). NO MAP,
+         NO GLOBE, NO PINS, NO CHIPS, NO GRID — a canvas particle flow field.
+         NO <img>, NO external resource. -->
+    <div class="hero-right">
+      <div class="atmo-stage" id="atmoStage">
+        <canvas class="atmo-canvas" id="atmoCanvas"
+                role="img"
+                aria-label="An abstract field of fine lime and green particles drifting slowly along a smooth flow, reading as moving air over a soft light panel. Decorative only — not a map, globe or data feed."></canvas>
+
+        <!-- static legend caption (NOT a control) -->
+        <div class="atmo-legend" aria-hidden="true">
+          <span class="lg-dot"></span>VayuLok · air in motion
+        </div>
+
+        <!-- Canvas-unavailable fallback. Shown only if a 2D context can't be
+             created, so the panel is never blank. -->
+        <div class="atmo-fallback" id="atmoFallback" role="img"
+             aria-label="Static fallback: the atmosphere field cannot be animated in this browser.">
+          <b>Atmosphere preview</b>
+          <span>Your browser can’t draw the air-particle field here. On a supported browser this panel shows a calm field of lime and green particles drifting like moving air.</span>
+        </div>
+      </div>
+      <p class="atmo-cap">Illustrative atmosphere field, synthesised in-file as a canvas particle flow (no images, no CDN, no map). The drifting particles are decorative, not live data or locations.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ---------------------------------------------------------------------------
+   The six subject words with their tint/dot pairs are COPIED VERBATIM from
+   cycleWords in src/pages/vayulok/index.tsx. No new colours. Heatmap is
+   terracotta (#c2591b), not red, per the owner "NO RED" constraint.
+   The rotation (2400ms), width measuring and tint/dot swap reproduce the live
+   .vl-mark / .hero-mark behaviour.
+--------------------------------------------------------------------------- */
+var cycleWords = [
+  { word:'Air',      tint:'#e0f7c8', dot:'#3da35a' },
+  { word:'Pollen',   tint:'#fef9c3', dot:'#ca8a04' },
+  { word:'Weather',  tint:'#dbeafe', dot:'#2563eb' },
+  { word:'Forecast', tint:'#ede9fe', dot:'#9849e8' },
+  { word:'Solar',    tint:'#fef3c7', dot:'#f0a818' },
+  { word:'Heatmap',  tint:'#fbe6d4', dot:'#c2591b' }
+];
+
+var hero = document.getElementById('hero');
+var cycle = document.getElementById('cycle');
+var mark = document.getElementById('mark');
+var markDot = document.getElementById('markDot');
+
+/* Build one absolutely-stacked span per word (the live page's measured-width
+   technique: the active word returns to flow and gives the box its width). */
+var wordEls = cycleWords.map(function(c){
+  var s = document.createElement('span');
+  s.className = 'hero-cyc-word';
+  s.textContent = c.word;
+  s.setAttribute('aria-hidden','true');
+  cycle.appendChild(s);
+  return s;
+});
+
+var idx = 0;
+function paint(){
+  var c = cycleWords[idx];
+  wordEls.forEach(function(el,i){ el.classList.toggle('on', i===idx); });
+  mark.style.background = c.tint;
+  markDot.style.background = c.dot;
+  var active = wordEls[idx];
+  if (active) cycle.style.width = active.offsetWidth + 'px';
+}
+paint();
+
+/* One-shot entrance: add .hero.show after a tick, matching the live page's
+   setTimeout(() => setShown(true), 60). This drives the wipe + dot pop once. */
+setTimeout(function(){ hero.classList.add('show'); }, 60);
+
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (!reduce){
+  setInterval(function(){ idx = (idx + 1) % cycleWords.length; paint(); }, 2400);
+}
+</script>
+
+<script>
+/* ===========================================================================
+   ATMOSPHERE FLOW FIELD — pure vanilla <script> (NOT type=module, NO import,
+   NO CDN). Everything is drawn with a plain <canvas> 2D context and vanilla
+   JS — the self-contained in-file replacement for any CDN particle library.
+
+   HOW IT WORKS
+     - A capped set of particles (see COUNT) each hold a position + velocity.
+     - Every frame we read a smooth FLOW ANGLE at the particle's position from
+       layered sine fields that slowly phase over time — a cheap curl-noise
+       approximation. This steers each particle so the whole field reads as
+       continuous moving AIR, not scattered dots.
+     - Motion is framerate-independent via a time delta (dt), so it drifts at
+       the same speed on 60Hz and 120Hz displays.
+     - Particles wrap at the panel edges (toroidal field) so the air never
+       empties out.
+     - Size and opacity vary per particle for depth; a short trailing streak is
+       drawn in the flow direction so fast particles read as moving air.
+     - Behind the particles, a few slow soft radial-gradient "clouds" drift so
+       the panel breathes. All palette hues (lime/green/grey, a hint of amber),
+       NEVER red. NO pins, NO chips, NO grid (those belong to Option B).
+
+   DEGRADE
+     - No 2D context  -> show the static .atmo-fallback panel (never a blank
+       or broken canvas).
+     - prefers-reduced-motion -> draw ONE settled frame (particles stepped
+       forward a little so they are mid-flow, clouds placed) and do NOT start
+       the animation loop, mirroring the disabled pill rotation.
+   =========================================================================== */
+(function(){
+  var stage    = document.getElementById('atmoStage');
+  var canvas   = document.getElementById('atmoCanvas');
+  var fallback = document.getElementById('atmoFallback');
+
+  function showFallback(){
+    if (fallback) fallback.classList.add('is-on');
+    if (canvas) canvas.style.display = 'none';
+  }
+
+  var ctx = null;
+  try { ctx = canvas.getContext('2d'); } catch(e) { ctx = null; }
+  if (!ctx){ showFallback(); return; }
+
+  var reduceA = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---- Palette (NO RED). Particles are lime/green with neutral grey and a
+     small share of amber/terracotta for "warm air". Each entry is an
+     "r,g,b" string so alpha can be composited per particle. ------------- */
+  var PAL = [
+    '209,244,112',  // lime  #d1f470   (our own surface accent)
+    '61,163,90',    // green #3da35a
+    '26,58,42',     // deep forest #1a3a2a (reads as dim grey-green specks)
+    '107,114,128',  // neutral grey #6b7280
+    '240,168,24',   // amber #f0a818 — a HINT only, "warm air"
+    '194,89,27'     // terracotta #c2591b — a HINT only, "warm air"
+  ];
+  /* weighted picker: mostly lime/green/grey, rarely the warm hints */
+  var PAL_WEIGHTS = [26, 26, 14, 20, 8, 6];
+  var PAL_TOTAL = PAL_WEIGHTS.reduce(function(a,b){ return a + b; }, 0);
+  function pickColour(){
+    var r = Math.random() * PAL_TOTAL, acc = 0;
+    for (var i=0;i<PAL.length;i++){ acc += PAL_WEIGHTS[i]; if (r < acc) return PAL[i]; }
+    return PAL[0];
+  }
+
+  /* ---- particle count capped for reasonable CPU; scaled down a touch on
+     small panels. Stays within ~120-220. --------------------------------- */
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var W = 0, H = 0;
+  var COUNT = 180;
+  var particles = [];
+
+  function rnd(a, b){ return a + Math.random() * (b - a); }
+
+  function makeParticle(seed){
+    return {
+      x: Math.random() * (W || 1),
+      y: Math.random() * (H || 1),
+      // base drift speed in px/sec (scaled by dpr at draw time)
+      spd: rnd(10, 30),
+      // size + opacity vary for depth
+      size: rnd(0.7, 2.3),
+      alpha: rnd(0.18, 0.6),
+      col: pickColour(),
+      // small per-particle phase so same-position particles don't lock-step
+      ph: Math.random() * Math.PI * 2
+    };
+  }
+
+  function resize(){
+    var w = stage.clientWidth, h = stage.clientHeight;
+    W = Math.round(w * dpr);
+    H = Math.round(h * dpr);
+    canvas.width  = W;
+    canvas.height = H;
+    // keep count in the capped band; a slightly smaller field on tiny panels
+    var want = Math.round(Math.min(220, Math.max(120, (w * h) / 1050)));
+    if (particles.length === 0){
+      for (var i=0;i<want;i++) particles.push(makeParticle(i));
+    } else if (want < particles.length){
+      particles.length = want;
+    } else {
+      while (particles.length < want) particles.push(makeParticle(particles.length));
+    }
+    COUNT = particles.length;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ---- FLOW FIELD: smooth angle from layered sine fields that slowly phase
+     over time (t in seconds). This is the "moving air" steering. Scales are
+     tuned so the field has a few broad swirls across the panel, not noise. -- */
+  function flowAngle(x, y, t){
+    var nx = x / W, ny = y / H;      // normalise 0..1 so it is panel-size independent
+    var a = Math.sin((nx * 3.1) + t * 0.18)
+          + Math.cos((ny * 2.7) - t * 0.14)
+          + Math.sin((nx + ny) * 2.3 + t * 0.11);
+    // map the layered sum to a gently rotating angle, biased to drift up-right
+    return a * 0.9 + Math.sin(t * 0.07) * 0.6 - 0.5;
+  }
+
+  /* ---- slow soft "clouds": a few big radial gradients that drift behind the
+     particles so the panel breathes. Palette-only, very low alpha. --------- */
+  var clouds = [
+    { bx:0.26, by:0.30, rad:0.52, col:'209,244,112', amp:0.055, sx:0.9,  sy:0.6,  ph:0.0 },
+    { bx:0.74, by:0.68, rad:0.56, col:'61,163,90',   amp:0.045, sx:-0.7, sy:0.8,  ph:1.9 },
+    { bx:0.52, by:0.52, rad:0.44, col:'26,58,42',    amp:0.030, sx:0.5,  sy:-0.9, ph:3.4 }
+  ];
+
+  function drawClouds(t){
+    for (var i=0;i<clouds.length;i++){
+      var c = clouds[i];
+      var cxp = (c.bx + Math.sin(t * 0.05 * c.sx + c.ph) * 0.06) * W;
+      var cyp = (c.by + Math.cos(t * 0.05 * c.sy + c.ph) * 0.06) * H;
+      var r = c.rad * Math.min(W, H);
+      var g = ctx.createRadialGradient(cxp, cyp, 0, cxp, cyp, r);
+      g.addColorStop(0, 'rgba(' + c.col + ',' + c.amp.toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(' + c.col + ',0)');
+      ctx.beginPath();
+      ctx.arc(cxp, cyp, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+    }
+  }
+
+  /* ---- advance every particle by dt seconds along the flow, then wrap ---- */
+  function step(dt, t){
+    for (var i=0;i<particles.length;i++){
+      var p = particles[i];
+      var ang = flowAngle(p.x, p.y, t + p.ph);
+      var v = p.spd * dpr * dt;
+      p.x += Math.cos(ang) * v;
+      p.y += Math.sin(ang) * v;
+      // wrap at edges (toroidal) so the field never empties
+      if (p.x < -4) p.x = W + 4; else if (p.x > W + 4) p.x = -4;
+      if (p.y < -4) p.y = H + 4; else if (p.y > H + 4) p.y = -4;
+      p._ang = ang;
+    }
+  }
+
+  function draw(t){
+    ctx.clearRect(0, 0, W, H);
+    drawClouds(t);
+    for (var i=0;i<particles.length;i++){
+      var p = particles[i];
+      var ang = (p._ang === undefined) ? flowAngle(p.x, p.y, t + p.ph) : p._ang;
+      var rad = p.size * dpr;
+      // short trailing streak in the flow direction -> reads as moving air
+      var tail = rad * 3.4;
+      var tx = p.x - Math.cos(ang) * tail;
+      var ty = p.y - Math.sin(ang) * tail;
+      ctx.strokeStyle = 'rgba(' + p.col + ',' + (p.alpha * 0.5).toFixed(3) + ')';
+      ctx.lineWidth = rad;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      // bright head
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(' + p.col + ',' + p.alpha.toFixed(3) + ')';
+      ctx.fill();
+    }
+  }
+
+  if (reduceA){
+    // Draw ONE settled frame: step the field forward a little so particles sit
+    // mid-flow (not a fresh random scatter), then draw once. No loop.
+    var t0 = 1.4;
+    for (var s=0;s<40;s++) step(1/60, t0);
+    draw(t0);
+  } else {
+    var last = null;
+    (function loop(now){
+      if (last === null) last = now;
+      var dt = (now - last) / 1000;
+      last = now;
+      // clamp dt so a backgrounded tab doesn't teleport particles on return
+      if (dt > 0.05) dt = 0.05;
+      var t = now / 1000;
+      step(dt, t);
+      draw(t);
+      requestAnimationFrame(loop);
+    })(performance.now ? performance.now() : Date.now());
+  }
+})();
+</script>
+</body>
+</html>

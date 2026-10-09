@@ -1,0 +1,80 @@
+{
+  "verifiedDate": "2026-10-09",
+  "wabaId": "2094615664435155",
+  "draftExecutorVersion": "82",
+  "liveVersion": "79",
+  "customerMessagesSent": 0,
+  "paymentPerformed": false,
+  "backendFulfillment": "not connected to these preview drafts",
+  "flows": [
+    {
+      "service": "submit-request",
+      "id": "1728231914933139",
+      "name": "WD_Submit_Request_Design_v1",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "previewUrl": "https://business.facebook.com/wa/manage/flows/1728231914933139/preview/?token=d680838c-ca55-4854-9071-b30a1de28b78",
+      "expiresAt": "2026-11-08T01:37:57+0000",
+      "usage": "DESIGN_ONLY_NOT_PAYMENT_CONNECTED"
+    },
+    {
+      "service": "request-amendment",
+      "id": "959792226650003",
+      "name": "WD_Request_Amendment_Design_v1",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "previewUrl": "https://business.facebook.com/wa/manage/flows/959792226650003/preview/?token=dc7dfef4-4e8e-4d09-b15b-22045f63fb49",
+      "expiresAt": "2026-11-08T01:38:08+0000",
+      "usage": "DESIGN_ONLY_NOT_PAYMENT_CONNECTED"
+    },
+    {
+      "service": "drop-docs",
+      "id": "1605008471323578",
+      "name": "WD_Drop_Docs_Design_v1",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "previewUrl": "https://business.facebook.com/wa/manage/flows/1605008471323578/preview/?token=802547b1-1ae3-431d-a933-8129d682b2a5",
+      "expiresAt": "2026-11-08T01:38:19+0000",
+      "usage": "DESIGN_ONLY_NOT_PAYMENT_CONNECTED"
+    },
+    {
+      "service": "vault",
+      "id": "1735480734227899",
+      "name": "WD_Vault_Design_v1",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "previewUrl": "https://business.facebook.com/wa/manage/flows/1735480734227899/preview/?token=518e1328-52a6-4eaa-89e8-26dd9680b190",
+      "expiresAt": "2026-11-08T01:38:30+0000",
+      "usage": "UNUSED_DO_NOT_PUBLISH_OR_ROUTE"
+    },
+    {
+      "service": "shipments",
+      "id": "849713848195607",
+      "name": "WD_Shipments_Design_v1",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "previewUrl": "https://business.facebook.com/wa/manage/flows/849713848195607/preview/?token=27e078b5-3ea2-472f-bd5e-67e799c35b28",
+      "expiresAt": "2026-11-08T01:38:43+0000",
+      "usage": "DESIGN_ONLY_NOT_PAYMENT_CONNECTED"
+    },
+    {
+      "service": "leave-review",
+      "id": "2352304845587149",
+      "name": "WD_Leave_Review_Design_v1",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "previewUrl": "https://business.facebook.com/wa/manage/flows/2352304845587149/preview/?token=5ab49f33-a2be-4626-8aa8-118d19ba464a",
+      "expiresAt": "2026-11-08T01:38:55+0000",
+      "usage": "DESIGN_ONLY_NOT_PAYMENT_CONNECTED"
+    }
+  ],
+  "browserNavigation": "Final screens rendered through Screen selector; full Next-button transition not confirmed in browser preview",
+  "activeDesignServices": [
+    "submit-request",
+    "request-amendment",
+    "drop-docs",
+    "shipments",
+    "leave-review"
+  ],
+  "vaultJourney": "catalog + native document list + verified payment + dynamic download template; no Flow"
+}

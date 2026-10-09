@@ -26,7 +26,6 @@
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.15.4",
-    "@aws-sdk/client-bedrock-runtime": "^3.1076.0",
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.3",
@@ -41,7 +40,6 @@
     "@deck.gl/google-maps": "^9.4.0",
     "@deck.gl/layers": "^9.4.0",
     "aws-amplify": "^6.18.0",
-    "material": "file:vendor/material",
     "next": "^16.3.8",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"

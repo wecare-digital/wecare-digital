@@ -1,3 +1,4 @@
+import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 import React from 'react';
 import PageMeta from './PageMeta';
 import RotatingHero from './RotatingHero';
@@ -90,7 +91,7 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           ) ) }
         </ul>
 
-        <a className="pdp-cta" href={ product.ctaHref }>{ product.ctaLabel }</a>
+        <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>{ product.ctaLabel }</a>
 
         { product.note && <p className="pdp-note">{ product.note }</p> }
 

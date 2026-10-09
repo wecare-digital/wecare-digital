@@ -6,7 +6,7 @@
  * (Purchase, LeadSubmitted, ...) to Meta so ad campaigns that click to WhatsApp
  * can optimize and measure. Backed by:
  *   GET  /wa-business/capi              (dataset + captured click ids + event log)
- *   POST /wa-business/capi/dataset      (get/create the dataset for a WABA)
+ *   POST /wa-business/capi/dataset      (re-check the dataset; one fixed dataset serves both WABAs)
  *   POST /wa-business/capi/event        (log a conversion event)
  *
  * ctwa_clid is captured automatically from the inbound `referral` object when a
@@ -37,6 +37,11 @@ const WABA_OPTIONS: SelectOption[] = WABAS.map( w => ( { value: w.wabaId, label:
 const WABA_SELECT_STYLE: React.CSSProperties = { flex: '0 1 240px', minWidth: 0 };
 /** The marginBottom the shared `input` object carried. */
 const EVENT_SELECT_STYLE: React.CSSProperties = { marginBottom: 10 };
+/** Dataset id read back from Meta (the per-WABA create path): a verified state, so green. */
+const dsCodeVerified: React.CSSProperties = { background: '#ecfdf5', padding: '2px 6px', borderRadius: 4, color: '#065f46' };
+/** Dataset id taken from configuration: amber, and the adjacent text — not the colour alone —
+ *  carries the meaning, so the distinction survives without colour perception. */
+const dsCodeConfigured: React.CSSProperties = { background: '#fffbeb', padding: '2px 6px', borderRadius: 4, color: '#92400e' };
 const FALLBACK_EVENTS = [ 'Purchase', 'LeadSubmitted', 'AddToCart', 'InitiateCheckout' ];
 
 const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) => {
@@ -75,7 +80,12 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
         try
         {
             const r = await createCapiDataset( wabaId );
-            if ( r?.success && r.datasetId ) toast.success( `Dataset ready: ${r.datasetId}` );
+            // `fixed` means the id is configuration, not a reading from Meta: nothing was
+            // created or looked up, so "ready" would overstate it. Only the per-WABA create
+            // path (escape hatch) actually talks to Graph and earns the original wording.
+            if ( r?.success && r.datasetId && r.fixed )
+                toast.success( `Dataset configured — verify the link in Events Manager: ${r.datasetId}` );
+            else if ( r?.success && r.datasetId ) toast.success( `Dataset ready: ${r.datasetId}` );
             else toast.error( r?.error?.message || 'Could not create/link dataset' );
             await load();
         } finally { setBusy( '' ); }
@@ -102,6 +112,9 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
 
     const dsId = status?.dataset?.datasetId;
     const dsErr = status?.dataset?.error;
+    /* The id came from configuration, not from Meta — so it is reported as configured and
+       explicitly unverified. See the note on CapiStatus.dataset in src/api/client.ts. */
+    const dsFixed = status?.dataset?.fixed === true;
     const card: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, padding: 18, marginBottom: 18 };
     const label: React.CSSProperties = { display: 'block', fontSize: 13, color: '#374151', marginBottom: 4, fontWeight: 600 };
     const input: React.CSSProperties = { width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, marginBottom: 10 };
@@ -124,14 +137,26 @@ const ConversionsApiPage: React.FC<PageProps> = ( { signOut, user, embedded = fa
             <div style={ card }>
                 <h2 style={ { fontSize: 16, fontWeight: 700, marginBottom: 8 } }>1 · Dataset</h2>
                 <p style={ { fontSize: 13, color: '#6b7280', marginBottom: 10 } }>
-                    Meta needs a dataset (created from the WhatsApp Business Account ID) as the destination for events.
-                    One dataset links per WABA; the business owns it and can see events in Events Manager.
+                    Meta needs a dataset as the destination for events. One shared dataset
+                    <code> 4554612361454941</code> serves <strong>both</strong> WABAs, so events from either
+                    business number land in the same Events Manager destination, and per-WABA attribution is
+                    kept on each event rather than by having two datasets. The dataset must be linked to each
+                    WABA once in Events Manager; Meta rejects business-messaging events for a WABA that is not.
                 </p>
                 { dsId
-                    ? <div style={ { fontSize: 14 } }>Dataset ID: <code style={ { background: '#ecfdf5', padding: '2px 6px', borderRadius: 4, color: '#065f46' } }>{ dsId }</code></div>
+                    ? (
+                        <div style={ { fontSize: 14 } }>
+                            Dataset ID: <code style={ dsFixed ? dsCodeConfigured : dsCodeVerified }>{ dsId }</code>
+                            { dsFixed && (
+                                <span style={ { color: '#b45309', marginLeft: 8 } }>
+                                    (configured — verify the link in Events Manager)
+                                </span>
+                            ) }
+                        </div>
+                    )
                     : <div style={ { fontSize: 14, color: '#b45309' } }>{ dsErr ? `Error: ${dsErr?.message || JSON.stringify( dsErr )}` : 'No dataset linked yet.' }</div> }
                 <div style={ { marginTop: 10 } }>
-                    <Button onClick={ doCreateDataset } disabled={ busy !== '' }>{ busy === 'dataset' ? 'Working…' : ( dsId ? 'Re-check / link dataset' : 'Create / link dataset' ) }</Button>
+                    <Button onClick={ doCreateDataset } disabled={ busy !== '' }>{ busy === 'dataset' ? 'Working…' : 'Re-check dataset' }</Button>
                 </div>
             </div>
 

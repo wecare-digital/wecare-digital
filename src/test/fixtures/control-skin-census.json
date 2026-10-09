@@ -26,7 +26,7 @@
         "decls": "position:absolute;opacity:0;width:1px;height:1px;margin:0",
         "file": "src/components/BlogContribution.tsx",
         "geometry": true,
-        "line": 233,
+        "line": 215,
         "mech": "B-styledjsx",
         "mode": "class",
         "pairing": false,
@@ -50,7 +50,7 @@
         "decls": "border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);",
         "file": "src/components/BlogContribution.tsx",
         "geometry": false,
-        "line": 246,
+        "line": 228,
         "mech": "B-styledjsx",
         "mode": "class",
         "pairing": false,
@@ -72,7 +72,7 @@
         "decls": "border-color:#1a3a2a;background:#d1f470",
         "file": "src/components/BlogContribution.tsx",
         "geometry": false,
-        "line": 250,
+        "line": 232,
         "mech": "B-styledjsx",
         "mode": "class",
         "pairing": false,
@@ -94,7 +94,7 @@
         "decls": "outline:3px solid #1a3a2a;outline-offset:2px",
         "file": "src/components/BlogContribution.tsx",
         "geometry": false,
-        "line": 252,
+        "line": 234,
         "mech": "B-styledjsx",
         "mode": "class",
         "pairing": false,
@@ -116,7 +116,7 @@
         "decls": "transform:none;box-shadow:none",
         "file": "src/components/BlogContribution.tsx",
         "geometry": false,
-        "line": 265,
+        "line": 247,
         "mech": "B-styledjsx",
         "mode": "class",
         "pairing": false,
@@ -662,14 +662,12 @@
     "src/pages/workspace/engage/whatsapp/templates.tsx",
     "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
     "src/pages/workspace/forms/responses.tsx",
-    "src/pages/workspace/pay/link/index.tsx",
     "src/pages/workspace/pay/records.tsx",
     "src/pages/workspace/task/index.tsx",
     "src/styles/Dashboard.css",
     "src/styles/Layout.css",
     "src/styles/MCPConnections.module.css",
     "src/styles/Pages.css",
-    "src/styles/RichTextEditor.module.css",
     "src/styles/form-controls.css",
     "src/styles/inner-pages.css",
     "src/styles/inner-ux.css",
@@ -795,7 +793,7 @@
       "decls": "min-width:96px;min-height:var(--control-h); padding-block:0;padding-inline-start:var(--control-px); padding-inline-end:var(--control-arrow-pad); border:var(--control-border-w) solid var(--control-border); border-radius:var(--control-radius); font-family:inherit;font-size:16px;color:var(--control-fg); background-color:var(--control-bg);",
       "file": "src/pages/cart.tsx",
       "geometry": true,
-      "line": 2042,
+      "line": 2251,
       "mech": "B-styledjsx",
       "mode": "class",
       "pairing": false,
@@ -820,7 +818,7 @@
       "decls": "outline:3px solid var(--accent) !important;outline-offset:2px; box-shadow:var(--focus-ring);",
       "file": "src/pages/cart.tsx",
       "geometry": false,
-      "line": 2053,
+      "line": 2262,
       "mech": "B-styledjsx",
       "mode": "class",
       "pairing": false,
@@ -1014,7 +1012,7 @@
       "decls": "padding: 10px 16px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; min-width: 300px;",
       "file": "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
       "geometry": true,
-      "line": 619,
+      "line": 643,
       "mech": "B-styledjsx",
       "mode": "element",
       "pairing": false,
@@ -1077,73 +1075,10 @@
     },
     {
       "classes": [],
-      "decls": "width: 100%; padding: 10px 12px; border: 1.5px solid #1a3a2a; border-radius: 13px; font-size: 14px; box-sizing: border-box; background: #fff;",
-      "file": "src/pages/workspace/pay/link/index.tsx",
-      "geometry": true,
-      "line": 251,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "background": false,
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "padding": false
-      },
-      "sel": ".form-field input, .form-field select",
-      "spec": [
-        0,
-        1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "background: #f9fafb;",
-      "file": "src/pages/workspace/pay/link/index.tsx",
-      "geometry": false,
-      "line": 252,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "background": false
-      },
-      "sel": ".form-field input:hover, .form-field select:hover",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "outline: none; box-shadow: 0 0 0 3px rgba(26, 58, 42, 0.15); background: #fff;",
-      "file": "src/pages/workspace/pay/link/index.tsx",
-      "geometry": false,
-      "line": 253,
-      "mech": "B-styledjsx",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "background": false,
-        "box-shadow": false,
-        "outline": false
-      },
-      "sel": ".form-field input:focus, .form-field select:focus",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
       "decls": "font-family:inherit;font-size:15px;color:rgba(0,0,0,.898);background:#fff; border:2px solid #e5e7eb;border-radius:13px;padding:9px 12px;min-height:0;",
       "file": "src/pages/workspace/pay/records.tsx",
       "geometry": true,
-      "line": 373,
+      "line": 384,
       "mech": "B-styledjsx",
       "mode": "element",
       "pairing": true,
@@ -1167,7 +1102,7 @@
       "decls": "outline:none;border-color:#d1f470",
       "file": "src/pages/workspace/pay/records.tsx",
       "geometry": false,
-      "line": 378,
+      "line": 389,
       "mech": "B-styledjsx",
       "mode": "element",
       "pairing": false,
@@ -1496,49 +1431,6 @@
       "spec": [
         0,
         1,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "flex: 1; padding: 8px 10px; font-size: 13px; border: 1px solid var(--border, #000); border-radius: 6px;",
-      "file": "src/styles/RichTextEditor.module.css",
-      "geometry": true,
-      "line": 699,
-      "mech": "A-global",
-      "mode": "element",
-      "pairing": true,
-      "props": {
-        "border": false,
-        "border-radius": false,
-        "font-size": false,
-        "padding": false
-      },
-      "sel": ".payment-dialog .variable-input-row input, .payment-dialog .variable-input-row select",
-      "spec": [
-        0,
-        2,
-        1
-      ]
-    },
-    {
-      "classes": [],
-      "decls": "border-color: var(--text, #000); outline: none; box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.1);",
-      "file": "src/styles/RichTextEditor.module.css",
-      "geometry": false,
-      "line": 708,
-      "mech": "A-global",
-      "mode": "element",
-      "pairing": false,
-      "props": {
-        "border-color": false,
-        "box-shadow": false,
-        "outline": false
-      },
-      "sel": ".payment-dialog .variable-input-row input:focus, .payment-dialog .variable-input-row select:focus",
-      "spec": [
-        0,
-        3,
         1
       ]
     },
@@ -2115,19 +2007,19 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 22,
-    "geometryFiles": 21,
-    "geometryRuleSets": 29,
+    "files": 20,
+    "geometryFiles": 19,
+    "geometryRuleSets": 27,
     "matchModes": {
       "class": 2,
-      "element": 65
+      "element": 60
     },
     "mechanisms": {
       "A-global": {
-        "files": 9,
-        "geometryFiles": 9,
-        "geometryRuleSets": 17,
-        "ruleSets": 42
+        "files": 8,
+        "geometryFiles": 8,
+        "geometryRuleSets": 16,
+        "ruleSets": 40
       },
       "A-module": {
         "files": 0,
@@ -2136,10 +2028,10 @@
         "ruleSets": 0
       },
       "B-styledjsx": {
-        "files": 11,
-        "geometryFiles": 10,
-        "geometryRuleSets": 10,
-        "ruleSets": 22
+        "files": 10,
+        "geometryFiles": 9,
+        "geometryRuleSets": 9,
+        "ruleSets": 19
       },
       "C-injected": {
         "files": 2,
@@ -2148,7 +2040,7 @@
         "ruleSets": 3
       }
     },
-    "pairings": 21,
-    "ruleSets": 67
+    "pairings": 19,
+    "ruleSets": 62
   }
 }

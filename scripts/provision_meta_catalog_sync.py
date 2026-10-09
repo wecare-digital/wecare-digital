@@ -62,11 +62,12 @@ move together rather than drifting six hours apart. The webhook invoke is what m
 the schedule is what makes it eventually correct if the webhook is unregistered, failing closed on
 a missing key, or simply missed an event.
 
-OWNER-AUTHORIZED SCOPED ROLLOUT, 2026-10-08
+OWNER-APPROVED CATALOG MIGRATION, 2026-10-09
 -----------------------------------------
-The owner authorized the Submit Request/Vault sync. ENVIRONMENT matches the deployed manifest:
-enabled, not dry-run, exact two-variant scope, held out of stock pending native purchase QA.
-Verification checks all four controls against this record. Code defaults still fail closed.
+The owner requested the fresh catalog and approval before new product publication.
+ENVIRONMENT stages all four existing paid variants against the fresh catalog, disabled and
+dry-run, held out of stock pending approval and native purchase QA. Inspect remains read-only.
+A persistent revision approval contract must be added before opening both write gates.
 
 Usage:
     python scripts/provision_meta_catalog_sync.py              # dry run, the default
@@ -110,18 +111,19 @@ WEBHOOK_INVOKE_POLICY = f"{WEBHOOK_FUNCTION}-invokes-catalog-sync"
 META_TOKEN_SECRET = "wecare/meta-system-user-token"
 WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
 
-#: No secret value, by construction - only NAMES and public identifiers. The catalog id is WABA1's
-#: from `src/pages/catalog-builder.tsx`; WABA2's `1424934879646296` is reachable by changing this
-#: one variable plus `META_TOKEN_FIELD`.
+#: No secret value, by construction - only NAMES and public identifiers. The catalog id is the ONE
+#: shared `wecare_shop` catalog used by BOTH WABAs, from `src/pages/catalog-builder.tsx`, so this
+#: single sync target covers both business numbers. Another catalog stays reachable by changing
+#: this one variable; `META_TOKEN_FIELD` remains the per-WABA knob, because the token is not shared.
 #:
 # Owner-authorized rollout; scope and availability hold must remain explicit.
 ENVIRONMENT = {
     "META_TOKEN_SECRET": META_TOKEN_SECRET,
     "META_TOKEN_FIELD": "access_token",
-    "META_CATALOG_ID": "1607047307067517",
-    "META_CATALOG_SYNC_ENABLED": "true",
-    "META_CATALOG_SYNC_DRY_RUN": "false",
-    "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+    "META_CATALOG_ID": "1457045652952851",
+    "META_CATALOG_SYNC_ENABLED": "false",
+    "META_CATALOG_SYNC_DRY_RUN": "true",
+    "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
     "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",

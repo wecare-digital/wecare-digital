@@ -1,0 +1,105 @@
+{
+  "catalog": {
+    "ok": true,
+    "enabled": true,
+    "dryRun": true,
+    "readOnly": true,
+    "catalogId": "1607047307067517",
+    "counts": {
+      "create": 0,
+      "update": 0,
+      "retire": 0,
+      "foreign": 0
+    },
+    "blocked": [],
+    "desiredItems": [
+      {
+        "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+        "name": "Vault",
+        "description": "Access and download your documents.",
+        "availability": "out of stock",
+        "price": "49.00",
+        "currency": "INR",
+        "image_url": "https://static.wixstatic.com/media/478bf9_27b898b513ac4b508409202446818341~mv2.png",
+        "url": "https://wecare.digital/vault/"
+      },
+      {
+        "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+        "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+        "name": "Submit Request",
+        "description": "Get help with your existing order.",
+        "availability": "out of stock",
+        "price": "99.00",
+        "currency": "INR",
+        "image_url": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
+        "url": "https://wecare.digital/submit-request/"
+      }
+    ],
+    "existingItems": [
+      {
+        "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "name": "Vault",
+        "description": "Access and download your documents.",
+        "availability": "out of stock",
+        "price": "₹49.00",
+        "currency": "INR",
+        "image_url": "https://static.wixstatic.com/media/478bf9_27b898b513ac4b508409202446818341~mv2.png",
+        "url": "https://wecare.digital/vault/"
+      },
+      {
+        "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+        "name": "Submit Request",
+        "description": "Get help with your existing order.",
+        "availability": "out of stock",
+        "price": "₹99.00",
+        "currency": "INR",
+        "image_url": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
+        "url": "https://wecare.digital/submit-request/"
+      }
+    ],
+    "applied": 0
+  },
+  "checkout": {
+    "state": "Active",
+    "checks": [
+      {
+        "statusCode": 200,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "https://wecare.digital",
+          "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Razorpay-Signature",
+          "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+        },
+        "body": "{}"
+      },
+      {
+        "statusCode": 401,
+        "headers": {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "https://wecare.digital",
+          "Access-Control-Allow-Headers": "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Razorpay-Signature",
+          "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+        },
+        "body": "{\"error\": \"VERIFICATION_REQUIRED\", \"message\": \"Please verify your WhatsApp number to continue.\"}"
+      }
+    ],
+    "liveVersion": "40",
+    "sha": "UvSMu1QxQappwmYrh5S2YxkSdtoceUCfk0GAFKvIxjg="
+  },
+  "tests": {
+    "catalog": 113,
+    "checkoutAndPurchaseFacts": 54,
+    "frontend": 66,
+    "productionBuild": "passed"
+  },
+  "matching": "Resumed through Commerce Manager; pause notice removed",
+  "pixelId": "3411484995761247",
+  "appSourceId": "2238810740192680",
+  "websiteDeployment": "Pending source push and Amplify job",
+  "limitations": [
+    "No real AddToCart or paid customer QA in this run yet.",
+    "Historical Meta match rate cannot be guaranteed immediately.",
+    "App-source connection requires final review after website Pixel delivery is verified."
+  ]
+}

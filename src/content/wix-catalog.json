@@ -843,7 +843,7 @@
       "formattedPrice": "₹49.00",
       "compareAtPrice": null,
       "inStock": false,
-      "descriptionHtml": "<p>Select the WECARE.DIGITAL service you need.</p><p><span style=\"font-weight: 700\">Submit Request</span> — Customer pays ₹99, verifies via WhatsApp OTP, and receives a request/order ID.</p><p><span style=\"font-weight: 700\">Request Amendment</span> — Same ₹99 flow; amendments are trackable in the orders page under the profile.</p><p><span style=\"font-weight: 700\">Drop Docs</span> — Upload a document and verify using order ID + WhatsApp OTP.</p><p><span style=\"font-weight: 700\">Vault</span> — Download a document and verify using order ID + WhatsApp OTP; CRM contact may be updated when required.</p>",
+      "descriptionHtml": "<p>Get help with your order, upload documents or access your Vault.</p>",
       "categoryIds": [
         "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
       ],
@@ -851,31 +851,41 @@
       "optionCount": 1,
       "modifierCount": 0,
       "variantCount": 4,
-      "mediaCount": 0,
+      "mediaCount": 4,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/wecaredigital-services/",
       "variants": [
         {
           "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
           "label": "Request Amendment",
-          "inStock": false
+          "inStock": false,
+          "image": "https://static.wixstatic.com/media/478bf9_61bf98226abd4c7183413fd1b2fd76ce~mv2.png",
+          "pricePaise": 9900
         },
         {
           "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
           "label": "Drop Docs",
-          "inStock": false
+          "inStock": false,
+          "image": "https://static.wixstatic.com/media/478bf9_df2cd2060b1c4bbca3a6915001062adc~mv2.png",
+          "pricePaise": 35000
         },
         {
           "id": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
           "label": "Vault",
-          "inStock": false
+          "inStock": false,
+          "image": "https://static.wixstatic.com/media/478bf9_0d6ef02aebca413e8c5843057bff60dd~mv2.png",
+          "pricePaise": 4900
         },
         {
           "id": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
           "label": "Submit Request",
-          "inStock": false
+          "inStock": false,
+          "image": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png",
+          "pricePaise": 9900
         }
-      ]
+      ],
+      "image": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png",
+      "serviceArtworkVerifiedAt": "2026-10-09"
     }
   ],
   "variantVerifiedAt": "2026-10-06T04:43:35.257Z"

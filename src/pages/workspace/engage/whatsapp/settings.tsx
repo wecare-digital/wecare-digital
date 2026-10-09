@@ -1,3 +1,4 @@
+import WhatsAppServiceDirectory from '../../../../components/WhatsAppServiceDirectory';
 import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
 /**
  * WhatsApp Settings — All WhatsApp features except Inbox
@@ -73,12 +74,12 @@ const BOT_MENU = [
 ];
 
 const CUSTOMERSERVICE_MENU = [
-  { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: '931522532810297', keywords: 'submit request, sr, raise request' },
+  { row: 1, section: 'Existing Order', icon: '📋', title: 'Submit Request', description: 'Raise a request for an existing order after verified payment', flowId: '1107164111921876', keywords: 'Submit Request' },
   { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
-  { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: '1533536534833353', keywords: 'amend request, amend, change' },
+  { row: 3, section: 'Existing Request', icon: '✏️', title: 'Request Amendment', description: 'Edit or correct a submitted request; Flow remains a draft', flowId: '3678132465672138', keywords: 'Request Amendment' },
   { row: 4, section: 'Schedule', icon: '📅', title: 'Appointment', description: 'Schedule a consultation or service visit', flowId: '1475722977488573', keywords: 'appointment, schedule, meeting' },
   { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '1892784521355352', keywords: 'rx slot, rx, prescription' },
-  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents for your request', flowId: '1737801600902350', keywords: 'drop docs, documents, upload' },
+  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents securely; Flow remains a draft', flowId: '1211063631104445', keywords: 'Drop Docs' },
   { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '2132515287534606', keywords: 'enterprise, b2b, corporate' },
   // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound handler,
   // same order, via src/lib/reviewEntry.ts — REVIEW_FLOW_ID is WD_Leave_Review_v2, PUBLISHED
@@ -94,6 +95,7 @@ const pill = ( bg: string, color: string ): React.CSSProperties => ( {
 // ─── Bot Menu Tab Component ───
 const BotMenuTab: React.FC = () => (
   <div style={ { padding: '0 4px' } }>
+    <WhatsAppServiceDirectory />
     {/* Main Bot Menu */ }
     <h3 style={ { fontSize: 15, fontWeight: 700, color: '#1a3a2a', margin: '0 0 6px' } }>WhatsApp Bot Menu (Persistent Menu)</h3>
     <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>9 menu items across 3 sections — shown when users open the WhatsApp chat.</p>
@@ -124,7 +126,7 @@ const BotMenuTab: React.FC = () => (
 
     {/* Customer Service Sub-Menu */ }
     <h3 style={ { fontSize: 15, fontWeight: 700, color: '#1a3a2a', margin: '0 0 6px' } }>🚀 Customer Service Menu (Interactive List)</h3>
-    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>9 options shown when user taps &quot;🚀 Customer Service&quot;. Each row triggers a WhatsApp Flow.</p>
+    <p style={ { fontSize: 12, color: '#6b7280', margin: '0 0 14px' } }>Service menu reference. The directory above shows current keyword entry points and publication status.</p>
     <div style={ { overflowX: 'auto' } }>
       <table style={ { width: '100%', borderCollapse: 'collapse', fontSize: 13 } }>
         <thead>
