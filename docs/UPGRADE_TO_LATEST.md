@@ -20,6 +20,6 @@ Inspect amplify/package.json and its lock, then perform a separately reviewed `n
 
 Run npm ci, npm run typecheck, npm run build, npm test and npm audit in the web root. Retain actual advisory results; a tool with no patched upstream version cannot be declared fixed by forcing unrelated major downgrades. Preserve the production export/blog/schema/browser gates. Python work uses requirements-dev.txt and Python3.12; full handler tests remain offline unless an explicitly scoped journey is authorized.
 
-Commit only owned explicit paths on stack. An ordinary forward revert restores manifests/lockfile and removed source without rewriting history or undoing another session's work. A Lambda code change must use its reviewed package/deploy owner, capture live versions, publish an Active version and move the guarded live alias. See .kiro/steering/lambda-snapstart-deploy.md and docs/execution/repository-layout.md.
+Commit only owned explicit paths on stack. An ordinary forward revert restores manifests/lockfile and removed source without rewriting history or undoing another session's work. A Lambda code change must use its reviewed package/deploy owner, capture live versions, publish an Active version and move the guarded live alias. See [the deployment procedure](operations.md#deploying) and [repository ownership](execution/repository-layout.md).
 
 Runtime or architecture migrations are separate changes requiring compatible dependency layers and exact-package handler tests. Do not infer current Lambda counts or provider availability from a dated upgrade document.
