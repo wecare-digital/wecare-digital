@@ -24,6 +24,7 @@ import ast
 from decimal import Decimal
 import importlib.util
 import json
+import logging
 import pathlib
 import sys
 
@@ -710,3 +711,117 @@ def test_validation_response_without_handle_is_not_success(snapshot_products):
     assert answer["ok"] is False
     assert answer["applied"] == 0
     assert answer["validationStatus"] == status
+
+
+# ── 7. F-1 diagnostic hygiene: the refusal says WHY ──────────────────────────
+#
+# A `read_failed` that reports only `errorType: RuntimeError` makes a 403, a 400, a 429, a 500 and
+# a DNS failure indistinguishable, and those call for opposite operator actions - 403 is "re-grant
+# the asset", 429 is "back off". And `applied: 0` on its own is ambiguous across five return arms,
+# three of which stated no `reason` at all, so the live `ENABLED=false, DRY_RUN=true` arm reported
+# a bare zero.
+#
+# These are the only tests in this file that assert on log-record CONTENTS. `get_logger`
+# (`lambda_utils/logging.py:17`) returns a plain stdlib logger - no handler of its own and
+# `propagate` untouched - so records reach the root logger `caplog` attaches to. The logger name
+# comes off the module object, never a hardcoded guess: the rig loads the handler by path under
+# MODULE_NAME, so its `__name__` is that, not `handler`.
+
+
+def _read_failed_record(caplog):
+    """The one `meta_catalog_sync_read_failed` line, parsed."""
+    records = [json.loads(record.getMessage()) for record in caplog.records
+               if record.getMessage().startswith("{")]
+    failures = [row for row in records if row.get("event") == "meta_catalog_sync_read_failed"]
+    assert len(failures) == 1, f"expected one read_failed line, got {len(failures)}"
+    return failures[0]
+
+
+def test_a_read_failure_reports_the_graph_status(snapshot_products, monkeypatch, caplog):
+    """403 and 500 must not look the same, and the status must be read off the exception rather
+    than parsed out of its prose - `lambda_utils.wix_ecom.http_error` is the pattern.
+
+    Both gates OPEN, so this is also the dangerous configuration: a read failure still refuses and
+    still constructs no write.
+    """
+    monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    caplog.set_level(logging.ERROR, logger=receiver.logger.name)
+    wix, graph = FakeWix(snapshot_products), FakeGraph(error={"status": 403})
+
+    answer = run(wix, graph)
+    assert answer["ok"] is False
+    assert answer["reason"] == "read_failed"
+    assert graph.writes == []
+
+    record = _read_failed_record(caplog)
+    assert record["graphStatus"] == 403
+    assert record["errorType"] == "MetaCatalogReadError"
+    # The Graph response BODY is never carried and never logged: it echoes the request, and this
+    # request's one header is a credential.
+    for key, value in record.items():
+        assert "Bearer" not in str(value), f"{key} carries an Authorization header"
+        assert FAKE_TOKEN not in str(value), f"{key} carries the token"
+
+
+def test_a_transport_failure_reports_the_kind_and_no_status(
+        snapshot_products, monkeypatch, caplog):
+    """A DNS or TLS failure never reached HTTP, so it has no status. Reporting the exception KIND
+    is what separates it from a Graph refusal; inventing a status would be worse than none.
+    """
+    monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+    monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    caplog.set_level(logging.ERROR, logger=receiver.logger.name)
+    wix, graph = FakeWix(snapshot_products), FakeGraph(error={"type": "URLError"})
+
+    answer = run(wix, graph)
+    assert answer["reason"] == "read_failed"
+    assert graph.writes == []
+
+    record = _read_failed_record(caplog)
+    assert record["graphErrorKind"] == "URLError"
+    assert record["graphStatus"] is None
+
+
+def _invoke_applied_zero_arm(arm, snapshot_products, monkeypatch):
+    """Drive exactly one of the five `applied: 0` return arms of the handler."""
+    wix = FakeWix(snapshot_products)
+    if arm == "unconfigured":
+        return run(wix, FakeGraph(), reader=reader_for(token=None))
+    if arm == "read_failed":
+        return run(wix, FakeGraph(error={"status": 500}))
+    if arm == "read_only_inspect":
+        return run(wix, FakeGraph(), event={"inspect": True})
+    if arm == "disabled":
+        # Both gates absent, which is the shipped configuration.
+        return run(wix, FakeGraph())
+    if arm == "dry_run":
+        monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+        monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "true")
+        return run(wix, FakeGraph())
+    if arm == "nothing_to_apply":
+        monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
+        monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+        desired = sync.desired_items(
+            json.loads(SNAPSHOT.read_text(encoding="utf-8"))["products"])
+        existing = [{"id": f"m{n}", **sync.meta_payload(item)}
+                    for n, item in enumerate(desired)]
+        return run(wix, FakeGraph(items=existing))
+    raise AssertionError(f"unknown arm: {arm}")
+
+
+@pytest.mark.parametrize("arm", [
+    "unconfigured", "read_failed", "read_only_inspect", "disabled", "dry_run",
+    "nothing_to_apply",
+])
+def test_every_applied_zero_arm_states_its_reason(arm, snapshot_products, monkeypatch):
+    """`reason` is TOTAL over the `applied: 0` surface, so a zero is never read alone.
+
+    Six cases over five arms: `disabled` and `dry_run` come out of the SAME return, which is why
+    that one derives its reason from `enabled` instead of hard-coding either word. The sixth
+    return in the handler (the `batchHandle` readback) has no `applied` key at all and is out of
+    scope.
+    """
+    answer = _invoke_applied_zero_arm(arm, snapshot_products, monkeypatch)
+    assert answer["applied"] == 0
+    assert answer["reason"] == arm

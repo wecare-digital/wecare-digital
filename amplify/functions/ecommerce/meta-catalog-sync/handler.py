@@ -108,6 +108,35 @@ META_BATCH_CHUNK = 100
 
 
 # ─────────────────────────────────────────────────────────────────────────────────────────────
+# The read failure
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+
+
+class MetaCatalogReadError(RuntimeError):
+    """The Meta catalogue read failed. Carries the Graph status structurally, never a body.
+
+    THE STATUS HAS TO BE READABLE WITHOUT PARSING THE MESSAGE, which is the whole reason this
+    class exists - `lambda_utils.wix_ecom.http_error` establishes the same pattern. A 403 means
+    "ask the owner to re-grant the asset", a 429 means "back off and retry", and a log line
+    carrying only `errorType` makes those indistinguishable from a 500 or a DNS failure.
+
+    `status` is the integer HTTP status when the Graph call reached HTTP; `errorKind` is the
+    transport exception's class name when it did not, and a transport failure has no status.
+    Both default to `None` so a reader never has to guess which arm produced the failure.
+
+    The Graph response BODY is never carried here and is never logged: it echoes the request, and
+    this request's one header is a credential (`_graph_request` records that at its `HTTPError`
+    arm). Only the status and a class name leave this object.
+
+    Subclasses `RuntimeError`, so `type(error).__name__` in the handler's `except` arm stays a
+    reliable localiser and becomes MORE specific than the bare `RuntimeError` it replaces.
+    """
+
+    status: Optional[int] = None
+    errorKind: Optional[str] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────────────────────
 # The gates
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -216,9 +245,9 @@ def _existing_items(requester, *, token: str, app_secret: str,
                     catalog_id: str) -> List[Dict[str, Any]]:
     """Every item currently in the Meta catalog, by cursor paging `/{catalog_id}/products`.
 
-    Raises `RuntimeError` on a Graph error rather than returning a short list. A PARTIAL read is
-    the one failure mode that must not be tolerated here: items missing from `existing` look
-    exactly like items that need creating, so a truncated read would turn into a plan that
+    Raises `MetaCatalogReadError` on a Graph error rather than returning a short list. A PARTIAL
+    read is the one failure mode that must not be tolerated here: items missing from `existing`
+    look exactly like items that need creating, so a truncated read would turn into a plan that
     re-creates the whole catalogue.
     """
     items: List[Dict[str, Any]] = []
@@ -230,7 +259,12 @@ def _existing_items(requester, *, token: str, app_secret: str,
         result = requester(f"{catalog_id}/products", method="GET", params=params,
                            token=token, app_secret=app_secret)
         if "error" in result:
-            raise RuntimeError("the Meta catalogue could not be read")
+            # The status and the transport kind only, both attached structurally. The message is
+            # unchanged - there is nothing diagnostic in it and never a response body.
+            failure = MetaCatalogReadError("the Meta catalogue could not be read")
+            failure.status = result["error"].get("status")
+            failure.errorKind = result["error"].get("type")
+            raise failure
         page = result.get("data")
         if isinstance(page, list):
             items.extend(row for row in page if isinstance(row, Mapping))
@@ -551,8 +585,12 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
             for item in desired:
                 item["availability"] = catalog.OUT_OF_STOCK
     except Exception as error:  # noqa: BLE001 - a read failure must not become a write attempt
+        # The STATUS and the exception class name, and nothing more. `getattr` rather than an
+        # isinstance branch because a Wix failure reaches this arm too and carries neither.
         logger.error(json.dumps({"event": "meta_catalog_sync_read_failed",
                                  "errorType": type(error).__name__,
+                                 "graphStatus": getattr(error, "status", None),
+                                 "graphErrorKind": getattr(error, "errorKind", None),
                                  "catalogId": catalog_id,
                                  "source": trigger["source"]}))
         return {"ok": False, "reason": "read_failed", "enabled": enabled,
@@ -565,7 +603,8 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     if isinstance(event, Mapping) and event.get("inspect") is True:
         # Private IAM-protected readback. Never enters the write path, even when
         # synchronization is enabled. Only public product fields are returned.
-        return {"ok": True, "enabled": enabled, "dryRun": True, "readOnly": True,
+        return {"ok": True, "reason": "read_only_inspect", "enabled": enabled, "dryRun": True,
+                "readOnly": True,
                 "catalogId": catalog_id, "counts": counts, "blocked": blocked,
                 "desiredItems": [catalog.meta_payload(item) for item in desired],
                 "existingItems": [catalog.meta_payload(item) for item in existing],
@@ -596,12 +635,19 @@ def handler(event, context, *, wix_requester=None, graph_requester=None,
     if not enabled or dry_run:
         # RETURNS BEFORE ANY WRITE REQUEST IS CONSTRUCTED. `_batch_requests` is not called, so
         # there is no payload in memory to send by accident.
-        return {"ok": True, "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
+        #
+        # This ONE arm covers two different situations - the gate is shut, or the gate is open and
+        # the run is a rehearsal - so the reason is DERIVED from `enabled` rather than written as
+        # a literal. Live configuration is `ENABLED=false, DRY_RUN=true`, which means the next
+        # invocation lands here and reports `disabled`.
+        return {"ok": True, "reason": "disabled" if not enabled else "dry_run",
+                "enabled": enabled, "dryRun": True, "catalogId": catalog_id,
                 "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
                 "applied": 0}
 
     if plan.is_empty:
-        return {"ok": True, "enabled": True, "dryRun": False, "catalogId": catalog_id,
+        return {"ok": True, "reason": "nothing_to_apply", "enabled": True, "dryRun": False,
+                "catalogId": catalog_id,
                 "counts": counts, "blocked": blocked, "planHash": plan.fingerprint(),
                 "applied": 0}
 
