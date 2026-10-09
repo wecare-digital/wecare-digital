@@ -65,6 +65,9 @@ def prepare_and_send(event, lambda_client):
     if not result:
         return {'outcome': 'VAULT_ACCESS_UNAVAILABLE'}
     row, file, grant = result
+    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
+    if not customer_auth.is_cognito_subject(row['customerId']):
+        return {'outcome': 'VERIFIED_RECIPIENT_UNAVAILABLE'}
     users = boto3.client('cognito-idp').list_users(UserPoolId=customer_auth.CUSTOMER_POOL_ID,
         Filter='sub = "' + row['customerId'] + '"', Limit=2).get('Users') or []
     if len(users) != 1 or not users[0].get('Enabled', True):

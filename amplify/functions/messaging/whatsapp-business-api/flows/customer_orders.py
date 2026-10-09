@@ -54,7 +54,8 @@ def _verified(db, contact_id, phone):
     contact = db.Table('stack-wecare-digital-ContactsTable').get_item(
         Key={'id': contact_id}, ConsistentRead=True).get('Item') or {}
     owner = str(contact.get('checkoutCustomerId') or '')
-    if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', owner):
+    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
+    if not customer_auth.is_cognito_subject(owner):
         raise customer_auth.CustomerNotAuthorized('account unavailable')
     users = boto3.client('cognito-idp').list_users(UserPoolId=customer_auth.CUSTOMER_POOL_ID,
         Filter='sub = "' + owner + '"', Limit=2).get('Users') or []

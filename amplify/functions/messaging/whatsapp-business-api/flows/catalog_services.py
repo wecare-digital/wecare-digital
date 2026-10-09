@@ -46,7 +46,8 @@ def handle(event, client):
     contacts = db.Table('stack-wecare-digital-ContactsTable')
     contact = contacts.get_item(Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = contact.get('checkoutCustomerId')
-    if not owner:
+    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
+    if not customer_auth.is_cognito_subject(owner):
         _send(client, {'contactId': contact.get('id', ''), 'phone': event.get('senderPhone', ''),
                        'phoneNumberId': event.get('phoneNumberId', '1016149501586345')},
               content='Please sign in to your WECARE.DIGITAL customer account and verify this WhatsApp number before purchasing this service: https://wecare.digital/account/sign-in/')
