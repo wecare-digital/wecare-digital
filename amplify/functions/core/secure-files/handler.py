@@ -1298,6 +1298,10 @@ def _reconcile_grant(grant_id: str, file_id: str, identity: Dict[str, Any]) -> b
         return False
     if grant.get("paid"):
         return False
+    # A consumed+unpaid legacy row is internally inconsistent: historical redeem only consumed
+    # rows that were already paid. Do not let reconciliation turn corrupted state into access.
+    if grant.get("consumed"):
+        return False
 
     ok, _detail = _confirm_with_razorpay(grant, via="reconcile")
     if not ok:
