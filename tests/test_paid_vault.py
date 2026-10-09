@@ -96,6 +96,17 @@ def test_different_file_changes_intent_before_payment(vault_env):
     assert requests.rows['INTENT#'+b['intentId']]['vaultFileId']=='file-2'
 
 
+@pytest.mark.parametrize('paid_field', ['vaultPaymentStatus', 'vaultAccessGrantId'])
+def test_paid_file_cannot_create_a_new_purchase_intent(vault_env, paid_field):
+    requests, _, files, _, _ = vault_env
+    file = copy.deepcopy(files.rows['file-1'])
+    file[paid_field] = 'PAID' if paid_field == 'vaultPaymentStatus' else 'existing-grant'
+    before = copy.deepcopy(requests.rows)
+    with pytest.raises(store.ServiceRejected, match='VAULT_ALREADY_PAID'):
+        store.request_intent(requests, who(), 'VAULT', vault_file=file)
+    assert requests.rows == before
+
+
 @pytest.mark.parametrize('open_window',[True,False])
 def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_module,monkeypatch,open_window):
     module=importlib.import_module('flows.paid_vault')
@@ -124,7 +135,7 @@ def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_m
     if open_window: assert sent[1]['mediaType']=='document' and sent[1]['mediaFile']=='secure/d/report.pdf'
 
 
-def test_failed_ready_notification_does_not_send_review(vault_env,flow_module,monkeypatch):
+def test_ambiguous_ready_notification_never_retries_blindly(vault_env,flow_module,monkeypatch):
     module=importlib.import_module('flows.paid_vault')
     requests,_,_,_,_=vault_env
     row={'requestId':'REQ#test'}; requests.seed(row)
@@ -132,7 +143,36 @@ def test_failed_ready_notification_does_not_send_review(vault_env,flow_module,mo
     assert not module._send_once(requests,row,'vaultNotificationStatus',client,{'templateName':'wecare_share_pdf'})
     assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
     assert client.invoke.call_count==1
-    assert requests.rows[row['requestId']]['vaultNotificationStatus']=='SEND_FAILED'
+    assert requests.rows[row['requestId']]['vaultNotificationStatus']=='SEND_UNKNOWN'
+
+
+def test_definite_send_rejection_can_retry_after_backoff(vault_env, flow_module, monkeypatch):
+    module=importlib.import_module('flows.paid_vault')
+    requests, _, _, _, _=vault_env
+    row={'requestId':'REQ#retry'}; requests.seed(row)
+    clock=[1000]; monkeypatch.setattr(module.time, 'time', lambda: clock[0])
+    client=Mock(); client.invoke.side_effect=[
+        {'Payload':io.BytesIO(b'{"statusCode":400}')},
+        {'Payload':io.BytesIO(b'{"statusCode":200}')},
+    ]
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert client.invoke.call_count==1
+    clock[0]+=31
+    assert module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert client.invoke.call_count==2
+
+
+def test_outbound_exception_records_ambiguity_without_second_send(vault_env, flow_module):
+    module=importlib.import_module('flows.paid_vault')
+    requests, _, _, _, _=vault_env
+    row={'requestId':'REQ#unknown'}; requests.seed(row)
+    client=Mock(); client.invoke.side_effect=TimeoutError('provider acceptance unknown')
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+    assert client.invoke.call_count==1
+    assert requests.rows[row['requestId']]['vaultNotificationStatus']=='SEND_UNKNOWN'
 
 
 @pytest.mark.parametrize('verified',[True,False])
@@ -181,3 +221,16 @@ def test_vault_grant_cannot_be_downloaded_by_recreated_different_identity(mod,mo
     response=mod._redeem('f',{'queryStringParameters':{'grant':'g'}},{'phone':'910000000000','subject':BOB},'')
     assert response['statusCode']==403
     assert not grants.rows['g']['consumed']
+
+
+def test_rejected_send_stops_after_three_attempts(vault_env,flow_module,monkeypatch):
+    module=importlib.import_module('flows.paid_vault')
+    requests,_,_,_,_=vault_env
+    row={'requestId':'REQ#bounded'};requests.seed(row)
+    clock=[1000];monkeypatch.setattr(module.time,'time',lambda:clock[0])
+    client=Mock();client.invoke.side_effect=lambda **kwargs:{'Payload':io.BytesIO(b'{"statusCode":400}')}
+    for _ in range(5):
+        assert not module._send_once(requests,row,'vaultNotificationStatus',client,{})
+        clock[0]+=31
+    assert client.invoke.call_count==3
+    assert requests.rows[row['requestId']]['vaultNotificationStatusAttempts']==3

@@ -70,3 +70,12 @@ describe( 'Vault file-bound purchase', () => {
     expect( screen.queryByRole( 'button', { name: 'Continue to payment' } ) ).toBeNull();
   } );
 } );
+
+it( 'does not offer another payment for a paid file whose grant is consumed or unavailable', async () => {
+  vi.mocked( api.listMySecureFiles ).mockResolvedValue( { ok: true, data: { files: [ { ...file, vaultPaymentStatus: 'PAID' } ], count: 1, pricePaise: 4900 } } );
+  render( <VaultFilePurchase /> );
+  await screen.findByText( 'Report' );
+  expect( screen.queryByRole( 'button', { name: 'Continue to payment' } ) ).toBeNull();
+  expect( screen.getByText( /Already paid/ ) ).toBeInTheDocument();
+  expect( requests.postRequestIntent ).not.toHaveBeenCalled();
+} );

@@ -5890,6 +5890,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     global origin
     origin = extract_origin(event)
 
+    if event.get('internalAction') == 'prepareCustomerOrdersFlow':
+        from flows.customer_orders import prepare
+        return prepare(event)
+
     if event.get('internalAction') == 'serviceDesignDrafts':
         from flows.service_design_drafts import handle
         return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow)

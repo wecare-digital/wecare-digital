@@ -14,22 +14,46 @@ def _send_once(requests, row, key, lambda_client, body):
     current = requests.get_item(Key={'requestId': row['requestId']}, ConsistentRead=True).get('Item') or {}
     if current.get(key) == 'ACCEPTED':
         return True
+    now = int(time.time())
+    attempts_key, retry_key = key + 'Attempts', key + 'RetryAt'
+    previous = int(current.get(attempts_key) or 0)
+    if current.get(key) and (current.get(key) != 'SEND_REJECTED' or previous >= 3
+                            or int(current.get(retry_key) or 0) > now):
+        # Uncertain acceptance and historical SEND_FAILED require reconciliation.
+        return False
+    condition = 'attribute_not_exists(' + key + ')'
+    values = {':s': 'SENDING', ':count': previous + 1}
+    if current.get(key):
+        condition = key + '=:rejected AND ' + attempts_key + '=:previous'
+        values.update({':rejected': 'SEND_REJECTED', ':previous': previous})
     try:
         requests.update_item(Key={'requestId': row['requestId']},
-            UpdateExpression='SET ' + key + '=:s', ConditionExpression='attribute_not_exists(' + key + ')',
-            ExpressionAttributeValues={':s': 'SENDING'})
+            UpdateExpression='SET ' + key + '=:s, ' + attempts_key + '=:count',
+            ConditionExpression=condition, ExpressionAttributeValues=values)
     except Exception as error:
         if getattr(error, 'response', {}).get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
             return False
         raise
-    response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
-        InvocationType='RequestResponse', Payload=json.dumps({'body': json.dumps(body)}).encode())
-    answer = json.loads(response['Payload'].read())
-    ok = not response.get('FunctionError') and 200 <= int(answer.get('statusCode', 500)) < 300
+    status = 'SEND_UNKNOWN'
+    try:
+        response = lambda_client.invoke(FunctionName='wecare-outbound-whatsapp:live',
+            InvocationType='RequestResponse', Payload=json.dumps({'body': json.dumps(body)}).encode())
+        answer = json.loads(response['Payload'].read())
+        code = int(answer.get('statusCode', 500))
+        if not response.get('FunctionError'):
+            if 200 <= code < 300:
+                status = 'ACCEPTED'
+            elif code in (400, 401, 403, 404, 413, 415, 422):
+                status = 'SEND_REJECTED'
+    except Exception:
+        # Failure may occur after Meta accepted the message. Never blindly retry it.
+        pass
     requests.update_item(Key={'requestId': row['requestId']},
-        UpdateExpression='SET ' + key + '=:s',
-        ExpressionAttributeValues={':s': 'ACCEPTED' if ok else 'SEND_FAILED'})
-    return ok
+        UpdateExpression='SET ' + key + '=:s, ' + retry_key + '=:retry',
+        ConditionExpression=key + '=:sending AND ' + attempts_key + '=:count',
+        ExpressionAttributeValues={':s': status, ':retry': now + 30,
+                                   ':sending': 'SENDING', ':count': previous + 1})
+    return status == 'ACCEPTED'
 
 
 def prepare_and_send(event, lambda_client):

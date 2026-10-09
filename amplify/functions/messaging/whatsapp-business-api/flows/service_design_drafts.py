@@ -14,6 +14,7 @@ NAMES = {
     'vault': 'WD_Vault_Design_v1',
     'shipments': 'WD_Shipments_Design_v1',
     'leave-review': 'WD_Leave_Review_Design_v1',
+    'orders': 'WD_Orders_Design_v1',
 }
 
 def unwrap(response):

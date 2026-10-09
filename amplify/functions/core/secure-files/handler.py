@@ -1565,8 +1565,18 @@ def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: st
             503, {"error": "UNAVAILABLE", "message": "Please try again."}, origin))
 
     try:
+        from lambda_utils.ecommerce.document_source import PRIVATE_INCOMING_PREFIX, owned_message_source
+        verified_source = False
+        if source_key.startswith(PRIVATE_INCOMING_PREFIX):
+            verified_source = owned_message_source(
+                _table('stack-wecare-digital-MessagesTable'),
+                _table('stack-wecare-digital-ContactsTable'), proven,
+                source_key, body.get('messageId'))
+            if not verified_source:
+                raise document_errors.DocumentRejected('document source unavailable')
         promoted = dropdocs_storage.promote_to_secure(
-            _s3_client(), bucket=BUCKET, source_key=source_key)
+            _s3_client(), bucket=BUCKET, source_key=source_key,
+            **({'verified_private_source': True} if verified_source else {}))
     except document_errors.DocumentRejected as exc:
         # 400, not 503. `sourceKey` is caller-supplied, and the one prefix this route
         # accepts is the WhatsApp arrival tree - naming anything else (another customer's

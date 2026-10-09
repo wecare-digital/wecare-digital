@@ -1,0 +1,15 @@
+{
+  "id": "2167802357142172",
+  "name": "WD_Orders_Design_v1",
+  "status": "DRAFT",
+  "validation_errors": [],
+  "preview_url": "https://business.facebook.com/wa/manage/flows/2167802357142172/preview/?token=a30a60d0-8027-495f-a463-584b04d7adf4",
+  "expires_at": "2026-11-08T02:52:53+0000",
+  "draft_executor_version": "84",
+  "draft_executor_sha256": "r40oN17lJESi1hmth10wP6s3IKsx5jj0+q5yPZRH1WY=",
+  "live_baseline_version": "83",
+  "live_baseline_sha256": "3HYGs+lmmpdjY7Gg7Uyx+Fk4pF8tgvB/VhBYuDtZwwI=",
+  "endpoint_connected": false,
+  "customer_routing_enabled": false,
+  "customer_tested": false
+}
