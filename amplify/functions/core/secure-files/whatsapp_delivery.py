@@ -63,7 +63,26 @@ DOC_TEMPLATE = os.environ.get("WA_DOC_TEMPLATE", "wd_file_delivery")
 # rather than by a flag, so pointing WA_DOC_TEMPLATE at one cannot desynchronise from
 # the parameters it is sent.
 TEMPLATES_WITH_BODY_VARS = {"wd_file_delivery"}
+#: Meta's OWN phone-number id. Correct for the business-API `/wa-business/media` route below,
+#: which is addressed in Meta's vocabulary — and WRONG for every `phoneNumberId` passed to
+#: `wecare-outbound-whatsapp`, which is why `WA_SEND_PHONE_ID` exists beside it.
 META_PHONE_NUMBER_ID = os.environ.get("META_PHONE_NUMBER_ID", "1016149501586345")
+
+#: The AWS-style sender id `outbound-whatsapp` requires, for the three sends that go there.
+#:
+#: Every WhatsApp send from this function was STRUCTURALLY BROKEN before this constant existed:
+#: all three passed the bare Meta id above as `phoneNumberId`, and
+#: `outbound-whatsapp._resolve_meta_phone_id` accepts only an AWS-style id (its map, or a
+#: `-direct-<digits>` suffix) and otherwise raises rather than falling back to another WABA. A
+#: bare Meta id matches neither. Independently, the payment one was refused a second time by
+#: `PAYMENT_SENDERS`. It went unnoticed because this function records zero invocations and
+#: `SECURE_FILES_PAYMENT_ENABLED` is "false".
+#:
+#: This makes the surface CORRECT, not ENABLED. The payment flag stays "false"; turning it on is
+#: an owner action.
+WA_SEND_PHONE_ID = os.environ.get(
+    "WA_SEND_PHONE_ID", "phone-number-id-waba1-direct-1016149501586345")
+
 BUCKET = os.environ.get("SECURE_FILES_BUCKET", "wecare-digital-get")
 # Reused from the invoice flow so the payment card carries the same branding.
 HEADER_IMAGE = os.environ.get(
@@ -164,7 +183,7 @@ def send_payment_request(
             "body": json.dumps(
                 {
                     "recipientPhone": phone,
-                    "phoneNumberId": META_PHONE_NUMBER_ID,
+                    "phoneNumberId": WA_SEND_PHONE_ID,
                     "isTemplate": True,
                     "isCheckoutTemplate": True,
                     "templateName": PAY_TEMPLATE,
@@ -241,7 +260,7 @@ def send_document(*, phone: str, file_row: Dict[str, Any]) -> Tuple[bool, str]:
             "body": json.dumps(
                 {
                     "recipientPhone": phone,
-                    "phoneNumberId": META_PHONE_NUMBER_ID,
+                    "phoneNumberId": WA_SEND_PHONE_ID,
                     "isTemplate": True,
                     "templateName": DOC_TEMPLATE,
                     "templateParams": template_params,
@@ -285,7 +304,7 @@ def send_download_link(*, phone: str, file_row: Dict[str, Any], url: str) -> Tup
             "body": json.dumps(
                 {
                     "recipientPhone": phone,
-                    "phoneNumberId": META_PHONE_NUMBER_ID,
+                    "phoneNumberId": WA_SEND_PHONE_ID,
                     "message": (
                         f"Thank you. Your file {name} is ready.\n\n{url}\n\n"
                         "This link is valid for a short time and can be used once."

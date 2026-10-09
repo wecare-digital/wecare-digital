@@ -254,6 +254,33 @@ it is the deployed revision, and the working tree is not.
 
 ## Nothing became payable
 
+> **Superseded on fact 1, 2026-10-09 — `CHECKOUT_INITIATION_ENABLED` is recorded as `"true"`.**
+> This document's six "absent" claims (`:38`, this section, `:749`, `:1080`, `:1245`, `:1327`) were
+> measured on 2026-10-01 and were correct then. Two later in-repo records supersede them:
+> `docs/execution/snapshots/lambda-env-wix-before-site-migration-20261005.json:26` (captured
+> 2026-10-05T04:28:34Z, `wecare-checkout` live alias version 20) and
+> `docs/execution/xcodex-20261009/production-change-record.json:212` (dated 2026-10-09), both
+> `"CHECKOUT_INITIATION_ENABLED": "true"`. The change itself is unrecorded in this repository.
+>
+> `requirements.md` statement 8 ("the website checkout initiation remains gated and disabled") is
+> therefore in tension with the recorded live state. **Reconciling the live value is an owner
+> decision; no live environment variable is changed by this note.**
+>
+> Facts 2, 3 and 4 below are unaffected, and fact 2 is the reason this is not an incident:
+> readiness blocks independently of the gate, and both `EXPECTED_*` inputs are empty or wrong on
+> `wecare-checkout`, so the website path fails closed regardless. The same 2026-10-05 snapshot
+> shows `"EXPECTED_CONFIGURATION_NAME": "2094615664435155"` at line 30 — **a WABA id in the
+> configuration-name slot**, where the manifest and `provision_checkout.expected_environment()`
+> both declare `""`. Either value blocks (`""` → `CONFIGURATION_UNVERIFIED`, a WABA id →
+> `PAYMENT_CONFIG_NAME_UNKNOWN`). It is recorded because live env and manifest have demonstrably
+> drifted on exactly these keys, and because the 2026-10-09 readiness gates on
+> `wecare-invoice-engine` and `wecare-outbound-whatsapp` make that same class of misconfiguration
+> the difference between a working and a refusing invoice path.
+>
+> Note also that `scripts/provision_checkout.py` prints `initiation: OFF
+> (CHECKOUT_INITIATION_ENABLED not set)` **unconditionally** — a literal, not a readback — so that
+> line is not evidence of the live value. `--verify`'s non-zero exit is.
+
 Four independent facts, each measured:
 
 1. **`CHECKOUT_INITIATION_ENABLED` is absent from the live environment** — not `"false"`, absent.

@@ -272,16 +272,110 @@ payment (Phase 10/11). This is an in-chat flow; the Wix checkout page is not use
 
 ## Phase 9 — WhatsApp payment request
 
-- [ ] 9.1 Build `order_details` from a live Wix **Calculate Cart** (`summary.priceSummary`),
-      storing the price verification token, cart revision and calculation ID in the immutable attempt snapshot
+> **Re-scoped 2026-10-09.** The 2026-10-01 website-only ruling removes in-WhatsApp payment from the
+> **CART** purchase flow; cart purchases are collected on the website via Razorpay Standard
+> Checkout. Native in-WhatsApp payment is **retained**, template-only and
+> provider-readiness-gated, for **invoice collection** and **service purchases**. Tasks 9.1-9.3
+> described a Wix Calculate-Cart-sourced in-chat cart payment and are therefore **cancelled, not
+> deferred**. `requirements.md` remains the authority.
+>
+> This resolves three mutually inconsistent statements that stood in this file: line 7's
+> "in-WhatsApp payment is removed from the active purchase flow", the four open tasks below that
+> specified building it, and the Cart V2 note near the end listing "Phase 9 initiation wiring" as
+> live follow-up.
+>
+> The guarantees 9.1-9.3 named are **not lost**. Exact total equality and explicit currency
+> comparison live on the website path in `website_checkout` / `checkout_pricing`, and exact
+> integer-paise money with no float is pinned by `tests/test_payment_path_has_no_float_money.py`
+> and by Phase 8.3, already `[x]`.
+
+- [~] 9.1 ~~Build `order_details` from a live Wix **Calculate Cart** (`summary.priceSummary`),
+      storing the price verification token, cart revision and calculation ID in the immutable
+      attempt snapshot~~ — **CANCELLED 2026-10-09**: described an in-chat CART payment, which the
+      website-only ruling removes. The native **service** leg does obtain a Wix-priced snapshot;
+      it is covered by 9.4 and 9.5.
   - _Requirements: R6.5_
-- [ ] 9.2 Enforce exact total equality against the Wix Calculate-Cart total; reject on any
-      difference
-  - _Requirements: R6.2, R6.3_ · _Verify: one-paise mismatch is rejected_
-- [ ] 9.3 Explicit currency comparison
+- [~] 9.2 ~~Enforce exact total equality against the Wix Calculate-Cart total; reject on any
+      difference~~ — **CANCELLED 2026-10-09**, same reason. The guarantee lives on the website
+      path.
+  - _Requirements: R6.2, R6.3_
+- [~] 9.3 ~~Explicit currency comparison~~ — **CANCELLED 2026-10-09**, same reason. The guarantee
+      lives on the website path and in `wa_payment_request`, which compares `== 'INR'` explicitly
+      and never infers currency from an amount.
   - _Requirements: R6.4_
-- [ ] 9.4 Reuse the existing `_build_payment_settings`; do not reimplement
-  - _Requirements: D1_
+- [ ] 9.4 Native in-WhatsApp payment is template-only through the approved `order_details`
+      template and reuses `outbound-whatsapp._build_payment_settings` Mode 3; it is never
+      reimplemented inline, and **no caller may supply `payment_settings`**
+  - Recorded: `catalog_service_checkout.payment_details` DID reimplement them inline and
+    therefore bypassed the resolver entirely — not the WABA1-only refusal, not the raw-link
+    refusals, not the `VALID_PAYMENT_CONFIGS` membership check. The duplication is removed (the
+    leg now travels on the `isCheckoutTemplate` envelope the resolver owns) and the door is
+    closed: `_handle_checkout_template_send` now refuses a caller-supplied `payment_settings`
+    block rather than preferring it.
+  - _Requirements: D1_ · _Verify: `tests/test_whatsapp_payments_are_template_only.py`_
+- [ ] 9.5 Every in-WhatsApp payment send is gated at the `outbound-whatsapp` boundary on
+      `payment_readiness` and on `payments_disabled()`, and the live invoice-collection send is
+      gated again before its reserve-and-send transaction. The configuration name and the
+      expected merchant id carry **no literal defaults**.
+  - The boundary is sufficient because `review_and_pay` is composed in exactly one file. Pulling
+    `WA_PAYMENTS_DISABLED` on `wecare-outbound-whatsapp` now stops every in-WhatsApp payment send
+    in the system; before this, it did not.
+  - _Requirements: statement 9_ · _Verify: `tests/test_outbound_payment_gate.py`,
+    `tests/test_native_wa_payment_send.py`_
+- [ ] 9.6 The complete inventory of in-WhatsApp payment surfaces — eight of them — with the gate
+      that covers each, is recorded in §3 of `.agents/tasks/wa-payment-design.md`. The structural
+      guarantee that there is no ninth: `review_and_pay` is composed in one file, and a test
+      forbids any `order_details` composer under `src/`.
+  - The surfaces this spec never mentioned, with their gate flags: **invoice collection**
+    (`wecare-invoice-engine`, LIVE, no flag — gated by readiness as of 9.5); **native catalog
+    service** (`wecare-checkout`, gated off by `WHATSAPP_CATALOG_SERVICES_ENABLED` absent);
+    **secure-files paid download** (`wecare-secure-files`, gated off by
+    `SECURE_FILES_PAYMENT_ENABLED: "false"`); the **staff inbox** composer and the **staff
+    commerce "send bill"** tool (both LIVE on `POST /whatsapp/send`, now re-pointed at the invoice
+    path so no payment is composed in a browser); the **flow payment fallback** and a dead
+    **inbound composer** (both deleted). One further surface, Meta's own
+    `_handle_checkout_data_exchange`, is deliberately NOT gated: it runs after the customer has
+    tapped Pay and answers coupon/shipping recalculation, so refusing it would strand a customer
+    inside a checkout Meta is already orchestrating.
+  - _Requirements: statement 9_
+
+### `CHECKOUT_INITIATION_ENABLED` — recorded live state, 2026-10-09
+
+Dated reconciliation note. **No live environment variable is changed by this note, and no code.**
+
+Six 2026-10-01 records assert the website-checkout initiation gate is **absent**
+(`docs/execution/checkout-deployment-20261001.md:38, 259, 749, 1080, 1245, 1327`;
+`docs/execution/wix-cart-v2-migration-20261001.md:77, 81`;
+`docs/execution/snapshots/checkout-live-probes-after-20261001.json:78`).
+
+Two later in-repo records say otherwise, and they supersede those:
+
+- `docs/execution/snapshots/lambda-env-wix-before-site-migration-20261005.json:26` — captured
+  2026-10-05T04:28:34Z, `wecare-checkout` live alias version 20,
+  `"CHECKOUT_INITIATION_ENABLED": "true"`.
+- `docs/execution/xcodex-20261009/production-change-record.json:212` — dated **2026-10-09**,
+  `"CHECKOUT_INITIATION_ENABLED": "true"`. Later and stronger than the snapshot.
+
+So the gate is **recorded as `"true"`** as of 2026-10-05 and again as of 2026-10-09. The change
+itself is unrecorded in this repository. `requirements.md` statement 8 ("the website checkout
+initiation remains gated and disabled") is therefore **in tension with the recorded live state**,
+and reconciling the live value is an **owner decision outside this change**.
+
+Two things to read alongside it:
+
+- The same 2026-10-05 snapshot shows `"EXPECTED_CONFIGURATION_NAME": "2094615664435155"` on
+  `wecare-checkout` at line 30 — **a WABA id in the configuration-name slot**, where the manifest
+  and `provision_checkout.expected_environment()` both declare `""`. Either value blocks (`""` →
+  `CONFIGURATION_UNVERIFIED`, a WABA id → `PAYMENT_CONFIG_NAME_UNKNOWN`), so the website path
+  fails closed today and this is not an incident. It is recorded because the readiness gates make
+  this same class of misconfiguration the difference between a working and a refusing invoice
+  path, and because it is evidence that live env and manifest have drifted on exactly these keys.
+- `scripts/provision_checkout.py` prints `initiation: OFF (CHECKOUT_INITIATION_ENABLED not set)`
+  **unconditionally** — it is a literal, not a readback, so that line is **not evidence of the
+  live value**. `--verify`'s non-zero exit is. The verifier is built to exit 1 when
+  `CHECKOUT_INITIATION_ENABLED=true` and when either `EXPECTED_*` value is set with the gate off,
+  so a gate complaint in a verify run is an expected, separate finding rather than a failure of
+  whatever that run was for.
 
 ## Phase 10 — Reconciliation
 
@@ -459,7 +553,9 @@ delivery. See the resolution note under R9 in `requirements.md`.
 
 Phase 8 source is implemented and exercised through the live demo response and offline
 customer ownership/replay/money tests. The GET/POST customer cart route remains gated off
-until deployed with its shared layer and IAM. Phase 9 initiation wiring, shipping/billing
-profile integration, authenticated Meta provider binding and Phase 11 full order/inventory
-verification remain open. An unrelated in-progress checkout scaffold using V1 must be
-migrated to this V2 boundary before activation; do not deploy both purchase flows.
+until deployed with its shared layer and IAM. **Phase 9 initiation wiring is cancelled-or-re-scoped
+per the 2026-10-09 re-scope note under the Phase 9 heading — 9.1-9.3 are cancelled and the
+remaining work is 9.4-9.6, not the in-chat cart payment this line used to imply was open.**
+Shipping/billing profile integration, authenticated Meta provider binding and Phase 11 full
+order/inventory verification remain open. An unrelated in-progress checkout scaffold using V1 must
+be migrated to this V2 boundary before activation; do not deploy both purchase flows.

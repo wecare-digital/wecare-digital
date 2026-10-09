@@ -41,15 +41,29 @@ OTHER_CUSTOMER = 'CUS_01J9999999999999999999999'
 
 
 class _FakeLambda:
-    """Captures internal invokes: the payment-config read and the order_details send."""
+    """Captures internal invokes: the payment-config read and the order_details send.
+
+    The send no longer carries a `path`: it goes to `wecare-outbound-whatsapp:live` with a
+    `body`-wrapped payload, which is the envelope that function's checkout-template branch owns.
+    So `invocations` holds the UNWRAPPED send body where there is one, and `function_names`
+    records what each invoke was aimed at — the target is part of the contract, because the old
+    route pointed at a dispatcher that 404s.
+    """
 
     def __init__(self):
         self.invocations = []
+        self.function_names = []
         self.send_ok = True
 
     def invoke(self, FunctionName=None, InvocationType=None, Payload=None, **_):
         event = json.loads(Payload.decode('utf-8'))
+        if 'body' in event and 'path' not in event:
+            try:
+                event = json.loads(event['body'])
+            except (ValueError, TypeError):
+                pass
         self.invocations.append(event)
+        self.function_names.append(FunctionName)
         path = str(event.get('path') or '')
         if 'payment-config' in path:
             # A ready-looking raw payment_configurations readback for the WABA.
@@ -139,6 +153,97 @@ def _create_event(**over):
     return _event('create', **body)
 
 
+#: A native catalog-service session row, as `flows/catalog_services.py` writes one. The
+#: `phoneNumberId` is the AWS-style WABA1 id, which is what `_get_aws_phone_number_id` produces
+#: and what `PAYMENT_SENDERS` permits.
+CATALOG_SESSION = {
+    'orderId': 'CATALOGSERVICE#tok-abcdefghijklmnopqrst',
+    'contactId': 'contact-cat-1',
+    'phoneNumberId': 'phone-number-id-waba1-direct-1016149501586345',
+    'kind': 'SUBMIT_REQUEST',
+    'productId': 'service-product-1',
+    'variantId': 'service-variant-1',
+}
+
+
+COLLECTION_PAISE = 59900
+FEE_PAISE = 1498
+FEE_GST_PAISE = 270
+TOTAL_PAYABLE_PAISE = COLLECTION_PAISE + FEE_PAISE + FEE_GST_PAISE
+
+
+class _Quote:
+    """The four figures `_create` and `payment_details` read off a `CheckoutQuote`."""
+
+    total_payable_paise = TOTAL_PAYABLE_PAISE
+    collection_before_convenience_paise = COLLECTION_PAISE
+    convenience_fee_paise = FEE_PAISE
+    convenience_gst_paise = FEE_GST_PAISE
+
+
+class _Snapshot:
+    """The frozen Cart V2 snapshot, with only the attributes `_create` reads."""
+
+    cart_id = 'wix-cart-1'
+    cart_revision = '3'
+    snapshot_hash = 'sha256:testsnapshot'
+    expires_at = 1770000900
+    policy_version = 'v1'
+    frozen_data = {'cart': {'id': 'wix-cart-1'}}
+    quote = _Quote()
+
+
+def _enable_catalog_leg(h, monkeypatch, *, quote=None):
+    """Put the handler on the catalog leg's required Cart V2 branch, with pricing stubbed.
+
+    The catalog leg is V2-only by construction — `snapshot` and `_calculated` exist only on that
+    branch, and `_create` now refuses 503 `SERVICE_UNAVAILABLE` with V2 off rather than crashing.
+    `_v2_snapshot` is stubbed rather than driven through Wix because the subject here is
+    `_create`'s own contract: which figure it records, which refusals it makes, which rows it
+    writes and which envelope it sends. Wix PRICING is owned by
+    `tests/test_checkout_cart_v2_authority.py` and `tests/test_wix_cart_v2_*.py`.
+    """
+    monkeypatch.setenv('WIX_CART_V2_ENABLED', 'true')
+    snapshot = _Snapshot()
+    if quote is not None:
+        snapshot.quote = quote
+    monkeypatch.setattr(h, '_v2_snapshot',
+                        lambda identity, line_items: (snapshot, ['Viveka x1'],
+                                                      {'cart': {'lineItems': []}}))
+    monkeypatch.setattr(h.wix_writeback, 'build_wix_order_payload',
+                        lambda **kw: {'channelInfo': {}, 'lineItems': []})
+    monkeypatch.setattr(h.wix_writeback, 'is_enabled', lambda: True)
+    return snapshot
+
+
+def _drive_catalog(h, **over):
+    """Call `_create` DIRECTLY on the catalog-service leg.
+
+    Why direct invocation rather than `h.handler(_create_event())`: the in-chat CART leg is
+    refused at the top of `_create` (cart purchases are collected on the website), so
+    `catalog_session` is never None past that point and the only way to exercise everything below
+    it is to supply one. Driving it through `handler` would instead mean satisfying all of
+    `_native_catalog_service`'s gates — the rollout flag, writeback, a token, a session row, a
+    contacts row, a Cognito `list_users` call, an intent row and a `catalogServiceReadiness`
+    invoke — and those gates are covered by `tests/test_native_catalog_orchestration.py`. The
+    subject here is `_create`'s own contract, not the catalog orchestration.
+    """
+    body = {'lineItems': [{'catalogReference': {'catalogItemId': 'p1'}, 'quantity': 1}],
+            'serviceIntentId': 'INTENT-TEST'}
+    body.update(over)
+    return h._create(_Identity(CUSTOMER), body, 'http://localhost:3000',
+                     catalog_session=dict(CATALOG_SESSION))
+
+
+def _seed_catalog_session(fake):
+    """The session row the post-attempt conditional update matches on."""
+    fake.Table(KEYS_TABLE).put_item(Item={
+        'orderId': CATALOG_SESSION['orderId'],
+        'serviceIntentId': 'INTENT-TEST',
+        'status': 'PREPARING_PAYMENT',
+    })
+
+
 # ── authentication ───────────────────────────────────────────────────────────
 
 def test_no_session_is_refused(env):
@@ -151,15 +256,110 @@ def test_no_session_is_refused(env):
     assert resp['statusCode'] == 401
 
 
-# ── create, initiation disabled (the default posture) ─────────────────────────
+# ── A2.6: the in-chat CART leg is refused, before any I/O ─────────────────────
+#
+# Cart purchases are collected on the website via Razorpay Standard Checkout (requirements
+# statement 8). With the dead `_send_order_details` route repaired onto a working envelope, the
+# non-catalog leg of `_create` would otherwise have become a working in-chat cart payment, which
+# is the opposite of that ruling.
+#
+# POSITION is what these tests are about, not the status code. The refusal sits at the TOP of
+# `_create`, above the Wix call, the readiness gate, the reference reservation and the attempt
+# write — so it burns nothing for a payment that can never be sent. The three tests that used to
+# measure V1 pricing here (`..._wix_authoritative...`, `..._non_inr...`, `..._non_whole_paise...`)
+# are folded in below, because the property is now stronger than the one they asserted: nothing
+# is priced at all. Wix's own currency and whole-paise guards keep their coverage in
+# `tests/test_wix_cart_v2_*.py` and on the website path.
 
-def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(env):
-    h, fake, lam, _mp = env
+def test_the_in_chat_cart_leg_is_refused_before_any_io(env):
+    h, fake, lam, monkeypatch = env
+    wix_calls = []
+    monkeypatch.setattr(h.wix_ecom, 'create_checkout',
+                        lambda items, **k: wix_calls.append(items) or _fake_checkout())
+
     resp = h.handler(_create_event(), None)
+
+    # 200, matching the `PAYMENT_INITIATION_DISABLED` sibling: `cart.tsx` answers that shape with
+    # the "no charge was made" copy, which is only honest because the server stopped before the
+    # payment rail.
     assert resp['statusCode'] == 200
     body = json.loads(resp['body'])
+    assert body['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
+    assert 'Nothing has been charged.' in body['message']
+    # No `paymentAttemptId`, because no attempt exists.
+    assert 'paymentAttemptId' not in body
+
+    # Zero rows in BOTH tables, no invoke, no Wix call.
+    assert fake.count(ATTEMPTS_TABLE) == 0
+    assert fake.count(KEYS_TABLE) == 0
+    assert lam.invocations == []
+    assert wix_calls == []
+
+
+@pytest.mark.parametrize('override', [
+    # The browser claiming its own amount: never even read, because nothing is priced.
+    {'amount': 1, 'amountPaise': 1, 'total': '1.00'},
+    {},
+])
+def test_the_cart_refusal_does_not_depend_on_the_request_body(env, override):
+    h, fake, _lam, _mp = env
+    resp = h.handler(_create_event(**override), None)
+    assert json.loads(resp['body'])['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+@pytest.mark.parametrize('checkout', [
+    _fake_checkout(currency='USD'),       # would have been UNSUPPORTED_CURRENCY
+    _fake_checkout(total='599.005'),      # would have been AMOUNT_NOT_SETTLED
+])
+def test_a_cart_wix_would_have_refused_is_refused_earlier_still(env, checkout):
+    """The money guards are not bypassed — they are unreachable, which is stronger.
+
+    A non-INR or sub-paise total used to be refused AFTER the live Wix call. Now the policy
+    refusal precedes the call, so there is no total to be wrong about on this leg.
+    """
+    h, fake, _lam, monkeypatch = env
+    monkeypatch.setattr(h.wix_ecom, 'create_checkout', lambda items, **k: checkout)
+    resp = h.handler(_create_event(), None)
+    assert json.loads(resp['body'])['status'] == 'CART_PAYMENT_IS_WEBSITE_ONLY'
+    assert fake.count(ATTEMPTS_TABLE) == 0
+    assert fake.count(KEYS_TABLE) == 0
+
+
+def test_the_cart_refusal_follows_the_service_refusal_in_source_order(env):
+    """Structural. Both are pre-I/O policy refusals, and a service basket must keep answering with
+    its OWN code rather than being swallowed by the cart one."""
+    import inspect
+    h, _fake, _lam, _mp = env
+    source = inspect.getsource(h._create)
+    assert (source.index('SERVICE_WEBSITE_ONLY')
+            < source.index('CART_PAYMENT_IS_WEBSITE_ONLY')
+            < source.index('cart_v2.is_enabled()'))
+
+
+def test_a_website_only_service_in_a_cart_still_answers_the_service_code(env):
+    h, fake, _lam, _mp = env
+    from lambda_utils.ecommerce import service_requests as sr
+    product = sorted(sr.SERVICE_PRODUCT_IDS)[0]
+    resp = h.handler(_create_event(lineItems=[
+        {'catalogReference': {'catalogItemId': product}, 'quantity': 1}]), None)
+    assert resp['statusCode'] == 409
+    assert json.loads(resp['body'])['error'] == sr.SERVICE_WEBSITE_ONLY
+    assert fake.count(ATTEMPTS_TABLE) == 0
+
+
+# ── create, initiation disabled (the default posture) — the CATALOG leg ────────
+
+def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(env):
+    h, fake, lam, monkeypatch = env
+    _enable_catalog_leg(h, monkeypatch)
+    resp = _drive_catalog(h)
+    assert resp['statusCode'] == 200, resp['body']
+    body = json.loads(resp['body'])
     assert body['status'] == 'PAYMENT_INITIATION_DISABLED'
-    assert body['amountPaise'] == 59900          # Wix authoritative 599.00 -> paise
+    # The CALCULATOR total — Wix's collection plus our convenience fee plus the GST on that fee —
+    # never the raw collection figure.
+    assert body['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert body['currency'] == 'INR'
 
     # An attempt exists, in the readiness-checked state, marked WIX_HEADLESS, bound to the customer.
@@ -167,7 +367,7 @@ def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(e
     assert len(attempts) == 1
     assert attempts[0]['customerId'] == CUSTOMER
     assert attempts[0]['checkoutMode'] == 'WIX_HEADLESS'
-    assert attempts[0]['amountPaise'] == 59900
+    assert attempts[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
     assert attempts[0]['status'] == 'PAYMENT_READINESS_CHECKED'
 
     # A PAYREF# reservation exists (reference reserved), but NO order rows: no ORDERNO#, no
@@ -181,55 +381,58 @@ def test_create_disabled_prepares_attempt_but_sends_nothing_and_makes_no_order(e
     # out, because initiation is disabled.
     paths = [str(e.get('path') or '') for e in lam.invocations]
     assert any('payment-config' in p for p in paths)
-    assert not any('send' in p for p in paths)
+    assert not any('/whatsapp/send' in p for p in paths)
+    assert not any(e.get('isCheckoutTemplate') for e in lam.invocations)
 
 
-def test_amount_is_wix_authoritative_not_the_request(env):
+def test_the_amount_recorded_is_the_quote_not_the_request(env):
+    """The browser's claim is never read. The figure recorded is the calculator's."""
     h, fake, _lam, monkeypatch = env
-    # Wix says 599.00; the browser tries to claim a tiny amount in the body. The handler must
-    # ignore the body and price from Wix.
-    monkeypatch.setattr(h.wix_ecom, 'create_checkout',
-                        lambda items, **k: _fake_checkout(total='599.00'))
-    resp = h.handler(_create_event(amount=1, amountPaise=1, total='1.00'), None)
-    assert json.loads(resp['body'])['amountPaise'] == 59900
-    assert fake.all_rows(ATTEMPTS_TABLE)[0]['amountPaise'] == 59900
+    _enable_catalog_leg(h, monkeypatch)
+    _drive_catalog(h, amount=1, amountPaise=1, total='1.00')
+    assert fake.all_rows(ATTEMPTS_TABLE)[0]['amountPaise'] == TOTAL_PAYABLE_PAISE
 
 
-# ── fail-closed money and readiness ────────────────────────────────────────────
-
-def test_non_inr_is_refused_with_no_attempt(env):
-    h, fake, _lam, monkeypatch = env
-    monkeypatch.setattr(h.wix_ecom, 'create_checkout',
-                        lambda items, **k: _fake_checkout(currency='USD'))
-    resp = h.handler(_create_event(), None)
-    assert resp['statusCode'] == 409
-    assert json.loads(resp['body'])['error'] == 'UNSUPPORTED_CURRENCY'
+def test_the_catalog_leg_requires_cart_v2_and_refuses_rather_than_crashing(env):
+    """`snapshot` and `_calculated` exist only on the V2 branch, so a V2-off deployment used to
+    raise `UnboundLocalError` here. Named 503 instead, with the vocabulary
+    `checkout_preflight` already uses for the same condition."""
+    h, fake, lam, _mp = env
+    from lambda_utils.ecommerce import service_requests as sr
+    resp = _drive_catalog(h)
+    assert resp['statusCode'] == 503
+    assert json.loads(resp['body'])['error'] == sr.SERVICE_UNAVAILABLE
     assert fake.count(ATTEMPTS_TABLE) == 0
+    assert lam.invocations == []
 
 
-def test_non_whole_paise_total_fails_closed(env):
-    h, fake, _lam, monkeypatch = env
-    monkeypatch.setattr(h.wix_ecom, 'create_checkout',
-                        lambda items, **k: _fake_checkout(total='599.005'))
-    resp = h.handler(_create_event(), None)
-    assert resp['statusCode'] == 409
-    assert json.loads(resp['body'])['error'] == 'AMOUNT_NOT_SETTLED'
-    assert fake.count(ATTEMPTS_TABLE) == 0
-
+# ── fail-closed readiness ─────────────────────────────────────────────────────
 
 def test_blocked_readiness_creates_no_attempt_and_no_order(env):
     h, fake, _lam, monkeypatch = env
+    _enable_catalog_leg(h, monkeypatch)
     # Empty expected configuration -> payment_readiness returns CONFIGURATION_UNVERIFIED (blocks),
     # without any live read. The CTA is refused and nothing is reserved.
     monkeypatch.setenv('EXPECTED_CONFIGURATION_NAME', '')
     monkeypatch.setattr(h, 'EXPECTED_CONFIGURATION_NAME', '')
-    resp = h.handler(_create_event(), None)
+    resp = _drive_catalog(h)
     assert resp['statusCode'] == 409
     body = json.loads(resp['body'])
     assert body['status'] == 'payment_unavailable'
     assert body['readiness']  # a blocking state is named
     assert fake.count(ATTEMPTS_TABLE) == 0
     assert fake.count(KEYS_TABLE) == 0
+
+
+def test_the_readiness_refusal_is_on_blocking_states_not_on_truthiness(env):
+    """`ALL_STATES == {PAYMENT_READY} | BLOCKING_STATES` today, so the two forms agree — but the
+    enumerated form is what the module asks for, so a state added later without being classified
+    cannot become permissive by omission."""
+    import inspect
+    h, _fake, _lam, _mp = env
+    source = inspect.getsource(h._create)
+    assert 'readiness.state in payment_readiness.BLOCKING_STATES' in source
+    assert 'if not readiness.ready' not in source
 
 
 def test_empty_cart_is_refused(env):
@@ -243,30 +446,53 @@ def test_empty_cart_is_refused(env):
 
 def test_create_enabled_sends_order_details_and_still_creates_no_order(env):
     h, fake, lam, monkeypatch = env
+    _enable_catalog_leg(h, monkeypatch)
+    _seed_catalog_session(fake)
     monkeypatch.setattr(h, 'INITIATION_ENABLED', True)
-    resp = h.handler(_create_event(), None)
-    assert resp['statusCode'] == 200
+    resp = _drive_catalog(h)
+    assert resp['statusCode'] == 200, resp['body']
     body = json.loads(resp['body'])
     assert body['status'] == 'PAYMENT_REQUEST_SENT'
 
-    # The order_details send was invoked, carrying the reserved reference byte-for-byte and the
-    # authoritative amount — but no order exists.
-    send = [e for e in lam.invocations if 'send' in str(e.get('path') or '')]
+    # The send went to the OUTBOUND sender on the envelope the resolver owns, carrying the
+    # reserved reference byte-for-byte and the calculator's amount — but no order exists.
+    send = [e for e in lam.invocations if e.get('isCheckoutTemplate')]
     assert len(send) == 1
-    sent = json.loads(send[0]['body'])
+    assert send[0]['templateName'] == 'wecarepay_wa'
+    details = send[0]['checkoutOrderDetails']
     stored_ref = fake.all_rows(ATTEMPTS_TABLE)[0]['referenceId']
-    assert sent['reference_id'] == stored_ref     # byte-for-byte, not transformed
-    assert sent['amount_paise'] == 59900
-    assert sent['currency'] == 'INR'
+    assert details['reference_id'] == stored_ref     # byte-for-byte, not transformed
+    assert details['total_amount']['value'] == TOTAL_PAYABLE_PAISE
+    assert details['currency'] == 'INR'
+    # The RESOLVER owns Mode 3; the caller supplies no settings and no link.
+    assert 'payment_settings' not in details
+    assert details['payment_configuration'] == 'WECAREDIGITAL'
     keys = fake.all_rows(KEYS_TABLE)
     assert not any(str(r.get('orderId', '')).startswith(('ORDERNO#', 'PAYMENTATTEMPT#')) for r in keys)
 
 
+def test_the_send_targets_the_outbound_sender_and_not_the_business_api(env):
+    """The repaired route. It used to POST `/wa-business/messages/send/interactive-payment` at the
+    business-API Lambda, whose send dispatcher 404s on that path — so the function could never
+    have sent anything, and the 404 surfaced as a 502 `SEND_FAILED` that looked like Meta."""
+    h, fake, lam, monkeypatch = env
+    _enable_catalog_leg(h, monkeypatch)
+    _seed_catalog_session(fake)
+    monkeypatch.setattr(h, 'INITIATION_ENABLED', True)
+    _drive_catalog(h)
+    targets = [f for f, e in zip(lam.function_names, lam.invocations)
+               if e.get('isCheckoutTemplate')]
+    assert targets == ['wecare-outbound-whatsapp:live']
+    assert h.OUTBOUND_SENDER_FUNCTION == 'wecare-outbound-whatsapp:live'
+
+
 def test_send_failure_leaves_attempt_and_no_order(env):
     h, fake, lam, monkeypatch = env
+    _enable_catalog_leg(h, monkeypatch)
+    _seed_catalog_session(fake)
     monkeypatch.setattr(h, 'INITIATION_ENABLED', True)
     lam.send_ok = False
-    resp = h.handler(_create_event(), None)
+    resp = _drive_catalog(h)
     assert resp['statusCode'] == 502
     assert json.loads(resp['body'])['status'] == 'SEND_FAILED'
     # The attempt is still there (reusable for a delivery retry); no order was created.

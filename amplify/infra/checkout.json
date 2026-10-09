@@ -169,6 +169,12 @@
                     },
                     {
                       "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-whatsapp-business-api:live"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-outbound-whatsapp"
+                    },
+                    {
+                      "Fn::Sub": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:wecare-outbound-whatsapp:live"
                     }
                   ]
                 }

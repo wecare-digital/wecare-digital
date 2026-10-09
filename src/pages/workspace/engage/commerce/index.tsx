@@ -3,7 +3,8 @@
  * Admin UI for WhatsApp native commerce: send the catalog, compose & send a
  * native order_details (Review & Pay) bill, view orders/payments, and see the
  * live Razorpay payment configs per WABA. Backed by:
- *   POST /whatsapp/send            (catalog_message / isInteractivePayment order_details)
+ *   POST /whatsapp/send            (catalog_message only — this page composes NO payment)
+ *   POST /invoices + POST /invoices/{id}/send-payment-link   (the bill, server-composed)
  *   GET  /wa-business/orders       + PATCH /wa-business/orders/{id}
  *   GET  /payments                 (recent payments)
  */
@@ -102,37 +103,56 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         } finally { setBusy( '' ); }
     };
 
+    /**
+     * Raise an invoice, then ask the server to send its payment request.
+     *
+     * This browser composes NO payment any more. It used to build a free-form interactive
+     * order_details here, with a `reference_id` of `ADMINBILL-${Date.now()}` that was reserved
+     * nowhere. A free-form interactive message is not the approved template and is now refused
+     * at the server boundary, and an unreserved reference has no `PAYREF#` row, so a capture
+     * against it quarantines as PAID_BUT_NO_ORDER.
+     *
+     * The toast also used to promise "18% GST + 2% convenience" while the server-side free-form
+     * branch charged 2.5% plus 18% GST on the fee — a live money discrepancy. After this change
+     * the fee is computed once, in the invoice engine, and shown as its own line, so no figure is
+     * quoted here at all.
+     */
     const sendBill = async () => {
-        // Backend (/whatsapp/send isInteractivePayment) reads orderDetails.order.items[]
-        // where each item = { name, amount:{value(paise),offset:100}, quantity, gstRate, retailer_id }.
-        // Backend auto-adds 18% GST (per item gstRate) + 2.2% convenience fee and computes totals.
         const li = items
             .filter( i => i.name.trim() && Number( i.amount ) > 0 )
-            .map( ( i, idx ) => ( {
-                retailer_id: `ADMIN_${idx + 1}`,
+            .map( i => ( {
                 name: i.name.trim(),
-                amount: { value: Math.round( Number( i.amount ) * 100 ), offset: 100 },
+                // Rupees. `CreateInvoiceEngineRequest.items[].amount` is a rupee figure and the
+                // server converts with exact integer arithmetic.
+                amount: Number( i.amount ),
                 quantity: Math.max( 1, Number( i.quantity ) || 1 ),
                 gstRate: 18,
             } ) );
         if ( !digits( toPhone ) ) { toast.error( 'Enter a customer phone' ); return; }
         if ( !li.length ) { toast.error( 'Add at least one line item with amount' ); return; }
-        const subtotal = li.reduce( ( s, i ) => s + ( i.amount.value / 100 ) * i.quantity, 0 );
         setBusy( 'bill' );
         try
         {
-            const r = await call( '/whatsapp/send', 'POST', {
-                recipientPhone: digits( toPhone ), phoneNumberId: phoneId,
-                isInteractivePayment: true,
-                orderDetails: {
-                    type: goodsType,
-                    currency: 'INR',
-                    gstin: '19AAFFW7196L1Z8',
-                    reference_id: `ADMINBILL-${Date.now()}`,
-                    order: { items: li },
-                },
+            const invoice = await call( '/invoices', 'POST', {
+                customerPhone: digits( toPhone ),
+                customerEmail: '',
+                shippingAddress: '',
+                billingAddress: '',
+                goodsType,
+                items: li,
+                entryPoint: 'commerce',
             } );
-            if ( r ) toast.success( `Bill sent (subtotal ₹${subtotal.toFixed( 2 )} + 18% GST + 2% convenience)` );
+            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice' ); return; }
+            // The configuration name is deliberately NOT sent: the server resolves it from the
+            // invoice row and then from its own proven expectation.
+            const sent = await call( `/invoices/${invoice.invoiceId}/send-payment-link`, 'POST',
+                { phoneNumberId: phoneId } );
+            // `call` returns the parsed BODY whatever the status, so a refusal is a truthy
+            // object. The server's refusals carry a stable `code` and every message ends
+            // "Nothing has been charged." — shown rather than collapsed to "Send failed", because
+            // a readiness refusal is now an expected outcome a staff member can act on.
+            if ( sent?.error || sent?.code ) toast.error( String( sent.error || sent.code ) );
+            else if ( sent ) toast.success( `Bill sent (invoice ${invoice.invoiceNumber || invoice.invoiceId})` );
             else toast.error( 'Send failed' );
         } finally { setBusy( '' ); }
     };

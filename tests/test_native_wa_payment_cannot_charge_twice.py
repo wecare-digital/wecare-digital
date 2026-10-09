@@ -108,7 +108,21 @@ PERMITTED_WIX_CALLS = frozenset()
 FORBIDDEN_WIX_FRAGMENTS = ('create-order', 'orders', 'checkout', 'payments', '/v1/')
 
 # ── permitted LAMBDA invokes, per drive ──────────────────────────────────────
-PERMITTED_LAMBDA_INVOKES_SEND = frozenset({'wecare-outbound-whatsapp'})
+#
+# The readiness readback joins the send. It is a READ — `GET /{waba}/payment_configurations`
+# through the business-API token holder, which composes nothing and charges nothing — and it is
+# the call that makes the send conditional on a live provider answer rather than on a constant in
+# a file. Enumerated here rather than filtered out, because an unlisted call is exactly what this
+# file exists to catch.
+PERMITTED_LAMBDA_INVOKES_SEND = frozenset({
+    'wecare-outbound-whatsapp',
+    'wecare-whatsapp-business-api:live',
+})
+
+#: The readiness expectations. The handler carries NO literal default for either — an
+#: unconfigured deployment refuses rather than proving a constant — so the fixture supplies them.
+TEST_CONFIG = 'WECAREDIGITAL'
+TEST_MID = 'acc_TESTMID'
 
 #: An EXISTING fire-and-forget hint on any `has_order` outcome: ids only, never raises, and the
 #: receiver re-reads every link and no-ops for an ordinary order. Written out rather than
@@ -246,6 +260,20 @@ class Recorder:
                 # could decide an amount or a recipient - so that has to be assertable here
                 # rather than asserted in a comment.
                 recorder.payloads.append((label, raw, kwargs.get('InvocationType', '')))
+                # The readiness readback, answered separately because it is a READ against a
+                # different route. Without the split it would receive an invoice-shaped response
+                # and the payment gate would refuse with META_UNAVAILABLE on every drive.
+                if '/payment-config/list' in str(raw.get('path') or ''):
+                    ready = json.dumps({'statusCode': 200, 'body': json.dumps({'data': [{
+                        'configuration_name': TEST_CONFIG, 'status': 'active',
+                        'provider_name': 'Razorpay', 'provider_mid': TEST_MID,
+                        'waba_id': wpr.PHONE_ID_TO_WABA[WABA1]}]})})
+
+                    class _ReadyPayload:
+                        def read(self_inner):
+                            return ready.encode()
+
+                    return {'Payload': _ReadyPayload(), 'StatusCode': 200}
                 body = json.dumps({'statusCode': 200, 'body': json.dumps({
                     'invoiceId': invoice_id, 'invoiceNumber': 'WD/26-27/0001',
                     'deduplicated': deduplicated, 'status': send_status,
@@ -301,7 +329,9 @@ def engine():
     for stale in [m for m in sys.modules if m == 'handler' or m.startswith('handler.')]:
         del sys.modules[stale]
     sys.path.insert(0, ENGINE_DIR)
-    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1'}):
+    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1',
+                                 'WA_PAY_CONFIG_NAME': TEST_CONFIG,
+                                 'EXPECTED_PROVIDER_MID': TEST_MID}):
         with patch('boto3.resource'), patch('boto3.client'):
             return importlib.import_module('handler')
 

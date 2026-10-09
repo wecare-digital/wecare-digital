@@ -2318,99 +2318,18 @@ export async function generateAIResponse ( message: string, context?: {
 
 
 // ============================================================================
-// WHATSAPP PAYMENT MESSAGE API (Order Details Template)
+// WHATSAPP PAYMENT MESSAGE API — REMOVED
+//
+// `sendWhatsAppPaymentMessage`, `SendPaymentMessageRequest` and `PaymentOrderItem` stood here.
+// They composed the whole Meta `order_details` payload IN THE BROWSER: the `reference_id` was
+// minted client-side, and `payment_configuration` fell back to a client-side literal, which is
+// exactly what requirements statement 9 forbids. A client-minted reference has no `PAYREF#` row,
+// so a capture against it resolves to nothing and quarantines as PAID_BUT_NO_ORDER.
+//
+// No payment is composed outside `amplify/` any more, and a test asserts it. Staff surfaces raise
+// an invoice (`createInvoiceEngine`) and then ask the server to send its payment request
+// (`sendPaymentLink`), so identity is reserved before the send and both readiness gates apply.
 // ============================================================================
-
-export interface PaymentOrderItem {
-  name: string;
-  amount: number;  // In smallest currency unit (paise for INR)
-  quantity: number;
-  productId?: string;
-  gstRate?: number;  // Per-item GST rate (0, 3, 5, 12, 18, 28)
-}
-
-export interface SendPaymentMessageRequest {
-  contactId: string;
-  phoneNumberId: string;
-  recipientBsuid?: string;    // Send to BSUID recipient
-  templateName?: string;
-  referenceId: string;
-  items: PaymentOrderItem[];
-  discount?: number;      // In paise
-  delivery?: number;      // In paise (shipping/delivery)
-  tax?: number;           // In paise (total GST from all items)
-  taxDescription?: string; // e.g., "GST 18%" or "Tax"
-  gstin?: string;         // GSTIN number
-  currency?: string;
-  headerImageUrl?: string;
-  bodyText?: string;
-  useInteractive?: boolean;
-  paymentConfiguration?: string;
-  convenienceFee?: number; // In paise (2.2% + 18% GST)
-  orderId?: string;       // Order ID (blank = Offline)
-}
-
-/**
- * Send WhatsApp Payment Message using order_details
- * 
- * Fields shown in WhatsApp message:
- * - Reference ID
- * - Items (name, amount, quantity)
- * - Discount (₹)
- * - Delivery (₹)
- * - Tax (₹) - passed from frontend
- * 
- * NOTE: Convenience Fee is handled by Razorpay Fee Bearer model (not in WhatsApp message)
- */
-export async function sendWhatsAppPaymentMessage ( request: SendPaymentMessageRequest ): Promise<{ messageId: string; status: string } | null> {
-  const subtotal = request.items.reduce( ( sum, item ) => sum + ( item.amount * item.quantity ), 0 );
-  const discount = request.discount || 0;
-  const delivery = request.delivery || 0;
-  const tax = request.tax || 0;
-
-  // Build order_details payload — always physical-goods for checkout template (address + coupons)
-  const orderDetails: any = {
-    reference_id: request.referenceId,
-    type: 'physical-goods',
-    payment_configuration: request.paymentConfiguration || 'WECAREDIGITAL',
-    currency: request.currency || 'INR',
-    itemName: request.items[ 0 ]?.name || 'Service Fee',
-    quantity: request.items[ 0 ]?.quantity || 1,
-    gstin: request.gstin || DEFAULT_GSTIN,
-    orderId: request.orderId || 'Offline',
-    shipping_info: { country: 'IN', addresses: [] },
-    order: {
-      status: 'pending',
-      items: request.items.map( ( item, idx ) => ( {
-        retailer_id: item.productId || `ITEM_${idx + 1}`,
-        name: item.name,
-        amount: { value: item.amount, offset: 100 },
-        quantity: item.quantity,
-        gstRate: item.gstRate ?? 0,
-      } ) ),
-      subtotal: { value: subtotal, offset: 100 },
-      discount: { value: discount, offset: 100, description: 'Promo' },
-      shipping: { value: delivery, offset: 100, description: 'Express' },
-      tax: { value: tax, offset: 100, description: `GSTIN: ${request.gstin || DEFAULT_GSTIN}` },
-    },
-  };
-
-  // Always use checkout button template (wecarepay_wa) — enables address + coupons
-  return apiCall<{ messageId: string; status: string }>( `${API_BASE}/whatsapp/send`, {
-    method: 'POST',
-    body: JSON.stringify( {
-      contactId: request.contactId,
-      phoneNumberId: request.phoneNumberId,
-      recipientBsuid: request.recipientBsuid,
-      isCheckoutTemplate: true,
-      isTemplate: true,
-      templateName: 'wecarepay_wa',
-      templateParams: [],
-      checkoutOrderDetails: orderDetails,
-      headerImageUrl: request.headerImageUrl || 'https://wecare.digital/get/o/stream/media/m/wecare-digital.png',
-    } ),
-  } );
-}
 
 
 // ============================================================================
@@ -5261,70 +5180,10 @@ export interface CheckoutShippingAddress {
   landmark_area?: string;
 }
 
-export interface CheckoutOrderDetails {
-  reference_id: string;
-  type: 'physical-goods' | 'digital-goods';
-  currency: string;
-  payment_settings?: Array<{
-    type: string;
-    payment_gateway: {
-      type: string;
-      configuration_name: string;
-    };
-  }>;
-  shipping_info?: {
-    country: string;
-    addresses: CheckoutShippingAddress[];
-  };
-  order: {
-    items: CheckoutItem[];
-    subtotal: { offset: number; value: number };
-    shipping: { offset: number; value: number };
-    tax: { offset: number; value: number };
-    discount?: { offset: number; value: number; description?: string };
-    status: string;
-    expiration?: { timestamp: string; description?: string };
-  };
-  total_amount: { offset: number; value: number };
-  header_image_id?: string;
-}
-
-export interface SendCheckoutTemplateRequest {
-  contactId: string;
-  phoneNumberId: string;
-  templateName: string;
-  templateParams?: string[];
-  checkoutOrderDetails: CheckoutOrderDetails;
-  headerImageUrl?: string;
-  recipientBsuid?: string;
-}
-
-/**
- * Send a checkout button template message via WhatsApp.
- * This sends a marketing template with an order_details "Buy now" button
- * that opens the native WhatsApp checkout flow with coupons + address.
- */
-export async function sendCheckoutTemplate (
-  request: SendCheckoutTemplateRequest
-): Promise<{ messageId: string; whatsappMessageId: string; status: string; referenceId: string } | null> {
-  return apiCall<{ messageId: string; whatsappMessageId: string; status: string; referenceId: string }>(
-    `${API_BASE}/whatsapp/send`,
-    {
-      method: 'POST',
-      body: JSON.stringify( {
-        contactId: request.contactId,
-        phoneNumberId: request.phoneNumberId,
-        isTemplate: true,
-        isCheckoutTemplate: true,
-        templateName: request.templateName,
-        templateParams: request.templateParams || [],
-        checkoutOrderDetails: request.checkoutOrderDetails,
-        headerImageUrl: request.headerImageUrl,
-        recipientBsuid: request.recipientBsuid,
-      } ),
-    }
-  );
-}
+// `CheckoutOrderDetails`, `SendCheckoutTemplateRequest` and `sendCheckoutTemplate` stood here.
+// `sendCheckoutTemplate` had ZERO callers in `src/`, and the two interfaces existed only to type
+// its argument — a browser-side `order_details` composer kept alive by nothing. Removed for the
+// same reason as `sendWhatsAppPaymentMessage` above: no payment is composed outside `amplify/`.
 
 // Get delivery log for an invoice
 export async function getInvoiceDeliveryLog ( invoiceId: string ): Promise<{ deliveryLogs: InvoiceDeliveryLog[]; count: number }> {

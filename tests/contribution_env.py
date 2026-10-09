@@ -127,8 +127,22 @@ def _stub_gateway(h, monkeypatch, created):
     monkeypatch.setattr(h.razorpay_orders, "account_mode", lambda key_id: "live")
 
 
+#: A native catalog-service session row, as `flows/catalog_services.py` writes one. The
+#: `phoneNumberId` is the AWS-style WABA1 id — the only value `PAYMENT_SENDERS` permits.
+CATALOG_INTENT = "INTENT-CONTRIBUTION"
+CATALOG_SESSION = {
+    "orderId": "CATALOGSERVICE#tok-abcdefghijklmnopqrst",
+    "contactId": "contact-contribution-1",
+    "phoneNumberId": "phone-number-id-waba1-direct-1016149501586345",
+    "kind": "SUBMIT_REQUEST",
+    "productId": "service-product-1",
+    "variantId": "service-variant-1",
+}
+
+
 def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
-             committed=(CONTRIBUTION_ID,), address=OWNED, real_loader=False):
+             committed=(CONTRIBUTION_ID,), address=OWNED, real_loader=False,
+             catalog_leg=True):
     h = _load_handler(monkeypatch, contribution_env=contribution_env, committed=committed)
     fake = FakeDynamo(keys={ATTEMPTS_TABLE: "paymentAttemptId", KEYS_TABLE: "orderId",
                             CONTACTS_TABLE: "id"},
@@ -142,6 +156,34 @@ def make_env(monkeypatch, *, wix=None, contribution_env=CONTRIBUTION_ID,
     monkeypatch.setattr(h, "_wix_request", wix)
     monkeypatch.setattr(h.wix_ecom, "_request", wix)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
+    # The in-chat CART leg is refused at the top of `_create` — cart purchases are collected on
+    # the website (requirements statement 8), and that refusal is pinned in
+    # `tests/test_checkout_handler.py`. So `_create`'s PRICING and its refusal vocabulary, which
+    # is what the `action=create` tests in this family measure, are only reachable with a
+    # catalog-service session supplied.
+    #
+    # Bound here once rather than at every call site, so each test keeps its shape and its
+    # subject: a `_v2_snapshot` exception still has to land in a 409 arm rather than a 500, the
+    # create route still refuses a mismatched saved cart, and a replaced cart still becomes
+    # payable. The session row the post-attempt conditional update matches on is seeded alongside.
+    #
+    # `catalog_leg=False` opts OUT, for the tests whose subject IS a cart-leg refusal — a
+    # services basket must still answer `SERVICE_WEBSITE_ONLY`, and that arm only fires when
+    # there is no catalog session.
+    if catalog_leg:
+        real_create = h._create
+
+        def _create_on_the_catalog_leg(identity, body, origin, *, catalog_session=None):
+            return real_create(identity, body, origin,
+                               catalog_session=catalog_session or dict(CATALOG_SESSION))
+
+        monkeypatch.setattr(h, "_create", _create_on_the_catalog_leg)
+        monkeypatch.setattr(h.wix_writeback, "is_enabled", lambda: True)
+        monkeypatch.setattr(h.wix_writeback, "build_wix_order_payload",
+                            lambda **kw: {"channelInfo": {}, "lineItems": []})
+        fake.Table(KEYS_TABLE).put_item(Item={"orderId": CATALOG_SESSION["orderId"],
+                                              "serviceIntentId": CATALOG_INTENT,
+                                              "status": "PREPARING_PAYMENT"})
     seed_contact(fake, address=address)
     if real_loader:
         monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", h._load_owned_address)
@@ -163,7 +205,10 @@ def prepare_event(line_items, **over):
 
 
 def create_event(line_items, **over):
-    body = {"lineItems": line_items}
+    # `serviceIntentId` is carried because `make_env` binds `_create` to the catalog-service leg
+    # (see the comment there): the post-attempt conditional update on the session row matches on
+    # it, so a successful create needs it present.
+    body = {"lineItems": line_items, "serviceIntentId": CATALOG_INTENT}
     body.update(over)
     return {
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.5"}},

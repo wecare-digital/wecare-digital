@@ -259,9 +259,29 @@ def test_quantity_and_one_per_order(monkeypatch, basket, code):
 @pytest.mark.parametrize("basket", [[service()], [kiosk_line(1), service(AMEND)],
                                     [service(DROP_DOCS)]])
 def test_create_refuses_a_services_basket_with_zero_wix_calls(monkeypatch, basket):
-    h, fake, wix = make_env(monkeypatch, wix=services_wix(monkeypatch))
+    # `catalog_leg=False`: the subject here is the CART-leg refusal, and that arm is
+    # `has_service_line(line_items) and catalog_session is None`. The native catalog leg is a
+    # service purchase and is legitimately payable, so a bound session would be testing the
+    # opposite condition.
+    h, fake, wix = make_env(monkeypatch, wix=services_wix(monkeypatch), catalog_leg=False)
     response = h.handler(create_event(basket), None)
     assert (response["statusCode"], body_of(response)["error"]) == (409, "SERVICE_WEBSITE_ONLY")
+    assert wix.calls == [] and fake.all_rows(ATTEMPTS_TABLE) == [] and payrefs(fake) == []
+
+
+def test_an_ordinary_cart_on_the_create_route_is_website_only_too(monkeypatch):
+    """The sibling refusal, and the reason the one above still has to name its own code.
+
+    Both are pre-I/O policy refusals at the top of `_create`. The service one answers 409 with
+    the service vocabulary so a staff or customer surface can say which thing is website-only;
+    the cart one answers 200 `CART_PAYMENT_IS_WEBSITE_ONLY`, matching the
+    `PAYMENT_INITIATION_DISABLED` sibling whose "no charge was made" copy `cart.tsx` renders.
+    """
+    h, fake, wix = make_env(monkeypatch, wix=services_wix(monkeypatch), catalog_leg=False)
+    response = h.handler(create_event([kiosk_line(1)]), None)
+    assert response["statusCode"] == 200
+    assert body_of(response)["status"] == "CART_PAYMENT_IS_WEBSITE_ONLY"
+    assert "Nothing has been charged." in body_of(response)["message"]
     assert wix.calls == [] and fake.all_rows(ATTEMPTS_TABLE) == [] and payrefs(fake) == []
 
 

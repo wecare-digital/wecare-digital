@@ -167,7 +167,13 @@ CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 #: explicitly NOT DeleteItem or Scan: an order record is evidence that money moved.
 ORDERS_TABLE = "stack-wecare-digital-OrderTable"
 WIX_SITE_ID = "c993128b-26be-41cd-9fcd-904abe23462f"
+#: The business-API Lambda. Holds the Meta token; answers the readiness readback.
 SENDER_FUNCTION = "wecare-whatsapp-business-api"
+#: The in-chat payment sender — the only function that composes a Meta `review_and_pay` message.
+#: `wecare-checkout` invokes it for the native service leg, and WITHOUT the grant below that
+#: invoke raises `AccessDeniedException` after the attempt, the reference and the one-shot claim
+#: are all written, surfacing as a 500 that looks like a Meta problem.
+OUTBOUND_SENDER_FUNCTION = "wecare-outbound-whatsapp"
 PAYMENT_WABA_ID = "2094615664435155"
 
 _account_id_cache = None
@@ -438,12 +444,20 @@ def expected_role_policy(acct: str | None = None) -> dict:
                 "Resource": [f"arn:aws:dynamodb:{REGION}:{acct}:table/{ORDERS_TABLE}"],
             },
             {
+                # Four ARNs, no wildcard. The two `wecare-outbound-whatsapp` entries are the
+                # grant the in-chat send needs; this role is used by one function, the widening
+                # grants no new data access and no ability to charge. The SAME four ARNs are
+                # declared in `amplify/infra/checkout.json`'s `CheckoutRole`, and a test pins the
+                # two homes equal — they have already drifted apart once.
                 "Sid": "InvokeWhatsAppSender",
                 "Effect": "Allow",
                 "Action": ["lambda:InvokeFunction"],
                 "Resource": [
                     f"arn:aws:lambda:{REGION}:{acct}:function:{SENDER_FUNCTION}",
                     f"arn:aws:lambda:{REGION}:{acct}:function:{SENDER_FUNCTION}:{LIVE_ALIAS}",
+                    f"arn:aws:lambda:{REGION}:{acct}:function:{OUTBOUND_SENDER_FUNCTION}",
+                    f"arn:aws:lambda:{REGION}:{acct}:function:"
+                    f"{OUTBOUND_SENDER_FUNCTION}:{LIVE_ALIAS}",
                 ],
             },
         ],

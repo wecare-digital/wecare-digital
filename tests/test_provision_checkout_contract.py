@@ -318,6 +318,98 @@ def test_the_role_reads_only_the_two_canonical_provider_secrets(provisioner):
     assert "wecare/razorpay-webhook" not in json.dumps(_policy(provisioner))
 
 
+# ── A2.4: the invoke grant, in BOTH of its homes ──────────────────────────────
+#
+# `wecare-checkout-role` is defined TWICE — here in the provisioner's `expected_role_policy()`
+# and in `amplify/infra/checkout.json`'s `CheckoutRole` — and the two have already drifted apart
+# once. These are the only offline catch for that class of regression.
+
+EXPECTED_INVOKE_ARNS = sorted([
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api",
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp",
+    "arn:aws:lambda:us-east-1:775261844268:function:wecare-outbound-whatsapp:live",
+])
+
+
+def _checkout_role_policy() -> dict:
+    """The CloudFormation copy of the same inline policy, unwrapped to the document."""
+    template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
+    policy = template["Resources"]["CheckoutRole"]["Properties"]["Policies"][0]
+    document = dict(policy["PolicyDocument"])
+    document["PolicyName"] = policy["PolicyName"]
+    return document
+
+
+def _normalise(resource) -> str:
+    """`Fn::Sub` with the two pseudo-parameters resolved, so the two homes are comparable."""
+    if isinstance(resource, dict):
+        resource = resource["Fn::Sub"]
+    return (str(resource).replace("${AWS::Region}", "us-east-1")
+            .replace("${AWS::AccountId}", "775261844268"))
+
+
+def _statement(policy: dict, sid: str) -> dict:
+    return next(s for s in policy["Statement"] if s["Sid"] == sid)
+
+
+def test_the_invoke_grant_names_the_outbound_sender_in_the_provisioner(provisioner):
+    """Without this grant the in-chat send raises `AccessDeniedException` — and for the catalog
+    leg it does so AFTER the attempt, the reference and the one-shot claim are written, surfacing
+    as a 500 that looks like a Meta problem.
+
+    Four ARNs, NO wildcard. This is a widening of a least-privilege policy by one function and
+    its alias, on a role used by one function; it grants no new data access and no ability to
+    charge.
+    """
+    statement = _statement(_policy(provisioner), "InvokeWhatsAppSender")
+    assert statement["Action"] == ["lambda:InvokeFunction"]
+    assert sorted(statement["Resource"]) == EXPECTED_INVOKE_ARNS
+    assert not any("*" in arn for arn in statement["Resource"])
+
+
+def test_the_invoke_grant_names_the_outbound_sender_in_cloudformation():
+    statement = _statement(_checkout_role_policy(), "InvokeWhatsAppSender")
+    assert statement["Action"] == ["lambda:InvokeFunction"]
+    assert sorted(_normalise(r) for r in statement["Resource"]) == EXPECTED_INVOKE_ARNS
+    assert not any("*" in _normalise(r) for r in statement["Resource"])
+
+
+def test_the_two_homes_agree_on_the_invoke_grant(provisioner):
+    """Pinned EQUAL, because whichever home is applied last wins."""
+    script = sorted(_statement(_policy(provisioner), "InvokeWhatsAppSender")["Resource"])
+    template = sorted(_normalise(r) for r in
+                      _statement(_checkout_role_policy(), "InvokeWhatsAppSender")["Resource"])
+    assert script == template
+
+
+def test_the_only_statement_the_two_homes_disagree_on_is_the_known_coupon_drift(provisioner):
+    """The drift this records is REAL and is NOT resolved by this change, deliberately.
+
+    `amplify/infra/checkout.json` carries a `CouponAndGiftCardRedemption` statement that
+    `expected_role_policy()` does not, and both documents use the same `PolicyName` — so
+    `ensure_role` calling `put_role_policy` with the script's document STRIPS that statement from
+    the live role. The script's docstring argues the omission is intentional (coupons and gift
+    cards are Wix-authoritative on the website path, and checkout imports only
+    `gift_card_settlement`), but whether to remove a live grant on a money path is an owner
+    decision, not an implementation detail — so the drift is recorded here rather than guessed at
+    in either direction.
+
+    What this test buys in the meantime: ANY NEW divergence fails. The known one is named, so it
+    cannot quietly become a second.
+    """
+    script_sids = {s["Sid"] for s in _policy(provisioner)["Statement"]}
+    template_sids = {s["Sid"] for s in _checkout_role_policy()["Statement"]}
+    assert template_sids - script_sids == {"CouponAndGiftCardRedemption"}, (
+        "a NEW statement-level drift appeared between the two definitions of "
+        "wecare-checkout-role; reconcile it or record it here with a reason")
+    assert script_sids - template_sids == set()
+    # Same PolicyName in both, which is WHY the drift matters: the provisioner replaces, it does
+    # not merge.
+    assert _checkout_role_policy()["PolicyName"] == "CheckoutLeastPrivilege"
+    assert 'PolicyName="CheckoutLeastPrivilege"' in SCRIPT.read_text(encoding="utf-8")
+
+
 def test_the_environment_holds_secret_names_not_values(provisioner):
     env = provisioner.expected_environment()
     assert env["RAZORPAY_SECRET_ID"] == "wecare/razorpay/api"

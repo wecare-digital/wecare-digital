@@ -76,6 +76,18 @@ FEE_GST_PAISE = 11475
 TOTAL_PAYABLE_PAISE = COLLECTION_PAISE + FEE_PAISE + FEE_GST_PAISE
 
 
+#: A native catalog-service session row, as `flows/catalog_services.py` writes one. The
+#: `phoneNumberId` is the AWS-style WABA1 id — the only value `PAYMENT_SENDERS` permits, and the
+#: only shape `_get_aws_phone_number_id` can produce.
+CATALOG_INTENT = "INTENT-CARTV2"
+CATALOG_SESSION = {
+    "orderId": "CATALOGSERVICE#tok-abcdefghijklmnopqrst",
+    "contactId": "contact-v2-1",
+    "phoneNumberId": "phone-number-id-waba1-direct-1016149501586345",
+    "kind": "SUBMIT_REQUEST",
+    "productId": "service-product-1",
+    "variantId": "service-variant-1",
+}
 def delivery_complete():
     return json.loads((FIXTURES / "wix_cart_v2_delivery_complete.json").read_text())
 
@@ -185,7 +197,29 @@ def env(monkeypatch):
     monkeypatch.setattr(h, "_wix_request", wix)
     monkeypatch.setattr(h.wix_ecom, "_request", wix)
     monkeypatch.setattr(h.customer_auth, "authenticate", lambda event: _Identity())
+    # The in-chat CART leg is refused at the top of `_create` — cart purchases are collected on
+    # the website (requirements statement 8), and that refusal is pinned in
+    # `tests/test_checkout_handler.py`. So `_create`'s PRICING, which is what this whole file
+    # measures, is only reachable with a catalog-service session supplied.
+    #
+    # Bound here once rather than at twenty-odd call sites, so every existing test keeps its
+    # shape and its subject: the figure `_create` charges is still the calculator's, the
+    # address is still never taken from the request, and the refusals are still the refusals.
+    # The session row the post-attempt conditional update matches on is seeded alongside.
+    real_create = h._create
+
+    def _create_on_the_catalog_leg(identity, body, origin, *, catalog_session=None):
+        return real_create(identity, body, origin,
+                           catalog_session=catalog_session or dict(CATALOG_SESSION))
+
+    monkeypatch.setattr(h, "_create", _create_on_the_catalog_leg)
+    monkeypatch.setattr(h.wix_writeback, "is_enabled", lambda: True)
+    monkeypatch.setattr(h.wix_writeback, "build_wix_order_payload",
+                        lambda **kw: {"channelInfo": {}, "lineItems": []})
     seed_contact(fake)
+    fake.Table(KEYS_TABLE).put_item(Item={"orderId": CATALOG_SESSION["orderId"],
+                                          "serviceIntentId": CATALOG_INTENT,
+                                          "status": "PREPARING_PAYMENT"})
     # The owned-address loader seam, stubbed for the money tests so they measure the PRICE and
     # not the profile read. The tests that are about the read restore the real loader with
     # `monkeypatch.setattr(h, "LOAD_OWNED_ADDRESS", h._load_owned_address)`. It is NEVER taken
@@ -235,7 +269,8 @@ def _create_event(**over):
         "catalogReference": {"appId": reference["appId"],
                              "catalogItemId": reference["catalogItemId"],
                              "options": {"variantId": reference["options"]["variantId"]}},
-        "quantity": 1}]}
+        "quantity": 1},
+    ], "serviceIntentId": CATALOG_INTENT}
     body.update(over)
     return {
         "requestContext": {"http": {"method": "POST", "sourceIp": "203.0.113.5"}},
@@ -396,32 +431,59 @@ def _stub_v1(h, monkeypatch):
         "lineItems": [{"productName": {"original": "Viveka"}, "quantity": 1}]})
 
 
-def test_with_no_gate_key_set_the_handler_stays_on_checkout_v1(env):
+def test_with_no_gate_key_set_no_cart_v2_call_is_made(env):
     """Absence is off. This is the configuration of every deployed function.
 
     V2 must not become the live price authority because a deploy happened; it becomes the price
     authority because an operator set `WIX_CART_V2_ENABLED`. So with the key removed the handler
-    answers from the retained V1 authority and makes no Cart V2 call at all.
+    makes no Cart V2 call at all.
+
+    What this no longer asserts, and why: it used to add `body["amountPaise"] == 59900` — the raw
+    Wix total from the retained V1 authority. `_create`'s V1 branch is no longer reachable. The
+    in-chat CART leg is refused above it (cart purchases are collected on the website), and the
+    native catalog leg REQUIRES V2, because `snapshot` and `_calculated` exist only on that branch
+    — so with V2 off the native leg answers a named 503 rather than pricing through V1. The V1
+    total contract keeps its own direct coverage below.
     """
     h, _fake, _lam, wix, monkeypatch = env
+    from lambda_utils.ecommerce import service_requests as sr
     monkeypatch.delenv("WIX_CART_V2_ENABLED", raising=False)
     _stub_v1(h, monkeypatch)
 
-    body = json.loads(h.handler(_create_event(), None)["body"])
-    # The raw Wix total, as the retained V1 contract specifies.
-    assert body["amountPaise"] == 59900
+    response = h.handler(_create_event(), None)
+    assert response["statusCode"] == 503
+    assert json.loads(response["body"])["error"] == sr.SERVICE_UNAVAILABLE
     assert not any(path.startswith("/ecom/v2/carts") for path in wix.paths())
 
 
 def test_the_disable_key_overrides_a_deployed_opt_in(env):
     """The rollback lever: one environment variable, without having to find and unset the opt-in."""
     h, _fake, _lam, wix, monkeypatch = env
+    from lambda_utils.ecommerce import service_requests as sr
     monkeypatch.setenv("WIX_CART_V2_DISABLED", "true")
     _stub_v1(h, monkeypatch)
 
-    body = json.loads(h.handler(_create_event(), None)["body"])
-    assert body["amountPaise"] == 59900
+    response = h.handler(_create_event(), None)
+    assert response["statusCode"] == 503
+    assert json.loads(response["body"])["error"] == sr.SERVICE_UNAVAILABLE
     assert not any(path.startswith("/ecom/v2/carts") for path in wix.paths())
+    assert not h.cart_v2.is_enabled()
+
+
+def test_the_retained_v1_total_is_still_the_raw_wix_figure(env):
+    """The half of the two tests above that lost its entry point, asserted where it still lives.
+
+    `wix_ecom.authoritative_total_paise` is the V1 contract: the raw Wix `priceSummary.total`, in
+    exact integer paise, with no convenience fee. Kept under test because the V1 branch of
+    `_create` is retained in source even though nothing reaches it, and because `wix_ecom` has
+    other callers.
+    """
+    h, _fake, _lam, _wix, _mp = env
+    checkout = {"id": "wix-checkout-1", "currency": "INR",
+                "priceSummary": {"total": {"amount": "599.00"}},
+                "lineItems": [{"productName": {"original": "Viveka"}, "quantity": 1}]}
+    assert h.wix_ecom.checkout_currency(checkout) == "INR"
+    assert h.wix_ecom.authoritative_total_paise(checkout) == 59900
 
 
 # ── one purchase, one cart: resolve before generate ──────────────────────────────

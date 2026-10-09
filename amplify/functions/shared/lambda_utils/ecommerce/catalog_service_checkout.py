@@ -77,11 +77,18 @@ def payment_details(row: dict, quote: Any, reference_id: str, configuration: str
         items.append({'retailer_id': 'wecare-convenience-fee', 'name': 'Convenience fee', 'quantity': 1,
                       'amount': {'value': quote.convenience_fee_paise, 'offset': 100}})
     return {'reference_id': reference_id, 'type': 'digital-goods', 'currency': 'INR',
+        # The RESOLVER owns `payment_settings` (Mode 3). The inline block that used to be here
+        # reached Meta WITHOUT passing `outbound-whatsapp._build_payment_settings` at all, so the
+        # WABA1-only refusal, the raw-link refusals and the VALID_PAYMENT_CONFIGS membership
+        # check did not apply to this leg. Removing it is a correctness fix, not a cleanup.
+        #
+        # The NAME still travels, and it has to. `configuration` was used ONLY by that block, so
+        # dropping the block alone would make this argument dead, the resolver would fall back to
+        # the sender's phone map, and the system could prove one configuration against Meta while
+        # telling Meta to use another — with no refusal anywhere. Mirrors the invoice engine,
+        # where the reserved string and the sent string are the same string by construction.
+        'payment_configuration': configuration,
         'total_amount': {'value': quote.total_payable_paise, 'offset': 100},
-        'payment_settings': [{'type': 'payment_gateway', 'payment_gateway': {
-            'type': 'razorpay', 'configuration_name': configuration,
-            'razorpay': {'receipt': reference_id, 'notes': {'referenceId': reference_id,
-                                                         'source': 'wecare_native_catalog'}}}}],
         'order': {'status': 'pending', 'items': items,
                   'subtotal': {'value': quote.collection_before_convenience_paise + quote.convenience_fee_paise, 'offset': 100},
                   'tax': {'value': quote.convenience_gst_paise, 'offset': 100, 'description': 'GST on convenience fee'},
