@@ -55,7 +55,6 @@ import type { ShopProduct, ShopVariant } from '../content/shop';
 import type { ContributionChoice } from '../config/contribution';
 import { CONTRIBUTION_PRODUCT_ID, contributionChoice } from '../config/contribution';
 import { SERVICES_PRODUCT_ID, serviceChoice } from '../config/services';
-import { trackCatalogAdd } from './metaCatalogAnalytics';
 
 /** localStorage key. Namespaced and versioned so a shape change can be migrated, not guessed. */
 const CART_KEY = 'wecare.cart.v1';
@@ -717,7 +716,6 @@ export function setServiceLine (
       SERVICE_INTENT_KEY, JSON.stringify( { variantId: choice.variantId, intentId } ) );
   }
   writeCart( items );
-  trackCatalogAdd( choice.variantId, linePaise );
   return items;
 }
 
