@@ -3450,3 +3450,31 @@ Owner explicitly requested short Submit Request/Vault catalog copy and repair of
 | 2026-10-09 | A1_LOCAL / A3_PRODUCTION | Customer service catalog artwork, verified Orders/Customer ID commands, secure inbound storage and staff signed media | Owner explicitly requested six service artworks, S3 existing bucket, identity/order parity, private uploads and full backend/frontend work. No customer sends or payments occur in fixtures. IAM GetObject/PutObject allowed on private arrivals; source baselines read before overlay. | Roll back business API to 77, inbound to 90, messages read to 28; artwork v1 is additive and not assigned to a fresh catalog until approved. |
 
 | 2026-10-09 | A3_PRODUCTION / owner-authorized Wix product media | Site c993128b-26be-41cd-9fcd-904abe23462f, product df976a0a-f582-4535-b2e1-d532f348bd27 | Six artworks imported; four gallery images and four existing choice references assigned, all 4096px. Returned before/after variant IDs and prices match exactly. Revision 5 uses short customer description. Catalog read-only verification returned applied 0/read_failed. | Existing variant identities and stock preserved; media/choice references are reversible from Wix revision history. |
+
+
+## 2026-10-09 — scoped push CI follow-up
+
+A2_REMOTE_CODE: scoped repair724dcc38 pushed non-force tostack after a freshfetch,
+all local gatesgreen and clean owncheckout. Existing SEO workflow37875375124 unexpectedly
+matched an ecommerce shared helper and completed its test/deploy/read-only smoke jobs.
+It updates unversioned $LATEST; no alias or retained immutable rollback exists. Cancellation
+was attempted but the run had already completed. This automation did not meet the master's
+revision/rollback safeguards; do not describe it as a guarded deployment.
+
+Fresh AWS and downloaded ZIP verify Active/Successful, CodeSha256
+`dOwOgICnmXUKndOlBAcBcHY0WtAINAyKsbFp+zthwP8=`. Beforehash was
+`j+XvrA1e9qdg5jn6/KoueKX1cjjzD6D3jD+Glhxg0WU=`. All78members match source and the
+prior audited53ed298e byte-for-byte: archive metadata changed, packaged content did not.
+Content recovery is a rebuild of53ed298e with the existing SEO manifest; exact prior ZIP
+rollback unavailable. A1_LOCAL fix narrows the path filter to packaged top-level Python
+modules and computes the complete push range before automatic deployment. Workflow/tests/
+docs-only changes now run tests without redeployment; manual workflow dispatch retains its
+existing deploy behavior.12new scope fixtures cover excluded ecommerce, real package files,
+entire push comparison and fail-closed unknown ranges.
+
+GitHub push also reported2high Dependabot alerts, independently read via API: Amplify
+GraphQL utility versions<=12.0.0 (fixed12.0.1; parent-version compatibility needs validation),
+braces3.0.3 (no fixed version listed). No blanket override or false exposure claim. Exact
+ZIP/config/readback and alert evidence is in codex-audit-evidence-20261009.json.
+
+Final follow-up tree: 10,378 Python passed, 6 skipped, 3 xfailed; 27 SEO/scope checks passed; workflow YAML parsed and actual 53ed298e→724dcc38 scope returned deploy=false. All 9 workflows for 724dcc38 succeeded.
