@@ -356,8 +356,15 @@ const Footer: React.FC = () => {
          under the tagline was competing with it anyway.
          If this line should ever become a link, give it an href and the sweep comes back with
          it - the affordance is fine, it just has to be true. */
+      /* SIZED ON THE SAME LADDER AS THE LOCKUP, on owner instruction. The brand wordmark
+         steps 23px header -> 18px compact (footer) -> 16px compact-mobile; the tagline sits
+         one rung under the compact wordmark and steps with it, so the brand line and the
+         sentence beneath it read as one block at one scale rather than the tagline floating
+         at a flat size independent of the signature above it. 15px -> 16px here, 14px on the
+         phone (see the max-width:767px block below), which keeps the same step down from the
+         compact wordmark at both widths. */
       .ft-tagline{
-        font-size:15px;line-height:1.6;color:rgba(0,0,0,.54);
+        font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);
         margin:0;max-width:340px;
         /* AN ENTRANCE, NOT A HOVER - and that distinction is the whole point.
            The default below is the FINAL state, per the .is-armed pattern this file already
@@ -525,6 +532,9 @@ const Footer: React.FC = () => {
         .ft-footer{padding-top:40px}
         .ft-in{padding:0 20px}
         .ft-grid{flex-direction:column;align-items:flex-start;gap:24px}
+        /* Tagline steps down with the compact wordmark on the phone (18px -> 16px lockup;
+           16px -> 14px here), holding the same one-rung gap it keeps on desktop. */
+        .ft-tagline{font-size:14px}
       }
     `}</style>
   </footer>

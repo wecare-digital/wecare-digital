@@ -67,7 +67,10 @@ OWNER-APPROVED CATALOG MIGRATION, 2026-10-09
 The owner requested the fresh catalog and approval before new product publication.
 ENVIRONMENT stages all four existing paid variants against the fresh catalog, disabled and
 dry-run, held out of stock pending approval and native purchase QA. Inspect remains read-only.
-The exact live plan hash must be copied into META_CATALOG_SYNC_APPROVED_PLAN_SHA256 before opening both write gates; any Wix/Meta drift changes the hash and invalidates that approval.
+The exact live plan is persisted in the existing AgentApprovals table under a catalog-specific
+namespaced key. An authenticated admin approval is bound to that exact hash; any Wix/Meta drift
+changes the hash and invalidates it. Background webhook/schedule invocations cannot spend an
+approval: apply is an explicit admin action and still requires both release gates to be opened.
 
 Usage:
     python scripts/provision_meta_catalog_sync.py              # dry run, the default
@@ -110,6 +113,7 @@ WEBHOOK_INVOKE_POLICY = f"{WEBHOOK_FUNCTION}-invokes-catalog-sync"
 #: Secret NAMES, never values. Neither is read by this script.
 META_TOKEN_SECRET = "wecare/meta-system-user-token"
 WIX_API_KEY_SECRET = "wecare/wix/headless-api-key"
+CATALOG_APPROVALS_TABLE = "stack-wecare-digital-AgentApprovalsTable"
 
 #: No secret value, by construction - only NAMES and public identifiers. The catalog id is the ONE
 #: shared `wecare_shop` catalog used by BOTH WABAs, from `src/pages/catalog-builder.tsx`, so this
@@ -123,7 +127,7 @@ ENVIRONMENT = {
     "META_CATALOG_ID": "1457045652952851",
     "META_CATALOG_SYNC_ENABLED": "false",
     "META_CATALOG_SYNC_DRY_RUN": "true",
-    "META_CATALOG_SYNC_APPROVED_PLAN_SHA256": "",
+    "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
     "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
@@ -177,12 +181,12 @@ def trust_policy() -> dict:
 
 
 def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
-    """TWO statements: its own log group, and the two secrets it reads. Nothing else.
+    """Three exact statements: logs, two named secrets, and one approval table.
 
-    Pinned by EQUALITY in `tests/test_meta_catalog_sync_iam.py`. Note what is absent and why:
+    Pinned by EQUALITY in `tests/test_meta_catalog_sync_iam.py`. The DynamoDB grant is deliberately
+    limited to the existing AgentApprovals table and only GetItem/PutItem/UpdateItem: proposal,
+    exact approval, apply claim and readback status. No Scan/Query/Delete and no other table.
 
-    - no `dynamodb:*` - this function keeps no state; the Meta catalog IS the state, and the diff
-      is recomputed from Wix on every run rather than cached;
     - no `s3:*` - it writes no artefact;
     - no `lambda:InvokeFunction` - it is invoked, it does not invoke;
     - no `secretsmanager:PutSecretValue`, `UpdateSecret` or `DescribeSecret` - it reads;
@@ -210,6 +214,18 @@ def expected_role_policy(account: str = ACCOUNT_ID) -> dict:
                 "Resource": [
                     secret_arn(META_TOKEN_SECRET, account),
                     secret_arn(WIX_API_KEY_SECRET, account),
+                ],
+            },
+            {
+                "Sid": "CatalogProposalApprovalRecords",
+                "Effect": "Allow",
+                "Action": [
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                ],
+                "Resource": [
+                    f"arn:aws:dynamodb:{REGION}:{account}:table/{CATALOG_APPROVALS_TABLE}"
                 ],
             },
         ],
@@ -264,13 +280,13 @@ def ensure_role(apply: bool) -> str:
 
     if not apply:
         return (f"would put {POLICY} on existing {ROLE}" if existing
-                else f"would create {ROLE} with {POLICY} (2 statements)")
+                else f"would create {ROLE} with {POLICY} (3 statements)")
 
     if not existing:
         iam().create_role(
             RoleName=ROLE,
             AssumeRolePolicyDocument=json.dumps(trust_policy()),
-            Description="Wix to Meta catalogue sync: read two secrets, write its own logs",
+            Description="Wix to Meta catalogue sync with exact-plan durable owner approval",
             Tags=[{"Key": "domain", "Value": "ecommerce"},
                   {"Key": "purpose", "Value": "meta-catalog-sync"}],
         )
