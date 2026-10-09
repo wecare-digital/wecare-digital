@@ -81,3 +81,18 @@ After Vault owner QA, continue the master execution order: Orders/profile contex
 ## Exact next action
 
 Re-fetch `stack`, re-read live v35/v92 aliases/hashes and closed flags, then run the owner-authorized Vault end-to-end QA without enabling unrelated gates. If QA passes, record exact evidence before selectively opening only the proven release controls.
+
+
+## 2026-10-09 12:50 UTC continuation delta
+
+Current source checkpoint before this documentation update: `8109471f74e09dcef4958d34343f9ca923ac740a`.
+
+- Business API production is now **v93**, SHA `erEMzmiJg7rNjwU1iTb+vR1aEQ4FDTjqfAfSW5lujAQ=`, rollback v92. This includes backend-owned Orders contextual actions/support behavior.
+- Meta catalog sync production is now **v8**, SHA `he0Y8MPVNwBY4r2dZnD5cEEvIfkwVHsd6j+kUex4fNQ=`, rollback v7. The exact approved-plan hash interlock is deployed but catalog writes remain closed: enabled=false, dry-run=true, force-out-of-stock=true, approval hash unset.
+- Secure Files remains v35; checkout v42; invoice-engine v50.
+- Fresh provider readback: Submit Flow 1107164111921876 PUBLISHED; payment/download/review templates APPROVED. Orders 2167802357142172, Amendment 3678132465672138, Drop Docs 1211063631104445 and Shipments 849713848195607 remain DRAFT with validation_errors=[].
+- Fresh Wix V3 readback reconfirmed product df976a0a-f582-4535-b2e1-d532f348bd27 revision 5, visible/in stock, and exact prices: Submit ₹99, Amendment ₹99, Drop Docs ₹350, Vault ₹49.
+- The one-shot deploy workflow and exact-scope OIDC role were deleted after successful deployment.
+- No real customer payment/send, Flow publication, catalog apply, Wix writeback or synthetic Purchase event occurred. Overall status remains PARTIALLY COMPLETE.
+
+Exact next engineering action: finish the catalog proposal → durable approval → apply/readback mechanism while keeping the live sync gates closed by default, then continue Submit A/B/P/R and Request Amendment/Drop Docs engineering. Owner-paid Vault E2E QA is still mandatory before customer release.
