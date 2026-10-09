@@ -22,7 +22,7 @@ read-only. No secret value was read, printed or logged; secrets are referenced b
 | Item | Root cause | Classification | Disposition |
 |---|---|---|---|
 | Issue 1 — Wix catalogue sync | Genuine owner-side catalogue change: the 12 Wix **template sample** products were deleted from the Wix store. No code, auth, pagination or visibility defect. | n/a (not a vulnerability) | **BLOCKED — owner action.** No in-repo fix is correct. |
-| Issue 2 — handlebars ×3 (GHSA-p8wg-vrv2-v86f crit, GHSA-8r5x-fm3f-whwj crit, GHSA-xw65-4hp5-5hc7 med) | `@aws-amplify/graphql-docs-generator` → `handlebars@^4.7.9` resolved to 4.7.9 | **BUILD-ONLY** | **FIXED** in `74a9d42d` (another session), pushed. Alerts auto-closed. Install-verified by me. |
+| Issue 2 — handlebars ×3 (GHSA-p8wg-vrv2-v86f crit, GHSA-8r5x-fm3f-whwj crit, GHSA-xw65-4hp5-5hc7 med) | `@aws-amplify/graphql-docs-generator` → `handlebars@4.7.9 (exact pin)` resolved to 4.7.9 | **BUILD-ONLY** | **FIXED** in `74a9d42d` (another session), pushed. Alerts auto-closed. Install-verified by me. |
 | Issue 2 — `@graphql-tools/utils` (GHSA-7mx3-vvmw-hjmv, high) | appsync-modelgen / graphql-codegen chain pins majors 6/7/9; patch is 12.0.1 | **BUILD-ONLY** | **REVIEW_REQUIRED.** Exact override given; 3–6 major jumps, serves 0 live AppSync APIs. Not applied. |
 | Issue 2 — `braces` (GHSA-vfj7-8cjw-p6xm, high) | `micromatch` → `braces@^3.0.3`; no patched version exists anywhere | **BUILD-ONLY** (amplify) / **DEV-ONLY** (root, already auto-dismissed) | **BLOCKED-UPSTREAM.** Nothing to upgrade to. |
 
@@ -318,7 +318,7 @@ Three independent facts, each verified in this run:
 Reverse-dependency paths in `amplify/package-lock.json` at `origin/stack`:
 
 ```
-handlebars            <- @aws-amplify/graphql-docs-generator -> handlebars@^4.7.9
+handlebars            <- @aws-amplify/graphql-docs-generator -> handlebars@4.7.9 (exact pin)
 braces                <- micromatch -> braces@^3.0.3
 @graphql-tools/utils  <- @aws-amplify/appsync-modelgen-plugin   -> ^6.0.18   (6.2.4)
                       <- @graphql-codegen/visitor-plugin-common -> ^7.9.1    (7.10.0)
@@ -341,15 +341,17 @@ application code.
   ancestor of `118aa93e`), **pushed**.
 - Change: `amplify/package.json` overrides gained `+    "handlebars": "4.7.10"`, and
   `amplify/package-lock.json` moved `handlebars` `4.7.9` → `4.7.10`.
-- It is a clean in-range bump — the only requirer asks for `^4.7.9`, which already admits 4.7.10,
-  so no consumer contract changes.
+- The published docs generator4.2.2 pins `4.7.9` exactly. The scoped override moves past that
+  exact pin; the official package and actual generator were tested with byte-identical query,
+  mutation, subscription and S3-fragment output before publication. This patch-release
+  compatibility evidence is separate from the full install/CLI smoke below.
 - **Alerts #71 / #72 / #73 are now `state=fixed`, `fixed_at=2026-10-08T23:40:35Z`** (confirmed via
   `gh api .../dependabot/alerts/{71,72,73}`). Dependabot closed them itself on rescanning `stack`.
 
-I added nothing to this fix. What I did add is the **install verification it was missing**, because
-the fix was committed without one: `amplify/node_modules/handlebars` on disk was still **4.7.9**
-(the shared tree's install dates from 2026-10-08 21:17, before the commit), so the override had
-never been materialised.
+I added nothing to this fix. The **full install and CLI smoke** below supplements the other
+session's generator-compatibility and registry-integrity checks. The shared
+`amplify/node_modules/handlebars` on disk was still **4.7.9** (its install predates the commit);
+the throwaway install materialises the new override without modifying the shared tree.
 
 ### Verification I ran (reviewer: these do not need re-running)
 
@@ -427,16 +429,22 @@ synth breaking.
 **Why not force it:** the vulnerable code serves **0 live AppSync APIs** —
 `aws appsync list-graphql-apis --region us-east-1` returns **`[]`**, confirming the audit's
 finding that `amplify/data/resource.ts`'s models are CODE_ONLY. So the override would protect a
-GraphQL codegen path that executes against nothing in production, while risking the one tool
-(`ampx pipeline-deploy`) that deploys all 81 Python Lambdas. Trading a live deploy path for a
-build-time-only, zero-reachability advisory is the wrong direction, so this is parked rather than
-applied.
+GraphQL code-generation path with no observed deployed AppSync APIs, while crossing the
+consumer packages' declared major-version contracts. That requires generation/synthesis
+compatibility evidence before application. The current `amplify.yml` has no backend phase:
+Hosting builds the web export, and the existing Python functions are deployed separately by
+boto3 scripts. The81source handler files are not evidence that `ampx pipeline-deploy` manages
+81deployed functions. This advisory remains open; build-time reachability does not establish
+absence of risk in developer or CI tooling.
 
 **Key-holder: repo owner.** Unblock options: (a) accept as-is and dismiss the alert as
 build-time-only with no deployed reach; (b) wait for `@aws-amplify/backend-cli` to carry
 `@graphql-tools/utils >= 12.0.1` upstream (the clean exit — nothing to decide, it just resolves);
-(c) apply the override above in a throwaway branch and prove `ampx pipeline-deploy --help` plus a
-full `ampx sandbox` synth still succeed before merging.
+(c) evaluate the override in an isolated copy with generation and offline synthesis
+compatibility checks before proposing it. `--help` alone does not prove compatibility.
+`ampx sandbox` is a cloud deployment/watch command, not an offline synthesis check, and must
+not be run as a supposedly read-only validation step. A cloud validation, if needed, requires
+its own scoped environment and authorization. See [official Amplify CLI documentation](https://docs.amplify.aws/react/reference/cli-commands/#npx-ampx-sandbox).
 
 ## `braces` GHSA-vfj7-8cjw-p6xm — BLOCKED-UPSTREAM
 
