@@ -1281,8 +1281,13 @@ CAPI_PARTNER_AGENT = os.environ.get('CAPI_PARTNER_AGENT', 'wecare-digital')
 # WABA2, matching the single shared `wecare_shop` catalog. Per-WABA attribution is NOT lost:
 # user_data.whatsapp_business_account_id still carries the resolved WABA on every event.
 #
-# Setting this variable to the EMPTY STRING restores the per-WABA
-# `POST /{waba_id}/dataset` create-and-cache path below, so nothing is removed.
+# Setting this variable to the EMPTY STRING re-enables the per-WABA
+# `POST /{waba_id}/dataset` create-and-cache path below, so nothing is removed. Note what that
+# RESUMES rather than recreates: the `capi_dataset_<wabaId>` rows written by the old path are
+# still in SystemConfigTable and are NOT deleted here, so the status read (create=False) hands
+# back those RETIRED per-WABA dataset ids from cache. Only an explicit re-check (create=True,
+# which skips the cache) calls Graph for a dataset. To get genuinely fresh per-WABA datasets,
+# delete the `capi_dataset_<wabaId>` rows as well -- a data change, so it is left to the owner.
 #
 # Read at MODULE scope, which is correct here: this is CONFIGURATION, not a credential, so the
 # lazy-read rule in lambda-snapstart-deploy.md and secret-handling.md does not apply -- the same
@@ -1313,7 +1318,9 @@ def _capi_get_dataset(waba_id: str, create: bool = False) -> Dict:
 
     Normally a constant: both WABAs share CAPI_FIXED_DATASET_ID, so there is nothing to look up,
     nothing to cache and no Graph create call to make -- `create` is honoured as a no-op re-check.
-    Only when that variable is explicitly cleared does the per-WABA get-or-create path run.
+    Only when that variable is explicitly cleared does the per-WABA get-or-create path run, and
+    then `create=False` answers from the surviving `capi_dataset_<wabaId>` cache rows (the
+    retired per-WABA ids) before any Graph call -- see the note on CAPI_FIXED_DATASET_ID.
     """
     if CAPI_FIXED_DATASET_ID:
         return {'datasetId': CAPI_FIXED_DATASET_ID, 'wabaId': waba_id, 'fixed': True}

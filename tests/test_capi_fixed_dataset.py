@@ -8,7 +8,9 @@ Three things are pinned here, because each is easy to lose by accident:
 * A shared dataset must not flatten attribution. `user_data.whatsapp_business_account_id`
   still carries the per-WABA id on every event, which is what Meta attributes on.
 * The per-WABA create path is NOT removed, only defaulted past. Clearing
-  `CAPI_FIXED_DATASET_ID` must still reach `POST /{waba_id}/dataset`.
+  `CAPI_FIXED_DATASET_ID` must still reach `POST /{waba_id}/dataset` -- and on a table that
+  still holds `capi_dataset_<wabaId>` rows, the status read resumes those CACHED retired ids
+  rather than creating anything, which is the part of the hatch worth being explicit about.
 """
 import json
 import os
@@ -94,3 +96,21 @@ class TestCapiFixedDataset:
 
         assert calls == [{'endpoint': f'{WABA1}/dataset', 'method': 'POST'}]
         assert ds == {'datasetId': '1111111111111111', 'wabaId': WABA1, 'cached': False}
+
+    def test_the_cleared_hatch_resumes_the_cached_per_waba_id_on_the_status_read(self):
+        """What the hatch actually does on a live table, as opposed to the empty one above.
+
+        The `capi_dataset_<wabaId>` rows from the old path are not deleted, so a status read
+        (create=False) hands back the RETIRED per-WABA id from cache without calling Graph.
+        Pinned so the escape hatch is not mistaken for 'creates fresh datasets'.
+        """
+        self.table.get_item.return_value = {'Item': {'configValue': '2222222222222222'}}
+        graph = MagicMock()
+
+        with patch.object(self.handler, 'CAPI_FIXED_DATASET_ID', ''), \
+                patch.object(self.handler, '_graph_api', graph), \
+                patch.object(self.handler, 'dynamodb', self.fake_dynamo):
+            ds = self.handler._capi_get_dataset(WABA1, create=False)
+
+        assert ds == {'datasetId': '2222222222222222', 'wabaId': WABA1, 'cached': True}
+        graph.assert_not_called()
