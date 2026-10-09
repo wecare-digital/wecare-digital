@@ -42,6 +42,7 @@ from typing import Any, Dict, Optional
 import boto3
 
 from lambda_utils import customer_auth, customer_session, rate_limit
+from lambda_utils.ecommerce import order_keys
 from lambda_utils.ecommerce import service_request_store as store
 from lambda_utils.ecommerce import service_requests
 from lambda_utils.logging import get_logger
@@ -52,6 +53,7 @@ logger = get_logger(__name__)
 REGION = os.environ.get("AWS_REGION", "us-east-1")
 SERVICE_REQUESTS_TABLE = os.environ.get("SERVICE_REQUESTS_TABLE", store.DEFAULT_TABLE_NAME)
 COMMERCE_KEYS_TABLE = os.environ.get("COMMERCE_KEYS_TABLE", "stack-wecare-digital-WixOrderIds")
+ORDERS_TABLE = os.environ.get("ORDERS_TABLE", "stack-wecare-digital-OrderTable")
 RATE_LIMIT_TABLE = os.environ.get("RATE_LIMIT_TABLE", "stack-wecare-digital-RateLimitTable")
 
 #: Per proven subject, per second. Keyed on the Cognito `sub`, never on anything in the request.
@@ -120,16 +122,55 @@ def _internal(event: Dict[str, Any]) -> Dict[str, Any]:
     return outcome.as_dict()
 
 
+def _resolve_original_order(identity, reference_id: Any) -> Dict[str, Any]:
+    """Resolve a customer-visible payment reference back to one currently owned order.
+
+    The browser never supplies an internal order id. PAYREF -> PAYMENTATTEMPT resolves the
+    canonical internal order, then OrderTable is read consistently and ownership is checked from
+    the authenticated Cognito subject. Missing/foreign/stale all collapse to one authorization
+    refusal so this is not an order-existence oracle.
+    """
+    reference = str(reference_id or "").strip()
+    if not _REFERENCE_RE.match(reference):
+        raise customer_auth.CustomerNotAuthorized("resource does not exist or is not yours")
+    keys = _table(COMMERCE_KEYS_TABLE)
+    try:
+        payref = order_keys.resolve_payment_reference(keys, reference) or {}
+        attempt_id = str(payref.get("paymentAttemptId") or "")
+        claim = order_keys.resolve_order_for_payment(keys, attempt_id) if attempt_id else None
+    except order_keys.OrderIdentityUnavailable as error:
+        raise store.ServiceIdentityUnavailable("original order lookup unavailable") from error
+    order_id = str((claim or {}).get("orderIdRef") or "")
+    if not order_id:
+        raise customer_auth.CustomerNotAuthorized("resource does not exist or is not yours")
+    row = _table(ORDERS_TABLE).get_item(
+        Key={"orderId": order_id}, ConsistentRead=True).get("Item") or {}
+    if (str(row.get("customerId") or "") != identity.customer_id
+            or str(row.get("referenceId") or "") != reference):
+        raise customer_auth.CustomerNotAuthorized("resource does not exist or is not yours")
+    return row
+
+
 # ── POST /services/request-intent ─────────────────────────────────────────────
 
 def _request_intent(identity, body: Dict[str, Any], origin: str, event=None) -> Dict[str, Any]:
-    if set(body) - {"kind", "targetRequestId", "fileId"}:
+    if set(body) - {"kind", "targetRequestId", "fileId", "originalOrderReferenceId"}:
         return cors_response(400, {"error": "UNEXPECTED_FIELD"}, origin)
     if not rate_limit.check_rate_limit("service-intent", identity.customer_id,
                                        INTENT_RATE_PER_SECOND, table_name=RATE_LIMIT_TABLE):
         return cors_response(429, {"error": "RATE_LIMITED"}, origin)
     try:
         vault_file = None
+        original_order = None
+        kind = str(body.get("kind") or "").upper()
+        if kind == service_requests.SUBMIT_REQUEST:
+            if not body.get("originalOrderReferenceId"):
+                raise service_requests.ServiceRejected(
+                    service_requests.SERVICE_ORIGINAL_ORDER_REQUIRED)
+            original_order = _resolve_original_order(
+                identity, body.get("originalOrderReferenceId"))
+        elif body.get("originalOrderReferenceId"):
+            return cors_response(400, {"error": "SERVICE_TARGET_UNEXPECTED"}, origin)
         if body.get('fileId'):
             if str(body.get('kind') or '').upper() != 'VAULT' or body.get('targetRequestId'):
                 return cors_response(400, {'error': 'INVALID_FILE_CHOICE'}, origin)
@@ -141,8 +182,10 @@ def _request_intent(identity, body: Dict[str, Any], origin: str, event=None) -> 
                 return cors_response(401, {'error': 'PHONE_VERIFICATION_REQUIRED'}, origin)
             from lambda_utils.ecommerce import vault_access
             vault_file = vault_access.bind_file(_table(vault_access.FILES_TABLE), identity, body['fileId'])
-        intent = store.request_intent(_table(SERVICE_REQUESTS_TABLE), identity,
-                                      body.get("kind"), body.get("targetRequestId"), vault_file=vault_file)
+        intent = store.request_intent(
+            _table(SERVICE_REQUESTS_TABLE), identity,
+            body.get("kind"), body.get("targetRequestId"),
+            vault_file=vault_file, original_order=original_order)
     except service_requests.ServiceRejected as rejected:
         if rejected.code == service_requests.SERVICE_NOT_OFFERED:
             return cors_response(409, service_requests.refusal(rejected.code), origin)
