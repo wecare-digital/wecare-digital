@@ -214,7 +214,13 @@ def test_c_a_capture_delivered_four_times_makes_one_claim_one_order_one_request(
     requests = RequestTable()
     identity = customer_auth.CustomerIdentity(customer_id="sub-1", phone="+910000000000",
                                               subject="sub-1")
-    intent = store.request_intent(requests, identity, "SUBMIT_REQUEST")
+    # The ORIGINAL order the Submit Request is frozen against, distinct from the service order
+    # this capture creates: `request_intent` refuses a SUBMIT_REQUEST without one.
+    intent = store.request_intent(requests, identity, "SUBMIT_REQUEST",
+                                  original_order={"orderId": "order-original-1",
+                                                  "customerId": "sub-1",
+                                                  "referenceId": "WD-PAY-ORIGINAL1",
+                                                  "orderNumber": "WD-ORD-ORIGINAL1"})
     reference = order_keys.allocate_payment_reference(
         keys, payment_attempt_id="att-1",
         extra={"customerId": "sub-1", "amountPaise": 10193, "currency": "INR",

@@ -63,10 +63,16 @@ def test_only_owned_earlier_orders_and_missing_orders_preserve_payment(setup):
 def test_foreign_missing_and_service_purchase_cannot_be_parent(setup, order):
     requests, keys, orders, row = setup
     _, token = paid.prepare(requests, keys, row['requestId'])
+    candidate = row['orderId'] if order == 'purchase' else order
+    # Since the original order is FROZEN onto the intent before payment, the request row already
+    # carries a legitimate `parentOrderId`. The property is unchanged: a foreign, missing or
+    # service-order candidate must not become the parent, so the frozen value must survive intact.
+    frozen = requests.rows[row['requestId']].get('parentOrderId')
+    assert frozen and frozen != candidate
     with pytest.raises(paid.RequestUnavailable):
-        paid.submit(requests, keys, orders, token, {'record_id':row['orderId'] if order == 'purchase' else order,
+        paid.submit(requests, keys, orders, token, {'record_id':candidate,
                                                   'subject':'Help', 'description':'Details'})
-    assert 'parentOrderId' not in requests.rows[row['requestId']]
+    assert requests.rows[row['requestId']].get('parentOrderId') == frozen
 
 
 def commit(requests, orders, items):

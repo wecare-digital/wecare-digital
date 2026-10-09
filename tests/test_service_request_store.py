@@ -48,6 +48,21 @@ def who(customer_id=ALICE):
                                           subject=customer_id)
 
 
+def original(customer=ALICE):
+    """The caller's ORIGINAL order, which a Submit Request intent is now frozen against.
+
+    `request_intent` refuses a SUBMIT_REQUEST whose `original_order` is not a dict owned by the
+    caller carrying both an order id and a payment reference, and `activate` refuses one whose
+    intent carries no `parentOrderId`. It is the EARLIER purchase the request is about, never the
+    service order `pay()` seeds, so the two order ids stay distinct.
+
+    Deterministic per customer: two visits for the same original order are the SAME intent, so
+    this resumes rather than superseding (the fingerprint now includes the original order id).
+    """
+    return {"orderId": f"order-original-{customer[:8]}", "customerId": customer,
+            "referenceId": f"WD-PAY-ORIG{customer[:8]}", "orderNumber": "WD-ORD-ORIGINAL1"}
+
+
 @pytest.fixture
 def table():
     return RequestTable()
@@ -92,7 +107,8 @@ def transactions(table):
 
 def submitted(table, keys, customer=ALICE):
     """A paid, activated Submit Request for `customer`. Returns (outcome, intent)."""
-    intent = store.request_intent(table, who(customer), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(customer), "SUBMIT_REQUEST",
+                                  original_order=original(customer))
     ref, _attempt, _order = pay(keys, intent, customer=customer)
     outcome = store.activate(table, keys, reference_id=ref)
     assert outcome.outcome == store.ACTIVATED
@@ -102,19 +118,23 @@ def submitted(table, keys, customer=ALICE):
 # ══ the intent ═══════════════════════════════════════════════════════════════
 
 def test_an_intent_is_not_a_request(table):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert sr.INTENT_ID_RE.match(intent["intentId"])
     # `amountPaise` is None: an intent is pre-payment, and Wix prices the line at checkout.
+    # The frozen original order travels on the wire too, so the browser can show WHICH order the
+    # request is for before anything is charged. Still an exact shape, not a superset check.
     assert intent == {"intentId": intent["intentId"], "kind": "SUBMIT_REQUEST",
                       "variantId": SUBMIT, "amountPaise": None, "currency": "INR",
-                      "targetRequestId": None}
+                      "targetRequestId": None,
+                      "originalOrderReferenceId": original()["referenceId"],
+                      "originalOrderNumber": original()["orderNumber"]}
     assert "amountPaise" not in table.rows["INTENT#" + intent["intentId"]]
     assert rows(table, "REQ#") == [] and rows(table, "REQNO#") == []
 
 
 def test_the_same_intent_resumes_rather_than_multiplying(table):
-    first = store.request_intent(table, who(), "SUBMIT_REQUEST")
-    second = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    first = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
+    second = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert first["intentId"] == second["intentId"]
     assert len(rows(table, "INTENT#")) == 1
 
@@ -154,9 +174,12 @@ def test_a_different_amendment_target_supersedes_the_open_intent(table, keys):
 def test_drop_docs_and_vault_mint_an_intent_against_a_target(table, keys, kind, variant):
     target, _ = submitted(table, keys)
     intent = store.request_intent(table, who(), kind, target.request_public_id)
+    # No original order on these kinds: the two keys are present and NULL, never absent, so the
+    # wire shape is the same superset for every service.
     assert intent == {"intentId": intent["intentId"], "kind": kind, "variantId": variant,
                       "amountPaise": None, "currency": "INR",
-                      "targetRequestId": target.request_public_id}
+                      "targetRequestId": target.request_public_id,
+                      "originalOrderReferenceId": None, "originalOrderNumber": None}
     assert "amountPaise" not in table.rows["INTENT#" + intent["intentId"]]
     # Its own OPEN# claim, per service, so one does not displace another.
     assert table.rows[f"OPEN#{ALICE}#{variant}"]["isConsumed"] is False
@@ -230,14 +253,14 @@ def _stale_log(caplog):
 
 def test_a_paid_target_behind_an_unconsumed_claim_mints_a_new_request(table, keys, caplog):
     """The claim still points at an intent that was PAID (CONSUMED, rank 10): stale, not resumed."""
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent)
     table.arm_failure("put_item", FakeClientError("ProvisionedThroughputExceededException"))
     assert store.activate(table, keys, reference_id=ref).outcome == store.ACTIVATED
     assert table.rows[f"OPEN#{ALICE}#{SUBMIT}"]["isConsumed"] is False      # the missed consume
     assert table.rows["INTENT#" + intent["intentId"]]["statusRank"] == 10
     with caplog.at_level(logging.WARNING):
-        fresh = store.request_intent(table, who(), "SUBMIT_REQUEST")
+        fresh = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert fresh["intentId"] != intent["intentId"]
     assert table.rows["INTENT#" + fresh["intentId"]]["statusRank"] == 0
     assert table.rows[f"OPEN#{ALICE}#{SUBMIT}"]["targetIntentId"] == fresh["intentId"]
@@ -255,7 +278,7 @@ def test_an_abandoned_target_behind_an_unconsumed_claim_mints_a_new_request(tabl
                 "intentFingerprint": "x"})
     _seed_claim(table, "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f")
     with caplog.at_level(logging.WARNING):
-        fresh = store.request_intent(table, who(), "SUBMIT_REQUEST")
+        fresh = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert fresh["intentId"] != "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
     assert _stale_log(caplog)[0]["targetRank"] == 5
 
@@ -263,21 +286,21 @@ def test_an_abandoned_target_behind_an_unconsumed_claim_mints_a_new_request(tabl
 def test_a_missing_target_behind_an_unconsumed_claim_mints_a_new_request(table, caplog):
     _seed_claim(table, "01928f3e-7b2a-7c3d-8e4f-000000000000")
     with caplog.at_level(logging.WARNING):
-        fresh = store.request_intent(table, who(), "SUBMIT_REQUEST")
+        fresh = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert table.rows[f"OPEN#{ALICE}#{SUBMIT}"]["targetIntentId"] == fresh["intentId"]
     assert _stale_log(caplog)[0]["targetPresent"] is False
 
 
 def test_the_paid_target_and_the_abandoned_twin_each_mint_a_new_request(table, keys):
     """The two stale shapes side by side, on the two services, for one customer."""
-    paid = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    paid = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, paid)
     table.arm_failure("put_item", FakeClientError("InternalServerError"))
     store.activate(table, keys, reference_id=ref)
     target = store.resolve_public(table, who(), rows(table, "REQ#")[0]["publicRequestId"])
     abandoned = store.request_intent(table, who(), "REQUEST_AMENDMENT", target["publicRequestId"])
     table.rows["INTENT#" + abandoned["intentId"]].update(status="ABANDONED", statusRank=5)
-    again_submit = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    again_submit = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     again_amend = store.request_intent(table, who(), "REQUEST_AMENDMENT",
                                        target["publicRequestId"])
     assert again_submit["intentId"] != paid["intentId"]
@@ -293,7 +316,8 @@ def test_a_stale_consume_leaves_a_claim_that_has_since_moved_alone(table):
     table.seed({"requestId": "INTENT#" + moved_to, "ownerCustomerId": ALICE,
                 "kind": "SUBMIT_REQUEST", "variantId": SUBMIT,
                 "currency": "INR", "status": "OPEN", "statusRank": 0,
-                "intentFingerprint": store._fingerprint("SUBMIT_REQUEST", SUBMIT, "")})
+                "intentFingerprint": store._fingerprint("SUBMIT_REQUEST", SUBMIT, "",
+                                                        original()["orderId"])})
     original_put = table.put_item
     state = {"moved": False}
 
@@ -304,7 +328,7 @@ def test_a_stale_consume_leaves_a_claim_that_has_since_moved_alone(table):
         return original_put(**kwargs)
 
     table.put_item = racing_put
-    resolved = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    resolved = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     # The repair lost its condition, re-read, and resolved to the claim's NEW (rank 0) target.
     assert resolved["intentId"] == moved_to
     claim = table.rows[f"OPEN#{ALICE}#{SUBMIT}"]
@@ -313,26 +337,28 @@ def test_a_stale_consume_leaves_a_claim_that_has_since_moved_alone(table):
 
 
 def test_only_status_rank_zero_resolves_to_the_existing_intent(table):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     for rank in (1, 5, 10, "0x", None):
         table.rows["INTENT#" + intent["intentId"]]["statusRank"] = rank
         table.rows[f"OPEN#{ALICE}#{SUBMIT}"].update(isConsumed=False,
                                                     targetIntentId=intent["intentId"])
-        assert store.request_intent(table, who(), "SUBMIT_REQUEST")["intentId"] != \
+        assert store.request_intent(table, who(), "SUBMIT_REQUEST",
+                                    original_order=original())["intentId"] != \
             intent["intentId"]
     table.rows["INTENT#" + intent["intentId"]]["statusRank"] = 0
     table.rows[f"OPEN#{ALICE}#{SUBMIT}"].update(isConsumed=False,
                                                 targetIntentId=intent["intentId"])
-    assert store.request_intent(table, who(), "SUBMIT_REQUEST")["intentId"] == intent["intentId"]
+    assert store.request_intent(table, who(), "SUBMIT_REQUEST",
+                                original_order=original())["intentId"] == intent["intentId"]
 
 
 def test_a_failed_open_consume_after_activation_self_heals_on_the_next_intent(table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent)
     table.arm_failure("put_item", FakeClientError("ProvisionedThroughputExceededException"))
     outcome = store.activate(table, keys, reference_id=ref)
     assert outcome.outcome == store.ACTIVATED          # the swallowed failure did not cost it
-    nxt = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    nxt = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     assert nxt["intentId"] != intent["intentId"]
     # And the second purchase activates into a SECOND request, never adopting the first.
     ref2, _a2, _o2 = pay(keys, nxt)
@@ -342,7 +368,7 @@ def test_a_failed_open_consume_after_activation_self_heals_on_the_next_intent(ta
 
 
 def test_a_successful_activation_consumes_the_claim(table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent)
     store.activate(table, keys, reference_id=ref)
     claim = table.rows[f"OPEN#{ALICE}#{SUBMIT}"]
@@ -352,7 +378,7 @@ def test_a_successful_activation_consumes_the_claim(table, keys):
 # ══ activation ═══════════════════════════════════════════════════════════════
 
 def test_no_paid_claim_means_no_request(table, keys, caplog):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent, paid=False)
     before = dict(table.rows)
     table.calls.clear()
@@ -372,7 +398,7 @@ def test_an_order_without_a_service_line_is_not_a_service_order(table, keys):
 
 def test_activation_creates_exactly_one_request_order_pointer_and_public_id_in_one_transaction(
         table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, attempt, order_id = pay(keys, intent)
     table.calls.clear()
     outcome = store.activate(table, keys, reference_id=ref)
@@ -396,7 +422,7 @@ def test_activation_creates_exactly_one_request_order_pointer_and_public_id_in_o
 
 
 def test_a_replayed_activation_returns_the_same_request_and_writes_nothing(table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, attempt, _order = pay(keys, intent)
     first = store.activate(table, keys, reference_id=ref)
     snapshot = {k: dict(v) for k, v in table.rows.items()}
@@ -411,7 +437,7 @@ def test_a_replayed_activation_returns_the_same_request_and_writes_nothing(table
 
 
 def test_a_concurrent_activation_losing_the_order_pointer_returns_the_winner(table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _attempt, order_id = pay(keys, intent)
 
     def winner_lands_first(_items):
@@ -429,7 +455,7 @@ def test_a_concurrent_activation_losing_the_order_pointer_returns_the_winner(tab
 
 
 def test_a_public_id_collision_regenerates(table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent)
     table.seed({"requestId": "REQNO#WD-REQ-TAKEN222", "targetRequestId": "REQ#someone"})
     minted = iter(["WD-REQ-TAKEN222", "WD-REQ-FRESH222"])
@@ -468,7 +494,7 @@ def test_an_abandoned_intent_paid_later_still_activates(table, keys):
 ])
 def test_customer_mismatch_variant_mismatch_and_amount_mismatch_create_no_request_and_alert(
         table, keys, caplog, override, reason):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent, **override)
     with caplog.at_level(logging.ERROR):
         assert store.activate(table, keys, reference_id=ref).outcome == store.UNMATCHED
@@ -479,7 +505,7 @@ def test_customer_mismatch_variant_mismatch_and_amount_mismatch_create_no_reques
 
 
 def test_a_caller_cannot_activate_somebody_elses_order(table, keys):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref, _a, _o = pay(keys, intent)
     assert store.activate(table, keys, reference_id=ref, caller_customer_id=BOB).outcome == \
         store.NOT_A_SERVICE_ORDER
@@ -488,7 +514,7 @@ def test_a_caller_cannot_activate_somebody_elses_order(table, keys):
 
 def test_a_second_paid_attempt_on_one_intent_is_loud_and_gets_its_own_request(
         table, keys, caplog):
-    intent = store.request_intent(table, who(), "SUBMIT_REQUEST")
+    intent = store.request_intent(table, who(), "SUBMIT_REQUEST", original_order=original())
     ref1, _a1, _o1 = pay(keys, intent)
     ref2, _a2, _o2 = pay(keys, intent)
     first = store.activate(table, keys, reference_id=ref1)

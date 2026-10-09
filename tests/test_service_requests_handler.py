@@ -22,6 +22,7 @@ sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 from service_requests_fake_dynamo import KeysTable, RequestTable  # noqa: E402
+from coupon_fake_dynamo import FakeTable  # noqa: E402
 
 from lambda_utils import customer_auth  # noqa: E402
 
@@ -29,6 +30,8 @@ HANDLER = ROOT / "amplify/functions/ecommerce/service-requests/handler.py"
 ALICE = "11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 BOB = "22222222-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 PHONE = "+918100640044"
+ORIGINAL_REFERENCE = "WD-PAY-ORIGINAL00001"
+ORIGINAL_ORDER_ID = "order-original-1"
 
 
 @pytest.fixture
@@ -36,7 +39,8 @@ def env(monkeypatch):
     spec = importlib.util.spec_from_file_location("service_requests_handler_under_test", HANDLER)
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
-    tables = {h.SERVICE_REQUESTS_TABLE: RequestTable(), h.COMMERCE_KEYS_TABLE: KeysTable()}
+    tables = {h.SERVICE_REQUESTS_TABLE: RequestTable(), h.COMMERCE_KEYS_TABLE: KeysTable(),
+              h.ORDERS_TABLE: FakeTable(key_attr="orderId", name=h.ORDERS_TABLE)}
     monkeypatch.setattr(h, "_table", lambda name: tables[name])
     state = {"who": ALICE, "allow": True, "rate_calls": []}
 
@@ -54,8 +58,27 @@ def env(monkeypatch):
     monkeypatch.setattr(h.rate_limit, "check_rate_limit", rate)
     h.requests_table = tables[h.SERVICE_REQUESTS_TABLE]
     h.keys_table = tables[h.COMMERCE_KEYS_TABLE]
+    h.orders_table = tables[h.ORDERS_TABLE]
     h.state = state
     return h
+
+
+def seed_original_order(h, *, customer=ALICE, reference=ORIGINAL_REFERENCE,
+                        order_id=ORIGINAL_ORDER_ID):
+    """The caller's EARLIER order, which a Submit Request intent is now frozen against.
+
+    The browser only ever names the customer-visible reference, so the handler resolves
+    PAYREF -> PAYMENTATTEMPT to the internal order id, reads OrderTable consistently and checks
+    ownership there. The fixture therefore seeds that whole chain, not the order row alone.
+    """
+    h.keys_table.seed({"orderId": "PAYREF#" + reference, "paymentAttemptId": "att-original",
+                       "customerId": customer, "referenceId": reference})
+    h.keys_table.seed({"orderId": "PAYMENTATTEMPT#att-original", "orderIdRef": order_id,
+                       "orderNumber": "WD-ORD-ORIGINAL1", "referenceId": reference,
+                       "paymentAttemptId": "att-original"})
+    h.orders_table.seed({"orderId": order_id, "customerId": customer, "referenceId": reference,
+                         "orderNumber": "WD-ORD-ORIGINAL1"})
+    return reference
 
 
 def event(path, body, *, token="tok"):
@@ -72,8 +95,9 @@ def call(h, path, body, **kw):
 
 
 def paid_submit(h):
-    status, intent, _ = call(h, "/services/request-intent", {"kind": "SUBMIT_REQUEST"})
-    assert status == 200
+    status, intent, _ = call(h, "/services/request-intent", {
+        "kind": "SUBMIT_REQUEST", "originalOrderReferenceId": seed_original_order(h)})
+    assert status == 200, intent
     ref = "WD-PAY-0123456789ABCD"
     h.keys_table.seed({"orderId": "PAYREF#" + ref, "paymentAttemptId": "att-1",
                        "customerId": ALICE, "serviceLine": {
@@ -122,8 +146,9 @@ def test_an_unknown_body_key_is_400(env, path, body):
 
 
 def test_the_intent_happy_path(env):
-    status, body, _ = call(env, "/services/request-intent", {"kind": "SUBMIT_REQUEST"})
-    assert status == 200
+    status, body, _ = call(env, "/services/request-intent", {
+        "kind": "SUBMIT_REQUEST", "originalOrderReferenceId": seed_original_order(env)})
+    assert status == 200, body
     # `amountPaise` is None: PRICED AT CHECKOUT, by Wix. The key stays in the payload so the wire
     # shape remains a superset of what src/lib/serviceRequests.ts reads, and None says "not priced
     # yet" where a 0 would have claimed the service is free.
