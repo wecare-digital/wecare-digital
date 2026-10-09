@@ -1,6 +1,6 @@
 # AWS account inventory
 
-Generated 2026-10-07T11:16:58.897383+00:00 · account `775261844268` · `us-east-1` (+ ap-south-1) · regenerate with `python scripts/aws_account_inventory.py`
+Generated 2026-10-08T16:37:10.589782+00:00 · account `775261844268` · `us-east-1` (+ ap-south-1) · regenerate with `python scripts/aws_account_inventory.py`
 
 This file supersedes every dated resource count in the steering files. Machine-readable companion: `aws-inventory.json`. Secret **names** and metadata are recorded; no secret value is ever read. Lambda environment variable **names** are recorded, values never are.
 
@@ -10,14 +10,14 @@ Collector errors: **0** (a non-zero count makes this inventory PARTIAL, not auth
 
 | Resource | Count |
 |---|---:|
-| Lambda functions | 75 |
-| — with a `live` alias | 68 |
+| Lambda functions | 76 |
+| — with a `live` alias | 69 |
 | HTTP APIs | 1 |
 | REST APIs | 0 |
-| HTTP API routes | 376 |
+| HTTP API routes | 384 |
 | API authorizers | 1 |
-| Routes with AuthorizationType=NONE | 374 |
-| DynamoDB tables | 84 |
+| Routes with AuthorizationType=NONE | 382 |
+| DynamoDB tables | 85 |
 | SQS queues | 10 |
 | EventBridge rules | 7 |
 | EventBridge Scheduler schedules | 1 |
@@ -30,15 +30,15 @@ Collector errors: **0** (a non-zero count makes this inventory PARTIAL, not auth
 | WAF web ACLs (CloudFront) | 0 |
 | Route 53 hosted zones | 1 |
 | CloudWatch alarms | 73 |
-| CloudWatch log groups | 91 |
+| CloudWatch log groups | 92 |
 | CloudFormation stacks | 4 |
 | Amplify apps | 1 |
 
 ## Lambda
 
-Runtimes: {'python3.12': 74, None: 1}  ·  package types: {'Zip': 74, 'Image': 1}
+Runtimes: {'python3.12': 75, None: 1}  ·  package types: {'Zip': 75, 'Image': 1}
 
-SnapStart: {'None': 75}
+SnapStart: {'None': 76}
 
 Alias read errors: 0
 
@@ -54,7 +54,7 @@ Alias read errors: 0
 
 ## API Gateway
 
-- **zllr9lrg7j** `wecare-digital-api` — 376 routes, 1 authorizers, stages: ['prod']
+- **zllr9lrg7j** `wecare-digital-api` — 384 routes, 1 authorizers, stages: ['prod']
   - authorizer `workspace-mcp-staff` (JWT) ['$request.header.Authorization']
 
 Routes with an authorizer attached: **2**
@@ -64,7 +64,7 @@ Routes with an authorizer attached: **2**
 
 ## DynamoDB
 
-Empty tables (53): `stack-wecare-digital-AIInteractionsTable`, `stack-wecare-digital-AIProviderPolicyTable`, `stack-wecare-digital-AdClickAttributionTable`, `stack-wecare-digital-AgentApprovalsTable`, `stack-wecare-digital-AmendmentHistoryTable`, `stack-wecare-digital-AppointmentTable`, `stack-wecare-digital-AutomationRulesTable`, `stack-wecare-digital-BulkJobsTable`, `stack-wecare-digital-BulkRecipientsTable`, `stack-wecare-digital-CatalogCacheTable`, `stack-wecare-digital-ConversationHistoryTable`, `stack-wecare-digital-ConversationMetaTable`, `stack-wecare-digital-CrmActivities`, `stack-wecare-digital-CrmLeads`, `stack-wecare-digital-CrmOpportunities`, `stack-wecare-digital-CrmPipelines`, `stack-wecare-digital-CrmStages`, `stack-wecare-digital-DLQMessagesTable`, `stack-wecare-digital-DLTTemplates`, `stack-wecare-digital-DocumentHistoryTable`, `stack-wecare-digital-DownloadGrantsTable`, `stack-wecare-digital-EnterpriseAssistTable`, `stack-wecare-digital-FaqTable`, `stack-wecare-digital-FlowDraftTable`, `stack-wecare-digital-FlowLogTable`, `stack-wecare-digital-FlowRegistryTable`, `stack-wecare-digital-FlowSubmissionTable`, `stack-wecare-digital-NotificationAttempts`, `stack-wecare-digital-NotificationDeliveries`, `stack-wecare-digital-NotificationEvents`, `stack-wecare-digital-NotificationOutbox`, `stack-wecare-digital-OBDCampaigns`, `stack-wecare-digital-PartnerLedger`, `stack-wecare-digital-PartnerWallet`, `stack-wecare-digital-PstnSoftphoneSessions`, `stack-wecare-digital-PushTokensTable`, `stack-wecare-digital-RequestStatusHistoryTable`, `stack-wecare-digital-ReviewTable`, `stack-wecare-digital-RxSlotTable`, `stack-wecare-digital-ScheduledMessagesTable`, `stack-wecare-digital-SecureFilesTable`, `stack-wecare-digital-ServiceRequestsTable`, `stack-wecare-digital-SmsOutboundTable`, `stack-wecare-digital-SubmitRequestsTable`, `stack-wecare-digital-TemplateAnalyticsTable`, `stack-wecare-digital-UsersTable`, `stack-wecare-digital-VoiceAwsTable`, `stack-wecare-digital-VoiceCalls`, `stack-wecare-digital-WhatsAppGroupTable`, `stack-wecare-digital-WhatsAppPhonesTable`, `stack-wecare-digital-WhatsAppVoiceTable`, `stack-wecare-digital-WixOrdersCache`, `stack-wecare-digital-WixProductsCache`
+Empty tables (58): `stack-wecare-digital-AIInteractionsTable`, `stack-wecare-digital-AIProviderPolicyTable`, `stack-wecare-digital-AdClickAttributionTable`, `stack-wecare-digital-AgentApprovalsTable`, `stack-wecare-digital-AmendmentHistoryTable`, `stack-wecare-digital-AppointmentTable`, `stack-wecare-digital-AutomationRulesTable`, `stack-wecare-digital-BulkJobsTable`, `stack-wecare-digital-BulkRecipientsTable`, `stack-wecare-digital-CallNotificationsTable`, `stack-wecare-digital-CatalogCacheTable`, `stack-wecare-digital-ConversationHistoryTable`, `stack-wecare-digital-ConversationMetaTable`, `stack-wecare-digital-CouponsTable`, `stack-wecare-digital-CrmActivities`, `stack-wecare-digital-CrmLeads`, `stack-wecare-digital-CrmOpportunities`, `stack-wecare-digital-CrmPipelines`, `stack-wecare-digital-CrmStages`, `stack-wecare-digital-DLQMessagesTable`, `stack-wecare-digital-DLTTemplates`, `stack-wecare-digital-DocumentHistoryTable`, `stack-wecare-digital-DownloadGrantsTable`, `stack-wecare-digital-EnterpriseAssistTable`, `stack-wecare-digital-FaqTable`, `stack-wecare-digital-FlowDraftTable`, `stack-wecare-digital-FlowLogTable`, `stack-wecare-digital-InvoiceAssetsTable`, `stack-wecare-digital-InvoiceDeliveryLogTable`, `stack-wecare-digital-NotificationAttempts`, `stack-wecare-digital-NotificationDeliveries`, `stack-wecare-digital-NotificationEvents`, `stack-wecare-digital-NotificationOutbox`, `stack-wecare-digital-OBDCampaigns`, `stack-wecare-digital-OrderTable`, `stack-wecare-digital-PartnerLedger`, `stack-wecare-digital-PartnerWallet`, `stack-wecare-digital-PaymentAttemptsTable`, `stack-wecare-digital-PstnSoftphoneSessions`, `stack-wecare-digital-PushTokensTable`, `stack-wecare-digital-RequestStatusHistoryTable`, `stack-wecare-digital-RxSlotTable`, `stack-wecare-digital-ScheduledMessagesTable`, `stack-wecare-digital-SecureFilesTable`, `stack-wecare-digital-ServiceRequestsTable`, `stack-wecare-digital-SiteLanguageCache`, `stack-wecare-digital-SmsOutboundTable`, `stack-wecare-digital-SubmitRequestsTable`, `stack-wecare-digital-TemplateAnalyticsTable`, `stack-wecare-digital-UsersTable`, `stack-wecare-digital-VoiceAwsTable`, `stack-wecare-digital-VoiceCalls`, `stack-wecare-digital-WhatsAppCallingTable`, `stack-wecare-digital-WhatsAppGroupTable`, `stack-wecare-digital-WhatsAppPhonesTable`, `stack-wecare-digital-WhatsAppVoiceTable`, `stack-wecare-digital-WixOrdersCache`, `stack-wecare-digital-WixProductsCache`
 
 Without point-in-time recovery (7): `stack-wecare-digital-CatalogCacheTable`, `stack-wecare-digital-PstnSoftphoneSessions`, `stack-wecare-digital-RateLimitTable`, `stack-wecare-digital-SiteLanguageCache`, `stack-wecare-digital-WebhookDedup`, `stack-wecare-digital-WixOrdersCache`, `stack-wecare-digital-WixProductsCache`
 
@@ -159,7 +159,7 @@ Identity pools: 1
 
 ## SES
 
-### us-east-1 — production_access=True, sending=True, quota={'Max24HourSend': 50000.0, 'MaxSendRate': 14.0, 'SentLast24Hours': 2.0}
+### us-east-1 — production_access=True, sending=True, quota={'Max24HourSend': 50000.0, 'MaxSendRate': 14.0, 'SentLast24Hours': 0.0}
 
 - `one@wecare.digital` (EMAIL_ADDRESS) verified=True dkim=SUCCESS/True mail_from=None/None
 - `wecare.digital` (DOMAIN) verified=True dkim=SUCCESS/True mail_from=None/None
@@ -208,7 +208,7 @@ Configuration sets: []
 - INSUFFICIENT_DATA: 0
 - alarms with no action: 0
 - dashboards: ['wecare-platform-health']
-- log groups: 91, stored 0.86 GB
+- log groups: 92, stored 0.9 GB
 - log groups with no retention: 2
   - `/aws/lambda/wecare-customer-profile`
   - `/aws/lambda/wecare-customer-session`
@@ -226,9 +226,9 @@ Amplify:
 
 - `d22dm4b0jn71jw` **wecare.digital** platform=WEB custom_rules=14 repo=https://github.com/wecare-digital/wecare-digital
   - branch `stack` stage=PRODUCTION auto_build=True
-    - job 1427 SUCCEED commit `4ed7a9d1851c` 2026-10-07T10:59:10
-    - job 1426 SUCCEED commit `652d6f8af363` 2026-10-07T10:10:46
-    - job 1425 SUCCEED commit `779fb6403ba4` 2026-10-07T09:55:37
+    - job 1472 SUCCEED commit `88856c1936d5` 2026-10-08T13:39:04
+    - job 1471 SUCCEED commit `4167680a2c2f` 2026-10-08T12:56:48
+    - job 1470 SUCCEED commit `23a3a7aa3735` 2026-10-08T12:40:03
 
 ## Cross-service checks
 

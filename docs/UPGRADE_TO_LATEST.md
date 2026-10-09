@@ -1,93 +1,25 @@
-# Upgrade to Latest — Dependency & Runtime Pathway
+# Dependency upgrades and install boundaries
 
-Goal: move the whole stack (frontend npm deps, Amplify/CDK backend, Lambda runtimes) to the
-latest versions, accepting breaking changes, with a safe verify/rollback path.
+Current procedure, 2026-10-09. The root manifest owns the web application; amplify/package.json owns backend build tooling. Registry versions and advisories must be refreshed when doing an upgrade. Historical version tables are not a current release target.
 
-> Why this doc exists: the agent environment has **no npm network access**, so the npm steps
-> below must run on your local machine or in CI. Everything here is verified-accurate as of
-> 2026-06-30 against the npm registry.
+## Review the plan
 
-## TL;DR
-- There are **no new major versions** for any direct dependency — `next` (16.x), `react` (19.x),
-  `react-router-dom` (7.x), `@capacitor/*` (8.x), `aws-amplify` (6.x), `@aws-amplify/backend` (1.x),
-  `aws-cdk-lib` (2.x) are all already on their current major. So "latest" = minor/patch; breakage risk is low.
-- One real issue was **already fixed in `package.json`**: the `overrides` block was pinning
-  `fast-xml-parser` to the vulnerable `5.3.4`. It is now `5.9.3` (patched). This takes effect on the next `npm install`.
-- Run `./upgrade-latest.sh` to execute the npm half. The PowerShell twin was
-  deleted on 2026-09-20; this repo is maintained on macOS.
+From the repository root, run `./upgrade-latest.sh --plan` or `node scripts/upgrade-dependencies.mjs`. Both are read-only and show only currently declared registry dependencies, retaining dependency/devDependency categories. Local, workspace and Git dependencies are not silently replaced by registry releases.
 
-## Current vs latest (verified 2026-06-30)
+## Upgrade the web root
 
-| Package | Installed | Latest | Major bump? |
-|---|---|---|---|
-| next | 16.1.6 | 16.2.9 | no |
-| react / react-dom | 19.2.4 | 19.2.x | no |
-| react-router-dom | 7.13.0 | 7.18.1 | no |
-| @capacitor/core (+plugins) | 8.2.0 | 8.4.1 | no |
-| aws-amplify | 6.16.2 | 6.18.0 | no |
-| @aws-amplify/backend | 1.21.0 | 1.23.0 | no |
-| @aws-amplify/backend-cli (ampx) | 1.8.2 | 1.8.3 | no |
-| aws-cdk-lib | 2.241.0 | 2.243.0 | no |
-| fast-xml-parser (override) | 5.3.4 (pinned, vuln) | 5.9.3 | fixed in manifest |
+`./upgrade-latest.sh` upgrades the current root dependencies, updates the existing lockfile in place, then runs npm ci, typecheck, production build and frontend tests. It does not create a branch, force an audit downgrade, commit, push or deploy. Run in an isolated checkout or with ownership of both manifests; active sessions share the same index and installed modules.
 
-## Phase 0 — Prereqs (run where npm works)
-- Node `>=24` (matches `engines`), npm 11+.
-- Clean git working tree. The scripts create branch `chore/deps-latest` and back up `package.json`/`package-lock.json`.
+The manually dispatched deps-upgrade workflow has two modes: lock-only refreshes the existing root lock; full-latest first runs the same manifest-derived helper. Both run strict installation/build gates before committing. Backend packages, retired SDKs and removed vendor packages must not be recreated by hard-coded upgrade lists.
 
-## Phase 1 — Frontend npm upgrade (automated)
-```bash
-# from the repository root
-./upgrade-latest.sh
-# to also force-fix transitive vulns into new majors:
-FORCE=1 ./upgrade-latest.sh
-```
-The script: bumps every direct dep to `@latest`, runs `npm audit fix`, dedupes, reinstalls,
-then `npm run build` and `npm test`. It does **not** commit/push/deploy.
+## Upgrade backend tooling separately
 
-Manual equivalent if you prefer:
-```bash
-npm install --save next@latest react@latest react-dom@latest react-router-dom@latest aws-amplify@latest @aws-amplify/ui-react@latest @aws-sdk/client-bedrock@latest @aws-sdk/client-bedrock-runtime@latest @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest @capacitor/ios@latest @capacitor/app@latest @capacitor/browser@latest @capacitor/haptics@latest @capacitor/keyboard@latest @capacitor/push-notifications@latest @capacitor/splash-screen@latest @capacitor/status-bar@latest flag-icons@latest
-npm install --save-dev @aws-amplify/backend-cli@latest @aws-amplify/backend-data@latest @aws-amplify/data-construct@latest @aws-amplify/graphql-schema-generator@latest @testing-library/jest-dom@latest @testing-library/react@latest @types/node@latest @types/react@latest @types/react-dom@latest @vitejs/plugin-react@latest jsdom@latest typescript@latest vitest@latest
-npm install --save @aws-amplify/backend@latest
-npm audit fix
-npm run build && npm test
-```
+Inspect amplify/package.json and its lock, then perform a separately reviewed `npm install --prefix amplify`. Its infrastructure/CDK dependencies do not belong in the web root. Dependency updates alone are not authority for a full infrastructure deployment. Review synthesized resources and captured rollback/configuration before any apply.
 
-## Phase 2 — Backend (Amplify Gen2 + CDK) redeploy
-Bumping `@aws-amplify/backend` / `aws-cdk-lib` only matters once the backend is re-synthesized:
-```bash
-npx ampx pipeline-deploy --branch stack --app-id d22dm4b0jn71jw   # CI/CD deploy
-# or for a sandbox check:  npx ampx sandbox
-```
-Cross-check (already satisfied): `@aws-amplify/backend@1.23.0` needs `aws-cdk-lib ^2.234.1` + `constructs ^10`.
+## Verify and release
 
-## Phase 3 — Lambda runtimes (OPTIONAL, breaking-ish)
-All 54 `wecare-*` Lambdas are on `python3.12` (supported, not EOL) — upgrading is optional.
-To move to `python3.13` and/or `arm64`, edit the runtime/architecture in the function definitions
-(`amplify/functions/**/resource.ts` or the CDK stack), then redeploy. Validate each handler against
-3.13 before shipping. Ask the agent to make these edits if you want them.
+Run npm ci, npm run typecheck, npm run build, npm test and npm audit in the web root. Retain actual advisory results; a tool with no patched upstream version cannot be declared fixed by forcing unrelated major downgrades. Preserve the production export/blog/schema/browser gates. Python work uses requirements-dev.txt and Python3.12; full handler tests remain offline unless an explicitly scoped journey is authorized.
 
-## Phase 4 — Verify
-```bash
-npm run build      # must pass (static export)
-npm test
-npm audit          # expect criticals/highs to drop sharply (fast-xml-parser override now 5.9.3)
-```
-Then deploy frontend (git push to `stack` → Amplify build) and, if backend changed, Phase 2.
-Re-run the function deploy if you touched Lambdas: `python ../scripts/_deploy_everything.py`.
+Commit only owned explicit paths on stack. An ordinary forward revert restores manifests/lockfile and removed source without rewriting history or undoing another session's work. A Lambda code change must use its reviewed package/deploy owner, capture live versions, publish an Active version and move the guarded live alias. See .kiro/steering/lambda-snapstart-deploy.md and docs/execution/repository-layout.md.
 
-## Rollback
-```bash
-git checkout -- package.json package-lock.json    # or restore the .bak files
-git checkout stack && git branch -D chore/deps-latest
-rm -f package.json.bak package-lock.json.bak
-```
-Frontend deploys are static; reverting the commit and re-pushing restores the previous build.
-
-## Caveats (track, not blockers)
-- **Next 16 vs Amplify SSR**: Amplify's Next.js SSR adapter officially supports `>=13.5.0 <16.0.0`.
-  You are on Next 16 but deploy via `output: export` (static — no SSR adapter at runtime), so this is fine.
-  Do **not** switch to Amplify SSR/compute on Next 16 without checking adapter support.
-- **Amazon Pinpoint EOL — Oct 30, 2026**: any SMS path on Pinpoint (`scripts/setup_pinpoint_sms_tollfree.py`,
-  `_fix_pinpoint_pool.py`) must migrate before then.
-- **Amplify Gen1 EOL — May 1, 2027**: N/A, you are Gen2.
+Runtime or architecture migrations are separate changes requiring compatible dependency layers and exact-package handler tests. Do not infer current Lambda counts or provider availability from a dated upgrade document.
