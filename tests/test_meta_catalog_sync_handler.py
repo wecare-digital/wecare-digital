@@ -79,7 +79,7 @@ def gates_closed(monkeypatch):
     monkeypatch.delenv("META_CATALOG_SYNC_ENABLED", raising=False)
     monkeypatch.delenv("META_CATALOG_SYNC_DRY_RUN", raising=False)
     monkeypatch.delenv("META_CATALOG_ID", raising=False)
-    monkeypatch.delenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", raising=False)
+    monkeypatch.delenv("META_CATALOG_APPROVALS_TABLE", raising=False)
 
 
 @pytest.fixture(scope="module")
@@ -179,11 +179,65 @@ def reader_for(token=FAKE_TOKEN, *, field="access_token"):
     return read
 
 
-def run(wix, graph, reader=None, event=None):
+class FakeApprovalStore:
+    def __init__(self):
+        self.rows = {}
+
+    def get(self, plan_hash):
+        return self.rows.get(plan_hash.lower())
+
+    def propose(self, *, plan_hash, catalog_id, counts, blocked, desired_items, proposed_by=""):
+        key = plan_hash.lower()
+        row = self.rows.get(key)
+        if row is None:
+            row = {
+                "exactPlanHash": key, "recordType": receiver.CATALOG_APPROVAL_RECORD_TYPE,
+                "catalogId": catalog_id, "status": "PROPOSED", "counts": dict(counts),
+                "blocked": list(blocked), "desiredItems": list(desired_items),
+                "proposedAt": 1, "proposedBy": proposed_by,
+            }
+            self.rows[key] = row
+        return dict(row)
+
+    def approve(self, *, plan_hash, catalog_id, approved_by):
+        key = plan_hash.lower()
+        row = self.rows.get(key)
+        if not row or row["catalogId"] != catalog_id or row["status"] not in ("PROPOSED", "APPROVED"):
+            return None
+        row.update(status="APPROVED", approvedBy=approved_by, approvedAt=2)
+        return dict(row)
+
+    def claim_apply(self, *, plan_hash, catalog_id):
+        key = plan_hash.lower()
+        row = self.rows.get(key)
+        if not row or row["catalogId"] != catalog_id or row["status"] != "APPROVED":
+            return None
+        row.update(status="APPLYING", applyStartedAt=3)
+        return dict(row)
+
+    def finish_apply(self, *, plan_hash, outcome):
+        row = self.rows[plan_hash.lower()]
+        row.update(status="APPLY_SUBMITTED" if outcome.get("ok") else "APPLY_FAILED",
+                   appliedAt=4, batchHandles=list(outcome.get("batchHandles") or []),
+                   appliedCount=int(outcome.get("applied") or 0))
+        return dict(row)
+
+    def record_readback(self, *, plan_hash, current_plan_hash, counts, verified):
+        row = self.rows[plan_hash.lower()]
+        row.update(status="APPLIED" if verified else "APPLY_SUBMITTED",
+                   lastReadbackPlanHash=current_plan_hash,
+                   lastReadbackCounts=dict(counts))
+        if verified:
+            row["verifiedAt"] = 5
+        return dict(row)
+
+
+def run(wix, graph, reader=None, event=None, approval_store=None):
     return receiver.handler(
         event if event is not None else {"source": "wix-webhook", "entityId": "prod-1"},
         None, wix_requester=wix, graph_requester=graph,
-        secret_reader=reader or reader_for())
+        secret_reader=reader or reader_for(),
+        approval_store=approval_store or FakeApprovalStore())
 
 
 # ── 1. the gates ─────────────────────────────────────────────────────────────
@@ -245,62 +299,73 @@ def test_dry_run_switches_off_only_on_an_explicit_false(snapshot_products, monke
     assert answer["dryRun"] is still_dry
     assert graph.writes == []
     if not still_dry:
-        assert answer["reason"] in ("blocked", "approval_required")
+        assert answer["reason"] in ("blocked", "explicit_apply_required")
 
 
-def test_all_write_gates_require_the_exact_approved_plan(snapshot_products, monkeypatch):
-    """Enable + non-dry-run is insufficient; an exact current plan hash is the durable approval."""
+def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeypatch):
+    """Proposal -> exact admin approval -> explicit apply; background triggers can never spend it."""
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
-    wix, graph = FakeWix(snapshot_products), FakeGraph()
-    proposal = receiver.handler({"inspect": True}, None, wix_requester=wix,
-        graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
-    assert proposal["counts"]["create"] == 4 and proposal["blocked"] == []
-    assert proposal["approved"] is False
-    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
-    answer = run(FakeWix(snapshot_products), graph)
+    store = FakeApprovalStore()
+    graph = FakeGraph()
 
+    proposal = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "propose", "proposedBy": "admin"}, approval_store=store)
+    assert proposal["counts"]["create"] == 4 and proposal["blocked"] == []
+    assert proposal["approval"]["status"] == "PROPOSED"
+    plan_hash = proposal["planHash"]
+
+    # The schedule/webhook may observe the approval later, but it may not spend it.
+    background = run(FakeWix(snapshot_products), graph, approval_store=store)
+    assert background["reason"] == "explicit_apply_required"
+    assert graph.writes == []
+
+    approved = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "approve", "planHash": plan_hash, "approvedBy": "owner-admin"},
+        approval_store=store)
+    assert approved["approval"]["status"] == "APPROVED"
+
+    answer = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "apply", "planHash": plan_hash}, approval_store=store)
     assert answer["dryRun"] is False
     assert answer["approved"] is True
+    assert answer["approval"]["status"] == "APPLY_SUBMITTED"
     assert answer["applied"] == 4
     assert len(graph.writes) == 1
     write = graph.writes[0]
     assert write["method"] == "POST"
     assert write["path"].endswith("/items_batch")
-    methods = {request["method"] for request in write["payload"]["requests"]}
-    assert methods == {"UPDATE"}, "there is no DELETE method anywhere in this function"
+    assert {request["method"] for request in write["payload"]["requests"]} == {"UPDATE"}
 
 
-def test_wrong_or_stale_approval_hash_refuses_without_constructing_a_write(snapshot_products, monkeypatch):
+def test_wrong_or_stale_approval_refuses_without_constructing_a_write(snapshot_products, monkeypatch):
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
-    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", "0"*64)
-    graph=FakeGraph()
-    answer=run(FakeWix(snapshot_products), graph)
-    assert answer["reason"]=="approval_required"
-    assert answer["approved"] is False and answer["applied"]==0
-    assert graph.writes==[]
+    graph, store = FakeGraph(), FakeApprovalStore()
+    answer = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "apply", "planHash": "0"*64}, approval_store=store)
+    assert answer["reason"] == "plan_changed"
+    assert answer["applied"] == 0
+    assert graph.writes == []
 
 
-def test_blockers_refuse_even_with_a_matching_approval(snapshot_products, monkeypatch):
+def test_blockers_refuse_before_proposal_or_apply(snapshot_products, monkeypatch):
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
-    graph=FakeGraph()
-    proposal=receiver.handler({"inspect":True},None,wix_requester=FakeWix(snapshot_products),
-        graph_requester=graph,secret_reader=lambda name:{"access_token":FAKE_TOKEN})
-    assert proposal["blocked"]
-    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
-    answer=run(FakeWix(snapshot_products), graph)
-    assert answer["reason"]=="blocked" and answer["applied"]==0
-    assert graph.writes==[]
+    graph, store = FakeGraph(), FakeApprovalStore()
+    proposal = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "propose"}, approval_store=store)
+    assert proposal["reason"] == "blocked"
+    assert store.rows == {}
+    assert graph.writes == []
 
 
 def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
@@ -308,12 +373,12 @@ def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
     entry = manifest["functions"]["wecare-meta-catalog-sync"]
     provisioner = _load_provisioner()
     for key in ("META_CATALOG_SYNC_ENABLED", "META_CATALOG_SYNC_DRY_RUN",
-                "META_CATALOG_SYNC_APPROVED_PLAN_SHA256",
+                "META_CATALOG_APPROVALS_TABLE",
                 "META_CATALOG_SYNC_VARIANT_IDS", "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"):
         assert entry[key] == provisioner.ENVIRONMENT[key]
     assert entry["META_CATALOG_SYNC_ENABLED"] == "false"
     assert entry["META_CATALOG_SYNC_DRY_RUN"] == "true"
-    assert entry["META_CATALOG_SYNC_APPROVED_PLAN_SHA256"] == ""
+    assert entry["META_CATALOG_APPROVALS_TABLE"] == "stack-wecare-digital-AgentApprovalsTable"
     assert entry["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
     assert set(entry["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", "db166bc8-a763-41ec-9f65-0f718f18155a", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
@@ -375,11 +440,14 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
         {"id": "meta-sku", "retailer_id": "htlu35lrs1", "name": "A hand-made item",
          "availability": "in stock"},
     ])
-    proposal = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
-        graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
-    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
-
-    answer = run(wix, graph)
+    store = FakeApprovalStore()
+    proposal = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "propose"}, approval_store=store)
+    run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "approve", "planHash": proposal["planHash"], "approvedBy": "admin"},
+        approval_store=store)
+    answer = run(wix, graph,
+        event={"catalogAction": "apply", "planHash": proposal["planHash"]}, approval_store=store)
 
     assert answer["counts"]["foreign"] == 2
     assert answer["applied"] == 4
@@ -718,11 +786,15 @@ def test_scoped_rollout_never_retires_unselected_variants(snapshot_products, mon
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     graph = FakeGraph(items=[item for item in all_items if wanted not in item["retailer_id"]])
-    proposal = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
-        graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
+    store = FakeApprovalStore()
+    proposal = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "propose"}, approval_store=store)
     assert proposal["blocked"] == [] and proposal["counts"]["create"] == 1
-    monkeypatch.setenv("META_CATALOG_SYNC_APPROVED_PLAN_SHA256", proposal["planHash"])
-    answer = run(FakeWix(snapshot_products), graph)
+    run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "approve", "planHash": proposal["planHash"], "approvedBy": "admin"},
+        approval_store=store)
+    answer = run(FakeWix(snapshot_products), graph,
+        event={"catalogAction": "apply", "planHash": proposal["planHash"]}, approval_store=store)
     assert answer["counts"]["create"] == 1
     assert answer["counts"]["retire"] == 0
     payload = graph.writes[0]["payload"]
@@ -736,7 +808,8 @@ def test_inspection_does_not_write_when_sync_is_enabled(snapshot_products, monke
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     graph = FakeGraph()
     answer = receiver.handler({"inspect": True}, None, wix_requester=FakeWix(snapshot_products),
-                              graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN})
+                              graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN},
+        approval_store=FakeApprovalStore())
     assert answer["readOnly"] is True
     assert len(answer["desiredItems"]) == 24
     assert graph.writes == []

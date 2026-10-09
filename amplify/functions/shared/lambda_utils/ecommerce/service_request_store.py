@@ -234,7 +234,8 @@ def mint_public_request_id() -> str:
     return PUBLIC_REQUEST_ID_PREFIX + tail
 
 
-def _fingerprint(kind: str, variant_id: str, target_request_id: str) -> str:
+def _fingerprint(kind: str, variant_id: str, target_request_id: str,
+                 original_order_id: str = "") -> str:
     """What makes two intents for the same thing the same intent.
 
     NO AMOUNT, since 2026-10-08. Wix owns the price now, so an amount in here would mean a Wix
@@ -242,7 +243,9 @@ def _fingerprint(kind: str, variant_id: str, target_request_id: str) -> str:
     the customer's one open intent would be superseded by an identical one for no reason the
     customer caused. The identity of an intent is what service it is and what it is for.
     """
-    material = "|".join([kind, variant_id, SERVICE_CURRENCY, target_request_id])
+    material = "|".join([
+        kind, variant_id, SERVICE_CURRENCY, target_request_id, original_order_id
+    ])
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
@@ -258,7 +261,9 @@ def _intent_view(intent: Dict[str, Any]) -> Dict[str, Any]:
             "variantId": str(intent.get("variantId") or ""),
             "amountPaise": None,
             "currency": str(intent.get("currency") or ""),
-            "targetRequestId": str(intent.get("targetPublicRequestId") or "") or None}
+            "targetRequestId": str(intent.get("targetPublicRequestId") or "") or None,
+            "originalOrderReferenceId": str(intent.get("parentOrderReferenceId") or "") or None,
+            "originalOrderNumber": str(intent.get("parentOrderNumber") or "") or None}
 
 
 # ── public ids ────────────────────────────────────────────────────────────────
@@ -294,7 +299,8 @@ def _mint_items(table_name: str, *, intent: Dict[str, Any], open_key: str,
 
 
 def _new_intent(*, intent_id: str, owner: str, kind: str, variant_id: str,
-                target: Optional[Dict[str, Any]], fingerprint: str, now: int) -> Dict[str, Any]:
+                target: Optional[Dict[str, Any]], original_order: Optional[Dict[str, Any]],
+                fingerprint: str, now: int) -> Dict[str, Any]:
     """The stored intent. NO ``amountPaise``: an intent is pre-payment and Wix prices the line.
 
     Storing a figure here would be storing a guess, and a guess on a money row is the thing that
@@ -311,6 +317,10 @@ def _new_intent(*, intent_id: str, owner: str, kind: str, variant_id: str,
         intent["targetPublicRequestId"] = str(target.get("publicRequestId") or "")
     if target is not None and target.get('vaultFileId'):
         intent.update({k: target[k] for k in ('vaultFileId', 'vaultFileName', 'vaultOwnerPhone')})
+    if original_order is not None:
+        intent["parentOrderId"] = str(original_order.get("orderId") or "")
+        intent["parentOrderNumber"] = str(original_order.get("orderNumber") or "")
+        intent["parentOrderReferenceId"] = str(original_order.get("referenceId") or "")
     return intent
 
 
@@ -318,7 +328,8 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
                    target_public_id: Any = None, *,
                    clock: Optional[Callable[[], float]] = None,
                    new_id: Callable[[], str] = new_uuid7,
-                   vault_file: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                   vault_file: Optional[Dict[str, Any]] = None,
+                   original_order: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Resolve the caller's one open intent for this service, or mint one. Never charges anything.
 
     Raises ``ServiceRejected`` (unknown or not-offered kind, or a missing/unexpected target),
@@ -339,6 +350,17 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         raise customer_auth.CustomerNotAuthorized("session carries no customer id")
 
     target: Optional[Dict[str, Any]] = None
+    if kind == SUBMIT_REQUEST:
+        if target_public_id or vault_file is not None:
+            raise ServiceRejected("SERVICE_TARGET_UNEXPECTED")
+        if (not isinstance(original_order, dict)
+                or str(original_order.get("customerId") or "") != owner
+                or not str(original_order.get("orderId") or "")
+                or not str(original_order.get("referenceId") or "")):
+            raise ServiceRejected("SERVICE_ORIGINAL_ORDER_REQUIRED")
+    elif original_order is not None:
+        raise ServiceRejected("SERVICE_TARGET_UNEXPECTED")
+
     if vault_file is not None:
         if (kind != VAULT or target_public_id or vault_file.get('ownerCustomerId') != owner
                 or vault_file.get('status') != 'active' or not vault_file.get('fileId')):
@@ -359,7 +381,12 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
         raise ServiceRejected("SERVICE_TARGET_UNEXPECTED")
 
     target_internal = str(target[KEY_ATTR]) if target is not None else ""
-    fingerprint = _fingerprint(kind, variant_id, target_internal)
+    original_order_internal = (
+        str(original_order.get("orderId") or "") if original_order is not None else ""
+    )
+    fingerprint = _fingerprint(
+        kind, variant_id, target_internal, original_order_internal
+    )
     open_key = f"{OPEN_PREFIX}{owner}#{variant_id}"
     table_name = table.name
 
@@ -370,6 +397,7 @@ def request_intent(table: Any, identity: customer_auth.CustomerIdentity, kind: A
             if claim is None or claim.get("isConsumed") is True:
                 intent = _new_intent(intent_id=new_id(), owner=owner, kind=kind,
                                      variant_id=variant_id, target=target,
+                                     original_order=original_order,
                                      fingerprint=fingerprint, now=now)
                 _transact(table, _mint_items(table_name, intent=intent, open_key=open_key,
                                              owner=owner, fingerprint=fingerprint, now=now))
@@ -554,6 +582,8 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
         return _unmatched("CURRENCY_MISMATCH", reference_id=reference_id, order_id=order_id)
     target_internal = str(intent.get("targetRequestId") or "")
     file_bound_vault = kind == VAULT and bool(intent.get('vaultFileId')) and target_internal == 'FILE#' + str(intent['vaultFileId'])
+    if kind == SUBMIT_REQUEST and not str(intent.get("parentOrderId") or ""):
+        return _unmatched("ORIGINAL_ORDER_MISSING", reference_id=reference_id, order_id=order_id)
     if kind in TARGET_REQUIRED_KINDS and not file_bound_vault and not target_internal.startswith(REQUEST_PREFIX):
         # The condition is generic across `TARGET_REQUIRED_KINDS`; the reason code is not,
         # and must not be. ``AMENDMENT_TARGET_MISSING`` is kept verbatim for an amendment
@@ -587,6 +617,10 @@ def activate(table: Any, keys_table: Any, *, reference_id: str = "",
             "paymentAttemptId": attempt_id, "referenceId": reference_id, "intentId": intent_id,
             "paidAt": now,
         }
+        if kind == SUBMIT_REQUEST:
+            request["parentOrderId"] = str(intent.get("parentOrderId") or "")
+            request["parentOrderNumber"] = str(intent.get("parentOrderNumber") or "")
+            request["parentOrderReferenceId"] = str(intent.get("parentOrderReferenceId") or "")
         if kind in TARGET_REQUIRED_KINDS:
             request["targetRequestId"] = target_internal
             request["targetPublicRequestId"] = str(intent.get("targetPublicRequestId") or "")

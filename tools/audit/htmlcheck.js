@@ -44,6 +44,7 @@ const ROUTES = [
   // The five Customer service pages, added when the header's six labels stopped all resolving
   // to /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/leave-review/', '/refer-and-earn/',
+  '/subscribe/',
   // '/store/' is gone: it was a staff page on a public URL and now lives at
   // /workspace/commerce/catalog. It was the only route failing H1-NONE and NO-MAIN here,
   // because the Authenticator renders instead of the page when there is no session.

@@ -87,6 +87,12 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
   const [ loading, setLoading ] = useState( false );
   const [ syncing, setSyncing ] = useState( false );
 
+  // Meta catalog owner-approval control. This never bypasses server gates: the backend requires
+  // Admin + MFA, derives the approver identity from Cognito and recomputes the exact live plan.
+  const [ metaCatalog, setMetaCatalog ] = useState<api.MetaCatalogSyncControl | null>( null );
+  const [ metaCatalogBusy, setMetaCatalogBusy ] = useState( false );
+  const [ metaCatalogMessage, setMetaCatalogMessage ] = useState( '' );
+
   // Products
   const [ products, setProducts ] = useState<api.WixProduct[]>( [] );
   const [ productCount, setProductCount ] = useState( 0 );
@@ -219,7 +225,54 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
     else if ( activeTab === 'collections' ) fetchCollections();
     else if ( activeTab === 'settings' ) fetchSites();
     else if ( activeTab === 'manage' ) fetchSamples();
+    else if ( activeTab === 'admin' ) refreshMetaCatalogPlan();
+  // refreshMetaCatalogPlan intentionally excluded: it is a one-shot tab load, not a render loop.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ activeTab, fetchProducts, fetchOrders, fetchCollections, fetchSites, fetchSamples ] );
+
+  const refreshMetaCatalogPlan = async () => {
+    setMetaCatalogBusy( true );
+    setMetaCatalogMessage( '' );
+    const result = await api.getMetaCatalogSyncPlan();
+    if ( result.ok )
+    {
+      setMetaCatalog( result.data );
+    } else
+    {
+      setMetaCatalogMessage( result.failure.message );
+    }
+    setMetaCatalogBusy( false );
+  };
+
+  const runMetaCatalogAction = async ( action: 'propose' | 'approve' | 'apply' | 'readback' ) => {
+    const planHash = metaCatalog?.planHash || metaCatalog?.currentPlanHash || '';
+    if ( action !== 'propose' && !planHash )
+    {
+      setMetaCatalogMessage( 'Refresh the live plan before continuing.' );
+      return;
+    }
+    setMetaCatalogBusy( true );
+    setMetaCatalogMessage( '' );
+    const result = await api.controlMetaCatalogSync( action, action === 'propose' ? undefined : planHash );
+    if ( result.ok )
+    {
+      setMetaCatalog( prev => ( { ...( prev || {} as api.MetaCatalogSyncControl ), ...result.data } ) );
+      setMetaCatalogMessage(
+        action === 'propose' ? 'Proposal recorded against this exact plan.' :
+          action === 'approve' ? 'Exact plan approved. Release gates remain unchanged.' :
+            action === 'apply' ? 'Apply submitted. Use Readback to verify provider state.' :
+              'Provider readback refreshed.'
+      );
+    } else
+    {
+      setMetaCatalogMessage( result.failure.message );
+      // A 409 may carry useful server state, but apiCallResult deliberately normalises failures.
+      // Refresh immediately so the operator sees the current plan rather than acting on stale UI.
+      const fresh = await api.getMetaCatalogSyncPlan();
+      if ( fresh.ok ) setMetaCatalog( fresh.data );
+    }
+    setMetaCatalogBusy( false );
+  };
 
   const handleSync = async ( type: 'products' | 'orders' ) => {
     setSyncing( true );
@@ -701,6 +754,67 @@ const StorePage: React.FC<PageProps> = ( { signOut, user } ) => {
           {/* ---- STORE ADMIN TAB ---- */ }
           { activeTab === 'admin' && (
             <div style={ { maxWidth: 900 } }>
+              <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 } }>
+                <div style={ { display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start', marginBottom: 14 } }>
+                  <div>
+                    <h3 style={ { margin: '0 0 4px', fontSize: 16, fontWeight: 600 } }>WhatsApp Catalog Approval</h3>
+                    <p style={ { margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 } }>
+                      The proposal is recomputed from live Wix and Meta state. Approval is bound to the exact hash below.
+                      Background sync cannot spend an approval; Apply also requires the server release gates.
+                    </p>
+                  </div>
+                  <button onClick={ refreshMetaCatalogPlan } disabled={ metaCatalogBusy }
+                    style={ { padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, background: '#fff', cursor: metaCatalogBusy ? 'default' : 'pointer' } }>
+                    { metaCatalogBusy ? 'Checking…' : 'Refresh plan' }
+                  </button>
+                </div>
+
+                { metaCatalog ? (
+                  <>
+                    <div style={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 12 } }>
+                      <div style={ statBox }><span style={ statLabel }>Catalog</span><span style={ statValue }>{ metaCatalog.catalogId }</span></div>
+                      <div style={ statBox }><span style={ statLabel }>Create</span><span style={ statValue }>{ metaCatalog.counts?.create ?? 0 }</span></div>
+                      <div style={ statBox }><span style={ statLabel }>Update</span><span style={ statValue }>{ metaCatalog.counts?.update ?? 0 }</span></div>
+                      <div style={ statBox }><span style={ statLabel }>Retire</span><span style={ statValue }>{ metaCatalog.counts?.retire ?? 0 }</span></div>
+                      <div style={ statBox }><span style={ statLabel }>Approval</span><span style={ statValue }>{ metaCatalog.approval?.status || 'Not proposed' }</span></div>
+                      <div style={ statBox }><span style={ statLabel }>Release gates</span><span style={ statValue }>{ metaCatalog.enabled && metaCatalog.dryRun === false ? 'Open' : 'Closed' }</span></div>
+                    </div>
+                    <div style={ { background: '#f9fafb', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 12 } }>
+                      <strong>Exact plan hash</strong><br />
+                      <code style={ { wordBreak: 'break-all' } }>{ metaCatalog.planHash || metaCatalog.currentPlanHash || '—' }</code>
+                      { ( metaCatalog.blocked?.length || 0 ) > 0 && (
+                        <div style={ { marginTop: 8, color: '#6b7280' } }>Blocked: { metaCatalog.blocked?.join( ', ' ) }</div>
+                      ) }
+                    </div>
+                    <div style={ { display: 'flex', flexWrap: 'wrap', gap: 8 } }>
+                      <button onClick={ () => runMetaCatalogAction( 'propose' ) } disabled={ metaCatalogBusy || ( metaCatalog.blocked?.length || 0 ) > 0 }>
+                        Record proposal
+                      </button>
+                      <button onClick={ () => runMetaCatalogAction( 'approve' ) }
+                        disabled={ metaCatalogBusy || metaCatalog.approval?.status !== 'PROPOSED' }>
+                        Approve exact plan
+                      </button>
+                      <button onClick={ () => runMetaCatalogAction( 'apply' ) }
+                        disabled={ metaCatalogBusy || metaCatalog.approval?.status !== 'APPROVED' || !metaCatalog.enabled || metaCatalog.dryRun !== false }>
+                        Apply approved plan
+                      </button>
+                      <button onClick={ () => runMetaCatalogAction( 'readback' ) }
+                        disabled={ metaCatalogBusy || ![ 'APPLYING', 'APPLY_SUBMITTED', 'APPLIED' ].includes( metaCatalog.approval?.status || '' ) }>
+                        Provider readback
+                      </button>
+                    </div>
+                    { ( !metaCatalog.enabled || metaCatalog.dryRun !== false ) && (
+                      <p style={ { margin: '10px 0 0', fontSize: 12, color: '#6b7280' } }>
+                        Apply is intentionally locked: production catalog writes are disabled / dry-run.
+                      </p>
+                    ) }
+                  </>
+                ) : (
+                  <p style={ { color: '#6b7280', fontSize: 13 } }>{ metaCatalogBusy ? 'Reading live Wix + Meta plan…' : 'No live plan loaded.' }</p>
+                ) }
+                { metaCatalogMessage && <p style={ { margin: '10px 0 0', fontSize: 12, color: '#374151' } }>{ metaCatalogMessage }</p> }
+              </div>
+
               <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 } }>
                 <h3 style={ { margin: '0 0 8px', fontSize: 16, fontWeight: 600 } }>Headless Commerce Architecture</h3>
                 <p style={ { fontSize: 13, color: '#6b7280', margin: 0, lineHeight: 1.6 } }>

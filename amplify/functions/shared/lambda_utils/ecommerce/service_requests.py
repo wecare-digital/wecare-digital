@@ -175,6 +175,7 @@ SERVICE_UNKNOWN_CHOICE = "SERVICE_UNKNOWN_CHOICE"
 SERVICE_INVALID_QUANTITY = "SERVICE_INVALID_QUANTITY"
 SERVICE_ONE_PER_ORDER = "SERVICE_ONE_PER_ORDER"
 SERVICE_INTENT_REQUIRED = "SERVICE_INTENT_REQUIRED"
+SERVICE_ORIGINAL_ORDER_REQUIRED = "SERVICE_ORIGINAL_ORDER_REQUIRED"
 SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE"
 SERVICE_WEBSITE_ONLY = "SERVICE_WEBSITE_ONLY"
 SERVICE_PRICE_CHANGED = "SERVICE_PRICE_CHANGED"
@@ -189,6 +190,8 @@ SERVICE_MESSAGES: Mapping[str, str] = MappingProxyType({
                            "Nothing has been charged.",
     SERVICE_INTENT_REQUIRED: "Start this service from its own page, then check out. "
                              "Nothing has been charged.",
+    SERVICE_ORIGINAL_ORDER_REQUIRED: "Choose the original order this request is for. "
+                                     "Nothing has been charged.",
     SERVICE_UNAVAILABLE: "Services cannot be paid for right now. Nothing has been charged.",
     SERVICE_WEBSITE_ONLY: "Services can only be paid for on the website. Nothing has been charged.",
     SERVICE_PRICE_CHANGED: "The price of this service has changed. Nothing has been charged.",

@@ -114,6 +114,11 @@ const STRUCTURAL = [
   // Blog beside it, rather than a service page — so it sits in 'start'. Its name and description
   // come from PUBLIC_PAGE_META in _app.tsx.
   { path: '/shipments', group: 'start' },
+  // Subscribe is a way to get in touch (its CTA is /contact/), so it sits in 'start' beside
+  // /contact and /shipments. It is NOT in the 'customerservice' group: that group is read from
+  // src/content/customerservice.ts, whose count is fixed in tests/test_mcp_server.py. Its content
+  // lives in src/content/subscribe.ts. Name and description come from PUBLIC_PAGE_META.
+  { path: '/subscribe', group: 'start' },
   // Perks is its own positioning group (gift cards, rewards, offers), declared in the groups[]
   // array of config/public-pages.json. It is the repaired destination for the gift-card links.
   { path: '/perks', group: 'perks' },

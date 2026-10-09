@@ -1,15 +1,15 @@
 {
   "classification": "PARTIALLY COMPLETE",
-  "observedAt": "2026-10-09T11:04:00Z",
-  "sourceBaseline": "3b9faffd3686c0c5be51a8f046592a8c4680087c",
+  "observedAt": "2026-10-09T13:05:00Z",
+  "sourceBaseline": "7c0ba37382a281b4439508806288409276cc1abf",
   "aws": {
     "region": "us-east-1",
     "functions": [
       {
         "function": "wecare-whatsapp-business-api",
-        "version": "92",
-        "aliasRevision": "e75ecb1a-cfcf-4009-af1f-a5726c591175",
-        "hash": "vdj3fItIrPi3Hb3x4PthvTDpyC01yDVG88cwtx+pFfQ=",
+        "version": "94",
+        "aliasRevision": "493d22e1-dcfd-4072-be78-dd40a25a9d7c",
+        "hash": "iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -119,9 +119,9 @@
       },
       {
         "function": "wecare-meta-catalog-sync",
-        "version": "7",
-        "aliasRevision": "dc895968-c89d-4a3b-9da3-2e366fb1465f",
-        "hash": "9Nrpq65Z1Cd5ANxpCdTiHdylN9lijITni+ruPbCiKn4=",
+        "version": "9",
+        "aliasRevision": "61f6fc98-8f45-47cb-9f2c-c6ff27e6e4f1",
+        "hash": "cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -147,14 +147,16 @@
           "META_CATALOG_SYNC_ENABLED": "false",
           "META_CATALOG_SYNC_DRY_RUN": "true",
           "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
-          "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true"
+          "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
+          "META_CATALOG_SYNC_APPROVED_PLAN_SHA256": "removed",
+          "META_CATALOG_APPROVALS_TABLE": "stack-wecare-digital-AgentApprovalsTable"
         }
       },
       {
         "function": "wecare-checkout",
-        "version": "41",
-        "aliasRevision": "10b82920-f493-4e19-acdf-5200899a9ce5",
-        "hash": "kfqE0FcwNlzWfzpA2asO9hi8NU27YHouMTixzHFT1F8=",
+        "version": "42",
+        "aliasRevision": "2afb7ebd-532e-4914-bda6-1a74db1bc33f",
+        "hash": "WD8xEwm2qtHCnPW40lVAIjfEraJlQGKAOQkFx424D+4=",
         "state": "Active",
         "runtime": "python3.12",
         "snapStart": {
@@ -164,7 +166,6 @@
         "layers": [],
         "role": "arn:aws:iam::775261844268:role/wecare-checkout-role",
         "environmentNames": [
-          "CHECKOUT_INITIATION_ENABLED",
           "COMMERCE_KEYS_TABLE",
           "CONTACTS_TABLE",
           "CONTRIBUTION_PRODUCT_ID",
@@ -191,7 +192,8 @@
           "DROPDOCS_ATTACH_ENABLED": "unset",
           "WIX_WRITEBACK_ENABLED": "unset",
           "WIX_ECOM_WRITE_CONFIRMED": "unset",
-          "META_CAPI_PIXEL_ID": "unset"
+          "META_CAPI_PIXEL_ID": "unset",
+          "CHECKOUT_INITIATION_ENABLED": "unset"
         }
       },
       {
@@ -1575,5 +1577,164 @@
       "wecare_leave_review": "1801972550682516 APPROVED"
     },
     "ownerQA": "PENDING — no real message/payment performed; prove paid purchase + expiry/interruption refresh with no second charge"
+  },
+  "latestChatGPTOrdersCatalog": {
+    "observedAt": "2026-10-09T12:50:00Z",
+    "sourceCheckpoint": "8109471f74e09dcef4958d34343f9ca923ac740a",
+    "deployments": {
+      "businessApi": {
+        "version": "93",
+        "hash": "erEMzmiJg7rNjwU1iTb+vR1aEQ4FDTjqfAfSW5lujAQ=",
+        "rollback": "92"
+      },
+      "metaCatalogSync": {
+        "version": "8",
+        "hash": "he0Y8MPVNwBY4r2dZnD5cEEvIfkwVHsd6j+kUex4fNQ=",
+        "rollback": "7"
+      }
+    },
+    "orders": {
+      "flowId": "2167802357142172",
+      "status": "DRAFT",
+      "validationErrors": [],
+      "backendContextualActionsDeployed": true,
+      "customerPublication": false
+    },
+    "provider": {
+      "submitFlow": {
+        "id": "1107164111921876",
+        "status": "PUBLISHED",
+        "validationErrors": []
+      },
+      "templates": {
+        "wecarepay_wa": {
+          "id": "1783774039408860",
+          "status": "APPROVED"
+        },
+        "wecare_default_download": {
+          "id": "1410998911012572",
+          "status": "APPROVED",
+          "url": "https://wecare.digital/vault/?file={{1}}"
+        },
+        "wecare_leave_review": {
+          "id": "1801972550682516",
+          "status": "APPROVED",
+          "reviewFlowId": "1578178897413815",
+          "screen": "FEEDBACK"
+        }
+      }
+    },
+    "wix": {
+      "productId": "df976a0a-f582-4535-b2e1-d532f348bd27",
+      "revision": "5",
+      "visible": true,
+      "inStock": true,
+      "variants": {
+        "submit": {
+          "id": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+          "amount": "99.00"
+        },
+        "amendment": {
+          "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
+          "amount": "99.00"
+        },
+        "dropDocs": {
+          "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
+          "amount": "350.00"
+        },
+        "vault": {
+          "id": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
+          "amount": "49.00"
+        }
+      }
+    },
+    "releaseControls": {
+      "nativeServices": "closed",
+      "dynamicVault": "closed",
+      "wixWriteback": "closed",
+      "catalogApply": "closed",
+      "dropDocsAttachments": "closed"
+    },
+    "cleanup": {
+      "temporaryDeployWorkflowDeleted": true,
+      "temporaryOidcRoleDeleted": true
+    },
+    "ownerQaRequired": true
+  },
+  "latestChatGPTCatalogApproval": {
+    "observedAt": "2026-10-09T13:05:00Z",
+    "sourceCheckpoint": "7c0ba37382a281b4439508806288409276cc1abf",
+    "businessApi": {
+      "version": "94",
+      "hash": "iqljVpqYVcJAXbuMs83Efd2aDQAW4EAAgGhQ4eAiJeY=",
+      "rollback": "93"
+    },
+    "metaCatalogSync": {
+      "version": "9",
+      "hash": "cdjjFw5B2v9f8kT0nAUXeBlMXInYo+eh8FNgUrW+BgM=",
+      "rollback": "8"
+    },
+    "routes": {
+      "get": {
+        "routeKey": "GET /wa-business/catalog-sync",
+        "routeId": "ktbob4d",
+        "target": "integrations/md9yz9g"
+      },
+      "post": {
+        "routeKey": "POST /wa-business/catalog-sync",
+        "routeId": "aqr2wkn",
+        "target": "integrations/md9yz9g"
+      },
+      "unauthenticatedStatus": 401
+    },
+    "approvalStore": {
+      "table": "stack-wecare-digital-AgentApprovalsTable",
+      "keyPrefix": "META_CATALOG_SYNC#",
+      "durable": true,
+      "ttlAttribute": "expiresTtl",
+      "catalogRowsOmitTtl": true,
+      "permissions": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "denied": [
+        "dynamodb:Scan",
+        "dynamodb:DeleteItem"
+      ],
+      "itemCountAtVerification": 0
+    },
+    "livePlan": {
+      "planHash": "19b8290495af210b94d819d2bdd3640805bd770fa640d6bb46cda46ae31064d5",
+      "counts": {
+        "create": 4,
+        "update": 0,
+        "retire": 0,
+        "foreign": 0
+      },
+      "blocked": [],
+      "approvalStoreReady": true,
+      "approved": false,
+      "applied": 0,
+      "forceOutOfStock": true
+    },
+    "releaseControls": {
+      "enabled": false,
+      "dryRun": true,
+      "forceOutOfStock": true,
+      "proposalNotRecorded": true,
+      "approvalNotRecorded": true,
+      "metaItemsWritten": false
+    },
+    "tests": {
+      "focusedBackendSecurity": "passed",
+      "typeScript": "passed",
+      "focusedWorkspace": "passed",
+      "deploymentWorkflow": "success"
+    },
+    "cleanup": {
+      "temporaryDeployWorkflowDeleted": true,
+      "temporaryOidcRoleDeleted": true
+    }
   }
 }
