@@ -1224,8 +1224,25 @@ def confirm_and_deliver(order_id: str) -> Tuple[bool, str]:
 
     refreshed = _table(GRANTS_TABLE).get_item(
         Key={"grantId": grant["grantId"]}, ConsistentRead=True).get("Item") or grant
-    if not _ensure_entitlement(refreshed):
+    entitlement = _ensure_entitlement(refreshed)
+    if not entitlement:
         return False, "paid entitlement could not be established"
+    # Make future customer-list reads direct and independent of the expiring legacy grant.
+    try:
+        _table(FILES_TABLE).update_item(
+            Key={"fileId": grant["fileId"]},
+            UpdateExpression="SET vaultEntitlementId = :e, vaultPaymentStatus = :paid",
+            ConditionExpression="ownerCustomerId = :owner AND #s = :active",
+            ExpressionAttributeNames={"#s": "status"},
+            ExpressionAttributeValues={
+                ":e": entitlement["grantId"], ":paid": "PAID",
+                ":owner": grant["customerId"], ":active": "active",
+            },
+        )
+    except ClientError:
+        # Payment/entitlement stay durable even if this derived pointer needs reconciliation.
+        logger.warning(json.dumps({"event": "vault_entitlement_pointer_write_failed",
+                                   "fileId": grant.get("fileId", "")}))
     if grant.get("channel") != "whatsapp":
         return True, "confirmed; web channel collects by renewable entitlement"
     return deliver_over_whatsapp(str(grant["grantId"]))
