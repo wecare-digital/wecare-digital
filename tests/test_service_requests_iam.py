@@ -33,6 +33,11 @@ def test_the_policy_has_exact_resources_including_selected_vault_files(prov):
          "Resource": [f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-WixOrderIds"],
          "Condition": {"ForAllValues:StringLike": {"dynamodb:LeadingKeys": [
              "PAYREF#*", "REFERENCE#*", "PAYMENTATTEMPT#*"]}}},
+        # _resolve_original_order (handler.py:125-146) resolves PAYREF -> PAYMENTATTEMPT on the
+        # commerce-keys table above, then reads the canonical OrderTable row consistently and
+        # checks ownership. That direct GetItem needs its own grant, scoped to just the OrderTable.
+        {"Sid": "ReadOriginalOwnedOrder", "Effect": "Allow", "Action": ["dynamodb:GetItem"],
+         "Resource": [f"arn:aws:dynamodb:us-east-1:{ACCT}:table/stack-wecare-digital-OrderTable"]},
         {"Sid": "RateLimitCounter", "Effect": "Allow", "Action": ["dynamodb:UpdateItem"],
          "Resource": [f"arn:aws:dynamodb:us-east-1:{ACCT}:table/"
                       f"stack-wecare-digital-RateLimitTable"]},
@@ -59,7 +64,7 @@ def test_the_managed_policy_is_only_basic_execution(prov):
 def test_every_env_value_is_a_name(prov):
     env = prov.expected_environment()
     assert set(env) == {"SERVICE_REQUESTS_TABLE", "COMMERCE_KEYS_TABLE", "RATE_LIMIT_TABLE",
-                        "CUSTOMER_POOL_ID"}
+                        "ORDERS_TABLE", "CUSTOMER_POOL_ID"}
     for value in env.values():
         assert value.startswith(("stack-wecare-digital-", "us-east-1_"))
 
