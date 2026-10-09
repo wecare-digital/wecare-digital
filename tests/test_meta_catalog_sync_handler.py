@@ -298,7 +298,7 @@ def test_dry_run_switches_off_only_on_an_explicit_false(snapshot_products, monke
     assert answer["dryRun"] is still_dry
     assert graph.writes == []
     if not still_dry:
-        assert answer["reason"] in ("blocked", "approval_required")
+        assert answer["reason"] in ("blocked", "explicit_apply_required")
 
 
 def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeypatch):
