@@ -2,7 +2,7 @@
 
 Generated 2026-10-08T16:37:10.589782+00:00 · account `775261844268` · `us-east-1` (+ ap-south-1) · regenerate with `python scripts/aws_account_inventory.py`
 
-This file supersedes every dated resource count in the steering files. Machine-readable companion: `aws-inventory.json`. Secret **names** and metadata are recorded; no secret value is ever read. Lambda environment variable **names** are recorded, values never are.
+This is a dated inventory snapshot, not a statement of current deployment state. Subsequent changes must be verified live. A readback on 2026-10-09 confirmed 30-day retention on `/aws/lambda/wecare-customer-profile` and `/aws/lambda/wecare-customer-session`; the snapshot below predates that change. Machine-readable companion: `aws-inventory.json`. Secret **names** and metadata are recorded; no secret value is ever read. Lambda environment variable **names** are recorded, values never are.
 
 Collector errors: **0** (a non-zero count makes this inventory PARTIAL, not authoritative).
 
