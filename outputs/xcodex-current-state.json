@@ -1,0 +1,1407 @@
+{
+  "classification": "PARTIALLY COMPLETE",
+  "observedAt": "2026-10-09 04:10:00 UTC",
+  "sourceBaseline": "d03ac81dfda8d1a5da461f01b4005559b2a3ada4",
+  "aws": {
+    "region": "us-east-1",
+    "functions": [
+      {
+        "function": "wecare-whatsapp-business-api",
+        "version": "89",
+        "aliasRevision": "766722c7-05d8-4664-ab37-5be8c38d9f57",
+        "hash": "r+k6k2WhMDaNbYzFfax39Zi/1e/ckqg8ad891fvCu3E=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [
+          "arn:aws:lambda:us-east-1:775261844268:layer:cryptography-python312:1"
+        ],
+        "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
+        "environmentNames": [
+          "AUTH_SKIP_PATHS",
+          "DIRECT_SEND_ENABLED_WABAS",
+          "FLOW_LOGS_TABLE",
+          "FLOW_PRIVATE_KEY_PASSPHRASE",
+          "FLOW_PRIVATE_KEY_SECRET",
+          "FLOW_REGISTRY_TABLE",
+          "FLOW_SUBMISSIONS_TABLE",
+          "LOG_LEVEL",
+          "MEDIA_BUCKET",
+          "META_API_VERSION",
+          "META_TOKEN_SECRET",
+          "PAYMENT_WABA_ID",
+          "RAZORPAY_MID",
+          "RAZORPAY_UPI_ID",
+          "SECRETS_REFRESHED_AT",
+          "SUBMIT_REQUESTS_TABLE",
+          "WIX_ORDERS_CACHE_TABLE",
+          "WIX_ORDER_IDS_TABLE",
+          "WIX_SITE_URL"
+        ],
+        "safeControls": {
+          "META_CATALOG_ID": "unset",
+          "META_CATALOG_SYNC_ENABLED": "unset",
+          "META_CATALOG_SYNC_DRY_RUN": "unset",
+          "META_CATALOG_SYNC_VARIANT_IDS": "unset",
+          "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "unset",
+          "WHATSAPP_CATALOG_SERVICES_ENABLED": "unset",
+          "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "unset",
+          "DROPDOCS_ATTACH_ENABLED": "unset",
+          "WIX_WRITEBACK_ENABLED": "unset",
+          "WIX_ECOM_WRITE_CONFIRMED": "unset",
+          "META_CAPI_PIXEL_ID": "unset"
+        }
+      },
+      {
+        "function": "wecare-secure-files",
+        "version": "34",
+        "aliasRevision": "01e8e9ef-f514-4829-9dc5-7299321465ab",
+        "hash": "6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-secure-files-role",
+        "environmentNames": [
+          "COGNITO_USER_POOL_ID",
+          "CUSTOMER_USER_POOL_ID",
+          "DOWNLOAD_GRANTS_TABLE",
+          "DOWNLOAD_URL_TTL_SECONDS",
+          "DROPDOCS_ATTACH_ENABLED",
+          "GRANT_TTL_SECONDS",
+          "META_PHONE_NUMBER_ID",
+          "META_WABA_ID",
+          "PARTNER_GROUP",
+          "RAZORPAY_SECRET_ID",
+          "SECURE_FILES_BUCKET",
+          "SECURE_FILES_PAYMENT_ENABLED",
+          "SECURE_FILES_TABLE",
+          "SECURE_FILE_PRICE_PAISE",
+          "SERVICE_REQUESTS_TABLE",
+          "UPLOAD_URL_TTL_SECONDS",
+          "WA_DOC_TEMPLATE",
+          "WA_MEDIA_FUNCTION",
+          "WA_PAY_TEMPLATE",
+          "WA_SENDER_FUNCTION",
+          "WHATSAPP_LINK_TTL_SECONDS"
+        ],
+        "safeControls": {
+          "DROPDOCS_ATTACH_ENABLED": "false"
+        }
+      },
+      {
+        "function": "wecare-service-requests",
+        "version": "5",
+        "aliasRevision": "d17f2cc1-ab47-47f1-8047-2aafe0182b04",
+        "hash": "mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-service-requests-role",
+        "environmentNames": [
+          "COMMERCE_KEYS_TABLE",
+          "CUSTOMER_POOL_ID",
+          "RATE_LIMIT_TABLE",
+          "SERVICE_REQUESTS_TABLE"
+        ],
+        "safeControls": {}
+      },
+      {
+        "function": "wecare-meta-catalog-sync",
+        "version": "7",
+        "aliasRevision": "dc895968-c89d-4a3b-9da3-2e366fb1465f",
+        "hash": "9Nrpq65Z1Cd5ANxpCdTiHdylN9lijITni+ruPbCiKn4=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-meta-catalog-sync-role",
+        "environmentNames": [
+          "LOG_LEVEL",
+          "META_CATALOG_ID",
+          "META_CATALOG_SYNC_DRY_RUN",
+          "META_CATALOG_SYNC_ENABLED",
+          "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK",
+          "META_CATALOG_SYNC_VARIANT_IDS",
+          "META_TOKEN_FIELD",
+          "META_TOKEN_SECRET",
+          "WIX_API_KEY_SECRET",
+          "WIX_SITE_ID"
+        ],
+        "safeControls": {
+          "META_CATALOG_ID": "1457045652952851",
+          "META_CATALOG_SYNC_ENABLED": "false",
+          "META_CATALOG_SYNC_DRY_RUN": "true",
+          "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+          "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true"
+        }
+      },
+      {
+        "function": "wecare-checkout",
+        "version": "41",
+        "aliasRevision": "10b82920-f493-4e19-acdf-5200899a9ce5",
+        "hash": "kfqE0FcwNlzWfzpA2asO9hi8NU27YHouMTixzHFT1F8=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-checkout-role",
+        "environmentNames": [
+          "CHECKOUT_INITIATION_ENABLED",
+          "COMMERCE_KEYS_TABLE",
+          "CONTACTS_TABLE",
+          "CONTRIBUTION_PRODUCT_ID",
+          "EXPECTED_CONFIGURATION_NAME",
+          "EXPECTED_PROVIDER_MID",
+          "ORDERS_TABLE",
+          "PAYMENT_ATTEMPTS_TABLE",
+          "PAYMENT_WABA_ID",
+          "RAZORPAY_SECRET_ID",
+          "SECRETS_REFRESHED_AT",
+          "SENDER_FUNCTION",
+          "WIX_API_KEY_SECRET",
+          "WIX_CART_V2_ENABLED",
+          "WIX_SITE_ID"
+        ],
+        "safeControls": {
+          "META_CATALOG_ID": "unset",
+          "META_CATALOG_SYNC_ENABLED": "unset",
+          "META_CATALOG_SYNC_DRY_RUN": "unset",
+          "META_CATALOG_SYNC_VARIANT_IDS": "unset",
+          "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "unset",
+          "WHATSAPP_CATALOG_SERVICES_ENABLED": "unset",
+          "VAULT_DYNAMIC_DOWNLOAD_TEMPLATE_ENABLED": "unset",
+          "DROPDOCS_ATTACH_ENABLED": "unset",
+          "WIX_WRITEBACK_ENABLED": "unset",
+          "WIX_ECOM_WRITE_CONFIRMED": "unset",
+          "META_CAPI_PIXEL_ID": "unset"
+        }
+      },
+      {
+        "function": "wecare-customer-profile",
+        "version": "10",
+        "aliasRevision": "b89b7e13-515c-49ce-811a-3517889ff3c4",
+        "hash": "2n/OSNp6qvzBYKJdFFWRnLAZ3tRjXPm50Jv8rnn+I5w=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-customer-profile-role",
+        "environmentNames": [
+          "CONTACTS_TABLE",
+          "OTP_PEPPER_SECRET_ID",
+          "OTP_TABLE"
+        ],
+        "safeControls": {}
+      },
+      {
+        "function": "wecare-customer-orders",
+        "version": "7",
+        "aliasRevision": "c8bb585f-56e5-422e-9c58-d88ed74b5a45",
+        "hash": "IAHVgfXGsh8H7QwhO77yWefHWhzfBJk87cuFOlv93Ew=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-customer-orders-role",
+        "environmentNames": [
+          "CONTACTS_TABLE",
+          "CUSTOMER_POOL_ID",
+          "ORDERS_BY_CUSTOMER_INDEX",
+          "ORDERS_TABLE",
+          "RATE_LIMIT_TABLE"
+        ],
+        "safeControls": {}
+      },
+      {
+        "function": "wecare-inbound-whatsapp",
+        "version": "92",
+        "aliasRevision": "54c18149-cef0-4ea2-b6be-ac7d784bf80f",
+        "hash": "uMQnayCVA6Px3rgKI5JgftfYIobT1Q4pKZqHBNe57us=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
+        "environmentNames": [
+          "CONTACTS_TABLE",
+          "IAM_REFRESH",
+          "INBOUND_TABLE",
+          "MEDIA_BUCKET",
+          "OUTBOUND_TABLE",
+          "STANDBY_REPLY_ENABLED",
+          "WHATSAPP_PHONE_NUMBER_ID_1",
+          "WHATSAPP_PHONE_NUMBER_ID_2"
+        ],
+        "safeControls": {}
+      },
+      {
+        "function": "wecare-messages-read",
+        "version": "29",
+        "aliasRevision": "a3e12e61-34e5-45ac-b285-8f4a6e3e6153",
+        "hash": "SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY=",
+        "state": "Active",
+        "runtime": "python3.12",
+        "snapStart": {
+          "ApplyOn": "None",
+          "OptimizationStatus": "Off"
+        },
+        "layers": [],
+        "role": "arn:aws:iam::775261844268:role/wecare-digital-lambda-role",
+        "environmentNames": [
+          "ADMIN_MFA_REQUIRED",
+          "AWS_ACCOUNT_ID",
+          "MEDIA_BUCKET",
+          "MEDIA_CDN_DOMAIN",
+          "REGION",
+          "S3_BUCKET"
+        ],
+        "safeControls": {}
+      }
+    ],
+    "tables": [
+      {
+        "name": "stack-wecare-digital-OrderTable",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "orderId",
+            "KeyType": "HASH"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "shortId",
+            "keys": [
+              {
+                "AttributeName": "shortId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "customerPhone",
+            "keys": [
+              {
+                "AttributeName": "customerPhone",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "orderStatus",
+            "keys": [
+              {
+                "AttributeName": "orderStatus",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "source",
+            "keys": [
+              {
+                "AttributeName": "source",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "customerId-createdAt-index",
+            "keys": [
+              {
+                "AttributeName": "customerId",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "createdAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "INCLUDE",
+              "NonKeyAttributes": [
+                "amountPaise",
+                "currency",
+                "orderNumber",
+                "paymentStatus",
+                "referenceId"
+              ]
+            },
+            "status": "ACTIVE"
+          }
+        ]
+      },
+      {
+        "name": "stack-wecare-digital-InvoicesTable",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "invoiceId",
+            "KeyType": "HASH"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "referenceId-index",
+            "keys": [
+              {
+                "AttributeName": "referenceId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "contactId-index",
+            "keys": [
+              {
+                "AttributeName": "contactId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          }
+        ]
+      },
+      {
+        "name": "stack-wecare-digital-InvoiceAssetsTable",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "invoiceId",
+            "KeyType": "HASH"
+          },
+          {
+            "AttributeName": "assetType",
+            "KeyType": "RANGE"
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "stack-wecare-digital-FlowSubmissionTable",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "submissionId",
+            "KeyType": "HASH"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "submissionNumber",
+            "keys": [
+              {
+                "AttributeName": "submissionNumber",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "flowCode",
+            "keys": [
+              {
+                "AttributeName": "flowCode",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "orderId",
+            "keys": [
+              {
+                "AttributeName": "orderId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "phone",
+            "keys": [
+              {
+                "AttributeName": "phone",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "paymentRefId",
+            "keys": [
+              {
+                "AttributeName": "paymentRefId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "flowId",
+            "keys": [
+              {
+                "AttributeName": "flowId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "paymentStatus",
+            "keys": [
+              {
+                "AttributeName": "paymentStatus",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "status",
+            "keys": [
+              {
+                "AttributeName": "status",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          }
+        ]
+      },
+      {
+        "name": "stack-wecare-digital-WixOrderIds",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "orderId",
+            "KeyType": "HASH"
+          }
+        ],
+        "indexes": []
+      },
+      {
+        "name": "stack-wecare-digital-ServiceRequestsTable",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "requestId",
+            "KeyType": "HASH"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "orderId-index",
+            "keys": [
+              {
+                "AttributeName": "orderId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "KEYS_ONLY"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "customerId-createdAt-index",
+            "keys": [
+              {
+                "AttributeName": "customerId",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "createdAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "INCLUDE",
+              "NonKeyAttributes": [
+                "currency",
+                "orderNumber",
+                "kind",
+                "status",
+                "amountPaise",
+                "publicRequestId",
+                "targetPublicRequestId"
+              ]
+            },
+            "status": "ACTIVE"
+          }
+        ]
+      },
+      {
+        "name": "stack-wecare-digital-PaymentAttemptsTable",
+        "status": "ACTIVE",
+        "keySchema": [
+          {
+            "AttributeName": "paymentAttemptId",
+            "KeyType": "HASH"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "status-index",
+            "keys": [
+              {
+                "AttributeName": "status",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "createdAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "referenceId-index",
+            "keys": [
+              {
+                "AttributeName": "referenceId",
+                "KeyType": "HASH"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          },
+          {
+            "name": "customerId-index",
+            "keys": [
+              {
+                "AttributeName": "customerId",
+                "KeyType": "HASH"
+              },
+              {
+                "AttributeName": "createdAt",
+                "KeyType": "RANGE"
+              }
+            ],
+            "projection": {
+              "ProjectionType": "ALL"
+            },
+            "status": "ACTIVE"
+          }
+        ]
+      }
+    ],
+    "account": "775261844268"
+  },
+  "security": {
+    "invoicePolicy": [
+      {
+        "action": "dynamodb:GetItem",
+        "resource": "arn:aws:dynamodb:${Region}:${Account}:${ResourceType}/${ResourcePath}",
+        "decision": "allowed"
+      },
+      {
+        "action": "dynamodb:Query",
+        "resource": "arn:aws:dynamodb:${Region}:${Account}:${ResourceType}/${ResourcePath}",
+        "decision": "allowed"
+      },
+      {
+        "action": "dynamodb:PutItem",
+        "resource": "arn:aws:dynamodb:${Region}:${Account}:${ResourceType}/${ResourcePath}",
+        "decision": "allowed"
+      },
+      {
+        "action": "dynamodb:UpdateItem",
+        "resource": "arn:aws:dynamodb:${Region}:${Account}:${ResourceType}/${ResourcePath}",
+        "decision": "allowed"
+      }
+    ],
+    "invoiceObjectPolicy": [
+      {
+        "action": "s3:GetObject",
+        "decision": "allowed"
+      }
+    ],
+    "bucketPolicy": {
+      "Version": "2012-10-17",
+      "Id": "wecare-digital-get-oac-policy",
+      "Statement": [
+        {
+          "Sid": "AllowCloudFrontServicePrincipalReadOnly",
+          "Effect": "Allow",
+          "Principal": {
+            "Service": "cloudfront.amazonaws.com"
+          },
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:::wecare-digital-get/*",
+          "Condition": {
+            "StringEquals": {
+              "AWS:SourceArn": [
+                "arn:aws:cloudfront::775261844268:distribution/E2GP22R4BIFGQ3",
+                "arn:aws:cloudfront::775261844268:distribution/E1DP37QIS4G0T4"
+              ]
+            }
+          }
+        },
+        {
+          "Sid": "DenyInsecureTransport",
+          "Effect": "Deny",
+          "Principal": "*",
+          "Action": "s3:*",
+          "Resource": [
+            "arn:aws:s3:::wecare-digital-get",
+            "arn:aws:s3:::wecare-digital-get/*"
+          ],
+          "Condition": {
+            "Bool": {
+              "aws:SecureTransport": "false"
+            }
+          }
+        }
+      ]
+    },
+    "qa": {
+      "matchingContacts": 1,
+      "incompletePagination": false,
+      "contacts": [
+        {
+          "checkoutCustomerLinkPresent": false,
+          "publicCustomerUuidPresent": false,
+          "deleted": false
+        }
+      ]
+    }
+  },
+  "cloudfront": {
+    "id": "E2GP22R4BIFGQ3",
+    "etag": "EN1VRQENFRJN5",
+    "aliases": {
+      "Quantity": 0
+    },
+    "origins": [
+      {
+        "id": "S3-wecare-digital-get",
+        "domain": "wecare-digital-get.s3.us-east-1.amazonaws.com",
+        "originPath": "",
+        "oac": "EWEJQDZIBHRZU"
+      }
+    ],
+    "default": {
+      "TargetOriginId": "S3-wecare-digital-get",
+      "TrustedSigners": {
+        "Enabled": false,
+        "Quantity": 0
+      },
+      "TrustedKeyGroups": {
+        "Enabled": false,
+        "Quantity": 0
+      },
+      "ViewerProtocolPolicy": "redirect-to-https",
+      "AllowedMethods": {
+        "Quantity": 2,
+        "Items": [
+          "HEAD",
+          "GET"
+        ],
+        "CachedMethods": {
+          "Quantity": 2,
+          "Items": [
+            "HEAD",
+            "GET"
+          ]
+        }
+      },
+      "SmoothStreaming": false,
+      "Compress": true,
+      "LambdaFunctionAssociations": {
+        "Quantity": 1,
+        "Items": [
+          {
+            "LambdaFunctionARN": "arn:aws:lambda:us-east-1:775261844268:function:wecare-get-miss-redirect:4",
+            "EventType": "origin-response",
+            "IncludeBody": false
+          }
+        ]
+      },
+      "FunctionAssociations": {
+        "Quantity": 0
+      },
+      "FieldLevelEncryptionId": "",
+      "CachePolicyId": "658327ea-f89d-4fab-a63d-7e88639e58f6",
+      "GrpcConfig": {
+        "Enabled": false
+      }
+    },
+    "behaviors": {
+      "Quantity": 0
+    }
+  },
+  "paymentDiagnostics": {
+    "/wa-business/payment-config/check": {
+      "executedVersion": "88",
+      "statusCode": 200,
+      "checks": [
+        {
+          "totalConfigs": 2,
+          "activeConfigs": 2,
+          "wabaId": "2094615664435155"
+        },
+        {
+          "totalConfigs": 2,
+          "activeConfigs": 2,
+          "wabaId": "2513394156072604"
+        }
+      ]
+    },
+    "/wa-business/payment-config/list": {
+      "executedVersion": "88",
+      "statusCode": 200,
+      "configurations": [
+        {
+          "configuration_name": "WECAREUPI",
+          "status": "Active"
+        },
+        {
+          "configuration_name": "WECAREDIGITAL",
+          "status": "Active",
+          "provider_name": "Razorpay"
+        }
+      ]
+    },
+    "/wa-business/payment-config/raw": {
+      "executedVersion": "88",
+      "statusCode": 400,
+      "error": "phoneId required"
+    }
+  },
+  "amplify": [
+    {
+      "jobId": "1502",
+      "status": "SUCCEED",
+      "commitId": "d03ac81dfda8d1a5da461f01b4005559b2a3ada4",
+      "startTime": "2026-10-09T03:36:36.222000+00:00",
+      "endTime": "2026-10-09T03:41:04.828000+00:00"
+    },
+    {
+      "jobId": "1501",
+      "status": "SUCCEED",
+      "commitId": "4e259800e2588560a401cf011b676f23933f3953",
+      "startTime": "2026-10-09T03:20:16.843000+00:00",
+      "endTime": "2026-10-09T03:24:52.185000+00:00"
+    }
+  ],
+  "provider": {
+    "catalog": {
+      "version": "7",
+      "response": {
+        "ok": true,
+        "enabled": false,
+        "dryRun": true,
+        "readOnly": true,
+        "catalogId": "1457045652952851",
+        "counts": {
+          "create": 4,
+          "update": 0,
+          "retire": 0,
+          "foreign": 0
+        },
+        "blocked": [],
+        "desiredItems": [
+          {
+            "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
+            "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+            "name": "Request Amendment",
+            "description": "Request a change to your existing order.",
+            "availability": "out of stock",
+            "price": "99.00",
+            "currency": "INR",
+            "image_url": "https://static.wixstatic.com/media/478bf9_61bf98226abd4c7183413fd1b2fd76ce~mv2.png",
+            "url": "https://wecare.digital/request-amendment/"
+          },
+          {
+            "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:db166bc8-a763-41ec-9f65-0f718f18155a",
+            "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+            "name": "Drop Docs",
+            "description": "Upload documents for your order.",
+            "availability": "out of stock",
+            "price": "350.00",
+            "currency": "INR",
+            "image_url": "https://static.wixstatic.com/media/478bf9_df2cd2060b1c4bbca3a6915001062adc~mv2.png",
+            "url": "https://wecare.digital/drop-docs/"
+          },
+          {
+            "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:dcff995e-448c-493a-9259-f6a82ccdc2b4",
+            "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+            "name": "Vault",
+            "description": "Access and download your documents.",
+            "availability": "out of stock",
+            "price": "49.00",
+            "currency": "INR",
+            "image_url": "https://static.wixstatic.com/media/478bf9_0d6ef02aebca413e8c5843057bff60dd~mv2.png",
+            "url": "https://wecare.digital/vault/"
+          },
+          {
+            "retailer_id": "wix:df976a0a-f582-4535-b2e1-d532f348bd27:e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+            "item_group_id": "df976a0a-f582-4535-b2e1-d532f348bd27",
+            "name": "Submit Request",
+            "description": "Get help with your existing order.",
+            "availability": "out of stock",
+            "price": "99.00",
+            "currency": "INR",
+            "image_url": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png",
+            "url": "https://wecare.digital/submit-request/"
+          }
+        ],
+        "existingItems": [],
+        "applied": 0
+      }
+    },
+    "flows": {
+      "version": "88",
+      "response": {
+        "flows": [
+          {
+            "id": "2167802357142172",
+            "name": "WD_Orders_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1728231914933139",
+            "name": "WD_Submit_Request_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "849713848195607",
+            "name": "WD_Shipments_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1735480734227899",
+            "name": "WD_Vault_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1605008471323578",
+            "name": "WD_Drop_Docs_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "959792226650003",
+            "name": "WD_Request_Amendment_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "2352304845587149",
+            "name": "WD_Leave_Review_Design_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1107164111921876",
+            "name": "WD_Submit_Request_Paid_v1",
+            "status": "PUBLISHED",
+            "validation_errors": []
+          },
+          {
+            "id": "1297215335805199",
+            "name": "Message templates_wecare_review_flow_UTILITY_d46cd",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1578178897413815",
+            "name": "WD_Leave_Review_v2",
+            "status": "PUBLISHED",
+            "validation_errors": []
+          },
+          {
+            "id": "1876722620408573",
+            "name": "wecare_review_flow",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "2672013166527523",
+            "name": "03.WD_POSTPAY_REQUEST",
+            "status": "PUBLISHED",
+            "validation_errors": []
+          },
+          {
+            "id": "1018621047428701",
+            "name": "WD Submit Request v2",
+            "status": "PUBLISHED",
+            "validation_errors": []
+          },
+          {
+            "id": "1529800232178121",
+            "name": "WD Post-Payment Details v1",
+            "status": "PUBLISHED",
+            "validation_errors": []
+          },
+          {
+            "id": "1434731571172691",
+            "name": "WD_Order_Notes_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "4423166114671543",
+            "name": "WD_Feedback_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1707170524029465",
+            "name": "WD_Ent_Assist_v1",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "808379601885651",
+            "name": "WD_Leave_Feedback",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "2403289380136652",
+            "name": "WD_Enterprise_Enquiry",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1211063631104445",
+            "name": "WD_Drop_Documents",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "895208030185211",
+            "name": "WD_Book_RX_Slot",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "26575380852083467",
+            "name": "WD_Book_Appointment",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "2130804851108272",
+            "name": "05.WD_RX_Slot",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1687382612283340",
+            "name": "04.WD_Appointment",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "3678132465672138",
+            "name": "03.WD_Amend_Request",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "977485124633104",
+            "name": "03.WD_AR",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1486454129852338",
+            "name": "02.WD_TR",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1469093721293830",
+            "name": "01.WD_SR_v3",
+            "status": "DRAFT",
+            "validation_errors": []
+          },
+          {
+            "id": "1262971692700761",
+            "name": "02.WD_Profile",
+            "status": "PUBLISHED",
+            "validation_errors": []
+          },
+          {
+            "id": "1260659006190210",
+            "name": "01.WD_Profile",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "898942616479117",
+            "name": "WD_Profile_01",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1112566051931271",
+            "name": "WD_Flow_Subscribe_04",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "2304946243249589",
+            "name": "WD_Flow_Subscribe_03",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1702572434306315",
+            "name": "WD_Flow_Subscribe_02",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1557815099200456",
+            "name": "WD_Flow_Subscribe_01",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "931522532810297",
+            "name": "01.WD_SR_PAY",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1533536534833353",
+            "name": "WD Amend Request",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1475722977488573",
+            "name": "WD Schedule Appointment",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1892784521355352",
+            "name": "WD RX Slot",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1737801600902350",
+            "name": "WD Drop Docs",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "2132515287534606",
+            "name": "WD Enterprise Assist",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "963443293213262",
+            "name": "WD Leave Review",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "727503180451487",
+            "name": "WD Order Notes",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "973888792200167",
+            "name": "WD Track Request",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "932104319588449",
+            "name": "WD Subscribe",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1600900134468186",
+            "name": "01.WD_SR",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1892499671452879",
+            "name": "Submit Request v3",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "1263620345248013",
+            "name": "Submit a Request",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          },
+          {
+            "id": "3585768888255988",
+            "name": "Submit Request",
+            "status": "DEPRECATED",
+            "validation_errors": []
+          }
+        ]
+      }
+    },
+    "readiness": {
+      "version": "88",
+      "response": {
+        "flow": {
+          "id": "1107164111921876",
+          "name": "WD_Submit_Request_Paid_v1",
+          "status": "PUBLISHED",
+          "validation_errors": [],
+          "endpoint_uri": "https://wecare.digital/api/wa-business/flow-data"
+        },
+        "templates": {
+          "wecarepay_wa": {
+            "id": "1783774039408860",
+            "name": "wecarepay_wa",
+            "status": "APPROVED",
+            "language": "en",
+            "components": [
+              {
+                "type": "HEADER",
+                "format": "IMAGE"
+              },
+              {
+                "type": "BODY",
+                "text": "Your order is ready! Tap Review & Pay to complete your secure payment."
+              },
+              {
+                "type": "FOOTER",
+                "text": "WECARE.DIGITAL"
+              },
+              {
+                "type": "BUTTONS",
+                "buttons": [
+                  {
+                    "type": "ORDER_DETAILS",
+                    "text": "Review and Pay"
+                  }
+                ]
+              }
+            ]
+          },
+          "wecare_default_download": {
+            "id": "1410998911012572",
+            "name": "wecare_default_download",
+            "status": "APPROVED",
+            "language": "en",
+            "components": [
+              {
+                "type": "HEADER",
+                "format": "IMAGE"
+              },
+              {
+                "type": "BODY",
+                "text": "\ud83d\udcc4 Your document is ready \u2014 tap below to download!"
+              },
+              {
+                "type": "FOOTER",
+                "text": "WECARE.DIGITAL"
+              },
+              {
+                "type": "BUTTONS",
+                "buttons": [
+                  {
+                    "type": "URL",
+                    "text": "Access Vault",
+                    "url": "https://wecare.digital/vault/?file={{1}}",
+                    "example": [
+                      "https://wecare.digital/vault/?file=doc.pdf"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "wecare_leave_review": {
+            "id": "1801972550682516",
+            "name": "wecare_leave_review",
+            "status": "APPROVED",
+            "language": "en",
+            "components": [
+              {
+                "type": "HEADER",
+                "format": "IMAGE"
+              },
+              {
+                "type": "BODY",
+                "text": "\u2b50 How was your experience? We\u2019d love your feedback!"
+              },
+              {
+                "type": "FOOTER",
+                "text": "WECARE.DIGITAL"
+              },
+              {
+                "type": "BUTTONS",
+                "buttons": [
+                  {
+                    "type": "FLOW",
+                    "text": "Leave Review",
+                    "flow_id": 1578178897413815,
+                    "flow_action": "NAVIGATE",
+                    "navigate_screen": "FEEDBACK",
+                    "icon": "REVIEW"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "privateCdnProbe": {
+    "status": 302,
+    "redirectsToHome": true,
+    "objectServed": false
+  },
+  "catalogId": "1457045652952851",
+  "configuredDatasetId": "4554612361454941",
+  "datasetEventsVerified": false,
+  "customerReady": false,
+  "diagnosticRepair": {
+    "function": "wecare-whatsapp-business-api",
+    "liveVersion": "89",
+    "aliasRevision": "766722c7-05d8-4664-ab37-5be8c38d9f57",
+    "rollbackVersion": "88",
+    "codeSha256": "r+k6k2WhMDaNbYzFfax39Zi/1e/ckqg8ad891fvCu3E=",
+    "liveRawStatus": 410,
+    "candidateChecks": {
+      "raw": 410,
+      "list": 200,
+      "check": 200,
+      "unauthorizedHttp": 401
+    }
+  },
+  "tests": {
+    "python": {
+      "passed": 10334,
+      "skipped": 7,
+      "xfailed": 3
+    },
+    "frontend": {
+      "passed": 1597,
+      "skipped": 2,
+      "files": 125
+    },
+    "typecheck": "PASS",
+    "eslint": {
+      "errors": 0,
+      "warnings": 190
+    },
+    "productionBuild": "PASS on retry; initial public blog HTTP503 fail-closed",
+    "customerEndToEnd": "NOT RUN"
+  },
+  "dependencyAlerts": [
+    {
+      "number": 63,
+      "severity": "high",
+      "package": "@graphql-tools/utils",
+      "manifest": "amplify/package-lock.json",
+      "advisory": "GHSA-7mx3-vvmw-hjmv",
+      "firstPatchedVersion": "12.0.1",
+      "state": "open",
+      "deployedExploitability": "NOT VERIFIED"
+    },
+    {
+      "number": 61,
+      "severity": "high",
+      "package": "braces",
+      "manifest": "amplify/package-lock.json",
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "firstPatchedVersion": null,
+      "state": "open",
+      "deployedExploitability": "NOT VERIFIED"
+    }
+  ]
+}

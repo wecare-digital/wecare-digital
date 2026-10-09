@@ -52,3 +52,16 @@ def test_repeated_cursor_discards_partial_read(api,monkeypatch):
         'paging':{'next':'https://fixture.invalid/next','cursors':{'after':'same'}}})
     result=api._read_payment_configurations(api.WABA1_ID)
     assert 'error' in result and 'data' not in result
+
+@pytest.mark.parametrize('method', ['GET', 'POST'])
+def test_retired_raw_diagnostic_has_explicit_replacement_without_provider_call(api, monkeypatch, method):
+    from unittest.mock import Mock
+    graph = Mock()
+    monkeypatch.setattr(api, '_graph_api', graph)
+    result = api.handler({'path': '/wa-business/payment-config/raw', 'httpMethod': method,
+        'queryStringParameters': {'phoneId': 'fixture-phone'}}, None)
+    assert result['statusCode'] == 410
+    body = json.loads(result['body'])
+    assert body['replacement'] == '/wa-business/payment-config/list'
+    assert body['diagnostic'] == '/wa-business/payment-config/check'
+    graph.assert_not_called()

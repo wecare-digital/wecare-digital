@@ -6383,6 +6383,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             speed = body.get('speed', 'normal')
             return _payment_refund(phone_id, reference_id, config_name, amount_paise, speed)
 
+        elif path.rstrip('/').endswith('/payment-config/raw'):
+            # Retired diagnostics must not fall through to phone-level settings.
+            # Native readiness consumes the normalized list; this route never writes.
+            return _resp(410, {'error': 'Payment configuration raw endpoint retired',
+                'replacement': '/wa-business/payment-config/list',
+                'diagnostic': '/wa-business/payment-config/check'})
+
         elif '/payment-config/list' in path:
             # Flattened live `{data:[config,...]}` for payment_readiness.evaluate. checkout's
             # readiness fetch calls this; it needs the normalised list, not the human
