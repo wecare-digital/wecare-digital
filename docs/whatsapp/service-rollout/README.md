@@ -36,6 +36,8 @@ QA authorization is not evidence that a customer purchase occurred. Product imag
 
 ## Verified deployment and blockers
 
-Business API **78**, inbound WhatsApp **91**, and message reader **29** are live. Rollback versions remain 77, 90 and 28. Focused backend checks passed **269 tests**, including actual private-media URL conversion; final website build and typecheck passed. The read-only live Orders smoke test returned `VERIFIED_CUSTOMER_REQUIRED` for the owner's test contact, which exists but has no verified checkout customer link. No customer messages or payments were sent/performed in this pass.
+Business API **78**, inbound WhatsApp **92**, and message reader **29** are live. Rollback versions remain 77, 90 and 28. Focused backend checks passed **269 tests**, including actual private-media URL conversion; final website build and typecheck passed. The read-only live Orders smoke test returned `VERIFIED_CUSTOMER_REQUIRED` for the owner's test contact, which exists but has no verified checkout customer link. No customer messages or payments were sent/performed in this pass.
 
 Catalog API inventory returned empty owned/shared collections despite visible Meta catalogs. Meta then explicitly denied management access to both catalog 1088514403989109 and the current 1607047307067517. No catalogs were deleted or created. Restore catalog permissions before permanent cleanup or replacing the sync target. The native service enable flag is absent (disabled); catalog sync 6 still limits variants to Submit Request/Vault and keeps them out of stock. Persistent owner approval actions, four-service native commerce, Wix artwork assignment and real customer QA remain pending. See `live-evidence.json` for exact hashes and boundaries.
+
+Final routing checks also cover canonical commands in standby messages with legacy routing configuration. Service entries use the authenticated order portal while native checkout remains disabled, avoiding public-page/chat loops.

@@ -442,6 +442,11 @@ def _is_deterministic_trigger(message: Dict) -> bool:
         if prefix and body.startswith(prefix):
             return True  # slash commands
         kws = {k.lower() for k in (cfg.get('keywords') or [])} | CUSTOMER_IDEA_KEYWORDS
+        kws |= {'orders', 'my orders', 'order history', 'all orders', 'customer id',
+                'my customer id', 'customer uuid', 'vault', 'my vault',
+                'request amendment', 'drop docs', 'shipments', 'submit request'}
+        if re.fullmatch(r'orders page [1-9][0-9]{0,2}', body):
+            return True
         if body in kws or strip_decorative_edges(body) in kws:
             return True
         return any(kw.lower() in body for kw in (cfg.get('contains') or []))
@@ -2635,10 +2640,10 @@ def _process_message(
             service_doors = {
                 'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
-                'request amendment': ('Request Amendment', '/request-amendment/', 'Request a change to your existing order.'),
-                'drop docs': ('Drop Docs', '/drop-docs/', 'Upload documents securely for your existing order.'),
+                'request amendment': ('View orders', '/orders/', 'Sign in to select the existing order you want to amend. The WhatsApp amendment checkout is being prepared.'),
+                'drop docs': ('View orders', '/orders/', 'Sign in to select your existing order and its request before attaching documents. The WhatsApp document checkout is being prepared.'),
                 'shipments': ('Orders', '/orders/', 'View your orders and delivery updates with this verified WhatsApp number.'),
-                'submit request': ('Submit Request', '/submit-request/', 'Get help with your existing order. Your service purchase and the order you need help with remain linked separately.'),
+                'submit request': ('View orders', '/orders/', 'Sign in to select your existing order. Your service purchase and the order you need help with remain linked separately. The WhatsApp service checkout is being prepared.'),
             }
             title, path, body = service_doors[_content_plain]
             _send_cta_button(contact_id, aws_phone_number_id, title,

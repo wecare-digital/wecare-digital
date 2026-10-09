@@ -2,14 +2,90 @@
   "verifiedDate": "2026-10-09",
   "sourceBaseline": "310b78fe5e9026da38fa6adfd1a4b847f9e81214",
   "deployment": [
-    {"function":"wecare-whatsapp-business-api","live":"78","rollback":"77","codeSha256":"MpB0Wejd+g2AwbTh3Mxy1pSbDKNGGFInvlds5Lkxy80="},
-    {"function":"wecare-messages-read","live":"29","rollback":"28","codeSha256":"SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY="},
-    {"function":"wecare-inbound-whatsapp","live":"91","rollback":"90","codeSha256":"DwBTVANXPjOlYTDunC9wycKVu9D1lH7Tp/0zstHto4k="}
+    {
+      "function": "wecare-whatsapp-business-api",
+      "live": "78",
+      "rollback": "77",
+      "codeSha256": "MpB0Wejd+g2AwbTh3Mxy1pSbDKNGGFInvlds5Lkxy80="
+    },
+    {
+      "function": "wecare-messages-read",
+      "live": "29",
+      "rollback": "28",
+      "codeSha256": "SwhnuDChOmx9v4AyJXI3WDDsnEvk5zjGaLF2zUEGUFY="
+    },
+    {
+      "function": "wecare-inbound-whatsapp",
+      "live": "92",
+      "rollback": "90",
+      "codeSha256": "uMQnayCVA6Px3rgKI5JgftfYIobT1Q4pKZqHBNe57us="
+    }
   ],
-  "tests":{"focusedPythonPassed":269,"typecheck":"passed","websiteBuild":"passed","customerPurchase":"not performed"},
-  "artwork":{"bucket":"wecare-digital-get","prefix":"o/catalog/services/","dimension":4096,"pngHeadVerified":6,"publicCdnHead200":6,"svgUploaded":6,"wixOrMetaAssignment":"pending"},
-  "qa":{"contactExists":true,"verifiedCheckoutCustomerLink":false,"readOnlyOrdersSmoke":"VERIFIED_CUSTOMER_REQUIRED","messagesSent":0,"paymentPerformed":false},
-  "catalog":{"current":"1607047307067517","nativeServicesFlag":"absent; disabled","syncLive":"6","syncVariantScope":"Submit Request and Vault only","forceOutOfStock":true,"apiInventory":"empty owned/shared response; contradicted by visible UI inventory","uiPermissionDenied":["1088514403989109","1607047307067517"],"deleted":[],"freshCreated":false,"sdkDisconnect":"pending explicit updated confirmation"},
-  "flows":{"submitRequestPaid":{"id":"1107164111921876","status":"PUBLISHED"},"leaveReview":{"id":"1578178897413815","status":"PUBLISHED"},"requestAmendment":{"id":"3678132465672138","status":"DRAFT"},"dropDocs":{"id":"1211063631104445","status":"DRAFT"}},
-  "remaining":["Restore catalog-management access and verify API ownership inventory","Approve concrete permanent-deletion targets at action time","Create and share fresh catalog after authorized cleanup","Persist owner approval queue and actions for new or changed catalog entries","Assign artworks to four Wix service variants and approved catalog entries","Validate amendment and document draft ownership and fulfillment","Enable native services only after writeback and payment prerequisites pass","Run real customer Submit Request and Vault QA","Reconcile legacy unlinked orders and legacy public upload originals"]
+  "tests": {
+    "focusedPythonPassed": 269,
+    "typecheck": "passed",
+    "websiteBuild": "passed",
+    "customerPurchase": "not performed",
+    "additionalRoutingChecksPassed": 79
+  },
+  "artwork": {
+    "bucket": "wecare-digital-get",
+    "prefix": "o/catalog/services/",
+    "dimension": 4096,
+    "pngHeadVerified": 6,
+    "publicCdnHead200": 6,
+    "svgUploaded": 6,
+    "wixOrMetaAssignment": "pending"
+  },
+  "qa": {
+    "contactExists": true,
+    "verifiedCheckoutCustomerLink": false,
+    "readOnlyOrdersSmoke": "VERIFIED_CUSTOMER_REQUIRED",
+    "messagesSent": 0,
+    "paymentPerformed": false
+  },
+  "catalog": {
+    "current": "1607047307067517",
+    "nativeServicesFlag": "absent; disabled",
+    "syncLive": "6",
+    "syncVariantScope": "Submit Request and Vault only",
+    "forceOutOfStock": true,
+    "apiInventory": "empty owned/shared response; contradicted by visible UI inventory",
+    "uiPermissionDenied": [
+      "1088514403989109",
+      "1607047307067517"
+    ],
+    "deleted": [],
+    "freshCreated": false,
+    "sdkDisconnect": "pending explicit updated confirmation"
+  },
+  "flows": {
+    "submitRequestPaid": {
+      "id": "1107164111921876",
+      "status": "PUBLISHED"
+    },
+    "leaveReview": {
+      "id": "1578178897413815",
+      "status": "PUBLISHED"
+    },
+    "requestAmendment": {
+      "id": "3678132465672138",
+      "status": "DRAFT"
+    },
+    "dropDocs": {
+      "id": "1211063631104445",
+      "status": "DRAFT"
+    }
+  },
+  "remaining": [
+    "Restore catalog-management access and verify API ownership inventory",
+    "Approve concrete permanent-deletion targets at action time",
+    "Create and share fresh catalog after authorized cleanup",
+    "Persist owner approval queue and actions for new or changed catalog entries",
+    "Assign artworks to four Wix service variants and approved catalog entries",
+    "Validate amendment and document draft ownership and fulfillment",
+    "Enable native services only after writeback and payment prerequisites pass",
+    "Run real customer Submit Request and Vault QA",
+    "Reconcile legacy unlinked orders and legacy public upload originals"
+  ]
 }

@@ -538,6 +538,13 @@ def _load_inbound_handler(module_name: str):
     return module
 
 
+@pytest.mark.parametrize('keyword', ['Orders', 'Orders page 2', 'Customer ID', 'Vault', 'Request Amendment', 'Drop Docs', 'Shipments', 'Submit Request'])
+def test_customer_commands_claim_standby_messages_with_legacy_routing_config(keyword):
+    h = _load_inbound_handler('inbound_customer_commands_standby')
+    with patch.object(h, '_get_routing_config', return_value={'enabled': True, 'keywords': [], 'contains': []}):
+        assert h._is_deterministic_trigger({'type': 'text', 'text': {'body': keyword}})
+
+
 class TestReadReceiptReportsWhatActuallyHappened:
     """A read receipt Meta refused must not be logged as one it accepted.
 
