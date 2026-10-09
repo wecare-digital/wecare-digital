@@ -1,14 +1,14 @@
 {
   "anomalies": {
     "errors7d": {
-      "wecare-customer-whatsapp-auth": 1.0,
-      "wecare-inbound-whatsapp": 9.0,
-      "wecare-seo-tools": 2.0
+      "wecare-wix-catalog-webhook": 1.0
     },
     "liveButNotInDeployMap": [
       "wecare-docs-scraper",
       "wecare-get-miss-redirect",
-      "wecare-seo-tools"
+      "wecare-mcp",
+      "wecare-seo-tools",
+      "wecare-workspace-mcp"
     ],
     "logRetentionUnknown": [],
     "logsNeverExpire": [],
@@ -17,27 +17,34 @@
       "wecare-seo-tools"
     ],
     "noRoutesNoEventSourceNoTraffic": [
-      "wecare-catalog-management",
+      "wecare-ad-attribution",
       "wecare-get-miss-redirect",
       "wecare-meta-analytics",
+      "wecare-notification-worker",
       "wecare-service-api",
       "wecare-sla-engine",
       "wecare-url-shortener"
     ],
     "routesTargetingLatest": [
-      "zllr9lrg7j POST [retired public path a2557b8d]/scrape -> wecare-docs-scraper",
+      "zllr9lrg7j POST /docs/scrape -> wecare-docs-scraper",
       "zllr9lrg7j ANY /seo-tools -> wecare-seo-tools",
-      "zllr9lrg7j GET [retired public path a2557b8d]/sources -> wecare-docs-scraper",
+      "zllr9lrg7j GET /docs/sources -> wecare-docs-scraper",
       "zllr9lrg7j ANY /seo-tools/{proxy+} -> wecare-seo-tools",
-      "zllr9lrg7j GET [retired public path a2557b8d]/changelog -> wecare-docs-scraper",
-      "zllr9lrg7j POST [retired public path a2557b8d]/sources -> wecare-docs-scraper"
+      "zllr9lrg7j GET /docs/changelog -> wecare-docs-scraper",
+      "zllr9lrg7j POST /docs/sources -> wecare-docs-scraper"
     ],
     "routesToAbsentFunction": [],
     "routesWithoutFrontendCaller": [
       "/agent-tool",
       "/ai/approvals/status",
       "/bulk/worker",
-      "[retired public path 44011e36]/search",
+      "/contacts/search",
+      "/coupons",
+      "/coupons/hold",
+      "/coupons/release",
+      "/coupons/validate",
+      "/coupons/{code}",
+      "/coupons/{code}/deactivate",
       "/crm/activities",
       "/crm/contacts/{contactId}/360",
       "/crm/leads",
@@ -58,7 +65,6 @@
       "/invoices/{invoiceId}/send-payment-link",
       "/invoices/{invoiceId}/send-whatsapp",
       "/media/cleanup",
-      "/payments/webhook",
       "/plivo/answer",
       "/plivo/dial-events",
       "/plivo/events",
@@ -69,19 +75,15 @@
       "/pstn/session/events",
       "/pstn/session/presence",
       "/pstn/token",
+      "/secure-files/dropdocs/attach",
+      "/secure-files/dropdocs/{requestId}/documents",
       "/secure-files/{fileId}/confirm",
       "/secure-files/{fileId}/download",
       "/secure-files/{fileId}/order",
       "/secure-files/{fileId}/revoke",
       "/secure-files/{fileId}/whatsapp-pay",
-      "/site-language/languages",
       "/site-language/translate",
-      "/site-language/tts",
-      "/site-language/voices",
       "/sms-aws/templates",
-      "/store/convert-flag",
-      "/store/generate-product-image",
-      "/store/preview-product-image",
       "/voice-aws/send",
       "/voice-in/c2c/clear-logs",
       "/voice-in/obd/clear-logs",
@@ -150,39 +152,57 @@
       "/whatsapp/inbound",
       "/whatsapp/template-management",
       "/whatsapp/voice",
-      "/{code}"
+      "/wix-catalog-webhook",
+      "/workspace/mcp-iam"
     ],
     "zeroInvocations7d": [
+      "wecare-ad-attribution",
+      "wecare-agent-action-group",
+      "wecare-ai-config-management",
       "wecare-ai-query-kb",
       "wecare-auth-middleware",
       "wecare-bulk-job-control",
       "wecare-bulk-job-create",
-      "wecare-catalog-management",
+      "wecare-bulk-worker",
+      "wecare-crm",
       "wecare-dlq-replay",
       "wecare-faq-handler",
       "wecare-get-miss-redirect",
       "wecare-messages-delete",
       "wecare-meta-analytics",
+      "wecare-meta-business-agent",
+      "wecare-notification-worker",
+      "wecare-outbound-email",
+      "wecare-outbound-sms",
+      "wecare-partner-onboarding",
       "wecare-payments-read",
+      "wecare-product-image-gen",
+      "wecare-pstn-softphone",
+      "wecare-push-notifications",
       "wecare-service-api",
       "wecare-sla-engine",
       "wecare-template-analytics",
       "wecare-url-shortener",
+      "wecare-voice-aws",
+      "wecare-voice-cdr-read",
+      "wecare-voice-in-c2c",
+      "wecare-voice-in-obd",
+      "wecare-waba-management",
       "wecare-whatsapp-template-management"
     ]
   },
   "counts": {
-    "functions": 65,
+    "functions": 76,
     "httpApis": 1,
-    "routes": 361,
-    "tables": 79,
-    "withLiveAlias": 58
+    "routes": 384,
+    "tables": 85,
+    "withLiveAlias": 69
   },
   "frontendCallersByRoutePath": {
     "/agent-tool": [],
     "/ai/agent": [
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/ai/approvals": [
       "src/components/dashboard/tabs/InternalChatTab.tsx",
@@ -190,13 +210,13 @@
     ],
     "/ai/approvals/status": [],
     "/ai/botflow": [
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/ai/config": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/ai/fallbacks": [
       "src/api/client.ts"
@@ -209,16 +229,16 @@
       "src/components/FloatingAgent.tsx",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/components/dashboard/tabs/InternalChatTab.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/ai/interactions": [
       "src/api/client.ts"
     ],
     "/ai/internal/config": [
-      "src/app/settings/internal-agent/page.tsx",
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/settings/internal-agent.tsx"
     ],
     "/ai/languages": [
       "src/api/client.ts"
@@ -231,14 +251,19 @@
     ],
     "/ai/query": [
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/ai/stats": [
       "src/api/client.ts"
     ],
     "/ai/test": [
       "src/api/client.ts"
+    ],
+    "/auth/email-verification": [
+      "src/components/CheckoutProfile.tsx",
+      "src/test/CheckoutProfile.test.tsx",
+      "src/test/CheckoutProfileModes.test.tsx"
     ],
     "/auth/validate": [
       "src/api/client.ts"
@@ -252,22 +277,23 @@
     "/billing": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/whatsapp/connected-accounts.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx",
+      "src/test/AwsBillingCostReporting.test.ts"
     ],
     "/bulk/control": [
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/bulk/create": [
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/bulk/jobs": [
       "src/api/client.ts"
@@ -276,7 +302,7 @@
       "src/api/client.ts"
     ],
     "/bulk/worker": [],
-    "[retired public path 44011e36]": [
+    "/contacts": [
       "src/api/client.ts",
       "src/components/RichTextEditor.tsx",
       "src/components/SearchModal.tsx",
@@ -286,20 +312,28 @@
       "src/components/dashboard/tabs/SystemTab.tsx",
       "src/config/navigation.ts",
       "src/hooks/useKeyboardShortcuts.ts",
-      "src/pages/_app.tsx",
-      "src/pages/contact.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/channels/index.tsx",
-      "src/pages/dm/index.tsx",
+      "src/lib/dialCodes.ts",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/channels/index.tsx",
+      "src/pages/workspace/engage/index.tsx",
+      "src/pages/workspace/engage/whatsapp/inbox.tsx",
+      "src/pages/workspace/index.tsx",
+      "src/test/BrandAssets.test.ts",
+      "src/test/ContactArchiveGuard.test.tsx",
+      "src/test/ContactsAddressFormat.test.tsx",
+      "src/test/CrmCheckoutAddress.test.ts",
+      "src/test/CrmPage.test.tsx",
       "src/test/InboxLoadFailure.test.tsx",
       "src/test/Navigation.test.tsx",
+      "src/test/PublicWorkspaceLinks.test.ts",
+      "src/test/SafeReturnPath.test.ts",
       "src/test/SearchModal.test.tsx"
     ],
-    "[retired public path 44011e36]/search": [],
-    "[retired public path 44011e36]/{contactId}": [
+    "/contacts/search": [],
+    "/contacts/{contactId}": [
       "src/api/client.ts",
       "src/components/RichTextEditor.tsx",
       "src/components/SearchModal.tsx",
@@ -309,18 +343,32 @@
       "src/components/dashboard/tabs/SystemTab.tsx",
       "src/config/navigation.ts",
       "src/hooks/useKeyboardShortcuts.ts",
-      "src/pages/_app.tsx",
-      "src/pages/contact.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/channels/index.tsx",
-      "src/pages/dm/index.tsx",
+      "src/lib/dialCodes.ts",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/channels/index.tsx",
+      "src/pages/workspace/engage/index.tsx",
+      "src/pages/workspace/engage/whatsapp/inbox.tsx",
+      "src/pages/workspace/index.tsx",
+      "src/test/BrandAssets.test.ts",
+      "src/test/ContactArchiveGuard.test.tsx",
+      "src/test/ContactsAddressFormat.test.tsx",
+      "src/test/CrmCheckoutAddress.test.ts",
+      "src/test/CrmPage.test.tsx",
       "src/test/InboxLoadFailure.test.tsx",
       "src/test/Navigation.test.tsx",
+      "src/test/PublicWorkspaceLinks.test.ts",
+      "src/test/SafeReturnPath.test.ts",
       "src/test/SearchModal.test.tsx"
     ],
+    "/coupons": [],
+    "/coupons/hold": [],
+    "/coupons/release": [],
+    "/coupons/validate": [],
+    "/coupons/{code}": [],
+    "/coupons/{code}/deactivate": [],
     "/crm/activities": [],
     "/crm/contacts/{contactId}/360": [],
     "/crm/leads": [],
@@ -329,70 +377,111 @@
     "/crm/opportunities": [],
     "/crm/opportunities/{opportunityId}": [],
     "/crm/pipelines": [],
+    "/customer/profile": [
+      "src/components/CheckoutProfile.tsx",
+      "src/test/CheckoutProfile.test.tsx",
+      "src/test/CheckoutProfileModes.test.tsx"
+    ],
     "/dlq": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/test/SystemHealthTruth.test.ts"
     ],
     "/dlq/replay": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
-    "[retired public path a2557b8d]/changelog": [
-      "src/pages/dm/docs/index.tsx"
+    "/docs/changelog": [
+      "src/pages/workspace/engage/docs/index.tsx"
     ],
-    "[retired public path a2557b8d]/scrape": [
-      "src/pages/dm/docs/index.tsx"
+    "/docs/scrape": [
+      "src/pages/workspace/engage/docs/index.tsx"
     ],
-    "[retired public path a2557b8d]/sources": [
-      "src/pages/dm/docs/index.tsx"
+    "/docs/sources": [
+      "src/pages/workspace/engage/docs/index.tsx"
+    ],
+    "/ecommerce/checkout": [
+      "src/config/contribution.ts",
+      "src/lib/cart.ts",
+      "src/pages/cart.tsx",
+      "src/pages/checkout/status.tsx",
+      "src/pages/checkout/success.tsx"
+    ],
+    "/ecommerce/checkout/status": [
+      "src/pages/checkout/status.tsx",
+      "src/pages/checkout/success.tsx"
+    ],
+    "/ecommerce/customer-session": [
+      "src/lib/customerAuth.ts",
+      "src/test/CustomerSessionRestore.test.ts",
+      "src/test/SignInMessages.test.tsx"
+    ],
+    "/ecommerce/my-orders": [
+      "src/pages/orders.tsx",
+      "src/test/OrdersPage.test.tsx"
+    ],
+    "/ecommerce/prepare-checkout": [
+      "src/components/BlogContribution.tsx",
+      "src/config/contribution.ts",
+      "src/config/services.ts",
+      "src/lib/whatsappBasket.ts",
+      "src/pages/cart.tsx",
+      "src/test/CartBasketClaim.test.tsx",
+      "src/test/CartCheckout.test.tsx",
+      "src/test/SignedInPageTopBand.test.tsx"
+    ],
+    "/ecommerce/service-prices": [
+      "src/config/services.ts",
+      "src/lib/servicePricing.ts",
+      "src/test/ServiceRequestPurchase.test.tsx"
+    ],
+    "/ecommerce/verify-callback": [
+      "src/components/BlogContribution.tsx",
+      "src/pages/cart.tsx",
+      "src/test/CartCheckout.test.tsx"
     ],
     "/email/send": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
-    "[retired public path 1965ee0f]": [
+    "/faq": [
       "src/api/client.ts",
-      "src/components/Header.tsx",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/lib/seo-page-prompt.ts",
-      "src/pages/_app.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/faq/index.tsx",
-      "src/pages/dm/service-ops/index.tsx",
-      "src/pages/dm/whatsapp/scripts.tsx",
-      "src/pages/dm/whatsapp/settings.tsx",
-      "src/pages/seo/tools.tsx",
-      "src/test/Navigation.test.tsx",
-      "src/test/PublicRouteRegistration.test.ts"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/faq/index.tsx",
+      "src/pages/workspace/engage/service-ops/index.tsx",
+      "src/pages/workspace/engage/whatsapp/scripts.tsx",
+      "src/pages/workspace/engage/whatsapp/settings.tsx",
+      "src/test/Navigation.test.tsx"
     ],
     "/inbox/meta": [
       "src/api/client.ts",
-      "src/pages/task/index.tsx"
+      "src/pages/workspace/task/index.tsx"
     ],
     "/inbox/meta/{conversationId}": [
       "src/api/client.ts",
-      "src/pages/task/index.tsx"
+      "src/pages/workspace/task/index.tsx"
     ],
     "/inbox/meta/{conversationId}/note": [],
     "/invoices": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/components/dashboard/tabs/PayTab.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/test/OrdersPage.test.tsx"
     ],
     "/invoices/clear-all": [
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/invoices/from-payment": [],
     "/invoices/next-sequence": [],
@@ -400,10 +489,10 @@
     "/invoices/{invoiceId}": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/components/dashboard/tabs/PayTab.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/test/OrdersPage.test.tsx"
     ],
     "/invoices/{invoiceId}/cancel": [],
     "/invoices/{invoiceId}/delivery-log": [],
@@ -413,16 +502,26 @@
     "/invoices/{invoiceId}/send-payment-link": [],
     "/invoices/{invoiceId}/send-whatsapp": [],
     "/links": [
-      "src/pages/dashboard/design-reference.tsx",
-      "src/pages/link/index.tsx"
+      "src/pages/workspace/dashboard/design-reference.tsx",
+      "src/pages/workspace/link/index.tsx"
     ],
     "/links/{code}": [
-      "src/pages/dashboard/design-reference.tsx",
-      "src/pages/link/index.tsx"
+      "src/pages/workspace/dashboard/design-reference.tsx",
+      "src/pages/workspace/link/index.tsx"
     ],
     "/marketing-ads": [
       "src/api/client.ts",
-      "src/pages/dm/whatsapp/ctwa-ads.tsx"
+      "src/pages/workspace/engage/whatsapp/ctwa-ads.tsx"
+    ],
+    "/mcp": [
+      "src/components/WorkflowTerminal.tsx",
+      "src/config/navigation.ts",
+      "src/lib/workspace-mcp.test.ts",
+      "src/lib/workspace-mcp.ts",
+      "src/pages/_app.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/test/MCPConnections.test.tsx",
+      "src/test/PublicAiSurface.test.ts"
     ],
     "/media/cleanup": [],
     "/messages": [
@@ -434,22 +533,23 @@
       "src/components/ProductMessageComposer.tsx",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/components/dashboard/tabs/SystemTab.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/design-reference.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/whatsapp/calling.tsx",
-      "src/pages/dm/whatsapp/interactive-lists.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx",
-      "src/pages/dm/whatsapp/send-test.tsx",
       "src/pages/grahak-os/index.tsx",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/design-reference.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx",
+      "src/pages/workspace/engage/whatsapp/interactive-lists.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx",
+      "src/pages/workspace/engage/whatsapp/send-test.tsx",
       "src/test/ApiFailureChannel.test.ts",
+      "src/test/ContactArchiveGuard.test.tsx",
       "src/test/InboxLoadFailure.test.tsx",
       "src/test/SearchModal.test.tsx"
     ],
     "/messages/clear-all": [
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/messages/{messageId}": [
       "src/api/client.ts",
@@ -460,76 +560,77 @@
       "src/components/ProductMessageComposer.tsx",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/components/dashboard/tabs/SystemTab.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/design-reference.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/whatsapp/calling.tsx",
-      "src/pages/dm/whatsapp/interactive-lists.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx",
-      "src/pages/dm/whatsapp/send-test.tsx",
       "src/pages/grahak-os/index.tsx",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/design-reference.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx",
+      "src/pages/workspace/engage/whatsapp/interactive-lists.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx",
+      "src/pages/workspace/engage/whatsapp/send-test.tsx",
       "src/test/ApiFailureChannel.test.ts",
+      "src/test/ContactArchiveGuard.test.tsx",
       "src/test/InboxLoadFailure.test.tsx",
       "src/test/SearchModal.test.tsx"
     ],
     "/meta-agent": [
       "src/api/client.ts",
       "src/config/navigation.ts",
-      "src/pages/dm/meta-agent/index.tsx",
-      "src/pages/dm/whatsapp/ai-agent.tsx",
-      "src/pages/dm/whatsapp/tech-partner.tsx",
-      "src/test/Navigation.test.tsx"
+      "src/pages/workspace/engage/meta-agent/index.tsx",
+      "src/pages/workspace/engage/whatsapp/ai-agent.tsx",
+      "src/pages/workspace/engage/whatsapp/tech-partner.tsx",
+      "src/test/Navigation.test.tsx",
+      "src/test/UncontrolledSelectState.test.tsx"
     ],
     "/partners/billing": [
-      "src/pages/dm/whatsapp/connected-accounts.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/billing/analytics": [
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/billing/settings": [
-      "src/pages/dm/whatsapp/connected-accounts.tsx"
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx"
     ],
     "/partners/billing/topup": [
-      "src/pages/dm/whatsapp/connected-accounts.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/billing/topup-order": [
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/embedded-signup": [
       "src/components/EmbeddedSignupPanel.tsx"
     ],
     "/partners/me": [
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/messages": [
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/send": [
-      "src/pages/dm/whatsapp/my-account.tsx"
+      "src/pages/workspace/engage/whatsapp/my-account.tsx"
     ],
     "/partners/tenants": [
-      "src/pages/dm/whatsapp/connected-accounts.tsx"
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx"
     ],
     "/payments": [
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
-    "/payments/webhook": [],
     "/payments/{paymentId}": [
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
     "/plivo/answer": [],
     "/plivo/dial-events": [],
@@ -542,103 +643,214 @@
     "/pstn/session/presence": [],
     "/pstn/token": [],
     "/push/devices": [
-      "src/pages/dm/push/index.tsx"
+      "src/pages/workspace/engage/push/index.tsx"
     ],
     "/push/send": [
-      "src/pages/dm/push/index.tsx"
+      "src/pages/workspace/engage/push/index.tsx"
     ],
     "/r/{code}": [
       "src/api/client.ts",
       "src/api/seo.ts",
       "src/components/BottomNav.tsx",
+      "src/components/FloatingAgent.tsx",
+      "src/components/Footer.tsx",
       "src/components/Header.tsx",
       "src/components/Layout.tsx",
       "src/components/SearchModal.tsx",
+      "src/components/ServiceRequestPurchase.tsx",
       "src/components/SettingsGear.tsx",
+      "src/components/SupportWidget.tsx",
+      "src/components/WorkflowTerminal.tsx",
       "src/components/__tests__/BrandLockup.test.tsx",
       "src/components/__tests__/Header.test.tsx",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/components/dashboard/tabs/InternalChatTab.tsx",
       "src/components/dashboard/tabs/SystemTab.tsx",
+      "src/components/orders/RequestsPanel.tsx",
       "src/components/seo/InstructionsContent.tsx",
       "src/components/ui/Breadcrumbs.tsx",
+      "src/components/ui/Popover.tsx",
+      "src/components/ui/TimeField.tsx",
       "src/components/wa/__tests__/components.test.tsx",
       "src/config/navigation.ts",
+      "src/config/services.ts",
+      "src/content/customerservice.ts",
+      "src/content/legal/privacy.ts",
+      "src/content/shop.ts",
       "src/hooks/useKeyboardShortcuts.ts",
       "src/hooks/useWebRTCCalling.ts",
       "src/lib/capacitor.ts",
+      "src/lib/cart.ts",
+      "src/lib/safeReturnPath.ts",
       "src/lib/seo-page-prompt.ts",
       "src/lib/seo-prompt.ts",
+      "src/lib/serviceEntry.ts",
+      "src/lib/serviceRequests.ts",
       "src/lib/wa-errors.ts",
+      "src/pages/404.tsx",
       "src/pages/_app.tsx",
-      "src/pages/access/index.tsx",
-      "src/pages/admin/index.tsx",
-      "src/pages/commerce/index.tsx",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/design-reference.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/channels/index.tsx",
-      "src/pages/dm/content/index.tsx",
-      "src/pages/dm/docs/index.tsx",
-      "src/pages/dm/documents/index.tsx",
-      "src/pages/dm/inbox/index.tsx",
-      "src/pages/dm/index.tsx",
-      "src/pages/dm/logs/index.tsx",
-      "src/pages/dm/reviews/index.tsx",
-      "src/pages/dm/rx-slots/index.tsx",
-      "src/pages/dm/service-ops/index.tsx",
-      "src/pages/dm/ses/index.tsx",
-      "src/pages/dm/settings/index.tsx",
-      "src/pages/dm/whatsapp/calling.tsx",
-      "src/pages/dm/whatsapp/flows.tsx",
-      "src/pages/dm/whatsapp/templates.tsx",
-      "src/pages/dm/whatsapp/waba-dashboard.tsx",
-      "src/pages/dm/whatsapp/webhooks.tsx",
-      "src/pages/docs/index.tsx",
-      "src/pages/forms/index.tsx",
-      "src/pages/link/index.tsx",
+      "src/pages/cart.tsx",
+      "src/pages/orders.tsx",
+      "src/pages/perks.tsx",
+      "src/pages/post/[slug].tsx",
+      "src/pages/refer-and-earn.tsx",
+      "src/pages/request-amendment.tsx",
       "src/pages/ritual-guru.tsx",
-      "src/pages/seo/index.tsx",
-      "src/pages/seo/issues.tsx",
-      "src/pages/seo/page/[id].tsx",
-      "src/pages/seo/pages-manager.tsx",
-      "src/pages/seo/pages.tsx",
-      "src/pages/seo/tools.tsx",
-      "src/pages/service/index.tsx",
+      "src/pages/shipments.tsx",
+      "src/pages/workspace/access/index.tsx",
+      "src/pages/workspace/admin/index.tsx",
+      "src/pages/workspace/commerce/index.tsx",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/design-reference.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/docs/index.tsx",
+      "src/pages/workspace/engage/channels/index.tsx",
+      "src/pages/workspace/engage/content/index.tsx",
+      "src/pages/workspace/engage/docs/index.tsx",
+      "src/pages/workspace/engage/documents/index.tsx",
+      "src/pages/workspace/engage/inbox/index.tsx",
+      "src/pages/workspace/engage/index.tsx",
+      "src/pages/workspace/engage/logs/index.tsx",
+      "src/pages/workspace/engage/reviews/index.tsx",
+      "src/pages/workspace/engage/rx-slots/index.tsx",
+      "src/pages/workspace/engage/service-ops/index.tsx",
+      "src/pages/workspace/engage/ses/index.tsx",
+      "src/pages/workspace/engage/settings/index.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx",
+      "src/pages/workspace/engage/whatsapp/catalog-builder.tsx",
+      "src/pages/workspace/engage/whatsapp/flows.tsx",
+      "src/pages/workspace/engage/whatsapp/scripts.tsx",
+      "src/pages/workspace/engage/whatsapp/settings.tsx",
+      "src/pages/workspace/engage/whatsapp/templates.tsx",
+      "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
+      "src/pages/workspace/engage/whatsapp/webhooks.tsx",
+      "src/pages/workspace/forms/index.tsx",
+      "src/pages/workspace/forms/selfservice.tsx",
+      "src/pages/workspace/index.tsx",
+      "src/pages/workspace/link/index.tsx",
+      "src/pages/workspace/seo/blog-production/batch/index.tsx",
+      "src/pages/workspace/seo/blog-production/index.tsx",
+      "src/pages/workspace/seo/blog-production/publish/index.tsx",
+      "src/pages/workspace/seo/blog-production/qa/index.tsx",
+      "src/pages/workspace/seo/blog-production/review/index.tsx",
+      "src/pages/workspace/seo/index.tsx",
+      "src/pages/workspace/seo/pages-manager.tsx",
+      "src/pages/workspace/seo/tools.tsx",
+      "src/pages/workspace/service/index.tsx",
+      "src/test/AccountSignIn.test.tsx",
+      "src/test/AddressFieldsTokens.test.tsx",
+      "src/test/BlogContribution.test.tsx",
+      "src/test/BlogDesign.test.tsx",
+      "src/test/BlogProductionContract.test.ts",
+      "src/test/BlogStudioContract.test.ts",
+      "src/test/BlogSubscribe.test.tsx",
       "src/test/BottomNav.test.tsx",
+      "src/test/CartBasketClaim.test.tsx",
+      "src/test/CartCheckout.test.tsx",
+      "src/test/CartRedemption.test.tsx",
+      "src/test/CartServiceCheckout.test.tsx",
+      "src/test/CatalogProductEdit.test.tsx",
+      "src/test/CheckoutIdentityCard.test.tsx",
+      "src/test/CheckoutPaidConfirmation.test.tsx",
+      "src/test/CheckoutProfile.test.tsx",
+      "src/test/CheckoutProfileModes.test.tsx",
+      "src/test/CheckoutProfileResend.test.tsx",
+      "src/test/CheckoutSuccessVerification.test.tsx",
+      "src/test/ConfirmContext.test.tsx",
+      "src/test/ContactsAddressFormat.test.tsx",
+      "src/test/CrmPage.test.tsx",
+      "src/test/CssDrivenMotion.test.tsx",
+      "src/test/CustomerIdeas.test.tsx",
+      "src/test/DataTabCheckbox.test.tsx",
+      "src/test/DirectSendErrorBlurb.test.ts",
       "src/test/FeatureFlags.test.tsx",
+      "src/test/FlowDividers.test.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/GetPage.test.tsx",
+      "src/test/HeaderCartBadge.test.tsx",
       "src/test/HomePage.test.tsx",
       "src/test/InboxChannelFilter.test.tsx",
       "src/test/InboxLoadFailure.test.tsx",
+      "src/test/InboxPaymentSender.test.tsx",
+      "src/test/InboxReplyWaba.test.tsx",
+      "src/test/InboxUnsupportedAndContactCard.test.tsx",
+      "src/test/InternalAgentCapabilities.test.tsx",
       "src/test/InternalChatApproval.test.tsx",
+      "src/test/LogicalDirectionCss.test.tsx",
+      "src/test/MCPConnections.test.tsx",
+      "src/test/MCPPlayground.test.tsx",
+      "src/test/MissingUrlNavigation.test.tsx",
+      "src/test/NativeDialogs.test.tsx",
       "src/test/Navigation.test.tsx",
+      "src/test/NotFoundFallback.test.ts",
+      "src/test/OrdersPage.test.tsx",
+      "src/test/OrdersRequests.test.tsx",
+      "src/test/OtpResend.test.tsx",
+      "src/test/PayFlowRedemption.test.tsx",
+      "src/test/PerksPage.test.tsx",
+      "src/test/PhoneFieldSearch.test.tsx",
+      "src/test/PillButton.test.tsx",
+      "src/test/PillButtonAccessibleName.test.tsx",
+      "src/test/PublicAiSurface.test.ts",
+      "src/test/PublicPageTopBand.test.tsx",
       "src/test/PublicRouteRegistration.test.ts",
+      "src/test/PublicWidgets.test.tsx",
+      "src/test/RecipeSchema.test.ts",
+      "src/test/ReviewCta.test.tsx",
+      "src/test/SafeHttpHref.test.ts",
+      "src/test/SafeReturnPath.test.ts",
       "src/test/SearchModal.test.tsx",
-      "src/test/TotpSetup.test.tsx"
+      "src/test/ServiceRequestPurchase.test.tsx",
+      "src/test/Services.test.tsx",
+      "src/test/ShareMeta.test.tsx",
+      "src/test/ShipmentsPage.test.tsx",
+      "src/test/ShopCatalogue.test.tsx",
+      "src/test/ShopIndexRedirect.test.ts",
+      "src/test/SignInEmptyNumberTrap.test.tsx",
+      "src/test/SignInMessages.test.tsx",
+      "src/test/SignInResend.test.tsx",
+      "src/test/SignedInPageTopBand.test.tsx",
+      "src/test/StructuredDataService.test.ts",
+      "src/test/ToolScriptsParse.test.ts",
+      "src/test/TotpSetup.test.tsx",
+      "src/test/TranslationResetOnNavigation.test.tsx",
+      "src/test/UiColorField.test.tsx",
+      "src/test/UiDateField.test.tsx",
+      "src/test/UiSelect.test.tsx",
+      "src/test/UncontrolledSelectState.test.tsx",
+      "src/test/VaultFilePurchase.test.tsx",
+      "src/test/VayuLokLive.test.tsx"
     ],
     "/razorpay-webhook": [
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/rcs/send": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/SystemTab.tsx",
-      "src/pages/dm/channels/index.tsx"
+      "src/pages/workspace/engage/channels/index.tsx"
     ],
     "/scheduled": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/channels/index.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/channels/index.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/ScheduledCancellationWire.test.ts"
     ],
     "/secure-files": [
-      "src/api/client.ts"
+      "src/api/client.ts",
+      "src/config/navigation.ts",
+      "src/test/ConfirmContext.test.tsx",
+      "src/test/NativeDialogs.test.tsx"
     ],
+    "/secure-files/dropdocs/attach": [],
+    "/secure-files/dropdocs/{requestId}/documents": [],
     "/secure-files/mine": [
       "src/api/client.ts"
     ],
@@ -654,52 +866,77 @@
       "src/api/seo.ts",
       "src/components/seo/InstructionsContent.tsx",
       "src/lib/public-blog.ts",
-      "src/pages/seo/index.tsx",
-      "src/pages/seo/tools.tsx"
+      "src/pages/workspace/seo/index.tsx",
+      "src/pages/workspace/seo/tools.tsx",
+      "src/test/BlogStudioContract.test.ts",
+      "src/test/PerksPage.test.tsx",
+      "src/test/PublicAiSurface.test.ts",
+      "src/test/PublicBlogFetchContract.test.ts"
     ],
     "/seo-tools/{proxy+}": [
       "src/api/seo.ts",
       "src/components/seo/InstructionsContent.tsx",
       "src/lib/public-blog.ts",
-      "src/pages/seo/index.tsx",
-      "src/pages/seo/tools.tsx"
+      "src/pages/workspace/seo/index.tsx",
+      "src/pages/workspace/seo/tools.tsx",
+      "src/test/BlogStudioContract.test.ts",
+      "src/test/PerksPage.test.tsx",
+      "src/test/PublicAiSurface.test.ts",
+      "src/test/PublicBlogFetchContract.test.ts"
     ],
-    "/site-language/languages": [],
+    "/services/my-requests": [
+      "src/lib/serviceRequests.ts",
+      "src/test/OrdersRequests.test.tsx",
+      "src/test/ServiceRequestPurchase.test.tsx"
+    ],
+    "/services/request-intent": [
+      "src/lib/serviceRequests.ts",
+      "src/test/ServiceRequestPurchase.test.tsx"
+    ],
+    "/site-language/languages": [
+      "src/components/__tests__/rtlLanguage.test.tsx"
+    ],
     "/site-language/translate": [],
-    "/site-language/tts": [],
-    "/site-language/voices": [],
     "/site-language/{proxy+}": [
-      "src/components/SupportWidget.tsx"
+      "src/components/SupportWidget.tsx",
+      "src/components/__tests__/rtlLanguage.test.tsx"
     ],
     "/sms-aws/clear-logs": [
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dm/sms/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/engage/sms/index.tsx"
     ],
     "/sms-aws/messages": [
       "src/api/client.ts",
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/sms-aws/send": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/SystemTab.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dm/whatsapp/calling.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx"
     ],
     "/sms-aws/templates": [],
     "/sms/send": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
-    "/store/convert-flag": [],
-    "/store/generate-product-image": [],
-    "/store/preview-product-image": [],
+    "/store/convert-flag": [
+      "src/pages/workspace/commerce/catalog.tsx"
+    ],
+    "/store/generate-product-image": [
+      "src/pages/workspace/commerce/catalog.tsx"
+    ],
+    "/store/preview-product-image": [
+      "src/pages/workspace/commerce/catalog.tsx"
+    ],
     "/system-cleanup": [
       "src/api/client.ts",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/lib/capacitor.ts",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/templates/analytics": [
       "src/api/client.ts"
@@ -709,37 +946,40 @@
     ],
     "/voice-aws/call": [
       "src/api/client.ts",
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/voice-aws/calls": [
       "src/api/client.ts",
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/voice-aws/calls/{callId}": [
       "src/api/client.ts",
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/voice-aws/clear-logs": [
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dm/voice/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/engage/voice/index.tsx"
     ],
     "/voice-aws/send": [],
     "/voice-cdr-read": [
-      "src/pages/dm/voice-in/index.tsx"
+      "src/components/dashboard/tabs/SystemTab.tsx",
+      "src/pages/workspace/engage/voice-in/index.tsx"
     ],
     "/voice-in/c2c": [
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dm/voice-in/index.tsx",
-      "src/pages/dm/whatsapp/webhooks.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/voice-in/index.tsx",
+      "src/pages/workspace/engage/whatsapp/webhooks.tsx"
     ],
     "/voice-in/c2c/clear-logs": [],
     "/voice-in/obd": [
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dm/voice-in/index.tsx",
-      "src/pages/dm/whatsapp/webhooks.tsx"
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/voice-in/index.tsx",
+      "src/pages/workspace/engage/whatsapp/webhooks.tsx"
     ],
     "/voice-in/obd/audio-library": [
-      "src/pages/dm/voice-in/index.tsx"
+      "src/pages/workspace/engage/voice-in/index.tsx"
     ],
     "/voice-in/obd/clear-logs": [],
     "/voice-in/obd/create": [],
@@ -774,11 +1014,11 @@
       "src/api/client.ts"
     ],
     "/wa-business/flow-registry": [
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
     "/wa-business/flow-sla-check": [],
     "/wa-business/flow-submissions": [
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
     "/wa-business/flow-submissions/export": [],
     "/wa-business/flow-submissions/stats": [],
@@ -794,11 +1034,11 @@
     "/wa-business/marketing-message": [],
     "/wa-business/mm-onboarding-status": [],
     "/wa-business/orders": [
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
     "/wa-business/orders/sync": [],
     "/wa-business/orders/{orderId}": [
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
     "/wa-business/orders/{orderId}/submissions": [],
     "/wa-business/payment-config/check": [],
@@ -826,21 +1066,24 @@
       "src/api/client.ts",
       "src/components/ProductMessageComposer.tsx",
       "src/components/dashboard/tabs/InfraTab.tsx",
-      "src/pages/dm/commerce/index.tsx",
-      "src/pages/dm/service-ops/index.tsx",
-      "src/pages/dm/whatsapp/conversions-api.tsx",
-      "src/pages/dm/whatsapp/cost-controls.tsx",
-      "src/pages/dm/whatsapp/send-test.tsx"
+      "src/pages/workspace/engage/commerce/index.tsx",
+      "src/pages/workspace/engage/service-ops/index.tsx",
+      "src/pages/workspace/engage/whatsapp/conversions-api.tsx",
+      "src/pages/workspace/engage/whatsapp/cost-controls.tsx",
+      "src/pages/workspace/engage/whatsapp/flow-hub.tsx",
+      "src/pages/workspace/engage/whatsapp/send-test.tsx"
     ],
     "/waba": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/whatsapp/settings.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/settings.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/SystemHealthTruth.test.ts"
     ],
     "/waba/conversational-components": [
       "src/api/client.ts"
@@ -864,11 +1107,13 @@
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/whatsapp/settings.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/settings.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/SystemHealthTruth.test.ts"
     ],
     "/waba/{wabaId}/events": [],
     "/webhook/sinch-rcs": [],
@@ -886,45 +1131,56 @@
       "src/hooks/useKeyboardShortcuts.ts",
       "src/hooks/useUserRole.ts",
       "src/hooks/useWebRTCCalling.ts",
+      "src/lib/cart.ts",
+      "src/lib/scroll-to-end.ts",
       "src/lib/wa-errors.ts",
       "src/lib/wa-media.ts",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/channels/index.tsx",
-      "src/pages/dm/commerce/index.tsx",
-      "src/pages/dm/content/index.tsx",
-      "src/pages/dm/inbox/index.tsx",
-      "src/pages/dm/index.tsx",
-      "src/pages/dm/logs/index.tsx",
-      "src/pages/dm/settings/index.tsx",
-      "src/pages/dm/whatsapp/calling.tsx",
-      "src/pages/dm/whatsapp/connected-accounts.tsx",
-      "src/pages/dm/whatsapp/conversions-api.tsx",
-      "src/pages/dm/whatsapp/ctwa-ads.tsx",
-      "src/pages/dm/whatsapp/flows.tsx",
-      "src/pages/dm/whatsapp/groups.tsx",
-      "src/pages/dm/whatsapp/inbox.tsx",
-      "src/pages/dm/whatsapp/index.tsx",
-      "src/pages/dm/whatsapp/interactive-lists.tsx",
-      "src/pages/dm/whatsapp/migration.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx",
-      "src/pages/dm/whatsapp/tech-partner.tsx",
-      "src/pages/dm/whatsapp/templates.tsx",
-      "src/pages/dm/whatsapp/waba-dashboard.tsx",
-      "src/pages/dm/whatsapp/webhooks.tsx",
-      "src/pages/service/index.tsx",
+      "src/pages/cart.tsx",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/channels/index.tsx",
+      "src/pages/workspace/engage/commerce/index.tsx",
+      "src/pages/workspace/engage/content/index.tsx",
+      "src/pages/workspace/engage/inbox/index.tsx",
+      "src/pages/workspace/engage/index.tsx",
+      "src/pages/workspace/engage/logs/index.tsx",
+      "src/pages/workspace/engage/settings/index.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx",
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx",
+      "src/pages/workspace/engage/whatsapp/conversions-api.tsx",
+      "src/pages/workspace/engage/whatsapp/ctwa-ads.tsx",
+      "src/pages/workspace/engage/whatsapp/flows.tsx",
+      "src/pages/workspace/engage/whatsapp/groups.tsx",
+      "src/pages/workspace/engage/whatsapp/index.tsx",
+      "src/pages/workspace/engage/whatsapp/interactive-lists.tsx",
+      "src/pages/workspace/engage/whatsapp/migration.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx",
+      "src/pages/workspace/engage/whatsapp/tech-partner.tsx",
+      "src/pages/workspace/engage/whatsapp/templates.tsx",
+      "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
+      "src/pages/workspace/engage/whatsapp/webhooks.tsx",
+      "src/pages/workspace/service/index.tsx",
+      "src/test/CatalogProductEdit.test.tsx",
+      "src/test/ConfirmContext.test.tsx",
+      "src/test/CssDrivenMotion.test.tsx",
+      "src/test/CustomerIdeas.test.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/NativeDialogs.test.tsx",
       "src/test/Navigation.test.tsx",
-      "src/test/PublicRouteRegistration.test.ts"
+      "src/test/OverlayPopoverLayer.test.ts",
+      "src/test/PublicRouteRegistration.test.ts",
+      "src/test/UncontrolledSelectState.test.tsx"
     ],
     "/whatsapp-calling": [
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx"
     ],
     "/whatsapp-voice/clear-logs": [
-      "src/pages/dashboard/index.tsx"
+      "src/pages/workspace/dashboard/index.tsx"
     ],
     "/whatsapp-voice/language-config": [
       "src/api/client.ts"
@@ -945,7 +1201,7 @@
     "/whatsapp/business-api": [],
     "/whatsapp/calling": [
       "src/config/navigation.ts",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/system-architecture.tsx"
     ],
     "/whatsapp/inbound": [],
     "/whatsapp/send": [
@@ -953,9 +1209,9 @@
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/components/dashboard/tabs/SystemTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/commerce/index.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/commerce/index.tsx"
     ],
     "/whatsapp/template-from-library": [
       "src/api/client.ts"
@@ -968,8 +1224,10 @@
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/OverlayPopoverLayer.test.ts"
     ],
     "/whatsapp/templates/carousel": [
       "src/api/client.ts"
@@ -987,15 +1245,19 @@
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/OverlayPopoverLayer.test.ts"
     ],
     "/whatsapp/templates/{templateName}": [
       "src/api/client.ts",
       "src/components/dashboard/tabs/InfraTab.tsx",
       "src/config/navigation.ts",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx"
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/OverlayPopoverLayer.test.ts"
     ],
     "/whatsapp/voice": [],
     "/whatsapp/{proxy+}": [
@@ -1012,62 +1274,83 @@
       "src/hooks/useKeyboardShortcuts.ts",
       "src/hooks/useUserRole.ts",
       "src/hooks/useWebRTCCalling.ts",
+      "src/lib/cart.ts",
+      "src/lib/scroll-to-end.ts",
       "src/lib/wa-errors.ts",
       "src/lib/wa-media.ts",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/lambda-functions.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/channels/index.tsx",
-      "src/pages/dm/commerce/index.tsx",
-      "src/pages/dm/content/index.tsx",
-      "src/pages/dm/inbox/index.tsx",
-      "src/pages/dm/index.tsx",
-      "src/pages/dm/logs/index.tsx",
-      "src/pages/dm/settings/index.tsx",
-      "src/pages/dm/whatsapp/calling.tsx",
-      "src/pages/dm/whatsapp/connected-accounts.tsx",
-      "src/pages/dm/whatsapp/conversions-api.tsx",
-      "src/pages/dm/whatsapp/ctwa-ads.tsx",
-      "src/pages/dm/whatsapp/flows.tsx",
-      "src/pages/dm/whatsapp/groups.tsx",
-      "src/pages/dm/whatsapp/inbox.tsx",
-      "src/pages/dm/whatsapp/index.tsx",
-      "src/pages/dm/whatsapp/interactive-lists.tsx",
-      "src/pages/dm/whatsapp/migration.tsx",
-      "src/pages/dm/whatsapp/my-account.tsx",
-      "src/pages/dm/whatsapp/tech-partner.tsx",
-      "src/pages/dm/whatsapp/templates.tsx",
-      "src/pages/dm/whatsapp/waba-dashboard.tsx",
-      "src/pages/dm/whatsapp/webhooks.tsx",
-      "src/pages/service/index.tsx",
+      "src/pages/cart.tsx",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/lambda-functions.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/channels/index.tsx",
+      "src/pages/workspace/engage/commerce/index.tsx",
+      "src/pages/workspace/engage/content/index.tsx",
+      "src/pages/workspace/engage/inbox/index.tsx",
+      "src/pages/workspace/engage/index.tsx",
+      "src/pages/workspace/engage/logs/index.tsx",
+      "src/pages/workspace/engage/settings/index.tsx",
+      "src/pages/workspace/engage/whatsapp/calling.tsx",
+      "src/pages/workspace/engage/whatsapp/connected-accounts.tsx",
+      "src/pages/workspace/engage/whatsapp/conversions-api.tsx",
+      "src/pages/workspace/engage/whatsapp/ctwa-ads.tsx",
+      "src/pages/workspace/engage/whatsapp/flows.tsx",
+      "src/pages/workspace/engage/whatsapp/groups.tsx",
+      "src/pages/workspace/engage/whatsapp/index.tsx",
+      "src/pages/workspace/engage/whatsapp/interactive-lists.tsx",
+      "src/pages/workspace/engage/whatsapp/migration.tsx",
+      "src/pages/workspace/engage/whatsapp/my-account.tsx",
+      "src/pages/workspace/engage/whatsapp/tech-partner.tsx",
+      "src/pages/workspace/engage/whatsapp/templates.tsx",
+      "src/pages/workspace/engage/whatsapp/waba-dashboard.tsx",
+      "src/pages/workspace/engage/whatsapp/webhooks.tsx",
+      "src/pages/workspace/service/index.tsx",
+      "src/test/CatalogProductEdit.test.tsx",
+      "src/test/ConfirmContext.test.tsx",
+      "src/test/CssDrivenMotion.test.tsx",
+      "src/test/CustomerIdeas.test.tsx",
+      "src/test/FormControlsCss.test.ts",
+      "src/test/NativeDialogs.test.tsx",
       "src/test/Navigation.test.tsx",
-      "src/test/PublicRouteRegistration.test.ts"
+      "src/test/OverlayPopoverLayer.test.ts",
+      "src/test/PublicRouteRegistration.test.ts",
+      "src/test/UncontrolledSelectState.test.tsx"
     ],
+    "/wix-catalog-webhook": [],
     "/wix-store/{proxy+}": [
       "src/api/client.ts",
-      "src/pages/dashboard/code-repo.tsx",
-      "src/pages/dashboard/index.tsx",
-      "src/pages/dashboard/system-architecture.tsx",
-      "src/pages/dm/whatsapp/webhooks.tsx",
-      "src/pages/store/index.tsx"
+      "src/pages/workspace/commerce/catalog.tsx",
+      "src/pages/workspace/dashboard/code-repo.tsx",
+      "src/pages/workspace/dashboard/index.tsx",
+      "src/pages/workspace/dashboard/system-architecture.tsx",
+      "src/pages/workspace/engage/whatsapp/webhooks.tsx"
     ],
-    "/{code}": []
+    "/workspace/mcp": [
+      "src/lib/workspace-mcp.test.ts",
+      "src/lib/workspace-mcp.ts",
+      "src/test/MCPConnections.test.tsx"
+    ],
+    "/workspace/mcp-iam": [],
+    "/workspace/mcp/oauth/callback": [
+      "src/lib/workspace-mcp.test.ts",
+      "src/lib/workspace-mcp.ts",
+      "src/test/MCPConnections.test.tsx"
+    ]
   },
   "functions": [
     {
       "aliases": {
-        "live": "12"
+        "live": "20"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "M936s3rY3Bjs52P614LH7Nk9X2fTvb8O1m8i5R8gCdo=",
+      "codeSha256": "ZwvTGwNqdkWEn60HmMiKom/t02LeVx/p8miy8MoyLHw=",
       "deadLetterArn": null,
       "envNames": [
         "LINK_CLICKS_TABLE",
-        "SHORT_DOMAIN",
-        "SHORT_LINKS_TABLE"
+        "SHORT_LINKS_TABLE",
+        "SHORT_LINK_BASE"
       ],
       "envSensitiveNames": [],
       "errors24h": 0.0,
@@ -1076,21 +1359,20 @@
       "function": "stack-wecare-url-shortener",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 98.0,
-      "invocations7d": 607.0,
-      "lastModified": "2026-09-25T11:01:51.000+0000",
+      "invocations24h": 4.0,
+      "invocations7d": 50.0,
+      "lastModified": "2026-10-02T02:27:38.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
       "packageType": "Zip",
       "role": "wecare-digital-lambda-role",
-      "routeCount": 7,
+      "routeCount": 6,
       "routes": [
         "DELETE /links/{code}",
         "GET /links",
         "GET /links/{code}",
         "GET /r/{code}",
-        "GET /{code}",
         "POST /links",
         "PUT /links/{code}"
       ],
@@ -1104,7 +1386,7 @@
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "WJTvd/68uJ2DaWuXdedlXiktIc9zUHB07kBqtOaCzI8=",
+      "codeSha256": "nNHl2kerMTIQv8ACkcpPvXrJAttLuqQm9PIzd8/6Jb4=",
       "deadLetterArn": null,
       "envNames": [],
       "envSensitiveNames": [],
@@ -1115,8 +1397,8 @@
       "hasLiveAlias": false,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 3.0,
-      "lastModified": "2026-09-25T11:04:08.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:50.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1131,12 +1413,12 @@
     },
     {
       "aliases": {
-        "live": "19"
+        "live": "28"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "9BVuQA+NnAL2+SG1ee1NsgzqR6waU/7CWReBhgAW0z4=",
+      "codeSha256": "/UoCGIwK6g3E9lbIcDHegO9dNSJ7EZDjPSHryRvZ32o=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -1155,8 +1437,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 13.0,
-      "lastModified": "2026-09-25T11:04:30.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:37:13.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -1173,12 +1455,12 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "26"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "8f9nUyCWtTMmanoCmOYBpfJ6gphuwTqr0yIYGPcWr04=",
+      "codeSha256": "sj3w3gW9VWUYu929W78n1wGPj6jcqY2raphJEa6ZfFA=",
       "deadLetterArn": null,
       "envNames": [
         "AI_INTERACTIONS_TABLE",
@@ -1196,8 +1478,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 1.0,
-      "lastModified": "2026-09-25T11:04:27.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:37:10.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1230,14 +1512,15 @@
     },
     {
       "aliases": {
-        "live": "19"
+        "live": "38"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "hRhunXvNEzZPenL488GjnL3VMSBH7Oiu8QM7dzekgsQ=",
+      "codeSha256": "78q0ROBHJ3c/FZw00+UISP1hbtfufkWn+OsouTViLXI=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "CONTACTS_TABLE",
         "CONVERSATION_TABLE",
         "CONVERSATION_TTL_HOURS",
@@ -1261,9 +1544,9 @@
       "function": "wecare-ai-generate-response",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 52.0,
-      "lastModified": "2026-09-25T11:04:24.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 4.0,
+      "lastModified": "2026-10-05T02:37:06.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 1024,
@@ -1282,12 +1565,12 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "26"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "l9Qhpr4SqgbCLw9yWZokqxFA6oJvBzIi78WRNhE5xxI=",
+      "codeSha256": "vUYT9pf/uihrQoIPSvcsmdgtrzYwctuUaKDlR6LfcsM=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -1305,7 +1588,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:04:21.000+0000",
+      "lastModified": "2026-10-05T02:37:02.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1322,12 +1605,12 @@
     },
     {
       "aliases": {
-        "live": "14"
+        "live": "22"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "SNVYyrBSUMtOJSdwAnamqI57VYN3YTNPwY9/Df/yPps=",
+      "codeSha256": "wsQaJV5EnWk2ASpoYniV+7JTR1t4V6BgJwY7N7IzAoY=",
       "deadLetterArn": null,
       "envNames": [
         "COGNITO_USER_POOL_ID",
@@ -1342,7 +1625,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:00:54.000+0000",
+      "lastModified": "2026-10-05T02:33:52.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1359,12 +1642,12 @@
     },
     {
       "aliases": {
-        "live": "12"
+        "live": "20"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "SiwOBRCJYJxI9cOqQe7h0kFXeAhrgkPFdbWnWXjkmsA=",
+      "codeSha256": "sn+1CGDW+z7QjHoKElFlLJhIrBRojXqU9mdhHVU0sMc=",
       "deadLetterArn": "arn:aws:sqs:us-east-1:775261844268:wecare-lambda-async-dlq",
       "envNames": [
         "AUTOMATION_RULES_TABLE",
@@ -1377,9 +1660,9 @@
       "function": "wecare-automation-rules",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 15.0,
-      "invocations7d": 55.0,
-      "lastModified": "2026-09-25T11:00:59.000+0000",
+      "invocations24h": 2.0,
+      "invocations7d": 40.0,
+      "lastModified": "2026-10-05T02:33:55.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 256,
@@ -1401,12 +1684,12 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "25"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "t4naCrUj1aOIj9Hu/l99hGyXYDnIK3mcQQGE7Y5DhlM=",
+      "codeSha256": "DChNFMyc4gCZedd4KgYacU2yiehoOExBGlp6JMQ15w4=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -1421,8 +1704,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 9.0,
-      "invocations7d": 43.0,
-      "lastModified": "2026-09-25T11:04:33.000+0000",
+      "invocations7d": 464.0,
+      "lastModified": "2026-10-05T02:37:18.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1440,12 +1723,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "26"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "1pqQBHJeHj1RHCk7yz5fZubkRIkBmwXLIdmB+fM0CI4=",
+      "codeSha256": "iG3uWUQq+M240TPSnEexOEytmkrxFhOwgm44c6jYOjQ=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -1466,7 +1749,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:04:42.000+0000",
+      "lastModified": "2026-10-05T02:37:24.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1484,12 +1767,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "24"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "fhgyr71/ex5hJjkVlm27h3KXz2lDZGCh3GRvgvIXZ9M=",
+      "codeSha256": "9ECU6gpBJ9mE6wA40rER7knf9zIg8nyQZMKpm0P/4Rc=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -1509,7 +1792,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:04:36.000+0000",
+      "lastModified": "2026-10-05T02:37:21.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -1530,12 +1813,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "24"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "CGBR/7sELsRGhEOZHGfgHPAhA5XanvpB/a1peVz97WI=",
+      "codeSha256": "dx4QgjRyI42Mu8kjnATSl7zYDsvOjigzi9L3QQOY9fA=",
       "deadLetterArn": "arn:aws:sqs:us-east-1:775261844268:wecare-lambda-async-dlq",
       "envNames": [
         "BULK_JOBS_TABLE",
@@ -1560,9 +1843,9 @@
       "function": "wecare-bulk-worker",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 36.0,
-      "lastModified": "2026-09-25T11:04:45.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:37:29.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -1579,12 +1862,12 @@
     },
     {
       "aliases": {
-        "live": "12"
+        "live": "20"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "1e0y3QKfad2V/hli6OqOF3MeZP8W0N17ei4Z1Ecf9ec=",
+      "codeSha256": "ah2F1AenE1uKinvFpRY7of6NbPwbm4HFlzQTOgjgzj0=",
       "deadLetterArn": null,
       "envNames": [],
       "envSensitiveNames": [],
@@ -1595,8 +1878,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:05:49.000+0000",
+      "invocations7d": 4.0,
+      "lastModified": "2026-10-05T02:38:13.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1608,6 +1891,65 @@
       "snapStart": "None",
       "sourcePath": "amplify/functions/ecommerce/catalog-management",
       "timeoutSec": 60
+    },
+    {
+      "aliases": {
+        "live": "37"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "tV2jAKm7MpC/QOzEvMredC5Wi+br3hRu4D2hYWA33YE=",
+      "deadLetterArn": null,
+      "envNames": [
+        "CHECKOUT_INITIATION_ENABLED",
+        "COMMERCE_KEYS_TABLE",
+        "CONTACTS_TABLE",
+        "CONTRIBUTION_PRODUCT_ID",
+        "EXPECTED_CONFIGURATION_NAME",
+        "EXPECTED_PROVIDER_MID",
+        "ORDERS_TABLE",
+        "PAYMENT_ATTEMPTS_TABLE",
+        "PAYMENT_WABA_ID",
+        "RAZORPAY_SECRET_ID",
+        "SECRETS_REFRESHED_AT",
+        "SENDER_FUNCTION",
+        "WIX_API_KEY_SECRET",
+        "WIX_CART_V2_ENABLED",
+        "WIX_SITE_ID"
+      ],
+      "envSensitiveNames": [
+        "COMMERCE_KEYS_TABLE",
+        "RAZORPAY_SECRET_ID",
+        "SECRETS_REFRESHED_AT",
+        "WIX_API_KEY_SECRET"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-checkout",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 70.0,
+      "invocations7d": 242.0,
+      "lastModified": "2026-10-08T12:53:37.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 256,
+      "packageType": "Zip",
+      "role": "wecare-checkout-role",
+      "routeCount": 5,
+      "routes": [
+        "GET /ecommerce/service-prices",
+        "POST /ecommerce/checkout",
+        "POST /ecommerce/checkout/status",
+        "POST /ecommerce/prepare-checkout",
+        "POST /ecommerce/verify-callback"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/checkout",
+      "timeoutSec": 20
     },
     {
       "aliases": {
@@ -1630,9 +1972,9 @@
       "function": "wecare-cognito-custom-message",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 6.0,
-      "lastModified": "2026-09-25T11:01:44.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 10.0,
+      "lastModified": "2026-10-05T02:34:58.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1647,17 +1989,18 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "32"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "WFnIdzYQC6UY/xtIwrd3aYv4LlZk5JxAm/dg9ObuqBA=",
+      "codeSha256": "aol0YdzlAwRKypYOhpQqyz5fFyCkPYdg4k+jB45l/hs=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
         "CONTACTS_TABLE",
         "LOG_LEVEL",
+        "MEDIA_BUCKET",
         "REGION",
         "S3_BUCKET"
       ],
@@ -1668,9 +2011,9 @@
       "function": "wecare-contacts",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 323.0,
-      "invocations7d": 2283.0,
-      "lastModified": "2026-09-25T11:01:03.000+0000",
+      "invocations24h": 69.0,
+      "invocations7d": 3098.0,
+      "lastModified": "2026-10-08T05:43:25.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1678,13 +2021,13 @@
       "role": "wecare-digital-lambda-role",
       "routeCount": 7,
       "routes": [
-        "DELETE [retired public path 44011e36]",
-        "DELETE [retired public path 44011e36]/{contactId}",
-        "GET [retired public path 44011e36]",
-        "GET [retired public path 44011e36]/search",
-        "POST [retired public path 44011e36]",
-        "PUT [retired public path 44011e36]",
-        "PUT [retired public path 44011e36]/{contactId}"
+        "DELETE /contacts",
+        "DELETE /contacts/{contactId}",
+        "GET /contacts",
+        "GET /contacts/search",
+        "POST /contacts",
+        "PUT /contacts",
+        "PUT /contacts/{contactId}"
       ],
       "runtime": "python3.12",
       "snapStart": "None",
@@ -1693,12 +2036,12 @@
     },
     {
       "aliases": {
-        "live": "12"
+        "live": "20"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "htXs8Nzi5xWrYRTmR0u2hOVi/1PNMp18wnGYMlEvjrg=",
+      "codeSha256": "aN3N2zv3N/aZjEuu2UQze/3ucKa39QdUC0b6k2M6rl0=",
       "deadLetterArn": null,
       "envNames": [
         "CONVERSATION_META_TABLE",
@@ -1711,9 +2054,9 @@
       "function": "wecare-conversation-meta",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 50.0,
-      "invocations7d": 227.0,
-      "lastModified": "2026-09-25T11:01:11.000+0000",
+      "invocations24h": 5.0,
+      "invocations7d": 199.0,
+      "lastModified": "2026-10-05T02:34:04.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 256,
@@ -1736,12 +2079,52 @@
     },
     {
       "aliases": {
-        "live": "8"
+        "live": "1"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "CuQSQNYvsN0fUjdjz7xEmWO3gOYtMhe5CjW5n7gSIz8=",
+      "codeSha256": "rUieJ+j2NUajYlqMRXwuILDVIgBLFdalGtmvYsimyAA=",
+      "deadLetterArn": null,
+      "envNames": [],
+      "envSensitiveNames": [],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-coupons",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 15.0,
+      "invocations7d": 15.0,
+      "lastModified": "2026-10-08T12:52:01.499+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 256,
+      "packageType": "Zip",
+      "role": "wecare-coupons-role",
+      "routeCount": 7,
+      "routes": [
+        "GET /coupons",
+        "GET /coupons/{code}",
+        "POST /coupons",
+        "POST /coupons/hold",
+        "POST /coupons/release",
+        "POST /coupons/validate",
+        "POST /coupons/{code}/deactivate"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/coupons",
+      "timeoutSec": 30
+    },
+    {
+      "aliases": {
+        "live": "16"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "KBefY5tYV5bf8i9r2i+V9blN/0BoEZ/ashM8rAwdmy0=",
       "deadLetterArn": null,
       "envNames": [
         "CONTACTS_TABLE",
@@ -1761,8 +2144,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 27.0,
-      "lastModified": "2026-09-25T11:01:18.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:34:15.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1790,12 +2173,132 @@
     },
     {
       "aliases": {
-        "live": "9"
+        "live": "4"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "KB3Jr131Ndmq7+J1CR/M46DtTysWrZB5kHqF+Lutrng=",
+      "codeSha256": "CmoW7yv/XKBycGhpcbeCr1UL6D8aZJys63wszK2HqbQ=",
+      "deadLetterArn": null,
+      "envNames": [
+        "CONTACTS_TABLE",
+        "CUSTOMER_POOL_ID",
+        "ORDERS_BY_CUSTOMER_INDEX",
+        "ORDERS_TABLE",
+        "RATE_LIMIT_TABLE"
+      ],
+      "envSensitiveNames": [],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-customer-orders",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 0.0,
+      "invocations7d": 10.0,
+      "lastModified": "2026-10-07T23:40:01.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 512,
+      "packageType": "Zip",
+      "role": "wecare-customer-orders-role",
+      "routeCount": 1,
+      "routes": [
+        "POST /ecommerce/my-orders"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/customer-orders",
+      "timeoutSec": 15
+    },
+    {
+      "aliases": {
+        "live": "7"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "J0zMH7Yzug/nbschSVJ5o5Ytb8FO5Qh9jiI3wOq+IFI=",
+      "deadLetterArn": null,
+      "envNames": [
+        "CONTACTS_TABLE",
+        "OTP_PEPPER_SECRET_ID",
+        "OTP_TABLE"
+      ],
+      "envSensitiveNames": [
+        "OTP_PEPPER_SECRET_ID"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-customer-profile",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 0.0,
+      "invocations7d": 4.0,
+      "lastModified": "2026-10-07T23:39:51.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 256,
+      "packageType": "Zip",
+      "role": "wecare-customer-profile-role",
+      "routeCount": 2,
+      "routes": [
+        "OPTIONS /customer/profile",
+        "POST /customer/profile"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/auth/customer-profile",
+      "timeoutSec": 15
+    },
+    {
+      "aliases": {
+        "live": "7"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "rDKIodz89VdoyYvMKUy7RptdAkn0mRk7oCRjUhHnHbo=",
+      "deadLetterArn": null,
+      "envNames": [
+        "CUSTOMER_SESSIONS_TABLE",
+        "CUSTOMER_SESSION_KMS_KEY_ID"
+      ],
+      "envSensitiveNames": [
+        "CUSTOMER_SESSION_KMS_KEY_ID"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-customer-session",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 4.0,
+      "invocations7d": 46.0,
+      "lastModified": "2026-10-05T02:33:47.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 256,
+      "packageType": "Zip",
+      "role": "wecare-customer-sessions-Role-An9RPVcLOdkj",
+      "routeCount": 1,
+      "routes": [
+        "POST /ecommerce/customer-session"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/customer-session",
+      "timeoutSec": 30
+    },
+    {
+      "aliases": {
+        "live": "14"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "ErTcQC5dVt/kQzMzD3yLS+sijKBc5r4xFXFsFo9dOYw=",
       "deadLetterArn": null,
       "envNames": [
         "MAX_ATTEMPTS",
@@ -1803,21 +2306,24 @@
         "META_WABA_ID",
         "OTP_PROBE_MAX_PER_WINDOW",
         "OTP_PROBE_WINDOW_SECONDS",
+        "OTP_SEND_MAX_PER_WINDOW",
+        "OTP_SEND_WINDOW_SECONDS",
         "OTP_TEMPLATE_LANGUAGE",
         "OTP_TEMPLATE_NAME",
         "OTP_TTL_SECONDS",
+        "OTP_WABA_MAP",
         "SENDER_FUNCTION"
       ],
       "envSensitiveNames": [],
-      "errors24h": 1.0,
-      "errors7d": 1.0,
+      "errors24h": 0.0,
+      "errors7d": 0.0,
       "eventSources": [],
       "function": "wecare-customer-whatsapp-auth",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 58.0,
-      "invocations7d": 58.0,
-      "lastModified": "2026-09-25T11:33:42.000+0000",
+      "invocations24h": 5.0,
+      "invocations7d": 55.0,
+      "lastModified": "2026-10-06T07:22:19.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1832,12 +2338,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "23"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "HMQRSfCesc1yDKL7StayyNIJ+sIdUqmaIniYcwhFDvg=",
+      "codeSha256": "3NUNf/ZmNz/3CTEjZcVAKg5RiWLLqoreo42pRsG7tjs=",
       "deadLetterArn": null,
       "envNames": [
         "DLQ_URL",
@@ -1854,7 +2360,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:04:51.000+0000",
+      "lastModified": "2026-10-05T02:37:33.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1876,9 +2382,12 @@
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "6d2880cd1e7b5717f5a252b2fc0cb5fdf14651fc1f0d9cd2c3279c5b94cc3de4",
+      "codeSha256": "3f89370284e9f685a0cfc0c6576a854a8d24cbcfe0ec6a1e20e3c5bf10c4c3bf",
       "deadLetterArn": null,
-      "envNames": [],
+      "envNames": [
+        "ADMIN_MFA_REQUIRED",
+        "DOCS_BUCKET"
+      ],
       "envSensitiveNames": [],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -1887,8 +2396,8 @@
       "hasLiveAlias": false,
       "inDeployMap": false,
       "invocations24h": 1.0,
-      "invocations7d": 14.0,
-      "lastModified": "2026-09-23T22:40:18.000+0000",
+      "invocations7d": 7.0,
+      "lastModified": "2026-10-01T07:20:37.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 2048,
@@ -1896,10 +2405,10 @@
       "role": "wecare-digital-lambda-role",
       "routeCount": 4,
       "routes": [
-        "GET [retired public path a2557b8d]/changelog",
-        "GET [retired public path a2557b8d]/sources",
-        "POST [retired public path a2557b8d]/scrape",
-        "POST [retired public path a2557b8d]/sources"
+        "GET /docs/changelog",
+        "GET /docs/sources",
+        "POST /docs/scrape",
+        "POST /docs/sources"
       ],
       "runtime": null,
       "snapStart": "None",
@@ -1908,12 +2417,55 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "5"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "jE0YO9gj46jnIvesprpN3wowt7YNQ3EgVAHBserBji8=",
+      "codeSha256": "rosYMD67UEAJUStsSOj/wDFinxs/fHlypn2tIfxmyzc=",
+      "deadLetterArn": null,
+      "envNames": [
+        "CUSTOMERS_TABLE",
+        "OTP_PEPPER_SECRET_ID",
+        "OTP_TABLE",
+        "SES_CONFIGURATION_SET",
+        "VERIFICATION_EMAIL_SENDER"
+      ],
+      "envSensitiveNames": [
+        "OTP_PEPPER_SECRET_ID"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-email-verification",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 0.0,
+      "invocations7d": 50.0,
+      "lastModified": "2026-10-05T02:34:41.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 256,
+      "packageType": "Zip",
+      "role": "wecare-email-verification-role",
+      "routeCount": 2,
+      "routes": [
+        "OPTIONS /auth/email-verification",
+        "POST /auth/email-verification"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/auth/email-verification",
+      "timeoutSec": 15
+    },
+    {
+      "aliases": {
+        "live": "25"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "w2cXcZ2H+igBzhqVADCMpk8R4DkOehRsL+fJIQyEjxQ=",
       "deadLetterArn": null,
       "envNames": [],
       "envSensitiveNames": [],
@@ -1925,7 +2477,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:01:22.000+0000",
+      "lastModified": "2026-10-05T02:34:18.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -1933,7 +2485,7 @@
       "role": "wecare-digital-lambda-role",
       "routeCount": 1,
       "routes": [
-        "GET [retired public path 1965ee0f]"
+        "GET /faq"
       ],
       "runtime": "python3.12",
       "snapStart": "None",
@@ -1972,12 +2524,12 @@
     },
     {
       "aliases": {
-        "live": "51"
+        "live": "89"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "5h9Jp6OHbB8QeQo2rU1NBB82HQ19Mb9TTkxQ3uiEVcU=",
+      "codeSha256": "ft6WHUzXr5CnYPgxSfCQOLE59mzHh9BfkRkPgNqV3f4=",
       "deadLetterArn": null,
       "envNames": [
         "CONTACTS_TABLE",
@@ -1985,19 +2537,20 @@
         "INBOUND_TABLE",
         "MEDIA_BUCKET",
         "OUTBOUND_TABLE",
+        "STANDBY_REPLY_ENABLED",
         "WHATSAPP_PHONE_NUMBER_ID_1",
         "WHATSAPP_PHONE_NUMBER_ID_2"
       ],
       "envSensitiveNames": [],
       "errors24h": 0.0,
-      "errors7d": 9.0,
+      "errors7d": 0.0,
       "eventSources": [],
       "function": "wecare-inbound-whatsapp",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 106.0,
-      "invocations7d": 1109.0,
-      "lastModified": "2026-09-26T00:42:21.000+0000",
+      "invocations24h": 185.0,
+      "invocations7d": 1360.0,
+      "lastModified": "2026-10-08T12:53:31.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -2014,14 +2567,15 @@
     },
     {
       "aliases": {
-        "live": "25"
+        "live": "48"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "zVuJLDjoKRic30+akTMAmtBjlKDHh5kdQjVsL4NM7HI=",
+      "codeSha256": "hSEs26ORumqwTMBxKhKvHsyTR3CWZWFIurM/yo+At9M=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "CDN_DOMAIN",
         "CONTACTS_TABLE",
         "INVOICES_TABLE",
@@ -2040,9 +2594,9 @@
       "function": "wecare-invoice-engine",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 1.0,
-      "invocations7d": 2.0,
-      "lastModified": "2026-09-25T11:05:30.000+0000",
+      "invocations24h": 14.0,
+      "invocations7d": 39.0,
+      "lastModified": "2026-10-08T12:53:24.000+0000",
       "layers": [
         "pillow-python312:2"
       ],
@@ -2077,12 +2631,12 @@
     },
     {
       "aliases": {
-        "live": "14"
+        "live": "25"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "rSgrjl5uLRdQyn/E9w/cwOKupXTVdHe61rCpYmhx6GI=",
+      "codeSha256": "WbwYQtyLiwHI8UxxzydUOPgqQwSTGK4HA3CxKZdyrYQ=",
       "deadLetterArn": null,
       "envNames": [
         "COGNITO_USER_POOL_ID",
@@ -2107,7 +2661,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 2.0,
-      "lastModified": "2026-09-25T11:04:12.000+0000",
+      "lastModified": "2026-10-05T02:36:53.000+0000",
       "layers": [
         "cryptography-python312:1"
       ],
@@ -2127,12 +2681,51 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "12"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "cB8QzC4OfGafFiVvtyRnoEr2Pt25N6i5Ou2aFHj79U4=",
+      "codeSha256": "2DYrfVA6d2bimUunM30xNyv83uTyXJIHSz4tVsIKUqw=",
+      "deadLetterArn": null,
+      "envNames": [
+        "LOG_LEVEL",
+        "MCP_BLOG_API",
+        "MCP_BLOG_TIMEOUT_SECONDS",
+        "MCP_BLOG_TTL_SECONDS"
+      ],
+      "envSensitiveNames": [],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-mcp",
+      "hasLiveAlias": true,
+      "inDeployMap": false,
+      "invocations24h": 2.0,
+      "invocations7d": 39.0,
+      "lastModified": "2026-10-08T11:38:05.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 512,
+      "packageType": "Zip",
+      "role": "wecare-digital-lambda-role",
+      "routeCount": 1,
+      "routes": [
+        "ANY /mcp"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": null,
+      "timeoutSec": 20
+    },
+    {
+      "aliases": {
+        "live": "23"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "cUCEQq25e9Jgk8BWeDMYF9IQYbQE03FfZgTXpSqYsAI=",
       "deadLetterArn": "arn:aws:sqs:us-east-1:775261844268:wecare-lambda-async-dlq",
       "envNames": [
         "CLEANUP_AGE_DAYS",
@@ -2150,7 +2743,7 @@
       "inDeployMap": true,
       "invocations24h": 1.0,
       "invocations7d": 7.0,
-      "lastModified": "2026-09-25T11:02:46.000+0000",
+      "lastModified": "2026-10-05T02:35:38.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2167,16 +2760,17 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "26"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "c4XK8zRZC4AqC9M833wSTXg3azvcW8A0JgTA1de0yYU=",
+      "codeSha256": "H+x85ctBDMGahj9UgPXqBsuSINUJEtmZtHaeDzIXnY0=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
         "INBOUND_WHATSAPP_FUNCTION",
+        "MEDIA_BUCKET",
         "REGION",
         "S3_BUCKET"
       ],
@@ -2189,7 +2783,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:01:27.000+0000",
+      "lastModified": "2026-10-05T02:34:21.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2208,15 +2802,18 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "28"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "QJ5PcPzIzO1i8lUclQ7iSuwskihLt2SSeGbimr2uDdw=",
+      "codeSha256": "mLxDrVYd2tq0MJ+VVTMt87EBmvH5Bjv22BxPd5TnIBU=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "AWS_ACCOUNT_ID",
+        "MEDIA_BUCKET",
+        "MEDIA_CDN_DOMAIN",
         "REGION",
         "S3_BUCKET"
       ],
@@ -2227,9 +2824,9 @@
       "function": "wecare-messages-read",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 330.0,
-      "invocations7d": 2321.0,
-      "lastModified": "2026-09-25T11:01:30.000+0000",
+      "invocations24h": 62.0,
+      "invocations7d": 3517.0,
+      "lastModified": "2026-10-05T02:34:26.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -2246,12 +2843,12 @@
     },
     {
       "aliases": {
-        "live": "12"
+        "live": "20"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "xgFFjovQs3gv20OUR/swj0scZxuJftZxcr4yGMqHqec=",
+      "codeSha256": "VWnQhOaSFzQD7hitxo0IktdAz2hubpEMqWgEv3Z2LSI=",
       "deadLetterArn": null,
       "envNames": [],
       "envSensitiveNames": [],
@@ -2263,7 +2860,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:04:04.000+0000",
+      "lastModified": "2026-10-05T02:36:44.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2278,12 +2875,12 @@
     },
     {
       "aliases": {
-        "live": "27"
+        "live": "37"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "VzfXF0P8ZOvL1+8PIJ6gKE9XzbL1REbSoMpVmaW3e9k=",
+      "codeSha256": "ee6oPGlqYuTqRqI5GmzuMfZuYRUJYONlcynmjtkK/4Y=",
       "deadLetterArn": null,
       "envNames": [],
       "envSensitiveNames": [],
@@ -2294,8 +2891,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 1.0,
-      "lastModified": "2026-09-25T11:04:18.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-08T12:07:23.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 256,
@@ -2313,12 +2910,59 @@
     },
     {
       "aliases": {
-        "live": "9"
+        "live": "5"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "PpnNY64678jyFroCEes2VLUHuJTBUf3aaNmz+F9ZGEk=",
+      "codeSha256": "v4uxaXl+7L52ZCN1ZxkblU3RHnfnp06jhZ07c3i195s=",
+      "deadLetterArn": null,
+      "envNames": [
+        "LOG_LEVEL",
+        "META_CATALOG_ID",
+        "META_CATALOG_SYNC_DRY_RUN",
+        "META_CATALOG_SYNC_ENABLED",
+        "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK",
+        "META_CATALOG_SYNC_VARIANT_IDS",
+        "META_TOKEN_FIELD",
+        "META_TOKEN_SECRET",
+        "WIX_API_KEY_SECRET",
+        "WIX_SITE_ID"
+      ],
+      "envSensitiveNames": [
+        "META_TOKEN_FIELD",
+        "META_TOKEN_SECRET",
+        "WIX_API_KEY_SECRET"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-meta-catalog-sync",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 1374.0,
+      "invocations7d": 1376.0,
+      "lastModified": "2026-10-08T11:52:02.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 512,
+      "packageType": "Zip",
+      "role": "wecare-meta-catalog-sync-role",
+      "routeCount": 0,
+      "routes": [],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/meta-catalog-sync",
+      "timeoutSec": 120
+    },
+    {
+      "aliases": {
+        "live": "18"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "wOR0DrEAlsn0cRk9uQNAGjHKwEL0jN27yBmvrhmfL6Q=",
       "deadLetterArn": null,
       "envNames": [
         "NOTIF_SWEEP_LIMIT"
@@ -2331,8 +2975,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 4.0,
-      "lastModified": "2026-09-25T11:03:38.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:20.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -2347,12 +2991,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "25"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "AsgmPod0868e2Zwd5mMcuZfztWLKkmPC3RECRmNjY2U=",
+      "codeSha256": "bDAqLH7V6NQfJNaHGuRbvmKZdTh20n186yTCUBHqay0=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -2372,8 +3016,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 1.0,
-      "lastModified": "2026-09-25T11:03:10.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:35:59.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2390,12 +3034,12 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "25"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "BAPYWpjd8i7+6BpiHw5LePBs2qlmhprOtIx1wSLu2gk=",
+      "codeSha256": "UU2bVLmpjUDcr/v4kjQLZ1PGNRs+AX67CBBvYaJlvsg=",
       "deadLetterArn": null,
       "envNames": [
         "AIRTEL_IQ_ENTITY_ID",
@@ -2415,8 +3059,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 1.0,
-      "lastModified": "2026-09-25T11:03:06.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:35:56.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2433,16 +3077,19 @@
     },
     {
       "aliases": {
-        "live": "28"
+        "live": "55"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "/EVTbkbkUkhxLNNsZwEAy1Ai4ktEhtdrEOpgIMtOKEg=",
+      "codeSha256": "4l5puJr1dzOq67CZHDOiMbMNtwNZw9eK8GHtoCTJ+2A=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "AWS_ACCOUNT_ID",
+        "CDN_DOMAIN",
         "CONTACTS_TABLE",
+        "DIRECT_SEND_ENABLED_WABAS",
         "LOG_LEVEL",
         "MEDIA_BUCKET",
         "MEDIA_FILES_TABLE",
@@ -2451,6 +3098,8 @@
         "REGION",
         "S3_BUCKET",
         "SEND_MODE",
+        "WA_LIVE_SMOKE_TEST",
+        "WA_QA_RECIPIENT",
         "WHATSAPP_PHONE_NUMBER_ID_1",
         "WHATSAPP_PHONE_NUMBER_ID_2"
       ],
@@ -2461,9 +3110,9 @@
       "function": "wecare-outbound-whatsapp",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 100.0,
-      "invocations7d": 617.0,
-      "lastModified": "2026-09-25T11:02:00.000+0000",
+      "invocations24h": 115.0,
+      "invocations7d": 1215.0,
+      "lastModified": "2026-10-08T12:20:26.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -2480,14 +3129,15 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "27"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "tLjTSg6vA/AO4T15f+zYS+7XJK03PKt2kf22RfdA/sU=",
+      "codeSha256": "BPiiJLfHqcEatvVh3Zg1ysmft7uBgUO3/nSJ4I078Xo=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "COGNITO_USER_POOL_ID",
         "LOG_LEVEL",
         "META_API_VERSION",
@@ -2498,13 +3148,15 @@
         "PARTNER_GROUP",
         "PARTNER_LEDGER_TABLE",
         "PARTNER_WALLET_TABLE",
+        "SECRETS_REFRESHED_AT",
         "SNS_TOPIC_ARN",
         "SYSTEM_CONFIG_TABLE",
         "UNIFIED_MESSAGES_TABLE",
         "WA_REG_PIN"
       ],
       "envSensitiveNames": [
-        "META_TOKEN_SECRET"
+        "META_TOKEN_SECRET",
+        "SECRETS_REFRESHED_AT"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -2513,8 +3165,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 3.0,
-      "lastModified": "2026-09-25T11:02:52.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:35:47.000+0000",
       "layers": [
         "cryptography-python312:1"
       ],
@@ -2556,7 +3208,7 @@
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "j6alVxgsNNCilkvy+Dz1tnV+YaumImZHvOLmOjkQVgA=",
+      "codeSha256": "YNA7xIY1zBIFl4UGMW9ZzV48ljQTfaVLMOQRrsn8voU=",
       "deadLetterArn": null,
       "envNames": [
         "LOG_LEVEL",
@@ -2579,7 +3231,7 @@
       "inDeployMap": true,
       "invocations24h": 1.0,
       "invocations7d": 7.0,
-      "lastModified": "2026-09-25T11:02:58.000+0000",
+      "lastModified": "2026-10-05T02:35:51.000+0000",
       "layers": [
         "cryptography-python312:1"
       ],
@@ -2596,12 +3248,12 @@
     },
     {
       "aliases": {
-        "live": "17"
+        "live": "26"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "c+FZhIIFaWQSUDZbuMryooQHqqbpkfs1InZoNGCReP4=",
+      "codeSha256": "SeRBEmbFNVzYV8+/ucPeIYhu1l7VLzrUC232y2lzylU=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -2617,7 +3269,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:05:08.000+0000",
+      "lastModified": "2026-10-05T02:37:47.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2635,16 +3287,18 @@
     },
     {
       "aliases": {
-        "live": "21"
+        "live": "32"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "TGZeFNSIWYX5EIs7416b5zRzbXNo3enO4gUFZHDKWUw=",
+      "codeSha256": "2zhexBTfMjJwBQQMgAxmDRrvVZ+Dyj07QZGYkyat9w0=",
       "deadLetterArn": null,
       "envNames": [
         "DLT_TEMPLATE_KEY",
         "IVR_AUDIO_URL",
+        "PLIVO_CALLBACK_HOST",
+        "PLIVO_CALLBACK_PATH_PREFIX",
         "POST_CALL_SMS_ENABLED",
         "SMS_FUNCTION"
       ],
@@ -2657,9 +3311,9 @@
       "function": "wecare-plivo-answer",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 8.0,
-      "invocations7d": 217.0,
-      "lastModified": "2026-09-25T11:03:41.000+0000",
+      "invocations24h": 14.0,
+      "invocations7d": 108.0,
+      "lastModified": "2026-10-05T02:36:23.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2680,12 +3334,12 @@
     },
     {
       "aliases": {
-        "live": "17"
+        "live": "28"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "HlJ+vj6VJkxQ5umFlPeX8m7kRGNAhGMSQDtCOD5XZW4=",
+      "codeSha256": "tsz/BCq1Yo9PjJnL6gMD3FaXl3+ys12nGM7sbpN94rs=",
       "deadLetterArn": null,
       "envNames": [
         "CREDENTIAL_PURGE_EPOCH",
@@ -2703,9 +3357,9 @@
       "function": "wecare-product-image-gen",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 36.0,
-      "lastModified": "2026-09-25T11:05:43.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T04:29:30.000+0000",
       "layers": [
         "Klayers-p312-Pillow:10"
       ],
@@ -2726,12 +3380,12 @@
     },
     {
       "aliases": {
-        "live": "1"
+        "live": "10"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "o2PBfbyV5fuStEd5e/SNVAf5PR6zMSkyIFB4JwLbcG0=",
+      "codeSha256": "D9rrDksIuRonDbTCbjNZ/x3Y3DjpHF+BEc8CIxkDzGY=",
       "deadLetterArn": null,
       "envNames": [
         "PLIVO_API_SECRET_ID",
@@ -2750,8 +3404,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 5.0,
-      "lastModified": "2026-09-23T11:02:57.087+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:27.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2772,14 +3426,16 @@
     },
     {
       "aliases": {
-        "live": "14"
+        "live": "23"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "6Y+EbHPEWSHdwhC9h9a4e18VX5bzc0B4IPJ52F1BAJw=",
+      "codeSha256": "1VOjK2t7up5vexmhtdGbLro5gYTbA3LuUSD/BNQJdrY=",
       "deadLetterArn": "arn:aws:sqs:us-east-1:775261844268:wecare-lambda-async-dlq",
-      "envNames": [],
+      "envNames": [
+        "ADMIN_MFA_REQUIRED"
+      ],
       "envSensitiveNames": [],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -2788,8 +3444,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 3.0,
-      "lastModified": "2026-09-25T11:03:53.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:37.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2807,12 +3463,12 @@
     },
     {
       "aliases": {
-        "live": "36"
+        "live": "56"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "dw+tEvyJC/kIvFEdHAVhf2ErqeHjPDyBfraMMyY8bMc=",
+      "codeSha256": "h9LRnYAhPjGkCg6tT1L8NwmYAwto2aAdNjofhsYcVEI=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -2825,26 +3481,28 @@
         "POST_PAYMENT_REQUEST_TEMPLATE",
         "REGION",
         "S3_BUCKET",
+        "SECRETS_REFRESHED_AT",
         "WEBHOOK_LOG_TABLE"
       ],
-      "envSensitiveNames": [],
+      "envSensitiveNames": [
+        "SECRETS_REFRESHED_AT"
+      ],
       "errors24h": 0.0,
       "errors7d": 0.0,
       "eventSources": [],
       "function": "wecare-razorpay-webhook",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 740.0,
-      "invocations7d": 5143.0,
-      "lastModified": "2026-09-25T11:33:08.000+0000",
+      "invocations24h": 2.0,
+      "invocations7d": 18.0,
+      "lastModified": "2026-10-08T12:07:39.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
       "packageType": "Zip",
       "role": "wecare-digital-lambda-role",
-      "routeCount": 2,
+      "routeCount": 1,
       "routes": [
-        "POST /payments/webhook",
         "POST /razorpay-webhook"
       ],
       "runtime": "python3.12",
@@ -2854,17 +3512,16 @@
     },
     {
       "aliases": {
-        "live": "18"
+        "live": "28"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "lUVL9b6R/C0ZL25C9ejYHrv49DrXzSejTrOz/T37c9I=",
+      "codeSha256": "vYm+n9+L7dx/X2kFiTpt3pVtd3RzImc3YBl5Y1MGvXc=",
       "deadLetterArn": null,
       "envNames": [
         "CONTACTS_TABLE",
-        "LOG_LEVEL",
-        "RCS_TABLE"
+        "LOG_LEVEL"
       ],
       "envSensitiveNames": [],
       "errors24h": 0.0,
@@ -2873,9 +3530,9 @@
       "function": "wecare-rcs-dlr",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 135.0,
-      "invocations7d": 791.0,
-      "lastModified": "2026-09-25T11:03:50.000+0000",
+      "invocations24h": 215.0,
+      "invocations7d": 1390.0,
+      "lastModified": "2026-10-05T02:36:34.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 256,
@@ -2893,20 +3550,19 @@
     },
     {
       "aliases": {
-        "live": "19"
+        "live": "28"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "KVnGe7GcaY89X++K6Meao7goLHJ/+d/CDDnOGb2NLXo=",
+      "codeSha256": "VeZyY7Dwn15bKZIMS3kafcn4nWhms69iUUu914xkO7w=",
       "deadLetterArn": null,
       "envNames": [
         "CONTACTS_TABLE",
         "LOG_LEVEL",
         "RCS_APP_ID",
         "RCS_PROJECT_ID",
-        "RCS_SECRET_NAME",
-        "RCS_TABLE"
+        "RCS_SECRET_NAME"
       ],
       "envSensitiveNames": [
         "RCS_SECRET_NAME"
@@ -2917,9 +3573,9 @@
       "function": "wecare-rcs-send",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 84.0,
-      "invocations7d": 420.0,
-      "lastModified": "2026-09-25T11:03:44.000+0000",
+      "invocations24h": 110.0,
+      "invocations7d": 1095.0,
+      "lastModified": "2026-10-05T02:36:30.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 256,
@@ -2938,14 +3594,15 @@
     },
     {
       "aliases": {
-        "live": "14"
+        "live": "24"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "id73zxqYx8Su/7NBnn4RxZ6Nkw7dBMfzqeOtlqSTUhI=",
+      "codeSha256": "C7+Ku7GNC7EoOrymQuki41c/ZdK0t9/TMDf+1IgAS30=",
       "deadLetterArn": "arn:aws:sqs:us-east-1:775261844268:wecare-lambda-async-dlq",
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "AWS_ACCOUNT_ID",
         "CONTACTS_TABLE",
         "LOG_LEVEL",
@@ -2962,8 +3619,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 288.0,
-      "invocations7d": 2018.0,
-      "lastModified": "2026-09-25T11:03:59.000+0000",
+      "invocations7d": 2016.0,
+      "lastModified": "2026-10-05T02:36:40.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -2982,18 +3639,19 @@
     },
     {
       "aliases": {
-        "live": "14"
+        "live": "31"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "TmS2yF/v0lsKaQEi4Cf7nVzHklDjVk2WKTZop1C2RqM=",
+      "codeSha256": "AToCbKYvSEN9JZAZPu6K4DQMCOT5rbsotoz3CyqiA1s=",
       "deadLetterArn": null,
       "envNames": [
         "COGNITO_USER_POOL_ID",
         "CUSTOMER_USER_POOL_ID",
         "DOWNLOAD_GRANTS_TABLE",
         "DOWNLOAD_URL_TTL_SECONDS",
+        "DROPDOCS_ATTACH_ENABLED",
         "GRANT_TTL_SECONDS",
         "META_PHONE_NUMBER_ID",
         "META_WABA_ID",
@@ -3003,6 +3661,7 @@
         "SECURE_FILES_PAYMENT_ENABLED",
         "SECURE_FILES_TABLE",
         "SECURE_FILE_PRICE_PAISE",
+        "SERVICE_REQUESTS_TABLE",
         "UPLOAD_URL_TTL_SECONDS",
         "WA_DOC_TEMPLATE",
         "WA_MEDIA_FUNCTION",
@@ -3019,19 +3678,21 @@
       "function": "wecare-secure-files",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 63.0,
-      "invocations7d": 63.0,
-      "lastModified": "2026-09-25T11:42:59.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 4.0,
+      "lastModified": "2026-10-08T08:20:34.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
       "packageType": "Zip",
       "role": "wecare-secure-files-role",
-      "routeCount": 8,
+      "routeCount": 10,
       "routes": [
         "GET /secure-files",
+        "GET /secure-files/dropdocs/{requestId}/documents",
         "GET /secure-files/mine",
         "GET /secure-files/{fileId}/download",
+        "POST /secure-files/dropdocs/attach",
         "POST /secure-files/upload-init",
         "POST /secure-files/{fileId}/confirm",
         "POST /secure-files/{fileId}/order",
@@ -3048,17 +3709,26 @@
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "cjV0C/hk/yyvtohbcB92BNOfSk4sYyGEAEN3fYWhqNs=",
+      "codeSha256": "o8vsXlW2ktq9bhcyrzP3i5wHkB1oF0DLoAqp9MQAAIo=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
+        "AI_ENABLED",
         "BEDROCK_MODEL_ID",
+        "BLOG_INGEST_QUEUE_NAME",
+        "BLOG_INGEST_QUEUE_URL",
+        "BLOG_SOURCE_BUCKET",
         "COGNITO_USER_POOL_ID",
+        "COST_MODE",
         "CREDENTIAL_PURGE_EPOCH",
+        "ENABLE_BEDROCK_ASSIST",
+        "FAQ_AI_GENERATION",
         "LOG_LEVEL",
         "SEO_TOOLS_TABLE",
         "WEBHOOK_DEDUP_TABLE",
         "WIX_ACCOUNT_ID",
         "WIX_BLOG_AUTHOR_NAME",
+        "WIX_BLOG_CLIENT_ID",
         "WIX_CLIENT_ID",
         "WIX_CREDENTIALS_DISABLED",
         "WIX_SITE_ID"
@@ -3068,14 +3738,21 @@
         "WIX_CREDENTIALS_DISABLED"
       ],
       "errors24h": 0.0,
-      "errors7d": 2.0,
-      "eventSources": [],
+      "errors7d": 0.0,
+      "eventSources": [
+        {
+          "arn": "arn:aws:sqs:us-east-1:775261844268:wecare-blog-ingest",
+          "batchSize": 5,
+          "enabled": true,
+          "state": "Enabled"
+        }
+      ],
       "function": "wecare-seo-tools",
       "hasLiveAlias": false,
       "inDeployMap": false,
-      "invocations24h": 25165.0,
-      "invocations7d": 47876.0,
-      "lastModified": "2026-09-26T00:49:13.000+0000",
+      "invocations24h": 91834.0,
+      "invocations7d": 592646.0,
+      "lastModified": "2026-10-08T12:32:21.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -3093,12 +3770,12 @@
     },
     {
       "aliases": {
-        "live": "11"
+        "live": "22"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "XW+rDOqCGjIGR3P7jhBpjVvCzVgc2JFNQzAjM+VMYXw=",
+      "codeSha256": "hyy3ohU8YHnQz1LQVvHcV/UtLG27LjQase/r+0O9IXY=",
       "deadLetterArn": null,
       "envNames": [
         "DOCS_S3_BUCKET",
@@ -3113,7 +3790,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:01:33.000+0000",
+      "lastModified": "2026-10-08T02:44:52.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3128,12 +3805,54 @@
     },
     {
       "aliases": {
-        "live": "6"
+        "live": "3"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "kfh6kvI9RishF2r8M5hvqT8oFUy39TYeQ7INFnv1yqo=",
+      "codeSha256": "f+NT3wxCRCSfRelSupJTAEvyYaQETGUfTrD6uXqjxDk=",
+      "deadLetterArn": null,
+      "envNames": [
+        "COMMERCE_KEYS_TABLE",
+        "CUSTOMER_POOL_ID",
+        "RATE_LIMIT_TABLE",
+        "SERVICE_REQUESTS_TABLE"
+      ],
+      "envSensitiveNames": [
+        "COMMERCE_KEYS_TABLE"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-service-requests",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 4.0,
+      "invocations7d": 6.0,
+      "lastModified": "2026-10-08T08:20:33.000+0000",
+      "layers": [],
+      "logRetentionDays": 30,
+      "memoryMb": 512,
+      "packageType": "Zip",
+      "role": "wecare-service-requests-role",
+      "routeCount": 2,
+      "routes": [
+        "POST /services/my-requests",
+        "POST /services/request-intent"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/service-requests",
+      "timeoutSec": 15
+    },
+    {
+      "aliases": {
+        "live": "9"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "G1fmGU1IIPWV4isaXGQVyfJ5psunoYUCnrg6M6E16wI=",
       "deadLetterArn": null,
       "envNames": [
         "SITE_LANGUAGE_ALLOWED_ORIGINS",
@@ -3155,21 +3874,19 @@
       "function": "wecare-site-language",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 3282.0,
-      "invocations7d": 11658.0,
-      "lastModified": "2026-09-25T11:01:37.000+0000",
+      "invocations24h": 3222.0,
+      "invocations7d": 88190.0,
+      "lastModified": "2026-10-05T02:34:32.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
       "packageType": "Zip",
       "role": "wecare-digital-lambda-role",
-      "routeCount": 5,
+      "routeCount": 3,
       "routes": [
         "GET /site-language/languages",
-        "GET /site-language/voices",
         "OPTIONS /site-language/{proxy+}",
-        "POST /site-language/translate",
-        "POST /site-language/tts"
+        "POST /site-language/translate"
       ],
       "runtime": "python3.12",
       "snapStart": "None",
@@ -3181,7 +3898,7 @@
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "m8AtxTx8lo0WXAV5AwkZo4ZY+L/Db0hTZYvZYPqY6SE=",
+      "codeSha256": "15MdJ4+DBIUvMrl1UnpqDPX4/kaoQNNEzu+dSAsXBn4=",
       "deadLetterArn": "arn:aws:sqs:us-east-1:775261844268:wecare-lambda-async-dlq",
       "envNames": [
         "DEFAULT_ASSIGNEE",
@@ -3199,7 +3916,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:04:56.000+0000",
+      "lastModified": "2026-10-05T02:37:38.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3214,12 +3931,12 @@
     },
     {
       "aliases": {
-        "live": "19"
+        "live": "28"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "iSU9lW6FwavW6nnrq+gMr78pzqTmJN+3P74hZ7v2FDs=",
+      "codeSha256": "AX93zNupyfaOzUOtIVgCEV4zHI1k4bA1xwPEYRTFTj4=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -3233,9 +3950,9 @@
       "function": "wecare-sms-aws",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 4.0,
-      "invocations7d": 95.0,
-      "lastModified": "2026-09-25T11:03:14.000+0000",
+      "invocations24h": 5.0,
+      "invocations7d": 49.0,
+      "lastModified": "2026-10-05T02:36:02.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3260,28 +3977,31 @@
     },
     {
       "aliases": {
-        "live": "17"
+        "live": "31"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "I8GV1789OGRbzITWTLr7fKf5IeMfxf8L7BhERjzNruI=",
+      "codeSha256": "CzQXxfUFmS5qEXArpiThMtaXHv2LAb/kj4yoKiqgnfk=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_REGION_OVERRIDE",
         "LOG_LEVEL",
-        "MEDIA_BUCKET"
+        "MEDIA_BUCKET",
+        "SECRETS_REFRESHED_AT"
       ],
-      "envSensitiveNames": [],
+      "envSensitiveNames": [
+        "SECRETS_REFRESHED_AT"
+      ],
       "errors24h": 0.0,
       "errors7d": 0.0,
       "eventSources": [],
       "function": "wecare-system-cleanup",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 4.0,
-      "invocations7d": 16.0,
-      "lastModified": "2026-09-25T11:05:00.000+0000",
+      "invocations24h": 3.0,
+      "invocations7d": 14.0,
+      "lastModified": "2026-10-05T02:37:41.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -3300,12 +4020,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "24"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "UlPuVlM8Px7ZdbeTSYeHl5OsS6gyKIlF7PMOBvT5YKI=",
+      "codeSha256": "od90jsaE25Xm6i9ttpcQg9N3nXWe13y//k8JxWRRtl8=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -3321,7 +4041,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:02:49.000+0000",
+      "lastModified": "2026-10-05T02:35:42.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3343,7 +4063,7 @@
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "M936s3rY3Bjs52P614LH7Nk9X2fTvb8O1m8i5R8gCdo=",
+      "codeSha256": "DhygAZJPnThk/hK4kt5nPAuTKGN8NUmu2tpEZm6FDno=",
       "deadLetterArn": null,
       "envNames": [],
       "envSensitiveNames": [],
@@ -3355,7 +4075,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:01:47.000+0000",
+      "lastModified": "2026-10-05T02:35:01.000+0000",
       "layers": [],
       "logRetentionDays": 90,
       "memoryMb": 256,
@@ -3370,12 +4090,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "24"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "MKupxrAbQgcW8LR/GI6pMmUGjEfiHUS1gU/ZQnNlDuk=",
+      "codeSha256": "gjZRs7L1XqrWvpb0xMKpeTPsRmj9nq6nu5ncpoQDGb8=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -3395,8 +4115,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 3.0,
-      "lastModified": "2026-09-25T11:03:19.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:05.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3420,12 +4140,12 @@
     },
     {
       "aliases": {
-        "live": "15"
+        "live": "24"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "khkUv8wrAT8ZI6aiTsQs4MeWtpDSwiKFguWBcotugmg=",
+      "codeSha256": "XX4LT36YbTx4DExjAVH80qSqJpFPklxHPa1UjhJMOok=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
@@ -3440,8 +4160,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 2.0,
-      "lastModified": "2026-09-25T11:03:35.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:16.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3459,17 +4179,14 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "29"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "ddqSgioIZ2NBuaLQJJDn4yAh5NwlTzGytn+wWpZyJRc=",
+      "codeSha256": "BRcc9bRjUgjLZBQAa9xjyH8Nldhn9oeqlnIifBNndFY=",
       "deadLetterArn": null,
       "envNames": [
-        "AIRTEL_C2C_SECRET_NAME",
-        "AIRTEL_C2C_TABLE",
-        "AIRTEL_KONG_HOST",
         "AWS_ACCOUNT_ID",
         "LOG_LEVEL",
         "REGION",
@@ -3477,18 +4194,16 @@
         "SINCH_RCS_ENABLED",
         "VOICE_CDR_TABLE"
       ],
-      "envSensitiveNames": [
-        "AIRTEL_C2C_SECRET_NAME"
-      ],
+      "envSensitiveNames": [],
       "errors24h": 0.0,
       "errors7d": 0.0,
       "eventSources": [],
       "function": "wecare-voice-in-c2c",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 40.0,
-      "lastModified": "2026-09-25T11:03:25.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:10.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3508,15 +4223,14 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "30"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "IIow8k60W2Ft/9DL7PsXV9zu6Yny4K/E/PC/KvULjhs=",
+      "codeSha256": "F+pkeAhAsnea+/ij6RZdTos2NRxa0TEUKw+PT/2ruag=",
       "deadLetterArn": null,
       "envNames": [
-        "AIRTEL_OBD_SECRET_NAME",
         "AWS_ACCOUNT_ID",
         "LOG_LEVEL",
         "OBD_CAMPAIGNS_TABLE",
@@ -3525,18 +4239,16 @@
         "SINCH_RCS_ENABLED",
         "VOICE_CDR_TABLE"
       ],
-      "envSensitiveNames": [
-        "AIRTEL_OBD_SECRET_NAME"
-      ],
+      "envSensitiveNames": [],
       "errors24h": 0.0,
       "errors7d": 0.0,
       "eventSources": [],
       "function": "wecare-voice-in-obd",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 2.0,
-      "invocations7d": 39.0,
-      "lastModified": "2026-09-25T11:03:31.000+0000",
+      "invocations24h": 0.0,
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:36:13.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -3564,16 +4276,18 @@
     },
     {
       "aliases": {
-        "live": "18"
+        "live": "31"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "g50OUTYploimd8cZ4PxqP3ZnyqbK0nr53k36ujtOK3s=",
+      "codeSha256": "VO36i7WtDsKnTgV7ocH/z53suOu3aWyumJRwhKr70fQ=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "AWS_ACCOUNT_ID",
         "LOG_LEVEL",
+        "MEDIA_BUCKET",
         "REGION",
         "S3_BUCKET",
         "SNS_TOPIC_ARN",
@@ -3587,8 +4301,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 0.0,
-      "invocations7d": 8.0,
-      "lastModified": "2026-09-25T11:02:40.000+0000",
+      "invocations7d": 0.0,
+      "lastModified": "2026-10-05T02:35:34.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3618,28 +4332,29 @@
     },
     {
       "aliases": {
-        "live": "41"
+        "live": "77"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "awFhkrrSlqI7ONycabiuj/rYKp4h7HjRTaN9xd6o85c=",
+      "codeSha256": "qeJ3Voblg2wU0r8xDIRvy8uPWEbpGxRHc609oCIHWu4=",
       "deadLetterArn": null,
       "envNames": [
         "AUTH_SKIP_PATHS",
+        "DIRECT_SEND_ENABLED_WABAS",
         "FLOW_LOGS_TABLE",
         "FLOW_PRIVATE_KEY_PASSPHRASE",
         "FLOW_PRIVATE_KEY_SECRET",
         "FLOW_REGISTRY_TABLE",
         "FLOW_SUBMISSIONS_TABLE",
         "LOG_LEVEL",
+        "MEDIA_BUCKET",
         "META_API_VERSION",
         "META_TOKEN_SECRET",
         "PAYMENT_WABA_ID",
-        "PAYU_MID",
-        "PAYU_UPI_ID",
         "RAZORPAY_MID",
         "RAZORPAY_UPI_ID",
+        "SECRETS_REFRESHED_AT",
         "SUBMIT_REQUESTS_TABLE",
         "WIX_ORDERS_CACHE_TABLE",
         "WIX_ORDER_IDS_TABLE",
@@ -3648,7 +4363,8 @@
       "envSensitiveNames": [
         "FLOW_PRIVATE_KEY_PASSPHRASE",
         "FLOW_PRIVATE_KEY_SECRET",
-        "META_TOKEN_SECRET"
+        "META_TOKEN_SECRET",
+        "SECRETS_REFRESHED_AT"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -3656,9 +4372,9 @@
       "function": "wecare-whatsapp-business-api",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 1216.0,
-      "invocations7d": 8080.0,
-      "lastModified": "2026-09-25T11:02:34.000+0000",
+      "invocations24h": 53.0,
+      "invocations7d": 110.0,
+      "lastModified": "2026-10-08T13:35:40.000+0000",
       "layers": [
         "cryptography-python312:1"
       ],
@@ -3770,14 +4486,15 @@
     },
     {
       "aliases": {
-        "live": "24"
+        "live": "43"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "QA1VvuVXCe5/MDLIZfAx5A7m2PPmdyjgj6ggqVR8EtA=",
+      "codeSha256": "OpBGxHL8uOABoGAkS5D+4Lg9utU2jshiUUMPmFaeoS4=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "AI_LANGUAGE",
         "AI_VOICE_ID",
         "AUTO_PICKUP_AUDIO_KEY",
@@ -3807,9 +4524,9 @@
       "function": "wecare-whatsapp-calling",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 103.0,
-      "invocations7d": 1655.0,
-      "lastModified": "2026-09-26T00:42:24.000+0000",
+      "invocations24h": 163.0,
+      "invocations7d": 1278.0,
+      "lastModified": "2026-10-08T12:07:16.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3836,14 +4553,15 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "29"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "v+cLgnKhljYLGXnHCZN6uB5ZXEyaMmltF9NBuMv47xI=",
+      "codeSha256": "L8+RIP63ToT7TO4QB4KGb7nP0xoipm7zOkvtKeCcTSE=",
       "deadLetterArn": null,
       "envNames": [
+        "CDN_DOMAIN",
         "LOG_LEVEL",
         "MEDIA_BUCKET"
       ],
@@ -3856,7 +4574,7 @@
       "inDeployMap": true,
       "invocations24h": 0.0,
       "invocations7d": 0.0,
-      "lastModified": "2026-09-25T11:02:13.000+0000",
+      "lastModified": "2026-10-05T02:35:23.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 512,
@@ -3877,15 +4595,16 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "29"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "zw3I0BakCE6Id+k8OsYjZRHQsnRO8aNcbeS3Nj7Cp8M=",
+      "codeSha256": "7XO9ll7KkAd6pGvYt4HuYf9sgPPAPD6u31ldPb0jMgg=",
       "deadLetterArn": null,
       "envNames": [
         "AWS_ACCOUNT_ID",
+        "MEDIA_BUCKET",
         "REGION",
         "S3_BUCKET"
       ],
@@ -3897,8 +4616,8 @@
       "hasLiveAlias": true,
       "inDeployMap": true,
       "invocations24h": 9.0,
-      "invocations7d": 24.0,
-      "lastModified": "2026-09-25T11:02:10.000+0000",
+      "invocations7d": 25.0,
+      "lastModified": "2026-10-05T02:35:20.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3926,15 +4645,17 @@
     },
     {
       "aliases": {
-        "live": "16"
+        "live": "31"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "fBY3KFDZvelAOGqhgzrCq+3PnrLqJF0NHFFxWvFiVhw=",
+      "codeSha256": "e9E5aq5PArLu1R6Th5KzTIe9OyniExvZcmpFCstXSF8=",
       "deadLetterArn": null,
       "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "AWS_ACCOUNT_ID",
+        "MEDIA_BUCKET",
         "REGION",
         "S3_BUCKET"
       ],
@@ -3945,9 +4666,9 @@
       "function": "wecare-whatsapp-voice",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 8.0,
-      "invocations7d": 35.0,
-      "lastModified": "2026-09-25T11:02:04.000+0000",
+      "invocations24h": 2.0,
+      "invocations7d": 40.0,
+      "lastModified": "2026-10-05T02:35:14.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -3972,27 +4693,70 @@
     },
     {
       "aliases": {
-        "live": "21"
+        "live": "9"
       },
       "architectures": [
         "x86_64"
       ],
-      "codeSha256": "2HeLHQzcLhqNQCPT4bL7Z+P3sOSNhNqud+bByQWgbuM=",
+      "codeSha256": "JnJfnz3Zd0xzZcQUxfQRVXkb/nDB2BY6n3ZNwdm3Js4=",
       "deadLetterArn": null,
       "envNames": [
+        "CATALOGUE_DISPATCH_EVENT",
+        "GITHUB_REPOSITORY",
+        "GITHUB_TOKEN_SECRET_ID"
+      ],
+      "envSensitiveNames": [
+        "GITHUB_TOKEN_SECRET_ID"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 1.0,
+      "eventSources": [],
+      "function": "wecare-wix-catalog-webhook",
+      "hasLiveAlias": true,
+      "inDeployMap": true,
+      "invocations24h": 1358.0,
+      "invocations7d": 1621.0,
+      "lastModified": "2026-10-07T09:45:45.000+0000",
+      "layers": [
+        "cryptography-python312:1"
+      ],
+      "logRetentionDays": 30,
+      "memoryMb": 128,
+      "packageType": "Zip",
+      "role": "wecare-wix-catalog-webhook-role",
+      "routeCount": 1,
+      "routes": [
+        "POST /wix-catalog-webhook"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": "amplify/functions/ecommerce/wix-catalog-webhook",
+      "timeoutSec": 15
+    },
+    {
+      "aliases": {
+        "live": "37"
+      },
+      "architectures": [
+        "x86_64"
+      ],
+      "codeSha256": "oidx2+S1gKK/cugQkllFhtfZYu9LjBur4Tp/Pomn/Vc=",
+      "deadLetterArn": null,
+      "envNames": [
+        "ADMIN_MFA_REQUIRED",
         "CONTACTS_TABLE",
-        "CREDENTIAL_PURGE_EPOCH",
         "LOG_LEVEL",
         "WIX_ACCOUNT_ID",
         "WIX_API_BASE_URL",
-        "WIX_CREDENTIALS_DISABLED",
+        "WIX_API_KEY_SECRET",
+        "WIX_CART_V2_ENABLED",
         "WIX_ORDERS_CACHE_TABLE",
+        "WIX_ORDER_IDS_TABLE",
         "WIX_PRODUCTS_CACHE_TABLE",
         "WIX_SITE_ID"
       ],
       "envSensitiveNames": [
-        "CREDENTIAL_PURGE_EPOCH",
-        "WIX_CREDENTIALS_DISABLED"
+        "WIX_API_KEY_SECRET"
       ],
       "errors24h": 0.0,
       "errors7d": 0.0,
@@ -4000,9 +4764,9 @@
       "function": "wecare-wix-store",
       "hasLiveAlias": true,
       "inDeployMap": true,
-      "invocations24h": 0.0,
-      "invocations7d": 7.0,
-      "lastModified": "2026-09-25T11:05:36.000+0000",
+      "invocations24h": 2.0,
+      "invocations7d": 5.0,
+      "lastModified": "2026-10-08T12:02:06.000+0000",
       "layers": [],
       "logRetentionDays": 30,
       "memoryMb": 256,
@@ -4017,9 +4781,54 @@
       "snapStart": "None",
       "sourcePath": "amplify/functions/ecommerce/wix-store",
       "timeoutSec": 60
+    },
+    {
+      "aliases": {
+        "live": "10"
+      },
+      "architectures": [
+        "arm64"
+      ],
+      "codeSha256": "PiENyw1+sRjrIIQZ4R0CuHNNklpYHFwNO54AM9CJm64=",
+      "deadLetterArn": null,
+      "envNames": [
+        "CODE_JOBS_ENABLED",
+        "GITHUB_TOKEN_FIELD",
+        "PATCH_BUCKET",
+        "REGISTRY_TABLE",
+        "TOKEN_KEY"
+      ],
+      "envSensitiveNames": [
+        "GITHUB_TOKEN_FIELD",
+        "TOKEN_KEY"
+      ],
+      "errors24h": 0.0,
+      "errors7d": 0.0,
+      "eventSources": [],
+      "function": "wecare-workspace-mcp",
+      "hasLiveAlias": true,
+      "inDeployMap": false,
+      "invocations24h": 0.0,
+      "invocations7d": 633.0,
+      "lastModified": "2026-10-06T13:43:12.000+0000",
+      "layers": [],
+      "logRetentionDays": 14,
+      "memoryMb": 256,
+      "packageType": "Zip",
+      "role": "wecare-workspace-mcp-runtime",
+      "routeCount": 3,
+      "routes": [
+        "ANY /workspace/mcp",
+        "GET /workspace/mcp/oauth/callback",
+        "POST /workspace/mcp-iam"
+      ],
+      "runtime": "python3.12",
+      "snapStart": "None",
+      "sourcePath": null,
+      "timeoutSec": 28
     }
   ],
-  "generated": "2026-09-26T01:13:09+00:00",
+  "generated": "2026-10-08T22:39:47+00:00",
   "region": "us-east-1",
   "routes": [
     {
@@ -4030,6 +4839,15 @@
       "routeId": "xevepwn",
       "routeKey": "ANY /marketing-ads",
       "targetFunction": "wecare-marketing-ads"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "mnhw111",
+      "routeKey": "ANY /mcp",
+      "targetFunction": "wecare-mcp"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -4070,6 +4888,15 @@
     {
       "apiId": "zllr9lrg7j",
       "apiName": "wecare-digital-api",
+      "authorizationType": "JWT",
+      "qualifier": "live",
+      "routeId": "8kwedrj",
+      "routeKey": "ANY /workspace/mcp",
+      "targetFunction": "wecare-workspace-mcp"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "iu8e3ye",
@@ -4100,7 +4927,7 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "2lhvy8a",
-      "routeKey": "DELETE [retired public path 44011e36]",
+      "routeKey": "DELETE /contacts",
       "targetFunction": "wecare-contacts"
     },
     {
@@ -4109,7 +4936,7 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "2tbnwbi",
-      "routeKey": "DELETE [retired public path 44011e36]/{contactId}",
+      "routeKey": "DELETE /contacts/{contactId}",
       "targetFunction": "wecare-contacts"
     },
     {
@@ -4577,7 +5404,7 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "16c16op",
-      "routeKey": "GET [retired public path 44011e36]",
+      "routeKey": "GET /contacts",
       "targetFunction": "wecare-contacts"
     },
     {
@@ -4586,8 +5413,26 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "pim2408",
-      "routeKey": "GET [retired public path 44011e36]/search",
+      "routeKey": "GET /contacts/search",
       "targetFunction": "wecare-contacts"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "fc2azqt",
+      "routeKey": "GET /coupons",
+      "targetFunction": "wecare-coupons"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "9urpz4t",
+      "routeKey": "GET /coupons/{code}",
+      "targetFunction": "wecare-coupons"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -4676,7 +5521,7 @@
       "authorizationType": "NONE",
       "qualifier": "$LATEST",
       "routeId": "sl7f3uq",
-      "routeKey": "GET [retired public path a2557b8d]/changelog",
+      "routeKey": "GET /docs/changelog",
       "targetFunction": "wecare-docs-scraper"
     },
     {
@@ -4685,7 +5530,7 @@
       "authorizationType": "NONE",
       "qualifier": "$LATEST",
       "routeId": "p5tpymd",
-      "routeKey": "GET [retired public path a2557b8d]/sources",
+      "routeKey": "GET /docs/sources",
       "targetFunction": "wecare-docs-scraper"
     },
     {
@@ -4693,8 +5538,17 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
+      "routeId": "jrpfb76",
+      "routeKey": "GET /ecommerce/service-prices",
+      "targetFunction": "wecare-checkout"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
       "routeId": "iwvnhhb",
-      "routeKey": "GET [retired public path 1965ee0f]",
+      "routeKey": "GET /faq",
       "targetFunction": "wecare-faq-handler"
     },
     {
@@ -4900,6 +5754,15 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
+      "routeId": "riakgza",
+      "routeKey": "GET /secure-files/dropdocs/{requestId}/documents",
+      "targetFunction": "wecare-secure-files"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
       "routeId": "o7nojpq",
       "routeKey": "GET /secure-files/mine",
       "targetFunction": "wecare-secure-files"
@@ -4920,15 +5783,6 @@
       "qualifier": "live",
       "routeId": "re0c0gs",
       "routeKey": "GET /site-language/languages",
-      "targetFunction": "wecare-site-language"
-    },
-    {
-      "apiId": "zllr9lrg7j",
-      "apiName": "wecare-digital-api",
-      "authorizationType": "NONE",
-      "qualifier": "live",
-      "routeId": "te6datn",
-      "routeKey": "GET /site-language/voices",
       "targetFunction": "wecare-site-language"
     },
     {
@@ -5611,9 +6465,18 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
-      "routeId": "hf5g6q1",
-      "routeKey": "GET /{code}",
-      "targetFunction": "stack-wecare-url-shortener"
+      "routeId": "wpy94ev",
+      "routeKey": "GET /workspace/mcp/oauth/callback",
+      "targetFunction": "wecare-workspace-mcp"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "o2qnx4f",
+      "routeKey": "OPTIONS /auth/email-verification",
+      "targetFunction": "wecare-email-verification"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -5632,6 +6495,15 @@
       "routeId": "pcze4ob",
       "routeKey": "OPTIONS /automation/rules/{id}",
       "targetFunction": "wecare-automation-rules"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "s3xo5a8",
+      "routeKey": "OPTIONS /customer/profile",
+      "targetFunction": "wecare-customer-profile"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -5899,6 +6771,15 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
+      "routeId": "g47juiu",
+      "routeKey": "POST /auth/email-verification",
+      "targetFunction": "wecare-email-verification"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
       "routeId": "cc1rmgk",
       "routeKey": "POST /auth/validate",
       "targetFunction": "wecare-auth-middleware"
@@ -5954,8 +6835,53 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "41v1ur8",
-      "routeKey": "POST [retired public path 44011e36]",
+      "routeKey": "POST /contacts",
       "targetFunction": "wecare-contacts"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "3rskyk7",
+      "routeKey": "POST /coupons",
+      "targetFunction": "wecare-coupons"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "41eumf3",
+      "routeKey": "POST /coupons/hold",
+      "targetFunction": "wecare-coupons"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "7w377h5",
+      "routeKey": "POST /coupons/release",
+      "targetFunction": "wecare-coupons"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "akd6ihj",
+      "routeKey": "POST /coupons/validate",
+      "targetFunction": "wecare-coupons"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "5uch9pk",
+      "routeKey": "POST /coupons/{code}/deactivate",
+      "targetFunction": "wecare-coupons"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -5989,6 +6915,15 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
+      "routeId": "52e5xee",
+      "routeKey": "POST /customer/profile",
+      "targetFunction": "wecare-customer-profile"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
       "routeId": "rthz8qm",
       "routeKey": "POST /dlq/replay",
       "targetFunction": "wecare-dlq-replay"
@@ -5999,7 +6934,7 @@
       "authorizationType": "NONE",
       "qualifier": "$LATEST",
       "routeId": "3tn2bqh",
-      "routeKey": "POST [retired public path a2557b8d]/scrape",
+      "routeKey": "POST /docs/scrape",
       "targetFunction": "wecare-docs-scraper"
     },
     {
@@ -6008,8 +6943,62 @@
       "authorizationType": "NONE",
       "qualifier": "$LATEST",
       "routeId": "wcrznjh",
-      "routeKey": "POST [retired public path a2557b8d]/sources",
+      "routeKey": "POST /docs/sources",
       "targetFunction": "wecare-docs-scraper"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "508jgfp",
+      "routeKey": "POST /ecommerce/checkout",
+      "targetFunction": "wecare-checkout"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "gi2dibv",
+      "routeKey": "POST /ecommerce/checkout/status",
+      "targetFunction": "wecare-checkout"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "hru3jf3",
+      "routeKey": "POST /ecommerce/customer-session",
+      "targetFunction": "wecare-customer-session"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "8zc4dfg",
+      "routeKey": "POST /ecommerce/my-orders",
+      "targetFunction": "wecare-customer-orders"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "54gk2is",
+      "routeKey": "POST /ecommerce/prepare-checkout",
+      "targetFunction": "wecare-checkout"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "jz3ixjl",
+      "routeKey": "POST /ecommerce/verify-callback",
+      "targetFunction": "wecare-checkout"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -6196,15 +7185,6 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
-      "routeId": "3t9iii5",
-      "routeKey": "POST /payments/webhook",
-      "targetFunction": "wecare-razorpay-webhook"
-    },
-    {
-      "apiId": "zllr9lrg7j",
-      "apiName": "wecare-digital-api",
-      "authorizationType": "NONE",
-      "qualifier": "live",
       "routeId": "a18c0y8",
       "routeKey": "POST /plivo/answer",
       "targetFunction": "wecare-plivo-answer"
@@ -6313,6 +7293,15 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
+      "routeId": "k1sca3h",
+      "routeKey": "POST /secure-files/dropdocs/attach",
+      "targetFunction": "wecare-secure-files"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
       "routeId": "8rnv4ei",
       "routeKey": "POST /secure-files/upload-init",
       "targetFunction": "wecare-secure-files"
@@ -6358,17 +7347,26 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
-      "routeId": "iz4dv4t",
-      "routeKey": "POST /site-language/translate",
-      "targetFunction": "wecare-site-language"
+      "routeId": "16p9u6s",
+      "routeKey": "POST /services/my-requests",
+      "targetFunction": "wecare-service-requests"
     },
     {
       "apiId": "zllr9lrg7j",
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
-      "routeId": "z3vwshl",
-      "routeKey": "POST /site-language/tts",
+      "routeId": "e0opn66",
+      "routeKey": "POST /services/request-intent",
+      "targetFunction": "wecare-service-requests"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
+      "routeId": "iz4dv4t",
+      "routeKey": "POST /site-language/translate",
       "targetFunction": "wecare-site-language"
     },
     {
@@ -7033,9 +8031,27 @@
       "apiName": "wecare-digital-api",
       "authorizationType": "NONE",
       "qualifier": "live",
+      "routeId": "swuks1l",
+      "routeKey": "POST /wix-catalog-webhook",
+      "targetFunction": "wecare-wix-catalog-webhook"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "NONE",
+      "qualifier": "live",
       "routeId": "9ixgehg",
       "routeKey": "POST /wix-store/{proxy+}",
       "targetFunction": "wecare-wix-store"
+    },
+    {
+      "apiId": "zllr9lrg7j",
+      "apiName": "wecare-digital-api",
+      "authorizationType": "AWS_IAM",
+      "qualifier": "live",
+      "routeId": "btu2u41",
+      "routeKey": "POST /workspace/mcp-iam",
+      "targetFunction": "wecare-workspace-mcp"
     },
     {
       "apiId": "zllr9lrg7j",
@@ -7106,7 +8122,7 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "24i0pcm",
-      "routeKey": "PUT [retired public path 44011e36]",
+      "routeKey": "PUT /contacts",
       "targetFunction": "wecare-contacts"
     },
     {
@@ -7115,7 +8131,7 @@
       "authorizationType": "NONE",
       "qualifier": "live",
       "routeId": "pox5bd2",
-      "routeKey": "PUT [retired public path 44011e36]/{contactId}",
+      "routeKey": "PUT /contacts/{contactId}",
       "targetFunction": "wecare-contacts"
     },
     {
@@ -7288,11 +8304,13 @@
     "stack-wecare-digital-ContactsTable",
     "stack-wecare-digital-ConversationHistoryTable",
     "stack-wecare-digital-ConversationMetaTable",
+    "stack-wecare-digital-CouponsTable",
     "stack-wecare-digital-CrmActivities",
     "stack-wecare-digital-CrmLeads",
     "stack-wecare-digital-CrmOpportunities",
     "stack-wecare-digital-CrmPipelines",
     "stack-wecare-digital-CrmStages",
+    "stack-wecare-digital-CustomerSessionsTable",
     "stack-wecare-digital-DLQMessagesTable",
     "stack-wecare-digital-DLTTemplates",
     "stack-wecare-digital-DocumentHistoryTable",
@@ -7320,6 +8338,7 @@
     "stack-wecare-digital-OrderTable",
     "stack-wecare-digital-PartnerLedger",
     "stack-wecare-digital-PartnerWallet",
+    "stack-wecare-digital-PaymentAttemptsTable",
     "stack-wecare-digital-PaymentsTable",
     "stack-wecare-digital-PstnSoftphoneSessions",
     "stack-wecare-digital-PushTokensTable",
@@ -7331,6 +8350,7 @@
     "stack-wecare-digital-ScheduledMessagesTable",
     "stack-wecare-digital-SecureFilesTable",
     "stack-wecare-digital-SeoToolsTable",
+    "stack-wecare-digital-ServiceRequestsTable",
     "stack-wecare-digital-ShortLinksTable",
     "stack-wecare-digital-SiteLanguageCache",
     "stack-wecare-digital-SmsOutboundTable",
@@ -7338,6 +8358,7 @@
     "stack-wecare-digital-SystemConfigTable",
     "stack-wecare-digital-SystemEventTable",
     "stack-wecare-digital-TemplateAnalyticsTable",
+    "stack-wecare-digital-ThreadOwnershipTable",
     "stack-wecare-digital-UsersTable",
     "stack-wecare-digital-VoiceAwsTable",
     "stack-wecare-digital-VoiceCDRTable",
@@ -7351,6 +8372,7 @@
     "stack-wecare-digital-WhatsAppVoiceTable",
     "stack-wecare-digital-WixOrderIds",
     "stack-wecare-digital-WixOrdersCache",
-    "stack-wecare-digital-WixProductsCache"
+    "stack-wecare-digital-WixProductsCache",
+    "wecare-workspace-mcp"
   ]
 }

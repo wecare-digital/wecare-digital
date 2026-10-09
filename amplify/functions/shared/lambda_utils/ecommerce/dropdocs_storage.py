@@ -185,7 +185,8 @@ def _read(s3: Any, *, bucket: str, key: str) -> Dict[str, Any]:
     return {"body": body, "contentType": content_type}
 
 
-def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str]) -> Dict[str, Any]:
+def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str],
+                      verified_private_source: bool = False) -> Dict[str, Any]:
     """Return the gated key a Drop Docs document must be registered under.
 
     ``s3`` is injected, so every path below is exercisable offline against a fake that
@@ -204,7 +205,9 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str]) -> Dic
     if source.startswith(("http://", "https://")):
         # `canonical` passes a URL through untouched, so this is not an S3 key at all.
         raise DocumentRejected("a source must be an object key, not a URL")
-    if not source.startswith(WHATSAPP_INCOMING_PREFIX):
+    from .document_source import PRIVATE_INCOMING_PREFIX
+    private_arrival = source.startswith(PRIVATE_INCOMING_PREFIX)
+    if not source.startswith(WHATSAPP_INCOMING_PREFIX) and not (private_arrival and verified_private_source):
         # THE ownership bound on the one input the caller controls. An already-gated key
         # lands here too, deliberately: it is somebody's private upload, this route cannot
         # tell whose, and a browser upload never needed promoting. See the module docstring.
@@ -248,10 +251,11 @@ def promote_to_secure(s3: Any, *, bucket: str, source_key: Optional[str]) -> Dic
                             "sha256": digest, "sizeBytes": size_bytes}))
     # The ONE place a key under the public root is allowed to appear, because the
     # exposure outlives this call and a silent residual exposure is the worse outcome.
-    logger.warning(json.dumps({"event": "dropdocs_public_source_retained",
+    if not private_arrival:
+        logger.warning(json.dumps({"event": "dropdocs_public_source_retained",
                                "alert": "DROPDOCS_PUBLIC_SOURCE_RETAINED",
                                "publicSourceKey": source, "storageKey": destination,
                                "reason": "no role holds s3:DeleteObject; the original "
                                          "expires under s3_whatsapp_media_incoming"}))
     return {"storageKey": destination, "sha256": digest, "contentType": stored_type,
-            "sizeBytes": size_bytes, "promoted": True, "publicSourceRetained": True}
+            "sizeBytes": size_bytes, "promoted": True, "publicSourceRetained": not private_arrival}

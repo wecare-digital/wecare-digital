@@ -15,6 +15,8 @@ interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
     pending: { fg: '#b45309', bg: '#fffbeb' },
+    dispatching: { fg: '#b45309', bg: '#fffbeb' },
+    dispatch_unknown: { fg: '#b91c1c', bg: '#fef2f2' },
     sent: { fg: '#1d4ed8', bg: '#eff6ff' },
     failed: { fg: '#b91c1c', bg: '#fef2f2' },
     cancelled: { fg: '#6b7280', bg: '#f9fafb' },
@@ -23,6 +25,8 @@ const STATUS_COLOR: Record<string, { fg: string; bg: string }> = {
 const STATUS_FILTER_OPTIONS: SelectOption[] = [
     { value: 'all', label: 'All status' },
     { value: 'pending', label: 'Pending' },
+    { value: 'dispatching', label: 'Sending' },
+    { value: 'dispatch_unknown', label: 'Needs delivery review' },
     { value: 'sent', label: 'Sent' },
     { value: 'failed', label: 'Failed' },
     { value: 'cancelled', label: 'Cancelled' },
@@ -34,12 +38,15 @@ const ScheduledPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
     const toast = useToastContext();
     const [ items, setItems ] = useState<api.ScheduledMessage[]>( [] );
     const [ loading, setLoading ] = useState( true );
+    const [ loadError, setLoadError ] = useState( false );
     const [ statusFilter, setStatusFilter ] = useState( 'all' );
     const [ cancelling, setCancelling ] = useState<string | null>( null );
 
     const load = useCallback( async () => {
-        try { setItems( await api.listScheduledMessages() ); }
-        catch { toast.error( 'Failed to load scheduled messages' ); }
+        setLoading( true );
+        setLoadError( false );
+        try { setItems( await api.listScheduledMessages( '' ) ); }
+        catch { setLoadError( true ); toast.error( 'Failed to load scheduled messages' ); }
         finally { setLoading( false ); }
     }, [ toast ] );
 
@@ -80,7 +87,7 @@ const ScheduledPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                         <thead><tr><th>Scheduled for</th><th>Template</th><th>Contact</th><th>Status</th><th></th></tr></thead>
                         <tbody>
                             { loading ? <tr><td colSpan={ 5 } className="sc-empty">Loading…</td></tr> :
-                                rows.length === 0 ? <tr><td colSpan={ 5 } className="sc-empty">No scheduled messages</td></tr> :
+                                rows.length === 0 ? <tr><td colSpan={ 5 } className="sc-empty">{ loadError ? 'Scheduled messages are unavailable' : 'No scheduled messages' }</td></tr> :
                                     rows.map( s => {
                                         const sc = STATUS_COLOR[ ( s.status || '' ).toLowerCase() ] || { fg: colors.textMuted, bg: colors.bgSecondary };
                                         const pending = ( s.status || '' ).toLowerCase() === 'pending';
@@ -89,7 +96,8 @@ const ScheduledPage: React.FC<PageProps> = ( { signOut, user, embedded } ) => {
                                                 <td className="sc-when">{ fmt( s.scheduledAt ) }</td>
                                                 <td className="sc-tpl">{ s.templateName || '—' }</td>
                                                 <td className="sc-contact">{ s.contactId || '—' }</td>
-                                                <td><span className="sc-status" style={ { color: sc.fg, background: sc.bg } }>{ s.status || '—' }</span></td>
+                                                <td><span className="sc-status" style={ { color: sc.fg, background: sc.bg } }>{ s.status === 'DISPATCH_UNKNOWN' ? 'Needs delivery review' : s.status === 'DISPATCHING' ? 'Sending' : s.status || '—' }</span>
+                                                    { ( s.status === 'DISPATCH_UNKNOWN' || s.status === 'DISPATCHING' ) && <div>Verify delivery before scheduling again.</div> }</td>
                                                 <td>{ pending ? <button className="sc-cancel" disabled={ cancelling === s.scheduledId } onClick={ () => cancel( s.scheduledId ) }>{ cancelling === s.scheduledId ? '…' : 'Cancel' }</button> : '' }</td>
                                             </tr>
                                         );

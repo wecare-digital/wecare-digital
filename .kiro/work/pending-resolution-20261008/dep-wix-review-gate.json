@@ -1,0 +1,18 @@
+{
+  "verdict": "APPROVED",
+  "findings": [
+    "NON-BLOCKING (confirmed) — Stale handlebars in the shared amplify install: amplify/node_modules/handlebars is 4.7.9 on disk while both the committed and working-tree locks resolve 4.7.10, so a local ampx invocation from that tree still loads the vulnerable copy. Run `npm install --prefix amplify` (not `npm ci`) once the foreign amplify/package-lock.json delta is landed or discarded by its owner. CI and deploy install fresh, so no deployed artifact is affected.",
+    "NON-BLOCKING (confirmed) — Wix catalogue sync stays red until the owner acts: cron `25 */6 * * *` plus every Wix webhook dispatch keeps failing (16 failures / 0 successes). This is correct fail-closed behaviour and is correctly parked with exact unblock steps, but the owner (WECARE.DIGITAL, site c993128b-26be-41cd-9fcd-904abe23462f) should execute step 1 (confirm the 12 template demo products were deliberately deleted in the Wix dashboard, not hidden/draft) then step 2 (workflow_dispatch on `stack` with allow_large_removal=true) so sustained red does not mask a later genuine auth failure.",
+    "NON-BLOCKING (confirmed, already disclosed in the findings) — Deleted-vs-hidden is not provable from an anonymous visitor token: the 404 NOT_FOUND responses cannot distinguish a product deleted in Wix from one hidden in Wix. The recorded unblock step already requires owner confirmation in the dashboard; keep that check mandatory rather than assumed before overriding the guard.",
+    "NON-BLOCKING (confirmed) — Work-directory tracking is asymmetric: .kiro/work/pending-resolution-20261008/dep-wix-findings.md is committed (79ad7ef3) while plan.md in the same directory is still untracked. Pick one convention for the directory so the parked-item record is not half in git."
+  ],
+  "invariants": {
+    "wix_guard_not_weakened": "PASS — .github/workflows/catalogue-sync.yml has exactly one commit in its whole history (0e6b1ab8, which created it); `git log 9d91c4e1..HEAD` over the workflow, scripts/fetch-wix-catalog.js, scripts/catalogue-diff.js, src/content/shop.ts and src/content/wix-catalog.json is empty. Threshold still `[ \"$gone\" -gt $(( before / 2 )) ]`, step still gated on `inputs.allow_large_removal != true`.",
+    "no_allow_large_removal_override_introduced": "PASS — the workflow_dispatch input remains `type: boolean, default: false`; no new override input, env var or automation path was added.",
+    "no_secrets_printed_or_committed": "PASS — no secret-shaped string (client_secret, bearer token, AKIA…, JWT) in the committed findings doc; WIX_CLIENT_ID appears twice, by name only.",
+    "commits_staged_by_exact_path": "PASS — 79ad7ef3 contains exactly one path, the findings doc; no `git add .`.",
+    "no_force_push_or_history_rewrite": "PASS — origin/stack reflog shows pushes and fast-forwards only; 9d91c4e1, 74a9d42d, b5b6c588, 7bd014b1 and 118aa93e are all ancestors of HEAD (79ad7ef3 == origin/stack).",
+    "amplify_package_lock_not_staged": "PASS — still ` M` and unstaged in the working tree, absent from 79ad7ef3; all installs during the pass ran in .scratch/ copies."
+  },
+  "reviewDoc": "/Users/wecaredigital/wecare-digital/wecare-digital/.kiro/work/pending-resolution-20261008/dep-wix-review.md"
+}

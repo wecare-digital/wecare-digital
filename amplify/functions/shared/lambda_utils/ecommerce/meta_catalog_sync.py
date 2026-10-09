@@ -76,6 +76,19 @@ SERVICE_PATH_BY_VARIANT = {
     "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
 }
 
+# Customer-facing service copy is variant-specific; the shared Wix description
+# contains operational details for several services and is not catalog copy.
+SERVICE_COPY_BY_VARIANT = {
+    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
+        ("Submit Request", "Get help with your existing order."),
+    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
+        ("Request Amendment", "Request a change to your existing order."),
+    "db166bc8-a763-41ec-9f65-0f718f18155a":
+        ("Drop Docs", "Upload documents for your order."),
+    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
+        ("Vault", "Access and download your documents."),
+}
+
 #: THE ONLY FIELDS THAT MAY REACH META, as an explicit allowlist rather than "whatever is in the
 #: dict". An item also carries `product_name`, which is a grouping label for `blockers` and for
 #: logs; projecting through `meta_payload` is what guarantees it cannot be sent as a product
@@ -411,11 +424,15 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
         for variant in variants:
             label = str(variant.get("label") or "").strip()
             name = f"{product_name} - {label}" if multi and label else product_name
+            description = _description(product, product_name)
+            if product_id == SERVICE_PRODUCT_ID:
+                name, description = SERVICE_COPY_BY_VARIANT.get(
+                    str(variant.get("id") or "").strip().lower(), (name, description))
             item: Dict[str, Any] = {
                 "retailer_id": retailer_id(product_id, variant.get("id")),
                 "item_group_id": product_id,
                 "name": name,
-                "description": _description(product, product_name),
+                "description": description,
                 # Identity against `False`, like `is_syncable`: an absent `inStock` means in
                 # stock, because Wix omits the field on some reads and defaulting to out of stock
                 # would hide the whole catalogue on a shape change.

@@ -273,7 +273,6 @@ function callsTo ( fetchMock: any, fragment: string, action?: string ): Recorded
 async function flush ( rounds = 8 ): Promise<void> {
   for ( let i = 0; i < rounds; i += 1 )
   {
-    // eslint-disable-next-line no-await-in-loop
     await act( async () => { await Promise.resolve(); } );
   }
 }

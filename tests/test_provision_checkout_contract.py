@@ -45,21 +45,20 @@ def provisioner():
     sys.modules.pop("provision_checkout", None)
 
 
-# ── the gate ──────────────────────────────────────────────────────────────────
+# ── payment defaults and readiness identifiers ────────────────────────────────
 
-def test_the_initiation_flag_is_absent_not_false(provisioner):
-    """Absent, so enabling it is an addition rather than an edit of an existing value."""
+def test_no_payment_disable_flag_is_provisioned(provisioner):
+    """Payment initiation is on in source; no environment switch may turn it off."""
     env = provisioner.expected_environment()
     assert "CHECKOUT_INITIATION_ENABLED" not in env
+    assert "WA_PAYMENTS_DISABLED" not in env
 
 
-def test_both_readiness_inputs_are_empty(provisioner):
-    """The second, independent block. `payment_readiness.evaluate` returns
-    CONFIGURATION_UNVERIFIED on an empty configuration name or MID, so flipping the gate alone
-    still cannot produce a payable message."""
+def test_verified_readiness_identifiers_are_declared(provisioner):
+    """A fresh deployment carries the same verified identifiers as production."""
     env = provisioner.expected_environment()
-    assert env["EXPECTED_CONFIGURATION_NAME"] == ""
-    assert env["EXPECTED_PROVIDER_MID"] == ""
+    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
 
 
 def test_no_environment_value_looks_like_a_credential(provisioner):
@@ -326,10 +325,11 @@ def test_the_environment_holds_secret_names_not_values(provisioner):
     assert env["ORDERS_TABLE"] == "stack-wecare-digital-OrderTable"
 
 
-def test_readiness_set_message_is_only_for_gate_off(provisioner):
-    """Do not report the gate as OFF when CHECKOUT_INITIATION_ENABLED is actually truthy."""
+def test_verifier_has_no_payment_disable_gate(provisioner):
+    """The production verifier judges readiness/configuration, not an obsolete enable flag."""
     body = SCRIPT.read_text(encoding="utf-8").split("def verify(")[1].split("\ndef ")[0]
-    assert 'if not readiness_empty and initiation not in ("1", "true", "yes", "on"):' in body
+    assert "CHECKOUT_INITIATION_ENABLED" not in body
+    assert "payment-disable environment switch" in body
 
 
 def test_the_role_cannot_delete_checkout_evidence(provisioner):
@@ -827,13 +827,14 @@ def test_the_template_declares_the_same_routes_the_script_creates(provisioner):
         ["GET /ecommerce/service-prices"]
 
 
-def test_the_template_keeps_the_gate_absent():
+def test_the_template_declares_always_on_readiness_defaults():
     template = json.loads(TEMPLATE.read_text(encoding="utf-8"))
     env = (template["Resources"]["CheckoutFunction"]["Properties"]
            ["Environment"]["Variables"])
     assert "CHECKOUT_INITIATION_ENABLED" not in env
-    assert env["EXPECTED_CONFIGURATION_NAME"] == ""
-    assert env["EXPECTED_PROVIDER_MID"] == ""
+    assert "WA_PAYMENTS_DISABLED" not in env
+    assert env["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert env["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
 
 
 def test_the_template_qualifies_every_invoke_permission(provisioner):
@@ -878,13 +879,14 @@ def test_the_template_is_not_wired_into_the_amplify_backend():
     assert "checkout.json" not in backend
 
 
-def test_the_manifest_records_the_function_without_the_gate():
+def test_the_manifest_records_always_on_readiness_defaults():
     manifest = json.loads(
         (ROOT / "config" / "lambda-env-manifest.json").read_text(encoding="utf-8"))
     entry = manifest["functions"]["wecare-checkout"]
     assert "CHECKOUT_INITIATION_ENABLED" not in entry
-    assert entry["EXPECTED_CONFIGURATION_NAME"] == ""
-    assert entry["EXPECTED_PROVIDER_MID"] == ""
+    assert "WA_PAYMENTS_DISABLED" not in entry
+    assert entry["EXPECTED_CONFIGURATION_NAME"] == "WECAREDIGITAL"
+    assert entry["EXPECTED_PROVIDER_MID"] == "acc_TTFSyolquKEZEy"
     assert entry["WIX_API_KEY_SECRET"] == "wecare/wix/headless-api-key"
     assert manifest["_functions"] == len(manifest["functions"])
     assert manifest["_variables"] == sum(len(v) for v in manifest["functions"].values())
@@ -1134,42 +1136,15 @@ def test_every_non_readiness_key_is_actually_checked(provisioner, verify_run):
         assert verify_run({key: f"wrong-{want}-x"}) == 1, f"{key} is not verified on live"
 
 
-def test_a_readiness_key_is_checked_for_presence_not_for_an_empty_value(provisioner, verify_run):
-    """Presence-only, and both halves of that matter.
-
-    An owner filling these in from a live Meta/Razorpay read is legitimate drift from what this
-    script writes, so a non-empty value must not be an env MISMATCH - it is reported by the
-    readiness check instead, with the right explanation. A missing key is a different fault:
-    `payment_readiness` has nothing to evaluate.
-    """
+def test_readiness_identifiers_are_checked_exactly(provisioner, verify_run):
+    """A missing or changed config/MID is configuration drift and must fail verification."""
     for key in provisioner.READINESS_KEYS:
         assert verify_run(drop=(key,)) == 1, f"{key} absent from live is not reported"
-    # Present-but-empty is the provisioned state, and must stay clean.
+        assert verify_run({key: "wrong-value"}) == 1, f"{key} drift is not reported"
     assert verify_run() == 0
 
 
-def test_the_gate_being_on_is_a_problem(verify_run):
-    assert verify_run({"CHECKOUT_INITIATION_ENABLED": "true"}) == 1
-
-
-def test_readiness_set_with_the_gate_off_is_a_problem(verify_run):
-    """The state the evidence document singles out and the verifier used to PRINT.
-
-    The gate is the LAST check in `handler._create`. The measured order is
-    `wix_ecom.create_checkout` (a live Wix write) -> currency compare -> `payment_readiness`
-    -> `allocate_payment_reference` -> `put_item` on PaymentAttemptsTable -> `if not
-    INITIATION_ENABLED`. While readiness is empty it refuses early and the table stays at 0 rows.
-    The moment an owner fills the readiness values in with the flag still off, every authenticated
-    `action=create` performs a live Wix write and writes an attempt row before refusing. No money
-    moves, but "gate off" has stopped meaning "inert", and an operator who set those values
-    expecting inertness deserves a non-zero exit rather than a note.
-    """
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "some-config"}) == 1
-    assert verify_run({"EXPECTED_PROVIDER_MID": "some-mid"}) == 1
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c", "EXPECTED_PROVIDER_MID": "m"}) == 1
-
-
-def test_readiness_set_with_the_gate_on_is_still_a_problem(verify_run):
-    """Both conditions report; neither masks the other."""
-    assert verify_run({"EXPECTED_CONFIGURATION_NAME": "c",
-                       "CHECKOUT_INITIATION_ENABLED": "true"}) == 1
+def test_legacy_enable_flag_does_not_control_verification(verify_run):
+    """A stale old flag is inert; production source no longer reads it."""
+    assert verify_run({"CHECKOUT_INITIATION_ENABLED": "true"}) == 0
+    assert verify_run({"CHECKOUT_INITIATION_ENABLED": "false"}) == 0

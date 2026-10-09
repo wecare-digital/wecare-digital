@@ -11,11 +11,12 @@ import Layout from '../../../../components/Layout';
 import PageHeader from '../../../../components/PageHeader';
 import SEO from '../../../../components/SEO';
 import { colors } from '../../../../lib/design-tokens';
+import { channel, channelDescription, type ChannelKey } from '../../../../lib/productVocabulary';
 
 interface PageProps { signOut?: () => void; user?: any; embedded?: boolean; }
 
 interface ChannelCard {
-    key: string;
+    key: ChannelKey;
     label: string;
     desc: string;
     fg: string;
@@ -25,33 +26,33 @@ interface ChannelCard {
 
 const CHANNELS: ChannelCard[] = [
     {
-        key: 'whatsapp', label: 'WhatsApp', desc: 'Conversations, templates, flows, calling', fg: '#15803d', bg: '#f0fdf4',
+        key: 'whatsapp', label: channel.whatsapp, desc: channelDescription.whatsapp, fg: '#15803d', bg: '#f0fdf4',
         links: [ { label: 'Inbox', href: '/workspace/engage/whatsapp' }, { label: 'Settings', href: '/workspace/engage/whatsapp/settings' }, { label: 'Service Ops', href: '/workspace/engage/service-ops' } ],
     },
     {
-        key: 'sms', label: 'SMS', desc: 'Transactional and promotional SMS, with India DLT templates', fg: '#1d4ed8', bg: '#eff6ff',
+        key: 'sms', label: channel.sms, desc: channelDescription.sms, fg: '#1d4ed8', bg: '#eff6ff',
         links: [ { label: 'Open', href: '/workspace/engage/sms' }, { label: 'Logs', href: '/workspace/engage/logs' } ],
     },
     {
-        key: 'rcs', label: 'RCS', desc: 'Rich cards & carousels (Sinch)', fg: '#0f766e', bg: '#f0fdfa',
+        key: 'rcs', label: channel.rcs, desc: channelDescription.rcs, fg: '#0f766e', bg: '#f0fdfa',
         links: [ { label: 'Open', href: '/workspace/engage/rcs' }, { label: 'Send', href: '/workspace/engage/rcs/send' } ],
     },
     {
-        key: 'email', label: 'Email', desc: 'Transactional & campaigns (SES)', fg: '#b45309', bg: '#fffbeb',
+        key: 'email', label: channel.email, desc: channelDescription.email, fg: '#b45309', bg: '#fffbeb',
         links: [ { label: 'Open', href: '/workspace/engage/ses' }, { label: 'Inbox', href: '/workspace/engage/inbox?channel=email' } ],
     },
     {
-        key: 'voice', label: 'Voice', desc: 'Calls, OBD, C2C, CDR', fg: '#6d28d9', bg: '#f5f3ff',
+        key: 'voice', label: channel.voice, desc: channelDescription.voice, fg: '#6d28d9', bg: '#f5f3ff',
         links: [ { label: 'Outbound', href: '/workspace/engage/voice' }, { label: 'Voice In', href: '/workspace/engage/voice-in' } ],
     },
     {
-        key: 'push', label: 'Push', desc: 'Web & mobile push notifications', fg: '#be185d', bg: '#fdf2f8',
+        key: 'push', label: channel.push, desc: channelDescription.push, fg: '#be185d', bg: '#fdf2f8',
         links: [ { label: 'Open', href: '/workspace/engage/push' } ],
     },
 ];
 
 const CROSS: { label: string; desc: string; href: string }[] = [
-    { label: 'Unified Inbox', desc: 'All conversations, one thread per contact', href: '/workspace/engage/inbox' },
+    { label: channel.inbox, desc: channelDescription.inbox, href: '/workspace/engage/inbox' },
     { label: 'Broadcast', desc: 'Send a campaign across any channel', href: '/workspace/engage/broadcast' },
     { label: 'Content Library', desc: 'Templates & content across channels', href: '/workspace/engage/content' },
     { label: 'Calls', desc: 'Call records, inside the unified inbox', href: '/workspace/engage/inbox?channel=voice' },

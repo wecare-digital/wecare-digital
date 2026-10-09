@@ -1,27 +1,8 @@
-"""One Google key, one secret id, one field list — enforced rather than hoped for.
+"""Canonical Google server secret and browser/server credential boundary.
 
-THE STATE THIS REPLACES, all of it measured and recorded in
-docs/CREDENTIAL-ROTATION-RUNBOOK.md rather than inferred here:
-
-  * Google Cloud holds ONE API key, `WECARE Unified Google API Key`, fingerprint
-    sha256:0bd4beb6...
-  * That one value is stored in THREE Secrets Manager entries - wecare/google/cloud,
-    wecare/google-api-key and wecare/google-maps.
-  * Two Lambdas read it through TWO different ids: site-language used wecare/google/cloud and
-    whatsapp-templates used wecare/google-maps.
-  * site-language's own comment already stated the rule that arrangement broke: "Do NOT point
-    this at a new secret: a parallel id means rotation updates one copy and consumers keep
-    reading the other."
-
-WHY IT MATTERS NOW RATHER THAN EVENTUALLY. The owner has said they will rotate the key and
-update AWS themselves once the project is complete. With three ids live, that rotation updates
-one copy and silently leaves the other consumers holding a dead key - and because both consumers
-degrade quietly (site-language falls back to Amazon Translate, the Places proxies returned HTTP
-200 with an empty list), nobody would find out from the application. Consolidating the id is
-therefore a precondition of a safe rotation, not tidying afterwards.
-
-Four keys have been created and deleted in this project inside six weeks, so the failure mode
-here is key sprawl. This test is the thing that makes a fourth id impossible to add by accident.
+The maintained contract is docs/operations.md#credential-handling-and-google-keys.
+These tests enforce repository defaults and compatible candidate fields; they do not
+assert current provider key validity, read credential values or authorize rotation.
 """
 from __future__ import annotations
 
@@ -143,7 +124,7 @@ def test_a_refused_credential_is_not_reported_as_an_empty_result():
     assert code.count("_google_status_problem(data)") == 2
 
 
-def test_the_runbook_still_documents_the_one_thing_one_key_cannot_do():
+def test_operations_preserves_the_browser_server_credential_boundary():
     """A server key is unavoidable, and the consolidation must not be mistaken for solving it.
 
     A referrer-restricted key cannot authorise a server-side call, and an unrestricted key must
@@ -151,6 +132,12 @@ def test_the_runbook_still_documents_the_one_thing_one_key_cannot_do():
     consolidating the SECRET IDS does not change that, and this asserts the document that says so
     has not quietly lost the point.
     """
-    runbook = (ROOT / "docs/CREDENTIAL-ROTATION-RUNBOOK.md").read_text(encoding="utf-8")
-    assert "cannot be used server-side at all" in runbook
-    assert "Create a second, server key" in runbook
+    operations = (ROOT / "docs/operations.md").read_text(encoding="utf-8")
+    section = operations.split("## Credential handling and Google keys\n", 1)[1].split("\n## ", 1)[0]
+    assert "referrer-restricted browser key cannot\nbe used server-side at all" in section
+    assert "separate server key" in section
+    assert "Server\ncredentials must never ship in a public JavaScript bundle" in section
+    assert "Consolidating\nsecret identifiers does not remove this browser/server separation" in section
+    assert CANONICAL in section
+    assert "api_key" in section and "unified_google_api_key" in section
+    assert "must not fetch secret values or rotate/revoke credentials" in section

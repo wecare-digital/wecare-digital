@@ -43,6 +43,17 @@ def test_failed_settings_read_does_not_return_success():
     assert 'toolCapabilities' not in json.loads(result['body'])
 
 def test_ai_test_never_returns_a_canned_generated_response():
-    scope = load_functions(Mock())
-    assert scope['_test_ai_response']({'message': 'hello'}, 'test')['statusCode'] == 501
+    table = Mock(); table.get_item.return_value = {}
+    scope = load_functions(table)
+    runtime = Mock(); runtime.converse.side_effect = RuntimeError('private provider detail')
+    scope.update(DEFAULT_AI_CONFIG={'modelId': 'amazon.nova-pro-v1:0', 'defaultLanguage': 'en'},
+                 SUPPORTED_LANGUAGES={'en': 'English'},
+                 os=SimpleNamespace(environ={'AWS_REGION': 'us-east-1'}),
+                 boto3=SimpleNamespace(client=lambda *args, **kwargs: runtime))
+    result = scope['_test_ai_response']({'message': 'hello'}, 'test')
+    assert result['statusCode'] == 503
+    assert 'response' not in json.loads(result['body'])
+    assert 'private provider detail' not in result['body']
+    runtime.converse.assert_called_once()
+    table.put_item.assert_not_called()
     assert scope['_test_ai_response']({'message': ' '}, 'test')['statusCode'] == 400

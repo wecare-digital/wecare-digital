@@ -217,7 +217,8 @@ SPECS: List[Spec] = [
     # eCom total (integer paise), gates on a live payment-readiness readback, reserves a
     # PaymentAttempt, and hands off to the in-chat order_details path — creating NO order and NO
     # charge (an order exists only after the razorpay-webhook reconciliation verifies a capture).
-    # Initiation is off by default. First creation is owned by scripts/provision_checkout.py. NOT
+    # Payment initiation is on by source and remains fail-closed behind live readiness. First
+    # creation is owned by scripts/provision_checkout.py. NOT
     # standalone: it imports lambda_utils.customer_auth, payment_readiness, ecommerce.order_keys,
     # ecommerce.payment_attempt, wix_ecom, response and logging.
     Spec(

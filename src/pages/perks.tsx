@@ -174,7 +174,6 @@ const PerksPage: React.FC = () => {
             {/* A PLAIN <a>, and it must stay one: styled-jsx only scopes lowercase DOM tags, so a
                 next/link carrying pk-close-cta would render unstyled. Every CTA on the public pages
                 is a plain <a> for the same reason. */}
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a className="pk-close-cta" href="/shop/">See what we offer</a>
           </div>
         </section>

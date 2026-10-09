@@ -21,9 +21,6 @@
 #                       current release) hard-pins pydantic-core==2.46.5, so
 #                       `pip list --outdated` reporting 2.49.0 is a false
 #                       positive.
-#   facebook_business - Meta's official SDK, targets Graph v26.0. Currently
-#                       unused: every Graph call in this repo is raw urllib in
-#                       lambda_utils/meta_client.py.
 #
 # Full freeze, so a rebuilt venv matches byte for byte.
 aiohappyeyeballs==2.7.1
@@ -42,7 +39,6 @@ charset-normalizer==3.5.1
 cryptography==50.0.1
 curlify==3.0.0
 decorator==5.3.1
-facebook_business==26.0.2
 frozenlist==1.8.0
 google-ads==33.0.0
 google-ads-admanager==0.10.5

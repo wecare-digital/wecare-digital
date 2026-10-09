@@ -42,6 +42,10 @@ def route_flow(action: str, screen: str, data: Dict, flow_token: str,
     """Route a flow action to the correct flow module.
     Returns the response_payload dict to be encrypted and returned to Meta.
     """
+    if flow_token and flow_token.startswith('orders:'):
+        from flows import customer_orders
+        return customer_orders.route(action, screen, data, flow_token)
+
     if flow_token and flow_token.startswith('paidsr:'):
         from flows import paid_submit_request
         return paid_submit_request.route(action, screen, data, flow_token)

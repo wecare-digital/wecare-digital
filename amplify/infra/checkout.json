@@ -1,6 +1,6 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
-  "Description": "Customer checkout Lambda, its five HTTP API routes and a least-privilege role. Four POST routes require a customer session; GET /ecommerce/service-prices is the one anonymous arm - see ServicePricesRoute's WECARE::WhyAnonymous. Payment initiation is OFF: CHECKOUT_INITIATION_ENABLED is absent on purpose, and both readiness inputs are empty so payment_readiness blocks independently of the flag.",
+  "Description": "Customer checkout Lambda, its five HTTP API routes and a least-privilege role. Four POST routes require a customer session; GET /ecommerce/service-prices is the one anonymous arm. Payment initiation is on by source and remains fail-closed behind authenticated ownership, authoritative pricing, live payment-readiness and idempotent attempt reservation.",
   "Metadata": {
     "WECARE::Provisioner": "scripts/provision_checkout.py",
     "WECARE::ReadThisFirst": [
@@ -23,11 +23,10 @@
       "to an account that already has these resources will fail on the function name, which is the",
       "correct outcome: the script is the single creator."
     ],
-    "WECARE::GateIsOff": [
-      "Nothing in this template can make a payment possible. CHECKOUT_INITIATION_ENABLED is",
-      "absent, EXPECTED_CONFIGURATION_NAME and EXPECTED_PROVIDER_MID are empty strings, and the",
-      "role grants no Razorpay credential read. Turning initiation on is an owner-only action and",
-      "additionally requires both readiness values from a live Meta/Razorpay readback."
+    "WECARE::PaymentReadiness": [
+      "There is no payment-disable environment switch in the checkout handler.",
+      "EXPECTED_CONFIGURATION_NAME and EXPECTED_PROVIDER_MID are verified non-secret identifiers.",
+      "payment_readiness must confirm the active Meta configuration, WABA, gateway and provider MID before initiation."
     ]
   },
   "Parameters": {
@@ -234,8 +233,8 @@
             "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
             "SENDER_FUNCTION": "wecare-whatsapp-business-api:live",
             "PAYMENT_WABA_ID": "2094615664435155",
-            "EXPECTED_CONFIGURATION_NAME": "",
-            "EXPECTED_PROVIDER_MID": ""
+            "EXPECTED_CONFIGURATION_NAME": "WECAREDIGITAL",
+            "EXPECTED_PROVIDER_MID": "acc_TTFSyolquKEZEy"
           }
         },
         "Tags": [
@@ -256,7 +255,7 @@
         "FunctionName": {
           "Ref": "CheckoutFunction"
         },
-        "Description": "initial checkout release (initiation off)"
+        "Description": "initial checkout release (readiness gated)"
       }
     },
     "CheckoutLiveAlias": {

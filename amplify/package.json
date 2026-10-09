@@ -24,6 +24,7 @@
     "fast-xml-parser": "5.11.1",
     "immutable@3": "3.8.4",
     "mysql2": "3.24.4",
-    "csv-parse": "7.0.2"
+    "csv-parse": "7.0.2",
+    "handlebars": "4.7.10"
   }
 }

@@ -3,7 +3,8 @@
  * Admin UI for WhatsApp native commerce: send the catalog, compose & send a
  * native order_details (Review & Pay) bill, view orders/payments, and see the
  * live Razorpay payment configs per WABA. Backed by:
- *   POST /whatsapp/send            (catalog_message / isInteractivePayment order_details)
+ *   POST /whatsapp/send            (catalog_message only)
+ *   POST /invoices + /invoices/{id}/send-payment-link (payment requests)
  *   GET  /wa-business/orders       + PATCH /wa-business/orders/{id}
  *   GET  /payments                 (recent payments)
  */
@@ -37,8 +38,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'https://wecare.digital/api
 const CATALOG_SYNC_UNAVAILABLE = 'Meta catalog product listing and feed sync are not available on this deployment: /wa-business/catalog-products and /wa-business/catalog-feed have no live route.';
 
 const WABAS = [
-    { label: 'WABA1 · +91 93309 94400', phoneId: 'phone-number-id-waba1-direct-1016149501586345', catalog: 'wecare_catalog', catalogId: '1607047307067517', payConfig: 'Razorpay_wecare.digital' },
-    { label: 'WABA2 · +91 99033 00044', phoneId: 'phone-number-id-waba-t-direct-1055232054343117', catalog: 'Catalogue_Products', catalogId: '1424934879646296', payConfig: 'WECAREDIGITAL' },
+    { label: 'WABA1 · +91 93309 94400', phoneId: 'phone-number-id-waba1-direct-1016149501586345', catalog: 'wecare_shop', catalogId: '1457045652952851', payConfig: 'Razorpay_wecare.digital' },
+    { label: 'WABA2 · +91 99033 00044', phoneId: 'phone-number-id-waba-t-direct-1055232054343117', catalog: 'wecare_shop', catalogId: '1457045652952851', payConfig: 'WECAREDIGITAL' },
 ];
 
 /* Hoisted option rows. Same order, same values, same visible text as the <option>s they
@@ -103,36 +104,40 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
     };
 
     const sendBill = async () => {
-        // Backend (/whatsapp/send isInteractivePayment) reads orderDetails.order.items[]
-        // where each item = { name, amount:{value(paise),offset:100}, quantity, gstRate, retailer_id }.
-        // Backend auto-adds 18% GST (per item gstRate) + 2.2% convenience fee and computes totals.
         const li = items
             .filter( i => i.name.trim() && Number( i.amount ) > 0 )
-            .map( ( i, idx ) => ( {
-                retailer_id: `ADMIN_${idx + 1}`,
+            .map( i => ( {
                 name: i.name.trim(),
-                amount: { value: Math.round( Number( i.amount ) * 100 ), offset: 100 },
+                amount: Number( i.amount ),
                 quantity: Math.max( 1, Number( i.quantity ) || 1 ),
                 gstRate: 18,
             } ) );
         if ( !digits( toPhone ) ) { toast.error( 'Enter a customer phone' ); return; }
         if ( !li.length ) { toast.error( 'Add at least one line item with amount' ); return; }
-        const subtotal = li.reduce( ( s, i ) => s + ( i.amount.value / 100 ) * i.quantity, 0 );
         setBusy( 'bill' );
         try
         {
-            const r = await call( '/whatsapp/send', 'POST', {
-                recipientPhone: digits( toPhone ), phoneNumberId: phoneId,
-                isInteractivePayment: true,
-                orderDetails: {
-                    type: goodsType,
-                    currency: 'INR',
-                    gstin: '19AAFFW7196L1Z8',
-                    reference_id: `ADMINBILL-${Date.now()}`,
-                    order: { items: li },
-                },
+            // A payment request must first become a server-owned invoice. The invoice engine
+            // mints/reserves the reference and constructs the approved order_details template.
+            const invoice = await call( '/invoices', 'POST', {
+                customerPhone: `+${digits( toPhone )}`,
+                customerEmail: '',
+                shippingAddress: '',
+                billingAddress: '',
+                goodsType,
+                items: li,
+                currency: 'INR',
+                gstin: '19AAFFW7196L1Z8',
+                entryPoint: 'workspace_commerce',
             } );
-            if ( r ) toast.success( `Bill sent (subtotal ₹${subtotal.toFixed( 2 )} + 18% GST + 2% convenience)` );
+            if ( !invoice?.invoiceId ) { toast.error( 'Invoice creation failed' ); return; }
+
+            const sent = await call(
+                `/invoices/${encodeURIComponent( invoice.invoiceId )}/send-payment-link`,
+                'POST',
+                { invoiceId: invoice.invoiceId, phoneNumberId: phoneId },
+            );
+            if ( sent ) toast.success( 'Bill sent securely through the invoice payment flow' );
             else toast.error( 'Send failed' );
         } finally { setBusy( '' ); }
     };

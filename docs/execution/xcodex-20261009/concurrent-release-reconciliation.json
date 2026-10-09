@@ -1,0 +1,98 @@
+[
+  {
+    "function": "wecare-secure-files",
+    "alias": {
+      "AliasArn": "arn:aws:lambda:us-east-1:775261844268:function:wecare-secure-files:live",
+      "Name": "live",
+      "FunctionVersion": "34",
+      "Description": "",
+      "RevisionId": "01e8e9ef-f514-4829-9dc5-7299321465ab"
+    },
+    "hash": "6l0bIzOc/6StE2ttnhIEhZdIlSnks/PllJdyYTlRnZ8=",
+    "lastModified": "2026-10-09T03:08:53.000+0000",
+    "state": "Active",
+    "snapStart": {
+      "ApplyOn": "None",
+      "OptimizationStatus": "Off"
+    },
+    "flags": {
+      "SECURE_FILES_PAYMENT_ENABLED": "false",
+      "DROPDOCS_ATTACH_ENABLED": "false"
+    },
+    "hashVerified": true,
+    "repairFunctionsMatchSource": {
+      "_customer_identity": true,
+      "_upload_init": true,
+      "_customer_list": true,
+      "_owned_active_file": true,
+      "_create_order": true,
+      "_reconcile_grant": true,
+      "_redeem_after_reconcile": true,
+      "_send_whatsapp_payment": true,
+      "deliver_over_whatsapp": true,
+      "_redeem": true
+    },
+    "allComparedRepairsRetained": true,
+    "whatsappDeliveryMemberPresent": true,
+    "whatsappLinkTTLExpression": [
+      "WHATSAPP_LINK_TTL = max(60, min(900, int(os.environ.get('WHATSAPP_LINK_TTL_SECONDS', '900'))))"
+    ],
+    "allOtherChangesCertified": false
+  },
+  {
+    "function": "wecare-service-requests",
+    "alias": {
+      "AliasArn": "arn:aws:lambda:us-east-1:775261844268:function:wecare-service-requests:live",
+      "Name": "live",
+      "FunctionVersion": "5",
+      "Description": "",
+      "RevisionId": "d17f2cc1-ab47-47f1-8047-2aafe0182b04"
+    },
+    "hash": "mcx7erlUykCfXVRKwI1S96ZHvqevxXTjLgok2TuZvA0=",
+    "lastModified": "2026-10-09T03:06:33.000+0000",
+    "state": "Active",
+    "snapStart": {
+      "ApplyOn": "None",
+      "OptimizationStatus": "Off"
+    },
+    "flags": {},
+    "hashVerified": true,
+    "repairFunctionsMatchSource": {
+      "vault_access.bind_file": true
+    },
+    "allComparedRepairsRetained": true,
+    "whatsappDeliveryMemberPresent": false,
+    "whatsappLinkTTLExpression": [],
+    "allOtherChangesCertified": false
+  },
+  {
+    "function": "wecare-whatsapp-business-api",
+    "alias": {
+      "AliasArn": "arn:aws:lambda:us-east-1:775261844268:function:wecare-whatsapp-business-api:live",
+      "Name": "live",
+      "FunctionVersion": "86",
+      "Description": "",
+      "RevisionId": "488eb43f-fe9c-4f9f-b49b-9704b61e5dff"
+    },
+    "hash": "JaFXsvh3b2s0iFPQp9CyZVsO+Ud2IpFpap8z7MZUxy8=",
+    "lastModified": "2026-10-09T03:08:51.000+0000",
+    "state": "Active",
+    "snapStart": {
+      "ApplyOn": "None",
+      "OptimizationStatus": "Off"
+    },
+    "flags": {},
+    "hashVerified": true,
+    "repairFunctionsMatchSource": {
+      "_read_payment_configurations": true,
+      "_payment_readiness_for": true,
+      "_check_payment_gateway": true,
+      "vault_access.bind_file": true,
+      "payment_list_uses_shared_reader": true
+    },
+    "allComparedRepairsRetained": true,
+    "whatsappDeliveryMemberPresent": false,
+    "whatsappLinkTTLExpression": [],
+    "allOtherChangesCertified": false
+  }
+]

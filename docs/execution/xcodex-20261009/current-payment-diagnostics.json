@@ -1,0 +1,37 @@
+[
+  {
+    "path": "/wa-business/payment-config/check",
+    "statusCode": 200,
+    "executedVersion": "86",
+    "body": {
+      "checks": [
+        {
+          "totalConfigs": 2,
+          "activeConfigs": 2
+        },
+        {
+          "totalConfigs": 2,
+          "activeConfigs": 2
+        }
+      ]
+    }
+  },
+  {
+    "path": "/wa-business/payment-config/list",
+    "statusCode": 200,
+    "executedVersion": "86",
+    "body": {
+      "data": [
+        {
+          "configuration_name": "WECAREUPI",
+          "status": "Active"
+        },
+        {
+          "configuration_name": "WECAREDIGITAL",
+          "status": "Active",
+          "provider_name": "Razorpay"
+        }
+      ]
+    }
+  }
+]

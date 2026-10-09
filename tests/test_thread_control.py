@@ -174,27 +174,23 @@ def test_the_legacy_path_is_gone(handler):
 # ── 4, 5, 5a. the recipient shape, read through its one helper ──────────────────
 
 def test_bsuid_becomes_the_recipient_shape(handler):
-    """Read THROUGH the helper, never against a literal nesting.
-
-    The shape is UNVERIFIED (owner answer O1) and the helper's docstring says so, so a
-    correction must cost one function body and zero test edits.
-    """
+    """Assert the documented bare-string BSUID recipient literally."""
     _, cap = _call(handler, handler._thread_control,
                    {'entityId': PHONE_ID, 'bsuid': BSUID})
     sent = cap.sent
-    assert {'recipient': sent['recipient']} == handler._thread_control_recipient(BSUID, '')
+    assert sent['recipient'] == BSUID
     assert 'to' not in sent, 'no bare top-level `to` alongside the recipient fragment'
     assert sent['messaging_product'] == 'whatsapp'
     assert sent['action'] == 'release'
 
 
 def test_phone_fallback_uses_the_same_helper(handler):
-    """BSUID absent -> the phone fallback, through the same single correction point."""
+    """BSUID absent -> the documented flat top-level phone fallback."""
     _, cap = _call(handler, handler._thread_control,
                    {'entityId': PHONE_ID, 'to': E164})
     sent = cap.sent
-    assert {'recipient': sent['recipient']} == handler._thread_control_recipient('', E164)
-    assert 'to' not in sent
+    assert sent['to'] == E164
+    assert 'recipient' not in sent
 
 
 def test_the_recipient_shape_lives_in_one_place(handler):
@@ -282,19 +278,20 @@ def test_another_agent_action_still_sends_the_header(handler):
 
 # ── 10. the log line discloses the BSUID and masks the phone ───────────────────
 
-def test_the_phone_is_masked_in_the_log_and_the_bsuid_is_not(handler, caplog):
+@pytest.mark.parametrize("identifiers", [{"bsuid": BSUID}, {"to": E164}])
+def test_the_phone_is_masked_in_the_log_and_the_bsuid_is_not(handler, caplog, identifiers):
     """BSUID in full (business-scoped, traceable), phone masked. That pairing is what
     makes a routing event followable without disclosing a customer's number -- the same
     discipline the inbound handler's handover arm already applies."""
     caplog.set_level(logging.INFO)
     _call(handler, handler._thread_control,
-          {'entityId': PHONE_ID, 'bsuid': BSUID, 'to': E164})
+          {'entityId': PHONE_ID, **identifiers})
     lines = [r.getMessage() for r in caplog.records
              if 'thread_control_requested' in r.getMessage()]
     assert len(lines) == 1
     logged = json.loads(lines[0])
-    assert logged['bsuid'] == BSUID
-    assert logged['to'] == handler.mask_phone(E164)
+    assert logged['bsuid'] == identifiers.get('bsuid', '')
+    assert logged['to'] == (handler.mask_phone(E164) if 'to' in identifiers else '')
     assert E164 not in lines[0]
     assert logged['phoneNumberId'] == PHONE_ID
     assert logged['action'] == 'release'

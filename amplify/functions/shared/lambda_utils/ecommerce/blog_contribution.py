@@ -28,8 +28,8 @@ Two things make a contribution DIFFERENT from a cart checkout, and both are deli
 
 The gate, identical to website checkout
 ---------------------------------------
-Initiation sits behind the SAME ``CHECKOUT_INITIATION_ENABLED`` env gate (default OFF) AND the
-readiness inputs (``EXPECTED_CONFIGURATION_NAME`` / ``EXPECTED_PROVIDER_MID`` empty => not ready).
+Initiation uses the same checkout controls: authenticated ownership, authoritative pricing,
+idempotent reservation and live provider readiness.
 ``prepare_contribution`` takes an already-evaluated ``initiation_enabled`` boolean (the handler ANDs
 the env gate with readiness, exactly as ``checkout/handler.py`` does), and gate-off returns
 ``PAYMENT_INITIATION_DISABLED`` with NO gateway order and NO payable attempt. No constant in this
@@ -339,8 +339,8 @@ def prepare_contribution(*,
 
     Mirrors ``website_checkout.prepare_checkout``. The Razorpay client is injected as
     ``create_order`` / ``find_order_by_receipt`` / ``account_mode_of`` so this is testable with
-    mocks. ``initiation_enabled`` is the handler's AND of the ``CHECKOUT_INITIATION_ENABLED`` env
-    gate and payment readiness; this module never reads an env var and has no default that reads as
+    mocks. ``initiation_enabled`` is an injected test/control seam from the handler; this module
+    never reads an environment enable/disable flag and has no default that reads as
     ready.
 
     ``customer_id`` is optional: a contribution may be made by a signed-in customer or

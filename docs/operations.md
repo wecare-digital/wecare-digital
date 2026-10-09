@@ -4,7 +4,7 @@ Runbook for the customer identity, verification, address, account and public com
 surface. Companion to [`docs/design.md`](design.md) and [`docs/security.md`](security.md).
 
 Existing runbooks stay authoritative for what they already cover:
-[`docs/RUNBOOK.md`](RUNBOOK.md), [`docs/CREDENTIAL-ROTATION-RUNBOOK.md`](CREDENTIAL-ROTATION-RUNBOOK.md),
+[`docs/RUNBOOK.md`](RUNBOOK.md),
 [`docs/WEBHOOK-INVENTORY.md`](WEBHOOK-INVENTORY.md) and
 [`docs/RESILIENCE_BLUEPRINT.md`](RESILIENCE_BLUEPRINT.md). This file adds the new surface and
 does not restate them.
@@ -100,6 +100,39 @@ that does not look like one and is invisible until someone loads the URL.
 A public page must not import the authenticated `Layout`. That combination once served the
 entire staff sidebar publicly at HTTP 200, because a prerendered export has no session so
 `Layout` rendered in full. The test now fails it.
+
+## Credential handling and Google keys
+
+This section maintains the current source contract after retirement of the incident runbook.
+The dated environment, inventory and incident notes elsewhere in this document are historical
+snapshots; this change does not revalidate their provider status or deployed configuration.
+
+Pass credentials by reference. Do not put secret values in source, logs, command arguments,
+reports or public bundles. Agent work must not fetch secret values or rotate/revoke credentials;
+those operations require their own explicit owner authorization. Review consumer configuration
+and references before any owner-managed credential change.
+
+For Google server consumers, the repository default is `wecare/google/cloud`. `site-language`,
+`whatsapp-templates` and `vayulok-environment` use the candidate fields `api_key` and
+`unified_google_api_key`. Preserve that canonical server secret and compatible field list;
+parallel copies can leave a consumer using an old value when another copy changes. This is a
+source configuration contract, not proof that the current stored key is valid or server-eligible.
+
+Browser and server calls need distinct credentials. A referrer-restricted browser key cannot
+be used server-side at all. Use a separate server key with restrictions appropriate to its
+server-side APIs; do not remove browser restrictions to make a backend call succeed. Server
+credentials must never ship in a public JavaScript bundle. `NEXT_PUBLIC_GOOGLE_MAPS_KEY` is
+reserved for a restricted browser Maps key, not the canonical server credential. Consolidating
+secret identifiers does not remove this browser/server separation.
+
+A provider credential refusal is an explicit failure, not an empty successful result.
+`REQUEST_DENIED` must be diagnosed; `ZERO_RESULTS` remains a legitimate empty search response.
+Check the selected secret reference and field names, application/API restrictions, and (for a
+CMK-encrypted secret) the caller's scoped decrypt permissions without exposing values. Creating,
+restricting, rotating or deleting keys is a separately authorized provider operation.
+
+See [Google Maps Platform security guidance](https://developers.google.com/maps/api-security-best-practices)
+for application/API restrictions and separation of browser and server credentials.
 
 ## Secrets
 

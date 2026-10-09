@@ -121,11 +121,16 @@ def parse_handover(value: Dict[str, Any]) -> Dict[str, Any]:
         return record
 
     try:
+        # Canonical handovers identify the business in recipient and peer in sender.
+        # Retain metadata/contacts and nested-block fallbacks for older payloads.
+        canonical_recipient = _as_dict(value.get("recipient"))
+        canonical_sender = _as_dict(value.get("sender"))
         record["phone_number_id"] = str(
-            (value.get("metadata") or {}).get("phone_number_id") or ""
+            canonical_recipient.get("phone_number_id")
+            or _as_dict(value.get("metadata")).get("phone_number_id") or ""
         )
         contact = _first_contact(value)
-        record["wa_id"] = str(contact.get("wa_id") or "")
+        record["wa_id"] = str(canonical_sender.get("phone_number") or contact.get("wa_id") or "")
         # BSUID is spelled `user_id` on a contact and `from_user_id` on a message.
         record["bsuid"] = str(
             contact.get("user_id") or contact.get("from_user_id") or ""

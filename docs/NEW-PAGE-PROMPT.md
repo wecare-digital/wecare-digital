@@ -1,8 +1,7 @@
 # The new-page prompt
 
 Paste the block below when you want a new public page, or a change to an existing one. It is
-deliberately short: the depth lives in `.kiro/skills/new-public-page/SKILL.md`, which the agent
-reads when the prompt names it.
+self-contained: the procedure below records the mock, verification and review requirements.
 
 Replace the bracketed parts. Delete any line that does not apply — but delete it knowingly,
 because each one is there because something shipped broken without it.
@@ -19,7 +18,7 @@ Top-section sentence: [the one line under the headline, or "you write it, propos
 Rotating words, if any: [word, word, word, word]  — audiences or fields, never service names
 Primary action: [none / where it goes] — the top band carries no CTA and no price by default
 
-Follow .kiro/skills/new-public-page/SKILL.md. Specifically:
+Follow the procedure in this document. Specifically:
 
 1. MOCK FIRST, do not touch src/. Generate a review page the way
    tools/browser/homereview.js does — harvest CSS and markup from the built export, never

@@ -185,7 +185,6 @@ rules:
       - '/private/tmp/**'
       - '/var/folders/**'
       - '{home}/.kiro/**'
-      - '{home}/wecare-store/**'
 
   - capability: fs_write
     effect: allow
@@ -194,7 +193,6 @@ rules:
       - '/private/tmp/**'
       - '/var/folders/**'
       - '{home}/.kiro/**'
-      - '{home}/wecare-store/**'
 
   - capability: web_search
     effect: allow

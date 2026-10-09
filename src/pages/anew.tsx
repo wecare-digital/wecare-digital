@@ -12,8 +12,8 @@ import { productBySlug } from '../content/products';
  * [retired public path]/.
  *
  * NOT TO BE CONFUSED with the other "Swdhya" references still in this repo, which are
- * deliberately untouched: "Swdhya Vaksetu" is the blog author's name (src/lib/seo-prompt.ts,
- * src/lib/seo-page-prompt.ts, seo/schema/schema-templates.json), and the WhatsApp brand
+ * deliberately untouched: "Swdhya Vaksetu" is the blog author's name (seo/schema/schema-templates.json and the retained SEO
+ * implementation history), and the WhatsApp brand
  * catalogue in amplify/functions/ai/ai-generate-response still advertises Swdhya at
  * swdhya.in with live payload ids like store_swdhya. Those are a person and a running
  * production flow, not this page, and renaming them needs an explicit decision.

@@ -10,6 +10,52 @@ Scope: account `775261844268`, identity `user/wecare-admin`, `us-east-1`
 **Collector errors: 0**, so the counts below are authoritative rather than
 partial. Secrets were read as metadata only; no secret value was retrieved.
 
+---
+
+> ## ⚠️ SUPERSEDED 2026-10-09 — every WAF statement in this file is pre-deletion
+>
+> This document is dated **2026-09-26**, two days before the owner **deleted both web
+> ACLs** on 2026-09-28 as a cost decision. Re-measured live on 2026-10-09:
+>
+> ```
+> aws wafv2 list-web-acls --scope REGIONAL   --query 'length(WebACLs)'  -> 0
+> aws wafv2 list-web-acls --scope CLOUDFRONT --query 'length(WebACLs)'  -> 0
+> ```
+>
+> So the WAF rows in the table below (Regional **1**, CloudFront-scope **1**), the
+> reusable-asset note at line ~82, and the **D2 WITHDRAWN** section at lines ~144-161
+> ("WAF is live on both surfaces") all describe a state that no longer exists.
+> `wecare-cognito-waf` and `wecare-amplify-waf` are both gone.
+>
+> **The absence of WAF is NOT a gap and must not be written up as one.**
+> `.kiro/steering/00-current-owner-overrides.md` withdrew "WAF must be implemented and
+> live-verified" as a required target when the resource was removed. Restore path, if it
+> is ever reinstated: `python3 scripts/provision_waf.py --apply`, with prior rule and
+> association state preserved in
+> `docs/execution/snapshots/waf-*-before-delete-20260928.json`.
+>
+> **What is retained deliberately**, because it will matter again if WAF ever returns:
+> the measurement caveat in D2. Never read a WAF association with
+> `list_resources_for_web_acl` alone — it defaults `ResourceType` to
+> `APPLICATION_LOAD_BALANCER`, this account has none, and it does not enumerate Cognito
+> pools, Amplify apps or CloudFront at all, so a correctly protected ACL reads as
+> protecting nothing. That false reading was produced twice by two different sessions.
+> Use `get_web_acl_for_resource(<arn>)` per resource, or the Amplify app's own
+> `wafConfiguration`.
+>
+> **Consequence now in force:** there is no per-IP protection in front of public
+> customer OTP sign-in. The only remaining request filtering is handler-level
+> `require_auth`, provider HMAC verification on webhooks,
+> `lambda_utils/rate_limit.py`, the per-phone OTP probe counter in the Cognito
+> trigger, and API Gateway stage/route throttling. That is a real open exposure
+> accepted by owner decision, not a solved one.
+>
+> Non-WAF content in this file was not invalidated by the deletion, but every dated
+> count here has since drifted — re-derive with
+> `python scripts/aws_account_inventory.py` rather than quoting this file.
+
+---
+
 ## Every dated count in steering is now superseded
 
 `00-current-owner-overrides.md` carried a baseline snapshot and instructed that
@@ -22,8 +68,8 @@ it be rediscovered rather than trusted. Rediscovered:
 | HTTP API routes | 332 | **361** | +29 |
 | API Gateway authorizers | 0 | **0** | unchanged |
 | Routes `AuthorizationType=NONE` | 332 | **361** | +29 |
-| Regional WAF WebACLs | 0 | **1** | +1 |
-| CloudFront-scope WAF WebACLs | not measured | **1** | new |
+| Regional WAF WebACLs | 0 | ~~**1**~~ → **0** | ⚠️ SUPERSEDED — deleted 2026-09-28, live 0 on 2026-10-09 |
+| CloudFront-scope WAF WebACLs | not measured | ~~**1**~~ → **0** | ⚠️ SUPERSEDED — deleted 2026-09-28, live 0 on 2026-10-09 |
 | Cognito MFA | OFF | **OPTIONAL** (admin pool) | improved |
 | GuardDuty detectors | 0 | not re-measured this run | — |
 | Security Hub | not subscribed | not re-measured (excluded by owner) | — |
@@ -143,8 +189,14 @@ unverified by choice, to keep the probe inert.
 
 ### ~~D2 · `wecare-cognito-waf` protects nothing~~ — WITHDRAWN 2026-09-26
 
+> **⚠️ SUPERSEDED 2026-10-09.** Both web ACLs named below were **deleted by the owner on
+> 2026-09-28**; live `list-web-acls` returns **0** in REGIONAL and CLOUDFRONT scope. Read
+> this section as a historical record of a collector bug, not as current state. The
+> measurement lesson it teaches is still live and is the reason the section is kept.
+
 **This finding was wrong, and it was my collector's bug rather than an account
-defect.** WAF is live on both surfaces.
+defect.** WAF is live on both surfaces. *(True when written on 2026-09-26; the ACLs no
+longer exist — see the stamp above.)*
 
 `ListResourcesForWebACL` defaults `ResourceType` to
 `APPLICATION_LOAD_BALANCER`. This account has no load balancers, so a single

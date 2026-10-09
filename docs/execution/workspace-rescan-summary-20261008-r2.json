@@ -95,7 +95,6 @@
       "version": "52",
       "lastModified": "2026-10-08T09:06:46.000+0000",
       "booleanFlags": {
-        "WA_PAYMENTS_DISABLED": "UNSET",
         "WHATSAPP_PAYMENTS_ENABLED": "UNSET",
         "PSTN_BROWSER_ROUTING_ENABLED": "UNSET"
       }
@@ -104,7 +103,6 @@
       "version": "73",
       "lastModified": "2026-10-08T08:20:31.000+0000",
       "booleanFlags": {
-        "WA_PAYMENTS_DISABLED": "UNSET",
         "WHATSAPP_PAYMENTS_ENABLED": "UNSET",
         "PSTN_BROWSER_ROUTING_ENABLED": "UNSET"
       }

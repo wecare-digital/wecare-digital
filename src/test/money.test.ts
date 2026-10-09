@@ -41,7 +41,7 @@ describe( 'formatPaiseINR', () => {
   } );
 
   it( 'refuses a foreign currency rather than formatting it behind a rupee sign', () => {
-    // The currency is compared, not defaulted. This is the behaviour formatters.ts:47 lacks.
+    // The currency is compared, not defaulted. This is the behaviour the retired formatter lacked.
     expect( formatPaiseINR( 121481, 'USD' ) ).toBe( '' );
     expect( formatPaiseINR( 121481, '' ) ).toBe( '' );
     expect( formatPaiseINR( 121481, 'inr' ) ).toBe( '' );
