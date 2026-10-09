@@ -48,7 +48,7 @@
     "readOnlyOrdersSmoke": "VERIFIED_CUSTOMER_REQUIRED",
     "messagesSent": 0,
     "paymentPerformed": false,
-    "customerTestPhone": "+918100640044"
+    "customerTestPhoneSuffix": "0044"
   },
   "catalog": {
     "current": "1607047307067517",
