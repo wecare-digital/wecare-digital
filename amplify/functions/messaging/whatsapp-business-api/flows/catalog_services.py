@@ -62,9 +62,9 @@ def handle(event, client):
         if not choice or not event.get('sourceMessageId'):
             return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
         if choice['kind'] == 'SUBMIT_REQUEST':
-            from lambda_utils.ecommerce.paid_submit_request import list_orders
-            if not list_orders(db.Table('stack-wecare-digital-OrderTable'),
-                               {'customerId': identity.customer_id, 'orderId': ''}):
+            from lambda_utils.ecommerce.paid_submit_request import has_prior_order
+            if not has_prior_order(db.Table('stack-wecare-digital-OrderTable'),
+                                   {'customerId': identity.customer_id, 'orderId': ''}):
                 _send(client, {'contactId': contact['id'], 'phone': identity.phone,
                                'phoneNumberId': event['phoneNumberId']},
                       content='We could not find an earlier order linked to your verified account. No payment has been requested. Please message us so we can help link your order.')
