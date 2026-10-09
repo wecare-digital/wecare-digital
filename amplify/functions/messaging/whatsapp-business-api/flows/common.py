@@ -277,7 +277,7 @@ def send_payment(phone: str, phone_number_id: str, order_id: str, subject: str,
 
         # Send payment link
         send_phone_id = phone_number_id or PHONE1_ID
-        lambda_client.invoke(
+        send_resp = lambda_client.invoke(
             FunctionName=INVOICE_ENGINE_FUNCTION,
             InvocationType='RequestResponse',
             Payload=json.dumps({
@@ -286,11 +286,33 @@ def send_payment(phone: str, phone_number_id: str, order_id: str, subject: str,
                 'body': json.dumps({'invoiceId': invoice_id, 'phoneNumberId': send_phone_id}),
             })
         )
-        logger.info(json.dumps({
-            'event': 'payment_link_sent', 'invoiceNumber': invoice_number,
-            'phoneNumberId': send_phone_id, 'amount': payment_amount_paise,
-            'requestId': request_id,
-        }))
+        # The status is READ, not discarded. This used to log `payment_link_sent` after a
+        # RequestResponse invoke whose status it never inspected, so a readiness refusal was
+        # recorded as a successful send — and the invoice path is readiness-gated now, which
+        # makes a refusal a legitimate and expected outcome rather than an anomaly.
+        send_result = json.loads(send_resp['Payload'].read())
+        send_status = int(send_result.get('statusCode') or 0)
+        if 200 <= send_status < 300:
+            logger.info(json.dumps({
+                'event': 'payment_link_sent', 'invoiceNumber': invoice_number,
+                'phoneNumberId': send_phone_id, 'amount': payment_amount_paise,
+                'statusCode': send_status, 'requestId': request_id,
+            }))
+        else:
+            send_body = send_result.get('body')
+            if isinstance(send_body, str):
+                try:
+                    send_body = json.loads(send_body)
+                except (ValueError, TypeError):
+                    send_body = {}
+            logger.error(json.dumps({
+                'event': 'payment_link_refused', 'invoiceNumber': invoice_number,
+                'phoneNumberId': send_phone_id, 'statusCode': send_status,
+                # A stable refusal code only, never a provider or request-body string.
+                'code': str((send_body or {}).get('code')
+                            or (send_body or {}).get('error') or '')[:64],
+                'requestId': request_id,
+            }))
         return invoice_number
     except Exception as e:
         logger.error(json.dumps({'event': 'payment_error', 'error': str(e), 'requestId': request_id}))

@@ -3,8 +3,8 @@
  * Admin UI for WhatsApp native commerce: send the catalog, compose & send a
  * native order_details (Review & Pay) bill, view orders/payments, and see the
  * live Razorpay payment configs per WABA. Backed by:
- *   POST /whatsapp/send            (catalog_message only)
- *   POST /invoices + /invoices/{id}/send-payment-link (payment requests)
+ *   POST /whatsapp/send            (catalog_message only — this page composes NO payment)
+ *   POST /invoices + POST /invoices/{id}/send-payment-link   (the bill, server-composed)
  *   GET  /wa-business/orders       + PATCH /wa-business/orders/{id}
  *   GET  /payments                 (recent payments)
  */
@@ -103,11 +103,27 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         } finally { setBusy( '' ); }
     };
 
+    /**
+     * Raise an invoice, then ask the server to send its payment request.
+     *
+     * This browser composes NO payment any more. It used to build a free-form interactive
+     * order_details here, with a `reference_id` of `ADMINBILL-${Date.now()}` that was reserved
+     * nowhere. A free-form interactive message is not the approved template and is now refused
+     * at the server boundary, and an unreserved reference has no `PAYREF#` row, so a capture
+     * against it quarantines as PAID_BUT_NO_ORDER.
+     *
+     * The toast also used to promise "18% GST + 2% convenience" while the server-side free-form
+     * branch charged 2.5% plus 18% GST on the fee — a live money discrepancy. After this change
+     * the fee is computed once, in the invoice engine, and shown as its own line, so no figure is
+     * quoted here at all.
+     */
     const sendBill = async () => {
         const li = items
             .filter( i => i.name.trim() && Number( i.amount ) > 0 )
             .map( i => ( {
                 name: i.name.trim(),
+                // Rupees. `CreateInvoiceEngineRequest.items[].amount` is a rupee figure and the
+                // server converts with exact integer arithmetic.
                 amount: Number( i.amount ),
                 quantity: Math.max( 1, Number( i.quantity ) || 1 ),
                 gstRate: 18,
@@ -117,27 +133,26 @@ const CommercePage: React.FC<PageProps> = ( { signOut, user, embedded = false } 
         setBusy( 'bill' );
         try
         {
-            // A payment request must first become a server-owned invoice. The invoice engine
-            // mints/reserves the reference and constructs the approved order_details template.
             const invoice = await call( '/invoices', 'POST', {
-                customerPhone: `+${digits( toPhone )}`,
+                customerPhone: digits( toPhone ),
                 customerEmail: '',
                 shippingAddress: '',
                 billingAddress: '',
                 goodsType,
                 items: li,
-                currency: 'INR',
-                gstin: '19AAFFW7196L1Z8',
-                entryPoint: 'workspace_commerce',
+                entryPoint: 'commerce',
             } );
-            if ( !invoice?.invoiceId ) { toast.error( 'Invoice creation failed' ); return; }
-
-            const sent = await call(
-                `/invoices/${encodeURIComponent( invoice.invoiceId )}/send-payment-link`,
-                'POST',
-                { invoiceId: invoice.invoiceId, phoneNumberId: phoneId },
-            );
-            if ( sent ) toast.success( 'Bill sent securely through the invoice payment flow' );
+            if ( !invoice?.invoiceId ) { toast.error( 'Could not raise the invoice' ); return; }
+            // The configuration name is deliberately NOT sent: the server resolves it from the
+            // invoice row and then from its own proven expectation.
+            const sent = await call( `/invoices/${invoice.invoiceId}/send-payment-link`, 'POST',
+                { phoneNumberId: phoneId } );
+            // `call` returns the parsed BODY whatever the status, so a refusal is a truthy
+            // object. The server's refusals carry a stable `code` and every message ends
+            // "Nothing has been charged." — shown rather than collapsed to "Send failed", because
+            // a readiness refusal is now an expected outcome a staff member can act on.
+            if ( sent?.error || sent?.code ) toast.error( String( sent.error || sent.code ) );
+            else if ( sent ) toast.success( `Bill sent (invoice ${invoice.invoiceNumber || invoice.invoiceId})` );
             else toast.error( 'Send failed' );
         } finally { setBusy( '' ); }
     };

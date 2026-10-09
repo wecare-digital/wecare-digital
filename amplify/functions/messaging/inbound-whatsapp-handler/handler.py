@@ -2334,9 +2334,9 @@ def _process_message(
     # the payment. No order_details / Review-and-Pay message is built here any more, and no total
     # is computed - see `_handle_cart_order`. Gated OFF by WA_CATALOG_ORDERS_ENABLED.
     if msg_type == 'order':
-        # SEND #6 — the money path. Guarded here AND inside `_send_payment_request`,
-        # before the reference_id is minted. The inner guard is the one that matters,
-        # because that function has other callers; this one saves the whole computation.
+        # SEND #6 — the money path. `_send_payment_request` and its inner may-send guard are
+        # DELETED (A3.3); this guard is now the only one, and there is no reference mint left in
+        # this file to order it against.
         if _may_send('cart_order'):
             _handle_cart_order(message, contact_id, sender_phone, aws_phone_number_id, request_id)
         return
@@ -6594,11 +6594,11 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
     WhatsApp OTP they already use, the lines land in their existing website cart, and
     `checkout_pricing.compute_quote` produces the one and only payable.
 
-    `_send_payment_request` IS NO LONGER REACHABLE FROM A CATALOGUE ORDER. The function itself
-    stays for its other callers; what is gone is this path's call to it, so no `order_details` /
-    Review-and-Pay message is built for a cart, no Meta payment configuration is read, and there
-    is no second payment path in this file. `_fetch_catalog_product_names` is not called either:
-    its only purpose was a display name on that message.
+    `_send_payment_request` IS GONE ENTIRELY (A3.3). This path's call to it was removed in
+    Phase W, and the function itself has now been deleted because it had no other callers — so no
+    `order_details` / Review-and-Pay message is built for a cart, no Meta payment configuration
+    is read, and there is no second payment path in this file. `_fetch_catalog_product_names` is
+    not called either: its only purpose was a display name on that message.
 
     THE REPLY CARRIES NO PRICE, deliberately. Meta's `item_price` is the customer's client's view;
     Wix prices the basket at claim time. Quoting a figure here would be a second total with a
@@ -6727,248 +6727,18 @@ def _handle_cart_order(message: Dict, contact_id: str, sender_phone: str,
                                  'error': type(error).__name__, 'requestId': request_id}))
 
 
-def _send_payment_request(contact_id: str, phone_number_id: str, amount: float, request_id: str,
-                          item_name: str = 'Services/Goods', gst_rate: float = 18,
-                          shipping: float = 49, sender_phone: str = '',
-                          quantity: int = 1, discount: float = 0,
-                          handling: float = 0,
-                          items: list = None,
-                          payment_purpose: str = '', due_ref: str = '',
-                          order_id: str = 'Offline', customer_name: str = '',
-                          customer_phone: str = '', customer_email: str = '',
-                          shipping_address: str = '', billing_address: str = '',
-                          pay_for: str = 'self',
-                          goods_type: str = 'digital-goods', shipping_info: dict = None,
-                          catalog_retailer_id: str = '') -> None:
-    """Send WhatsApp Pay order_details message with per-item GST and payment log.
-    
-    Supports multi-item via `items` list of dicts:
-      [{'name': str, 'amount_paise': int, 'quantity': int, 'gst_rate': float}]
-    Falls back to single item_name/amount/quantity/gst_rate if items not provided.
-    """
-    if not contact_id or amount <= 0:
-        return
-    # Validate amount upper bound (₹10,00,000 = 10 lakh INR)
-    if amount > 1000000:
-        logger.warning(json.dumps({
-            'event': 'payment_amount_exceeds_limit',
-            'contactId': mask_contact_id(contact_id),
-            'amount': amount,
-            'requestId': request_id,
-        }))
-        return
-
-    # ── The may-send check goes BEFORE the mint, and the order is the whole point ──
-    # Traced in this function: the reference_id is minted on the first line of the `try`
-    # below, the Graph send is the async outbound invoke further down, and BOTH DynamoDB
-    # writes (the MessagesTable row carrying messageId/paymentReferenceId, and the
-    # ConversationHistoryTable pending-ref update) come AFTER that send. So a send Meta
-    # refuses leaves a minted reference with a `status: 'pending'` row behind it — and a
-    # customer who then retries produces exactly the duplicate-paid-order shape
-    # .kiro/steering/whatsapp-payments-india-reference.md calls the one failure this
-    # domain must never have.
-    #
-    # Returning here means NO reference_id is minted, NO MessagesTable row is written and
-    # NO pending ref is recorded. Guarding at the `_handle_cart_order` call site as well
-    # is belt-and-braces; this is the guard that matters, because this function has other
-    # callers. With STANDBY_REPLY_ENABLED at its shipped `true` default `_may_send`
-    # returns True unconditionally and execution continues to the mint exactly as before.
-    # Nothing about amounts, paise arithmetic, GST, the convenience fee or the
-    # reference_id format changes, and no capture, refund or configuration is touched.
-    if not _may_send('payment_request'):
-        logger.info(json.dumps({
-            'event': 'payment_request_suppressed_not_owner',
-            'contactId': mask_contact_id(contact_id),
-            'requestId': request_id,
-        }))
-        return
-
-    try:
-        reference_id = f"WD-PAY-{uuid.uuid4().hex[:8].upper()}"
-        qty = max(1, int(quantity))
-        
-        # Build items array for order_details with per-item GST
-        if items and len(items) > 0:
-            order_items = []
-            subtotal_paise = 0
-            gst_paise = 0
-            for i, item in enumerate(items):
-                i_amount = int(item.get('amount_paise', int(amount * 100)))
-                i_qty = int(item.get('quantity', 1))
-                i_name = item.get('name', item_name)
-                i_gst_rate = float(item.get('gst_rate', gst_rate))
-                i_line_total = i_amount * i_qty
-                subtotal_paise += i_line_total
-                gst_paise += int(round(i_line_total * i_gst_rate / 100 / 100, 2) * 100)
-                order_items.append({
-                    'retailer_id': f'ITEM_{i+1}',
-                    'name': i_name,
-                    'amount': {'value': i_amount, 'offset': 100},
-                    'quantity': i_qty,
-                    'gstRate': i_gst_rate,
-                })
-        else:
-            amount_in_paise = int(amount * 100)
-            subtotal_paise = amount_in_paise * qty
-            gst_paise = int(round(subtotal_paise * gst_rate / 100 / 100, 2) * 100)
-            order_items = [{
-                'retailer_id': 'ITEM_MAIN',
-                'name': item_name,
-                'amount': {'value': amount_in_paise, 'offset': 100},
-                'quantity': qty,
-                'gstRate': gst_rate,
-            }]
-        
-        discount_paise = int(discount * 100)
-        shipping_paise = int(shipping * 100)
-        handling_paise = int(handling * 100)
-
-        # Build payload matching outbound handler's isInteractivePayment format
-        payload = {
-            'body': json.dumps({
-                'contactId': contact_id,
-                'phoneNumberId': phone_number_id,
-                'isInteractivePayment': True,
-                'orderDetails': {
-                    'reference_id': reference_id,
-                    'type': goods_type or 'digital-goods',
-                    'shipping_info': shipping_info or {},
-                    'currency': 'INR',
-                    'itemName': order_items[0]['name'] if order_items else item_name,
-                    'quantity': qty,
-                    'gstRate': gst_rate,
-                    'gstin': '19AAFFW7196L1Z8',
-                    'orderId': order_id or 'Offline',
-                    'order': {
-                        'status': 'pending',
-                        'items': order_items,
-                        'subtotal': {'value': subtotal_paise, 'offset': 100},
-                        'discount': {'value': discount_paise, 'offset': 100, 'description': 'Promo'},
-                        'shipping': {'value': shipping_paise, 'offset': 100, 'description': 'Express'},
-                        'handling': {'value': handling_paise, 'offset': 100, 'description': 'Handling'},
-                        'tax': {'value': gst_paise, 'offset': 100, 'description': f'GSTIN: 19AAFFW7196L1Z8'},
-                    },
-                }
-            })
-        }
-
-        response = lambda_client.invoke(
-            FunctionName=OUTBOUND_WHATSAPP_FUNCTION,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
-
-        # Calculate totals for logging
-        conv_base_paise = int(round(subtotal_paise * 0.02 / 100, 2) * 100)
-        conv_gst_paise = int(round(conv_base_paise * 0.18 / 100, 2) * 100)
-        conv_total_paise = conv_base_paise + conv_gst_paise
-        total_paise = subtotal_paise - discount_paise + gst_paise + shipping_paise + handling_paise + conv_total_paise
-
-        # Store payment request with full GST breakdown for accounting
-        try:
-            messages_table = dynamodb.Table(MESSAGES_TABLE)
-            now = int(time.time())
-            # Build item summary for content field
-            item_summary = ' | '.join([f"{it['name']} x{it['quantity']} @₹{it['amount']['value']/100:.2f}" for it in order_items])
-            messages_table.put_item(Item={k: v for k, v in {
-                'id': str(uuid.uuid4()),
-                'messageId': reference_id,
-                'contactId': contact_id,
-                'channel': 'whatsapp',
-                'direction': 'outbound',
-                'messageType': 'payment_request',
-                'content': f'Payment: {item_summary} | GST {gst_rate}%: ₹{gst_paise/100:.2f} | Promo: -₹{discount:.2f} | Ship: ₹{shipping:.2f} | Handling: ₹{handling:.2f} | Total: ₹{total_paise/100:.2f}',
-                'paymentReferenceId': reference_id,
-                'paymentAmount': Decimal(str(subtotal_paise)),
-                'paymentOffset': Decimal('100'),
-                'paymentCurrency': 'INR',
-                'paymentItemName': order_items[0]['name'] if order_items else item_name,
-                'paymentItemCount': len(order_items),
-                'paymentQuantity': qty,
-                'paymentSubtotal': Decimal(str(subtotal_paise)),
-                'paymentDiscount': Decimal(str(discount_paise)),
-                'paymentGstRate': Decimal(str(gst_rate)),
-                'paymentGstAmount': Decimal(str(gst_paise)),
-                'paymentShipping': Decimal(str(shipping_paise)),
-                'paymentHandling': Decimal(str(handling_paise)),
-                'paymentConvFee': Decimal(str(conv_total_paise)),
-                'paymentTotal': Decimal(str(total_paise)),
-                'paymentGstin': '19AAFFW7196L1Z8',
-                'paymentSource': 'whatsapp_bot',
-                'paymentPurpose': payment_purpose or '',
-                'paymentDueRef': due_ref or '',
-                'paymentOrderId': order_id or 'Offline',
-                'paymentCustomerName': customer_name or '',
-                'paymentCustomerPhone': customer_phone or sender_phone,
-                'paymentCustomerEmail': customer_email or '',
-                'paymentShippingAddress': shipping_address or '',
-                'paymentBillingAddress': billing_address or '',
-                'paymentPayFor': pay_for or 'self',
-                'catalogRetailerId': catalog_retailer_id or '',
-                'status': 'pending',
-                'senderPhone': sender_phone,
-                'createdAt': Decimal(str(now)),
-                'expiresAt': Decimal(str(now + 86400 * 30)),
-            }.items() if v is not None and v != ''})
-        except Exception as store_err:
-            logger.warning(json.dumps({
-                'event': 'payment_request_store_error',
-                'error': str(store_err),
-                'referenceId': reference_id,
-                'requestId': request_id
-            }))
-
-        # Save pending payment ref to ConversationHistoryTable for due check
-        if sender_phone:
-            try:
-                from hashlib import sha256
-                clean_phone = sender_phone.replace('+', '').replace(' ', '').replace('-', '')
-                ph = sha256(clean_phone.encode()).hexdigest()[:32]
-                conv_table = dynamodb.Table(os.environ.get('CONVERSATION_HISTORY_TABLE', 'stack-wecare-digital-ConversationHistoryTable'))
-                conv_table.update_item(
-                    Key={'phoneHash': ph},
-                    UpdateExpression='SET lastPaymentRef = :ref, lastPaymentAmount = :amt, lastPaymentStatus = :s, lastPaymentAt = :t',
-                    ExpressionAttributeValues={
-                        ':ref': reference_id,
-                        ':amt': Decimal(str(subtotal_paise / 100)),
-                        ':s': 'pending',
-                        ':t': Decimal(str(int(time.time()))),
-                    }
-                )
-            except Exception as conv_err:
-                logger.warning(json.dumps({
-                    'event': 'payment_conv_update_error',
-                    'error': str(conv_err),
-                    'requestId': request_id
-                }))
-
-        logger.info(json.dumps({
-            'event': 'payment_request_sent',
-            'contactId': mask_contact_id(contact_id),
-            'referenceId': reference_id,
-            'itemCount': len(order_items),
-            'subtotal': subtotal_paise / 100,
-            'discount': discount,
-            'gstRate': gst_rate,
-            'gstAmount': gst_paise / 100,
-            'shipping': shipping,
-            'handling': handling,
-            'convFee': conv_total_paise / 100,
-            'total': total_paise / 100,
-            'orderId': order_id or 'Offline',
-            'source': 'whatsapp_bot',
-            'statusCode': response.get('StatusCode'),
-            'requestId': request_id
-        }))
-
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'payment_request_error',
-            'contactId': mask_contact_id(contact_id),
-            'amount': amount,
-            'error': str(e),
-            'requestId': request_id
-        }))
+# `_send_payment_request` was DELETED (A3.3). It composed a free-form `isInteractivePayment`
+# order_details message - not the approved template - with float GST, a browser-style
+# `WD-PAY-` reference minted in-process and reserved nowhere, a 2% convenience fee against the
+# 2.5% the rest of the system charges, and every `retailer_id` rewritten to `ITEM_n` so a line
+# could never be resolved back to the Wix variant it came from. It had ZERO callers: the
+# catalogue-order path stopped calling it in Phase W, and nothing else ever did.
+#
+# A minted-but-unreserved reference is the failure `wa_payment_request` exists to prevent: it
+# has no `PAYREF#` row, so a capture against it resolves to nothing and quarantines as
+# PAID_BUT_NO_ORDER. Payments are collected through `invoice-engine.send_payment_link`, which
+# reserves identity before it sends, and the free-form envelope is now refused at the
+# `outbound-whatsapp` boundary regardless.
 
 
 # ============================================================================

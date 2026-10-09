@@ -49,12 +49,22 @@ PHONE = '+918100640044'
 WABA1 = wpr.PHONE_NUMBER_ID_1
 
 
+#: The readiness expectations. The handler carries NO literal default for either, by design: an
+#: unconfigured deployment refuses rather than falling back to an unproven constant. So the
+#: fixture has to supply them, and they are test values — the point of the gate is that the
+#: expectation is COMPARED against a live readback, not that it is the live one.
+TEST_CONFIG = 'WECAREDIGITAL'
+TEST_MID = 'acc_TESTMID'
+
+
 @pytest.fixture
 def engine():
     for stale in [m for m in sys.modules if m == 'handler' or m.startswith('handler.')]:
         del sys.modules[stale]
     sys.path.insert(0, ENGINE_DIR)
-    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1'}):
+    with patch.dict(os.environ, {'AWS_REGION': 'us-east-1',
+                                 'WA_PAY_CONFIG_NAME': TEST_CONFIG,
+                                 'EXPECTED_PROVIDER_MID': TEST_MID}):
         with patch('boto3.resource'), patch('boto3.client'):
             return importlib.import_module('handler')
 
@@ -68,20 +78,45 @@ def fake():
 
 
 class _RecordingLambda:
+    """Records every invoke, DISPATCHING ON PATH.
+
+    The handler makes two different invokes through this one client: the readiness readback
+    against `/wa-business/payment-config/list`, and the send. Without the split every test here
+    would see the readiness invoke answered with a send response and the gate would refuse with
+    META_UNAVAILABLE. `sends()` is what "nothing was sent" asserts on; a provider read is not a
+    send.
+    """
+
     def __init__(self):
         self.invokes = []
 
+    @staticmethod
+    def _path(kwargs):
+        try:
+            return str(json.loads(kwargs.get('Payload') or '{}').get('path') or '')
+        except (ValueError, TypeError):
+            return ''
+
     def invoke(self, **kwargs):
         self.invokes.append(kwargs)
-        body = json.dumps({'statusCode': 200,
-                           'body': json.dumps({'status': 'sent',
-                                               'whatsappMessageId': 'wamid.X'})})
+        if '/payment-config/list' in self._path(kwargs):
+            body = json.dumps({'statusCode': 200, 'body': json.dumps({'data': [{
+                'configuration_name': TEST_CONFIG, 'status': 'active',
+                'provider_name': 'Razorpay', 'provider_mid': TEST_MID,
+                'waba_id': wpr.PHONE_ID_TO_WABA[WABA1]}]})})
+        else:
+            body = json.dumps({'statusCode': 200,
+                               'body': json.dumps({'status': 'sent',
+                                                   'whatsappMessageId': 'wamid.X'})})
 
         class _P:
             def read(self_inner):
                 return body.encode()
 
         return {'Payload': _P(), 'StatusCode': 200}
+
+    def sends(self):
+        return [c for c in self.invokes if '/payment-config/list' not in self._path(c)]
 
 
 def _seed(fake, *, total='599.00', status='pending_payment'):
@@ -101,10 +136,7 @@ def _drive(engine, fake, lam=None):
     with patch.object(engine, 'dynamodb') as ddb, patch.object(engine, 'lambda_client', lam):
         ddb.Table.side_effect = fake.Table
         ddb.meta.client = fake.client()
-        ready = engine.payment_readiness.PaymentReadiness(engine.payment_readiness.PAYMENT_READY)
-        with patch.object(engine, '_payment_readiness_for_sender', return_value=ready), \
-                patch.object(engine, '_lookup_contact_by_phone',
-                             return_value={'contactId': CUSTOMER}):
+        with patch.object(engine, '_lookup_contact_by_phone', return_value={'contactId': CUSTOMER}):
             return engine.send_payment_link(INVOICE_ID, WABA1, '', 'req-1'), lam
 
 
@@ -197,7 +229,8 @@ def test_an_edited_invoice_cannot_resume_the_old_reservation(engine, fake):
 
     resp, lam = _drive(engine, fake)
     assert _body(resp)['code'] == wpr.WA_PAY_INTENT_CHANGED
-    assert lam.invokes == []
+    # SENDS, not invokes: the readiness readback runs before the reservation and is not a send.
+    assert lam.sends() == []
     # Nothing new was reserved.
     assert len(_payref_rows(fake)) == 1
 
@@ -318,7 +351,7 @@ def test_after_a_cancel_a_fresh_collection_at_a_new_amount_succeeds(engine, fake
 
     resp, lam = _drive(engine, fake)
     assert resp['statusCode'] == 200, _body(resp)
-    assert len(lam.invokes) == 1
+    assert len(lam.sends()) == 1
 
     # ── the half that is easy to lose ──
     # The OLD `PAYREF#` row is still resolvable, and still carries the PRE-EDIT amount. A

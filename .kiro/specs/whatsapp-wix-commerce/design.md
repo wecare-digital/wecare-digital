@@ -5,6 +5,12 @@
 Use the existing self-managed Next.js/AWS headless application. WhatsApp/Razorpay collects payment externally; create the internal order and Wix order only after authoritative verification, then record the external payment without charging again. Velo and external PSP onboarding are not dependencies. Retain admin-only Cognito and WhatsApp-only receipts. Historical provider configuration claims below require live verification. See `docs/execution/headless-checkout-20261001.md` for the current partial audit and implementation gaps.
 
 > **Superseded 2026-10-01 (website-only ruling).** Payment is collected on the website via Razorpay Standard Checkout and the receipt is a private, authenticated downloadable document on the website; in-WhatsApp payment is removed from the active purchase flow. See `requirements.md` for the authoritative wording.
+>
+> **Scope of "removed", clarified 2026-10-09.** It removes in-WhatsApp payment from the **CART**
+> purchase flow. Native in-WhatsApp payment is retained, template-only and
+> provider-readiness-gated, for **invoice collection** and **service purchases**. See the Phase 9
+> re-scope note in [`tasks.md`](tasks.md) for the task-level consequences; this pointer exists so
+> the two files cannot drift again.
 
 Payment safety before wiring: reject unbound provider payments; enforce customer ownership before duplicate shortcuts; accept exact DynamoDB Decimal integers but no float coercion; pending/unknown is never retryable; prevent competing number assignments and repeating ambiguous Wix writes.
 
