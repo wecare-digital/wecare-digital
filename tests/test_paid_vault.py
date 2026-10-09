@@ -132,8 +132,8 @@ def test_notification_document_and_review_sequence_is_once_only(vault_env,flow_m
         sent.append(json.loads(json.loads(kwargs['Payload'])['body']))
         return {'Payload':io.BytesIO(json.dumps({'statusCode':200}).encode())}
     client=Mock();client.invoke.side_effect=invoke
-    assert module.prepare_and_send(event,client)['outcome']=='VAULT_READY'
-    assert module.prepare_and_send(event,client)['outcome']=='VAULT_READY'
+    assert module.prepare_and_send(event,client)['outcome']==('VAULT_READY' if open_window else 'VAULT_DELIVERY_DEFERRED')
+    assert module.prepare_and_send(event,client)['outcome']==('VAULT_READY' if open_window else 'VAULT_DELIVERY_DEFERRED')
     assert sent[0]['templateName']=='wecare_share_pdf'
     assert all(message.get('templateName')!='wecare_leave_review' for message in sent)
     assert len(sent)==(2 if open_window else 1)

@@ -39,6 +39,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,28 @@ def _unverified_issuer(token: str) -> str:
         return str(json.loads(base64.urlsafe_b64decode(payload)).get("iss") or "")
     except Exception:  # noqa: BLE001 - a malformed token simply has no issuer
         return ""
+
+
+#: A Cognito `sub` is a canonical lowercase UUID. The single copy of this pattern in the tree:
+#: every `Filter='sub = "' + value + '"'` call site reads it through `is_cognito_subject` below.
+_COGNITO_SUBJECT_RE = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
+
+
+def is_cognito_subject(value: Any) -> bool:
+    """Whether `value` is a well-formed Cognito `sub`: a canonical lowercase UUID.
+
+    EXISTS TO REFUSE MALFORMED FILTER INPUTS BEFORE `ListUsers`. Every caller builds a
+    `ListUsers` filter by concatenation — `Filter='sub = "' + value + '"'` — and the value comes
+    from a stored attribute (`contact['checkoutCustomerId']`, `row['customerId']`) rather than
+    from handset input. A poisoned row is therefore the only way a quote reaches the filter, and
+    it would break the filter syntax into a `ClientError` rather than disclose anything. That
+    makes this defence in depth on an identity path, which is where an inconsistency should not
+    be left: the predicate lives here once so that no call site carries its own copy.
+
+    Uppercase is deliberately refused. Cognito mints `sub` lowercase, so an uppercase value is
+    not a subject this pool issued and is not worth a `ListUsers` call.
+    """
+    return isinstance(value, str) and bool(_COGNITO_SUBJECT_RE.fullmatch(value))
 
 
 def customer_id_from_attributes(attributes: Dict[str, Any]) -> str:
@@ -284,6 +307,7 @@ __all__ = [
     "CustomerNotAuthorized",
     "CustomerIdentity",
     "bearer_token",
+    "is_cognito_subject",
     "customer_id_from_attributes",
     "authenticate",
     "authorize_resource",

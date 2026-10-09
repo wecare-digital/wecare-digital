@@ -77,7 +77,7 @@ def handle(event, client):
         Key={'id': event.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
     owner = str(contact.get('checkoutCustomerId') or '')
     # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', owner):
+    if not customer_auth.is_cognito_subject(owner):
         return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED', 'reply': 'Please sign in and verify this WhatsApp number to view your orders or Customer ID.\n' + SIGN_IN_URL}
     users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
         UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []

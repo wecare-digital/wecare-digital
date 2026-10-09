@@ -198,13 +198,19 @@ class TestGoldenEquivalence:
                 f"_generate_sku({name!r}) produced {sku!r}, which is not the WD-XX-NNNN "
                 f"shape the catalog and the invoice series both rely on")
 
-    def test_order_number_carries_a_date_and_a_uuid(self):
+    def test_order_number_is_the_current_public_format(self):
         # This is the function that raised NameError post-lift because `datetime` was not
         # carried over. Asserted directly so that cannot recur silently.
+        #
+        # FEAT-005 changed the SHAPE: it was
+        # `WD-ORD - {UUID8} - {DD-MM-YYYY} - {HH:MM:SS} - IST` and is now `WD-ORD-` plus 8
+        # symbols of the public alphabet. The date is gone on purpose, so asserting for one
+        # would now be asserting the defect. Uniqueness never came from the timestamp
+        # anyway - the conditional write under ORDERNO# is what guarantees it.
         out = d._generate_wd_order_number("2026-09-24T10:00:00Z")
-        assert out.startswith("WD-ORD")
-        assert re.search(r"\d{2}-\d{2}-\d{4}", out), "no date in the order number"
-        assert re.search(r"[0-9A-F]{8}", out), "no uuid fragment in the order number"
+        assert re.fullmatch(r"WD-ORD-[23456789ABCDEFGHJKMNPQRSTVWXYZ]{8}", out), out
+        assert " - " not in out and "IST" not in out
+        assert not re.search(r"\d{2}-\d{2}-\d{4}", out), "the number still carries a date"
 
     def test_order_number_survives_a_missing_and_a_malformed_date(self):
         for value in ("", None, "2026-01-01", "not-a-date"):

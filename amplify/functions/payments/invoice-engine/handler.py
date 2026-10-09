@@ -886,7 +886,7 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
                 ConditionExpression='attribute_not_exists(invoiceId)',
             )
         except Exception as claim_err:
-            if 'ConditionalCheckFailedException' not in str(claim_err):
+            if not order_keys.is_conditional_failure(claim_err):
                 logger.error(json.dumps({
                     'event': 'invoice_claim_error', 'error': str(claim_err),
                     'referenceId': reference_id, 'requestId': request_id}))

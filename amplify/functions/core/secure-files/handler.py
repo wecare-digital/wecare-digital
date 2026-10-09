@@ -1338,6 +1338,7 @@ def _redeem_after_reconcile(
     _queue_vault_review(entitlement)
     return cors_response(200, payload, origin)
 
+
 def _download_url(item: Dict[str, Any], ttl: Optional[int] = None) -> str:
     """A presigned GET that downloads under the readable filename.
 

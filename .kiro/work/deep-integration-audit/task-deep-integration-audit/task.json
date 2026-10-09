@@ -1,0 +1,7 @@
+{
+  "task_id": "task-deep-integration-audit",
+  "task_description": "Implement the SAFE-ENGINEERING half of the WECARE.DIGITAL deep-integration-audit design (design.md revision 3, design-review round 4 APPROVED ON SUBSTANCE): the seven source-level fixes that need no gate opening, no live Lambda alias move, no production invoke and no owner/provider action - F-1 (meta-catalog-sync diagnostic reason-totality + structural Graph status), F-5 (structural conditional-failure detection on six money-path sites), F-2 (guarded review-dedup that can never replay a captured payment), F-4 (one Cognito-subject predicate across seven identity-filter sites), F-6 (list_orders returns a plain list, never an internal UUID label, with eligibility split into has_prior_order), F-9 copy correction only at both duplicate sites, and F-10 (paid_vault VAULT_DELIVERY_DEFERRED with an ordered reason enum). Every deploy, gate opening, production invoke and provider read is OWNER CONFIRM or STOP and is recorded in plan.md Part B, not implemented. Full ordered plan: .kiro/work/deep-integration-audit/plan.md.",
+  "status": "completed",
+  "feature_order": ["FEAT-001", "FEAT-002", "FEAT-003", "FEAT-004"],
+  "blocked_reason": null
+}

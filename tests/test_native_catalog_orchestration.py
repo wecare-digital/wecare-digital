@@ -11,6 +11,11 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from coupon_fake_dynamo import FakeTable
 from lambda_utils.ecommerce import service_requests
 
+#: The verified customer. A Cognito `sub` is a canonical lowercase UUID, so a placeholder like
+#: 'owner' is a value this pool can never issue and `customer_auth.is_cognito_subject` refuses it
+#: before `ListUsers`. Same UUID the rest of the suite uses as ALICE.
+OWNER = '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+
 @pytest.fixture
 def module(monkeypatch):
     path = ROOT / 'amplify/functions/messaging/whatsapp-business-api/flows/catalog_services.py'
@@ -24,12 +29,12 @@ def module(monkeypatch):
 def test_missing_order_or_paid_file_never_requests_new_payment(module, monkeypatch, kind):
     phone = '+919876543210'
     contact = FakeTable(key_attr='id')
-    contact.seed({'id': 'contact', 'phone': phone, 'checkoutCustomerId': 'owner'})
+    contact.seed({'id': 'contact', 'phone': phone, 'checkoutCustomerId': OWNER})
     keys = FakeTable(key_attr='orderId')
     orders = FakeTable(key_attr='orderId', indexes={'customerId-createdAt-index': ('customerId', 'createdAt')})
     files = FakeTable(key_attr='fileId', indexes={'owner-created-index': ('ownerPhone', 'createdAt')})
     if kind == 'VAULT':
-        files.seed({'fileId': 'already-paid', 'ownerPhone': phone[1:], 'ownerCustomerId': 'owner',
+        files.seed({'fileId': 'already-paid', 'ownerPhone': phone[1:], 'ownerCustomerId': OWNER,
                     'status': 'active', 'vaultPaymentStatus': 'PAID', 'vaultAccessGrantId': 'existing'})
     tables = {'stack-wecare-digital-ContactsTable': contact,
               'stack-wecare-digital-WixOrderIds': keys,
@@ -37,7 +42,7 @@ def test_missing_order_or_paid_file_never_requests_new_payment(module, monkeypat
               'stack-wecare-digital-SecureFilesTable': files}
     db = Mock();db.Table.side_effect=lambda name: tables[name]
     cognito = Mock();cognito.list_users.return_value = {'Users': [{'Enabled': True, 'Attributes': [
-        {'Name': 'sub', 'Value': 'owner'}, {'Name': 'phone_number', 'Value': phone},
+        {'Name': 'sub', 'Value': OWNER}, {'Name': 'phone_number', 'Value': phone},
         {'Name': 'phone_number_verified', 'Value': 'true'}]}]}
     monkeypatch.setattr(module.boto3, 'resource', lambda *a, **k: db)
     monkeypatch.setattr(module.boto3, 'client', lambda *a, **k: cognito)

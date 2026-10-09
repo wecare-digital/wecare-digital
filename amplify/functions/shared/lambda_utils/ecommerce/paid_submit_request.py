@@ -11,6 +11,9 @@ import secrets
 import time
 from typing import Any
 from lambda_utils.ecommerce import order_keys, service_request_store as store
+from lambda_utils.logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 VARIANT_ID = 'e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b'
 FLOW_ID = '1107164111921876'
@@ -84,6 +87,7 @@ def list_orders(orders: Any, row: dict) -> list[dict]:
               'ExpressionAttributeValues': {':owner': row['customerId']},
               'ScanIndexForward': False, 'Limit': 50}
     result = []
+    skipped = 0
     while len(result) < 100:
         page = orders.query(**kwargs)
         for projected in page.get('Items', []):
@@ -93,15 +97,50 @@ def list_orders(orders: Any, row: dict) -> list[dict]:
             current = orders.get_item(Key={'orderId': oid}, ConsistentRead=True).get('Item') or {}
             if current.get('customerId') != row['customerId']:
                 continue
-            label = str(current.get('orderNumber') or oid)
-            result.append({'id': oid, 'title': label[:60]})
+            label = current.get('orderNumber')
+            if not order_keys.is_public_order_number(label):
+                # Display rule: a public order number or nothing, never an internal UUID.
+                # `flows/customer_commands.order_page` already refuses exactly this.
+                skipped += 1
+                continue
+            result.append({'id': oid, 'title': str(label)[:60]})
             if len(result) == 100:
                 break
         cursor = page.get('LastEvaluatedKey')
         if not cursor:
             break
         kwargs['ExclusiveStartKey'] = cursor
+    if skipped:
+        log_event(logger, 'order_choices_unnumbered', skipped=skipped)
     return result
+
+
+def has_prior_order(orders: Any, row: dict) -> bool:
+    """Eligibility only: does a DIFFERENT order exist under this verified customer?
+
+    Deliberately does NOT apply the display rule. A customer whose only prior orders are
+    legacy and unnumbered is still entitled to buy Submit Request; they simply see a
+    shorter selector. Keeping these two questions in one function is what made the naive
+    version of this fix purchase-blocking.
+    """
+    kwargs = {'IndexName': 'customerId-createdAt-index',
+              'KeyConditionExpression': 'customerId=:owner',
+              'ExpressionAttributeValues': {':owner': row['customerId']},
+              'ScanIndexForward': False, 'Limit': 50}
+    while True:
+        page = orders.query(**kwargs)
+        for projected in page.get('Items', []):
+            oid = str(projected.get('orderId') or '')
+            if not oid or oid == row['orderId']:
+                continue
+            current = orders.get_item(Key={'orderId': oid}, ConsistentRead=True).get('Item') or {}
+            if current.get('customerId') != row['customerId']:
+                continue
+            return True
+        cursor = page.get('LastEvaluatedKey')
+        if not cursor:
+            return False
+        kwargs['ExclusiveStartKey'] = cursor
 
 
 def submit(table: Any, keys: Any, orders: Any, token: str, data: dict) -> dict:
