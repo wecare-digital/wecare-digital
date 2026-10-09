@@ -383,28 +383,36 @@ def test_the_two_homes_agree_on_the_invoke_grant(provisioner):
     assert script == template
 
 
-def test_the_only_statement_the_two_homes_disagree_on_is_the_known_coupon_drift(provisioner):
-    """The drift this records is REAL and is NOT resolved by this change, deliberately.
+def test_the_two_homes_agree_on_every_statement(provisioner):
+    """The two definitions of `wecare-checkout-role` carry the SAME statement set — no drift.
 
-    `amplify/infra/checkout.json` carries a `CouponAndGiftCardRedemption` statement that
-    `expected_role_policy()` does not, and both documents use the same `PolicyName` — so
-    `ensure_role` calling `put_role_policy` with the script's document STRIPS that statement from
-    the live role. The script's docstring argues the omission is intentional (coupons and gift
-    cards are Wix-authoritative on the website path, and checkout imports only
-    `gift_card_settlement`), but whether to remove a live grant on a money path is an owner
-    decision, not an implementation detail — so the drift is recorded here rather than guessed at
-    in either direction.
+    Owner ruling (resolved): `amplify/infra/checkout.json` previously carried a
+    `CouponAndGiftCardRedemption` statement granting the role GetItem/PutItem/UpdateItem/DeleteItem
+    on `CouponsTable` and `GiftCardsTable` that `expected_role_policy()` did not. Because both
+    documents use the same `PolicyName` (`CheckoutLeastPrivilege`) and `ensure_role` calls
+    `put_role_policy` (replace, not merge), running the provisioner would have STRIPPED that
+    statement from the live role.
 
-    What this test buys in the meantime: ANY NEW divergence fails. The known one is named, so it
-    cannot quietly become a second.
+    Verified before resolving: the checkout function closure references neither table — coupons and
+    gift cards on the website path are Wix-authoritative (`wixGiftCardRedeemPaise`, `wix-giftcard-spi`,
+    `gift_card_settlement`), and the only functions touching the legacy `CouponsTable`/`GiftCardsTable`
+    are `wix-giftcard-spi` and the shared `coupon_store`/`gift_card_store` modules — NOT this role.
+    So the grant was a stale over-grant, not a needed permission. The owner's resolution is to drop
+    the stale statement from `checkout.json` (least-privilege), making the two homes agree, so the
+    provisioner can be run safely without removing anything the role actually uses.
+
+    What this test buys going forward: ANY divergence — a statement in one home and not the other,
+    in EITHER direction — fails, so the two cannot silently drift apart again.
     """
     script_sids = {s["Sid"] for s in _policy(provisioner)["Statement"]}
     template_sids = {s["Sid"] for s in _checkout_role_policy()["Statement"]}
-    assert template_sids - script_sids == {"CouponAndGiftCardRedemption"}, (
-        "a NEW statement-level drift appeared between the two definitions of "
+    assert template_sids - script_sids == set(), (
+        "a statement-level drift appeared between the two definitions of "
         "wecare-checkout-role; reconcile it or record it here with a reason")
-    assert script_sids - template_sids == set()
-    # Same PolicyName in both, which is WHY the drift matters: the provisioner replaces, it does
+    assert script_sids - template_sids == set(), (
+        "a statement-level drift appeared between the two definitions of "
+        "wecare-checkout-role; reconcile it or record it here with a reason")
+    # Same PolicyName in both, which is WHY any drift matters: the provisioner replaces, it does
     # not merge.
     assert _checkout_role_policy()["PolicyName"] == "CheckoutLeastPrivilege"
     assert 'PolicyName="CheckoutLeastPrivilege"' in SCRIPT.read_text(encoding="utf-8")

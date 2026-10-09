@@ -140,24 +140,6 @@
                   ]
                 },
                 {
-                  "Sid": "CouponAndGiftCardRedemption",
-                  "Effect": "Allow",
-                  "Action": [
-                    "dynamodb:GetItem",
-                    "dynamodb:PutItem",
-                    "dynamodb:UpdateItem",
-                    "dynamodb:DeleteItem"
-                  ],
-                  "Resource": [
-                    {
-                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-CouponsTable"
-                    },
-                    {
-                      "Fn::Sub": "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/stack-wecare-digital-GiftCardsTable"
-                    }
-                  ]
-                },
-                {
                   "Sid": "InvokeWhatsAppSender",
                   "Effect": "Allow",
                   "Action": [
