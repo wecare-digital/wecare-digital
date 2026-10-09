@@ -110,6 +110,12 @@
       "description": "Everything about your request, delivery or pickup in one place: track an order, amend a request, send documents, open your vault or leave a review."
     },
     {
+      "path": "/subscribe",
+      "group": "start",
+      "name": "Subscribe",
+      "description": "Ask to subscribe to WECARE.DIGITAL updates. For now, subscribing is handled through the contact page."
+    },
+    {
       "path": "/grahak-os",
       "group": "platform",
       "name": "Grahak OS",

@@ -45,6 +45,9 @@ const ROUTES = [
   // /contact/. Same shape as the product pages: rotating hero plus one content section.
   '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/leave-review/',
   '/refer-and-earn/',
+  // Subscribe, added after Leave Review in the Request menu. Same ProductPage shape as the pages
+  // above, so its title, description and canonical are checked like theirs.
+  '/subscribe/',
   // The catalogue. '/shop/' WAS HERE and was removed on 2026-10-04 when the owner withdrew the
   // index: it 301s to the home page, so it has no head of its own left to check. It was also the
   // weaker of the two rows - it took its head from PageMeta plus the sitewide block in _app.tsx,
