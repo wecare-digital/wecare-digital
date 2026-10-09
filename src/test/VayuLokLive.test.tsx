@@ -710,7 +710,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 } );
 
 describe( 'VayuLokLive v8 no-key map fallback', () => {
-  it( 'shows the keyless map without injecting Maps JS or issuing environmental calls', async () => {
+  it( 'shows a map-free keyless fallback without injecting Maps JS or issuing environmental calls', async () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
     const fetchSpy = vi.fn();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -721,9 +721,25 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     expect( document.getElementById( 'gmaps-js' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-canvas' ) ).toBeNull();
-    const frame = container.querySelector( '.vl-live-map-embed' ) as HTMLIFrameElement | null;
-    expect( frame ).not.toBeNull();
-    expect( frame?.getAttribute( 'src' ) ).toContain( 'maps.google.com/maps?q=' );
+    // THE PRIVACY CONTRACT. The keyless path used to render an eager
+    // maps.google.com/...&output=embed iframe - a third-party request on a public page
+    // that no visitor consented to. It is gone, and nothing on this path may reach any
+    // Google host: not an iframe, not an img, not a link, not a remote background.
+    expect( container.querySelector( '.vl-live-map-embed' ) ).toBeNull();
+    expect( container.querySelector( 'iframe' ) ).toBeNull();
+    const remoteRefs = Array.from( container.querySelectorAll( '[src],[href],[srcset],[data-src]' ) )
+      .flatMap( el => [ 'src', 'href', 'srcset', 'data-src' ].map( a => el.getAttribute( a ) || '' ) );
+    expect( remoteRefs.some( value => /google/i.test( value ) ) ).toBe( false );
+    expect( container.innerHTML ).not.toContain( 'maps.google.com' );
+    expect( container.innerHTML ).not.toContain( 'output=embed' );
+
+    // And the map-free placeholder IS what renders instead, carrying only place state
+    // the component already holds.
+    const placeholder = container.querySelector( '.vl-live-map-placeholder' );
+    expect( placeholder ).not.toBeNull();
+    expect( placeholder?.tagName ).toBe( 'DIV' );
+    expect( placeholder?.textContent ).toContain( 'Lumpyngngad' );
+    expect( placeholder?.textContent ).toContain( 'Interactive map unavailable' );
     expect( fetchSpy ).not.toHaveBeenCalled();
     expect( container.textContent ).not.toContain( 'Live air quality and weather' );
     expect( container.textContent ).not.toContain( 'Selected place' );

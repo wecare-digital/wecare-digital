@@ -3153,6 +3153,11 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
         return {'outcome': 'CATALOG_SERVICE_UNAVAILABLE'}
     if row.get('paymentAttemptId'):
         return {'outcome': 'CATALOG_SERVICE_ALREADY_PREPARED', 'paymentAttemptId': row['paymentAttemptId']}
+    contact = _table(CONTACTS_TABLE).get_item(Key={'id': row.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
+    owner = contact.get('checkoutCustomerId')
+    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
+    if not customer_auth.is_cognito_subject(owner) or owner != row.get('customerId'):
+        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
     # A2.5 — ONLY WABA1 MAY TAKE A PAYMENT, refused here with a named cause.
     #
     # Switching this leg onto the `isCheckoutTemplate` envelope newly subjects it to the
@@ -3161,18 +3166,20 @@ def _native_catalog_service(event: Dict[str, Any], origin: str):
     # written from `_get_aws_phone_number_id`, which returns only an AWS-style id — it guards
     # against WABA2, which that resolver can legitimately return and which must never collect.
     #
-    # POSITION: before the one-shot `nativePrepareClaim` write below. `nativePrepareClaim` is
-    # `attribute_not_exists`-conditional, so a check placed after it would make the customer's
-    # retry answer CATALOG_SERVICE_RECONCILIATION_REQUIRED and need a human.
+    # POSITION: two constraints hold here. (1) Before the one-shot `nativePrepareClaim` write
+    # below. `nativePrepareClaim` is `attribute_not_exists`-conditional, so a check placed after
+    # it would make the customer's retry answer CATALOG_SERVICE_RECONCILIATION_REQUIRED and need
+    # a human. (2) Deliberately AFTER the VERIFIED_CUSTOMER_REQUIRED refusal above, so that the
+    # specific, customer-actionable refusal wins over this operator/configuration fault when a
+    # session is both unverified and sent from a non-permitted number.
+    # `tests/test_customer_identity_filter_guard.py` pins that precedence. Only a read-only
+    # contacts `get_item` newly precedes this gate; `list_users`, the intent read, the readiness
+    # invoke, the claim write and `_create` all still happen strictly after it, so no provider
+    # call, write or charge is reachable by a non-permitted sender.
     if str(row.get('phoneNumberId') or '') not in wa_payment_request.PAYMENT_SENDERS:
         logger.error(json.dumps({'event': 'catalog_session_sender_not_permitted',
                                  'sessionToken': token[:8]}))
         return {'outcome': 'PAYMENT_SENDER_NOT_PERMITTED'}
-    contact = _table(CONTACTS_TABLE).get_item(Key={'id': row.get('contactId', '')}, ConsistentRead=True).get('Item') or {}
-    owner = contact.get('checkoutCustomerId')
-    # Cognito sub is canonical UUID. Refuse malformed filter inputs before ListUsers.
-    if not customer_auth.is_cognito_subject(owner) or owner != row.get('customerId'):
-        return {'outcome': 'VERIFIED_CUSTOMER_REQUIRED'}
     users = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1')).list_users(
         UserPoolId=customer_auth.CUSTOMER_POOL_ID, Filter='sub = "' + owner + '"', Limit=2).get('Users') or []
     identity = catalog.verified_identity(contact, users, row.get('phone', ''))

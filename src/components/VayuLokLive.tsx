@@ -26,7 +26,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
  * plus the content shell WITHOUT the map and WITHOUT live panels, and fires ZERO network
  * calls. No spinner, no "--" placeholder. Each API fetch uses AbortController + cleanup,
  * `if(!res.ok) return`, Number.isFinite guards (0 is a real value), and silent catch, so
- * any failed call simply omits its fields rather than showing broken state.
+ * any failed call simply omits its fields rather than showing broken state. The keyless
+ * map area is a LOCAL .vl-live-map-placeholder - plain text over a muted panel, no src and
+ * no remote asset - so this path contacts no third party at all, not even Google.
  *
  * ON USER ACTION ONLY. The AQI air-quality dot overlay is created ONLY when the user presses
  * a layer-control button. It is never requested on page load.
@@ -1882,7 +1884,6 @@ const VayuLokLive: React.FC = () => {
     ? pm25Severity( currentPm25.value )
     : null;
   const mapActive = Boolean( MAPS_KEY );
-  const fallbackMapUrl = `https://maps.google.com/maps?q=${encodeURIComponent( `${previewPlace.lat},${previewPlace.lng}` )}&z=13&output=embed`;
   const liveActive = Boolean( MAPS_KEY && hasSelection );
   const bestOutside = bestOutsideWindow( weatherHourly, airForecast );
   const combinedHours = weatherHourly.slice( 0, 24 ).map( ( w, i ) => ( {
@@ -2147,13 +2148,19 @@ const VayuLokLive: React.FC = () => {
           <section className="vl-live-right" aria-label="Map">
             <div className="vl-live-map-shell">
               { ( !mapActive || mapFailed ) ? (
-                <iframe
-                  className="vl-live-map-embed"
-                  src={ fallbackMapUrl }
-                  title={ `Map of ${previewPlace.name || 'Lumpyngngad'}` }
-                  loading="eager"
-                  allowFullScreen
-                />
+                /* MAP-FREE FALLBACK. This branch used to render an eager
+                   maps.google.com/maps?...&output=embed iframe. On a public page that is an
+                   UNCONSENTED third-party request to Google on every keyless or map-failed visit,
+                   and under output:'export' a keyless build shipped it to every visitor. Removed
+                   as an owner-approved privacy fix. The placeholder is self-contained: no src, no
+                   href, no remote background - it only restates place state the component already
+                   holds. The REAL map path below (Maps JS injection guarded by `if(!MAPS_KEY)`,
+                   .vl-live-map-canvas) and every Air/Weather call are UNCHANGED. */
+                <div className="vl-live-map-placeholder" role="status">
+                  <strong>{ previewPlace.name || 'Lumpyngngad' }</strong>
+                  { previewPlace.addr && <span>{ previewPlace.addr }</span> }
+                  <p>{ mapActive ? 'Interactive map could not load' : 'Interactive map unavailable' }</p>
+                </div>
               ) : (
                 <>
                   { !mapReady && (
@@ -2342,10 +2349,13 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-day small{display:block;margin-top:3px;color:var(--green);font-size:10px;font-weight:700}
 
         .vl-live-map-shell{position:relative;height:100%;min-height:748px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
-        .vl-live-map-canvas,.vl-live-map-embed{position:absolute;inset:0;width:100%;height:100%}
+        .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
-        .vl-live-map-embed{border:0;background:#eef1ed}
+        .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:#eef1ed;color:var(--green)}
+        .vl-live-map-placeholder strong{font-size:15px;letter-spacing:-.01em}
+        .vl-live-map-placeholder span{font-size:12.5px;color:var(--muted)}
+        .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
