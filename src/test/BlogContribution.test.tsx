@@ -55,9 +55,17 @@ const [ ONLY ] = CONTRIBUTION_CHOICES;
  *   WAS: the offered amounts come from the central config; choosing one writes ONE cart line at
  *        quantity 1 and navigates to /cart/; an unconfigured build renders an honest line and no
  *        form.
- *   IS:  the block renders exactly ONE anchor, at the owner's Contribute message link, with a
- *        muted subtext line under it - and NO form, NO radio group, NO button, and nothing
- *        written to the cart by rendering or by clicking.
+ *   IS:  the block renders exactly ONE anchor, at the owner's Contribute message link, carrying
+ *        the WhatsApp glyph and the single word "Contribute" and NO subtext line - and NO form,
+ *        NO radio group, NO button, and nothing written to the cart by rendering or by clicking.
+ *
+ * THE ABSENT SUBTEXT IS ASSERTED ON PURPOSE. The brief asked for a muted line under the pill;
+ * the owner then revised the design to the icon-only treatment and settled it as "no need for
+ * subtext", on the grounds that the WhatsApp glyph already says where the link goes. That
+ * decision and its chain are recorded at
+ * .agents/tasks/contribute-whatsapp-cta/owner-decision.md, which is what the `.bc-note` absence
+ * cases below hold the component to - so re-adding the line would be a design change with an
+ * owner on it, not a quiet fix.
  *
  * WHAT WENT, AND WHY IT IS NOT A HOLE IN COVERAGE:
  *   - Every choices/radio/submit case. There is no control left to choose with, and the
@@ -127,8 +135,9 @@ describe( 'BlogContribution is one WhatsApp link', () => {
     // Decorative: the accessible name below already says what it depicts.
     expect( icon!.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
 
-    // NO SUBTEXT ANYWHERE - owner decision, final. An "...on WhatsApp" line under the button
-    // would repeat what the glyph already shows.
+    // NO SUBTEXT ANYWHERE - recorded owner decision, see
+    // .agents/tasks/contribute-whatsapp-cta/owner-decision.md. An "...on WhatsApp" line under
+    // the button would repeat what the glyph already shows.
     expect( container.querySelector( '.bc-note' ) ).toBeNull();
     expect( container.querySelectorAll( 'p' ) ).toHaveLength( 1 );
     expect( container.querySelector( 'p' )!.className ).toContain( 'bc-copy' );

@@ -46,7 +46,7 @@ html,body{margin:0;background:#fff}
 .vl-vayulok{
   /* THE FONT STACK IS DECLARED LOCALLY AND NEVER FETCHED. No @font-face, no
      remote stylesheet, no <link>. src/components/BlogSubscribe.tsx:333 and
-     BlogContribution.tsx:289 declare the same stack the same way. */
+     BlogContribution.tsx (the `.bc` rule) declare the same stack the same way. */
   font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
   color:#1a1a1a;                     /* .home-shell{color:#1a1a1a} src/pages/index.tsx:1013 */
   -webkit-font-smoothing:antialiased;
@@ -66,8 +66,14 @@ html,body{margin:0;background:#fff}
   --ink-body:rgba(0,0,0,.898);       /* THE one body level */
   --ink-strong:#000;                 /* .home-flow-list strong */
   --ink-base:#1a1a1a;
-  --ink-muted:rgba(0,0,0,.54);       /* .bc-title / .bc-legend, BlogContribution.tsx:259 */
-  --ink-status:rgba(0,0,0,.7);       /* .bc-status, BlogContribution.tsx:309 */
+  --ink-muted:rgba(0,0,0,.54);       /* .bc-title, BlogContribution.tsx (NO line number: the
+                                        `.bc-legend` half of this citation retired with the
+                                        amount pill, and the line numbers it carried went stale
+                                        the moment that component was rewritten) */
+  --ink-status:rgba(0,0,0,.7);       /* .vl-note below. Taken from `.bc-status`, which is GONE:
+                                        it carried the contribution block's honest "not
+                                        available" line, and a static wa.me anchor has no such
+                                        state. The token stays because .vl-note still uses it. */
   --ink-second:rgba(0,0,0,.66);      /* .blog-subscribe-head>p, BlogSubscribe.tsx:337 */
 
   /* ------------------------------------------------------------------------
@@ -196,7 +202,7 @@ html,body{margin:0;background:#fff}
      ROLE 1  action          .vl-btn                  52px / 13px / 16px-500 / 2px #1a3a2a / lime
      ROLE 2  (retired)       -                        was .vl-btn-quiet, 32px / 999px / 12px-700
      ROLE 3  text input      .vl-input, .vl-search-field  52px / 10px / 1px #e5e7eb
-     ROLE 4  amount chip     .vl-bc-choice-face       40px / 999px / 15px-700 / 2px #e5e7eb
+     ROLE 4  (retired)       -                        was .vl-bc-choice-face, 40px / 999px / 15px-700
      ROLE 5  map control     .vl-layer, .vl-map-btn   38px / 999px / 13px-700 / 1px
      ROLE 6  tab             .vl-tab                  40px / 999px / 15px-700 / no border
      ROLE 7  result option   .vl-search-option        52px / no radius / 16px-600 + 13px / lime active
@@ -333,10 +339,25 @@ html,body{margin:0;background:#fff}
    revive this one. ROLE 3 keeps its number and its box, whose two users are
    now .vl-input and .vl-search-field. */
 
-/* ROLE 4 - AMOUNT CHIP. src/components/BlogContribution.tsx:277
-   `.bc-choice-face`, verbatim: 999px, padding 8px 16px, 2px solid #e5e7eb,
-   white. The selected state is lifted VERBATIM further down. Measures 40px
-   tall at 15px/700. */
+/* ROLE 4 - RETIRED. There is deliberately no rule here, and the number is left
+   vacant for the same reason ROLE 2's is - the role numbers are cited from
+   outside this file, so renumbering would invalidate those citations.
+
+   It was `.vl-bc-choice-face`, the contribution AMOUNT CHIP, lifted verbatim
+   from `.bc-choice-face` in src/components/BlogContribution.tsx: 999px,
+   padding 8px 16px, 2px solid #e5e7eb on white, 40px tall at 15px/700, with a
+   visually-hidden radio beside it.
+
+   IT RETIRED BECAUSE THE SHAPE IT MIRRORED NO LONGER EXISTS. The owner removed
+   both button-looking controls from the contribution block - the amount pill
+   AND the submit - and replaced them with one wa.me anchor. There is no amount
+   to choose anywhere in the repo's UI now, so a chip role here would be a
+   shape with nothing to drift from, which is the opposite of what the role
+   table is for. The Contribute CTA below uses ROLE 1 (.vl-btn), the same role
+   the Subscribe anchor above it uses.
+
+   DO NOT REVIVE THIS ONE. If a chooser is ever wanted again, take it from this
+   file's history only as reference and give it a fresh role number. */
 
 /* ROLE 5 - MAP CONTROL ('AQI', 'PM2.5', 'Clear key'). The rule is .vl-layer,
    declared with the map overlays further down, and .vl-map-btn shares its
@@ -883,6 +904,12 @@ html,body{margin:0;background:#fff}
    THE VISIBLE LABEL IS 'Contribute'. Not 'Contribution'. There is deliberately
    NO text-transform on .vl-bc-title, so CSS cannot uppercase it either -
    uppercasing it in CSS would be the same defect wearing a different hat.
+
+   THE FORM IS GONE FROM THIS SECTION, because it is gone from the component.
+   The amount chips, their visually-hidden radios, the fieldset/legend and the
+   submit wrapper all mirrored a chooser the owner removed; what ships is ONE
+   wa.me anchor, exactly like Subscribe above. It reuses ROLE 1 (.vl-btn)
+   rather than declaring a shape of its own - see the retired ROLE 4 note.
    ========================================================================= */
 .vl-contribute{padding-top:24px;border-top:1px solid var(--hair)}
 .vl-bc-title{
@@ -890,26 +917,6 @@ html,body{margin:0;background:#fff}
   letter-spacing:.08em;color:var(--ink-muted);
 }
 .vl-bc-copy{margin:0 0 20px;max-width:60ch;font-size:18px;font-weight:400;line-height:1.5;letter-spacing:-.125px;color:var(--ink-body)}
-.vl-bc-fieldset{border:0;margin:0;padding:0}
-.vl-bc-legend{padding:0;margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.01em;color:var(--ink-muted)}
-.vl-bc-choices{display:flex;flex-wrap:wrap;gap:10px}
-.vl-bc-choice{position:relative;display:inline-flex}
-/* The real radio is visually hidden but keyboard-reachable; the face is the
-   chip. BlogContribution.tsx:273-277, verbatim. */
-.vl-bc-radio{position:absolute;opacity:0;width:1px;height:1px;margin:0}
-.vl-bc-choice-face{
-  display:inline-flex;align-items:center;justify-content:center;min-width:64px;
-  padding:8px 16px;border:2px solid #e5e7eb;border-radius:999px;background:#fff;
-  font-size:15px;font-weight:700;letter-spacing:-.125px;color:#1a3a2a;cursor:pointer;
-  transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
-}
-.vl-bc-radio:hover + .vl-bc-choice-face{
-  border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
-}
-/* SELECTED STATE, lifted VERBATIM from BlogContribution.tsx:300. */
-.vl-bc-radio:checked + .vl-bc-choice-face{border-color:#1a3a2a;background:#d1f470}
-.vl-bc-radio:focus-visible + .vl-bc-choice-face{outline:3px solid #1a3a2a;outline-offset:2px}
-.vl-bc-submit-wrap{margin-top:20px;display:flex;align-items:center}
 
 /* The real components carry consent / limits microcopy here. It is NOT
    invented: this is a labelled placeholder, which is the honest thing a mock
@@ -947,9 +954,11 @@ html,body{margin:0;background:#fff}
   .vl-subscribe{padding:20px 16px}
 }
 @media(prefers-reduced-motion:reduce){
-  .vl-layer,.vl-map-btn,.vl-btn,.vl-tab,.vl-bc-choice-face,.vl-advisory-rule{transition:none}
+  /* .vl-bc-choice-face and the .vl-bc-radio:hover lift are no longer listed
+     here: both retired with the amount chip (ROLE 4). .vl-btn covers the
+     Contribute anchor now, as it already covered Subscribe. */
+  .vl-layer,.vl-map-btn,.vl-btn,.vl-tab,.vl-advisory-rule{transition:none}
   .vl-btn:active{transform:none}
-  .vl-bc-radio:hover + .vl-bc-choice-face{transform:none;box-shadow:none}
 }
 </style>
 </head>
@@ -1299,7 +1308,9 @@ html,body{margin:0;background:#fff}
 
                ZERO NETWORK IS UNAFFECTED. The wa.me URL is a navigation TARGET in an
                href - nothing fetches it on load, and the harness asserts the document
-               is still the only request. It is the one http(s) string in the file. -->
+               is still the only request. It is one of the TWO http(s) strings in the
+               file; the other is the Contribute anchor's own wa.me href below, which
+               arrived when that block's form became a link. -->
           <a class="vl-btn" id="vl-sub-wa" href="https://wa.me/message/WUDPTMYSO6XII1"
              target="_blank" rel="noopener noreferrer">Subscribe on WhatsApp</a>
 
@@ -1317,39 +1328,31 @@ html,body{margin:0;background:#fff}
           If you found this useful, you&#8217;re welcome to make a small voluntary contribution.
         </p>
 
-        <form onsubmit="return false">
-          <fieldset class="vl-bc-fieldset">
-            <legend class="vl-bc-legend">Choose an amount</legend>
-            <div class="vl-bc-choices" role="radiogroup" aria-label="Contribution amount">
-              <!-- Shared contribution presets: Rs100 / Rs250 / Rs500. The live BlogContribution
-                   component and backend enforce the same exact three choices; there is no custom
-                   "Other" path. -->
-              <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="100" checked>
-                <span class="vl-bc-choice-face">&#8377;100</span>
-              </label>
-              <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="250">
-                <span class="vl-bc-choice-face">&#8377;250</span>
-              </label>
-              <label class="vl-bc-choice">
-                <input type="radio" name="vl-amount" class="vl-bc-radio" value="500">
-                <span class="vl-bc-choice-face">&#8377;500</span>
-              </label>
-            </div>
-          </fieldset>
-
-          <div class="vl-bc-submit-wrap">
-            <button class="vl-btn" type="submit">Contribute</button>
-          </div>
-        </form>
+        <!-- ONE ANCHOR, NO FORM - mirrors src/components/BlogContribution.tsx after the owner
+             removed BOTH of this block's button-looking controls (the amount chips AND the
+             submit). A contribution is a CONVERSATION now, so the whole UI is a link, and the
+             fieldset / legend / radiogroup / submit-wrap that stood here are gone rather than
+             hidden. The chips' shape retired with them - see the ROLE 4 note above.
+             A DIFFERENT MESSAGE LINK FROM SUBSCRIBE: BYFLCAAMSZBXD1, not the WUDPTMYSO6XII1
+             above. Pointing one at the other would look entirely correct on screen, which is
+             why src/test/BlogDesign.test.tsx asserts the two hrefs differ.
+             NO SUBTEXT under it, and none under Subscribe either - recorded owner decision,
+             .agents/tasks/contribute-whatsapp-cta/owner-decision.md: the WhatsApp glyph on the
+             live pill already says where the link goes. This mock carries no icon set, so it
+             shows the full label where the live pill shows glyph + the single word Contribute.
+             target=_blank with rel="noopener noreferrer" for the same reason the Subscribe
+             anchor above carries them. ZERO NETWORK IS UNAFFECTED: a wa.me URL in an href is a
+             navigation TARGET, and nothing fetches it on load. It is now the second of two
+             http(s) strings in this file, both of them wa.me hrefs. -->
+        <a class="vl-btn" id="vl-bc-wa" href="https://wa.me/message/BYFLCAAMSZBXD1"
+           target="_blank" rel="noopener noreferrer">Contribute on WhatsApp</a>
 
         <!-- THE PAYMENT-NOTICE PLACEHOLDER THAT STOOD HERE WAS DELETED, NOT FILLED IN.
              It claimed "the real component's amount limits, payment-provider notice and
-             receipt wording sit here" - but src/components/BlogContribution.tsx carries
-             no such prose. Its amount UI is the three shared preset choices. There is no custom
-             amount notice, no payment-provider notice and no receipt wording to mirror, so
-             the placeholder was standing in for copy that does not exist. -->
+             receipt wording sit here" - but src/components/BlogContribution.tsx carries no
+             such prose, and now quotes no figure at all. There is no amount notice, no
+             payment-provider notice and no receipt wording to mirror, so the placeholder was
+             standing in for copy that does not exist. -->
       </section>
       </div><!-- /.vl-app-left -->
 

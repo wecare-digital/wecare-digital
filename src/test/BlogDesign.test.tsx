@@ -867,6 +867,8 @@ describe( 'Blog post page', () => {
     expect( links[ 0 ].textContent ).toBe( 'Contribute' );
     expect( links[ 0 ] ).toHaveAttribute( 'aria-label', 'Contribute on WhatsApp' );
     // No explanatory line under the button: the WhatsApp glyph on it is what says where it goes.
+    // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md, which revises the
+    // brief's subtext requirement to this icon-only treatment.
     expect( block.querySelector( '.bc-note' ) ).toBeNull();
 
     // Nothing to choose and nothing to submit: the amount pill, its radio and the submit button
@@ -887,6 +889,8 @@ describe( 'Blog post page', () => {
    *
    * The glyph is asserted on BOTH, by path data, because the icon is what tells the reader the
    * button opens WhatsApp - it is the reason neither CTA carries an explanatory subtext line.
+   * That reason is the owner's, recorded at
+   * .agents/tasks/contribute-whatsapp-cta/owner-decision.md.
    */
   it( 'pairs Subscribe and Contribute as two distinct WhatsApp links with the same glyph', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
@@ -909,11 +913,16 @@ describe( 'Blog post page', () => {
     expect( pathOf( subscribe ) ).toMatch( /^M17\.47 14\.38/ );
     expect( pathOf( contribute ) ).toBe( pathOf( subscribe ) );
 
-    // NO SUBTEXT UNDER EITHER ONE - owner decision, final.
+    // NO SUBTEXT UNDER EITHER ONE - the recorded owner decision cited in the docblock above.
     expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
     expect( container.querySelector( '.bc-note' ) ).toBeNull();
 
-    // And the same pill object: both carry the home CTA's five values.
+    // And the same pill object: both carry the home CTA's values.
+    //
+    // THE RADIUS IS IN THIS LIST NOW, and it was not before. `.bc-cta` used to declare 999px
+    // against Subscribe's 50px - visually identical at a 52px height, so nothing on screen told
+    // you the two rules disagreed, and a comment claiming an exact match was wrong. `.bc-cta` is
+    // 50px now, which makes the twin claim a thing this loop can actually hold.
     const css = cssOf( container );
     for ( const selector of [ '.blog-wa-subscribe{', '.bc-cta{' ] )
     {
@@ -921,6 +930,7 @@ describe( 'Blog post page', () => {
       expect( rule, selector ).toContain( 'min-height:52px' );
       expect( rule, selector ).toContain( 'padding:0 28px' );
       expect( rule, selector ).toContain( 'border:2px solid #1a3a2a' );
+      expect( rule, selector ).toContain( 'border-radius:50px' );
       expect( rule, selector ).toContain( 'background:#d1f470' );
       expect( rule, selector ).toContain( 'font-size:17px;font-weight:600' );
       expect( rule, selector ).toContain( 'gap:10px' );

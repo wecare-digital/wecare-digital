@@ -23,9 +23,16 @@ import React from 'react';
  * IT IS THE SUBSCRIBE BUTTON'S TWIN, DELIBERATELY. Owner instruction: the two CTAs at the tail of
  * a post are a matched pair - the same lime pill, the same WhatsApp glyph, a one-word label. So
  * the icon markup below is the SAME path data as `.blog-wa-subscribe` in src/pages/post/[slug].tsx
- * and the pill values are the same five numbers. The glyph is what says "this opens WhatsApp",
- * which is why there is no explanatory line under the button: with the icon there, a subtext
- * saying so would repeat what the reader can already see.
+ * and the pill geometry is the same.
+ *
+ * NO SUBTEXT UNDER THE BUTTON, and that is a RECORDED DECISION rather than an omission. The task
+ * brief originally asked for a small muted line below the pill; the owner then revised the design
+ * to an icon instead, and on confirming that the WhatsApp glyph already makes the destination
+ * obvious, settled it as "no need for subtext". The decision and its chain are written down at
+ * .agents/tasks/contribute-whatsapp-cta/owner-decision.md so the deviation from the brief is
+ * traceable to the owner and not to this file's author. The glyph is what says "this opens
+ * WhatsApp"; a line saying so would repeat what the reader can already see. Subscribe, 44px
+ * above, carries no subtext either, which is the pair this matches.
  *
  * WHAT WAS DELETED, so the absence is not read as a gap:
  *   - `CONTRIBUTION_CHOICES` and the ₹250 amount pill, with its visually-hidden radio, its
@@ -119,19 +126,26 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
         font-size:18px;line-height:1.5;letter-spacing:-.125px;font-weight:400;
         color:rgba(0,0,0,.898);margin:0 0 20px;max-width:60ch;
       }
-      /* THE SUBSCRIBE BUTTON'S OBJECT, VALUE FOR VALUE - see .blog-wa-subscribe in
-         src/pages/post/[slug].tsx, which is the pair this has to match: 52px minimum height,
-         28px inline padding, a 2px #1a3a2a edge, the full pill radius, 17px/600, the 10px gap
-         between glyph and label, and the white hover inversion.
+      /* THE SUBSCRIBE BUTTON'S OBJECT - see .blog-wa-subscribe in src/pages/post/[slug].tsx,
+         which is the pair this has to match. THE VALUES ACTUALLY SHARED, each one declared
+         identically in both rules: min-height:52px, padding:0 28px, border:2px solid #1a3a2a,
+         border-radius:50px, background:#d1f470, color:#1a3a2a, font-size:17px, font-weight:600,
+         gap:10px, and the white hover inversion with its lift and shadow.
          WHY EACH NUMBER. The edge is what clears WCAG 1.4.11 for a control boundary (#1a3a2a on
          white is 12.48:1; the lime alone is 1.24:1 and cannot be the thing that separates the
-         button from the page). #1a3a2a type on #d1f470 is 10.04:1. The 999px radius is declared
-         here so the global 13px in src/styles/button.css cannot flatten the pill.
-         margin-top is 20px rather than the Subscribe button's 44px: that one opens a band, this
-         one follows its own copy line inside a band this section already opened. */
+         button from the page). #1a3a2a type on #d1f470 is 10.04:1. The radius is 50px rather
+         than the 999px this rule used to carry, so it is the SAME DECLARATION as the sibling
+         rather than a different number that happens to round the same way at 52px - and either
+         value overrides the global 13px in src/styles/button.css, which is the flattening the
+         explicit declaration exists to prevent.
+         WHAT IS DELIBERATELY NOT SHARED: margin-top. Subscribe sets 44px because it opens a
+         band. This rule sets NO margin-top at all - the 20px of air above the pill comes from
+         .bc-copy's own margin:0 0 20px above, because the pill follows its copy line inside a
+         band this section has already opened. Said explicitly because an earlier version of
+         this comment credited a margin-top:20px that was never declared here. */
       .bc-cta{
         display:inline-flex;align-items:center;gap:10px;box-sizing:border-box;
-        min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:999px;
+        min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
         background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
         text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
       }
