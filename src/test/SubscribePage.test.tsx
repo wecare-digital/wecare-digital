@@ -14,12 +14,13 @@ import { whatsappServiceLink } from '../config/whatsappServiceEntries';
  * WHAT THIS GUARDS.
  *   - One <h1> and one <main>, both from the shared RotatingHero (htmlcheck's H1-MANY and
  *     MANY-MAIN guard against a second of either), with the page's own badge and headline.
- *   - THE CTA IS THE CONTACT PAGE, on owner instruction, until a subscription backend exists. The
- *     pin on SUBSCRIBE_CTA_LABEL / SUBSCRIBE_CTA_HREF below is deliberate: when the real flow
- *     lands, update those two constants, the contact-page copy lines in src/content/subscribe.ts
- *     and this test together, on purpose.
- *   - THE PAGE STORES NOTHING AND SAYS SO: no form, no field, no button, no WhatsApp or mailto
- *     link, so nothing on it can look like a working sign-up.
+ *   - THE CTA OPENS WHATSAPP, on owner instruction (the official Meta message link
+ *     wa.me/message/WUDPTMYSO6XII1), replacing the earlier contact-page destination now that
+ *     Subscribe is a direct WhatsApp door. The pin on SUBSCRIBE_CTA_LABEL / SUBSCRIBE_CTA_HREF
+ *     below is deliberate: if the destination changes again, update those two constants, the
+ *     copy lines in src/content/subscribe.ts and this test together, on purpose.
+ *   - THE PAGE STORES NOTHING AND SAYS SO: no form, no field and no button, so nothing on it can
+ *     look like a working sign-up. The one anchor it does carry is the WhatsApp CTA.
  *   - The copy rules: no exclamation marks, no em or en dashes.
  *   - Chrome (Header, Footer, SupportWidget) is mounted once in _app.tsx; a page must not import it.
  *
@@ -43,29 +44,33 @@ describe( 'Subscribe page', () => {
     for ( const word of words ) expect( ( word || '' ).length ).toBeLessThanOrEqual( 18 );
   } );
 
-  it( 'sends the primary CTA to the public contact page', () => {
+  it( 'sends the primary CTA into WhatsApp via the official Meta message link', () => {
     render( <SubscribePage /> );
-    expect( SUBSCRIBE_CTA_LABEL ).toBe( 'Contact us to subscribe' );
-    expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wecare.digital/contact/' );
+    expect( SUBSCRIBE_CTA_LABEL ).toBe( 'Open WhatsApp' );
+    expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
     expect( screen.getByRole( 'link', { name: SUBSCRIBE_CTA_LABEL } ) )
-      .toHaveAttribute( 'href', 'https://wecare.digital/contact/' );
+      .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
   } );
 
-  it( 'is not overridden by a WhatsApp service entry, which would replace the CTA href', () => {
-    // ProductPage uses whatsappServiceLink( slug ) || ctaHref, so an entry with this slug would
-    // silently win over the contact page.
-    expect( whatsappServiceLink( SUBSCRIBE.slug ) ).toBeUndefined();
+  it( 'resolves its WhatsApp service entry to the same Meta message link the CTA uses', () => {
+    // ProductPage uses whatsappServiceLink( slug ) || ctaHref. Subscribe now HAS an entry, so the
+    // config link must match the content href or the rendered CTA would silently diverge.
+    expect( whatsappServiceLink( SUBSCRIBE.slug ) ).toBe( SUBSCRIBE_CTA_HREF );
   } );
 
-  it( 'has no form, field, button, WhatsApp or mailto link, so nothing looks like a sign-up', () => {
+  it( 'has no form, field or button, so nothing looks like an on-page sign-up', () => {
     const { container } = render( <SubscribePage /> );
     expect( container.querySelectorAll( 'form, input, textarea, select, button' ) ).toHaveLength( 0 );
-    expect( container.querySelectorAll( 'a[href*="wa.me"], a[href^="mailto:"]' ) ).toHaveLength( 0 );
+    // The ONE anchor the page carries is the WhatsApp CTA, and it points at the Meta message link.
+    const waLinks = container.querySelectorAll( 'a[href*="wa.me"]' );
+    expect( waLinks ).toHaveLength( 1 );
+    expect( waLinks[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
+    expect( container.querySelectorAll( 'a[href^="mailto:"]' ) ).toHaveLength( 0 );
   } );
 
-  it( 'says plainly that subscribing goes through the contact page and that nothing is stored', () => {
+  it( 'says plainly to open WhatsApp to subscribe and that nothing on the page is stored', () => {
     const { container } = render( <SubscribePage /> );
-    expect( container.textContent ).toMatch( /contact page/i );
+    expect( container.textContent ).toMatch( /whatsapp/i );
     expect( container.textContent ).toMatch( /nothing you do on this page is stored/i );
   } );
 
