@@ -16,27 +16,22 @@ interface PageProps { signOut?: () => void; user?: any; }
 type FlowSubmission = api.FlowLog;
 
 const FLOW_TYPES = [
-  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: '1469093721293830', paid: true, price: '₹49', status: 'published', confirmation: 'Payment link + text confirmation' },
-  { key: 'subscribe', label: 'Subscribe', icon: '📝', flowId: '1262971692700761', paid: false, price: 'Free', status: 'published', confirmation: 'WhatsApp text with subscriber ID' },
-  { key: 'track_request', label: 'Track Request', icon: '🔍', flowId: '1486454129852338', paid: false, price: 'Free', status: 'draft', confirmation: 'Status display in flow' },
-  { key: 'amend_request', label: 'Amend Request', icon: '✏️', flowId: '3678132465672138', paid: false, price: 'Free', status: 'draft', confirmation: 'Amendment confirmation' },
-  { key: 'schedule_appointment', label: 'Appointment', icon: '📅', flowId: '26575380852083467', paid: false, price: 'Free', status: 'draft', confirmation: 'Booking confirmation' },
-  { key: 'rx_slot', label: 'RX Slot', icon: '💊', flowId: '895208030185211', paid: false, price: 'Free', status: 'draft', confirmation: 'Slot confirmation' },
-  { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: '1211063631104445', paid: false, price: 'Free', status: 'draft', confirmation: 'Document registered' },
-  { key: 'enterprise_assist', label: 'Enterprise Assist', icon: '🏢', flowId: '1707170524029465', paid: false, price: 'Free', status: 'draft', confirmation: 'Enquiry acknowledgement' },
-  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'published', confirmation: 'Private review saved' },
-  { key: 'order_notes', label: 'Order Notes', icon: '📝', flowId: '1434731571172691', paid: false, price: 'Free', status: 'draft', confirmation: 'Notes saved' },
+  { key: 'orders', label: 'Orders', icon: '📦', flowId: '2167802357142172', paid: false, price: 'Free', status: 'draft', confirmation: 'Order history' },
+  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: '1728231914933139', paid: true, price: '₹99', status: 'draft', confirmation: 'Request details' },
+  { key: 'shipments', label: 'Shipments', icon: '🚚', flowId: '849713848195607', paid: false, price: 'Free', status: 'draft', confirmation: 'Shipment tracking' },
+  { key: 'vault', label: 'Vault', icon: '🔐', flowId: '1735480734227899', paid: true, price: '₹49', status: 'draft', confirmation: 'Vault access' },
+  { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: '1605008471323578', paid: true, price: '₹350', status: 'draft', confirmation: 'Document registered' },
+  { key: 'amend_request', label: 'Request Amendment', icon: '✏️', flowId: '959792226650003', paid: true, price: '₹350', status: 'draft', confirmation: 'Amendment confirmation' },
+  { key: 'leave_review', label: 'Leave Review', icon: '⭐', flowId: REVIEW_FLOW_ID, paid: false, price: 'Free', status: 'draft', confirmation: 'Review saved' },
 ];
 
 const MESSAGE_LINKS: Record<string, string> = {
+  orders: 'https://wa.me/message/2OQZCYBSMU4SE1',
   submit_request: 'https://wa.me/message/5DRZXKBJTZDQG1',
-  subscribe: 'https://wa.me/message/APDM5HUWH26SG1',
-  amend_request: 'https://wa.me/message/HD5C4LAUYOOID1',
+  shipments: 'https://wa.me/message/WGN4NMFLFSJVB1',
+  vault: 'https://wa.me/message/4J6E277ZRFHLK1',
   drop_docs: 'https://wa.me/message/BCYW2SEPI5R4D1',
-  // Owner-managed short link, from src/lib/reviewEntry.ts. Resolves to WABA 1
-  // (919330994400) with the prefill "Leave Review", which lowercases to the first keyword
-  // below, so the customer's own message opens the published flow. Same constant as the
-  // /leave-review/ page CTA, so the two cannot diverge.
+  amend_request: 'https://wa.me/message/HD5C4LAUYOOID1',
   leave_review: REVIEW_ENTRY_URL,
 };
 /* The submissions filter, built from FLOW_TYPES so a new flow appears here for free. */
