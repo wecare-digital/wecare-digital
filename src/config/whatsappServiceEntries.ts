@@ -13,6 +13,7 @@ export const WHATSAPP_SERVICE_ENTRIES = [
   { slug: 'shipments', label: 'Shipments', keyword: 'Shipments', messageLink: 'https://wa.me/message/WGN4NMFLFSJVB1', flowId: '', state: 'Verified order history; carrier booking is separate' },
   { slug: 'leave-review', label: 'Leave Review', keyword: 'Leave Review', messageLink: REVIEW_ENTRY_URL, flowId: '1578178897413815', state: 'Published' },
   { slug: 'subscribe', label: 'Subscribe', keyword: 'Subscribe', messageLink: 'https://wa.me/message/WUDPTMYSO6XII1', flowId: '', state: 'Meta message link; legacy Subscribe flows remain retired' },
+  { slug: 'anew', label: 'Anew', keyword: 'Start a conversation', messageLink: 'https://wa.me/message/F2D7PVR5Q45MP1', flowId: '', state: 'Public Anew conversation entry' },
   { slug: 'customer-id', label: 'Customer ID', keyword: 'Customer ID', messageLink: '', flowId: '', state: 'Stored public customer UUID' },
 ] as const;
 
