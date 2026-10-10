@@ -6,7 +6,10 @@ import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
-import { CONTRIBUTION_CHOICES } from '../config/contribution';
+/* CONTRIBUTION_CHOICES was imported here to hold the rendered amount pills equal to the central
+   config. The pills were removed on owner instruction (2026-10-10) when the contribution block
+   became a single WhatsApp link, so there is nothing on this page left to compare against it.
+   The config is unchanged and still pinned in src/test/BlogContribution.test.tsx. */
 
 vi.mock( 'next/head', () => ( { default: ( { children }: { children: React.ReactNode } ) => <>{ children }</> } ) );
 
@@ -844,25 +847,94 @@ describe( 'Blog post page', () => {
   } );
 
   /**
-   * THE AMOUNTS COME FROM THE CENTRAL CONFIG, not from literals re-typed into the page.
-   * Reading them from src/config/contribution.ts here is the same move ShareMeta.test.tsx makes
-   * for the share card: the test holds the rendered values equal to the one source.
+   * THE CONTRIBUTION BLOCK IS A WHATSAPP LINK, NOT A FORM - owner instruction, 2026-10-10.
+   *
+   * THIS CASE USED TO ASSERT THE AMOUNT PILLS, reading them from src/config/contribution.ts so
+   * the markup could not drift from the one source. Both button-looking elements it measured -
+   * the ₹250 amount pill and the "Contribute ₹250" submit - were removed on owner instruction,
+   * so there are no faces left to compare and the config-derived assertion has nothing to hold
+   * the markup to. It is NOT weakened to make it pass: the new truth is narrower and checkable,
+   * which is one anchor at one exact URL and no transacting control. The config itself is
+   * untouched and still pinned by src/test/BlogContribution.test.tsx.
    */
-  it( 'renders the contribution amounts from the central config, and no Other', () => {
+  it( 'offers one WhatsApp anchor in the contribution block, and no amount or form', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
-    const faces = Array.from( container.querySelectorAll( 'section.bc .bc-choice-face' ) )
-      .map( n => ( n.textContent || '' ).trim() );
+    const block = container.querySelector( 'section.bc' )!;
 
-    expect( faces ).toEqual(
-      CONTRIBUTION_CHOICES.map( choice => `\u20B9${ choice.rupees }` ) );
-    // Pinned against the literal as well as the config, deliberately. The line above proves the
-    // markup cannot drift from the config; this one proves the config itself still offers the
-    // three amounts the brief asks for, which a config-derived assertion alone would not catch.
-    expect( faces ).toEqual( [ '₹250' ] );
-    // The "Other" custom option went with the free-text amount on 2026-10-04, and ₹100/₹500 went
-    // with the Wix variants behind them on 2026-10-10: there is one fixed-price choice and
-    // nothing else.
-    expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( false );
+    const links = Array.from( block.querySelectorAll( 'a' ) );
+    expect( links ).toHaveLength( 1 );
+    expect( links[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    expect( links[ 0 ].textContent ).toBe( 'Contribute' );
+    expect( links[ 0 ] ).toHaveAttribute( 'aria-label', 'Contribute on WhatsApp' );
+    // No explanatory line under the button: the WhatsApp glyph on it is what says where it goes.
+    // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md, which revises the
+    // brief's subtext requirement to this icon-only treatment.
+    expect( block.querySelector( '.bc-note' ) ).toBeNull();
+
+    // Nothing to choose and nothing to submit: the amount pill, its radio and the submit button
+    // are all gone rather than hidden.
+    expect( block.querySelectorAll( 'form, input, button, fieldset' ) ).toHaveLength( 0 );
+    expect( block.querySelector( '[role="radiogroup"]' ) ).toBeNull();
+    expect( block.querySelector( '.bc-choice-face' ) ).toBeNull();
+    expect( block.textContent || '' ).not.toContain( '\u20B9' );
+  } );
+
+  /**
+   * TWO WHATSAPP CTAS AT THE TAIL OF A POST: A MATCHED PAIR, TWO DISTINCT CONVERSATIONS.
+   *
+   * Owner instruction, 2026-10-10: Subscribe and Contribute are the same object - lime pill,
+   * WhatsApp glyph, one word - and they open DIFFERENT Meta message links, WUDPTMYSO6XII1 and
+   * BYFLCAAMSZBXD1. Pointing one button at the other's link would look entirely correct on
+   * screen, which is why both hrefs are pinned here as literals AND asserted to differ.
+   *
+   * The glyph is asserted on BOTH, by path data, because the icon is what tells the reader the
+   * button opens WhatsApp - it is the reason neither CTA carries an explanatory subtext line.
+   * That reason is the owner's, recorded at
+   * .agents/tasks/contribute-whatsapp-cta/owner-decision.md.
+   */
+  it( 'pairs Subscribe and Contribute as two distinct WhatsApp links with the same glyph', () => {
+    const { container } = render( <BlogPostPage post={ samplePost } /> );
+
+    const subscribe = container.querySelector( 'a.blog-wa-subscribe' )!;
+    const contribute = container.querySelector( 'section.bc a' )!;
+
+    expect( subscribe.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    expect( contribute.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    expect( subscribe.getAttribute( 'href' ) ).not.toBe( contribute.getAttribute( 'href' ) );
+
+    // One word each, and the full WhatsApp context in the accessible name (WCAG 2.5.3).
+    expect( subscribe.querySelector( 'span' )?.textContent ).toBe( 'Subscribe' );
+    expect( contribute.querySelector( 'span' )?.textContent ).toBe( 'Contribute' );
+    expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
+    expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
+
+    // THE IDENTICAL GLYPH, by path data rather than by presence.
+    const pathOf = ( el: Element ) => el.querySelector( 'svg path' )?.getAttribute( 'd' ) || '';
+    expect( pathOf( subscribe ) ).toMatch( /^M17\.47 14\.38/ );
+    expect( pathOf( contribute ) ).toBe( pathOf( subscribe ) );
+
+    // NO SUBTEXT UNDER EITHER ONE - the recorded owner decision cited in the docblock above.
+    expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
+    expect( container.querySelector( '.bc-note' ) ).toBeNull();
+
+    // And the same pill object: both carry the home CTA's values.
+    //
+    // THE RADIUS IS IN THIS LIST NOW, and it was not before. `.bc-cta` used to declare 999px
+    // against Subscribe's 50px - visually identical at a 52px height, so nothing on screen told
+    // you the two rules disagreed, and a comment claiming an exact match was wrong. `.bc-cta` is
+    // 50px now, which makes the twin claim a thing this loop can actually hold.
+    const css = cssOf( container );
+    for ( const selector of [ '.blog-wa-subscribe{', '.bc-cta{' ] )
+    {
+      const rule = css.slice( css.indexOf( selector ), css.indexOf( '}', css.indexOf( selector ) ) );
+      expect( rule, selector ).toContain( 'min-height:52px' );
+      expect( rule, selector ).toContain( 'padding:0 28px' );
+      expect( rule, selector ).toContain( 'border:2px solid #1a3a2a' );
+      expect( rule, selector ).toContain( 'border-radius:50px' );
+      expect( rule, selector ).toContain( 'background:#d1f470' );
+      expect( rule, selector ).toContain( 'font-size:17px;font-weight:600' );
+      expect( rule, selector ).toContain( 'gap:10px' );
+    }
   } );
 } );
 

@@ -1,8 +1,8 @@
 import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
-import BlogContribution from '../components/BlogContribution';
+import { render } from '@testing-library/react';
+import BlogContribution, { CONTRIBUTE_CTA_HREF } from '../components/BlogContribution';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import type { ShopProduct } from '../content/shop';
 import {
@@ -15,10 +15,7 @@ import {
  * THE ID IS DELIBERATELY NOT UUID-SHAPED, and that is a repair rather than a style choice. It
  * used to be `00d4c72b-f694-441a-a192-e16f4b192440`, a well-formed catalogue id that
  * `KNOWN_CATALOGUE_PRODUCT_IDS` does not contain -- so `droppableUnknown` pruned this line on
- * every `readCart()` and the kiosk was never in the cart at all. Two cases in this file were
- * failing on it before this change (`counts a contribution plus a kiosk at quantity 2 as THREE`
- * returned 1), and three more were passing VACUOUSLY: the fingerprint and mixed-cart cases were
- * measuring a basket holding only the contribution.
+ * every `readCart()` and the kiosk was never in the cart at all.
  *
  * `droppableUnknown` only drops a line whose claimed id is UUID-shaped, which is the pre-migration
  * row it exists for. A non-UUID id therefore survives reconciliation for the same reason
@@ -39,32 +36,51 @@ const KIOSK: ShopProduct = {
 };
 
 /**
- * The ONLY choice, so a case can name the amount without re-typing a GUID.
+ * The ONLY choice, so the cart cases below can name the amount without re-typing a GUID.
  *
- * It was `[ LOW, MID, HIGH ]` until 2026-10-10, when the owner reduced `Contribute` in Wix to a
- * single ₹250 variant. The cases that needed a SECOND, DIFFERENT amount -- "replaces rather than
- * adds", "the fingerprint changes when the amount changes" -- are rewritten around a basket
- * change rather than an amount change, and each one says so where it sits.
+ * STILL READ FROM THE CONFIG EVEN THOUGH THE COMPONENT NO LONGER TOUCHES IT. The cart half of
+ * this file tests `src/lib/cart.ts`'s contribution line, which the server and /cart/ still own;
+ * only the BLOCK stopped writing it. See the next docblock.
  */
 const [ ONLY ] = CONTRIBUTION_CHOICES;
 
 /**
- * THE "SUPPORT THIS WORK" CONTRIBUTION COMPONENT, IN ISOLATION.
+ * THE "CONTRIBUTE" BLOCK, IN ISOLATION - NOW ONE WHATSAPP LINK.
  *
- * These cases pin the things Section 5 is explicit about and that would regress silently:
- *   1. The offered amounts come from src/config/contribution.ts, not from literals in the markup.
- *   2. Choosing one writes ONE cart line at quantity 1 and navigates. Nothing is validated,
- *      parsed or coerced, because a control with three fixed values cannot emit a fourth.
- *   3. With the product unconfigured, the UI shows an honest non-error state and renders NO form.
- *      A browser signal is never treated as proof of payment.
+ * OWNER INSTRUCTION, 2026-10-10: both button-looking things in this block are gone - the ₹250
+ * amount pill AND the "Contribute ₹250" submit - and the block hands the reader to WhatsApp the
+ * way every other "ask us for something" surface on this site already does. So the cases that
+ * drove this component changed with it, and the shape of what they assert changed too:
  *
- * WHAT THE 2026-10-04 OWNER MODEL CHANGE DELETED FROM THIS FILE, so the absence is not read as a
- * gap in coverage: every custom-amount case. There was a `describe` block for client-side bounds
- * (`isAllowedContributionPaise` at the boundary, `rupeesToPaise` refusing 'abc' / '' / '-5' /
- * '10.123'), an `it.each` over six rejected strings, a two-sided check that the component and the
- * cart field showed the same help sentence, and two "does not submit" cases. All of them tested a
- * free-text field that no longer exists. They are not replaced by weaker assertions - there is
- * simply nothing left to reject.
+ *   WAS: the offered amounts come from the central config; choosing one writes ONE cart line at
+ *        quantity 1 and navigates to /cart/; an unconfigured build renders an honest line and no
+ *        form.
+ *   IS:  the block renders exactly ONE anchor, at the owner's Contribute message link, carrying
+ *        the WhatsApp glyph and the single word "Contribute" and NO subtext line - and NO form,
+ *        NO radio group, NO button, and nothing written to the cart by rendering or by clicking.
+ *
+ * THE ABSENT SUBTEXT IS ASSERTED ON PURPOSE. The brief asked for a muted line under the pill;
+ * the owner then revised the design to the icon-only treatment and settled it as "no need for
+ * subtext", on the grounds that the WhatsApp glyph already says where the link goes. That
+ * decision and its chain are recorded at
+ * .agents/tasks/contribute-whatsapp-cta/owner-decision.md, which is what the `.bc-note` absence
+ * cases below hold the component to - so re-adding the line would be a design change with an
+ * owner on it, not a quiet fix.
+ *
+ * WHAT WENT, AND WHY IT IS NOT A HOLE IN COVERAGE:
+ *   - Every choices/radio/submit case. There is no control left to choose with, and the
+ *     "replaces rather than adds" property now belongs to `setContribution` alone, which the
+ *     cart-level case below still drives directly.
+ *   - The honest-unavailable case. It mocked `CONTRIBUTION_CONFIGURED: false` to prove a build
+ *     with no contribution vehicle offers no button that cannot work. A static wa.me link needs
+ *     no configuration, so that state no longer exists in this component; `CONTRIBUTION_CONFIGURED`
+ *     itself is unchanged and still pinned by src/test/ShopCatalogue.test.tsx.
+ *   - The two "no network on submit" cases. There is no submit. The render-time guard is kept
+ *     below, because a static export is still what this block ships into.
+ *
+ * The cart and fingerprint cases are NOT removed: `src/config/contribution.ts`, the Wix
+ * `Contribute` product line and /cart/'s checkout path are all untouched by this change, and
+ * these are the only unit cases that drive `setContribution` end to end.
  */
 
 beforeEach( () => {
@@ -83,240 +99,204 @@ afterEach( () => {
 const renderBlock = () =>
   render( <BlogContribution postId="post-1" slug="a-clear-question" /> );
 
-describe( 'BlogContribution choices', () => {
-  it( 'renders exactly the choices from the central config, and no Other', () => {
+const SOURCE = fs.readFileSync(
+  path.resolve( __dirname, '../components/BlogContribution.tsx' ), 'utf8' );
+
+describe( 'BlogContribution is one WhatsApp link', () => {
+  it( 'renders exactly one anchor, at the owner Contribute message link', () => {
     const { container } = renderBlock();
-    const faces = Array.from( container.querySelectorAll( '.bc-choice-face' ) )
-      .map( n => n.textContent || '' );
-
-    // One face per choice, carrying the rupee value declared in the config.
-    for ( const choice of CONTRIBUTION_CHOICES ) {
-      expect( faces.some( f => f.trim() === `\u20B9${ choice.rupees }` ) ).toBe( true );
-    }
-    // The owner's amounts, proving nothing re-typed a different number into the markup. Asserted
-    // as FULL face text rather than as substrings: '100' is a substring of '1000' and would pass a
-    // loose check on the wrong number.
-    expect( faces.map( f => f.trim() ) ).toEqual( [ '\u20B9250' ] );
-    // The retired amounts, and the retired custom option, must not still be on screen. The ₹1
-    // product model and the ₹200/₹400/₹600 presets both predate this, and ₹100/₹500 were the
-    // owner's own amounts until the Wix variants behind them were deleted on 2026-10-10.
-    expect( faces.join( ' ' ) ).not.toContain( 'Other' );
-    expect( faces.join( ' ' ) ).not.toContain( '\u20B9100' );
-    expect( faces.join( ' ' ) ).not.toContain( '\u20B9500' );
-    expect( faces.join( ' ' ) ).not.toContain( '\u20B9200' );
-    expect( faces.join( ' ' ) ).not.toContain( '\u20B9400' );
-    expect( faces.join( ' ' ) ).not.toContain( '\u20B9600' );
-
-    // One radio per choice and nothing else: no "Other" radio, and no free-text input anywhere.
-    expect( container.querySelectorAll( 'input[type="radio"]' ) )
-      .toHaveLength( CONTRIBUTION_CHOICES.length );
-    expect( container.querySelectorAll( 'input:not([type="radio"])' ) ).toHaveLength( 0 );
+    const links = Array.from( container.querySelectorAll( 'a' ) );
+    expect( links ).toHaveLength( 1 );
+    // The exact URL, pinned as a literal as well as through the exported constant: the constant
+    // proves the markup cannot drift from one source, the literal proves that source is still
+    // the link the owner gave. Modelled on SubscribePage.test.tsx / ShipmentsPage.test.tsx.
+    expect( CONTRIBUTE_CTA_HREF ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    expect( links[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    expect( container.querySelectorAll( 'a[href*="wa.me"]' ) ).toHaveLength( 1 );
+    // And it is not the SUBSCRIBE conversation, which is a different Meta message link living on
+    // the same page. Merging the two is the one mistake that would look right on screen.
+    expect( links[ 0 ].getAttribute( 'href' ) ).not.toContain( 'WUDPTMYSO6XII1' );
   } );
 
-  it( 'offers one fixed price, which is the whole set the server accepts', () => {
-    // The paise figures are what `blog_contribution.CONTRIBUTION_CHOICES_PAISE` holds, and
-    // tests/test_blog_contribution.py pins the two declarations equal. This side asserts the
-    // rupee/paise pair is internally consistent, so a typo in one of the two numbers on a choice
-    // cannot pass by agreeing with the Python copy of the same typo.
-    for ( const choice of CONTRIBUTION_CHOICES ) {
-      expect( choice.paise ).toBe( choice.rupees * 100 );
-      expect( choice.variantId ).toMatch( /^[0-9a-f-]{36}$/ );
-    }
-    // ONE since 2026-10-10: live Wix carries a single visible in-stock variant of `Contribute`.
-    // Asserted as a count rather than derived, so an empty list cannot pass as "no drift".
-    expect( CONTRIBUTION_CHOICES ).toHaveLength( 1 );
-    expect( new Set( CONTRIBUTION_CHOICES.map( c => c.variantId ) ).size ).toBe( 1 );
+  it( 'is the Subscribe button\'s twin: the WhatsApp glyph, the word Contribute, and no subtext', () => {
+    const { container } = renderBlock();
+    const link = container.querySelector( 'a' )!;
+
+    // ONE WORD on the pill, exactly as .blog-wa-subscribe carries one word, and the glyph is
+    // what says the link opens WhatsApp.
+    expect( link.querySelector( 'span' )?.textContent ).toBe( 'Contribute' );
+    expect( link.textContent ).toBe( 'Contribute' );
+    const icon = link.querySelector( 'svg' );
+    expect( icon ).not.toBeNull();
+    // The SAME path data as the Subscribe anchor and SupportWidget's floating button, so the
+    // three WhatsApp glyphs on the site cannot drift into three icons.
+    expect( icon!.getAttribute( 'viewBox' ) ).toBe( '0 0 24 24' );
+    expect( icon!.querySelector( 'path' )?.getAttribute( 'd' ) ).toMatch( /^M17\.47 14\.38/ );
+    // Decorative: the accessible name below already says what it depicts.
+    expect( icon!.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+
+    // NO SUBTEXT ANYWHERE - recorded owner decision, see
+    // .agents/tasks/contribute-whatsapp-cta/owner-decision.md. An "...on WhatsApp" line under
+    // the button would repeat what the glyph already shows.
+    expect( container.querySelector( '.bc-note' ) ).toBeNull();
+    expect( container.querySelectorAll( 'p' ) ).toHaveLength( 1 );
+    expect( container.querySelector( 'p' )!.className ).toContain( 'bc-copy' );
   } );
 
-  it( 'uses an h2 heading and the mandated primary copy, never an h1', () => {
+  it( 'opens WhatsApp the way the Subscribe anchor on the same page does', () => {
+    // Matched to the SIBLING on the post page (a.blog-wa-subscribe), not to the /subscribe/ page
+    // CTA: two WhatsApp buttons 44px apart behaving differently is the drift this change removes.
+    const link = renderBlock().container.querySelector( 'a' )!;
+    expect( link ).toHaveAttribute( 'target', '_blank' );
+    expect( link ).toHaveAttribute( 'rel', 'noopener noreferrer' );
+    // WCAG 2.5.3 Label in Name: the accessible name CONTAINS the visible word, so "click
+    // Contribute" by voice reaches it. Same contract as "Subscribe on WhatsApp" above it.
+    expect( link ).toHaveAttribute( 'aria-label', 'Contribute on WhatsApp' );
+    expect( link.getAttribute( 'aria-label' ) ).toContain( link.textContent );
+  } );
+
+  it( 'has NO form, radio group, field or button, and offers no amount to choose', () => {
+    const { container } = renderBlock();
+    expect( container.querySelectorAll( 'form, input, textarea, select, button' ) ).toHaveLength( 0 );
+    expect( container.querySelector( '[role="radiogroup"]' ) ).toBeNull();
+    expect( container.querySelector( 'fieldset' ) ).toBeNull();
+    // The retired amount pill and its furniture, by class as well as by element.
+    expect( container.querySelector( '.bc-choice-face' ) ).toBeNull();
+    expect( container.querySelector( '.bc-radio' ) ).toBeNull();
+    // No rupee figure anywhere: the amount is settled in the conversation now, so a number on
+    // this block would be a price the reader has not been quoted.
+    expect( container.textContent || '' ).not.toContain( '\u20B9' );
+    expect( container.textContent || '' ).not.toMatch( /choose an amount/i );
+  } );
+
+  it( 'adds NOTHING to the cart, on render or on clicking through', () => {
+    const assign = vi.fn();
+    vi.stubGlobal( 'location', { ...window.location, assign } );
+    const { container } = renderBlock();
+    container.querySelector( 'a' )!.click();
+
+    expect( readCart() ).toHaveLength( 0 );
+    // And it does not navigate: the anchor's own href is the whole behaviour.
+    expect( assign ).not.toHaveBeenCalled();
+  } );
+
+  it( 'uses an h2 heading, keeps the mandated copy line, and stays attributable', () => {
     const { container } = renderBlock();
     expect( container.querySelector( 'h1' ) ).toBeNull();
     expect( container.querySelector( 'h2' )?.textContent ).toBe( 'Contribute' );
+    expect( container.querySelector( 'h2' )?.id ).toBe( 'bc-title' );
     expect( container.textContent ).toContain(
       'If you found this useful, you\u2019re welcome to make a small voluntary contribution.'
     );
+    // data-post-id survives the rewrite: the attribution-shape cases elsewhere find this block
+    // by it, and the props are unchanged on purpose.
+    const section = container.querySelector( 'section.bc' )!;
+    expect( section.getAttribute( 'data-post-id' ) ).toBe( 'post-1' );
+    expect( section.getAttribute( 'aria-labelledby' ) ).toBe( 'bc-title' );
+  } );
+
+  it( 'drops its own top rule when embedded, and keeps it otherwise', () => {
+    const { container } = render( <BlogContribution postId="p" slug="s" embedded /> );
+    expect( container.querySelector( 'section' )!.className ).toContain( 'is-embedded' );
+    expect( renderBlock().container.querySelector( 'section' )!.className )
+      .not.toContain( 'is-embedded' );
+  } );
+
+  it( 'keeps the palette, the opaque focus ring and the reduced-motion block', () => {
+    expect( SOURCE ).toMatch( /prefers-reduced-motion:reduce/ );
+    expect( SOURCE ).toMatch( /#d1f470/ );
+    expect( SOURCE ).toMatch( /#1a3a2a/ );
+    // 3px offset now, not 2px: the control is the site's pill object, which rings OUTSIDE itself
+    // (PillButton and .blog-wa-subscribe both do). The 2px offset belonged to the amount pill's
+    // hidden radio, which is gone.
+    expect( SOURCE ).toMatch( /outline:3px solid #1a3a2a;outline-offset:3px/ );
+  } );
+
+  it( 'puts NO fee or price disclosure under the CTA', () => {
+    // OWNER DECISION [PHASE2-FEE-001] is answered fee-exempt, and this block now quotes no
+    // figure at all, so any sentence about a fee would be its own small untruth.
+    const text = renderBlock().container.textContent || '';
+    expect( text ).not.toMatch( /fee/i );
+    expect( text ).not.toMatch( /convenience/i );
+    expect( text ).not.toMatch( /GST/ );
   } );
 } );
 
 describe( 'the second payment implementation is GONE, not disabled', () => {
   /**
-   * T12. Phase 2's central claim, asserted as the thing that would regress silently.
-   *
-   * This component used to POST to an endpoint that answered 404, branch on a backend state, and
-   * hold `submitting` / `ready` phases. A contribution is now ONE fixed-price Wix product line in
-   * the existing cart, paid on the one live checkout path. So the assertion is not "the fetch
-   * returns the right thing" - it is that THERE IS NO FETCH, in any state, because a second money
-   * path is the failure this phase exists to remove.
+   * T12. The claim is now stronger than it was: this component used to POST to an endpoint that
+   * answered 404, then it put a line in the cart and navigated. It does NEITHER. There is no
+   * fetch, no cart write and no payment state in it, because a second money path is the failure
+   * this guard exists to prevent.
    */
-  it( 'issues NO network request on submit, for any offered choice', () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal( 'fetch', fetchMock );
-    const assign = vi.fn();
-    vi.stubGlobal( 'location', { ...window.location, assign } );
-
-    renderBlock();
-    for ( const choice of CONTRIBUTION_CHOICES ) {
-      fireEvent.click( screen.getByDisplayValue( choice.variantId ) );
-      fireEvent.click( screen.getByRole( 'button', { name: /^Contribute / } ) );
-    }
-
-    expect( fetchMock ).not.toHaveBeenCalled();
+  it( 'names no contribution endpoint, no cart write and no navigation in its source', () => {
+    // A source pin, because an unused import is the step before a reinstated form.
+    expect( SOURCE ).not.toMatch( /CONTRIBUTION_INITIATE_URL/ );
+    // The endpoint PATH is deliberately not asserted absent: the docblock explaining what this
+    // component no longer does necessarily names the old path, and a text search cannot tell an
+    // explanation from a call site. What is asserted is the absence of anything that could USE
+    // one - the fetch, the state machine, the cart writer and the navigation.
+    expect( SOURCE ).not.toMatch( /\bfetch\s*\(/ );
+    expect( SOURCE ).not.toMatch( /CHECKOUT_OPTIONS_READY/ );
+    expect( SOURCE ).not.toMatch( /PAYMENT_INITIATION_DISABLED/ );
+    expect( SOURCE ).not.toMatch( /useState/ );
+    // `setContribution` and `location.assign` are NOT asserted absent from the source for the
+    // same reason as the endpoint path: the docblock that records what this block stopped doing
+    // names both. Their absence is asserted where it is observable instead - the cart is empty
+    // and nothing navigates after a click, two cases up.
+    expect( SOURCE ).not.toMatch( /from '\.\.\/lib\/cart'/ );
+    expect( SOURCE ).not.toMatch( /from '\.\.\/config\/contribution'/ );
   } );
 
-  it( 'names no contribution endpoint in its source at all', () => {
-    // A source pin, because an unused constant is the step before a reinstated fetch.
-    const source = fs.readFileSync(
-      path.resolve( __dirname, '../components/BlogContribution.tsx' ), 'utf8' );
-    expect( source ).not.toMatch( /CONTRIBUTION_INITIATE_URL/ );
-    // The endpoint PATH is deliberately not asserted absent: the docblock explaining why this
-    // component no longer calls it necessarily names it, and a text search cannot tell an
-    // explanation from a call site. What is asserted instead is the absence of anything that
-    // could USE a path - the constant, the fetch, and the state machine around it.
-    expect( source ).not.toMatch( /\bfetch\s*\(/ );
-    expect( source ).not.toMatch( /CHECKOUT_OPTIONS_READY/ );
-    expect( source ).not.toMatch( /PAYMENT_INITIATION_DISABLED/ );
+  it( 'writes nothing for a variant that is not a committed choice', () => {
+    // Unreachable from this component - it has no control at all now - and reachable from a cart
+    // written by an older build or a console call. Membership is the only check left.
+    expect( setContribution( '00000000-0000-4000-8000-000000000000' ) ).toHaveLength( 0 );
+    expect( readCart() ).toHaveLength( 0 );
   } );
 
-  it( 'writes ONE cart line at QUANTITY 1 for the chosen amount, and navigates to the cart', () => {
-    const assign = vi.fn();
-    vi.stubGlobal( 'location', { ...window.location, assign } );
-    renderBlock();
-
-    fireEvent.click( screen.getByDisplayValue( ONLY.variantId ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ ONLY.rupees }` } ) );
-
+  it( 'writes ONE cart line at QUANTITY 1 when the cart layer is asked directly', () => {
+    // THE BLOCK NO LONGER CALLS THIS, and the line it writes is still the one /cart/ and the
+    // server price. Driven at the library rather than through a control, which is where the
+    // behaviour now lives.
+    setContribution( ONLY.variantId );
     const cart = readCart();
     expect( cart ).toHaveLength( 1 );
-    // QUANTITY 1, not the rupee figure. This is the invariant the model change turns on: the
-    // amount is the variant's own price, so nothing about the amount is carried by the quantity.
+    // QUANTITY 1, not the rupee figure: the amount is the variant's own price, so nothing about
+    // the amount is carried by the quantity.
     expect( cart[ 0 ].quantity ).toBe( 1 );
     expect( cart[ 0 ].productId ).toBe( CONTRIBUTION_PRODUCT_ID );
     expect( cart[ 0 ].variantId ).toBe( ONLY.variantId );
-    // The amount is in the name and in the price, because the quantity no longer says it.
     expect( cart[ 0 ].name ).toBe( `Contribute \u20B9${ ONLY.rupees }` );
     expect( cart[ 0 ].formattedPrice ).toBe( `\u20B9${ ONLY.rupees }.00` );
     // Empty slug, so the cart row does NOT link to a /shop/contribute/ page that SHOP_PRODUCTS
     // deliberately excludes.
     expect( cart[ 0 ].slug ).toBe( '' );
-    expect( assign ).toHaveBeenCalledWith( '/cart/' );
   } );
 
-  it( 'REPLACES rather than adds when the same amount is chosen twice', () => {
+  it( 'REPLACES rather than adds when the same amount is set twice', () => {
     // `setContribution` does not reuse `addItem`, which INCREMENTS -- and two contribution lines,
     // or one at quantity 2, is a basket the server refuses rather than a bigger contribution.
-    //
-    // DRIVEN AT ONE AMOUNT SINCE 2026-10-10, because the owner reduced `Contribute` in Wix to a
-    // single ₹250 variant and "₹100 then ₹500" is no longer a sequence a customer can perform.
-    // Submitting twice is the stronger half of the same property anyway: with `addItem` behind
-    // this control the cart would hold a line at quantity 2 and this case would fail.
-    vi.stubGlobal( 'location', { ...window.location, assign: vi.fn() } );
-    renderBlock();
-    fireEvent.click( screen.getByDisplayValue( ONLY.variantId ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ ONLY.rupees }` } ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ ONLY.rupees }` } ) );
-
+    setContribution( ONLY.variantId );
+    setContribution( ONLY.variantId );
     const cart = readCart();
     expect( cart ).toHaveLength( 1 );
     expect( cart[ 0 ].variantId ).toBe( ONLY.variantId );
     expect( cart[ 0 ].quantity ).toBe( 1 );
   } );
 
-  it( 'writes nothing for a variant that is not a committed choice', () => {
-    // Unreachable from this component - every control emits a committed variant id - and reachable
-    // from a cart written by an older build or a console call. Membership is the only check left
-    // now that there is no amount to validate.
-    expect( setContribution( '00000000-0000-4000-8000-000000000000' ) ).toHaveLength( 0 );
-    expect( readCart() ).toHaveLength( 0 );
-  } );
-
-  it( 'puts NO fee-disclosure line under the CTA', () => {
-    // OWNER DECISION [PHASE2-FEE-001] is answered fee-exempt, so the customer pays exactly the
-    // figure on the button. A disclosure about a fee that is not charged would be its own small
-    // untruth.
-    const { container } = renderBlock();
-    const text = container.textContent || '';
-    expect( text ).not.toMatch( /fee/i );
-    expect( text ).not.toMatch( /convenience/i );
-    expect( text ).not.toMatch( /GST/ );
-  } );
-
-  it( 'does NOT warn when the cart already holds other items, and still navigates', () => {
-    /*
-     * THE INVERSION OF WHAT THIS CASE ASSERTED. It used to require the sentence "a contribution
-     * is paid on its own" whenever the cart held anything else. Owner decision, 2026-10-06: a
-     * product and a contribution are paid together, so the warning described a refusal the server
-     * no longer makes -- which is worse than silence, because it sends the customer to edit a
-     * basket that is already payable.
-     *
-     * The behaviour under test is unchanged: the chosen contribution lands in the cart beside
-     * whatever was there and the block navigates to /cart/.
-     */
-    const assign = vi.fn();
-    vi.stubGlobal( 'location', { ...window.location, assign } );
-    addItem( KIOSK, 1 );
-    const { container } = renderBlock();
-    expect( container.textContent || '' ).not.toMatch( /paid on its own/ );
-    expect( container.querySelector( '[data-phase="mixed"]' ) ).toBeNull();
-
-    fireEvent.click( screen.getByRole( 'button', { name: /^Contribute / } ) );
-    expect( assign ).toHaveBeenCalledWith( '/cart/' );
-    // Both lines survive: nothing drops the kiosk to make room for the contribution.
-    expect( readCart() ).toHaveLength( 2 );
-  } );
-
-  it( 'keeps its accessibility furniture and its h2 rung', () => {
-    const { container } = renderBlock();
-    expect( container.querySelector( 'h1' ) ).toBeNull();
-    expect( container.querySelector( 'h2' )?.textContent ).toBe( 'Contribute' );
-    expect( container.querySelector( '[role="radiogroup"]' ) ).not.toBeNull();
-    // The reduced-motion block and the palette are untouched by this phase.
-    const source = fs.readFileSync(
-      path.resolve( __dirname, '../components/BlogContribution.tsx' ), 'utf8' );
-    expect( source ).toMatch( /prefers-reduced-motion:reduce/ );
-    expect( source ).toMatch( /#d1f470/ );
-    expect( source ).toMatch( /#1a3a2a/ );
-    expect( source ).toMatch( /outline:3px solid #1a3a2a;outline-offset:2px/ );
-  } );
-
-  it( 'scopes the radio group NAME to the post, so two blocks on one page do not share state', () => {
-    // `embedded` puts this block on /vayulok/ as well as on every post, and a page could hold
-    // both. A fixed `name="bc-amount"` would make the two radio groups one.
-    const { container } = render( <BlogContribution postId="p" slug="first-post" /> );
-    const names = new Set( Array.from( container.querySelectorAll( 'input[type="radio"]' ) )
-      .map( n => n.getAttribute( 'name' ) ) );
-    expect( names ).toEqual( new Set( [ 'bc-amount-first-post' ] ) );
-  } );
-} );
-
-describe( 'the honest-unavailable state, and what now gates it', () => {
-  /**
-   * The only browser-side gate is CONFIGURATION, and it is knowable at BUILD time - which is what
-   * a static export needs. A build with no contribution vehicle says contributions are unavailable
-   * instead of offering a button that cannot work.
-   *
-   * Driven by mocking `../content/shop`, because `CONTRIBUTION_CONFIGURED` is resolved at module
-   * scope.
-   */
-  it( 'renders the honest line and NO FORM when nothing is configured', async () => {
-    vi.resetModules();
-    vi.doMock( '../content/shop', async () => ( {
-      ...( await vi.importActual<typeof import( '../content/shop' )>( '../content/shop' ) ),
-      CONTRIBUTION_CONFIGURED: false,
-      CONTRIBUTION_PRODUCT_ID: '',
-    } ) );
-    const Unconfigured = ( await import( '../components/BlogContribution' ) ).default;
-    const { container } = render( <Unconfigured postId="p" slug="s" /> );
-
-    expect( container.textContent )
-      .toContain( 'Contributions are not available right now.' );
-    expect( container.querySelector( 'form' ) ).toBeNull();
-    expect( container.querySelectorAll( 'input' ) ).toHaveLength( 0 );
-    expect( container.querySelector( 'button' ) ).toBeNull();
-    // Still an h2 block inside a page that owns its own h1.
-    expect( container.querySelector( 'h1' ) ).toBeNull();
-    expect( container.querySelector( 'h2' )?.textContent ).toBe( 'Contribute' );
-    vi.doUnmock( '../content/shop' );
-    vi.resetModules();
+  it( 'offers one fixed price in the config, which is the whole set the server accepts', () => {
+    // The paise figures are what `blog_contribution.CONTRIBUTION_CHOICES_PAISE` holds, and
+    // tests/test_blog_contribution.py pins the two declarations equal. This side asserts the
+    // rupee/paise pair is internally consistent, so a typo in one of the two numbers cannot pass
+    // by agreeing with the Python copy of the same typo. The CONFIG is untouched by the WhatsApp
+    // change: the cart line and the checkout path it describes are still live.
+    for ( const choice of CONTRIBUTION_CHOICES ) {
+      expect( choice.paise ).toBe( choice.rupees * 100 );
+      expect( choice.variantId ).toMatch( /^[0-9a-f-]{36}$/ );
+    }
+    expect( CONTRIBUTION_CHOICES ).toHaveLength( 1 );
+    expect( new Set( CONTRIBUTION_CHOICES.map( c => c.variantId ) ).size ).toBe( 1 );
   } );
 } );
 
@@ -354,11 +334,6 @@ describe( 'cartCount and basketFingerprint, which the header and the request key
   it( 'CHANGES when the contribution basket changes', () => {
     // A changed basket IS a changed intent: `intent_fingerprint` covers `total_payable_paise`, so
     // resuming the old reservation for it is exactly the refusal the scoping removes.
-    //
-    // IT USED TO BE DRIVEN BY A CHANGED AMOUNT, ₹100 -> ₹500, which is the shape that mattered
-    // when the amount moved the VARIANT rather than the quantity. `Contribute` has carried one
-    // ₹250 variant since 2026-10-10, so the amount cannot change; adding a product to the same
-    // contribution moves the same two fingerprint fields.
     setContribution( ONLY.variantId );
     const before = basketFingerprint();
     addItem( KIOSK, 1 );
@@ -379,8 +354,7 @@ describe( 'cartCount and basketFingerprint, which the header and the request key
     expect( basketFingerprint( payload ) ).toBe( basketFingerprint() );
     // Mutate storage WITHOUT re-reading: the explicit form must still describe the array it was
     // handed, which is the property that stops the post-save retry keying a basket it is not
-    // sending. The mutation is an added product rather than a second contribution amount, which
-    // the single-variant `Contribute` no longer offers.
+    // sending.
     addItem( KIOSK, 1 );
     expect( basketFingerprint( payload ) ).not.toBe( basketFingerprint() );
     expect( basketFingerprint( payload ) ).toBe( basketFingerprint( payload ) );
@@ -389,11 +363,12 @@ describe( 'cartCount and basketFingerprint, which the header and the request key
 
 describe( 'BlogContribution does not fetch at render time', () => {
   it( 'does not fetch at render time, so the static export is not broken', () => {
+    // STILL MEANINGFUL, and now trivially true by construction: the block is one anchor, so
+    // there is no state, no effect and nothing to call. Kept because the thing it guards - a
+    // static export that prerenders this block on every post - has not changed.
     const fetchMock = vi.fn();
     vi.stubGlobal( 'fetch', fetchMock );
     renderBlock();
-    // The default server-rendered state is the choice form; a call happens only on a user
-    // action, never during render/prerender -- and there is no call to happen at all.
     expect( fetchMock ).not.toHaveBeenCalled();
   } );
 } );

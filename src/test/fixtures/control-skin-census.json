@@ -7,7 +7,6 @@
       "radio"
     ],
     "files": [
-      "src/components/BlogContribution.tsx",
       "src/pages/workspace/engage/sms/index.tsx",
       "src/pages/workspace/engage/voice-in/index.tsx",
       "src/styles/Dashboard.css",
@@ -19,117 +18,6 @@
       "src/styles/tokens.css"
     ],
     "hits": [
-      {
-        "classes": [
-          "bc-radio"
-        ],
-        "decls": "position:absolute;opacity:0;width:1px;height:1px;margin:0",
-        "file": "src/components/BlogContribution.tsx",
-        "geometry": true,
-        "line": 215,
-        "mech": "B-styledjsx",
-        "mode": "class",
-        "pairing": false,
-        "props": {
-          "height": false,
-          "margin": false,
-          "opacity": false,
-          "width": false
-        },
-        "sel": ".bc-radio",
-        "spec": [
-          0,
-          1,
-          0
-        ]
-      },
-      {
-        "classes": [
-          "bc-radio"
-        ],
-        "decls": "border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);",
-        "file": "src/components/BlogContribution.tsx",
-        "geometry": false,
-        "line": 228,
-        "mech": "B-styledjsx",
-        "mode": "class",
-        "pairing": false,
-        "props": {
-          "border-color": false,
-          "box-shadow": false
-        },
-        "sel": ".bc-radio:hover + .bc-choice-face",
-        "spec": [
-          0,
-          3,
-          0
-        ]
-      },
-      {
-        "classes": [
-          "bc-radio"
-        ],
-        "decls": "border-color:#1a3a2a;background:#d1f470",
-        "file": "src/components/BlogContribution.tsx",
-        "geometry": false,
-        "line": 232,
-        "mech": "B-styledjsx",
-        "mode": "class",
-        "pairing": false,
-        "props": {
-          "background": false,
-          "border-color": false
-        },
-        "sel": ".bc-radio:checked + .bc-choice-face",
-        "spec": [
-          0,
-          3,
-          0
-        ]
-      },
-      {
-        "classes": [
-          "bc-radio"
-        ],
-        "decls": "outline:3px solid #1a3a2a;outline-offset:2px",
-        "file": "src/components/BlogContribution.tsx",
-        "geometry": false,
-        "line": 234,
-        "mech": "B-styledjsx",
-        "mode": "class",
-        "pairing": false,
-        "props": {
-          "outline": false,
-          "outline-offset": false
-        },
-        "sel": ".bc-radio:focus-visible + .bc-choice-face",
-        "spec": [
-          0,
-          3,
-          0
-        ]
-      },
-      {
-        "classes": [
-          "bc-radio"
-        ],
-        "decls": "transform:none;box-shadow:none",
-        "file": "src/components/BlogContribution.tsx",
-        "geometry": false,
-        "line": 247,
-        "mech": "B-styledjsx",
-        "mode": "class",
-        "pairing": false,
-        "props": {
-          "box-shadow": false
-        },
-        "sel": ".bc-radio:hover + .bc-choice-face",
-        "spec": [
-          0,
-          3,
-          0
-        ]
-      },
       {
         "classes": [],
         "decls": "width: auto; margin: 0;",
@@ -613,11 +501,11 @@
       }
     ],
     "summary": {
-      "files": 10,
-      "geometryFiles": 9,
-      "geometryRuleSets": 16,
+      "files": 9,
+      "geometryFiles": 8,
+      "geometryRuleSets": 15,
       "matchModes": {
-        "class": 5,
+        "class": 0,
         "element": 24
       },
       "mechanisms": {
@@ -634,10 +522,10 @@
           "ruleSets": 0
         },
         "B-styledjsx": {
-          "files": 3,
-          "geometryFiles": 2,
-          "geometryRuleSets": 2,
-          "ruleSets": 8
+          "files": 2,
+          "geometryFiles": 1,
+          "geometryRuleSets": 1,
+          "ruleSets": 3
         },
         "C-injected": {
           "files": 0,
@@ -647,7 +535,7 @@
         }
       },
       "pairings": 0,
-      "ruleSets": 29
+      "ruleSets": 24
     }
   },
   "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `select` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",

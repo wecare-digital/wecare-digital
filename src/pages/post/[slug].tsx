@@ -522,14 +522,21 @@ export default function BlogPostPage ( {
             <span>Subscribe</span>
           </a>
 
-          {/* SUPPORT THIS WORK - the Section 5 voluntary-contribution block, placed AFTER Subscribe
-              and BEFORE the share row so the reading order is content -> Tags -> Subscribe -> Contribution
-              -> Share -> pager/related. It is a component (components/BlogContribution.tsx) so the
-              UI, the central-config amounts and the honest-degradation client seam live in one
-              place and are unit-tested in isolation. postId AND slug are passed so a contribution
-              is attributable; the component's heading is an h2, never an h1, so the page keeps its
-              single h1 and htmlcheck's H1-MANY guard is satisfied. It does NOT take the shareRef -
-              that stays on .post-share below, which is the IntersectionObserver reveal sentinel. */}
+          {/* CONTRIBUTE - the voluntary-contribution block, placed AFTER Subscribe and BEFORE the
+              share row so the reading order is content -> Tags -> Subscribe -> Contribute ->
+              Share -> pager/related.
+              IT IS THE SUBSCRIBE ANCHOR'S TWIN: one lime pill, the same WhatsApp glyph, one word,
+              opening a DIFFERENT Meta message link (BYFLCAAMSZBXD1, not the WUDPTMYSO6XII1 above).
+              There is no amount to choose, no form and no cart write - the block was a
+              central-config amount pill with an honest-degradation seam until the owner replaced
+              both of its button-looking controls with this single link; see the component's
+              docblock for what was removed and why.
+              It stays a component (components/BlogContribution.tsx) so the pill and its unit cases
+              live in one place rather than inlined here. postId AND slug are still passed so the
+              block is attributable (data-post-id); the component's heading is an h2, never an h1,
+              so the page keeps its single h1 and htmlcheck's H1-MANY guard is satisfied. It does
+              NOT take the shareRef - that stays on .post-share below, which is the
+              IntersectionObserver reveal sentinel. */}
           <BlogContribution postId={ post.id } slug={ post.slug } />
 
           {/* SHARE, AT THE END OF THE READING RATHER THAN THE START.
