@@ -229,7 +229,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     ],
     note:
       'Nothing you send is published anywhere without asking you first, and asking is not a condition of anything. Reviews you choose to leave on an external platform are governed by that platform, not by us.',
-    ctaLabel: 'Leave a review on WhatsApp',
+    ctaLabel: 'Leave a review',
     /**
      * THE ONE CTA ON THESE PAGES THAT IS NOT THE CONTACT PAGE.
      *
