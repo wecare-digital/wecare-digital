@@ -162,13 +162,47 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
       .bc-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
       /* MICROCOPY under the pill: very small, quiet, naming the destination the button no longer
          shows with a glyph. 13px/rgba(0,0,0,.54) is the page's muted-metadata rung; 10px of air
-         sits it close to the button it belongs to. The arrow is part of the text, not an icon. */
+         sits it close to the button it belongs to. The arrow is part of the text, not an icon.
+
+         HOVER CARRIES THE FOOTER TAGLINE'S COLOUR SWEEP, on owner instruction: a band of brand
+         green runs left-to-right through the muted text, exactly the .ft-tagline treatment in
+         Footer.tsx (gradient grey -> #1a3a2a -> grey, clipped to the text, driven by
+         background-position). The one difference is the TRIGGER: the footer plays it once on
+         scroll-arrival and replays on pointer; here it is hover-only, because this line is the
+         caption of a pill the reader is already pointing at.
+         WHY THE CLIP LIVES UNDER :hover AND NOT AT REST. background-clip:text needs
+         color:transparent to show the gradient, and transparent text with no painted gradient is
+         an invisible line - the exact trap Footer.tsx documents. So the resting rule keeps a
+         solid colour and only :hover introduces the gradient, the clip and the transparent fill.
+         Hover-out drops them and the line is plain grey again, with no JS anywhere.
+         READABILITY: both gradient stops are measured on white - rgba(0,0,0,.54)=4.61:1 and
+         #1a3a2a=12.48:1 - so the band only ever makes the text darker than its resting state,
+         never a lime wash that would erase it. */
       .bc-cta-note{
         font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+        background-image:linear-gradient(100deg,
+          rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
+        background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
       }
+      /* The sweep: the gradient's dark band travels across, once per hover. background-position
+         is the only animated property, so it composites off the main thread. The clip and the
+         transparent fill are introduced here, not at rest, so the line is never invisible. */
+      .bc-cta-note:hover{
+        -webkit-background-clip:text;background-clip:text;
+        -webkit-text-fill-color:transparent;color:transparent;
+        animation:bc-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
+      }
+      @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
       @media(prefers-reduced-motion:reduce){
         .bc-cta{transition:none}
         .bc-cta:hover{transform:none;box-shadow:none}
+        /* Neutralise the sweep: hand the text back its solid colour and kill the animation, or a
+           reduced-motion reader gets transparent text over a parked gradient - an invisible line.
+           Matches the guard Footer.tsx applies to .ft-tagline under this preference. */
+        .bc-cta-note:hover{
+          animation:none;background-image:none;
+          -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
+        }
       }
     `}</style>
   </section>
