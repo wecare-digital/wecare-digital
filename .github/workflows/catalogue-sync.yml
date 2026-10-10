@@ -92,7 +92,7 @@ jobs:
           # GITHUB_TOKEN provides. A shallow clone is fine: nothing here reads history.
           fetch-depth: 1
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # Matching amplify.yml's `nvm install 24`, so the fetch script runs on the same major
           # the production build runs on. Both scripts here are stdlib-only ESM - node:fs,
