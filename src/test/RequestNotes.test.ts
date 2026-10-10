@@ -31,6 +31,16 @@ const PRODUCT_PAGE = fs.readFileSync(
 /** The `.pdp-note` declaration block on its own, so a lime value elsewhere cannot pass for it. */
 const NOTE_RULE = ( /\.pdp-note\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 
+/**
+ * The `.pdp-ctas` wrapper and `.pdp-cta` pill rules, read off the source the same way, so the
+ * single-CTA spacing contract has a guard. The 30px top gap lives on the wrapper, NOT on the
+ * pill: a page with one pill is unchanged to the pixel only because the margin sits one level up.
+ * A future edit that drops it from the wrapper, or re-adds it to .pdp-cta and doubles the gap on
+ * the two-CTA /shipments/ page, is exactly what this pins against.
+ */
+const CTAS_RULE = ( /\.pdp-ctas\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
+const CTA_RULE = ( /\.pdp-cta\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
+
 const WITH_NOTE = [ 'request-amendment', 'drop-docs', 'vault', 'leave-review', 'refer-and-earn' ];
 
 describe( 'request-page boundary notes', () => {
@@ -53,5 +63,21 @@ describe( '.pdp-note surface', () => {
     expect( NOTE_RULE ).toContain( 'background:#fcfdfb' );
     expect( NOTE_RULE ).not.toContain( '#d1f470' );
     expect( NOTE_RULE ).not.toContain( '209,244,112' );
+  } );
+} );
+
+describe( '.pdp-ctas single-CTA spacing contract', () => {
+  it( 'keeps the 30px top gap on the wrapper, not on the pill', () => {
+    // The wrapper carries the gap, so a one-pill page is unchanged to the pixel.
+    expect( CTAS_RULE ).toBeDefined();
+    expect( CTAS_RULE ).toContain( 'margin-top:30px' );
+    // The pill must NOT also carry it, or /shipments/ with two pills gets a doubled gap and every
+    // single-CTA page shifts.
+    expect( CTA_RULE ).toBeDefined();
+    expect( CTA_RULE ).not.toContain( 'margin-top' );
+    // The wrapper must stay a wrapping flex row so the two pills stack rather than overflow on a
+    // narrow viewport.
+    expect( CTAS_RULE ).toContain( 'display:flex' );
+    expect( CTAS_RULE ).toContain( 'flex-wrap:wrap' );
   } );
 } );

@@ -76,6 +76,15 @@ export interface ProductDef {
   note?: string;
   ctaLabel: string;
   ctaHref: string;
+  /**
+   * Optional SECOND call to action. When both are present, ProductPage renders a second pill
+   * beside the first; omit them (every entry except /shipments/ does) and the page renders one
+   * pill exactly as before. Unlike the first CTA, `ctaHref2` is rendered LITERALLY and is never
+   * routed through whatsappServiceLink() — that resolves by slug, and a slug can carry only one
+   * service link, so a second door has to name its own destination.
+   */
+  ctaLabel2?: string;
+  ctaHref2?: string;
 }
 
 // Every product's call to action lands here until the real per-product destinations
