@@ -12,7 +12,6 @@
     --dot-blue:#2563eb;
     --dot-purple:#9849e8;
     --dot-amber:#f0a818;
-    --dot-red:#dc2626;
     --paper:#ffffff;
     --ink:#1a3a2a;
   }
@@ -32,19 +31,15 @@
     aspect-ratio:1472 / 1048;
     overflow:hidden;
     border-radius:38px;
-    background:
-      radial-gradient(circle at 50% 44%, rgba(12,19,17,.44) 0 16%, rgba(3,8,7,.34) 38%, transparent 68%),
-      #000;
+    /* Transparent stage: the globe sits directly on the white hero. The only
+       remaining layer is a soft lime halo that matches the home-page scheme. */
+    background:radial-gradient(circle at 50% 44%, rgba(209,244,112,.16) 0 18%, rgba(209,244,112,.06) 42%, transparent 68%);
     touch-action:none;
     user-select:none;
     -webkit-user-select:none;
     cursor:grab;
   }
   .sorcerer-stage.is-dragging{cursor:grabbing}
-  /* These two white masks reproduce the attached black panel's cut-out corners. */
-  .frame-cutout{position:absolute;z-index:30;background:#fff;pointer-events:none}
-  .frame-cutout--tl{left:-1px;top:-1px;width:9.2%;height:20.2%;border-bottom-right-radius:46px}
-  .frame-cutout--br{right:-1px;bottom:-1px;width:22.2%;height:15.2%;border-top-left-radius:46px}
   .sorcerer-stage[data-layer='air']{--mode-accent:#3da35a;--mode-soft:rgba(61,163,90,.20)}
   .sorcerer-stage[data-layer='weather']{--mode-accent:#f0a818;--mode-soft:rgba(240,168,24,.20)}
   #globe {
@@ -54,14 +49,14 @@
     width: 100%;
     height: 100%;
   }
-  /* Two visibly different pill surfaces: AIR = green, WEATHER = amber/blue. */
+  /* One lime scheme for both segments: whichever side is active takes the
+     #d1f470 / #1a3a2a brand pair, the other rests quiet on the white hero. */
   .data-toggle{
     position:absolute;top:4.2%;right:4.0%;z-index:20;
     width:clamp(176px,16.5%,224px);height:52px;padding:4px;
     display:grid;grid-template-columns:1fr 1.25fr;gap:4px;align-items:center;
-    border:1px solid rgba(255,255,255,.18);border-radius:999px;
-    background:rgba(5,8,7,.34);box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px 0 rgba(255,255,255,.10);
-    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid #e5e7eb;border-radius:999px;
+    background:#fff;box-shadow:0 6px 18px rgba(0,0,0,.08);
     cursor:pointer;font:inherit;-webkit-tap-highlight-color:transparent;
   }
   .data-toggle .mode{
@@ -69,13 +64,16 @@
     font-size:11px;font-weight:850;letter-spacing:.09em;line-height:1;
     transition:transform .24s cubic-bezier(.16,1,.3,1),opacity .2s,box-shadow .24s;
   }
-  .mode-air{color:#e8ffed;background:rgba(61,163,90,.20);box-shadow:inset 0 0 0 1px rgba(61,163,90,.48)}
-  .mode-weather{color:#fff1c5;background:linear-gradient(135deg,rgba(240,168,24,.20),rgba(37,99,235,.14));box-shadow:inset 0 0 0 1px rgba(240,168,24,.50)}
+  .mode-air,
+  .mode-weather{color:rgba(0,0,0,.54);background:transparent;box-shadow:none}
   .data-toggle[aria-checked='false'] .mode-air,
-  .data-toggle[aria-checked='true'] .mode-weather{transform:translateY(-1px);opacity:1;box-shadow:0 5px 16px rgba(0,0,0,.34),inset 0 0 0 1.5px currentColor}
+  .data-toggle[aria-checked='true'] .mode-weather{
+    background:#d1f470;color:#1a3a2a;box-shadow:0 2px 8px rgba(26,58,42,.18);
+    transform:translateY(-1px);opacity:1;
+  }
   .data-toggle[aria-checked='false'] .mode-weather,
-  .data-toggle[aria-checked='true'] .mode-air{opacity:.48}
-  .data-toggle:focus-visible{outline:3px solid #d1f470;outline-offset:3px}
+  .data-toggle[aria-checked='true'] .mode-air{opacity:.56}
+  .data-toggle:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
   /* City labels follow the real globe rotation. Their visual language borrows
      the thin leader + dot from the supplied reference, recolored for WECARE. */
@@ -95,6 +93,9 @@
     transition: opacity .18s ease;
   }
   .city-marker.is-visible { opacity: 1; }
+  /* The expanded pill must never be covered by a neighbouring collapsed chip. */
+  .city-marker.is-active { z-index: 12; }
+  .city-marker:hover { z-index: 13; }
   .city-marker.is-visible .city-pin{animation:cityPulse 2.8s ease-out infinite}
   @keyframes cityPulse{
     0%,100%{box-shadow:0 0 0 5px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft))),0 0 16px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)))}
@@ -133,9 +134,10 @@
   }
   .city-card{
     position:absolute;right:15px;top:var(--label-y);min-width:154px;
-    padding:9px 13px 10px;border:1px solid var(--city-marker-soft,rgba(255,255,255,.20));border-radius:18px;
-    /* Transparent glass: the globe remains visible through the city pill. */
-    background:linear-gradient(135deg,rgba(3,7,8,.27),rgba(3,7,8,.11));
+    padding:9px 13px 10px;border:1px solid rgba(26,58,42,.28);border-radius:18px;
+    /* Tinted glass: still see-through onto the globe, but opaque enough that the
+       white type keeps contrast where the pill overhangs the white hero. */
+    background:linear-gradient(135deg,rgba(10,20,16,.78),rgba(10,20,16,.62));
     box-shadow:0 10px 26px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.10);
     backdrop-filter:blur(3px) saturate(116%);-webkit-backdrop-filter:blur(3px) saturate(116%);
     color:#fff;text-align:right;white-space:nowrap;
@@ -164,7 +166,7 @@
     align-items: center;
     gap: 6px;
     margin-top: 5px;
-    color:rgba(255,255,255,.68);
+    color:rgba(255,255,255,.82);
     font-size: clamp(8px, .82vw, 10px);
     font-weight: 800;
     letter-spacing: .08em;
@@ -187,33 +189,43 @@
     font-size:clamp(10px,1vw,12px);font-weight:800;line-height:1.22;
     max-width:190px;white-space:normal;
   }
-  .city-reading[data-state='loading']{color:rgba(255,255,255,.46)}
-  .city-reading[data-state='error']{color:rgba(255,255,255,.50)}
-  .city-meta{display:block;margin-top:4px;color:rgba(255,255,255,.44);font-size:8px;font-weight:750;letter-spacing:.08em;line-height:1;text-transform:uppercase}
+  .city-reading[data-state='loading']{color:rgba(255,255,255,.74)}
+  .city-reading[data-state='error']{color:rgba(255,255,255,.74)}
+  .city-meta{display:block;margin-top:4px;color:rgba(255,255,255,.66);font-size:8px;font-weight:750;letter-spacing:.08em;line-height:1;text-transform:uppercase}
 
-  /* City dots intentionally use different palette colours. Live AQI/weather can
-     still recolour the reading text without making every city marker look the same. */
-  #cityDelhi{
-    --city-marker:#f0a818;--city-marker-soft:rgba(240,168,24,.30);
-    --city-accent:#f0a818;--city-accent-soft:rgba(240,168,24,.26);
-    --label-y:-78px;--stem-top:-66px;--stem-height:66px;
+  /* Only the selected or hovered capital expands into a full reading pill. Every
+     other visible capital stays a compact dot + name chip so the globe reads clean. */
+  .city-marker .city-layer,
+  .city-marker .city-reading,
+  .city-marker .city-meta{display:none}
+  .city-marker.is-active .city-layer,
+  .city-marker:hover .city-layer{display:inline-flex}
+  .city-marker.is-active .city-reading,
+  .city-marker.is-active .city-meta,
+  .city-marker:hover .city-reading,
+  .city-marker:hover .city-meta{display:block}
+  .city-marker:not(.is-active):not(:hover) .city-card{min-width:0;padding:5px 10px 6px}
+
+  /* Only the pin is interactive; the card stays pass-through so dragging the
+     globe is never blocked by a label. */
+  .city-pin{
+    pointer-events:auto;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;
   }
-  #cityBengaluru{
-    --city-marker:#9849e8;--city-marker-soft:rgba(152,73,232,.30);
-    --city-accent:#3da35a;--city-accent-soft:rgba(61,163,90,.26);
-    --label-y:14px;--stem-top:0px;--stem-height:44px;
+  .city-pin::before{
+    content:'';position:absolute;left:50%;top:50%;
+    width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;
   }
-  #cityBengaluru .city-card { top: 14px; }
-  #cityBengaluru .city-stem {
-    background:linear-gradient(to bottom,rgba(255,255,255,.70),rgba(255,255,255,.10));
-  }
+  .city-pin:focus-visible{outline:3px solid #1a3a2a;outline-offset:4px}
   @media (max-width:680px){
     .sorcerer-stage{width:100vw;border-radius:24px}
-    .frame-cutout--tl{width:10.5%;height:19%;border-bottom-right-radius:30px}
-    .frame-cutout--br{width:20%;height:14%;border-top-left-radius:30px}
     .data-toggle{top:3%;right:3%;width:166px;height:44px}
     .city-card{min-width:118px;max-width:168px;padding:7px 9px 8px;border-radius:14px}
     .city-stem{width:1px;left:-.5px}.city-pin{width:9px;height:9px}
+    .city-pin::before{width:34px;height:34px}
+    /* The phone-sized disc cannot hold several name chips at once, so an
+       unselected capital is just its dot here; tapping it opens the full pill. */
+    .city-marker:not(.is-active):not(:hover) .city-card,
+    .city-marker:not(.is-active):not(:hover) .city-stem{display:none}
   }
   @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card{transition:none}.city-marker.is-visible .city-pin{animation:none}}
 
@@ -221,8 +233,6 @@
 </head>
 <body>
   <main class="sorcerer-stage" id="stage" data-layer="air" aria-label="Interactive WECARE globe with city weather and air markers">
-    <span class="frame-cutout frame-cutout--tl" aria-hidden="true"></span>
-    <span class="frame-cutout frame-cutout--br" aria-hidden="true"></span>
     <canvas id="globe" aria-hidden="true"></canvas>
 
     <button
@@ -238,16 +248,7 @@
       <span class="mode mode-weather">WEATHER</span>
     </button>
 
-    <div class="city-marker" id="cityDelhi" aria-hidden="true">
-      <span class="city-stem"></span>
-      <span class="city-pin"></span>
-      <span class="city-card"><span class="city-name">Delhi</span><span class="city-layer"></span><span class="city-reading" data-city-reading="delhi" data-state="loading">Loading live data…</span><span class="city-meta" data-city-meta="delhi">LIVE · CONNECTING</span></span>
-    </div>
-    <div class="city-marker" id="cityBengaluru" aria-hidden="true">
-      <span class="city-stem"></span>
-      <span class="city-pin"></span>
-      <span class="city-card"><span class="city-name">Bengaluru</span><span class="city-layer"></span><span class="city-reading" data-city-reading="bengaluru" data-state="loading">Loading live data…</span><span class="city-meta" data-city-meta="bengaluru">LIVE · CONNECTING</span></span>
-    </div>
+    <!-- Capital-city markers are built from the CITIES registry below. -->
   </main>
 
 <script>
@@ -258,15 +259,82 @@
   const canvas = document.getElementById('globe');
   const stage = document.getElementById('stage');
   const toggle = document.getElementById('dataToggle');
-  const cityDelhi = document.getElementById('cityDelhi');
-  const cityBengaluru = document.getElementById('cityBengaluru');
-  const cityReadingEls = new Map(
-    [...document.querySelectorAll('[data-city-reading]')].map(el => [el.dataset.cityReading, el])
-  );
-  const cityMetaEls = new Map(
-    [...document.querySelectorAll('[data-city-meta]')].map(el => [el.dataset.cityMeta, el])
-  );
+
+  // Single source of truth for every clickable capital. Each identity colour is
+  // one of the globe's own palette tokens — never a red.
+  const CITIES=[
+    {id:'delhi',       name:'New Delhi',     lat: 28.6139, lon:  77.2090, accent:'#f0a818'},
+    {id:'bengaluru',   name:'Bengaluru',     lat: 12.9716, lon:  77.5946, accent:'#9849e8'},
+    {id:'dubai',       name:'Dubai',         lat: 25.2048, lon:  55.2708, accent:'#c98a2e'},
+    {id:'moscow',      name:'Moscow',        lat: 55.7558, lon:  37.6173, accent:'#2563eb'},
+    // London only for western Europe: at the globe's limb longitudes compress, so a
+    // second capital 2.5deg away (Paris) permanently overlaps its label chip.
+    {id:'london',      name:'London',        lat: 51.5072, lon:  -0.1276, accent:'#d1f470'},
+    {id:'beijing',     name:'Beijing',       lat: 39.9042, lon: 116.4074, accent:'#f0a818'},
+    {id:'tokyo',       name:'Tokyo',         lat: 35.6762, lon: 139.6503, accent:'#2563eb'},
+    {id:'singapore',   name:'Singapore',     lat:  1.3521, lon: 103.8198, accent:'#3da35a'},
+    {id:'sydney',      name:'Sydney',        lat:-33.8688, lon: 151.2093, accent:'#d1f470'},
+    {id:'washington',  name:'Washington DC', lat: 38.9072, lon: -77.0369, accent:'#3da35a'},
+    {id:'saopaulo',    name:'São Paulo',     lat:-23.5505, lon: -46.6333, accent:'#f0a818'},
+  ];
+  const CITY_BY_ID=new Map(CITIES.map(c=>[c.id,c]));
+  const DEFAULT_CITY='delhi';
+
+  const markerEls=new Map();
+  const cityReadingEls=new Map();
+  const cityMetaEls=new Map();
   const cityData = new Map();
+  let selectedCity=null;
+
+  function buildMarkers(){
+    const frag=document.createDocumentFragment();
+    for(const city of CITIES){
+      const marker=document.createElement('div');
+      marker.className='city-marker';
+      marker.id=`city-${city.id}`;
+      marker.style.setProperty('--city-marker',city.accent);
+      marker.style.setProperty('--city-marker-soft',`${city.accent}4d`);
+      marker.style.setProperty('--city-accent',city.accent);
+      marker.style.setProperty('--city-accent-soft',`${city.accent}42`);
+
+      const stem=document.createElement('span');
+      stem.className='city-stem';
+      stem.setAttribute('aria-hidden','true');
+
+      const pin=document.createElement('button');
+      pin.className='city-pin';
+      pin.type='button';
+      pin.dataset.city=city.id;
+      pin.setAttribute('aria-label',`Show live air and weather for ${city.name}`);
+      // Keyboard path only (Enter/Space report detail 0). A pointer tap is handled
+      // on the stage's pointerup, because stage.setPointerCapture retargets the
+      // compatibility click away from the pin.
+      pin.addEventListener('click',e=>{if(e.detail===0)selectCity(city.id);});
+
+      const card=document.createElement('span');
+      card.className='city-card';
+      const name=document.createElement('span');
+      name.className='city-name';
+      name.textContent=city.name;
+      const layer=document.createElement('span');
+      layer.className='city-layer';
+      const reading=document.createElement('span');
+      reading.className='city-reading';
+      reading.dataset.cityReading=city.id;
+      reading.dataset.state='idle';
+      const meta=document.createElement('span');
+      meta.className='city-meta';
+      meta.dataset.cityMeta=city.id;
+      card.append(name,layer,reading,meta);
+
+      marker.append(stem,pin,card);
+      frag.appendChild(marker);
+      markerEls.set(city.id,marker);
+      cityReadingEls.set(city.id,reading);
+      cityMetaEls.set(city.id,meta);
+    }
+    stage.appendChild(frag);
+  }
   const gl = canvas.getContext('webgl2', {
     alpha: true,
     antialias: true,
@@ -597,7 +665,7 @@
     {name:'blue',       rgb:new Float32Array([0.1451,0.3882,0.9216]), weight:17, size:2.66}, // #2563eb
     {name:'purple',     rgb:new Float32Array([0.5961,0.2863,0.9098]), weight:13, size:2.66}, // #9849e8
     {name:'amber',      rgb:new Float32Array([0.9412,0.6588,0.0941]), weight:18, size:2.70}, // #f0a818
-    {name:'red',        rgb:new Float32Array([0.8627,0.1490,0.1490]), weight:4,  size:2.72}, // #dc2626 subtle
+    {name:'red',        rgb:new Float32Array([0.7882,0.5412,0.1804]), weight:4,  size:2.72}, // #c98a2e ochre (NO-RED: recolored from #dc2626; name kept as opacity-map key)
   ];
   const totalWeight=PALETTE.reduce((a,c)=>a+c.weight,0);
   const buckets=PALETTE.map(()=>({p:[],s:[]}));
@@ -632,6 +700,9 @@
   const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let lastX = 0, lastY = 0, lastMoveAt = 0;
   let moved = false;
+  // Set on pointerdown when the press started on a pin; consumed on pointerup
+  // only if the pointer never travelled, so a drag never selects a city.
+  let pendingCity = null;
   const clampTilt=()=>{
     rotX=Math.max(ROT_X_MIN,Math.min(ROT_X_MAX,rotX));
   };
@@ -666,7 +737,9 @@
     return `LIVE · UPDATED ${min}M AGO`;
   }
   function refreshCityMeta(){
-    for(const cityId of ['delhi','bengaluru'])setCityMeta(cityId,ageLabel(cityData.get(cityId)?.fetchedAt));
+    for(const city of CITIES){
+      if(cityData.has(city.id))setCityMeta(city.id,ageLabel(cityData.get(city.id).fetchedAt));
+    }
   }
 
   function airAccent(aqi){
@@ -674,7 +747,9 @@
     if(aqi<=50)return '#3da35a';
     if(aqi<=100)return '#d1f470';
     if(aqi<=150)return '#f0a818';
-    if(aqi<=200)return '#dc2626';
+    // Caps the ramp at warm amber instead of a red product accent, matching the
+    // approved VayuLok AQI ramp (src/test/VayuLokLive.test.tsx).
+    if(aqi<=200)return '#c98a2e';
     return '#9849e8';
   }
   function weatherAccent(data){
@@ -684,15 +759,16 @@
     return '#f0a818';
   }
   function updateCityAccent(cityId,data){
-    const marker=cityId==='delhi'?cityDelhi:cityBengaluru;if(!marker)return;
+    const marker=markerEls.get(cityId);if(!marker)return;
     const accent=activeLayer==='air'?airAccent(data?.air?.aqi):weatherAccent(data);
     marker.style.setProperty('--city-accent',accent);
     marker.style.setProperty('--city-accent-soft',`${accent}42`);
   }
   function renderCityData(){
-    for(const cityId of ['delhi','bengaluru']){
+    for(const city of CITIES){
+      const cityId=city.id;
       const data=cityData.get(cityId);
-      if(!data){setCityReading(cityId,'loading','Loading live data…');continue;}
+      if(!data)continue;
       updateCityAccent(cityId,data);
       if(activeLayer==='air'){
         const aqi=data.air?.aqi,category=data.air?.category,pollutant=data.air?.dominantPollutant;
@@ -711,10 +787,6 @@
 
   // Single-file mode: browser-restricted Google Maps Platform key.
   const GOOGLE_API_KEY=new URLSearchParams(location.hash.slice(1)).get('key')||'';
-  const CITY_META={
-    delhi:{lat:28.6139,lon:77.2090},
-    bengaluru:{lat:12.9716,lon:77.5946}
-  };
   async function fetchAir(meta){
     const r=await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${encodeURIComponent(GOOGLE_API_KEY)}`,{
       method:'POST',headers:{'Content-Type':'application/json'},
@@ -743,8 +815,20 @@
       precipitationPercent:Number(j.precipitation?.probability?.percent)
     };
   }
+  const inFlight=new Set();
   async function loadCityData(cityId){
-    const meta=CITY_META[cityId];
+    const meta=CITY_BY_ID.get(cityId);
+    if(!meta||inFlight.has(cityId))return;
+    // Without a browser key every request 403s, which the browser logs before any
+    // JS can catch it. Short-circuit so the keyless build degrades quietly.
+    if(!GOOGLE_API_KEY){
+      setCityReading(cityId,'error',activeLayer==='air'?'AIR · live key not set':'WEATHER · live key not set');
+      setCityMeta(cityId,'LIVE · KEY NOT SET');
+      return;
+    }
+    inFlight.add(cityId);
+    setCityReading(cityId,'loading','Loading live data…');
+    setCityMeta(cityId,'LIVE · CONNECTING');
     try{
       const [air,weather]=await Promise.allSettled([fetchAir(meta),fetchWeather(meta)]);
       const data={
@@ -754,8 +838,24 @@
       };
       cityData.set(cityId,data);renderCityData();refreshCityMeta();
     }catch(err){console.warn(`Live data failed for ${cityId}`,err);setCityReading(cityId,'error','Live data unavailable');}
+    finally{inFlight.delete(cityId);}
   }
-  async function refreshLiveData(){await Promise.allSettled(['delhi','bengaluru'].map(loadCityData));}
+  // Lazy: only the selected city is ever fetched, and the interval refreshes
+  // just the cities already loaded rather than the whole registry.
+  async function refreshLiveData(){
+    const ids=cityData.size?[...cityData.keys()]:[selectedCity||DEFAULT_CITY];
+    await Promise.allSettled(ids.map(loadCityData));
+  }
+  function selectCity(cityId){
+    if(!CITY_BY_ID.has(cityId)||cityId===selectedCity)return;
+    const previous=markerEls.get(selectedCity);
+    if(previous)previous.classList.remove('is-active');
+    const marker=markerEls.get(cityId);
+    if(marker)marker.classList.add('is-active');
+    selectedCity=cityId;
+    renderCityData();
+    if(!cityData.has(cityId))loadCityData(cityId);
+  }
   toggle.addEventListener('click', () => {
     activeLayer = activeLayer === 'weather' ? 'air' : 'weather';
     const weatherOn = activeLayer === 'weather';
@@ -765,12 +865,16 @@
     renderCityData();
   });
 
-  refreshLiveData();
+  // The globe's home rotation faces India, so Delhi is the sensible default
+  // selection. selectCity also performs its first (and only) fetch.
+  buildMarkers();
+  selectCity(DEFAULT_CITY);
   setInterval(refreshLiveData, 10 * 60 * 1000);
   setInterval(refreshCityMeta, 30 * 1000);
 
   stage.addEventListener('pointerdown', e => {
     if (toggle.contains(e.target)) return;
+    pendingCity = e.target.closest?.('.city-pin')?.dataset.city || null;
     dragging=true;stage.classList.add('is-dragging');autoResumeAt=performance.now()+5200;
     moved=false;velocityX=0;velocityY=0;
     lastX=e.clientX;lastY=e.clientY;lastMoveAt=performance.now();
@@ -789,18 +893,22 @@
     lastX=e.clientX;lastY=e.clientY;lastMoveAt=now;
   });
   stage.addEventListener('pointerup', e => {
+    // A tap that never moved is a selection, not a drag.
+    if(pendingCity&&!moved)selectCity(pendingCity);
+    pendingCity=null;
     dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+5200;
     try{stage.releasePointerCapture(e.pointerId);}catch(_){ }
   });
-  stage.addEventListener('pointercancel',()=>{dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+5200;});
+  stage.addEventListener('pointercancel',()=>{pendingCity=null;dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+5200;});
 
   // Double click returns to the exact reference orientation.
   stage.addEventListener('dblclick', e => {
     if (toggle.contains(e.target)) return;
+    if (e.target.closest?.('.city-pin')) return;
     rotX=HOME_ROT_X;rotY=HOME_ROT_Y;velocityX=0;velocityY=0;autoResumeAt=0;
   });
 
-  const cities=[{el:cityDelhi,...CITY_META.delhi},{el:cityBengaluru,...CITY_META.bengaluru}];
+  const cities=CITIES.map(c=>({el:markerEls.get(c.id),lat:c.lat,lon:c.lon}));
 
   function rotateForView(p) {
     let [x, y, z] = p;
