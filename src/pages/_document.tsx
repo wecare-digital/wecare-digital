@@ -1,5 +1,7 @@
 import { Html, Head, Main, NextScript } from 'next/document';
 
+import { META } from '../config/analytics';
+
 /**
  * Custom Document — Security meta tags + Google Tag Manager.
  *
@@ -79,6 +81,35 @@ j.async=true;j.src='${GTM_SRC_BASE}'+i+dl;f.parentNode.insertBefore(j,f);
 `.trim();
 
 /**
+ * META PIXEL — the ONE browser Pixel on this property.
+ *
+ * Same argument as the GOOGLE TAGS note above: a second loader anywhere would
+ * double-count every PageView, so the base code lives here and nowhere else. Do not add
+ * an fbq snippet to a page or a component.
+ *
+ * It is NOT the Facebook JS SDK that _app.tsx loads. That one is FB.init with
+ * NEXT_PUBLIC_FB_APP_ID, for social plugins, and it sends no pixel events — the two are
+ * different assets with different ids and neither substitutes for the other.
+ *
+ * Only META.pixelId is interpolated. META.datasetId is the server-side Conversions API
+ * destination and must never appear in browser code or be passed to fbq().
+ *
+ * Set NEXT_PUBLIC_META_PIXEL_ID to '' to disable the Pixel at build time.
+ */
+const pixelBootstrap = `
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window,document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '${META.pixelId}');
+fbq('track', 'PageView');
+`.trim();
+
+/**
  * dir IS DECLARED, not left to the user agent. SupportWidget rewrites it to "rtl" when a
  * visitor picks Arabic, Persian, Hebrew, Urdu, Pashto or Sindhi, and back to "ltr"
  * otherwise. Stating the default in the served HTML means the document says which direction
@@ -121,6 +152,13 @@ export default function Document () {
             <script dangerouslySetInnerHTML={ { __html: gtmLoader } } />
           </>
         ) : null }
+        {/* After the GTM block on purpose, so Consent Mode still runs first. */ }
+        { META.pixelId ? (
+          <>
+            <link rel="preconnect" href="https://connect.facebook.net" />
+            <script dangerouslySetInnerHTML={ { __html: pixelBootstrap } } />
+          </>
+        ) : null }
       </Head>
       <body>
         { GTM_ID ? (
@@ -133,6 +171,15 @@ export default function Document () {
                     : `https://www.googletagmanager.com/ns.html?id=${GTM_ID}`
                 }"` +
                 ` height="0" width="0" style="display:none;visibility:hidden"></iframe>`,
+            } }
+          />
+        ) : null }
+        { META.pixelId ? (
+          <noscript
+            dangerouslySetInnerHTML={ {
+              __html:
+                `<img height="1" width="1" style="display:none" alt=""` +
+                ` src="https://www.facebook.com/tr?id=${META.pixelId}&ev=PageView&noscript=1" />`,
             } }
           />
         ) : null }

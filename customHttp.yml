@@ -174,7 +174,8 @@ customHeaders:
           https://cognito-identity.us-east-1.amazonaws.com
           https://api.razorpay.com https://lumberjack.razorpay.com
           https://*.plivo.com wss://*.plivo.com
-          https://*.cloudfront.net https://www.googletagmanager.com;
+          https://*.cloudfront.net https://www.googletagmanager.com
+          https://www.facebook.com;
           media-src 'self' blob: https://*.cloudfront.net;
           frame-src 'self' https://api.razorpay.com https://checkout.razorpay.com;
           worker-src 'self' blob:;
