@@ -224,25 +224,34 @@ export const PRODUCTS: ProductDef[] = [
     // so the line reads as the root of the practice, not as an explanation of the name.
     slug: 'anew',
     name: 'Anew',
-    blurb: 'Reflection-led conversations that end in a decision.',
-    title: 'Anew — reflection-led conversations | WECARE.DIGITAL',
+    blurb: 'A considered written reflection on a decision that matters.',
+    title: 'Anew — a considered written reflection | WECARE.DIGITAL',
     description:
-      'Anew by WECARE.DIGITAL — a conversational practice of self-inquiry that turns reflection into clarity, connection and committed action.',
+      'A considered written reflection on a decision that matters — read in your own time, no calls.',
     frame: 'Reflection into',
     words: cycle( 'clarity', 'action', 'direction', 'focus' ),
-    sub: 'A conversational practice of self-inquiry, for moving toward what actually matters.',
+    sub: 'A considered written reflection on a decision that matters — read in your own time, no calls.',
     sectionHeading: 'What Anew does',
     lead:
-      'स्वाध्यायात् आत्मबोधः, आत्मबोधात् प्रकाशः — from self-study comes self-awareness; from self-awareness comes light. That is the practice. Anew is what it gives you: the chance to begin again from clarity, rather than from wherever you got stuck.',
+      'Tell us about a decision in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension is, and what could deserve another look before you act.',
     points: [
-      { heading: 'Conversation, not instruction', body: 'The work happens in dialogue. Nobody hands you a conclusion you did not arrive at.' },
-      { heading: 'Reflection with an outcome', body: 'Sessions end somewhere — a decision, a next step — rather than trailing off.' },
-      { heading: 'Toward what matters', body: 'The direction is yours. The practice is a way of finding it and then committing to it.' },
+      {
+        heading: 'Written, not a meeting',
+        body: 'No calls, no scheduling, no questionnaire. You write naturally; we respond in writing you can save and return to whenever you need another look.',
+      },
+      {
+        heading: 'A reflection, not a verdict',
+        body: 'We weigh the assumptions, priorities, tensions and trade-offs in your situation — not a generic pros-and-cons list, and not a decision made for you.',
+      },
+      {
+        heading: 'Usually within 2–3 business days',
+        body: 'Once we have what we need to review, you receive your personalised reflection. One short written clarification is included if something needs it.',
+      },
     ],
     note:
-      'Anew is a reflective practice, not therapy, counselling or medical treatment, and nothing in it is clinical advice. If you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
+      'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. The conclusions you draw and any action you take remain yours. If you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
     ctaLabel: 'Start a conversation',
-    ctaHref: PRODUCT_CTA,
+    ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
   },
   {
     /*
