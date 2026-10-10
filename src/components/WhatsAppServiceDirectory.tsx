@@ -1,5 +1,5 @@
 import React from 'react';
-import { WHATSAPP_SERVICE_ENTRIES, whatsappKeywordLink } from '../config/whatsappServiceEntries';
+import { WHATSAPP_SERVICE_ENTRIES, whatsappServiceLink } from '../config/whatsappServiceEntries';
 
 const WhatsAppServiceDirectory: React.FC = () => (
   <section aria-label="Customer service keywords">
@@ -12,7 +12,7 @@ const WhatsAppServiceDirectory: React.FC = () => (
           <tr key={ entry.slug }>
             <td>{ entry.label }</td><td>{ entry.keyword }</td>
             <td>{ entry.state }{ entry.flowId && <div>{ entry.flowId }</div> }</td>
-            <td><a href={ whatsappKeywordLink( entry.keyword ) } target="_blank" rel="noopener noreferrer">WhatsApp</a></td>
+            <td><a href={ whatsappServiceLink( entry.slug ) } data-whatsapp-keyword={ entry.keyword } target="_blank" rel="noopener noreferrer">WhatsApp</a></td>
           </tr>
         ) ) }</tbody>
       </table>
