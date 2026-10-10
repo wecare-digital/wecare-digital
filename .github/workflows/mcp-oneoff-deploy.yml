@@ -1,0 +1,43 @@
+name: One-off MCP catalogue deploy
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/mcp-oneoff-deploy.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy current MCP catalogue
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned AWS SDK
+        run: |
+          grep -E '^(boto3|botocore)==' requirements-dev.txt > ci-aws-requirements.txt
+          python -m pip install -r ci-aws-requirements.txt
+      - name: Check deployment role
+        run: |
+          if [ -z "${{ vars.PUBLIC_SURFACE_ROLE_ARN }}" ]; then
+            echo "::error::vars.PUBLIC_SURFACE_ROLE_ARN is not set"
+            exit 1
+          fi
+      - name: Assume production deployment role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.PUBLIC_SURFACE_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Deploy MCP Lambda and API route
+        run: python scripts/deploy_mcp_server.py --skip-hosting
+      - name: Verify deployed AWS state
+        run: python scripts/deploy_mcp_server.py --verify
+      - name: Verify public MCP catalogue
+        run: python scripts/deploy_mcp_server.py --verify-live
