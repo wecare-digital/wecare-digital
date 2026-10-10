@@ -159,8 +159,30 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           .pdp-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
           /* MICROCOPY under the CTA row - the twin of .bc-cta-note / .blog-wa-note on the blog
              post page. 13px/rgba(0,0,0,.54) is the muted-metadata rung; 10px of air sits it close
-             to the button it belongs to. Only /anew/ carries one today. */
-          .pdp-cta-note{font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0}
+             to the button it belongs to. Only /anew/ carries one today.
+             HOVER CARRIES THE FOOTER TAGLINE'S COLOUR SWEEP (see .ft-tagline in Footer.tsx and the
+             long note on .bc-cta-note in BlogContribution.tsx): a brand-green band runs through
+             the muted text on hover. Clip + transparent fill live under :hover only so the resting
+             line stays solid grey, not invisible; both stops are measured on white (4.61:1 and
+             12.48:1) so the band only darkens the text. */
+          .pdp-cta-note{
+            font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+            background-image:linear-gradient(100deg,
+              rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
+            background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+          }
+          .pdp-cta-note:hover{
+            -webkit-background-clip:text;background-clip:text;
+            -webkit-text-fill-color:transparent;color:transparent;
+            animation:pdp-cta-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
+          }
+          @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
+          @media(prefers-reduced-motion:reduce){
+            .pdp-cta-note:hover{
+              animation:none;background-image:none;
+              -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
+            }
+          }
 
           /* A ROOMIER QUIET CARD, STILL A 1px HAIRLINE. Geometry is the house quiet-card trio
              - padding:22px, 1px #e5e7eb, 14px radius - the same declaration as

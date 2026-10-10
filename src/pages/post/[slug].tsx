@@ -791,9 +791,29 @@ export default function BlogPostPage ( {
         .blog-wa-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .blog-wa-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
         /* MICROCOPY under the Subscribe pill - the twin of .bc-cta-note in BlogContribution.tsx.
-           Very small, quiet, naming the destination the button no longer shows with a glyph. */
+           Very small, quiet, naming the destination the button no longer shows with a glyph.
+           HOVER CARRIES THE FOOTER TAGLINE'S COLOUR SWEEP (see .ft-tagline in Footer.tsx and the
+           long note on .bc-cta-note in BlogContribution.tsx): a band of brand green runs through
+           the muted text on hover. Clip + transparent fill live under :hover only, so the resting
+           line stays solid grey rather than invisible. Both gradient stops are measured on white
+           (4.61:1 and 12.48:1), so the band only darkens the text, never washes it out. */
         .blog-wa-note{
           font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+          background-image:linear-gradient(100deg,
+            rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
+          background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+        }
+        .blog-wa-note:hover{
+          -webkit-background-clip:text;background-clip:text;
+          -webkit-text-fill-color:transparent;color:transparent;
+          animation:blog-wa-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
+        }
+        @keyframes blog-wa-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
+        @media(prefers-reduced-motion:reduce){
+          .blog-wa-note:hover{
+            animation:none;background-image:none;
+            -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
+          }
         }
         /* The share row sits in the same hairline rhythm as the tags above it and the pager below
            - 24px of air under a 1px e5e7eb rule - so the tail of the page reads as three bands of
