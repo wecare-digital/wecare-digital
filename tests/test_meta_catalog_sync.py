@@ -508,6 +508,7 @@ def test_the_plan_fingerprint_is_stable_under_reordering(desired):
 #: MEASURED from the snapshot: nine of the ten real products carry `mediaCount: 0`. The services
 #: product is the only one with media in Wix, so it is the only one absent from this list.
 EXPECTED_BLOCKED = [
+    "Anew",
     "Contribute",
     "File Assist",
     "Guided Resolution",
@@ -515,7 +516,6 @@ EXPECTED_BLOCKED = [
     "Merchandise",
     "Paperwork",
     "Referral Partner",
-    "Anew",
     "\u20b91 test product",
 ]
 
