@@ -21,18 +21,18 @@ import React from 'react';
  * the page, which is why it read as a different product.
  *
  * IT IS THE SUBSCRIBE BUTTON'S TWIN, DELIBERATELY. Owner instruction: the two CTAs at the tail of
- * a post are a matched pair - the same lime pill, the same WhatsApp glyph, a one-word label. So
- * the icon markup below is the SAME path data as `.blog-wa-subscribe` in src/pages/post/[slug].tsx
- * and the pill geometry is the same.
+ * a post are a matched pair - the same lime pill, a one-word label, and the same quiet microcopy
+ * underneath. The twin is `.blog-wa-subscribe` in src/pages/post/[slug].tsx and the pill geometry
+ * is the same.
  *
- * NO SUBTEXT UNDER THE BUTTON, and that is a RECORDED DECISION rather than an omission. The task
- * brief originally asked for a small muted line below the pill; the owner then revised the design
- * to an icon instead, and on confirming that the WhatsApp glyph already makes the destination
- * obvious, settled it as "no need for subtext". The decision and its chain are written down at
- * .agents/tasks/contribute-whatsapp-cta/owner-decision.md so the deviation from the brief is
- * traceable to the owner and not to this file's author. The glyph is what says "this opens
- * WhatsApp"; a line saying so would repeat what the reader can already see. Subscribe, 44px
- * above, carries no subtext either, which is the pair this matches.
+ * TEXT-ONLY BUTTON WITH MICROCOPY, and the design history matters because it moved twice. The
+ * brief first asked for a small subtext line; the owner tried a WhatsApp glyph on the button
+ * instead; on seeing it the owner found the logo inside the filled lime pill too busy and asked
+ * to drop it. The settled design is a TEXT-ONLY pill reading "Contribute", with the destination
+ * named in a very short `.bc-cta-note` microcopy line below it - "Continue on WhatsApp →". The
+ * arrow is part of the text (it says "leaves here"), not a reintroduced icon. The chain is
+ * recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md. Subscribe, 44px above,
+ * carries the identical text-only-plus-microcopy treatment, which is the pair this matches.
  *
  * WHAT WAS DELETED, so the absence is not read as a gap:
  *   - `CONTRIBUTION_CHOICES` and the ₹250 amount pill, with its visually-hidden radio, its
@@ -57,9 +57,9 @@ import React from 'react';
  *
  * THE ACCESSIBLE NAME CARRIES THE VISIBLE WORD. `aria-label="Contribute on WhatsApp"` CONTAINS
  * the visible "Contribute", so a speech-input user saying "click Contribute" reaches it - WCAG
- * 2.5.3 Label in Name, the same contract the Subscribe anchor keeps with "Subscribe on WhatsApp"
- * and the failure PillButton's docblock records at length. The glyph is `aria-hidden` because the
- * label already says what it depicts.
+ * 2.5.3 Label in Name, the same contract the Subscribe anchor keeps with "Subscribe on WhatsApp".
+ * The microcopy line below is `aria-hidden`: the anchor's accessible name already carries
+ * "on WhatsApp", so announcing the destination again would be a duplicate.
  */
 
 /** The owner's Contribute Meta message link. The ONE place this URL is written. */
@@ -90,8 +90,10 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
 
     {/* A REAL ANCHOR, not a button with an onClick: it leaves the site, so it has to be
         middle-clickable, long-pressable and copyable - the same argument the Subscribe button
-        above it records. The SVG is that button's glyph, path for path, so the pair cannot drift
-        into two icons. */}
+        above it records. TEXT ONLY, no glyph: the owner found the WhatsApp logo inside the filled
+        pill too busy, so the destination moves to the quiet `.bc-cta-note` microcopy below rather
+        than onto the button. Subscribe, 44px above, is the matched pair and carries the same
+        treatment. */}
     <a
       className="bc-cta"
       href={ CONTRIBUTE_CTA_HREF }
@@ -99,11 +101,13 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
       rel="noopener noreferrer"
       aria-label="Contribute on WhatsApp"
     >
-      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" width="20" height="20">
-        <path fill="currentColor" d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.4-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.91-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.03 1.02-1.03 2.48 0 1.46 1.06 2.87 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.42-.08-.12-.28-.2-.57-.35M12.05 21.79h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 01-1.51-5.26C2.16 6.45 6.6 2.01 12.05 2.01c2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 012.89 6.99c0 5.45-4.44 9.89-9.88 9.89M20.46 3.49A11.82 11.82 0 0012.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 005.69 1.45c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.42z" />
-      </svg>
       <span>Contribute</span>
     </a>
+    {/* MICROCOPY, not a sentence: it names where the button goes in three words and a trailing
+        arrow that says "leaves here". The accessible name on the anchor already carries
+        "on WhatsApp", so this line is aria-hidden to avoid a screen reader announcing the
+        destination twice. */}
+    <p className="bc-cta-note" aria-hidden="true">Continue on WhatsApp →</p>
 
     <style jsx>{`
       /* bc- prefixed because the globally imported src/styles/*.css declares unscoped rules for
@@ -144,12 +148,11 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
          band this section has already opened. Said explicitly because an earlier version of
          this comment credited a margin-top:20px that was never declared here. */
       .bc-cta{
-        display:inline-flex;align-items:center;gap:10px;box-sizing:border-box;
+        display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;
         min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
         background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
         text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
       }
-      .bc-cta svg{flex:0 0 auto}
       /* The house inversion - lime to white - plus the one allowed lift and shadow. White gives
          #1a3a2a type 12.48:1; deepening to the base green would be 3.91:1 and fail at this size. */
       .bc-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
@@ -157,6 +160,12 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
       /* Opaque focus ring at offset, the page's standard - never a translucent alpha. 3px offset
          rather than 2px, because this is now the pill object and the pill rings outside itself. */
       .bc-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+      /* MICROCOPY under the pill: very small, quiet, naming the destination the button no longer
+         shows with a glyph. 13px/rgba(0,0,0,.54) is the page's muted-metadata rung; 10px of air
+         sits it close to the button it belongs to. The arrow is part of the text, not an icon. */
+      .bc-cta-note{
+        font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+      }
       @media(prefers-reduced-motion:reduce){
         .bc-cta{transition:none}
         .bc-cta:hover{transform:none;box-shadow:none}
