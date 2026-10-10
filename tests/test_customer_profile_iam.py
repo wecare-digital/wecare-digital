@@ -15,6 +15,14 @@ the identity link can still happen unaudited, so source and live IAM must remain
 three tests drive `ensure_role` through a stub IAM and pin BOTH branches plus the dry run, because
 a grant that is asserted in this file and never applied to the role is a grant that does not
 exist.
+
+ON PURPOSE, in the merge of `origin/stack@97c47208`: mainline's
+`test_existing_role_is_reconciled_not_silently_skipped` was dropped as a duplicate, not lost. It
+monkeypatched the private `_exists` seam to reach the reconcile branch and asserted the one write;
+`test_an_existing_role_has_its_inline_policy_reconciled` below reaches the same branch through a
+stub `get_role` - so the branch selection itself is exercised rather than assumed - and asserts the
+same `RoleName`, `PolicyName` and document, plus that no role was created. Mainline's source-text
+pins on `ensure_role` went with it, superseded by the three tests that run the function.
 """
 from __future__ import annotations
 
@@ -165,8 +173,10 @@ def test_there_is_exactly_one_builder_for_this_document(provisioner):
 
     This used to also grep the script for the literal call expression, which broke the moment
     `ensure_role` hoisted the `json.dumps(...)` into a local - a true statement about the code
-    that a source-text match reads as a regression. The three tests below assert the same thing
-    properly, by running `ensure_role` against a stub IAM and comparing the document it writes.
+    that a source-text match reads as a regression. Mainline's answer was to re-point the grep at
+    the new spelling, which keeps the brittleness; this one counts declarations instead, and the
+    three tests below assert the real property properly, by running `ensure_role` against a stub
+    IAM and comparing the document it writes.
     """
     source = SCRIPT.read_text(encoding="utf-8")
     assert source.count("def expected_role_policy") == 1
@@ -227,6 +237,7 @@ def test_an_existing_role_has_its_inline_policy_reconciled(provisioner, iam_stub
     assert provisioner.ensure_role(False) == "reconciled"
     writes = _policy_writes(fake)
     assert len(writes) == 1
+    assert writes[0]["RoleName"] == provisioner.ROLE_NAME
     assert writes[0]["PolicyName"] == POLICY_NAME
     document = json.loads(writes[0]["PolicyDocument"])
     assert document == provisioner.expected_role_policy(ACCOUNT)
