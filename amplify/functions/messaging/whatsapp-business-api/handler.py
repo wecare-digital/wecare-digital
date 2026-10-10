@@ -5964,6 +5964,32 @@ def _catalog_sync_admin_control(event: Dict[str, Any], method: str,
     return _resp(status, result)
 
 
+#: Route fragments that carry CUSTOMER-SUBMITTED records and therefore need Operator
+#: rather than the Viewer floor this catch-all applies.
+#:
+#: `documents` is the Drop-Docs surface: a document row names the customer who uploaded
+#: it, and the `/download` arm hands back a presigned URL to the file itself. A
+#: flow-submission is whatever the customer typed into a WhatsApp Flow, and
+#: `update-status` changes how their request is being handled. Reading either is more
+#: than a dashboard glance, and `export` emits the whole set as CSV.
+#:
+#: One list and one helper rather than seven inline re-gates: seven copies is how six of
+#: them stay and the seventh is forgotten.
+OPERATOR_PATH_FRAGMENTS = ('/documents', '/flow-submissions')
+
+
+def _require_operator(event: Dict[str, Any], path: str):
+    """Operator refusal for a customer-record arm, or None to proceed.
+
+    Re-asks `require_auth` rather than reading `event['_auth']['role']`, so the refusal
+    body and status come from the one place that builds them.
+    """
+    if not any(fragment in path for fragment in OPERATOR_PATH_FRAGMENTS):
+        return None
+    from lambda_utils.middleware import require_auth
+    return require_auth(event, required_role='Operator')
+
+
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     request_id = context.aws_request_id if context else 'local'
     global origin
@@ -6032,9 +6058,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Measured unauthenticated against production on 2026-09-21:
     # `GET /wa-business/webhooks` returned 400 "wabaId required" - past auth and
     # inside the handler - while `GET /wa-business/profile` returned 401.
-    auth_result = require_auth(event)
+    # Viewer is the floor for this catch-all. Stated explicitly rather than left as None:
+    # `require_auth` no longer defaults an ungrouped principal to Viewer, so a call with
+    # no `required_role` has nothing to check.
+    auth_result = require_auth(event, required_role='Viewer')
     if auth_result is not None:
         return auth_result
+
+    # Arms that carry customer-submitted records need Operator, not the Viewer floor.
+    # Checked here, once, before the dispatch chain below — not inside each of the seven
+    # arms, because seven copies is how six of them stay and the seventh is forgotten.
+    operator_denied = _require_operator(event, path)
+    if operator_denied is not None:
+        return operator_denied
 
     # Note: WhatsApp Flows data_exchange uses E2E encryption (RSA + AES-GCM)
     # for authentication — NOT x-hub-signature-256. The encrypted payload itself

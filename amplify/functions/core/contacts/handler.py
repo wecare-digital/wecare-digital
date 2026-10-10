@@ -167,7 +167,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    # Viewer is the read floor. Stated explicitly rather than left as None: `require_auth`
+    # no longer defaults an ungrouped principal to Viewer, so a call with no
+    # `required_role` has nothing to check. The DELETE arm re-gates at Operator.
+    _auth = require_auth(event, required_role='Viewer')
     if _auth is not None:
         return _auth
 
@@ -221,6 +224,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # DELETE [retired public path]/{id}
         if method == 'DELETE':
+            # Re-gated at Operator before any delete work. A Viewer can read a contact
+            # and must not be able to remove one.
+            #
+            # This is a gate on WHO may ask, and it is deliberately the only thing added
+            # here. The gate on WHETHER the delete is allowed already exists and is
+            # untouched: `_hard_delete_refusal` refuses CONTACT_HAS_PAYMENTS and
+            # PAYMENT_LINKAGE_UNKNOWN via
+            # `lambda_utils.ecommerce.contact_payment_links.has_payment_links`, and the
+            # lock guard refuses CONTACT_LOCKED. An Operator does not outrank those.
+            denied = require_auth(event, required_role='Operator')
+            if denied is not None:
+                return denied
             if not contact_id:
                 return cors_response(400, {'error': 'contactId is required'}, origin)
             hard = query_params.get('hard', 'false').lower() == 'true'

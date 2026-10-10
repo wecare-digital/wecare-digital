@@ -12,6 +12,8 @@ import boto3
 from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, options_response, extract_origin
+from lambda_utils import destructive_confirm
+from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger, log_event
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 
@@ -71,7 +73,10 @@ def handler(event, context):
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    # Operator is the floor for deleting ONE message. `clear-all` re-gates at Admin
+    # below, because wiping both tables is a different act from deleting a message
+    # somebody asked you to remove.
+    _auth = require_auth(event, required_role='Operator')
     if _auth is not None:
         return _auth
 
@@ -86,13 +91,11 @@ def handler(event, context):
     if not path:
         path = event.get('rawPath', '')
 
-    # ── DELETE /messages/clear-all — bulk wipe both tables ──
-    if http_method == 'DELETE' and 'clear-all' in path:
-        return _handle_clear_all(origin)
-
-    # ── POST /messages/clear-all — alternative POST route ──
-    if http_method == 'POST' and 'clear-all' in path:
-        return _handle_clear_all(origin)
+    # ── DELETE|POST /messages/clear-all — bulk wipe both tables ──
+    # Both verbs route here; API Gateway does not expose DELETE on every stage, so the
+    # POST form exists as an alias. Gating one and not the other would gate neither.
+    if 'clear-all' in path and http_method in ('DELETE', 'POST'):
+        return _handle_clear_all(event, origin)
 
     # ── PATCH/PUT: Update payment/invoice fields ──
     if http_method in ('PUT', 'PATCH'):
@@ -193,8 +196,120 @@ def handler(event, context):
         return cors_response(500, {'error': 'Internal server error'}, origin)
 
 
-def _handle_clear_all(origin):
-    """Bulk wipe ALL messages from both Inbound and Outbound tables."""
+#: Namespaces this route's confirmation tokens so one minted for a cleanup cannot be
+#: redeemed here. See `lambda_utils.destructive_confirm`.
+CONFIRM_SCOPE = 'messages_clear_all'
+#: The two tables this route empties. Named explicitly so the confirmation token and the
+#: audit record describe the same thing the loop below touches.
+CLEAR_ALL_SELECTION = ['inbound', 'outbound']
+
+
+def _clear_all_actor(event):
+    """The Cognito `sub` of the caller, falling back to the username. Never a body field."""
+    auth = event.get('_auth') or {}
+    return str((auth.get('attributes') or {}).get('sub') or auth.get('username') or 'unknown')
+
+
+def _count_table(tbl_name):
+    """Row count for the preview, or -1 if it cannot be read."""
+    try:
+        table = dynamodb.Table(tbl_name)
+        count = 0
+        kwargs = {'Select': 'COUNT'}
+        while True:
+            resp = table.scan(**kwargs)
+            count += resp.get('Count', 0)
+            if 'LastEvaluatedKey' not in resp:
+                break
+            kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
+        return count
+    except Exception as e:  # noqa: BLE001
+        logger.warning(json.dumps({'event': 'clear_all_count_error',
+                                   'table': tbl_name, 'error': str(e)[:160]}))
+        return -1
+
+
+def _clear_all_preview(event, origin):
+    """GET-equivalent for the wipe: live counts plus a single-use confirmation token.
+
+    Reached by passing `preview: true`, because this route has no GET verb — the handler
+    serves DELETE/POST/PUT/PATCH only, and adding a GET arm would change the route table.
+    """
+    counts = {'inbound': _count_table(INBOUND_TABLE), 'outbound': _count_table(OUTBOUND_TABLE)}
+    token = destructive_confirm.mint(
+        CONFIRM_SCOPE, CLEAR_ALL_SELECTION, counts, _clear_all_actor(event))
+    body = {'preview': True, 'counts': counts, 'confirmationToken': token or ''}
+    if token is None:
+        body['warning'] = ('Confirmation store unavailable — nothing can be deleted until '
+                           'it recovers.')
+    return cors_response(200, body, origin)
+
+
+def _handle_clear_all(event, origin):
+    """Bulk wipe ALL messages from both Inbound and Outbound tables.
+
+    Four gates, because this empties the entire customer conversation history in one
+    call and was previously reachable with no role at all:
+
+    1. Admin on a STAFF-pool token. Re-gated here rather than inherited: the outer gate
+       is Operator, which is right for deleting one message and wrong for deleting all
+       of them.
+    2. An enrolled second factor. Read off `_auth['mfaEnrolled']`, which `require_auth`
+       populates only when Admin is required — hence the re-gate above. `None` (lookup
+       failed) refuses, so a Cognito outage cannot open this.
+    3. A single-use confirmation token from `{"preview": true}`, so a direct call cannot
+       delete and a retry cannot delete twice.
+    4. A durable audit row, written BEFORE the first delete and failing CLOSED.
+
+    Returns a 503 rather than proceeding if the audit cannot be recorded: an irreversible
+    wipe with no record of who asked for it is worse than a refused wipe.
+    """
+    from lambda_utils.middleware import require_auth
+    denied = require_auth(event, required_role='Admin')
+    if denied is not None:
+        return denied
+
+    if (event.get('_auth') or {}).get('mfaEnrolled') is not True:
+        logger.warning(json.dumps({'event': 'clear_all_refused_no_mfa'}))
+        return cors_response(403, {
+            'error': 'MFA required',
+            'detail': ('Clearing all messages requires a second factor. Enrol an '
+                       'authenticator app in your account settings, sign in again, and '
+                       'retry.'),
+        }, origin)
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except (json.JSONDecodeError, TypeError, ValueError):
+        body = {}
+
+    if body.get('preview'):
+        return _clear_all_preview(event, origin)
+
+    consumed = destructive_confirm.consume(
+        CONFIRM_SCOPE, str(body.get('confirmationToken') or '').strip(),
+        CLEAR_ALL_SELECTION)
+    if not consumed.get('ok'):
+        return cors_response(consumed.get('status', 409),
+                             {'error': consumed.get('error', 'Confirmation failed')}, origin)
+
+    actor = _clear_all_actor(event)
+    log_id = record_audit(
+        action='messages.clear_all',
+        actor=actor,
+        resource_type='messages',
+        resource_id='inbound,outbound',
+        details={'selection': CLEAR_ALL_SELECTION,
+                 'tables': [INBOUND_TABLE, OUTBOUND_TABLE],
+                 'previewCounts': consumed.get('counts', {})},
+    )
+    if not log_id:
+        # `record_audit` fails open by design; this caller cannot afford that.
+        logger.error(json.dumps({'event': 'clear_all_refused_audit_unavailable',
+                                 'actor': actor}))
+        return cors_response(503, {'error': 'Audit log unavailable — nothing was deleted'},
+                             origin)
+
     total = 0
     details = {}
     for tbl_name in (INBOUND_TABLE, OUTBOUND_TABLE):
@@ -225,6 +340,8 @@ def _handle_clear_all(origin):
             total += tbl_deleted
         except Exception as e:
             details[tbl_name] = f'error: {str(e)}'
+    logger.info(json.dumps({'event': 'messages_clear_all', 'actor': actor,
+                            'totalDeleted': total, 'auditLogId': log_id}))
     return cors_response(200, {'success': True, 'totalDeleted': total, 'details': details}, origin)
 
 

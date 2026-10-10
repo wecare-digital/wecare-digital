@@ -32,6 +32,7 @@ from typing import Dict, Any, Optional, List
 from decimal import Decimal
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
+from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
 from lambda_utils import media_paths
@@ -245,6 +246,17 @@ def _flatten_onto_white(png_img):
 # Module-level origin for CORS (set per-invocation in handler)
 origin = ''
 
+#: The caller's Cognito `sub` for this invocation, set by `handler` alongside `origin` and
+#: read only by `_audit_actor`. Module-level for the same reason `origin` is: the route
+#: functions below take `(id, body, request_id)` and threading an actor through all of
+#: them to reach two audit calls would be a wider diff than the fix.
+_actor_sub = ''
+
+
+def _audit_actor() -> str:
+    """Who to record for an audited refusal. The token's `sub`, never a body field."""
+    return _actor_sub or 'unknown'
+
 # Company details for invoice
 # GSTIN/PAN appear on issued tax invoices. The PAN is embedded in the GSTIN at
 # characters 3-12, so the two MUST stay consistent:
@@ -328,10 +340,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
 
     from lambda_utils.middleware import require_auth
-    required_role = 'Admin' if method in ('POST', 'PUT', 'DELETE') else None
+    # Viewer on reads, Admin on anything that writes. The read floor is stated explicitly
+    # rather than left as None: `require_auth` no longer defaults an ungrouped principal
+    # to Viewer, so `required_role=None` would have nothing to check.
+    required_role = 'Admin' if method in ('POST', 'PUT', 'DELETE') else 'Viewer'
     _auth = require_auth(event, required_role=required_role)
     if _auth is not None:
         return _auth
+
+    global _actor_sub
+    _auth_info = event.get('_auth') or {}
+    _actor_sub = str((_auth_info.get('attributes') or {}).get('sub')
+                     or _auth_info.get('username') or '')
 
     path = event.get('rawPath', event.get('path', ''))
     params = event.get('queryStringParameters') or {}
@@ -3572,13 +3592,75 @@ def cancel_invoice(invoice_id: str, reason: str, request_id: str) -> Dict:
                        'collectionSeq': next_seq})
 
 
-# ─── Delete Invoice (hard delete + sequence adjustment) ───
+# ─── Delete Invoice — REFUSED. Cancel instead. ───
 
 def delete_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
-    """Hard delete an invoice and optionally adjust the sequence counter."""
+    """Refuses 410. Hard-deleting a GST invoice is not safe at any role.
+
+    WHY A REFUSAL RATHER THAN A NARROWED DELETE
+    -------------------------------------------
+    The obvious fix was "refuse when the invoice is issued or paid, allow it otherwise".
+    There is no otherwise. `create_invoice` assigns `invoiceNumber` from the consecutive
+    GST series to EVERY invoice at creation — it is the last thing that can fail there,
+    and that code already states the rule this refusal enforces:
+
+        "a number outside the consecutive series is worse than no invoice, because it
+         cannot be reassigned once it has gone out"
+
+    So every row this function can reach is an issued, numbered tax document and there is
+    no draft state to permit. What it used to do, in one call:
+
+      * hard-deleted the invoice row, paid or not — no status guard of any kind, unlike
+        `update_invoice` (blocks amount edits past `captured`) and `cancel_invoice`
+        (blocks voiding past `captured`). This route was the hole in a rule the other two
+        already enforced.
+      * deleted the rendered PDF/PNG from S3 — the artefact the customer was sent.
+      * with `adjustSequence`, DECREMENTED the GST sequence counter, so the next invoice
+        reused a number that had already gone out. Two documents, one number.
+
+    `cancel_invoice` is the supported void: it keeps the row and the number, records the
+    reason, refuses once money has moved, and bumps the collection sequence so a re-raise
+    composes a fresh payment reservation. That already exists and is what a void should be.
+
+    410 rather than 403 because the caller's role is not the problem and a better token
+    will not help — the capability is withdrawn, and the body names its replacement.
+    """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
 
+    # Best effort, not fail-closed: nothing is being deleted, so a missing audit row costs
+    # a log line rather than an unrecorded destruction. Recorded at all because an attempt
+    # to hard-delete a tax document is worth knowing about.
+    record_audit(
+        action='invoice.delete',
+        actor=_audit_actor(),
+        resource_type='invoice',
+        resource_id=invoice_id,
+        details={'outcome': 'refused', 'reason': 'gst_invoice_immutable',
+                 'adjustSequenceRequested': bool((body or {}).get('adjustSequence')),
+                 'requestId': request_id},
+    )
+    logger.warning(json.dumps({
+        'event': 'invoice_delete_refused', 'invoiceId': invoice_id, 'requestId': request_id,
+    }))
+    return _resp(410, {
+        'error': 'Invoices cannot be deleted',
+        'errorCode': 'INVOICE_IMMUTABLE',
+        'detail': ('Every invoice carries a number from the consecutive GST series, and '
+                   'that number cannot be reassigned once issued. Cancel the invoice '
+                   'instead — it is voided, the reason is recorded, and the number is '
+                   'preserved.'),
+        'use': f'POST /invoices/{invoice_id}/cancel',
+    })
+
+
+def _delete_invoice_withdrawn(invoice_id: str, body: Dict, request_id: str) -> Dict:
+    """UNREACHABLE. The former hard-delete, kept as the record of what was withdrawn.
+
+    Here rather than deleted outright so a reader can see exactly which operations this
+    PR removed — the S3 asset delete and the sequence decrement in particular — without
+    reconstructing them from history. Nothing calls this.
+    """
     table = dynamodb.Table(INVOICES_TABLE)
     resp = table.get_item(Key={'invoiceId': invoice_id})
     invoice = resp.get('Item')
@@ -3639,10 +3721,63 @@ def delete_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     return _resp(200, {'invoiceId': invoice_id, 'deleted': True, 'invoiceNumber': inv_number})
 
 
-# ─── Clear All Invoice Data (admin cleanup) ───
+# ─── Clear All Invoice Data — REFUSED. ───
 
 def clear_all_invoice_data(request_id: str) -> Dict:
-    """Wipe all invoice-related tables: Invoices, InvoiceItems, InvoiceAssets, InvoiceDeliveryLog, InvoiceSequence, Payments, RazorpayWebhookLog. Also clears S3 invoices/ prefix."""
+    """Refuses 410. There is no safe version of this operation.
+
+    WHY A REFUSAL RATHER THAN A GUARDED WIPE
+    ----------------------------------------
+    Every table it emptied is a record this business is required to keep, and the set is
+    not separable into "history" and "scratch":
+
+      InvoicesTable          issued GST documents (see `delete_invoice` — all of them are
+                             numbered from the consecutive series at creation)
+      InvoiceSequenceTable   the GST counter itself. Emptying it restarts numbering at 1,
+                             so the next invoice reuses a number already sent to a
+                             customer — the same defect as `adjustSequence`, applied to
+                             the whole series at once.
+      PaymentsTable          money of record
+      RazorpayWebhookLogTable  the provider's account of what it charged, i.e. the
+                             evidence in a chargeback
+      InvoiceItems / Assets / DeliveryLog  the line items, the rendered documents and the
+                             proof of delivery for the above
+
+    Narrowing it to "unpaid only" does not help: unpaid invoices are still issued numbered
+    documents, and the sequence counter and the webhook log are not per-invoice, so they
+    would be wiped wholesale or not at all. Any version that deletes something deletes
+    financial history, and a version that deletes nothing is this refusal.
+
+    It was also reachable three ways — `DELETE /invoices/clear-all`,
+    `POST /invoices/clear-all`, and `POST /invoices` with `_action=clear-all`, which ran
+    BEFORE every other POST arm. All three now land here.
+
+    Cancel an individual invoice with `POST /invoices/{id}/cancel`. Genuine cache clearing
+    lives in `operations/system-cleanup`, whose allow-list deliberately excludes every
+    table named above.
+    """
+    record_audit(
+        action='invoice.clear_all',
+        actor=_audit_actor(),
+        resource_type='invoice',
+        resource_id='clear-all',
+        details={'outcome': 'refused', 'reason': 'financial_history_immutable',
+                 'requestId': request_id},
+    )
+    logger.warning(json.dumps({'event': 'invoice_clear_all_refused', 'requestId': request_id}))
+    return _resp(410, {
+        'error': 'Bulk invoice deletion has been withdrawn',
+        'errorCode': 'INVOICE_HISTORY_IMMUTABLE',
+        'detail': ('This cleared issued GST invoices, the GST sequence counter, payments '
+                   'and the provider webhook log — all records that must be retained. '
+                   'Cancel individual invoices instead; cache clearing lives in '
+                   'system-cleanup, which cannot select any of these tables.'),
+        'use': 'POST /invoices/{invoiceId}/cancel',
+    })
+
+
+def _clear_all_invoice_data_withdrawn(request_id: str) -> Dict:
+    """UNREACHABLE. The former bulk wipe, kept as the record of what was withdrawn."""
     tables_to_clear = {
         'invoices': (INVOICES_TABLE, 'invoiceId'),
         'invoice_items': (INVOICE_ITEMS_TABLE, None),
