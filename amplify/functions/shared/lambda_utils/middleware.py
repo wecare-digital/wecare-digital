@@ -1,16 +1,38 @@
 """
-Auth enforcement middleware for Lambda handlers.
+Auth enforcement middleware for Lambda handlers. STAFF pool only.
 
 Usage:
     from lambda_utils.middleware import require_auth
 
     def handler(event, context):
-        auth_result = require_auth(event)
+        auth_result = require_auth(event, required_role='Viewer')
         if auth_result is not None:
             return auth_result  # 401/403 response
         # ... proceed with handler logic
+
+What this gate asserts, and what it deliberately does not
+---------------------------------------------------------
+Three things, all of which have to hold:
+
+1. The token is live — `GetUser` against Cognito.
+2. The token was issued by the STAFF pool — `staff_pool_issuer()`. Step 1 does NOT
+   establish this: `GetUser` takes only a token and resolves it against whichever pool
+   issued it, so a customer-pool token used to pass here. See `_unverified_issuer`.
+3. The principal holds a staff group that is in `ROLE_HIERARCHY`. There is **no default
+   role**. An ungrouped principal, a `Partner`-only principal, and a group lookup that
+   failed are all refused rather than treated as `Viewer`.
+
+NOT for customer sessions. A customer token is refused here by design; customer-serving
+routes authorise through `lambda_utils.customer_auth` (or, in `core/secure-files`, its
+in-handler `_customer_identity`), which pins the CUSTOMER pool and then checks resource
+ownership. Reaching for `require_auth` on a customer route is how a customer silently
+became a staff Viewer.
+
+Every call site should pass `required_role` explicitly, including `'Viewer'` for a
+read-only route: with the default gone, `required_role=None` has nothing to check.
 """
 
+import base64
 import os
 import json
 import boto3
@@ -23,8 +45,52 @@ logger = get_logger(__name__)
 
 cognito = boto3.client('cognito-idp', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
 USER_POOL_ID = os.environ.get('COGNITO_USER_POOL_ID', 'us-east-1_cSx0RHCIR')
+STAFF_POOL_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 
 ROLE_HIERARCHY = {'Admin': 3, 'Operator': 2, 'Viewer': 1}
+
+
+def staff_pool_issuer() -> str:
+    """The `iss` claim a STAFF token must carry.
+
+    Derived from `USER_POOL_ID` rather than kept as a second literal, so overriding the
+    pool moves the pin with it instead of leaving a pin that points at the old pool.
+    Read per call for the same reason: `USER_POOL_ID` is a module global that tests and
+    a future loader can both legitimately replace.
+
+    Same shape as `lambda_utils.customer_auth.CUSTOMER_POOL_ISSUER`, and deliberately a
+    DIFFERENT pool: keeping staff and customer apart is the whole point.
+    """
+    return f'https://cognito-idp.{STAFF_POOL_REGION}.amazonaws.com/{USER_POOL_ID}'
+
+
+#: The issuer for the default pool. Convenience for callers and tests; the gate in
+#: `require_auth` reads `staff_pool_issuer()` so a pool override is honoured.
+STAFF_POOL_ISSUER = staff_pool_issuer()
+
+
+def _unverified_issuer(token: str) -> str:
+    """The `iss` claim, read WITHOUT signature verification.
+
+    Safe only because it is used to *reject*, never to accept. `GetUser` has already
+    proven the token live; this narrows WHICH pool proved it. Copied in shape from
+    `lambda_utils.customer_auth._unverified_issuer` and
+    `core/secure-files/handler.py`, which both made the same call for the same reason.
+
+    `GetUser` takes a token and nothing else, so it resolves the user from whichever
+    pool issued it — a customer-pool token, or a token from any Cognito pool in any AWS
+    account, validates there. Without this pin the group lookup below then runs against
+    the STAFF pool keyed on `Username`, so a foreign pool holding a user named like a
+    real staff member inherits that staff member's groups. That is full role escalation,
+    not merely a missing least-privilege default, which is why this is load-bearing and
+    not defence in depth.
+    """
+    try:
+        payload = token.split('.')[1]
+        payload += '=' * (-len(payload) % 4)
+        return str(json.loads(base64.urlsafe_b64decode(payload)).get('iss') or '')
+    except Exception:  # noqa: BLE001 - a malformed token simply has no issuer
+        return ''
 
 # Paths that skip auth. Only genuinely self-authenticating provider endpoints
 # belong here - a Meta Flows data-exchange endpoint proves authenticity by RSA
@@ -142,24 +208,51 @@ def require_auth(
         logger.warning(json.dumps({'event': 'auth_validation_error', 'error': str(e)}))
         return cors_response(401, {'error': 'Token validation failed'}, origin)
 
+    # The token is live. Narrow WHICH pool proved that — see `_unverified_issuer`.
+    # A token from the customer pool, or from any other Cognito pool, stops here.
+    # Refused as 401 rather than 403: the credential is not valid for this API at all,
+    # and a 403 would say "you are authenticated here, just not enough", which is
+    # neither true nor useful to the caller.
+    if _unverified_issuer(token) != staff_pool_issuer():
+        logger.warning(json.dumps({'event': 'auth_wrong_pool'}))
+        return cors_response(401, {'error': 'Invalid or expired token'}, origin)
+
     username = user_info.get('Username', '')
     attributes = {attr['Name']: attr['Value'] for attr in user_info.get('UserAttributes', [])}
 
-    # Get groups
-    groups = []
+    # Get groups. FAILS CLOSED: the group lookup is the only thing that establishes a
+    # role, so an answer we could not obtain is not an answer we may substitute a
+    # default for. This used to swallow the exception and fall through to Viewer.
     try:
         groups_resp = cognito.admin_list_groups_for_user(
             Username=username, UserPoolId=USER_POOL_ID
         )
         groups = [g['GroupName'] for g in groups_resp.get('Groups', [])]
     except Exception as e:
-        logger.warning(json.dumps({'event': 'groups_fetch_error', 'username': username, 'error': str(e)}))
+        logger.warning(json.dumps({
+            'event': 'auth_group_lookup_failed', 'username': username,
+            'error': type(e).__name__,
+        }))
+        return cors_response(403, {'error': 'Could not determine role'}, origin)
 
-    # Determine highest role
-    role = 'Viewer'
+    # Determine highest role. NO DEFAULT: a principal with no group in the hierarchy has
+    # no role, and `None` is not silently promoted to the bottom rung. This is what
+    # refuses an ungrouped user and a `Partner`-only user — `Partner` is deliberately
+    # absent from ROLE_HIERARCHY, so it scores 0 and grants nothing.
+    role: Optional[str] = None
     for group in groups:
-        if ROLE_HIERARCHY.get(group, 0) > ROLE_HIERARCHY.get(role, 0):
+        if ROLE_HIERARCHY.get(group, 0) > ROLE_HIERARCHY.get(role or '', 0):
             role = group
+
+    if role is None:
+        logger.warning(json.dumps({
+            'event': 'auth_no_staff_group', 'username': username, 'groups': groups,
+        }))
+        return cors_response(403, {
+            'error': 'Insufficient permissions',
+            'requiredRole': required_role or 'Viewer',
+            'currentRole': None,
+        }, origin)
 
     # Check required role
     if required_role and ROLE_HIERARCHY.get(role, 0) < ROLE_HIERARCHY.get(required_role, 0):
