@@ -1,13 +1,36 @@
 """Tests for lambda_utils.middleware module."""
+import base64
 import json
 import pytest
 from unittest.mock import patch, MagicMock
 
 
+def _token(issuer: str) -> str:
+    """A JWT-shaped string with a readable payload. Not signed — nothing here verifies it.
+
+    The default bearer used to be the literal `'valid-token'`. `require_auth` now pins the
+    issuer, and a string with no `.`-separated payload carries no `iss`, so the fixture has
+    to mint a token shaped like the one production sends. Shape copied from
+    `tests/test_customer_auth_and_throttle.py`. No assertion below changed.
+    """
+    payload = base64.urlsafe_b64encode(
+        json.dumps({'iss': issuer, 'sub': 'sub-1234'}).encode()
+    ).decode().rstrip('=')
+    return f'header.{payload}.signature'
+
+
+def _staff_token() -> str:
+    """Read at call time so a test that overrides `USER_POOL_ID` still mints a valid token."""
+    from lambda_utils.middleware import staff_pool_issuer
+    return _token(staff_pool_issuer())
+
+
 class TestRequireAuth:
     """Test auth middleware with mocked Cognito."""
 
-    def _make_event(self, method='POST', path='/test', token='valid-token', origin='https://wecare.digital'):
+    def _make_event(self, method='POST', path='/test', token='staff', origin='https://wecare.digital'):
+        if token == 'staff':
+            token = _staff_token()
         # Include an API Gateway context (apiId + sourceIp) so require_auth
         # treats the event as an externally-reachable request and enforces
         # auth. Events lacking this context are treated as trusted internal

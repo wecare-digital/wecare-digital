@@ -8,6 +8,13 @@ Usage:
                  resource_id=name, details={'category': cat})
 
 Fails open (never raises) so auditing can't break a request. Details are secret-masked.
+
+Fails open HERE. A caller may choose otherwise, and for an irreversible bulk delete it
+must: `record_audit` returns the logId or `None`, so a caller that cannot afford an
+unrecorded action checks the return value and refuses. `operations/system-cleanup`,
+`core/messages-delete` and `payments/invoice-engine` all do. The reasoning is asymmetric
+on purpose — an audit write that fails open loses a record, while deleting a table with no
+record of who asked loses the only account of what happened.
 """
 import os
 import json
@@ -40,6 +47,9 @@ ACTIONS = {
     # WABA management (Part 3 Module 1)
     'event_destination.update', 'media.upload', 'media.delete', 'phone.register',
     'phone.migrate', 'phone.request_otp', 'phone.verify_otp', 'conversational.update',
+    # Irreversible bulk deletes. These are the only callers that check the RETURN VALUE of
+    # record_audit and refuse when it is None — see the fail-closed note in the docstring.
+    'system.cleanup', 'messages.clear_all', 'invoice.delete', 'invoice.clear_all',
 }
 
 

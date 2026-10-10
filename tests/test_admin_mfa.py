@@ -44,6 +44,7 @@ turn the check off rather than enrol.
 
 from __future__ import annotations
 
+import base64
 import json
 import pathlib
 import sys
@@ -83,6 +84,21 @@ class FakeCognito:
                 "PreferredMfaSetting": self._preferred}
 
 
+def _staff_token() -> str:
+    """A JWT-shaped token carrying the STAFF pool issuer. Not signed; nothing verifies it.
+
+    The bearer here used to be the opaque string `token-value-not-a-real-token`.
+    `require_auth` now pins the issuer, and a token with no readable payload carries no
+    `iss`, so this fixture mints the shape production sends. Read through
+    `mw.staff_pool_issuer()` so it follows the `USER_POOL_ID` the `clean_env` fixture
+    installs. No assertion in this module changed.
+    """
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234"}).encode()
+    ).decode().rstrip("=")
+    return f"header.{payload}.signature"
+
+
 def gw_event():
     """An event shaped the way API Gateway delivers one."""
     return {
@@ -90,7 +106,7 @@ def gw_event():
                            "domainName": "api.wecare.digital",
                            "http": {"method": "POST", "path": "/prod/admin/thing",
                                     "sourceIp": "1.2.3.4"}},
-        "headers": {"authorization": "Bearer token-value-not-a-real-token"},
+        "headers": {"authorization": f"Bearer {_staff_token()}"},
     }
 
 
@@ -163,7 +179,10 @@ def test_any_enrolled_factor_counts(monkeypatch, factor):
 # scope: only the Admin role, and only when it is being used
 # ==========================================================================
 def test_a_viewer_is_not_asked_for_mfa(monkeypatch):
-    result, event, fake = _run(monkeypatch, groups=[], mfa=[],
+    # `groups=["Viewer"]` rather than `groups=[]`: `require_auth` no longer defaults an
+    # ungrouped principal to Viewer, it refuses them. A Viewer is what this test is about,
+    # so the fixture now says so. Assertions unchanged.
+    result, event, fake = _run(monkeypatch, groups=["Viewer"], mfa=[],
                                required_role=None, enforce=True)
     assert result is None
     assert fake.mfa_lookups == 0, "an MFA lookup was made for a non-admin"
