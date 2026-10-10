@@ -309,7 +309,10 @@ describe( '/leave-review/ page CTA', () => {
   it( 'shares the published Flow identity and ordered aliases with the workspace displays', async () => {
     const { REVIEW_FLOW_ID, REVIEW_ENTRY_URL, REVIEW_ENTRY_KEYWORDS } =
       await import( '../lib/reviewEntry' );
-    expect( REVIEW_FLOW_ID ).toBe( '1578178897413815' );
+    // WD_Leave_Review_Design_v1, the retained canonical design Flow on WABA 1 (set in
+    // src/lib/reviewEntry.ts by commit 238ffa6a). The source is the source of truth and is
+    // used in five places at once; this assertion tracks it.
+    expect( REVIEW_FLOW_ID ).toBe( '2352304845587149' );
     expect( REVIEW_ENTRY_URL ).toBe( 'https://wa.me/message/ZM74K2H2BIFOA1' );
     // The page CTA reads this same constant, so these must be the same string.
     expect( entry().ctaHref ).toBe( REVIEW_ENTRY_URL );

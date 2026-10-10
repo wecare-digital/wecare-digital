@@ -1150,10 +1150,14 @@
       // Consistent WEATHER format: "{temp}°C · {Condition} · RH {n}% · Rain {n}%",
       // title-cased condition, same " · " separators, missing parts omitted.
       const w=data.weather||{},bits=[];
+      // Capped at THREE parts so the weather reading matches the air reading's
+      // length and fits the fixed-width panel on one line like it does: temp +
+      // condition + rain chance are the at-a-glance essentials. Humidity (and the
+      // fuller metric set) still live in the detailed Weather section below the
+      // map, so nothing is lost - the pill is a glance, not the whole record.
       if(Number.isFinite(w.temperatureC))bits.push(`${Math.round(w.temperatureC)}°C`);
       const condition=titleCaseCondition(w.condition);
       if(condition)bits.push(condition);
-      if(Number.isFinite(w.humidity))bits.push(`RH ${Math.round(w.humidity)}%`);
       if(Number.isFinite(w.precipitationPercent))bits.push(`Rain ${Math.round(w.precipitationPercent)}%`);
       setCityReading(cityId,bits.length?'ready':'error',bits.length?bits.join(' · '):'WEATHER · unavailable');
     }
