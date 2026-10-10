@@ -462,32 +462,36 @@
             "text": "Address"
           },
           {
+            "type": "TextCaption",
+            "text": "Address"
+          },
+          {
             "type": "TextBody",
-            "text": "${data.address_line1}, ${data.city}, ${data.state} ${data.postal_code}, ${data.country}"
+            "text": "${data.address_line1}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.city}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.state}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.postal_code}"
+          },
+          {
+            "type": "TextBody",
+            "text": "${data.country}"
           },
           {
             "type": "TextCaption",
-            "text": "WhatsApp updates"
+            "text": "Contact preferences"
           },
           {
             "type": "TextBody",
-            "text": "${data.opt_in_whatsapp}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "Email updates"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.opt_in_email}"
-          },
-          {
-            "type": "TextCaption",
-            "text": "SMS updates"
-          },
-          {
-            "type": "TextBody",
-            "text": "${data.opt_in_sms}"
+            "text": "Your WhatsApp, email and SMS selections from the previous screen will be saved exactly as chosen."
           },
           {
             "type": "Footer",
