@@ -1,0 +1,132 @@
+name: Apply contact mutation role gate
+
+on:
+  push:
+    branches:
+      - audit/production-capability-gates-20261010-r2
+    paths:
+      - .github/workflows/contact-mutation-role-gate-oneoff.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_SESSION_TOKEN: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/production-capability-gates-20261010-r2
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Apply the narrow authorization patch and regression coverage
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          handler_path = Path("amplify/functions/core/contacts/handler.py")
+          handler = handler_path.read_text(encoding="utf-8")
+          old_auth = """    # Viewer is the read floor. Stated explicitly rather than left as None: `require_auth`
+              # no longer defaults an ungrouped principal to Viewer, so a call with no
+              # `required_role` has nothing to check. The DELETE arm re-gates at Operator.
+              _auth = require_auth(event, required_role='Viewer')
+              if _auth is not None:
+                  return _auth
+          """
+          new_auth = """    # Viewer is the read floor. Stated explicitly rather than left as None: `require_auth`
+              # no longer defaults an ungrouped principal to Viewer, so a call with no
+              # `required_role` has nothing to check. Every contact mutation re-gates at Operator.
+              _auth = require_auth(event, required_role='Viewer')
+              if _auth is not None:
+                  return _auth
+
+              # Reading customer data is a Viewer capability; changing customer identity is not.
+              # Keep this as one method-level floor so create, update, lock, unlock, soft delete,
+              # and hard delete cannot drift into different role policies as routes evolve.
+              if method in ('POST', 'PUT', 'DELETE'):
+                  denied = require_auth(event, required_role='Operator')
+                  if denied is not None:
+                      return denied
+          """
+          if handler.count(old_auth) != 1:
+              raise SystemExit(f"contacts auth anchor count was {handler.count(old_auth)}, expected 1")
+          handler_path.write_text(handler.replace(old_auth, new_auth, 1), encoding="utf-8")
+
+          test_path = Path("tests/test_bulk_delete_guards.py")
+          tests = test_path.read_text(encoding="utf-8")
+          old_routes = """    (\"contacts-list\",              \"contacts\",  \"GET\",    \"/prod/contacts\",                                   {}),
+              (\"contacts-search\",            \"contacts\",  \"GET\",    \"/prod/contacts/search\",                            {}),
+              (\"contacts-delete\",            \"contacts\",  \"DELETE\", \"/prod/contacts/c-1\",                               {\"contactId\": \"c-1\"}),
+          """
+          new_routes = """    (\"contacts-list\",              \"contacts\",  \"GET\",    \"/prod/contacts\",                                   {}),
+              (\"contacts-search\",            \"contacts\",  \"GET\",    \"/prod/contacts/search\",                            {}),
+              (\"contacts-create\",            \"contacts\",  \"POST\",   \"/prod/contacts\",                                   {}),
+              (\"contacts-update\",            \"contacts\",  \"PUT\",    \"/prod/contacts/c-1\",                               {\"contactId\": \"c-1\"}),
+              (\"contacts-lock\",              \"contacts\",  \"POST\",   \"/prod/contacts/c-1/lock\",                          {\"contactId\": \"c-1\"}),
+              (\"contacts-unlock\",            \"contacts\",  \"POST\",   \"/prod/contacts/c-1/unlock\",                        {\"contactId\": \"c-1\"}),
+              (\"contacts-delete\",            \"contacts\",  \"DELETE\", \"/prod/contacts/c-1\",                               {\"contactId\": \"c-1\"}),
+          """
+          if tests.count(old_routes) != 1:
+              raise SystemExit(f"contacts route anchor count was {tests.count(old_routes)}, expected 1")
+          tests = tests.replace(old_routes, new_routes, 1)
+
+          anchor = """def test_a_viewer_can_read_contacts_and_cannot_delete_them(handlers, monkeypatch):
+          """
+          coverage = """CONTACT_MUTATIONS = [
+              (\"contacts-create\", \"contacts\", \"POST\", \"/prod/contacts\", {}),
+              (\"contacts-update\", \"contacts\", \"PUT\", \"/prod/contacts/c-1\", {\"contactId\": \"c-1\"}),
+              (\"contacts-lock\", \"contacts\", \"POST\", \"/prod/contacts/c-1/lock\", {\"contactId\": \"c-1\"}),
+              (\"contacts-unlock\", \"contacts\", \"POST\", \"/prod/contacts/c-1/unlock\", {\"contactId\": \"c-1\"}),
+              (\"contacts-delete\", \"contacts\", \"DELETE\", \"/prod/contacts/c-1\", {\"contactId\": \"c-1\"}),
+          ]
+
+
+          @pytest.mark.parametrize(\"row\", CONTACT_MUTATIONS, ids=[row[0] for row in CONTACT_MUTATIONS])
+          def test_a_viewer_cannot_mutate_contacts(handlers, monkeypatch, row):
+              resp = _invoke(handlers, row, as_staff(monkeypatch, groups=(\"Viewer\",)))
+              assert resp[\"statusCode\"] == 403, (row[0], resp)
+
+
+          @pytest.mark.parametrize(\"row\", CONTACT_MUTATIONS, ids=[row[0] for row in CONTACT_MUTATIONS])
+          def test_an_operator_can_attempt_each_contact_mutation(handlers, monkeypatch, row):
+              resp = _invoke(handlers, row, as_staff(monkeypatch, groups=(\"Operator\",)))
+              assert resp[\"statusCode\"] not in (401, 403), (row[0], resp)
+
+
+          def test_a_viewer_can_read_contacts_and_cannot_delete_them(handlers, monkeypatch):
+          """
+          if tests.count(anchor) != 1:
+              raise SystemExit(f"viewer test anchor count was {tests.count(anchor)}, expected 1")
+          test_path.write_text(tests.replace(anchor, coverage, 1), encoding="utf-8")
+          PY
+
+      - name: Install the pinned test environment
+        run: python -m pip install --disable-pip-version-check -r requirements-dev.txt
+
+      - name: Run the destructive-route authorization matrix
+        run: python -m pytest tests/test_bulk_delete_guards.py -q
+
+      - name: Validate and commit the tested patch
+        shell: bash
+        run: |
+          git diff --check
+          git diff -- amplify/functions/core/contacts/handler.py tests/test_bulk_delete_guards.py
+          git config user.name "WECARE.DIGITAL Audit"
+          git config user.email "319896805+wecare-digital@users.noreply.github.com"
+          git add amplify/functions/core/contacts/handler.py tests/test_bulk_delete_guards.py
+          git commit -m "fix(contacts): require Operator for mutations"
+          git push origin HEAD:audit/production-capability-gates-20261010-r2
