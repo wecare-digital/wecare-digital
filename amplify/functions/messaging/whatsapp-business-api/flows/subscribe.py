@@ -31,15 +31,103 @@ PAYMENT_AMOUNT = 0
 
 
 def handle_init(data: Dict, flow_token: str, request_id: str) -> Dict:
-    """INIT → navigate to PERSONAL_INFO screen."""
+    """INIT → show the current contact/profile values for the new Subscribe design."""
+    phone = get_phone_from_token(flow_token)
+    contact_id = find_contact_by_phone(phone)
+    contact = {}
+    if contact_id:
+        try:
+            contact = dynamodb.Table(CONTACTS_TABLE).get_item(
+                Key={'id': contact_id}, ConsistentRead=True
+            ).get('Item') or {}
+        except Exception as exc:
+            logger.warning(f'Subscribe profile prefill failed: {exc}')
     return {
-        'screen': 'PERSONAL_INFO',
-        'data': {},
+        'screen': 'PROFILE',
+        'data': {
+            'phone_number': str(contact.get('phone') or phone or ''),
+            'full_name': str(contact.get('name') or ''),
+            'email_address': str(contact.get('email') or ''),
+            'company_name': str(contact.get('companyName') or contact.get('contactBookName') or ''),
+            'designation': str(contact.get('designation') or ''),
+            'address_line1': str(contact.get('addressLine1') or contact.get('shippingAddress') or ''),
+            'city': str(contact.get('city') or ''),
+            'state': str(contact.get('state') or ''),
+            'postal_code': str(contact.get('postalCode') or ''),
+            'country': str(contact.get('country') or 'India'),
+            'opt_in_whatsapp': bool(contact.get('optInWhatsApp', False)),
+            'opt_in_email': bool(contact.get('optInEmail', False)),
+            'opt_in_sms': bool(contact.get('optInSms', False)),
+        },
     }
 
 
 def handle_review(data: Dict, flow_token: str, request_id: str) -> Dict:
     """REVIEW screen → save contact + subscription, return COMPLETE."""
+    # New profile/preferences design: update only the customer-editable profile and
+    # opt-in fields. allowlist* stays operator/system-owned and is never written here.
+    if str(data.get('profile_version') or '') == '2':
+        phone = get_phone_from_token(flow_token)
+        contact_id = find_contact_by_phone(phone)
+        if not contact_id:
+            return {'screen': 'COMPLETE', 'data': {
+                'subscriber_id': '',
+                'message': 'We could not load your contact profile. No changes were saved.'
+            }}
+        full_name = str(data.get('full_name') or '').strip()
+        email = str(data.get('email_address') or '').strip()
+        company = str(data.get('company_name') or '').strip()
+        designation = str(data.get('designation') or '').strip()
+        address_line1 = str(data.get('address_line1') or '').strip()
+        city = str(data.get('city') or '').strip()
+        state = str(data.get('state') or '').strip()
+        postal_code = str(data.get('postal_code') or '').strip()
+        country = str(data.get('country') or 'India').strip() or 'India'
+        opt_wa = bool(data.get('opt_in_whatsapp', False))
+        opt_email = bool(data.get('opt_in_email', False))
+        opt_sms = bool(data.get('opt_in_sms', False))
+        now_ts = int(time.time())
+        try:
+            dynamodb.Table(CONTACTS_TABLE).update_item(
+                Key={'id': contact_id},
+                UpdateExpression=(
+                    'SET #nm=:nm, #em=:em, #cmn=:cmn, #des=:des, '
+                    '#al1=:al1, #ct=:ct, #st=:st, #pc=:pc, #co=:co, '
+                    '#ow=:ow, #oe=:oe, #os=:os, #ua=:ua'
+                ),
+                ExpressionAttributeNames={
+                    '#nm':'name','#em':'email','#cmn':'companyName','#des':'designation',
+                    '#al1':'addressLine1','#ct':'city','#st':'state','#pc':'postalCode',
+                    '#co':'country','#ow':'optInWhatsApp','#oe':'optInEmail',
+                    '#os':'optInSms','#ua':'updatedAt'
+                },
+                ExpressionAttributeValues={
+                    ':nm':full_name, ':em':email, ':cmn':company, ':des':designation,
+                    ':al1':address_line1, ':ct':city, ':st':state, ':pc':postal_code,
+                    ':co':country, ':ow':opt_wa, ':oe':opt_email, ':os':opt_sms,
+                    ':ua':now_ts
+                }
+            )
+        except Exception as exc:
+            logger.warning(f'Subscribe profile update failed: {exc}')
+            return {'screen': 'COMPLETE', 'data': {
+                'subscriber_id': '',
+                'message': 'We could not save your profile changes. Please try again.'
+            }}
+        existing_sub_id = _find_existing_subscriber_id(phone)
+        result = record_completion(
+            flow_code=FLOW_CODE, flow_type='profile_update', phone=phone,
+            contact_id=contact_id, sender_name=full_name, form_data=data,
+            flow_token=flow_token, request_id=request_id, screen='REVIEW',
+            reference_prefix='WD-SUB', requires_payment=False, payment_amount=0,
+            status='completed',
+        )
+        subscriber_id = existing_sub_id or result.reference
+        return {'screen': 'COMPLETE', 'data': {
+            'subscriber_id': subscriber_id,
+            'message': 'Your profile and contact preferences are saved.'
+        }}
+
     phone = get_phone_from_token(flow_token)
     phone_number_id = get_phone_number_id_for_flow(flow_token)
 
