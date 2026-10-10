@@ -21,7 +21,7 @@ import contribution_wix  # noqa: E402
 from contribution_env import (  # noqa: E402
     ATTEMPTS_TABLE, KEYS_TABLE, WIX_ADDRESS, body_of, create_event, make_env, prepare_event)
 from contribution_wix import (  # noqa: E402
-    STORES_APP_ID, ContributionWix, contribution_line, kiosk_line)
+    STORES_APP_ID, ContributionWix, contribution_line, contribution_paise, kiosk_line)
 
 from lambda_utils.ecommerce import checkout_pricing as cp  # noqa: E402
 
@@ -120,7 +120,10 @@ def test_a_service_beside_a_contribution_is_priced_like_any_order(monkeypatch):
     response = prepare(h, [contribution_line(), service()])
     assert response["statusCode"] == 200, body_of(response)
     [attempt] = fake.all_rows(ATTEMPTS_TABLE)
-    assert int(attempt["amountPaise"]) == cp.compute_quote(10000 + 9900).total_payable_paise
+    # The contribution's own price, read from the fixture rather than typed: `Contribute` carries
+    # a single Rs.250 variant since 2026-10-10, where it used to carry Rs.100 / Rs.250 / Rs.500.
+    assert int(attempt["amountPaise"]) == cp.compute_quote(
+        contribution_paise() + 9900).total_payable_paise
 
 
 def test_a_coupon_on_a_service_basket_is_accepted(monkeypatch):

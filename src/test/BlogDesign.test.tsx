@@ -848,7 +848,7 @@ describe( 'Blog post page', () => {
    * Reading them from src/config/contribution.ts here is the same move ShareMeta.test.tsx makes
    * for the share card: the test holds the rendered values equal to the one source.
    */
-  it( 'renders the three contribution amounts from the central config, and no Other', () => {
+  it( 'renders the contribution amounts from the central config, and no Other', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
     const faces = Array.from( container.querySelectorAll( 'section.bc .bc-choice-face' ) )
       .map( n => ( n.textContent || '' ).trim() );
@@ -858,9 +858,10 @@ describe( 'Blog post page', () => {
     // Pinned against the literal as well as the config, deliberately. The line above proves the
     // markup cannot drift from the config; this one proves the config itself still offers the
     // three amounts the brief asks for, which a config-derived assertion alone would not catch.
-    expect( faces ).toEqual( [ '₹100', '₹250', '₹500' ] );
-    // The "Other" custom option went with the free-text amount on 2026-10-04: there are three
-    // fixed-price choices and nothing else.
+    expect( faces ).toEqual( [ '₹250' ] );
+    // The "Other" custom option went with the free-text amount on 2026-10-04, and ₹100/₹500 went
+    // with the Wix variants behind them on 2026-10-10: there is one fixed-price choice and
+    // nothing else.
     expect( faces.some( f => f.includes( 'Other' ) ) ).toBe( false );
   } );
 } );

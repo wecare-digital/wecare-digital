@@ -11,7 +11,7 @@ It records `(method, endpoint)` in `calls` and `(method, endpoint, body)` in `re
 `RecordingWix`'s surface, so assertions read the same way in both files.
 
 THE CONTRIBUTION IDS ARE THE REAL ONES, IMPORTED RATHER THAN INVENTED. `blog_contribution` holds
-the committed product id and the three committed variant ids, and `CONTRIBUTION_CHOICES_PAISE` is
+the committed product id and the committed variant ids, and `CONTRIBUTION_CHOICES_PAISE` is
 read by the handler DIRECTLY rather than through a patchable seam -- so a fixture with made-up
 variant ids would be refused as `UNKNOWN_CHOICE` and prove nothing. Importing them also means the
 suite exercises the constants that ship. Their literal values are pinned against
@@ -36,11 +36,12 @@ from lambda_utils.ecommerce.blog_contribution import (  # noqa: E402
 #: ones, so a failure message names the same ids every run.
 CONTRIBUTION_ID = sorted(CONTRIBUTION_PRODUCT_IDS)[0]
 
-#: `{variant id: paise}` for the three choices, cheapest first, so a test can say "the low one"
-#: without re-typing a GUID.
+#: `{variant id: paise}` for the live choices, cheapest first, so a test can say "the low one"
+#: without re-typing a GUID. DERIVED from the shipped allow-list rather than listed, which is why
+#: the 2026-10-10 reduction to a single Rs.250 variant needed no edit here.
 CONTRIBUTION_CHOICES = dict(sorted(CONTRIBUTION_CHOICES_PAISE.items(), key=lambda kv: kv[1]))
 CONTRIBUTION_VARIANTS = tuple(CONTRIBUTION_CHOICES)
-#: The default choice a helper reaches for: the cheapest, Rs.100.
+#: The default choice a helper reaches for: the cheapest, which is the only one today (Rs.250).
 CONTRIBUTION_VARIANT = CONTRIBUTION_VARIANTS[0]
 
 KIOSK_ID = "00d4c72b-f694-441a-a192-e16f4b192440"
@@ -53,13 +54,14 @@ REPLACEMENT_CART_ID = "7c7f0f44-aaaa-4bbb-8ccc-eeeeeeeeeeee"
 
 #: Unit prices in rupees, for products whose price does NOT vary by variant. The contribution is
 #: absent on purpose: its price is per-VARIANT, which is the whole mechanism, and a per-product
-#: entry would let a test pass while pricing all three choices the same.
+#: entry would let a test pass while pricing every choice the same.
 UNIT_RUPEES = {KIOSK_ID: 24999, OTHER_ID: 150}
 
 #: The visible, in-stock variants of each product. A registry rather than a chain of conditionals,
 #: because a product whose GET answers somebody else's variant id makes `resolved_catalog_lines`
 #: raise "choose an available product option" -- a 502 that reads as a catalogue outage rather than
-#: as a broken fixture. The contribution carries all three.
+#: as a broken fixture. The contribution carries whatever the live allow-list declares -- one
+#: variant since 2026-10-10.
 VARIANTS: Dict[str, List[str]] = {CONTRIBUTION_ID: list(CONTRIBUTION_VARIANTS),
                                   KIOSK_ID: [KIOSK_VARIANT], OTHER_ID: [OTHER_VARIANT]}
 
@@ -137,7 +139,7 @@ class ContributionWix:
         self.line_status = line_status
         #: EXTRA variants beyond the ones a product really has, for the "too many to guess" case.
         #: Zero by default now rather than one, because the registry above already carries the
-        #: correct count per product and the contribution genuinely has three.
+        #: correct count per product.
         self.variant_count = variant_count
         self.require_delivery_on_calculate = require_delivery_on_calculate
         #: What `summary.deliverySummary` offers, as `[{"code", "appId", "title", "priceRupees"}]`.

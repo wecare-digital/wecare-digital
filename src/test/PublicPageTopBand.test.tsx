@@ -637,7 +637,7 @@ describe( 'the cart keeps its own top band, and every Phase-2 addition lands BEL
     vi.spyOn( customerAuth, 'getSession' ).mockReturnValue( null );
     // A basket that exercises the contribution row and the mixed-basket notice together.
     cartLib.clearCart();
-    cartLib.setContribution( CONTRIBUTION_CHOICES[ 1 ].variantId );
+    cartLib.setContribution( CONTRIBUTION_CHOICES[ 0 ].variantId );
     cartLib.addItem( KIOSK(), 1 );
     const { container } = render( <Cart /> );
     const band = container.querySelector( '.ptb-top' ) as HTMLElement;

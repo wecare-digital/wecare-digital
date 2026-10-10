@@ -59,9 +59,9 @@ from contribution_env import (  # noqa: E402
     ATTEMPTS_TABLE, CUSTOMER, KEYS_TABLE, OWNED, STORED_PHONE, WIX_ADDRESS,
     _Identity, body_of, create_event, make_env, prepare_event, seed_cart_pointer)
 from contribution_wix import (  # noqa: E402
-    CART_ID, CONTRIBUTION_ID, CONTRIBUTION_VARIANT, CONTRIBUTION_VARIANTS, ContributionWix,
+    CART_ID, CONTRIBUTION_ID, CONTRIBUTION_VARIANT, ContributionWix,
     KIOSK_ID, KIOSK_VARIANT, OTHER_ID, OTHER_VARIANT, STORES_APP_ID, contribution_line,
-    contribution_paise, kiosk_line, other_line, register_product, saved)
+    kiosk_line, other_line, register_product, saved)
 
 from lambda_utils.ecommerce import payment_attempt  # noqa: E402
 
@@ -158,33 +158,35 @@ def test_t9_a_one_line_to_one_line_diff_adds_before_it_removes(monkeypatch):
     assert [kind for kind, _k, _q in wix.commands] == ["add", "remove"]
 
 
-def test_t9_a_contribution_amount_edit_is_an_add_and_a_remove_in_that_order(monkeypatch):
-    """The reconcile's DOMINANT case: Rs.100 -> Rs.250 on a contribution-only cart.
+def test_t9_a_contribution_only_cart_is_diffed_with_an_add_and_a_remove_in_that_order(monkeypatch):
+    """Leaving a contribution-only cart for a different basket: one add, one remove, in order.
 
-    IT IS NO LONGER A QUANTITY COMMAND, and the reason is the model change rather than a change
-    of mind about the reconcile. Changing the amount used to edit the quantity of one Rs.1 line,
-    which was a single `update-line-items` call. Three fixed prices are three different VARIANTS,
-    so a different amount is a different catalogue reference -- the saved line has to go and the
-    new one has to arrive.
+    IT IS NOT A QUANTITY COMMAND, and the reason is the model change rather than a change of mind
+    about the reconcile. A contribution used to be one Rs.1 line whose QUANTITY carried the
+    amount, so changing it was a single `update-line-items` call. A fixed-price variant has no
+    quantity to edit, so any change of basket is a different catalogue reference -- the saved line
+    has to go and the new one has to arrive.
+
+    WHAT THIS USED TO DRIVE, and why it does not any more: an amount EDIT, Rs.100 -> Rs.250. The
+    owner reduced `Contribute` in Wix to a SINGLE Rs.250 variant on 2026-10-10, so there is no
+    second amount to move to and a two-contribution diff is no longer a basket a customer can
+    build. The property the case exists for -- add before remove, never a quantity command, on a
+    cart holding ONE line -- is unchanged, so it is driven by swapping that line for a different
+    product instead.
 
     ADD BEFORE REMOVE, which the reconcile guarantees generally and which matters here
     specifically: removing the only line first would empty the cart, and Wix's behaviour when the
     last line is removed is unverified.
-
-    A contribution prepare never writes a delivery address, so the stale-delivery replace cannot
-    fire here and the reconcile is what runs.
     """
     fake_wix = ContributionWix(lines=[saved(CONTRIBUTION_ID, CONTRIBUTION_VARIANT, 1)])
     h, fake, wix = make_env(monkeypatch, wix=fake_wix)
     seed_cart_pointer(h, fake)
 
-    dearer = CONTRIBUTION_VARIANTS[1]
-    response = h.handler(prepare_event([contribution_line(dearer)]), None)
+    response = h.handler(prepare_event([kiosk_line(1)]), None)
     assert response["statusCode"] == 200, body_of(response)
     assert [kind for kind, _k, _q in wix.commands] == ["add", "remove"]
-    assert [line["variantId"] for line in wix.lines] == [dearer]
+    assert [line["variantId"] for line in wix.lines] == [KIOSK_VARIANT]
     assert wix.lines[0]["quantity"] == 1
-    assert fake.all_rows(ATTEMPTS_TABLE)[0]["amountPaise"] == contribution_paise(dearer)
 
 
 def test_t9_an_equivalent_basket_issues_no_command_at_all(monkeypatch):
@@ -496,7 +498,11 @@ def test_t9b_a_different_key_for_a_different_basket_is_never_intent_changed(monk
 
     first = h.handler(prepare_event([contribution_line()], requestKey="rk-a"), None)
     assert first["statusCode"] == 200, body_of(first)
-    second = h.handler(prepare_event([contribution_line(CONTRIBUTION_VARIANTS[1])], requestKey="rk-b"), None)
+    # BASKET B IS A DIFFERENT PRODUCT, not a second contribution amount: `Contribute` carries a
+    # single Rs.250 variant since 2026-10-10, so "the same product at another amount" is not a
+    # basket anybody can build. The fingerprint only has to CHANGE for the key guard to be out of
+    # the picture, which is what this case is about.
+    second = h.handler(prepare_event([kiosk_line(1)], requestKey="rk-b"), None)
     assert body_of(second).get("reason") != "INTENT_CHANGED", body_of(second)
     assert body_of(second)["reason"] == "CART_PAYMENT_IN_FLIGHT"
     # The first key is reserved; the refused second reserves nothing, because the cart guard runs
@@ -518,7 +524,7 @@ def test_t9b_with_the_earlier_attempt_terminal_both_baskets_mint_their_own_reser
     row["status"] = "FAILED"
     table.put_item(Item=row)
 
-    second = h.handler(prepare_event([contribution_line(CONTRIBUTION_VARIANTS[1])], requestKey="rk-b"), None)
+    second = h.handler(prepare_event([kiosk_line(1)], requestKey="rk-b"), None)
     assert second["statusCode"] == 200, body_of(second)
     assert sorted(row["requestKey"] for row in _reservations(fake)) == ["rk-a", "rk-b"]
 
@@ -531,7 +537,7 @@ def test_t9b_the_same_key_with_a_changed_basket_still_raises_intent_changed(monk
 
     first = h.handler(prepare_event([contribution_line()], requestKey="rk-same"), None)
     assert first["statusCode"] == 200, body_of(first)
-    second = h.handler(prepare_event([contribution_line(CONTRIBUTION_VARIANTS[1])], requestKey="rk-same"), None)
+    second = h.handler(prepare_event([kiosk_line(1)], requestKey="rk-same"), None)
     assert second["statusCode"] == 409
     payload = body_of(second)
     assert payload["status"] == "CHECKOUT_REJECTED"
@@ -615,10 +621,12 @@ def test_t9b_leg2_the_reconcile_may_have_already_landed_when_the_guard_refuses(m
     before_orders = len(h.gateway_orders)
 
     # THE SECOND REQUEST MUST CARRY A DIFF, or there is no reconcile to observe landing. The
-    # customer changed the amount after the first attempt went live, which is a different VARIANT
-    # and therefore an add plus a remove rather than a quantity edit.
+    # customer changed the basket after the first attempt went live, which is a different
+    # catalogue reference and therefore an add plus a remove rather than a quantity edit. A
+    # second contribution amount would have done as well until 2026-10-10; `Contribute` now has
+    # one Rs.250 variant, so the diff is driven with another product.
     second = h.handler(
-        prepare_event([contribution_line(CONTRIBUTION_VARIANTS[1])], requestKey="rk-fresh"), None)
+        prepare_event([kiosk_line(1)], requestKey="rk-fresh"), None)
     assert body_of(second)["reason"] == "CART_PAYMENT_IN_FLIGHT"
     # The reconcile ran before the guard refused. Leg 3's expectation is the opposite, and an
     # empty list there would mean leg 2 never reached the reconcile at all.

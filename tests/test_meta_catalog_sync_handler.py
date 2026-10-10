@@ -244,7 +244,7 @@ def run(wix, graph, reader=None, event=None, approval_store=None):
 
 
 def test_with_the_enable_flag_ABSENT_nothing_is_written(snapshot_products):
-    """The shipped configuration. 25 items to create, and not one request constructed."""
+    """The shipped configuration. 23 items to create, and not one request constructed."""
     wix, graph = FakeWix(snapshot_products), FakeGraph()
     answer = run(wix, graph)
 
@@ -252,7 +252,7 @@ def test_with_the_enable_flag_ABSENT_nothing_is_written(snapshot_products):
     assert answer["enabled"] is False
     assert answer["dryRun"] is True
     assert answer["applied"] == 0
-    assert answer["counts"] == {"create": 25, "update": 0, "retire": 0, "foreign": 0}
+    assert answer["counts"] == {"create": 23, "update": 0, "retire": 0, "foreign": 0}
     assert graph.writes == []
 
 
@@ -308,14 +308,15 @@ def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeyp
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
-        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
+        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
+        "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     store = FakeApprovalStore()
     graph = FakeGraph()
 
     proposal = run(FakeWix(snapshot_products), graph,
         event={"catalogAction": "propose", "proposedBy": "admin"}, approval_store=store)
-    assert proposal["counts"]["create"] == 4 and proposal["blocked"] == []
+    assert proposal["counts"]["create"] == 5 and proposal["blocked"] == []
     assert proposal["approval"]["status"] == "PROPOSED"
     plan_hash = proposal["planHash"]
 
@@ -334,7 +335,7 @@ def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeyp
     assert answer["dryRun"] is False
     assert answer["approved"] is True
     assert answer["approval"]["status"] == "APPLY_SUBMITTED"
-    assert answer["applied"] == 4
+    assert answer["applied"] == 5
     assert len(graph.writes) == 1
     write = graph.writes[0]
     assert write["method"] == "POST"
@@ -347,7 +348,8 @@ def test_wrong_or_stale_approval_refuses_without_constructing_a_write(snapshot_p
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
-        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
+        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
+        "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     graph, store = FakeGraph(), FakeApprovalStore()
     answer = run(FakeWix(snapshot_products), graph,
@@ -431,7 +433,8 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
         "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,"
-        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4")
+        "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
+        "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     wix = FakeWix(snapshot_products)
     graph = FakeGraph(items=[
@@ -450,7 +453,7 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
         event={"catalogAction": "apply", "planHash": proposal["planHash"]}, approval_store=store)
 
     assert answer["counts"]["foreign"] == 2
-    assert answer["applied"] == 4
+    assert answer["applied"] == 5
     assert answer["counts"]["retire"] == 0
     rendered = json.dumps([call["payload"] for call in graph.writes])
     assert "WD-PARTNER-UP" not in rendered
@@ -488,7 +491,7 @@ def test_the_reader_is_called_once_per_invocation(snapshot_products):
 
 def test_a_missing_token_refuses_and_reads_nothing(snapshot_products):
     """Fail closed. A sync that cannot authenticate must do nothing - not a partial read, which
-    would look like an empty Meta catalogue and plan 25 creates.
+    would look like an empty Meta catalogue and plan 23 creates.
     """
     wix, graph = FakeWix(snapshot_products), FakeGraph()
     answer = run(wix, graph, reader_for(token=""))
@@ -560,7 +563,7 @@ def test_a_wix_failure_does_not_become_a_write(snapshot_products, monkeypatch):
 
 def test_a_META_read_failure_does_not_become_a_write(snapshot_products, monkeypatch):
     """The dangerous direction. A short or failed read of the existing catalogue makes every item
-    look absent, so a tolerated failure would plan - and with both gates open, send - 25 creates
+    look absent, so a tolerated failure would plan - and with both gates open, send - 23 creates
     against a catalogue that already has them.
     """
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
@@ -616,7 +619,7 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["catalogId"] == "1457045652952851"
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
-    assert planned["create"] == 25
+    assert planned["create"] == 23
     # Nine of the ten real products carry no media in Wix. The services product is the only one
     # that does, so it is the only one absent from the blocked list.
     assert planned["blocked"] == 9
@@ -813,7 +816,7 @@ def test_inspection_does_not_write_when_sync_is_enabled(snapshot_products, monke
                               graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN},
         approval_store=FakeApprovalStore())
     assert answer["readOnly"] is True
-    assert len(answer["desiredItems"]) == 25
+    assert len(answer["desiredItems"]) == 23
     assert graph.writes == []
 
 

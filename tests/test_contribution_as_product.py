@@ -224,10 +224,7 @@ def test_t1_iv_reset_against_a_busy_pointer_refuses_and_changes_nothing(monkeypa
 @pytest.mark.parametrize("basket,collection", [
     ([contribution_line(), kiosk_line(1)], 2499900 + DEFAULT_PAISE),
     ([kiosk_line(1), contribution_line()], 2499900 + DEFAULT_PAISE),
-    ([contribution_line(CONTRIBUTION_VARIANTS[1]), other_line(2)],
-     15000 * 2 + contribution_paise(CONTRIBUTION_VARIANTS[1])),
-    ([contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[2]), kiosk_line(1)],
-     2499900 + DEFAULT_PAISE + contribution_paise(CONTRIBUTION_VARIANTS[2])),
+    ([contribution_line(), other_line(2)], 15000 * 2 + DEFAULT_PAISE),
 ])
 def test_t2_a_mixed_basket_is_accepted_and_priced_like_any_other_order(monkeypatch, basket,
                                                                       collection):
@@ -240,12 +237,15 @@ def test_t2_a_mixed_basket_is_accepted_and_priced_like_any_other_order(monkeypat
     lines produced it -- so this asserts the ARITHMETIC rather than a branch: a fee of zero would
     mean the fee-exempt contribution calculator leaked onto a basket that is not a contribution.
 
-    The fourth row is the one that pins the ordering: two contribution lines are refused when they
-    are the WHOLE basket and accepted beside a product, because a mix is not a contribution basket
-    at all and never reaches the one-expected-collection rule.
-
     Driven with the contribution first and last, because `_contribution_request` walks the list
     and an order-sensitive `others` count would pass one row and fail the other.
+
+    A FOURTH ROW IS GONE, 2026-10-10, and it is worth naming what went with it: two contribution
+    lines at DIFFERENT amounts beside a product, which pinned that a mix never reaches the
+    one-expected-collection rule. The owner reduced `Contribute` in Wix to a single Rs.250
+    variant, so two contribution lines at different amounts is not a basket that exists any more.
+    The refusal side of that rule is still driven, by two lines at the SAME amount, in
+    `test_t2_two_contribution_lines_are_refused_rather_than_added_together`.
     """
     wix = ContributionWix(delivery_address=dict(WIX_ADDRESS))
     h, fake, wix = make_env(monkeypatch, wix=wix)
@@ -288,18 +288,22 @@ def test_t2_a_mixed_basket_still_obeys_the_variant_allow_list_and_the_quantity_r
 
 
 @pytest.mark.parametrize("basket", [
-    [contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[1])],
     [contribution_line(), contribution_line()],
-    [contribution_line(CONTRIBUTION_VARIANTS[2])] * 3,
+    [contribution_line()] * 3,
 ])
 def test_t2_two_contribution_lines_are_refused_rather_than_added_together(monkeypatch, basket):
     """TWO CONTRIBUTIONS IS NOT ONE BIGGER ONE, and this is the ONLY refusal the alone rule kept.
 
     Under the retired amount-as-quantity model two contribution lines were SUMMED -- Rs.150 plus
     Rs.250 was one Rs.400 collection -- because the amount was a quantity and quantities add.
-    With three fixed prices there is nothing to add: `_contribution_request` returns ONE expected
-    collection, and no single figure describes a basket holding a Rs.100 and a Rs.250 line. So the
-    basket is refused rather than silently charging one of the two.
+    With a fixed price per variant there is nothing to add: `_contribution_request` returns ONE
+    expected collection, and no single figure describes a basket holding two contribution lines.
+    So the basket is refused rather than silently charging one of the two.
+
+    DRIVEN AT ONE AMOUNT SINCE 2026-10-10, because that is all the catalogue offers: `Contribute`
+    has a single Rs.250 variant, so the mixed-amount rows this used to carry name variants Wix
+    has deleted. The rule being pinned is "more than one contribution LINE", which is independent
+    of the amounts, so the same-amount rows reach the same branch.
 
     NOTE WHAT THIS IS NOT, since 2026-10-06. It is not "a contribution is paid on its own": a mix
     is payable, and the case above proves it. These baskets are refused because they are
@@ -514,8 +518,8 @@ def test_t4_each_of_the_three_choices_is_accepted_end_to_end(monkeypatch, varian
     assert fake.all_rows(ATTEMPTS_TABLE)[0]["amountPaise"] == contribution_paise(variant)
 
 
-def test_t4_the_three_committed_choices_are_the_owners_three(monkeypatch):
-    """The GUIDs and amounts, pinned once in Python so a typo in one is visible here.
+def test_t4_the_committed_choice_is_the_owners_choice(monkeypatch):
+    """The GUID and the amount, pinned once in Python so a typo is visible here.
 
     These are MEASURED values: the variant ids and prices were read off the live
     `GET /stores/v3/products/{id}` for the `Contribute` product on 2026-10-04, not transcribed
@@ -523,18 +527,24 @@ def test_t4_the_three_committed_choices_are_the_owners_three(monkeypatch):
     tests/test_blog_contribution.py::test_server_choices_mirror_the_frontend_contract.
 
     RE-MEASURED 2026-10-05 against the migrated site `c993128b-26be-41cd-9fcd-904abe23462f`,
-    which re-minted every product and variant id. The ASSERTED AMOUNTS ARE UNCHANGED -- 10000 /
-    25000 / 50000 -- and that is the point of restating them here rather than deriving them: the
-    ids moved, what a contributor is charged did not. The ₹100/₹250/₹500 correspondence was
-    cross-checked against the "Amount" option labels in the refreshed `src/content/wix-catalog.json`.
+    which re-minted every product and variant id. The amounts did not move with the ids: the
+    product carried Rs.100 / Rs.250 / Rs.500 before and after. The ₹100/₹250/₹500 correspondence
+    was cross-checked against the "Amount" option labels in `src/content/wix-catalog.json`.
+
+    RE-MEASURED AGAIN 2026-10-10, and THE SET IS NOW ONE: the owner deleted the Rs.100
+    (`ab4ee1a2-…`) and Rs.500 (`19283bd8-…`) variants in Wix, leaving a single visible in-stock
+    Rs.250 variant, and the refreshed snapshot reports `variantCount: 1`. The two deleted ids are
+    asserted ABSENT rather than merely omitted, because a server that still recognised one would
+    offer a button that cannot be priced.
     """
     from lambda_utils.ecommerce import blog_contribution as bc
     assert bc.CONTRIBUTION_PRODUCT_IDS == frozenset({"8514c405-3971-4786-ad0d-15406ca23407"})
     assert dict(bc.CONTRIBUTION_CHOICES_PAISE) == {
-        "ab4ee1a2-1568-4dc4-abe1-55e24fa51576": 10000,
         "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,
-        "19283bd8-a61d-455e-a992-79eb10b9228f": 50000,
     }
+    for deleted in ("ab4ee1a2-1568-4dc4-abe1-55e24fa51576",
+                    "19283bd8-a61d-455e-a992-79eb10b9228f"):
+        assert deleted not in bc.CONTRIBUTION_CHOICES_PAISE
     # Every amount an integer number of paise, and every id lowercase so `_is_contribution_id`'s
     # `.lower()` can never miss a member of its own set.
     for variant, paise in bc.CONTRIBUTION_CHOICES_PAISE.items():
@@ -742,7 +752,7 @@ def test_t5b_a_contribution_projects_as_one_item_with_the_amount_in_its_name(mon
     _snapshot, items, _calculated = h._v2_snapshot(
         identity, [contribution_line()], profile=None)
     assert [item["quantity"] for item in items] == [1]
-    assert items[0]["name"] == "Contribute \u20b9100"
+    assert items[0]["name"] == "Contribute \u20b9250"
 
 
 def test_t5b_a_kiosk_line_still_projects_its_real_count(monkeypatch):
@@ -812,7 +822,7 @@ def test_t5b_a_contribution_beside_a_kiosk_projects_both_lines_separately(monkey
     _snapshot, items, _calc = h._v2_snapshot(
         _Identity(), [contribution_line(), kiosk_line(2)], profile=None)
     assert sorted((item["name"], item["quantity"]) for item in items) == [
-        ("Contribute \u20b9100", 1), ("Kiosk", 2)]
+        ("Contribute \u20b9250", 1), ("Kiosk", 2)]
 
 
 # ══ T6 — the product invariants, as the failures they produce ═══════════════════
@@ -845,16 +855,22 @@ def test_t6_an_ordinary_products_unresolvable_variant_is_still_a_catalogue_refus
     assert body_of(response)["error"] == "CART_ITEM_UNAVAILABLE"
 
 
-def test_t6_the_contribution_product_genuinely_has_three_variants(monkeypatch):
-    """So the explicit `variantId` is MANDATORY, not merely preferred.
+def test_t6_the_contribution_variant_the_browser_names_is_the_one_wix_is_sent(monkeypatch):
+    """The named `variantId` travels unguessed, and nothing resolves it on the server's behalf.
 
-    `resolved_catalog_lines` only falls back to a product's single variant when there is exactly
-    one. With three there is no fallback, and a line with no variant would answer 'choose an
-    available product option'. That is why `setContribution` writes the variant id and why
-    `CONTRIBUTION_CONFIGURED` requires all three to be declared.
+    WHAT THIS CASE USED TO BE, because the catalogue moved under it: "the product genuinely has
+    three variants", which made the explicit `variantId` mandatory -- `resolved_catalog_lines`
+    only falls back to a product's single variant when there is exactly one, so with three there
+    was no fallback at all. Since 2026-10-10 `Contribute` HAS exactly one variant, so that
+    fallback is now reachable and the mandatory-variant argument no longer holds.
+
+    The property worth keeping is the one that survives either shape: `setContribution` writes
+    the variant id and the server sends THAT id to Wix rather than resolving one for itself. A
+    fallback that happened to pick the same variant today would pick the wrong one the moment the
+    owner adds a second amount back.
     """
     h, _fake, wix = make_env(monkeypatch)
-    assert len(wix.variants[CONTRIBUTION_ID]) == 3
+    assert len(wix.variants[CONTRIBUTION_ID]) == 1
     response = h.handler(prepare_event([contribution_line()]), None)
     assert response["statusCode"] == 200, body_of(response)
     # The variant the browser named is the one that reached Wix, unguessed.
@@ -1139,7 +1155,7 @@ def test_t7_a_malformed_line_items_is_not_recognised_as_a_contribution(monkeypat
     # basket used to be a row here and is not any more -- it is payable, so it answers 200 on the
     # website route and the in-WhatsApp route prices it like any other basket. Two contribution
     # lines is the `ContributionNotAlone` row that remains.
-    ([contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[1])], "CART_NOT_PAYABLE"),
+    ([contribution_line(), contribution_line()], "CART_NOT_PAYABLE"),
 ])
 def test_t7b_the_create_route_refuses_a_contribution_in_its_own_vocabulary(monkeypatch, basket,
                                                                           expected):
@@ -1172,7 +1188,7 @@ def test_t7b_an_unrecognised_action_routes_to_create_and_still_answers_409(monke
     h, _fake, _wix = make_env(monkeypatch)
     # Two contribution lines rather than the mix this used to send: a mix is payable now, so it
     # would answer 200 and prove nothing about the dispatch default's refusal arm.
-    event = create_event([contribution_line(), contribution_line(CONTRIBUTION_VARIANTS[1])])
+    event = create_event([contribution_line(), contribution_line()])
     body = json.loads(event["body"])
     body["action"] = "not-an-action"
     event["body"] = json.dumps(body)

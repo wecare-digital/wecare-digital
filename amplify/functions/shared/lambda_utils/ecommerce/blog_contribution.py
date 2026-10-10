@@ -64,33 +64,41 @@ and is never built, so ``prepare_contribution``, ``verify_contribution_callback`
 than removed because the webhook still carries a keyed ``BLOG_CONTRIBUTION`` arm and because
 deleting a verified payment implementation is not this phase's job.
 
-OWNER MODEL CHANGE (2026-10-04): THREE FIXED PRICES, NOT AN AMOUNT CARRIED AS A QUANTITY
-----------------------------------------------------------------------------------------
+OWNER MODEL CHANGE (2026-10-04): FIXED PRICES, NOT AN AMOUNT CARRIED AS A QUANTITY
+----------------------------------------------------------------------------------
 The first Phase-2 revision made a contribution one Rs.1 product whose ``quantity`` WAS the rupee
-amount, with server-side bounds and a free-text field. That is retired. There are now exactly three
-contributions -- Rs.100, Rs.250 and Rs.500 -- each a fixed-price VARIANT of the one ``Contribute``
-product, added at ``quantity: 1``. No custom amount, no bounds, no ``quantity x 100``
-re-derivation. The change DELETES the amount arithmetic rather than relocating it, which is why
-there is less money code after it than before.
+amount, with server-side bounds and a free-text field. That is retired. A contribution is now a
+fixed-price VARIANT of the one ``Contribute`` product, added at ``quantity: 1``. No custom amount,
+no bounds, no ``quantity x 100`` re-derivation. The change DELETES the amount arithmetic rather
+than relocating it, which is why there is less money code after it than before.
+
+ONE AMOUNT SINCE 2026-10-10. The model change offered three -- Rs.100, Rs.250, Rs.500. The owner
+then removed two of the three variants in Wix, leaving a SINGLE visible in-stock variant at
+Rs.250, and the allow-list below follows the catalogue because Wix is the source of truth: a
+variant Wix has deleted cannot be priced by ``cart_v2.calculate``, so a basket naming one fails
+closed at Wix rather than collecting anything.
 
 What IS live in this module is the part the unified checkout imports rather than re-declares:
 ``CONTRIBUTION_PRODUCT_IDS`` -- the committed recognition set that makes the
 ``CONTRIBUTION_PRODUCT_ID`` env key a kill switch rather than a de-guard -- and
-``CONTRIBUTION_CHOICES_PAISE``, the three allowed variants and the collection each one must price
-to.
+``CONTRIBUTION_CHOICES_PAISE``, the allowed variants and the collection each one must price to.
 
 ``CONTRIBUTION_PRESETS_PAISE`` and ``validate_contribution_amount`` belong to the RETIRED
 own-money path above. They are no longer on the live checkout path: nothing in
-``checkout/handler.py`` calls them any more, because with three fixed prices there is no amount
-for a customer to propose and therefore nothing to validate a proposal against.
+``checkout/handler.py`` calls them any more, because with a fixed price per variant there is no
+amount for a customer to propose and therefore nothing to validate a proposal against.
 
 They were narrowed independently of this phase, and the dates matter because the two changes
 agree rather than collide: a separate change (merged to ``stack`` as #219, "use common
 contribution amounts across blog and VayuLok") moved ``CONTRIBUTION_PRESETS_PAISE`` to
 ``(10000, 25000, 50000)``, made ``validate_contribution_amount`` **preset-only**, and DELETED
 ``CONTRIBUTION_MIN_PAISE`` / ``CONTRIBUTION_MAX_PAISE`` along with the free-text custom amount.
-So the retired path now offers the same three figures the live path does, by a different
-mechanism, and there is no longer any bounded custom amount anywhere in this module.
+So the retired path offers three figures by a different mechanism, and there is no longer any
+bounded custom amount anywhere in this module. Those three presets were LEFT AS THEY ARE by the
+2026-10-10 catalogue reduction: they are amounts on a path with no production caller, not
+catalogue targets, so narrowing them would change nothing a customer can reach while making the
+retired implementation harder to read against its own history. The LIVE allow-list is
+``CONTRIBUTION_CHOICES_PAISE`` below, and it is the one that now holds a single Rs.250 variant.
 
 OWNER DECISION [PHASE2-FEE-001], answered 2026-10-03: a contribution is **fee-exempt**. The
 customer pays exactly the amount they chose, to the paise, via
@@ -135,11 +143,12 @@ CONTRIBUTION_PRESETS_PAISE: Tuple[int, ...] = (10000, 25000, 50000)
 #: secrets.
 #:
 #: The one entry is the live `Contribute` product (slug ``contribute``), MEASURED against the live
-#: Wix catalogue on 2026-10-04 rather than transcribed: ``PHYSICAL``, ``visible: true``, one option
-#: named "Amount" rendered as TEXT_CHOICES, three visible in-stock variants priced Rs.100 / Rs.250 /
-#: Rs.500. Note the shape, because it is NOT what the owner's instruction said: the three GUIDs
-#: supplied are the three VARIANT ids of ONE product, not three product ids. A `catalogItemId` of a
-#: variant id would 404 at `GET /stores/v3/products/{id}`, so the distinction is load-bearing.
+#: Wix catalogue on 2026-10-10 rather than transcribed: ``PHYSICAL``, ``visible: true``, one option
+#: named "Amount" rendered as TEXT_CHOICES, and a SINGLE visible in-stock variant priced Rs.250
+#: (it carried three, Rs.100 / Rs.250 / Rs.500, until the owner removed two in Wix). Note the
+#: shape, because it is NOT what the owner's instruction said: the GUIDs supplied are VARIANT ids
+#: of ONE product, not product ids. A `catalogItemId` of a variant id would 404 at
+#: `GET /stores/v3/products/{id}`, so the distinction is load-bearing.
 #:
 #: SITE MIGRATION, 2026-10-05: THE SET IS REPLACED, NOT EXTENDED, and that is a correction to what
 #: this comment used to claim. It said "an id is added here, never removed -- a retired vehicle must
@@ -155,11 +164,12 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
     "8514c405-3971-4786-ad0d-15406ca23407",
 })
 
-#: The ONLY three contributions that can be made, as ``{variant id: integer paise}``.
+#: The ONLY contribution that can be made -- one Rs.250 variant -- as ``{variant id: integer
+#: paise}``.
 #:
 #: FIXED PRICES, NOT AN AMOUNT-TIMES-QUANTITY (owner model change, 2026-10-04). The previous model
 #: was one Rs.1 product whose QUANTITY carried the amount, with bounds and a free-text field. That
-#: is retired in favour of three fixed-price variants chosen at quantity 1, which deletes the
+#: is retired in favour of fixed-price variants chosen at quantity 1, which deletes the
 #: quantity arithmetic, the bounds and the custom-amount validation rather than adding to them.
 #:
 #: WHY THE SERVER HOLDS THE PAISE FIGURE AT ALL, given that ``cart_v2.calculate`` is the sole price
@@ -182,10 +192,17 @@ CONTRIBUTION_PRODUCT_IDS: FrozenSet[str] = frozenset({
 #: carries which rupee figure was read off the new site's query-variants response and confirmed
 #: independently by the "Amount" option label in ``src/content/wix-catalog.json``, because getting
 #: that correspondence wrong would collect the wrong amount silently rather than failing.
+#:
+#: CATALOGUE REDUCTION, 2026-10-10: THREE KEYS BECAME ONE. The owner deleted the Rs.100
+#: (``ab4ee1a2-1568-4dc4-abe1-55e24fa51576``) and Rs.500
+#: (``19283bd8-a61d-455e-a992-79eb10b9228f``) variants in Wix, and the refreshed
+#: ``src/content/wix-catalog.json`` reports the product with ``variantCount: 1``. They are REMOVED
+#: here rather than kept recognisable, for the reason ``CONTRIBUTION_PRODUCT_IDS`` above records
+#: about the retired site's id: a deleted variant cannot be priced, so a stale cart line naming
+#: one fails closed at ``cart_v2.calculate``, and the mirror guard holds this map equal to the
+#: single choice ``src/config/contribution.ts`` declares anyway.
 CONTRIBUTION_CHOICES_PAISE: Mapping[str, int] = MappingProxyType({
-    "ab4ee1a2-1568-4dc4-abe1-55e24fa51576": 10000,     # Rs.100
     "8ad6f376-a526-4631-b510-0e047b33a5b9": 25000,     # Rs.250
-    "19283bd8-a61d-455e-a992-79eb10b9228f": 50000,     # Rs.500
 })
 
 #: The variant ids above as a set, for membership tests that do not need the amount.

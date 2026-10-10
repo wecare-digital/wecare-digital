@@ -68,10 +68,14 @@ const VIEWPORTS = [
  */
 const CART_SEED = [
   {
+    // The LIVE contribution variant: Rs.250, `8ad6f376-…`, the only one `Contribute` carries
+    // since the owner reduced it in Wix on 2026-10-10. Seeded with a variant the catalogue no
+    // longer has, the cart row would render as unavailable and the amount select this probe
+    // measures would never appear.
     productId: '8514c405-3971-4786-ad0d-15406ca23407',
-    variantId: 'ab4ee1a2-1568-4dc4-abe1-55e24fa51576',
-    ref: '8514c405-3971-4786-ad0d-15406ca23407:ab4ee1a2-1568-4dc4-abe1-55e24fa51576',
-    slug: 'contribute', name: 'Contribute', formattedPrice: '₹100.00', quantity: 1,
+    variantId: '8ad6f376-a526-4631-b510-0e047b33a5b9',
+    ref: '8514c405-3971-4786-ad0d-15406ca23407:8ad6f376-a526-4631-b510-0e047b33a5b9',
+    slug: 'contribute', name: 'Contribute', formattedPrice: '₹250.00', quantity: 1,
   },
   {
     productId: 'eca1540e-0a0e-478d-9aa7-e366be277617',

@@ -59,7 +59,7 @@ CONTRIBUTE = sync.CONTRIBUTION_PRODUCT_ID
 EXPECTED_ITEMS_BY_SLUG = {
     "wecaredigital-services": 5,
     "merchandise": 10,
-    "contribute": 3,
+    "contribute": 1,
     "kiosk": 1,
     "referral-partner": 1,
     "guided-resolution": 1,
@@ -69,7 +69,7 @@ EXPECTED_ITEMS_BY_SLUG = {
     "1-test-product": 1,
 }
 
-EXPECTED_ITEM_COUNT = 25
+EXPECTED_ITEM_COUNT = 23
 
 
 @pytest.fixture(scope="module")
@@ -210,11 +210,14 @@ def test_the_contribution_product_is_INCLUDED(products):
     `shop.ts` `isContributionRow` keeps it out of the GRID because the place to choose a
     contribution is the block at the foot of a blog post. It is still a real sellable product
     reached by direct cart reference, and the owner's catalogue list names it - so the WhatsApp
-    catalogue carries it and its three amount variants.
+    catalogue carries it and its amount variants.
+
+    ONE AMOUNT SINCE 2026-10-10. It carried three - Rs.100 / Rs.250 / Rs.500 - until the owner
+    deleted two of the variants in Wix, and the refreshed snapshot reports `variantCount: 1`.
     """
     contribute = next(p for p in products if p["id"] == CONTRIBUTE)
     assert sync.is_syncable(contribute) is True
-    assert len(contribute["variants"]) == 3
+    assert len(contribute["variants"]) == 1
 
 
 def test_a_hidden_product_is_excluded_but_an_ABSENT_visible_is_not():
@@ -228,11 +231,11 @@ def test_a_hidden_product_is_excluded_but_an_ABSENT_visible_is_not():
 # ── 3. the desired catalogue ─────────────────────────────────────────────────
 
 
-def test_the_snapshot_yields_exactly_twenty_four_items(desired):
+def test_the_snapshot_yields_exactly_the_expected_item_count(desired):
     assert len(desired) == EXPECTED_ITEM_COUNT
 
 
-def test_the_twenty_four_are_the_expected_products_and_variant_counts(products, desired):
+def test_the_items_are_the_expected_products_and_variant_counts(products, desired):
     by_slug = {product["id"]: product["slug"] for product in products}
     counted: dict = {}
     for item in desired:
@@ -526,23 +529,32 @@ def test_remaining_imageless_products_are_blocked_and_every_service_item_has_a_p
     snapshot held four distinct service pictures, written into the file by hand on 9 October
     alongside a `serviceArtworkVerifiedAt` stamp - values `scripts/fetch-wix-catalog.js` never
     produced and therefore deleted on every refresh. Wix no longer declares which gallery image
-    belongs to which choice (every `choicesSettings.choices[].linkedMedia` comes back empty to a
-    storefront read), so the refreshed snapshot carries the product's main image on all five
-    variants. Owner decision 2026-10-10: the snapshot mirrors Wix, and the per-choice artwork is to
-    be re-linked in the Wix dashboard rather than re-typed here.
+    belongs to which choice on every read, so one refresh carried the product's main image on all
+    five variants. Owner decision 2026-10-10: the snapshot mirrors Wix, and the per-choice artwork
+    is re-linked in the Wix dashboard rather than re-typed here. The refresh taken later that day
+    shows five distinct per-variant URLs, so that re-linking is landing.
 
     PRESENCE IS ASSERTED, NOT SAMENESS, deliberately. Pinning "all five share one URL" would make
-    this fail the day the owner fixes the artwork in Wix, which is the opposite of useful. What
-    matters to Meta is that none of the five is blocked.
+    this fail the day the owner fixes the artwork in Wix - which has now happened. What matters to
+    Meta is that none of the five is blocked.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
     assert len(EXPECTED_BLOCKED) == 9
 
     syncable = [p for p in products if sync.is_syncable(p)]
     assert len(syncable) == 10
-    assert all(p.get("mediaCount") == (6 if p["slug"] == "wecaredigital-services" else 0)
-               for p in syncable), (
-        "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening this")
+    # THE SERVICES PRODUCT IS THE ONLY ONE WITH MEDIA, which is what `EXPECTED_BLOCKED` is built
+    # from. Its media COUNT is deliberately not pinned to a number: the owner is re-linking
+    # per-choice artwork in Wix, so the gallery size moves (6 on 2026-10-09, 5 on 2026-10-10)
+    # without changing which products are blocked. What must stay true is that no OTHER product
+    # has gained a picture, because that would silently unblock it.
+    for product in syncable:
+        if product["slug"] == "wecaredigital-services":
+            assert product.get("mediaCount"), "the services product must still carry media"
+        else:
+            assert product.get("mediaCount") == 0, (
+                "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening "
+                "this")
 
     services = [i for i in desired
                 if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]

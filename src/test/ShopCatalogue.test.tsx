@@ -641,7 +641,7 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
     } );
     expect( projected.tagline ).toBe( 'Support this work.' );
     expect( projected.body ).toEqual( [ 'Thank you.' ] );
-    expect( projected.variants ).toHaveLength( 3 );
+    expect( projected.variants ).toHaveLength( CONTRIBUTION_CHOICES.length );
     expect( projected.variants?.every( variant => variant.inStock ) ).toBe( true );
   } );
 
@@ -651,7 +651,7 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
       // halves of one question and exactly one of them is meaningful at a time.
       //
       // Absence is NOT a configuration problem any more, which is the change from the previous
-      // revision: the product id and the three variant ids are committed constants in
+      // revision: the product id and the variant ids are committed constants in
       // src/config/contribution.ts, because `slim()` in scripts/fetch-wix-catalog.js emits no
       // `variants` array and so a refresh could never supply them. All the snapshot entry buys is
       // the /shop/ exclusion, which only matters once the entry exists.
@@ -669,11 +669,14 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
       // product id being in the recognised contribution set. So the identity is asserted and the
       // Wix type deliberately is not - the server is free to see either one.
       expect( String( raw.id ).toLowerCase() ).toBe( CONTRIBUTION_PRODUCT_ID );
-      // Three variants, one option, no modifiers: an invariant of THIS product, not of the
-      // catalogue. The option is the "Amount" chooser and its three choices are the three prices,
-      // which is why a contribution line MUST carry an explicit variantId - with three variants
-      // there is no single-variant fallback and Wix answers "choose an available product option".
-      expect( [ raw.variantCount, raw.optionCount, raw.modifierCount ] ).toEqual( [ 3, 1, 0 ] );
+      // ONE variant, one option, no modifiers: an invariant of THIS product, not of the
+      // catalogue, and it is read from the committed snapshot rather than asserted as a literal
+      // count so the two cannot disagree. The option is the "Amount" chooser; it offered three
+      // choices until the owner deleted the ₹100 and ₹500 variants in Wix on 2026-10-10, and a
+      // contribution line still carries an explicit variantId rather than leaning on the
+      // single-variant fallback that reduction made reachable.
+      expect( [ raw.variantCount, raw.optionCount, raw.modifierCount ] )
+        .toEqual( [ CONTRIBUTION_CHOICES.length, 1, 0 ] );
       // The cheapest and dearest choices, so a changed price in Wix is caught here rather than by
       // a customer. `price` is the minimum of the range and `priceMax` the maximum.
       expect( raw.price ).toBe( `${ CONTRIBUTION_CHOICES[ 0 ].rupees }.00` );
@@ -681,10 +684,10 @@ describe( 'the contribution product is a payment vehicle, not a shop listing', (
         `${ CONTRIBUTION_CHOICES[ CONTRIBUTION_CHOICES.length - 1 ].rupees }.00` );
     } );
 
-  it( 'needs a product id AND three variant ids to count as configured', () => {
+  it( 'needs a product id AND a variant id for every choice to count as configured', () => {
     // A product id with no variant id would mint a cart line that reaches
-    // `normalized_catalog_items`' single-variant fallback -- the guess the explicit variant exists
-    // to avoid -- and answers a 502 on this three-variant product.
+    // `normalized_catalog_items`' single-variant fallback -- the guess the explicit variant
+    // exists to avoid, which would pick the wrong amount the moment a second one is added back.
     expect( CONTRIBUTION_CONFIGURED ).toBe(
       !!CONTRIBUTION_PRODUCT_ID
       && CONTRIBUTION_CHOICES.length > 0

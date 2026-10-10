@@ -1,10 +1,17 @@
 /**
- * BLOG CONTRIBUTION CHOICES, IN ONE PLACE - the three "Contribute" amounts and the Wix variant
- * each one buys, with a single definition so no amount or GUID is re-typed.
+ * BLOG CONTRIBUTION CHOICES, IN ONE PLACE - the "Contribute" amounts and the Wix variant each one
+ * buys, with a single definition so no amount or GUID is re-typed.
+ *
+ * ONE AMOUNT TODAY, 2026-10-10. The owner reduced `Contribute` in Wix to a SINGLE visible
+ * in-stock variant at ₹250; the ₹100 and ₹500 variants were deleted there, so they are deleted
+ * here. Wix is the source of truth and this file follows it - a choice that no longer exists in
+ * the catalogue cannot be priced by `cart_v2.calculate`, so leaving it declared would only offer
+ * a button that fails at checkout. The LIST SHAPE is kept rather than collapsed to one constant,
+ * because the shape is what makes restoring a second amount a one-line change in two files.
  *
  * COMMON CONTRIBUTION AMOUNTS
  * ---------------------------
- * Blog posts and VayuLok use the same three contribution choices from this module. The browser
+ * Blog posts and VayuLok use the same contribution choices from this module. The browser
  * never invents or widens an amount: it names one of these CHOICES and the backend independently
  * mirrors this exact allow-list before any payable order can be created.
  *
@@ -16,7 +23,7 @@
  * needed, with a test (ShareMeta.test.tsx there, BlogContribution.test.tsx here) holding the
  * rendered values equal to the ones declared here so the two cannot drift. Everything that renders
  * a contribution amount - BlogContribution, the cart row, and their tests - reads THIS module.
- * Nothing re-states 100/250/500, 10000/25000/50000, 'INR' or a variant GUID anywhere else.
+ * Nothing re-states 250, 25000, 'INR' or a variant GUID anywhere else.
  *
  * CANONICAL UNIT IS INTEGER PAISE, NEVER RUPEES-AS-FLOAT
  * -----------------------------------------------------
@@ -33,7 +40,7 @@
  * /api/ecommerce/contribution` does not exist and is never built: a contribution is a product line
  * in the existing cart, paid on `POST /ecommerce/prepare-checkout`, and
  * `amplify/functions/ecommerce/checkout/handler.py:_contribution_request` re-derives the expected
- * collection from its OWN committed copy of the three choices before any Wix call or DynamoDB
+ * collection from its OWN committed copy of the choices before any Wix call or DynamoDB
  * write. `cart_v2.calculate` remains the sole price authority; no price, amount or currency is ever
  * sent from the browser.
  *
@@ -42,7 +49,7 @@
  * `CONTRIBUTION_PRESETS_PAISE`, `CONTRIBUTION_MIN_PAISE`, `CONTRIBUTION_MAX_PAISE`,
  * `isAllowedContributionPaise` and `rupeesToPaise` are gone, not relocated. They existed to police
  * a free-text custom amount; there is no custom amount any more, so there is nothing to police and
- * nothing to parse. Three fixed choices need a list and a label helper, and that is all that is
+ * nothing to parse. Fixed choices need a list and a label helper, and that is all that is
  * left here.
  */
 
@@ -52,17 +59,18 @@ export const CONTRIBUTION_CURRENCY = 'INR' as const;
 /**
  * The Wix catalogue product id of the live `Contribute` product.
  *
- * ONE product with THREE fixed-price variants, measured against the live catalogue on 2026-10-04:
- * `PHYSICAL`, `visible: true`, one option named "Amount" rendered as text choices, three visible
- * in-stock variants at ₹100 / ₹250 / ₹500.
+ * ONE product with ONE fixed-price variant, measured against the live catalogue on 2026-10-10:
+ * `PHYSICAL`, `visible: true`, one option named "Amount" rendered as text choices, a single
+ * visible in-stock variant at ₹250. It carried THREE variants - ₹100 / ₹250 / ₹500 - until the
+ * owner removed two of them in Wix on 2026-10-10.
  *
  * MOVED TO THE NEW WIX SITE, 2026-10-05. The catalogue was migrated to site
  * `c993128b-26be-41cd-9fcd-904abe23462f`, which re-minted every product and variant id, so the
- * product id and all three variant ids below changed together in one release exactly as the
- * paragraph below requires. The amounts did NOT change: ₹100 / ₹250 / ₹500, 10000 / 25000 / 50000
- * paise, before and after. The replacements were read live from the new site's query-variants
- * response and cross-checked against the refreshed `src/content/wix-catalog.json`, whose
- * "Amount" option labels confirm which variant carries which rupee figure.
+ * product id and the variant ids below changed together in one release exactly as the
+ * paragraph below requires. The amounts did NOT change in that move: ₹100 / ₹250 / ₹500, 10000 /
+ * 25000 / 50000 paise, before and after. The replacements were read live from the new site's
+ * query-variants response and cross-checked against the refreshed `src/content/wix-catalog.json`,
+ * whose "Amount" option labels confirm which variant carries which rupee figure.
  *
  * THERE IS NO `NEXT_PUBLIC_*` OVERRIDE, and its removal is deliberate rather than an omission.
  * It was here as "a bridge for a window where the product id changes before this constant does",
@@ -70,9 +78,9 @@ export const CONTRIBUTION_CURRENCY = 'INR' as const;
  * the customer money:
  *
  *   - It could never work alone. The server recognises a contribution by the product id in its
- *     OWN committed set plus its `CONTRIBUTION_PRODUCT_ID` env key, and the three VARIANT ids
+ *     OWN committed set plus its `CONTRIBUTION_PRODUCT_ID` env key, and the VARIANT ids
  *     below have no override at all - a different product has different variant ids, so pointing
- *     the browser at one would send a reference whose variants are not these three.
+ *     the browser at one would send a reference whose variants are not these.
  *   - Set alone, the failure is SILENT and not fail-closed. The cart line carries a product the
  *     server does not recognise, so `_contribution_request` returns `None` and the basket is an
  *     ordinary one: `compute_quote` adds the 2.5% convenience fee and 18% GST, `requires_delivery`
@@ -80,7 +88,7 @@ export const CONTRIBUTION_CURRENCY = 'INR' as const;
  *     charged more than the button offered. No guard fires, because nothing unusual happened from
  *     the server's point of view.
  *
- * Moving the product therefore means editing this constant and the three variants below together,
+ * Moving the product therefore means editing this constant and the variants below together,
  * with the Lambda's `CONTRIBUTION_PRODUCT_ID` moved in the same release - which is a code change
  * either way, so a build-time env key bought nothing.
  *
@@ -101,7 +109,12 @@ export interface ContributionChoice {
 }
 
 /**
- * THE ONLY THREE CONTRIBUTIONS THAT CAN BE MADE. Owner model change, 2026-10-04.
+ * THE ONLY CONTRIBUTION THAT CAN BE MADE - one choice, ₹250. Owner model change, 2026-10-04;
+ * reduced from three choices to one on 2026-10-10 to match live Wix, which now carries a single
+ * visible in-stock variant of this product. The ₹100 (`ab4ee1a2-…`) and ₹500 (`19283bd8-…`)
+ * variants are GONE from the catalogue, so they are gone from here and from the server's mirror
+ * in the same change: a variant Wix has deleted cannot be priced, and a button offering one would
+ * fail at `cart_v2.calculate` instead of collecting anything.
  *
  * What this replaced, because the shape of the change is the point: a contribution used to be one
  * ₹1 product whose QUANTITY carried the amount, with ₹10–₹1,00,000 bounds and a free-text "Other"
@@ -122,9 +135,7 @@ export interface ContributionChoice {
  * price edit refuses the contribution rather than charging a figure the button did not promise.
  */
 export const CONTRIBUTION_CHOICES: readonly ContributionChoice[] = [
-  { variantId: 'ab4ee1a2-1568-4dc4-abe1-55e24fa51576', rupees: 100, paise: 10000 },
   { variantId: '8ad6f376-a526-4631-b510-0e047b33a5b9', rupees: 250, paise: 25000 },
-  { variantId: '19283bd8-a61d-455e-a992-79eb10b9228f', rupees: 500, paise: 50000 },
 ] as const;
 
 /** One hundred paise to the rupee. Named so no magic 100 appears in the conversion helpers. */
@@ -132,12 +143,12 @@ export const PAISE_PER_RUPEE = 100;
 
 /**
  * The rupee value of a paise amount, as an integer, for a DISPLAY label only. Every choice is a
- * whole number of rupees by construction, so this is exact for all three. It is deliberately a
+ * whole number of rupees by construction, so this is exact for every one. It is deliberately a
  * floor rather than a rounding: a label is never the authority on what is charged.
  */
 export const paiseToRupees = ( paise: number ): number => Math.floor( paise / PAISE_PER_RUPEE );
 
-/** The choice a variant id names, or null when it names none of the three. */
+/** The choice a variant id names, or null when it names none of them. */
 export const contributionChoice = ( variantId: unknown ): ContributionChoice | null =>
   CONTRIBUTION_CHOICES.find(
     choice => choice.variantId === String( variantId || '' ).trim().toLowerCase() ) || null;

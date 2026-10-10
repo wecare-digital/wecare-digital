@@ -74,17 +74,20 @@ def test_server_presets_mirror_the_frontend_contract():
     # intentionally separate so the browser cannot widen the trusted amount.
     #
     # THIS IS THE RETIRED OWN-MONEY PATH's copy of those amounts. `validate_contribution_amount`
-    # and `prepare_contribution` still use it, and the figures still agree with the three live
-    # choices, but src/config/contribution.ts no longer declares a matching
-    # `CONTRIBUTION_PRESETS_PAISE` -- the 2026-10-04 owner model change replaced the
-    # preset-plus-custom-amount model with three fixed-price Wix variants, so there is no
-    # browser-proposed amount left to widen. The guard on the LIVE contract is
-    # `test_server_choices_mirror_the_frontend_contract` below.
+    # and `prepare_contribution` still use it, but nothing in production calls either, and
+    # src/config/contribution.ts no longer declares a matching `CONTRIBUTION_PRESETS_PAISE` --
+    # the 2026-10-04 owner model change replaced the preset-plus-custom-amount model with
+    # fixed-price Wix variants, so there is no browser-proposed amount left to widen.
+    #
+    # THE THREE FIGURES ARE DELIBERATELY LEFT AS THEY ARE by the 2026-10-10 catalogue reduction,
+    # which took the LIVE choices down to one Rs.250 variant. These are amounts on a path with no
+    # caller, not catalogue targets, so narrowing them would change nothing reachable. The guard
+    # on the LIVE contract is `test_server_choices_mirror_the_frontend_contract` below.
     assert bc.CONTRIBUTION_PRESETS_PAISE == (10000, 25000, 50000)
 
 
 def test_server_choices_mirror_the_frontend_contract():
-    """The THREE FIXED CHOICES, declared in Python and in TypeScript, held equal here.
+    """THE FIXED CHOICES, declared in Python and in TypeScript, held equal here.
 
     Declared twice on purpose: the browser must not be able to widen the trusted set, so the
     server cannot import the browser's copy. That makes drift the hazard, and this is the guard.
@@ -92,8 +95,11 @@ def test_server_choices_mirror_the_frontend_contract():
     `test_server_presets_mirror_the_frontend_contract` made for the retired presets.
 
     The GUIDs are MEASURED values, read off the live `Contribute` product's
-    `GET /stores/v3/products/{id}` on 2026-10-04 -- one product, PHYSICAL, three visible in-stock
-    variants priced Rs.100 / Rs.250 / Rs.500.
+    `GET /stores/v3/products/{id}` -- one product, PHYSICAL. It carried three visible in-stock
+    variants priced Rs.100 / Rs.250 / Rs.500 when this guard was written on 2026-10-04; the owner
+    reduced it to a SINGLE Rs.250 variant in Wix on 2026-10-10, so ONE choice is what both sides
+    must now declare. The count is asserted rather than derived on purpose: a TS file that
+    declared no choice at all would otherwise mirror a Python map that declared none either.
     """
     import re
     root = pathlib.Path(__file__).resolve().parents[1]
@@ -117,7 +123,7 @@ def test_server_choices_mirror_the_frontend_contract():
 
     declared = re.findall(
         r"variantId:\s*'([0-9a-f-]{36})',\s*rupees:\s*(\d+),\s*paise:\s*(\d+)", config)
-    assert len(declared) == 3, f"expected three choices in the TS config, found {len(declared)}"
+    assert len(declared) == 1, f"expected one choice in the TS config, found {len(declared)}"
     assert {variant: int(paise) for variant, _rupees, paise in declared} \
         == dict(bc.CONTRIBUTION_CHOICES_PAISE)
     # Each TS choice's rupee label and paise value agree, so neither side can carry a typo that

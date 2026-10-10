@@ -38,8 +38,15 @@ const KIOSK: ShopProduct = {
   variants: [ { id: '9f1c0e8a-1111-4222-8333-444455556666', label: 'One', inStock: true } ],
 };
 
-/** The three choices, by position, so a case can name an amount without re-typing a GUID. */
-const [ LOW, MID, HIGH ] = CONTRIBUTION_CHOICES;
+/**
+ * The ONLY choice, so a case can name the amount without re-typing a GUID.
+ *
+ * It was `[ LOW, MID, HIGH ]` until 2026-10-10, when the owner reduced `Contribute` in Wix to a
+ * single ₹250 variant. The cases that needed a SECOND, DIFFERENT amount -- "replaces rather than
+ * adds", "the fingerprint changes when the amount changes" -- are rewritten around a basket
+ * change rather than an amount change, and each one says so where it sits.
+ */
+const [ ONLY ] = CONTRIBUTION_CHOICES;
 
 /**
  * THE "SUPPORT THIS WORK" CONTRIBUTION COMPONENT, IN ISOLATION.
@@ -77,7 +84,7 @@ const renderBlock = () =>
   render( <BlogContribution postId="post-1" slug="a-clear-question" /> );
 
 describe( 'BlogContribution choices', () => {
-  it( 'renders exactly the three choices from the central config, and no Other', () => {
+  it( 'renders exactly the choices from the central config, and no Other', () => {
     const { container } = renderBlock();
     const faces = Array.from( container.querySelectorAll( '.bc-choice-face' ) )
       .map( n => n.textContent || '' );
@@ -89,10 +96,13 @@ describe( 'BlogContribution choices', () => {
     // The owner's amounts, proving nothing re-typed a different number into the markup. Asserted
     // as FULL face text rather than as substrings: '100' is a substring of '1000' and would pass a
     // loose check on the wrong number.
-    expect( faces.map( f => f.trim() ) ).toEqual( [ '\u20B9100', '\u20B9250', '\u20B9500' ] );
+    expect( faces.map( f => f.trim() ) ).toEqual( [ '\u20B9250' ] );
     // The retired amounts, and the retired custom option, must not still be on screen. The ₹1
-    // product model and the ₹200/₹400/₹600 presets both predate this.
+    // product model and the ₹200/₹400/₹600 presets both predate this, and ₹100/₹500 were the
+    // owner's own amounts until the Wix variants behind them were deleted on 2026-10-10.
     expect( faces.join( ' ' ) ).not.toContain( 'Other' );
+    expect( faces.join( ' ' ) ).not.toContain( '\u20B9100' );
+    expect( faces.join( ' ' ) ).not.toContain( '\u20B9500' );
     expect( faces.join( ' ' ) ).not.toContain( '\u20B9200' );
     expect( faces.join( ' ' ) ).not.toContain( '\u20B9400' );
     expect( faces.join( ' ' ) ).not.toContain( '\u20B9600' );
@@ -103,7 +113,7 @@ describe( 'BlogContribution choices', () => {
     expect( container.querySelectorAll( 'input:not([type="radio"])' ) ).toHaveLength( 0 );
   } );
 
-  it( 'offers three fixed prices, which is the whole set the server accepts', () => {
+  it( 'offers one fixed price, which is the whole set the server accepts', () => {
     // The paise figures are what `blog_contribution.CONTRIBUTION_CHOICES_PAISE` holds, and
     // tests/test_blog_contribution.py pins the two declarations equal. This side asserts the
     // rupee/paise pair is internally consistent, so a typo in one of the two numbers on a choice
@@ -112,8 +122,10 @@ describe( 'BlogContribution choices', () => {
       expect( choice.paise ).toBe( choice.rupees * 100 );
       expect( choice.variantId ).toMatch( /^[0-9a-f-]{36}$/ );
     }
-    expect( CONTRIBUTION_CHOICES ).toHaveLength( 3 );
-    expect( new Set( CONTRIBUTION_CHOICES.map( c => c.variantId ) ).size ).toBe( 3 );
+    // ONE since 2026-10-10: live Wix carries a single visible in-stock variant of `Contribute`.
+    // Asserted as a count rather than derived, so an empty list cannot pass as "no drift".
+    expect( CONTRIBUTION_CHOICES ).toHaveLength( 1 );
+    expect( new Set( CONTRIBUTION_CHOICES.map( c => c.variantId ) ).size ).toBe( 1 );
   } );
 
   it( 'uses an h2 heading and the mandated primary copy, never an h1', () => {
@@ -136,7 +148,7 @@ describe( 'the second payment implementation is GONE, not disabled', () => {
    * returns the right thing" - it is that THERE IS NO FETCH, in any state, because a second money
    * path is the failure this phase exists to remove.
    */
-  it( 'issues NO network request on submit, for any of the three choices', () => {
+  it( 'issues NO network request on submit, for any offered choice', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal( 'fetch', fetchMock );
     const assign = vi.fn();
@@ -170,8 +182,8 @@ describe( 'the second payment implementation is GONE, not disabled', () => {
     vi.stubGlobal( 'location', { ...window.location, assign } );
     renderBlock();
 
-    fireEvent.click( screen.getByDisplayValue( MID.variantId ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ MID.rupees }` } ) );
+    fireEvent.click( screen.getByDisplayValue( ONLY.variantId ) );
+    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ ONLY.rupees }` } ) );
 
     const cart = readCart();
     expect( cart ).toHaveLength( 1 );
@@ -179,33 +191,37 @@ describe( 'the second payment implementation is GONE, not disabled', () => {
     // amount is the variant's own price, so nothing about the amount is carried by the quantity.
     expect( cart[ 0 ].quantity ).toBe( 1 );
     expect( cart[ 0 ].productId ).toBe( CONTRIBUTION_PRODUCT_ID );
-    expect( cart[ 0 ].variantId ).toBe( MID.variantId );
+    expect( cart[ 0 ].variantId ).toBe( ONLY.variantId );
     // The amount is in the name and in the price, because the quantity no longer says it.
-    expect( cart[ 0 ].name ).toBe( `Contribute \u20B9${ MID.rupees }` );
-    expect( cart[ 0 ].formattedPrice ).toBe( `\u20B9${ MID.rupees }.00` );
+    expect( cart[ 0 ].name ).toBe( `Contribute \u20B9${ ONLY.rupees }` );
+    expect( cart[ 0 ].formattedPrice ).toBe( `\u20B9${ ONLY.rupees }.00` );
     // Empty slug, so the cart row does NOT link to a /shop/contribute/ page that SHOP_PRODUCTS
     // deliberately excludes.
     expect( cart[ 0 ].slug ).toBe( '' );
     expect( assign ).toHaveBeenCalledWith( '/cart/' );
   } );
 
-  it( 'REPLACES rather than adds when a second amount is chosen', () => {
-    // `setContribution` does not reuse `addItem`, which increments: choosing ₹100 then ₹500 would
-    // leave two contribution lines, which the server refuses as two contributions.
+  it( 'REPLACES rather than adds when the same amount is chosen twice', () => {
+    // `setContribution` does not reuse `addItem`, which INCREMENTS -- and two contribution lines,
+    // or one at quantity 2, is a basket the server refuses rather than a bigger contribution.
+    //
+    // DRIVEN AT ONE AMOUNT SINCE 2026-10-10, because the owner reduced `Contribute` in Wix to a
+    // single ₹250 variant and "₹100 then ₹500" is no longer a sequence a customer can perform.
+    // Submitting twice is the stronger half of the same property anyway: with `addItem` behind
+    // this control the cart would hold a line at quantity 2 and this case would fail.
     vi.stubGlobal( 'location', { ...window.location, assign: vi.fn() } );
     renderBlock();
-    fireEvent.click( screen.getByDisplayValue( LOW.variantId ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ LOW.rupees }` } ) );
-    fireEvent.click( screen.getByDisplayValue( HIGH.variantId ) );
-    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ HIGH.rupees }` } ) );
+    fireEvent.click( screen.getByDisplayValue( ONLY.variantId ) );
+    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ ONLY.rupees }` } ) );
+    fireEvent.click( screen.getByRole( 'button', { name: `Contribute \u20B9${ ONLY.rupees }` } ) );
 
     const cart = readCart();
     expect( cart ).toHaveLength( 1 );
-    expect( cart[ 0 ].variantId ).toBe( HIGH.variantId );
+    expect( cart[ 0 ].variantId ).toBe( ONLY.variantId );
     expect( cart[ 0 ].quantity ).toBe( 1 );
   } );
 
-  it( 'writes nothing for a variant that is not one of the three', () => {
+  it( 'writes nothing for a variant that is not a committed choice', () => {
     // Unreachable from this component - every control emits a committed variant id - and reachable
     // from a cart written by an older build or a console call. Membership is the only check left
     // now that there is no amount to validate.
@@ -309,45 +325,48 @@ describe( 'cartCount and basketFingerprint, which the header and the request key
     // Under the retired amount-as-quantity model this needed a special case in `cartCount`, or a
     // ₹400 contribution rendered "Shopping Bag, 400 items". The line is quantity 1 now, so the
     // plain sum is the honest answer and the special case is gone.
-    setContribution( MID.variantId );
+    setContribution( ONLY.variantId );
     expect( cartCount() ).toBe( 1 );
     expect( readCart()[ 0 ].quantity ).toBe( 1 );
   } );
 
   it( 'counts a contribution plus a kiosk at quantity 2 as THREE', () => {
-    setContribution( MID.variantId );
+    setContribution( ONLY.variantId );
     addItem( KIOSK, 2 );
     expect( cartCount() ).toBe( 3 );
   } );
 
   it( 'is stable across two calls on an unchanged cart', () => {
-    setContribution( MID.variantId );
+    setContribution( ONLY.variantId );
     expect( basketFingerprint() ).toBe( basketFingerprint() );
   } );
 
   it( 'is order-independent for the same lines added either way', () => {
     addItem( KIOSK, 1 );
-    setContribution( LOW.variantId );
+    setContribution( ONLY.variantId );
     const forwards = basketFingerprint();
     clearCart();
-    setContribution( LOW.variantId );
+    setContribution( ONLY.variantId );
     addItem( KIOSK, 1 );
     expect( basketFingerprint() ).toBe( forwards );
   } );
 
-  it( 'CHANGES when the contribution amount changes', () => {
-    // A changed amount IS a changed intent: `intent_fingerprint` covers `total_payable_paise`, so
-    // resuming the old reservation for it is exactly the refusal the scoping removes. The amount
-    // now moves the VARIANT rather than the quantity, which is why this case has to keep existing
-    // -- the fingerprint covers both fields, and only one of them moves any more.
-    setContribution( LOW.variantId );
+  it( 'CHANGES when the contribution basket changes', () => {
+    // A changed basket IS a changed intent: `intent_fingerprint` covers `total_payable_paise`, so
+    // resuming the old reservation for it is exactly the refusal the scoping removes.
+    //
+    // IT USED TO BE DRIVEN BY A CHANGED AMOUNT, ₹100 -> ₹500, which is the shape that mattered
+    // when the amount moved the VARIANT rather than the quantity. `Contribute` has carried one
+    // ₹250 variant since 2026-10-10, so the amount cannot change; adding a product to the same
+    // contribution moves the same two fingerprint fields.
+    setContribution( ONLY.variantId );
     const before = basketFingerprint();
-    setContribution( HIGH.variantId );
+    addItem( KIOSK, 1 );
     expect( basketFingerprint() ).not.toBe( before );
   } );
 
   it( 'carries a digest, a length and a line count, and the count is the real one', () => {
-    setContribution( MID.variantId );
+    setContribution( ONLY.variantId );
     addItem( KIOSK, 1 );
     const fingerprint = basketFingerprint();
     expect( fingerprint ).toMatch( /^[0-9a-z]+\.[0-9a-z]+\.\d+$/ );
@@ -355,13 +374,14 @@ describe( 'cartCount and basketFingerprint, which the header and the request key
   } );
 
   it( 'agrees between the explicit and default forms, and the explicit one describes its argument', () => {
-    setContribution( MID.variantId );
+    setContribution( ONLY.variantId );
     const payload = toLineItems();
     expect( basketFingerprint( payload ) ).toBe( basketFingerprint() );
     // Mutate storage WITHOUT re-reading: the explicit form must still describe the array it was
     // handed, which is the property that stops the post-save retry keying a basket it is not
-    // sending.
-    setContribution( HIGH.variantId );
+    // sending. The mutation is an added product rather than a second contribution amount, which
+    // the single-variant `Contribute` no longer offers.
+    addItem( KIOSK, 1 );
     expect( basketFingerprint( payload ) ).not.toBe( basketFingerprint() );
     expect( basketFingerprint( payload ) ).toBe( basketFingerprint( payload ) );
   } );
@@ -372,7 +392,7 @@ describe( 'BlogContribution does not fetch at render time', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal( 'fetch', fetchMock );
     renderBlock();
-    // The default server-rendered state is the three-choice form; a call happens only on a user
+    // The default server-rendered state is the choice form; a call happens only on a user
     // action, never during render/prerender -- and there is no call to happen at all.
     expect( fetchMock ).not.toHaveBeenCalled();
   } );
