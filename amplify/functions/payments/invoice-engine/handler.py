@@ -29,7 +29,7 @@ import logging
 import boto3
 import io
 from typing import Dict, Any, Optional, List
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 from lambda_utils.logging import get_logger
@@ -744,6 +744,79 @@ def _paise_to_rupees(paise: int) -> Decimal:
     return Decimal(str(int(paise))) / Decimal('100')
 
 
+def _back_calculate_inclusive(total_paise: int, gst_rate: Decimal) -> tuple:
+    """Split a GST-INCLUSIVE total into `(taxable_paise, tax_paise)` that sum to it EXACTLY.
+
+    WHY THE TAX IS A REMAINDER AND NOT A SECOND CALCULATION
+    ------------------------------------------------------
+    The taxable value is `total * 100 / (100 + rate)`, which is almost never a whole number of
+    paise: at 18% a 100.01 capture has a taxable value of 8475.42372... paise. Quantising BOTH
+    legs independently - taxable rounded one way, tax computed as `taxable * rate / 100` and
+    rounded another - lets the two disagree with the figure they came from by a paise, and that
+    paise is not cosmetic here. A captured amount is compared against the invoice total with
+    exact integer equality, so a one-paise drift refuses a payment that actually settled.
+
+    Taking the tax as `total - taxable` makes the identity `taxable + tax == total` structural
+    rather than something each rate has to happen to satisfy. The paise lands on the TAX leg,
+    which is the conservative direction for a tax invoice: the taxable value is never overstated.
+
+    `ROUND_HALF_UP` is the quantiser (not banker's rounding) because it is what the rest of this
+    tree and the GST rules use for a rupee figure, and because `Decimal`'s default `ROUND_HALF_EVEN`
+    would make the taxable value of two adjacent amounts move in different directions.
+
+    A rate of 0 is the identity: the whole amount is taxable and the tax is 0.
+
+    All `Decimal` and `int`. No float touches a money value here - `0.1 + 0.2` is not `0.3` in
+    binary floating point and `tests/test_payment_path_has_no_float_money.py` AST-walks this file.
+    """
+    total = int(total_paise)
+    rate = gst_rate if isinstance(gst_rate, Decimal) else Decimal(str(gst_rate))
+    if total < 0:
+        raise ValueError('a tax-inclusive total cannot be negative')
+    if rate < 0:
+        raise ValueError('a GST rate cannot be negative')
+    taxable_paise = int((Decimal(total) * Decimal(100) / (Decimal(100) + rate)).quantize(
+        Decimal('1'), rounding=ROUND_HALF_UP))
+    return taxable_paise, total - taxable_paise
+
+
+def _split_tax_halves(tax_paise: int) -> tuple:
+    """Split a tax figure into `(cgst_paise, sgst_paise)` that sum to it EXACTLY.
+
+    An intra-state supply prints CGST and SGST at half the rate each, so the two lines together
+    ARE the tax. `tax / 2` twice is the obvious spelling and the wrong one: an odd number of
+    paise formatted to two decimals prints two halves that sum to a paise less (or more) than the
+    Total Tax row directly above them, and a tax invoice whose own breakdown does not add up is a
+    document a GST officer reads as arithmetic they cannot follow.
+
+    The odd paise goes on CGST, deliberately and always the same way, so the figure is a function
+    of the amount rather than of which renderer drew it.
+    """
+    tax = int(tax_paise)
+    sgst = tax // 2
+    return tax - sgst, sgst
+
+
+def _tax_halves_rupees(tax_value) -> tuple:
+    """`(cgst, sgst)` as exact rupee `Decimal`s for the three renderers, summing to `tax_value`.
+
+    The renderers hold a STORED tax figure off an invoice row that is already final, so this
+    converts rather than decides. It falls back to a Decimal halving for a stored figure that is
+    not expressible in whole paise, because this is a display path: refusing here would fail the
+    rendering of a legacy row over a value nothing compares - the same reason `_money_display`
+    falls back. The fallback still takes the second half as the remainder, so the two printed
+    lines sum to the printed tax either way.
+    """
+    try:
+        cgst_paise, sgst_paise = _split_tax_halves(
+            wa_payment_request.exact_paise(tax_value))
+        return _paise_to_rupees(cgst_paise), _paise_to_rupees(sgst_paise)
+    except Exception:  # noqa: BLE001 - any unrepresentable stored figure takes the fallback
+        tax_dec = Decimal(str(tax_value or 0))
+        cgst = (tax_dec / 2).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return cgst, tax_dec - cgst
+
+
 def _assert_inr(body: Dict) -> None:
     """Compare the currency EXPLICITLY. Never infer it from an amount.
 
@@ -1094,11 +1167,97 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         if int(it_v.get('quantity', 1)) < 1:
             return _resp(400, {'error': f'Item {idx_v+1} quantity must be at least 1'})
 
-    tax = sum(
-        float(i.get('amount', 0)) * int(i.get('quantity', 1)) * float(i.get('gstRate', gst_rate)) / 100
-        for i in items
-    )
-    tax = round(tax, 2)
+    # ── Tax-inclusive mode (opt-in): the figure given is ALREADY the total ──
+    #
+    # WHAT THIS FIXES
+    # ---------------
+    # The additive path below computes the tax ON TOP of the item amounts, which is right for an
+    # invoice somebody is about to pay. It is wrong for an invoice raised FROM a capture: the
+    # money has already moved, and `create_invoice_from_payment` sent the captured amount as a
+    # single line item with the default 18% rate, so a 100.00 capture became a 118.00 invoice
+    # stamped PAID. Eighteen rupees the customer was never charged, on a GST document.
+    #
+    # D3: a captured amount is GST-INCLUSIVE. So in this mode the rate decides the SPLIT and
+    # never the total - the taxable value is back-calculated and the tax is the remainder (see
+    # `_back_calculate_inclusive`), and nothing may be added to the figure afterwards.
+    #
+    # WHY IT IS OPT-IN AND WHY `expectedTotalPaise` IS MANDATORY
+    # ----------------------------------------------------------
+    # Opt-in because the additive path is correct for every other caller and must stay unchanged
+    # byte for byte when the flag is absent. Mandatory because the whole value of the mode is the
+    # EXACT comparison further down: without the expected figure there is nothing to compare the
+    # computed total against, and a silent fall back to the additive path would reintroduce the
+    # defect on exactly the caller that asked not to have it. Absent is therefore a 400.
+    #
+    # Everything here happens before `_get_next_invoice_number`, so a refusal leaves no document
+    # and burns no GST number - the ordering this whole block exists to preserve.
+    amount_is_tax_inclusive = bool(body.get('amountIsTaxInclusive'))
+    expected_total_paise = 0
+    if amount_is_tax_inclusive:
+        if body.get('expectedTotalPaise') is None:
+            return _resp(400, {
+                'error': 'A tax-inclusive amount requires expectedTotalPaise',
+                'errorCode': 'EXPECTED_TOTAL_PAISE_REQUIRED',
+            })
+        try:
+            # Integral check rather than `int()`: `int(10000.5)` truncates, and a figure that is
+            # not a whole paise cannot be what a provider captured.
+            expected_decimal = Decimal(str(body.get('expectedTotalPaise')))
+        except (InvalidOperation, ValueError, TypeError):
+            expected_decimal = None
+        if (expected_decimal is None or not expected_decimal.is_finite()
+                or expected_decimal != expected_decimal.to_integral_value()
+                or expected_decimal <= 0):
+            return _resp(400, {
+                'error': 'expectedTotalPaise must be a positive whole number of paise',
+                'errorCode': 'EXPECTED_TOTAL_PAISE_INVALID',
+            })
+        expected_total_paise = int(expected_decimal)
+
+        # REFUSED rather than silently dropped. A coupon is a price change and a gift card is
+        # tender; both would have had to apply before the customer paid, and applying either to
+        # money already taken would either contradict the capture or leave the arithmetic below
+        # mixing a discounted total with a figure the provider settled.
+        if (str(body.get('couponCode') or '').strip()
+                or str(body.get('giftCardCode') or '').strip()):
+            return _resp(400, {
+                'error': 'A coupon or gift card cannot be applied to an amount already captured',
+                'errorCode': 'AMOUNT_ALREADY_CAPTURED',
+            })
+
+        gst_rate_decimal = Decimal(str(gst_rate))
+        if not gst_rate_decimal.is_finite():
+            return _resp(400, {'error': 'GST rate must be between 0 and 100'})
+        taxable_paise, tax_paise = _back_calculate_inclusive(
+            expected_total_paise, gst_rate_decimal)
+        subtotal = _paise_to_rupees(taxable_paise)
+        tax = _paise_to_rupees(tax_paise)
+        # Every additive component is forced to zero, not merely left alone: a captured amount
+        # cannot grow a charge, a fee or a shipping line after the fact. `Decimal` throughout, so
+        # the total below is exact arithmetic on the two figures the split produced.
+        discount = Decimal('0')
+        shipping = Decimal('0')
+        handling = Decimal('0')
+        effective_gp = Decimal('0')
+        effective_nf = Decimal('0')
+        green_packing = Decimal('0')
+        notification_fee = Decimal('0')
+        # ONE line item, at the TAXABLE amount, so the persisted `InvoiceItems` rows still
+        # reconcile to the persisted `subtotal`. Storing the gross figure here is what made the
+        # old document self-contradictory: a 100.00 line, a 118.00 total and 18.00 of tax that
+        # belonged to neither.
+        items = [{
+            'name': (items[0].get('name') if items else '') or 'Payment',
+            'amount': subtotal,
+            'quantity': 1,
+            'gstRate': gst_rate,
+        }]
+    else:
+        tax = sum(
+            float(i.get('amount', 0)) * int(i.get('quantity', 1)) * float(i.get('gstRate', gst_rate)) / 100
+            for i in items
+        )
+        tax = round(tax, 2)
 
     # ── Optional coupon, applied BEFORE the fee because a coupon is a price change ──
     #
@@ -1158,13 +1317,51 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # outbound-whatsapp/handler.py defaulted to 0.022 - three copies, three answers. All
     # three are 2.5% now and must move together.
     convenience_fee = float(body.get('convenienceFee', 0))
-    if convenience_fee == 0 and entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
+    if amount_is_tax_inclusive:
+        # Zero, whatever the caller sent. The fee is a charge for taking the money, and the money
+        # is already taken - adding 2.5% + GST here would put the invoice above the capture by
+        # construction and the invariant below would then refuse every single one of them.
+        convenience_fee = Decimal('0')
+    elif convenience_fee == 0 and entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         conv_base = round(collection * 0.025, 2)
         conv_gst = round(conv_base * 0.18, 2)
         convenience_fee = round(conv_base + conv_gst, 2)
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
+
+    # ── The exact-total invariant: an invoice from a capture IS the capture ──
+    #
+    # Exact integer equality in paise, on the figure about to be stored, BEFORE a GST number is
+    # consumed. Not a tolerance: the old matcher compared rupee floats with
+    # `abs(inv_total - amount) < 0.02` and that is how an 18-rupee discrepancy stayed invisible
+    # for as long as it did. A one-paise difference here means the two sides genuinely disagree
+    # about what was collected, and the honest answer to that is a refusal with nothing written -
+    # not a document, and not a number out of the consecutive series.
+    #
+    # `exact_paise` is the same reader the reservation and the capture comparison use, so a total
+    # carrying sub-paise noise fails closed rather than being rounded into agreement.
+    if amount_is_tax_inclusive:
+        try:
+            computed_total_paise = wa_payment_request.exact_paise(total)
+        except wa_payment_request.PaymentRequestRefused:
+            computed_total_paise = None
+        if computed_total_paise != expected_total_paise:
+            logger.error(json.dumps({
+                'event': 'invoice_total_mismatch',
+                'referenceId': reference_id,
+                'paymentId': payment_id,
+                'expectedTotalPaise': expected_total_paise,
+                'computedTotalPaise': computed_total_paise,
+                'note': 'no invoice number consumed, nothing written',
+                'requestId': request_id,
+            }))
+            return _resp(400, {
+                'error': 'The invoice total does not equal the captured amount',
+                'errorCode': 'INVOICE_TOTAL_MISMATCH',
+                'expectedTotalPaise': expected_total_paise,
+                'computedTotalPaise': computed_total_paise,
+            })
 
     # ── Optional gift card, applied LAST because a gift card is tender, not a price change ──
     #
@@ -1317,9 +1514,14 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     has_green = any('green' in n and 'pack' in n for n in existing_names)
     has_notif = any('notification' in n or 'alert' in n for n in existing_names)
 
-    # Legacy support: if sent as separate fields and NOT already in items, append them
-    green_packing = float(body.get('greenPacking', 0))
-    notification_fee = float(body.get('notificationFee', 0))
+    # Legacy support: if sent as separate fields and NOT already in items, append them.
+    # Zero in tax-inclusive mode, for the same reason the amounts block zeroed them: a charge
+    # line appended here would be a line the capture never paid for, and the stored items would
+    # stop reconciling to the stored subtotal.
+    green_packing = (Decimal('0') if amount_is_tax_inclusive
+                     else float(body.get('greenPacking', 0)))
+    notification_fee = (Decimal('0') if amount_is_tax_inclusive
+                        else float(body.get('notificationFee', 0)))
     if green_packing > 0 and not has_green:
         all_items.append({'name': 'Green Packing', 'amount': green_packing, 'quantity': 1, 'isCharge': True})
     if notification_fee > 0 and not has_notif:
@@ -1387,6 +1589,38 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
     except Exception as e:
         return _resp(500, {'error': f'Payment lookup failed: {e}'})
 
+    # ── The captured amount, read as the authoritative INTEGER paise ──
+    #
+    # `payment['amount']` is what `razorpay-webhook` stored - `Decimal(amount_paise)`, in PAISE
+    # (razorpay-webhook/handler.py:1978). `amountInRupees` beside it is a DISPLAY STRING, and
+    # reading that one is where the 118-for-a-100-capture defect started: the display figure went
+    # in as a line item and the 18% default was then applied on top of it.
+    #
+    # The rupee round trip through `exact_paise` is not ceremony - it is what PROVES the stored
+    # figure is a whole paise. A plain `int()` would truncate a drifted value into one that
+    # compares equal to nothing, and `exact_paise` is the same reader the capture comparison uses,
+    # so both sides of the invariant below agree on what a money value is.
+    #
+    # A payment row with no usable integer amount is a REFUSAL. The alternative the old code took
+    # - `float(payment.get('amountInRupees', 0))`, defaulting to zero - issues a zero-rupee tax
+    # invoice against a real capture and burns a GST number doing it.
+    try:
+        captured_paise = wa_payment_request.exact_paise(
+            Decimal(str(payment.get('amount'))) / Decimal('100'))
+    except (wa_payment_request.PaymentRequestRefused, InvalidOperation, ValueError, TypeError):
+        captured_paise = 0
+    if captured_paise <= 0:
+        logger.error(json.dumps({
+            'event': 'invoice_not_created_payment_amount_unusable',
+            'paymentId': payment_id,
+            'note': 'no invoice number consumed, nothing written',
+            'requestId': request_id,
+        }))
+        return _resp(400, {
+            'error': 'The payment record carries no usable captured amount',
+            'errorCode': 'PAYMENT_AMOUNT_UNUSABLE',
+        })
+
     # Fetch contact if available
     contact_phone = payment.get('contact', '')
     contact = _lookup_contact_by_phone(contact_phone)
@@ -1423,11 +1657,23 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'city': contact.get('city', '') if contact else '',
         'state': contact.get('state', '') if contact else '',
         'postalCode': contact.get('postalCode', '') if contact else '',
-        'items': body.get('items', [{'name': body.get('itemName', 'Payment'), 'amount': float(payment.get('amountInRupees', 0)), 'quantity': 1}]),
+        'items': body.get('items', [{'name': body.get('itemName', 'Payment'),
+                                     'amount': _paise_to_rupees(captured_paise),
+                                     'quantity': 1}]),
         'discount': float(body.get('discount', 0)),
         'shipping': float(body.get('shipping', 0)),
+        # Still configurable and still 18 by default - but the rate now decides the SPLIT of the
+        # captured amount, never the total. See `_back_calculate_inclusive`.
         'gstRate': float(body.get('gstRate', 18)),
         'convenienceFee': float(body.get('convenienceFee', 0)),
+        # ── D3: what the provider captured IS the GST-inclusive total ──
+        # `create_invoice` back-calculates the taxable value and the tax from `gstRate`, forces
+        # every additive component to zero, and refuses with `INVOICE_TOTAL_MISMATCH` if the
+        # document it is about to write does not equal this figure to the paise - before a GST
+        # number is consumed. The three money fields above are therefore zeroed by that mode
+        # whatever a caller sends: money already taken cannot grow a charge.
+        'amountIsTaxInclusive': True,
+        'expectedTotalPaise': captured_paise,
         'gstin': body.get('gstin', contact.get('gstin', '') if contact else '') or COMPANY['gstin'],
         'purpose': body.get('purpose', ''),
         'currency': payment.get('currency', 'INR'),
@@ -1654,8 +1900,10 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     else:
         paid_str = ''
 
-    cgst = tax / 2
-    sgst = tax / 2
+    # The two printed tax lines are the EXACT halves of the stored tax, not two independent
+    # halvings - see `_split_tax_halves`. Read off the stored row rather than off the `tax` float
+    # above, so the breakdown is derived from the figure the document actually carries.
+    cgst, sgst = _tax_halves_rupees(invoice.get('tax', 0))
 
     # ── Coupon and gift card: two separate lines, because they are two different things ──
     #
