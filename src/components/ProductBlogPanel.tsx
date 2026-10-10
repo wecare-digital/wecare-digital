@@ -215,15 +215,17 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
            within the panel so the whole corpus is reachable without the panel running taller than
            the page. The progress bar below tracks this element's scroll. max-height leaves room
            for the heading, pills, search and the bar. Thin scrollbar, lime thumb, to match. */
+        /* The scroll rail. The scrollbar colour is NOT set here on purpose: the canonical global
+           block in src/styles/inner-ux.css styles every scroller (the universal selector) from
+           the --scrollbar-* tokens, and ScrollbarDeclarations.test.ts forbids a second colour
+           declaration in a component (Gecko and Blink read different properties, so a local copy
+           shows as a browser bug). overscroll-behavior:contain keeps a wheel at the list's end
+           from scrolling the page. */
         .pbp-list{
           list-style:none;margin:0;padding:0 2px 0 0;
           display:flex;flex-direction:column;gap:10px;
           max-height:min(70vh,620px);overflow-y:auto;overscroll-behavior:contain;
-          scrollbar-width:thin;scrollbar-color:#d1f470 transparent;
         }
-        .pbp-list::-webkit-scrollbar{width:6px}
-        .pbp-list::-webkit-scrollbar-thumb{background:#d1f470;border-radius:50px}
-        .pbp-list::-webkit-scrollbar-track{background:transparent}
         .pbp-card{margin:0}
 
         /* SCROLL PROGRESS BAR. The track is a hairline on near-white; the fill is lime - the one

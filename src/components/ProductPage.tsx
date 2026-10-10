@@ -284,23 +284,22 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           /* THE TWO-COLUMN WRAP, SCOPED TO .has-aside so every other product page is untouched.
              Default (no aside): a plain block, so .pdp keeps its own 700px measure exactly as
              before. With an aside: a grid - a flexible product column on the left and a fixed
-             blog rail on the right, with a 48px gutter. The split starts at 960px (not 1024px)
-             so a ~1024px desktop window - the common case - gets the panel on the right rather
-             than stacked under the copy; below 960px it stacks and the panel drops below. These
-             classes live on nodes OUTSIDE .pdp, but styled-jsx scopes by component not by
-             element, so one block styles the whole return tree. */
+             blog rail on the right, with a 40px gutter. The split starts at 768px so the panel
+             sits on the RIGHT on tablets and every desktop width, only stacking below the copy
+             on phones. These classes live on nodes OUTSIDE .pdp, but styled-jsx scopes by
+             component not by element, so one block styles the whole return tree. */
           .pdp-wrap{display:block}
-          .pdp-aside{margin:64px 0 0}
+          .pdp-aside{margin:48px 0 0}
 
           @media(max-width:767px){
             .pdp-lead{font-size:18px}
             .pdp-p{font-size:18px}
             .pdp-point-t{font-size:20px}
           }
-          @media(min-width:960px){
+          @media(min-width:768px){
             .pdp-wrap.has-aside{
-              display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);
-              column-gap:48px;align-items:start;
+              display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);
+              column-gap:40px;align-items:start;
             }
             /* The product column keeps its own 700px cap inside the flexible track so the copy
                measure is unchanged; the grid track just stops it stretching under the panel. */

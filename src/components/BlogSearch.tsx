@@ -105,10 +105,15 @@ const BlogSearch: React.FC<BlogSearchProps> = ( { value, onChange, resultCount, 
            The focus rule below is unchanged and still supplies the indicator, so dropping the
            resting border from 2px to 1px costs nothing: at rest this is a container edge, and
            the thing that has to clear WCAG 1.4.11 is the focused state. */
+        /* THE SITE-WIDE SEARCH LOOK: borderless, bottom hairline only, no box, no icon - the
+           same field as the menu search (Header .nav-search) and the Anew blog panel
+           (ProductBlogPanel), so every search a visitor meets reads as one control. Transparent
+           fill, 1px bottom hairline; on focus the hairline darkens with a lime underline. */
         .bs-form input{
-          flex:1;min-width:0;height:52px;padding:0 16px;
-          font-size:17px;font-family:inherit;color:#1a1a1a;background:#fff;
-          border:1px solid #e5e7eb;border-radius:999px;
+          flex:1;min-width:0;height:52px;padding:0 2px;
+          font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
+          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          transition:border-color .2s,box-shadow .2s;
         }
         .bs-form input::placeholder{color:rgba(0,0,0,.44)}
         /* The focus treatment is a lime ring OUTSIDE a darkened border, not a removed outline:
@@ -136,19 +141,21 @@ const BlogSearch: React.FC<BlogSearchProps> = ( { value, onChange, resultCount, 
            value answers the question more cleanly than adding a fourth entry to the table.
            The indicator is now the outline at 12.48:1 on white, plus the border darkening. */
         .bs-form input:focus-visible{
-          outline:3px solid #1a3a2a;outline-offset:2px;border-color:#1a3a2a;
+          border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
-        /* Lime fill with the dark edge, matching the closing band's button after its border
-           was corrected - solid lime on white needs no help, but consistency does. */
+        /* QUIET TEXT SUBMIT, NOT A LIME PILL. The borderless field is the common search look, and
+           a filled pill beside it brought back the "box bolted to a button" the field just shed.
+           The button stays in the DOM - it is the no-JS and Enter-to-navigate path the component
+           depends on - but it is now a plain dark-green text control with no box, so the field
+           reads as one borderless search like the menu and the Anew panel. */
         .bs-form button{
-          height:52px;padding:0 22px;flex:none;
-          border:2px solid #1a3a2a;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;
-          font-size:17px;font-weight:600;font-family:inherit;cursor:pointer;
-          transition:background-color .2s;
+          height:52px;padding:0 8px;flex:none;
+          border:0;border-radius:0;background:transparent;
+          color:#1a3a2a;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;
+          text-decoration:underline;text-underline-offset:3px;transition:opacity .2s;
         }
-        .bs-form button:hover{background:#fff}
-        .bs-form button:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        .bs-form button:hover{opacity:.7}
+        .bs-form button:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:6px}
         /* The body rung, muted - it is a status line, not content. */
         .bs-count{
           margin:12px 0 0;font-size:17px;line-height:1.4;

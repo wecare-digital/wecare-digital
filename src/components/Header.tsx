@@ -725,9 +725,14 @@ const Header: React.FC = () => {
         /* Search field. Sized off the language panel's input rather than a new set of
            numbers - same 42px row, same 10px radius, same focus ring - so the two
            search fields on the site are recognisably the same control. */
-        .nav-search{width:100%;margin:0 0 12px;min-height:42px;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:15px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none}
+        /* THE SITE-WIDE SEARCH LOOK: borderless, bottom hairline only, no icon, no box. The same
+           field as the blog search (BlogSearch) and the Anew blog panel (ProductBlogPanel), so
+           every search a visitor meets reads as one control. Transparent fill, 1px bottom
+           hairline, and on focus the hairline darkens with a lime underline (WCAG 1.4.11 without
+           a box). */
+        .nav-search{width:100%;margin:0 0 12px;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .nav-search::placeholder{color:rgba(0,0,0,.42)}
-        .nav-search:focus{border-color:#1a3a2a;box-shadow:0 0 0 3px rgba(209,244,112,.3)}
+        .nav-search:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
 
         /* Three equal columns with minmax(0,1fr) rather than 1fr: a bare 1fr uses
            min-content as its floor, so "Request Amendment" would force its column
