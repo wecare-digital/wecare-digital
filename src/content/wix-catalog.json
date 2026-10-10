@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-10T09:58:39.781Z",
+  "fetchedAt": "2026-10-10T13:33:29.847Z",
   "productCount": 10,
   "products": [
     {
@@ -400,7 +400,7 @@
     },
     {
       "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
-      "name": "Viveka",
+      "name": "Anew",
       "slug": "viveka",
       "productType": "PHYSICAL",
       "visible": true,
@@ -515,5 +515,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-10T09:58:39.758Z"
+  "variantVerifiedAt": "2026-10-10T13:33:29.841Z"
 }
