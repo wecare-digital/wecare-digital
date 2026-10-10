@@ -48,14 +48,14 @@ WWW = "https://www.wecare.digital"
 UA = "wecare-url-host-matrix-probe/1"
 MAX_HOPS = 5
 
-# Every entry here auto-generates a row asserting a TERMINAL 200 at the URL itself. `/shop/` was
-# removed from this tuple on 2026-10-04: the owner withdrew the catalogue index and it now 301s to
-# the home page, so a "must answer 200 at itself" row would fail by design. The three index
-# spellings get their own rows in `matrix()`, asserting the 301 CHAIN terminates on the apex, and
-# `/shop/file-assist/` gets one asserting a product page is NOT swept up with them.
+# Every entry here auto-generates a row asserting a TERMINAL 200 at the URL itself. `/shop/` is
+# back in this tuple as of 2026-10-10: the owner restored the catalogue index, so it serves the
+# listing at 200 again rather than 301ing to home. The unslashed `/shop` and `/shop/index.html`
+# get their own rows in `matrix()` asserting they terminate at the slashed `/shop/`, and
+# `/shop/file-assist/` keeps its row asserting a product page still resolves at itself.
 PUBLIC_PAGES = (
     "/", "/cart/", "/orders/", "/blog/", "/contact/", "/checkout/status/",
-    "/grahak-os/", "/vayulok/", "/terms/", "/anew/", "/clear-closure/",
+    "/grahak-os/", "/vayulok/", "/terms/", "/anew/", "/clear-closure/", "/shop/",
 )
 
 
@@ -137,29 +137,27 @@ def matrix() -> list[dict]:
     for path in PUBLIC_PAGES:
         rows.append(_row("public", f"{SITE}{path}", 200, "a live public page"))
 
-    # ── the withdrawn catalogue index, and the product pages that must survive it ───────
-    # Owner instruction 2026-10-04: /shop/ stops being browsable and goes to the home page, while
-    # every /shop/<slug>/ product page keeps rendering and keeps its add-to-cart.
+    # ── the restored catalogue index, and the product pages beside it ──────────────────
+    # Owner instruction 2026-10-10: /shop/ is browsable again (reversing the 2026-10-04
+    # withdrawal), while every /shop/<slug>/ product page keeps rendering and keeps its
+    # add-to-cart. /shop/ itself is in PUBLIC_PAGES above, so it already has a terminal-200-at-self
+    # row.
     #
-    # `expect 200` with `terminal_url` on the apex is the correct expectation, not 301: `follow()`
-    # walks the chain and judges `hops[-1]`, so a 301 that lands on the home page terminates as a
-    # 200 AT THE APEX. Both halves are asserted - the status proves the landing page resolves, the
-    # terminal URL proves it is home rather than the listing. Asserting 301 would pass on a
-    # redirect pointing anywhere at all, including a loop or a 404.
-    #
-    # ALL THREE SPELLINGS, because all three were browsable before the change: /shop/ 200 with the
-    # full listing, /shop 301 -> /shop/, and /shop/index.html ALSO 200 with the full listing -
-    # `output: 'export'` writes that file and Amplify serves it by name.
-    for spelling in ("/shop/", "/shop", "/shop/index.html"):
-        rows.append(_row("public", f"{SITE}{spelling}", 200,
-                         "the WITHDRAWN catalogue index must terminate on the home page",
-                         terminal_url=f"{SITE}/"))
-    # The one row that proves ITEM 1 did not eat ITEM 2. The live counterpart of
-    # `test_the_shop_index_redirect_cannot_match_a_product_page` - that test asserts the
-    # DECLARATION carries no /shop/<*>, this asserts the deployed edge agrees. A wildcard source
-    # would land this row on the apex and it would fail on `terminal_url`.
+    # THE OTHER TWO SPELLINGS terminate at the slashed /shop/, not at home. `/shop` 301s to
+    # `/shop/` under next.config trailingSlash, and `/shop/index.html` is the file Amplify serves
+    # for the directory - `output: 'export'` writes out/shop/index.html again now the page is back.
+    # `follow()` walks the chain and judges hops[-1], so `expect 200` with `terminal_url` on
+    # /shop/ asserts both that the landing resolves and that it is the listing rather than home.
+    rows.append(_row("public", f"{SITE}/shop", 200,
+                     "unslashed /shop reaches the catalogue index at /shop/",
+                     terminal_url=f"{SITE}/shop/"))
+    rows.append(_row("public", f"{SITE}/shop/index.html", 200,
+                     "the index.html file resolves to the catalogue index",
+                     terminal_url=f"{SITE}/shop/"))
+    # The product page still resolves at itself, proving no /shop/<*> wildcard swept it up - the
+    # live counterpart of the no-wildcard assertion in test_url_host_routing_rules.py.
     rows.append(_row("public", f"{SITE}/shop/file-assist/", 200,
-                     "a product page is NOT caught by the index redirect",
+                     "a product page resolves at itself, not caught by any /shop rule",
                      terminal_url=f"{SITE}/shop/file-assist/"))
 
     # ── passthrough rewrites: the payment-critical rows ─────────────────────────────

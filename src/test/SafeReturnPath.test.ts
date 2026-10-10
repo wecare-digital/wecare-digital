@@ -252,14 +252,15 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     // start handing out a 404 for a destination this test vouches for — which is exactly the
     // gap this block used to record, so the check is now total rather than partial.
     //
-    // FIVE BECAME FOUR ON 2026-10-04, and this is the second use of the inversion convention the
-    // header prescribes. `shop` was in this loop and the loop CAUGHT the withdrawal: the owner
-    // deleted `src/pages/shop/index.tsx` that day, so `/shop/` stopped having an exported page
-    // and this assertion went red - working exactly as designed, rather than letting the
-    // validator keep vouching for a URL that now 301s to the home page. The prescribed
-    // resolutions were "the entry leaves ALLOWED" or "the page lands"; the page is not landing,
-    // because the withdrawal is the owner's instruction, so the entry left and the fallback is
-    // asserted below.
+    // FIVE BECAME FOUR ON 2026-10-04, then the page came back ON 2026-10-10. `shop` was in this
+    // loop and the loop CAUGHT the 2026-10-04 withdrawal: the owner deleted
+    // `src/pages/shop/index.tsx` that day, so `/shop/` stopped having an exported page. The owner
+    // then restored the index on 2026-10-10, so the page exists again (asserted positively in the
+    // block below). But `/shop/` is still NOT a sign-in return destination and never rejoined
+    // ALLOWED: the return allowlist is the small set of sign-in-gated customer flows, and the
+    // catalogue index is a public page with no sign-in step. So this loop stays at the service
+    // set plus cart/orders/blog, and the fallback for `/shop/` is still asserted below - now by
+    // membership decision rather than by the page being absent.
     //
     // SEVEN BECAME EIGHT ON 2026-10-10, when Request Pickup became the fifth service: the loop
     // is derived from SERVICE_CHOICES, so it covered the new page the moment the config did -
@@ -279,20 +280,22 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     }
   } );
 
-  it( 'no longer accepts /shop/, because the owner withdrew the catalogue index', () => {
+  it( 'does not accept /shop/ as a return path, even though the catalogue index exists again', () => {
     /*
-     * THE INVERSION, in the same shape as the /checkout/ and /account/ block below it.
+     * RESTORED 2026-10-10, and this is now a membership decision rather than a page-absence one.
      *
-     * Measured from the filesystem rather than trusted: src/pages/shop/ holds only [slug].tsx
-     * after the withdrawal, so `output: 'export'` emits the seven PRODUCT pages and no index.
-     * A `?return=/shop/` would otherwise be handed back verbatim and spend a redirect landing on
-     * the home page.
+     * The catalogue index came back that day (src/pages/shop/index.tsx recreated, the three /shop
+     * 301 rules removed), so `pageExists('shop')` is TRUE again - measured from the filesystem
+     * rather than trusted. But /shop/ is deliberately NOT a sign-in return destination: ALLOWED is
+     * the set of sign-in-gated customer flows, and the catalogue index is a public page a visitor
+     * reaches directly, with no OTP step to return from. So a hand-written or externally-supplied
+     * `?return=/shop/` still falls back to /cart/.
      *
      * No in-app flow is affected: src/pages/cart.tsx is the only producer of a `return` value and
-     * it produces /cart/. The seven product pages are unaffected by this and were never allowlist
-     * members - a return path is one of a few fixed destinations, not an arbitrary product URL.
+     * it produces /cart/. The seven product pages were never allowlist members either - a return
+     * path is one of a few fixed destinations, not an arbitrary product URL.
      */
-    expect( pageExists( 'shop' ) ).toBe( false );
+    expect( pageExists( 'shop' ) ).toBe( true );
     expect( safeLocalReturnPath( '/shop/' ) ).toBe( DEFAULT );
     expect( safeLocalReturnPath( '/shop' ) ).toBe( DEFAULT );
     // And a product page is not smuggled in either, for the same reason: it is not on the list.

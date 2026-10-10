@@ -108,7 +108,16 @@ const STRUCTURAL = [
    * structural front doors. They keep rendering.
    *
    * Regenerate with `node scripts/generate-public-pages.js`; never hand-edit the JSON.
+   *
+   * RESTORED 2026-10-10, on owner instruction: '/shop' is a browsable catalogue index again, so
+   * generate-sitemap.js re-added it to PUBLIC_EXACT and it needs its group back here or the
+   * public-pages gate refuses the build. A 'start' front door, beside /blog and /orders, because
+   * it is a way into the catalogue rather than a single service page. The matching page is
+   * src/pages/shop/index.tsx; the checkout release gate reads out/shop/index.html, which that
+   * page now emits again.
    */
+  { path: '/shop', group: 'start', name: 'Shop',
+    description: 'The WECARE.DIGITAL catalogue. Individual products live under /shop/<slug>/.' },
   { path: '/orders', group: 'start' },
   // Zip is the request/delivery/pickup hub — a front door to a set of actions, like Orders and
   // Blog beside it, rather than a service page — so it sits in 'start'. Its name and description

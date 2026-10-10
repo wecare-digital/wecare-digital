@@ -11,17 +11,21 @@ import type { ShopProduct } from '../content/shop';
 import catalogue from '../content/wix-catalog.json';
 
 /**
- * THE TWO HALVES OF THE 2026-10-04 OWNER INSTRUCTION, PINNED TOGETHER IN ONE FILE.
+ * THE TWO HALVES OF THE /shop CATALOGUE DECISION, PINNED TOGETHER IN ONE FILE.
  *
- * The instruction has two clauses that pull in opposite directions:
+ * On 2026-10-04 the owner withdrew the catalogue index and had /shop 301 to the home page. On
+ * 2026-10-10 the owner REVERSED that: /shop is browsable again. This file is inverted to pin the
+ * restored state (the repo's standing "invert, don't delete" convention, so the file keeps
+ * guarding both halves of the decision rather than disappearing):
  *
- *   ITEM 1  /shop/ stops being browsable and goes to the home page.
+ *   ITEM 1  /shop/ is browsable: the index page exists, no /shop 301 rules remain, and '/shop' is
+ *           in the page allowlist and the sitemap.
  *   ITEM 2  every /shop/<slug>/ product page keeps rendering and keeps adding to cart.
  *
- * Either one is easy alone. The cheapest way to satisfy ITEM 1 is a single `/shop/<*>` Amplify
- * redirect, and that silently destroys ITEM 2 by 301ing all seven product pages onto the home
- * page. The cheapest way to protect ITEM 2 is to change nothing, which ignores ITEM 1. So they are
- * asserted in the same file, and a change that trades one for the other reddens here.
+ * ITEM 2 was never affected by either direction of the decision - the product pages read the same
+ * SHOP_PRODUCTS list the index does - so those assertions are unchanged. What inverted is ITEM 1:
+ * the page must now EXIST, the redirect rules must now be ABSENT, and the breadcrumb must now NAME
+ * the index rather than hide it.
  *
  * WHY SOME ASSERTIONS READ SOURCE AS TEXT. Where the value under test is a LITERAL rather than a
  * runtime export - a Python dict, a `const` array of route strings - there is nothing to import,
@@ -62,35 +66,33 @@ const declaredTokens = ( source: string, declaration: string, end: string ): str
   ).map( match => match[ 1 ] );
 };
 
-describe( 'the withdrawn catalogue index (ITEM 1)', () => {
-  it( 'a: has no listing page left in the export', () => {
-    // The hosting redirect and the deletion are two layers and both ship. The redirect is what
-    // makes /shop/ stop being browsable; deleting the page is what makes that true even if a
-    // rule is lost, and it is what removes out/shop/index.html from the artifact.
-    expect( fs.existsSync( path.join( ROOT, 'src/pages/shop/index.tsx' ) ) ).toBe( false );
+describe( 'the restored catalogue index (ITEM 1)', () => {
+  it( 'a: has a listing page in the export again', () => {
+    // Restored 2026-10-10. output: 'export' emits out/shop/index.html from this source file, which
+    // is what makes /shop/ serve the catalogue rather than fall through to the catch-all.
+    expect( fs.existsSync( path.join( ROOT, 'src/pages/shop/index.tsx' ) ) ).toBe( true );
   } );
 
-  it( 'b: declares all three index spellings as EXACT 301s, and no /shop wildcard', () => {
+  it( 'b: declares no /shop redirect, and no /shop wildcard either', () => {
     /*
      * THIS ASSERTS A DECLARATION, NOT LIVE BEHAVIOUR. A vitest file cannot reach Amplify, so what
      * is checked here is that scripts/provision_legacy_redirects.py SAYS the right thing. The live
-     * proof is the four /shop rows in scripts/probe_url_host_matrix.py, which follow the real
-     * redirect chain against the deployed site; tests/test_url_host_routing_rules.py proves the
-     * same declaration from the Python side, against what apply() actually writes.
+     * proof is the /shop rows in scripts/probe_url_host_matrix.py, which follow the real redirect
+     * chain against the deployed site; tests/test_url_host_routing_rules.py proves the same
+     * declaration from the Python side, against what apply() actually writes.
      *
-     * The wildcard's ABSENCE is the assertion that matters most in this file. /shop/<*> would
-     * satisfy ITEM 1 in one line and 301 every product page onto home.
+     * BOTH the three index 301s AND a /shop wildcard must be ABSENT: either one, in front of a
+     * page that now resolves at 200, would 301 the restored catalogue away.
      */
     const provisioner = read( 'scripts/provision_legacy_redirects.py' );
     const signature = provisioner.indexOf( 'def desired_redirects' );
     expect( signature, 'desired_redirects() not found' ).toBeGreaterThan( -1 );
 
     /*
-     * SLICED TO THE `return [ ... ]` LIST, NOT TO THE WHOLE FUNCTION BODY. This is the same
-     * slice-the-declaration discipline the module docstring describes, and it bit immediately:
-     * desired_redirects()'s own docstring EXPLAINS why /shop/<*> is forbidden, so it necessarily
-     * contains that string. Slicing the body would make the negative assertion below fail against
-     * a completely correct provisioner, and the obvious "fix" would be to delete the explanation.
+     * SLICED TO THE `return [ ... ]` LIST, NOT TO THE WHOLE FUNCTION BODY. desired_redirects()'s
+     * docstring names /shop while explaining the restoration, so slicing the body would make the
+     * negative assertions below fail against a correct provisioner and the obvious "fix" would be
+     * to delete the explanation.
      */
     const start = provisioner.indexOf( 'return [', signature );
     expect( start, 'desired_redirects() has no return list' ).toBeGreaterThan( -1 );
@@ -99,17 +101,17 @@ describe( 'the withdrawn catalogue index (ITEM 1)', () => {
     for ( const spelling of [ '/shop', '/shop/', '/shop/index.html' ] ) {
       expect(
         list,
-        `${spelling} is not declared as a 301 to the home page in desired_redirects()`,
-      ).toContain( `{"source": "${spelling}", "target": "/", "status": "301"}` );
+        `${spelling} is still declared as a 301 in desired_redirects(), but the index is restored.`,
+      ).not.toContain( `{"source": "${spelling}", "target": "/", "status": "301"}` );
     }
     expect(
       list,
-      'desired_redirects() declares a /shop wildcard. An Amplify wildcard source matches any '
-      + 'suffix, so this 301s all seven product pages onto the home page.',
+      'desired_redirects() declares a /shop wildcard. In front of the restored index this 301s '
+      + 'the catalogue and all seven product pages onto the home page.',
     ).not.toContain( '/shop/<*>' );
   } );
 
-  it( 'c: is withdrawn from the page allowlist and the sitemap, while the product prefix stays', () => {
+  it( 'c: is back in the page allowlist and the sitemap, and the product prefix still stays', () => {
     const appSource = read( 'src/pages/_app.tsx' );
     const metaStart = appSource.indexOf( 'const PUBLIC_PAGE_META' );
     expect( metaStart, 'PUBLIC_PAGE_META not found in _app.tsx' ).toBeGreaterThan( -1 );
@@ -119,17 +121,17 @@ describe( 'the withdrawn catalogue index (ITEM 1)', () => {
       metaBlock.matchAll( /^\s*'(\/[a-z0-9-]+)'\s*:/gm ),
     ).map( match => match[ 1 ] );
     expect( metaRoutes.length, 'no routes parsed out of PUBLIC_PAGE_META' ).toBeGreaterThan( 10 );
-    expect( metaRoutes ).not.toContain( '/shop' );
+    expect( metaRoutes ).toContain( '/shop' );
 
     const sitemapSource = read( 'scripts/generate-sitemap.js' );
     const exact = declaredTokens( sitemapSource, 'const PUBLIC_EXACT', '] )' );
     expect( exact.length, 'no routes parsed out of PUBLIC_EXACT' ).toBeGreaterThan( 10 );
-    expect( exact ).not.toContain( '/shop' );
+    expect( exact ).toContain( '/shop' );
 
-    // THE PREFIX MUST SURVIVE, and it is the other half of the same decision. It is now the only
-    // way the seven product URLs are advertised, because there is no listing page linking to them.
+    // THE PREFIX STILL MATTERS: it is how the seven product URLs are advertised to a crawler
+    // (the index links to them for a human, but the sitemap enumerates them through this prefix).
     // normalizeRoute( '/shop/file-assist/' ) yields '/shop/file-assist', which still
-    // startsWith( '/shop/' ) - so dropping the EXACT entry cannot affect it.
+    // startsWith( '/shop/' ), and the restored EXACT '/shop' entry is a different token.
     const prefixes = declaredTokens( sitemapSource, 'const PUBLIC_PREFIXES', ']' );
     expect( prefixes ).toContain( '/shop/' );
   } );
@@ -220,23 +222,25 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
     window.localStorage.clear();
   } );
 
-  it( 'g: names the withdrawn index nowhere a visitor or a crawler can follow it', () => {
-    // Both surfaces, because they fail differently. A rendered href that 301s is a visible
-    // round trip; a BreadcrumbList item pointing at a redirect makes the rich result disappear
-    // with no error at all.
+  it( 'g: names the restored index on the product page and in its breadcrumb graph', () => {
+    // Both surfaces, because the restoration has to land on both. The product page now renders a
+    // Shop breadcrumb and an "all items" link pointing at /shop/, and the BreadcrumbList graph
+    // carries a matching Shop item - a rendered trail and a schema graph that disagree make the
+    // rich result disappear with no error at all, so they are asserted together.
     const product = shopProductBySlug( 'kiosk' ) as ShopProduct;
     const { container } = render( React.createElement( ShopProductPage, { product } ) );
     const hrefs = Array.from( container.querySelectorAll( 'a' ) )
       .map( anchor => anchor.getAttribute( 'href' ) );
-    expect( hrefs ).not.toContain( '/shop/' );
-    expect( hrefs ).not.toContain( '/shop' );
+    // next/link strips the trailing slash the source passes ('/shop/'), so the rendered href
+    // is '/shop'. The BreadcrumbList graph below keeps the canonical slashed form.
+    expect( hrefs ).toContain( '/shop' );
 
     const graph = JSON.stringify( shopProductSchema( product ) );
     expect(
       graph,
-      'the BreadcrumbList still names the withdrawn /shop/ index',
-    ).not.toContain( 'wecare.digital/shop/"' );
-    expect( graph ).not.toContain( '"name":"Shop"' );
+      'the BreadcrumbList does not name the restored /shop/ index',
+    ).toContain( 'wecare.digital/shop/"' );
+    expect( graph ).toContain( '"name":"Shop"' );
   } );
 } );
 
@@ -270,38 +274,19 @@ describe( 'the snapshot and the tree still agree', () => {
     }
   } );
 
-  it( 'i: has no module anywhere still importing the deleted listing page', () => {
+  it( 'i: the restored index page is a real exported Next page', () => {
     /*
-     * THE CROSS-PHASE GUARD. src/test/ShopCatalogue.test.tsx is also edited by another workstream,
-     * and its copy carries `import ShopIndex from '../pages/shop/index'`. If that copy lands with
-     * the import intact, this goes red BEFORE tsc is consulted and it goes red NAMING THE FILE,
-     * which is a far faster read than a module-resolution error from the type checker.
+     * RESTORED 2026-10-10. This block used to guard that nothing imported the deleted
+     * src/pages/shop/index page; with the page back, the right assertion is that it is a genuine
+     * Next page - a default-exported React component with a getStaticProps (output: 'export'
+     * builds it from that pair) - so a future edit that empties or malforms it reddens here with a
+     * named file rather than failing opaquely at build time.
      */
-    const walk = ( dir: string ): string[] => fs.readdirSync( dir, { withFileTypes: true } )
-      .flatMap( entry => {
-        const full = path.join( dir, entry.name );
-        if ( entry.isDirectory() ) return walk( full );
-        return /\.tsx?$/.test( entry.name ) ? [ full ] : [];
-      } );
-
-    const sources = walk( path.join( ROOT, 'src' ) );
-    expect( sources.length, 'no sources were walked, so this assertion proves nothing' )
-      .toBeGreaterThan( 50 );
-    /*
-     * ANCHORED TO AN `import` STATEMENT AT THE START OF A LINE, not to a mention of the path
-     * anywhere in the file. This file's own comment above quotes the offending import line, so an
-     * unanchored match reported THIS FILE as an importer - a guard that always fails is a guard
-     * that gets deleted. The anchored form asserts the real thing: a module that actually imports
-     * the deleted page.
-     */
-    const importers = sources
-      .filter( file => /^\s*import\s[^;\n]*from\s'[^']*pages\/shop\/index'/m
-        .test( fs.readFileSync( file, 'utf8' ) ) )
-      .map( file => path.relative( ROOT, file ) );
-    expect(
-      importers,
-      'these modules import src/pages/shop/index, which was deleted on 2026-10-04 when the '
-      + 'owner withdrew the catalogue index',
-    ).toEqual( [] );
+    const indexPath = path.join( ROOT, 'src/pages/shop/index.tsx' );
+    expect( fs.existsSync( indexPath ), 'src/pages/shop/index.tsx is missing' ).toBe( true );
+    const source = fs.readFileSync( indexPath, 'utf8' );
+    expect( source, 'the index page has no default export' ).toMatch( /export default\s/ );
+    expect( source, 'the index page has no getStaticProps, so output: export cannot build it' )
+      .toContain( 'getStaticProps' );
   } );
 } );

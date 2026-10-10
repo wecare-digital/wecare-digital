@@ -64,19 +64,19 @@ const OFFERINGS = [
 /**
  * Ways to interact with us, and page kinds. Neither is a thing we sell.
  *
- * '/shop' WAS IN THIS LIST AND WAS REMOVED ON 2026-10-04. It was the interesting entry - the page
- * most obviously about things that are sold, classified here because it was a LIST of them rather
- * than one of them. The owner then withdrew the catalogue index entirely: it 301s to the home page
- * and its page file is deleted, so the route no longer exists and this is no longer a claim about
- * anything. Leaving it would not have failed - `covers every route` only requires
- * allRoutes() to be a subset of OFFERINGS plus NOT_OFFERINGS - which is exactly why it had to be
- * removed deliberately rather than being caught by a gate.
+ * '/shop' IS BACK IN THIS LIST, 2026-10-10. It left on 2026-10-04 when the owner withdrew the
+ * catalogue index; the owner restored it, so the route exists again and must be classified. It
+ * belongs HERE and not in OFFERINGS for the reason it always did: it is a LIST of things that are
+ * sold rather than one of them, so it emits no Service node and its PUBLIC_PAGE_META entry carries
+ * no serviceType. The `covers every route` assertion requires every public route to be in
+ * OFFERINGS or NOT_OFFERINGS, so a restored route that is missing from both would redden there.
  *
  * The seven PRODUCT pages were never classified here and still are not: they are the dynamic route
  * '/shop/[slug]' and each emits its own schema.org Product with an Offer - price, currency and
  * availability - through components/ShopProductHead.tsx.
  */
 const NOT_OFFERINGS = [
+  '/shop',
   '/submit-request', '/request-amendment', '/drop-docs', '/vault', '/request-pickup',
   '/leave-review', '/refer-and-earn',
   '/terms', '/privacy', '/contact', '/orders',

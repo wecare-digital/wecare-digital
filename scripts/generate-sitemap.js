@@ -74,11 +74,12 @@ const PUBLIC_EXACT = new Set( [
   // copy back. It is NOT /get/, which stays out of the sitemap because it needs a verified
   // link to mean anything - this page is the linkable front door that points at it.
   '/vault',
-  // THE CATALOGUE INDEX '/shop' IS WITHDRAWN, 2026-10-04, on owner instruction: it 301s to the
-  // home page and its page file is deleted, so advertising it here would submit a URL that
-  // redirects. Its PUBLIC_PAGE_META entry in _app.tsx went with it - the two are coupled by
-  // src/test/PublicRouteRegistration.test.ts. The seven PRODUCT pages are NOT withdrawn: they come
-  // in through the '/shop/' PREFIX below, which stays.
+  // THE CATALOGUE INDEX '/shop' IS RESTORED, 2026-10-10, on owner instruction: it is browsable
+  // again (the three /shop 301 rules were removed from scripts/provision_legacy_redirects.py and
+  // src/pages/shop/index.tsx is recreated), so it belongs in the sitemap. Its PUBLIC_PAGE_META
+  // entry in _app.tsx is back too - the two are coupled by src/test/PublicRouteRegistration.test.ts.
+  // The seven PRODUCT pages come in through the '/shop/' PREFIX below, which is separate.
+  '/shop',
   // Zip (the request/delivery/pickup hub) and Perks (gift cards, rewards, offers). Same rule as
   // every group above: both are in PUBLIC_PAGE_META in _app.tsx, so they render; advertising them
   // here without that entry would put blank pages in front of a crawler. /perks is also the

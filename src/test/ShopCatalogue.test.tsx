@@ -544,37 +544,39 @@ describe( 'the product page', () => {
     expect( json ).not.toContain( '[slug]' );
   } );
 
-  it( 'offers a way out through a two-item breadcrumb, never back to the withdrawn listing', () => {
+  it( 'offers a way back to the listing through a three-item breadcrumb and an all-items link', () => {
     /*
-     * REWRITTEN 2026-10-04. This was `offers a way back to the listing` and asserted an
-     * "All items in the shop" link pointing at /shop/. The owner withdrew the catalogue index, so
-     * that link and the middle "Shop" breadcrumb both pointed at a URL that 301s to the home page -
-     * and the trail's middle step redirected to its own first step.
+     * REWRITTEN 2026-10-10, inverting the 2026-10-04 rewrite. The owner restored the catalogue
+     * index, so /shop/ resolves at 200 again: the product page carries a three-item trail
+     * (Home / Shop / product) and an "All items in the shop" link pointing at /shop/. The middle
+     * Shop crumb is a real link to a real page, not a redirect to its own first step.
      *
-     * The crumb is REMOVED rather than left href-less: components/Breadcrumbs.tsx renders an
-     * href-less item as <span aria-current="page">, so keeping it would announce two current pages.
-     * That is why the negative half below checks for the absence of a /shop/ href AND the absence
-     * of a second aria-current.
+     * Exactly one current page still - the product - because only the last crumb is href-less and
+     * rendered as <span aria-current="page">; the Shop crumb is a link.
      */
     const kiosk = shopProductBySlug( 'kiosk' ) as ShopProduct;
     const { container } = render( <ShopProductPage product={ kiosk } /> );
 
     const trail = container.querySelector( 'nav[aria-label="Breadcrumb"]' ) as HTMLElement;
     expect( trail, 'the product page renders no breadcrumb trail' ).toBeTruthy();
-    expect( trail.querySelectorAll( 'li' ) ).toHaveLength( 2 );
+    expect( trail.querySelectorAll( 'li' ) ).toHaveLength( 3 );
     expect( screen.getByRole( 'link', { name: 'Home' } ).getAttribute( 'href' ) )
       .toBe( asRendered( '/' ) );
+    // asRendered: next/link strips the trailing slash the source passes ('/shop/'), so the
+    // rendered href is '/shop' - the same normalisation asRendered('/') applies to the Home crumb.
+    expect( screen.getByRole( 'link', { name: 'Shop' } ).getAttribute( 'href' ) )
+      .toBe( asRendered( '/shop/' ) );
     // Exactly one current page, and it is the product.
     const current = trail.querySelectorAll( '[aria-current="page"]' );
     expect( current ).toHaveLength( 1 );
     expect( current[ 0 ].textContent ).toBe( 'Kiosk' );
 
-    // Nothing on the page points at the withdrawn index, in either spelling.
+    // The page points back at the restored index, and offers the all-items link.
     const hrefs = Array.from( container.querySelectorAll( 'a' ) )
       .map( a => a.getAttribute( 'href' ) );
-    expect( hrefs ).not.toContain( '/shop/' );
-    expect( hrefs ).not.toContain( '/shop' );
-    expect( screen.queryByRole( 'link', { name: 'All items in the shop' } ) ).toBeNull();
+    expect( hrefs ).toContain( asRendered( '/shop/' ) );
+    expect( screen.getByRole( 'link', { name: 'All items in the shop' } ).getAttribute( 'href' ) )
+      .toBe( asRendered( '/shop/' ) );
   } );
 } );
 

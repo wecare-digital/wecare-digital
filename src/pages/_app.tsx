@@ -528,21 +528,17 @@ const PUBLIC_PAGE_META: Record<string, {
   '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
   '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
   '/refer-and-earn': { name: 'Refer & Earn', type: 'WebPage', description: 'Introduce someone who would find this useful.' },
-  // THE CATALOGUE INDEX IS WITHDRAWN, 2026-10-04, on owner instruction: /shop/ is no longer
-  // browsable and 301s to the home page (scripts/provision_legacy_redirects.py declares all three
-  // spellings, and src/pages/shop/index.tsx is deleted so it leaves the export entirely). Its
-  // '/shop' key is therefore gone from this map, together with its '/shop' entry in PUBLIC_EXACT in
-  // scripts/generate-sitemap.js - the two are coupled by src/test/PublicRouteRegistration.test.ts,
-  // which requires every route in this map to be in the sitemap allowlist, so neither could be
-  // withdrawn alone.
+  // THE CATALOGUE INDEX IS RESTORED, 2026-10-10, on owner instruction: /shop/ is browsable again,
+  // so this key is back in the map (which is both the public allowlist and the structured-data
+  // source - without it the page renders the staff sign-in shell at HTTP 200). It is coupled to
+  // the '/shop' entry in PUBLIC_EXACT in scripts/generate-sitemap.js and the STRUCTURAL entry in
+  // scripts/generate-public-pages.js by src/test/PublicRouteRegistration.test.ts, so the three
+  // move together. src/pages/shop/index.tsx is restored to emit out/shop/index.html.
   //
-  // THE SEVEN PRODUCT PAGES ARE UNAFFECTED and still render. They were never in this map: they are
-  // '/shop/[slug]', a dynamic route, and this map is keyed on router.pathname - so an entry for
-  // them would key on the literal string '/shop/[slug]' and every URL computed from it, canonical
-  // included, would name a page that does not exist. They qualify through the isContentPublic chain
-  // below and own their whole <head> through components/ShopProductHead.tsx, exactly as
-  // /post/[slug] does through SEO.tsx. Do not remove '/shop/[slug]' from that chain while
-  // withdrawing this entry: without it a product page renders the staff sign-in shell at HTTP 200.
+  // THE SEVEN PRODUCT PAGES stay in the isContentPublic chain as '/shop/[slug]', NOT here: this
+  // map is keyed on router.pathname, so a dynamic route keyed here would compute every URL from
+  // the literal '[slug]'. Only the index front door belongs in this map.
+  '/shop': { name: 'Shop', type: 'WebPage', description: 'The WECARE.DIGITAL catalogue. Individual products live under /shop/<slug>/.' },
   // Shipments gathers the request/delivery/pickup actions in one place. It links the real request
   // routes (orders, request-amendment, drop-docs, vault, leave-review) and renders anything with
   // no backend (pickup/visit/delivery tracking) as a clearly non-transacting item.

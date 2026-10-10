@@ -59,17 +59,14 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
         ariaLabel={ product.name }
       >
         <div className="shopd-in">
-          {/* TWO ITEMS, NOT THREE, since 2026-10-04. The middle crumb was
-              { label: 'Shop', href: '/shop/' } and the catalogue index has been withdrawn on owner
-              instruction, so that href now 301s to the home page - a breadcrumb trail whose middle
-              step redirects to its own first step.
-              THE ITEM IS REMOVED RATHER THAN HAVING ITS href DROPPED: components/Breadcrumbs.tsx
-              renders an href-less crumb as <span aria-current="page">, so keeping it would
-              announce TWO current pages to a screen reader. ShopProductHead's BreadcrumbList is
-              cut to the same two items, because a graph describing a trail the page does not
-              render is how a rich result disappears silently. */}
+          {/* THREE ITEMS AGAIN, since 2026-10-10. The middle crumb { label: 'Shop', href: '/shop/' }
+              was removed on 2026-10-04 when the catalogue index was withdrawn and that href 301'd to
+              home. The owner restored the index, so /shop/ resolves at 200 again and the Shop crumb
+              points at a real listing. ShopProductHead's BreadcrumbList must carry the same three
+              items, or the rendered trail and the structured-data graph disagree. */}
           <Breadcrumbs items={ [
             { label: 'Home', href: '/' },
+            { label: 'Shop', href: '/shop/' },
             { label: product.name },
           ] } />
 
@@ -144,9 +141,12 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             <p className="shopd-note">
               Review your final total in the cart before payment.
             </p>
-            {/* The "All items in the shop" link was here. Removed 2026-10-04: the catalogue index
-                is withdrawn, so it pointed at a URL that 301s to the home page - an invitation to
-                a list that no longer exists. The Home crumb above is the way out of this page. */}
+            {/* The way back to the full catalogue. Restored 2026-10-10 with the /shop index: it
+                was removed on 2026-10-04 because /shop/ 301'd to home, and now points at a real
+                listing again. */}
+            <p className="shopd-back">
+              <Link href="/shop/">All items in the shop</Link>
+            </p>
           </section>
         </div>
 
@@ -219,8 +219,15 @@ const ShopProductPage: React.FC<ShopProductPageProps> = ( { product } ) => {
             font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
           }
 
-          /* The .shopd-back rules went with the link they styled, 2026-10-04. The class has no
-             other reference in src/ or tools/, so these were dead declarations. */
+          /* The .shopd-back link, restored 2026-10-10 with the /shop index. :global() for the
+             same reason as .shopd-cta: it wraps a capitalised <Link> styled-jsx cannot scope. */
+          .shopd-back{margin:28px 0 0}
+          .shopd-in :global(.shopd-back a){
+            font-size:16px;font-weight:600;color:#1a3a2a;text-decoration:underline;
+            text-underline-offset:3px;
+          }
+          .shopd-in :global(.shopd-back a:hover){text-decoration:none}
+          .shopd-in :global(.shopd-back a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px}
 
           @media(max-width:767px){
             .shopd-p{font-size:18px}

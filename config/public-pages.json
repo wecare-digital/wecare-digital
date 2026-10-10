@@ -98,6 +98,12 @@
       "description": "Published articles. Paginated index; individual posts live under /post/<slug>/."
     },
     {
+      "path": "/shop",
+      "group": "start",
+      "name": "Shop",
+      "description": "The WECARE.DIGITAL catalogue. Individual products live under /shop/<slug>/."
+    },
+    {
       "path": "/orders",
       "group": "start",
       "name": "Orders",

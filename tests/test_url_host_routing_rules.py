@@ -135,27 +135,13 @@ RATIFIED_REDIRECTS: dict[tuple[str, str, str], str] = {
         "carry both - declaring one leaves the other 404ing. Target keeps its trailing slash "
         "because /shipments would itself redirect before resolving. 301 not 302: only a "
         "permanent redirect consolidates ranking.",
-    ("/shop", "/", "301"):
-        "WITHDRAWN, neither renamed nor retired-as-wrong. Owner instruction 2026-10-04: the "
-        "catalogue INDEX stops being browsable and /shop/ goes to the home page. Because the "
-        "listing has no replacement page, retired_url_equity.py's equity argument does not "
-        "apply - this 301 is instruction compliance, not equity recovery. 301 not 302: the "
-        "withdrawal is permanent, and a temporary status would keep the URL in the index. "
-        "Measured before the change: /shop 301 -> /shop/ -> 200 serving the full listing.",
-    ("/shop/", "/", "301"):
-        "The canonical form under next.config trailingSlash, and the spelling the owner named. "
-        "Owner instruction 2026-10-04. Measured before the change: /shop/ served the full "
-        "listing at 200. Both slash forms are declared because an Amplify source pattern is "
-        "matched as given rather than normalised, so declaring one leaves the other browsable. "
-        "EXACT SOURCE, NEVER /shop/<*>: a wildcard would 301 all seven /shop/<slug>/ product "
-        "pages, which the same instruction requires to keep rendering and adding to cart.",
-    ("/shop/index.html", "/", "301"):
-        "The third spelling, and the one that is easy to miss. Owner instruction 2026-10-04. "
-        "Measured before the change: /shop/index.html returned 200 AND served the full listing, "
-        "because output: 'export' writes out/shop/index.html and Amplify serves that file by "
-        "its own name. Deleting the page closes this for the current build; the rule is kept "
-        "PERMANENTLY anyway, because it is what stops a re-added index becoming reachable again "
-        "through a URL nobody is watching. It cannot touch a product page: the source is exact.",
+    # THE THREE /shop 301 RULES ARE GONE, 2026-10-10. They sent /shop, /shop/ and
+    # /shop/index.html to the home page while the catalogue index was withdrawn (owner
+    # instruction 2026-10-04). The owner reversed that on 2026-10-10: the index is browsable
+    # again (src/pages/shop/index.tsx recreated, /shop back in PUBLIC_PAGE_META and PUBLIC_EXACT),
+    # so a 301 in front of it would bounce the catalogue to home. desired_redirects() no longer
+    # declares them, and RATIFIED_REDIRECTS no longer ratifies them, so the two stay in step.
+    # The seven /shop/<slug>/ product pages were never redirected and are unaffected.
 }
 
 RATIFIED_RULES = [
@@ -464,27 +450,28 @@ def test_no_ratified_redirect_can_shadow_a_passthrough_or_target_the_staff_tree(
         )
 
 
-def test_the_shop_index_redirect_cannot_match_a_product_page(
+def test_the_restored_shop_index_has_no_redirect_and_no_wildcard_near_a_product_page(
     redirects, before, tmp_path, monkeypatch,
 ):
-    """The /shop index 301s in all three spellings, and NOT ONE of them can touch a product page.
+    """The /shop index is browsable again: no 301 on it, and still no wildcard near a product page.
 
-    THE TWO HALVES OF THE 2026-10-04 INSTRUCTION ARE IN TENSION, which is the whole reason this
-    test exists. The owner asked for `/shop/` to stop being browsable AND for every
-    `/shop/<slug>/` product page to keep rendering and keep adding to cart. One `/shop/<*>`
-    source would satisfy the first half with a single line and silently destroy the second,
-    301ing all seven product pages onto the home page - a self-inflicted catalogue outage that
-    no status-code check on `/shop/` itself would ever notice.
+    INVERTED 2026-10-10. The owner withdrew the catalogue index on 2026-10-04 and had /shop,
+    /shop/ and /shop/index.html 301 to home; this test used to assert those three rules were
+    written. The owner reversed that on 2026-10-10 (src/pages/shop/index.tsx recreated, /shop back
+    in PUBLIC_PAGE_META and PUBLIC_EXACT), so a 301 in front of the index would now bounce the
+    catalogue to home. The first assertion is therefore inverted: NONE of the three spellings may
+    be a /shop -> / 301 any more.
 
-    So the wildcard's ABSENCE is asserted here as a first-class requirement, through this file's
-    own `_match_prefix` rather than a substring search: `'<*>' in source` would also match a
-    source that merely CONTAINS the characters, and `_match_prefix` asks the real question -
-    does this pattern wildcard its suffix.
+    THE WILDCARD GUARD IS KEPT UNCHANGED, because it protects the seven /shop/<slug>/ product
+    pages regardless of what the index does. A `/shop/<*>` source would 301 every product page
+    onto home - a self-inflicted catalogue outage no status check on /shop/ would notice - so its
+    absence stays a first-class requirement, asserted through this file's own `_match_prefix`
+    rather than a substring search.
 
     The three `_patterns_overlap` probes are deliberately a trio including a POSITIVE case. Two
-    negatives alone would pass on a predicate that had been broken into always returning False,
-    which would disable the shadowing guard in the same file; the `/shop/<*>` case proves the
-    predicate can still tell the dangerous pattern from the safe ones.
+    negatives alone would pass on a predicate broken into always returning False, which would
+    disable the shadowing guard; the `/shop/<*>` case proves the predicate can still tell the
+    dangerous pattern from the safe ones.
 
     No AWS call: `apply()` takes the capturing stub and the committed pre-change fixture.
     """
@@ -498,10 +485,10 @@ def test_the_shop_index_redirect_cannot_match_a_product_page(
 
     written = {_rule_key(r) for r in client.written}
     for spelling in ("/shop", "/shop/", "/shop/index.html"):
-        assert (spelling, "/", "301") in written, (
-            f"{spelling} does not 301 to the home page. The owner asked on 2026-10-04 for the "
-            f"catalogue index to stop being browsable in every spelling; /shop/index.html was "
-            f"measured serving the full listing at 200, so omitting one leaves it reachable."
+        assert (spelling, "/", "301") not in written, (
+            f"{spelling} still 301s to the home page, but the owner restored the catalogue index "
+            f"on 2026-10-10. A redirect in front of a page that now resolves at 200 bounces the "
+            f"catalogue to home - remove the rule from desired_redirects()."
         )
 
     wildcarded = sorted(

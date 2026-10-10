@@ -37,7 +37,7 @@ def amplify():
 
 
 def desired_redirects() -> list[dict]:
-    """The www canonicalisation, the /zip -> /shipments rename, and the withdrawn /shop index.
+    """The www canonicalisation and the /zip -> /shipments rename. The /shop index is restored.
 
     WHY A SECOND REDIRECT NOW EXISTS, when this module's whole posture is that retired paths
     should 404 rather than be kept alive: because /zip was not RETIRED, it was RENAMED.
@@ -65,25 +65,17 @@ def desired_redirects() -> list[dict]:
     301, not 302: the move is permanent, and only a permanent redirect consolidates ranking onto
     the new URL.
 
-    WHY THREE /shop RULES NOW EXIST, and why this one is neither a rename nor a retirement.
+    THE /shop INDEX IS RESTORED, and the three 301 rules that sent it to the home page are GONE.
 
-    On 2026-10-04 the owner instructed that the catalogue INDEX stop being browsable and that
-    /shop/ go to the home page. The listing is WITHDRAWN - it is neither replaced by another page
-    nor deleted because it was wrong - so retired_url_equity.py's equity argument does not apply
-    here at all. The 301 is INSTRUCTION COMPLIANCE, not equity recovery. 301 rather than 302
-    because the withdrawal is permanent and a temporary status would keep the old URL in the index.
+    On 2026-10-04 the owner withdrew the catalogue index and had /shop, /shop/ and /shop/index.html
+    301 to the home page. On 2026-10-10 the owner reversed that: the catalogue index is browsable
+    again at https://wecare.digital/shop. src/pages/shop/index.tsx is recreated, /shop is back in
+    PUBLIC_PAGE_META (_app.tsx) and PUBLIC_EXACT (scripts/generate-sitemap.js), and the three /shop
+    redirect rules are removed from desired_redirects() below so the page is reachable rather than
+    bounced. The seven /shop/<slug>/ product pages were never affected and still render.
 
-    THE SEVEN PRODUCT PAGES ARE NOT AFFECTED AND MUST NOT BE. /shop/<slug>/ keeps rendering and
-    keeps its add-to-cart. That is why these are three EXACT sources and never a /shop/<*>
-    wildcard: an Amplify wildcard source matches any suffix, so /shop/<*> would 301 every product
-    page onto the home page and destroy the catalogue. Do not "simplify" the three rules into one.
-
-    ALL THREE SPELLINGS ARE DECLARED, and the third is the one that is easy to miss. Measured on
-    2026-10-04 before this change: /shop/ served the full listing at 200, /shop 301'd to /shop/,
-    and /shop/index.html ALSO served the full listing at 200 - because `output: 'export'` writes
-    out/shop/index.html and Amplify will serve that file by its own name. Deleting the page from
-    the export closes that for the current build, but the rule is kept PERMANENTLY: it is what
-    stops a re-added index page becoming reachable again by a URL nobody is watching.
+    DO NOT RE-ADD THE /shop 301 RULES while the index page exists: a redirect in front of a page
+    that resolves at 200 would 301 the catalogue away the moment --apply runs.
 
     NOTE FOR WHOEVER RUNS --apply: verify() compares the live rule list against this function for
     EXACT equality, so a live app that still carries only the www rule will report FAIL until
@@ -93,9 +85,6 @@ def desired_redirects() -> list[dict]:
         {"source": "https://www.wecare.digital", "target": SITE, "status": "301"},
         {"source": "/zip", "target": "/shipments/", "status": "301"},
         {"source": "/zip/", "target": "/shipments/", "status": "301"},
-        {"source": "/shop", "target": "/", "status": "301"},
-        {"source": "/shop/", "target": "/", "status": "301"},
-        {"source": "/shop/index.html", "target": "/", "status": "301"},
     ]
 
 
