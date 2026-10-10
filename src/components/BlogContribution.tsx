@@ -1,254 +1,168 @@
-import React, { useState } from 'react';
-import PillButton from './PillButton';
-import { CONTRIBUTION_CHOICES } from '../config/contribution';
-import { CONTRIBUTION_CONFIGURED } from '../content/shop';
-import { setContribution } from '../lib/cart';
+import React from 'react';
 
 /**
- * "SUPPORT THIS WORK" - the Section 5 voluntary-contribution block that sits on every blog post,
- * after the Tags row and before the Share controls (see src/pages/post/[slug].tsx for the exact
- * DOM position and why the share reveal sentinel stays where it is).
+ * "CONTRIBUTE" - the voluntary-contribution block that sits on every blog post, after the Tags
+ * row and the WhatsApp Subscribe button and before the Share controls (see
+ * src/pages/post/[slug].tsx for the exact DOM position and why the share reveal sentinel stays
+ * where it is).
  *
- * WHAT THIS COMPONENT IS, AND WHAT IT IS NOT
- * ------------------------------------------
- * It is the UI and NOTHING ELSE. It renders the three fixed contribution choices, and on a user
- * action it PUTS A LINE IN THE CART and navigates to /cart/. It issues no network request, holds
- * no payment state, and knows nothing about Razorpay.
+ * WHAT THIS COMPONENT IS NOW: ONE LINK, AND NOTHING ELSE.
+ * ------------------------------------------------------
+ * Owner instruction, 2026-10-10: remove BOTH button-looking things from this block - the ₹250
+ * amount pill AND the "Contribute ₹250" submit - and hand the reader to WhatsApp the way the rest
+ * of the site does. So this is a plain anchor at the owner's Contribute message link. There is no
+ * form, no field, no radio group, no cart write and no navigation to /cart/: a contribution is now
+ * a CONVERSATION, started by the reader in WhatsApp.
  *
- * There is no custom-amount input and no client-side amount validation: a choice is one of three
- * fixed-price Wix variants, so there is no number for the reader to propose and nothing to parse.
+ * WHY A WHATSAPP LINK RATHER THAN A CART LINE. Every other "ask us for something" surface on this
+ * site is already a wa.me message link - /subscribe/ (src/content/subscribe.ts), /shipments/
+ * (src/content/shipments.ts), Leave Review, and the Subscribe button directly above this block on
+ * this very page. A contribution form was the one place that still asked the reader to transact on
+ * the page, which is why it read as a different product.
  *
- * PHASE 2 (2026-10-03): THE ENTIRE NETWORK AND PAYMENT HALF OF THIS COMPONENT WAS DELETED
- * ----------------------------------------------------------------------------------------
- * It used to POST to `${API_BASE}/ecommerce/contribution` and branch on a backend state. That
- * endpoint never existed - it answered 404, which the component honestly degraded to
- * "Contributions are not available right now." - and it is never going to exist. A contribution is
- * now ONE fixed-price Wix product line in the existing cart, paid on the one live checkout path:
+ * IT IS THE SUBSCRIBE BUTTON'S TWIN, DELIBERATELY. Owner instruction: the two CTAs at the tail of
+ * a post are a matched pair - the same lime pill, the same WhatsApp glyph, a one-word label. So
+ * the icon markup below is the SAME path data as `.blog-wa-subscribe` in src/pages/post/[slug].tsx
+ * and the pill geometry is the same.
  *
- *   choose an amount -> setContribution( variantId ) -> /cart/ -> POST /ecommerce/prepare-checkout
- *   -> cart_v2.calculate prices it -> Razorpay modal -> POST /ecommerce/verify-callback -> one order
+ * NO SUBTEXT UNDER THE BUTTON, and that is a RECORDED DECISION rather than an omission. The task
+ * brief originally asked for a small muted line below the pill; the owner then revised the design
+ * to an icon instead, and on confirming that the WhatsApp glyph already makes the destination
+ * obvious, settled it as "no need for subtext". The decision and its chain are written down at
+ * .agents/tasks/contribute-whatsapp-cta/owner-decision.md so the deviation from the brief is
+ * traceable to the owner and not to this file's author. The glyph is what says "this opens
+ * WhatsApp"; a line saying so would repeat what the reader can already see. Subscribe, 44px
+ * above, carries no subtext either, which is the pair this matches.
  *
- * `src/pages/cart.tsx` already owns the Razorpay SDK load, the modal, the `payment.failed`
- * handler, the dismiss handler, the rail-terminal latch and the verify POST. Deleting the ~70
- * lines of client-side payment handling that used to live here is what makes "one checkout path"
- * true rather than aspirational, and nothing replaces them.
+ * WHAT WAS DELETED, so the absence is not read as a gap:
+ *   - `CONTRIBUTION_CHOICES` and the ₹250 amount pill, with its visually-hidden radio, its
+ *     `data-ui-raw` opt-out from the shared control skin and its five `.bc-radio` CSS rules.
+ *   - `setContribution` and the `window.location.assign( '/cart/' )` navigation.
+ *   - `PillButton`, the submit button and the `variantId` state.
+ *   - The `CONTRIBUTION_CONFIGURED` honest-degradation branch. It existed because a button that
+ *     cannot work is worse than no button, and it was gated on a contribution product and variant
+ *     ids being declared at build time. A static wa.me link depends on no configuration, so there
+ *     is no longer a state in which this block cannot work, and the branch would be dead code
+ *     dressed as a safeguard.
+ * `src/config/contribution.ts` is deliberately untouched: the cart, the server and their tests
+ * still own the fixed-price `Contribute` product line, and nothing about this block's change
+ * retires that path.
  *
- * THREE FIXED CHOICES, NO "OTHER" (owner model change, 2026-10-04)
- * ---------------------------------------------------------------
- * There are exactly three contributions - Rs.100, Rs.250, Rs.500 - each a fixed-price variant of
- * the one `Contribute` product, added at quantity 1. The custom-amount radio, the free-text rupee
- * field, its `aria-describedby` help text, the client-side bounds check and the `invalid` phase
- * are all GONE rather than hidden. A form with no free text cannot be given an invalid value, so
- * there is no refusal to render: every control on it leads somewhere.
+ * TWO DISTINCT MESSAGE LINKS ON ONE PAGE, AND THEY MUST NOT BE MERGED. Subscribe opens
+ * wa.me/message/WUDPTMYSO6XII1 (the post page owns that anchor); Contribute opens
+ * wa.me/message/BYFLCAAMSZBXD1, below. They are different conversations with different Meta
+ * message links - src/test/BlogDesign.test.tsx asserts both, and that they differ. Pointing one
+ * button at the other's link would look entirely correct on screen, which is the reason that
+ * assertion exists.
  *
- * HONEST DEGRADATION IS STILL THE WHOLE POINT, with a narrower and knowable trigger
- * ---------------------------------------------------------------------------------
- * The only browser-side gate is now CONFIGURATION, and it is knowable at BUILD time - which is
- * what a static export needs. Configured means a contribution product id and three variant ids are
- * declared in src/config/contribution.ts. Unconfigured renders the honest line and NO FORM, and
- * never navigates - so a build with no vehicle says contributions are unavailable instead of
- * offering a button that cannot work.
- *
- * The server remains the authority: `_contribution_request` looks the chosen variant up in its OWN
- * committed copy of the three choices and refuses anything else, and `_assert_contribution_total`
- * holds Wix's computed total to the figure on the button. Nothing here is ever treated as proof of
- * payment, because nothing here touches a payment.
+ * THE ACCESSIBLE NAME CARRIES THE VISIBLE WORD. `aria-label="Contribute on WhatsApp"` CONTAINS
+ * the visible "Contribute", so a speech-input user saying "click Contribute" reaches it - WCAG
+ * 2.5.3 Label in Name, the same contract the Subscribe anchor keeps with "Subscribe on WhatsApp"
+ * and the failure PillButton's docblock records at length. The glyph is `aria-hidden` because the
+ * label already says what it depicts.
  */
 
+/** The owner's Contribute Meta message link. The ONE place this URL is written. */
+export const CONTRIBUTE_CTA_HREF = 'https://wa.me/message/BYFLCAAMSZBXD1';
+
 export interface BlogContributionProps {
-  /** The blog post's authoritative id (PublicBlogPost.id), so a contribution is attributable. */
+  /** The blog post's authoritative id (PublicBlogPost.id), kept so the block is attributable. */
   postId: string;
-  /** The post slug, carried alongside the id for human-readable attribution and reconciliation. */
+  /**
+   * The post slug, carried alongside the id for human-readable attribution.
+   *
+   * NOT RENDERED ANY MORE, and kept so the call sites keep compiling and the props stay a stable
+   * shape. It used to scope the radio group's `name` to the post so two blocks on one page could
+   * not share state; with no form there is no state to share.
+   */
   slug: string;
   /** Removes the component's own top rule when a parent surface already owns section rhythm. */
   embedded?: boolean;
 }
 
-const HONEST_UNAVAILABLE = 'Contributions are not available right now.';
+const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded = false } ) => (
+  <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
+    {/* h2, never h1: the post page already owns the single h1, and htmlcheck guards H1-MANY. */}
+    <h2 className="bc-title" id="bc-title">Contribute</h2>
+    <p className="bc-copy">
+      If you found this useful, you’re welcome to make a small voluntary contribution.
+    </p>
 
-const BlogContribution: React.FC<BlogContributionProps> = ( { postId, slug, embedded = false } ) => {
-  /**
-   * The selected variant id. A STRING rather than an index, so the value in state is the value
-   * that goes into the cart line and no lookup can slip between the two.
-   *
-   * There is no `null` state and no validation state: one of the three is always selected, so
-   * "nothing chosen" and "chosen badly" are both unreachable.
-   */
-  const [ variantId, setVariantId ] = useState<string>( CONTRIBUTION_CHOICES[ 0 ].variantId );
+    {/* A REAL ANCHOR, not a button with an onClick: it leaves the site, so it has to be
+        middle-clickable, long-pressable and copyable - the same argument the Subscribe button
+        above it records. The SVG is that button's glyph, path for path, so the pair cannot drift
+        into two icons. */}
+    <a
+      className="bc-cta"
+      href={ CONTRIBUTE_CTA_HREF }
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label="Contribute on WhatsApp"
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" width="20" height="20">
+        <path fill="currentColor" d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.16-.17.2-.35.22-.64.08-.3-.15-1.26-.46-2.4-1.48-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.03-.52-.07-.15-.67-1.61-.91-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.03 1.02-1.03 2.48 0 1.46 1.06 2.87 1.21 3.07.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.09 1.76-.72 2-1.41.25-.7.25-1.29.18-1.42-.08-.12-.28-.2-.57-.35M12.05 21.79h-.01a9.87 9.87 0 01-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 01-1.51-5.26C2.16 6.45 6.6 2.01 12.05 2.01c2.64 0 5.12 1.03 6.99 2.9a9.83 9.83 0 012.89 6.99c0 5.45-4.44 9.89-9.88 9.89M20.46 3.49A11.82 11.82 0 0012.05 0C5.5 0 .16 5.34.16 11.89c0 2.1.55 4.14 1.59 5.95L.06 24l6.3-1.65a11.88 11.88 0 005.69 1.45c6.55 0 11.89-5.34 11.89-11.89 0-3.18-1.24-6.17-3.48-8.42z" />
+      </svg>
+      <span>Contribute</span>
+    </a>
 
-  const chosen = CONTRIBUTION_CHOICES.find( choice => choice.variantId === variantId )
-    || CONTRIBUTION_CHOICES[ 0 ];
-
-  /**
-   * Put the choice in the cart and go there. NO `async`, no network, no payment state.
-   *
-   * Two steps and that is the whole of it: `setContribution`, navigate. `setContribution` SETS
-   * rather than increments, so choosing Rs.100 and then Rs.500 leaves ONE line at Rs.500 - which
-   * is what "choose an amount" means, and is why `addItem` is not reused.
-   */
-  const onSubmit = ( event: React.FormEvent ) => {
-    event.preventDefault();
-    setContribution( chosen.variantId );
-    window.location.assign( '/cart/' );
-  };
-
-  /**
-   * Unconfigured renders the honest line and NO FORM, and never navigates.
-   *
-   * Placed before every control rather than disabling them, because a form that cannot work is
-   * worse than no form: it invites the click and then explains. Returned early so the markup below
-   * does not need a conditional on every node.
-   */
-  if ( !CONTRIBUTION_CONFIGURED )
-  {
-    return (
-      <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
-        <h2 className="bc-title" id="bc-title">Contribute</h2>
-        <p className="bc-status" role="status" data-phase="unavailable">{ HONEST_UNAVAILABLE }</p>
-        <style jsx>{`
-          .bc{
-            margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb;
-            font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-          }
-          .bc.is-embedded{margin-top:0;padding-top:0;border-top:0}
-          .bc-title{
-            font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;
-            color:rgba(0,0,0,.54);margin:0 0 12px;
-          }
-          .bc-status{font-size:15px;line-height:1.5;color:rgba(0,0,0,.7);margin:0}
-        `}</style>
-      </section>
-    );
-  }
-
-  return (
-    <section className={ embedded ? 'bc is-embedded' : 'bc' } aria-labelledby="bc-title" data-post-id={ postId }>
-      {/* h2, never h1: the post page already owns the single h1, and htmlcheck guards H1-MANY. */}
-      <h2 className="bc-title" id="bc-title">Contribute</h2>
-      <p className="bc-copy">
-        If you found this useful, you’re welcome to make a small voluntary contribution.
-      </p>
-
-      <form className="bc-form" onSubmit={ onSubmit } noValidate>
-        <fieldset className="bc-fieldset">
-          <legend className="bc-legend">Choose an amount</legend>
-          <div className="bc-choices" role="radiogroup" aria-label="Contribution amount">
-            { CONTRIBUTION_CHOICES.map( choice => (
-              <label className="bc-choice" key={ choice.variantId }>
-                <input
-                  type="radio"
-                  /* THE SHARED CONTROL SKIN MUST NOT TOUCH THIS ONE. form-controls.css draws an
-                     18px bordered box with a white dot on every radio in the app; this radio is
-                     visually hidden by `.bc-radio` and the control a user actually sees is the
-                     sibling `.bc-choice-face` pill, so skinning it would draw a SECOND control
-                     on top of the first. It is inert today only because opacity: 0 is
-                     uncontested, which is an accident rather than a contract - so the opt-out is
-                     declared here, at the call site, where the next reader will see it. */
-                  data-ui-raw
-                  name={ `bc-amount-${ slug }` }
-                  className="bc-radio"
-                  value={ choice.variantId }
-                  checked={ variantId === choice.variantId }
-                  onChange={ () => setVariantId( choice.variantId ) }
-                />
-                <span className="bc-choice-face">&#8377;{ choice.rupees }</span>
-              </label>
-            ) ) }
-          </div>
-        </fieldset>
-
-        <div className="bc-submit-wrap">
-          {/* The button NAVIGATES rather than pays now, so it must say what it is about to put in
-              the cart. It can always name a figure, because one of the three is always selected.
-              No fee-disclosure line sits under it: OWNER DECISION [PHASE2-FEE-001] is answered
-              fee-exempt, so the customer pays exactly the figure on the button and a disclosure
-              about a fee that is not charged would be its own small untruth. */}
-          <PillButton
-            as="button"
-            type="submit"
-            action={ `Contribute \u20B9${ chosen.rupees }` }
-          />
-        </div>
-
-        {/* THE MIXED-CART WARNING WAS HERE, AND THERE IS NOTHING LEFT TO WARN ABOUT.
-            It told the customer that a contribution is paid on its own and that they would have
-            to drop either it or their other items at the cart. Owner decision, 2026-10-06: a
-            product and a contribution check out together, priced the way any single order is
-            priced. The submit behaviour is unchanged -- it adds the chosen contribution and
-            navigates to /cart/ -- so removing the sentence removes a warning, not a step.
-
-            A notice that describes a refusal the server no longer makes is worse than silence:
-            it sends the customer to edit a basket that is already payable. */}
-
-        {/* NO LIVE REGION ON THE FORM ANY MORE. It existed to announce a rejected custom amount,
-            and with three fixed choices there is no amount to reject. The unavailable branch above
-            keeps its own `role="status"`, which is the one message that remains. */}
-      </form>
-
-      <style jsx>{`
-        /* bc- prefixed because the globally imported src/styles/*.css declares unscoped rules for
-           generic names and styled-jsx does not shield a block from them. The treatment reuses the
-           blog post page's own rhythm (the hairline band, the e5e7eb rules) and the site's lime
-           CTA language (see zip.tsx / the related-posts CTA on this same page). */
-        .bc{
-          margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb;
-          font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-        }
-        .bc.is-embedded{margin-top:0;padding-top:0;border-top:0}
-        /* h2 at the related-section eyebrow rung, NOT the 40px/700 section rung, because this is a
-           quiet appeal at the tail of the reading rather than a claim - same treatment the
-           "More in ..." related heading and the breadcrumb furniture use. */
-        .bc-title{
-          font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;
-          color:rgba(0,0,0,.54);margin:0 0 12px;
-        }
-        .bc-copy{
-          font-size:18px;line-height:1.5;letter-spacing:-.125px;font-weight:400;
-          color:rgba(0,0,0,.898);margin:0 0 20px;max-width:60ch;
-        }
-        .bc-form{margin:0}
-        .bc-fieldset{border:0;margin:0;padding:0}
-        .bc-legend{font-size:12px;font-weight:600;letter-spacing:.01em;color:rgba(0,0,0,.54);padding:0;margin:0 0 10px}
-        .bc-choices{display:flex;flex-wrap:wrap;gap:10px}
-        /* The real radio is visually hidden but keyboard-reachable; the face is the pill. */
-        .bc-choice{position:relative;display:inline-flex}
-        .bc-radio{position:absolute;opacity:0;width:1px;height:1px;margin:0}
-        /* min-height 44px is the tap-target floor, and it is here because the pill MEASURED
-           43px in Chromium at 390x844 - one pixel under, which no suite was looking at and no
-           eye would catch. The 8px/16px padding is kept so the shape does not change; the floor
-           just stops the box rounding below it. The site's primary CTA is 52px; a secondary
-           choice is not required to match it, only to clear 44. */
-        .bc-choice-face{
-          display:inline-flex;align-items:center;justify-content:center;min-width:64px;
-          min-height:44px;
-          padding:8px 16px;border:2px solid #e5e7eb;border-radius:999px;background:#fff;
-          font-size:15px;font-weight:700;letter-spacing:-.125px;color:#1a3a2a;cursor:pointer;
-          transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
-        }
-        .bc-radio:hover + .bc-choice-face{
-          border-color:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
-        }
-        /* Checked is the lime identity fill - the same #d1f470/#1a3a2a voice the related CTA uses. */
-        .bc-radio:checked + .bc-choice-face{border-color:#1a3a2a;background:#d1f470}
-        /* Opaque focus ring at offset, the page's standard - never a translucent alpha. */
-        .bc-radio:focus-visible + .bc-choice-face{outline:3px solid #1a3a2a;outline-offset:2px}
-        /* The custom-amount field's six rules (.bc-custom, -label, -row, .bc-rupee, -input, and
-           the :focus-within border) went with the field itself. .bc-note is what is left: the
-           quiet line under the choices that warns a mixed basket. */
-        .bc-note{font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:8px 0 0}
-        /* The action itself is the shared public PillButton. This wrapper owns only placement,
-           so Contribute cannot drift from Sign in / Checkout / Subscribe in shape or palette. */
-        .bc-submit-wrap{margin-top:20px;display:flex;align-items:center}
-        /* The status line is deliberately plain, not a success banner: it carries the honest
-           "not available" sentence and nothing else. It is never a receipt. */
-        .bc-status{font-size:15px;line-height:1.5;color:rgba(0,0,0,.7);margin:16px 0 0}
-        @media(prefers-reduced-motion:reduce){
-          .bc-choice-face{transition:none}
-          .bc-radio:hover + .bc-choice-face{transform:none;box-shadow:none}
-        }
-      `}</style>
-    </section>
-  );
-};
+    <style jsx>{`
+      /* bc- prefixed because the globally imported src/styles/*.css declares unscoped rules for
+         generic names and styled-jsx does not shield a block from them. The treatment reuses the
+         blog post page's own rhythm (the hairline band, the e5e7eb rules) and the site's lime
+         CTA language. */
+      .bc{
+        margin-top:44px;padding-top:24px;border-top:1px solid #e5e7eb;
+        font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      }
+      .bc.is-embedded{margin-top:0;padding-top:0;border-top:0}
+      /* h2 at the related-section eyebrow rung, NOT the 40px/700 section rung, because this is a
+         quiet appeal at the tail of the reading rather than a claim - same treatment the
+         "More in ..." related heading and the breadcrumb furniture use. */
+      .bc-title{
+        font-size:12px;font-weight:700;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;
+        color:rgba(0,0,0,.54);margin:0 0 12px;
+      }
+      .bc-copy{
+        font-size:18px;line-height:1.5;letter-spacing:-.125px;font-weight:400;
+        color:rgba(0,0,0,.898);margin:0 0 20px;max-width:60ch;
+      }
+      /* THE SUBSCRIBE BUTTON'S OBJECT - see .blog-wa-subscribe in src/pages/post/[slug].tsx,
+         which is the pair this has to match. THE VALUES ACTUALLY SHARED, each one declared
+         identically in both rules: min-height:52px, padding:0 28px, border:2px solid #1a3a2a,
+         border-radius:50px, background:#d1f470, color:#1a3a2a, font-size:17px, font-weight:600,
+         gap:10px, and the white hover inversion with its lift and shadow.
+         WHY EACH NUMBER. The edge is what clears WCAG 1.4.11 for a control boundary (#1a3a2a on
+         white is 12.48:1; the lime alone is 1.24:1 and cannot be the thing that separates the
+         button from the page). #1a3a2a type on #d1f470 is 10.04:1. The radius is 50px rather
+         than the 999px this rule used to carry, so it is the SAME DECLARATION as the sibling
+         rather than a different number that happens to round the same way at 52px - and either
+         value overrides the global 13px in src/styles/button.css, which is the flattening the
+         explicit declaration exists to prevent.
+         WHAT IS DELIBERATELY NOT SHARED: margin-top. Subscribe sets 44px because it opens a
+         band. This rule sets NO margin-top at all - the 20px of air above the pill comes from
+         .bc-copy's own margin:0 0 20px above, because the pill follows its copy line inside a
+         band this section has already opened. Said explicitly because an earlier version of
+         this comment credited a margin-top:20px that was never declared here. */
+      .bc-cta{
+        display:inline-flex;align-items:center;gap:10px;box-sizing:border-box;
+        min-height:52px;padding:0 28px;border:2px solid #1a3a2a;border-radius:50px;
+        background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
+        text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
+      }
+      .bc-cta svg{flex:0 0 auto}
+      /* The house inversion - lime to white - plus the one allowed lift and shadow. White gives
+         #1a3a2a type 12.48:1; deepening to the base green would be 3.91:1 and fail at this size. */
+      .bc-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+      .bc-cta:active{transform:translateY(0)}
+      /* Opaque focus ring at offset, the page's standard - never a translucent alpha. 3px offset
+         rather than 2px, because this is now the pill object and the pill rings outside itself. */
+      .bc-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+      @media(prefers-reduced-motion:reduce){
+        .bc-cta{transition:none}
+        .bc-cta:hover{transform:none;box-shadow:none}
+      }
+    `}</style>
+  </section>
+);
 
 export default BlogContribution;

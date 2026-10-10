@@ -453,13 +453,17 @@ input[type="file"]:not([data-ui-raw]):not([data-public-ui]):not(.amplify-input):
    loud rather than subtle: appearance: none WITHOUT a drawn indicator makes every checkbox on
    the site look permanently unchecked.
 
-   TWO OF THOSE 20 RULE SETS ARE OPT-OUTS, not competitors. BlogContribution.tsx's .bc-radio is
-   visually hidden with opacity: 0 and the visible control is drawn on a sibling
-   .bc-choice-face; voice-in/index.tsx's .audio-option input[type="radio"] is hidden with
-   display: none and the visible control is the label. Our rule would draw a SECOND control on
-   top of the first in both cases. Both happen to be inert today - we never declare `display`,
-   and `opacity` only on a select's :disabled - but that is an accident, so both are marked
-   [data-ui-raw] at the call site instead, which is what the attribute is for.
+   TWO OF THOSE 20 RULE SETS WERE OPT-OUTS, not competitors, and ONE OF THE TWO IS GONE.
+   voice-in/index.tsx's .audio-option input[type="radio"] is hidden with display: none and the
+   visible control is the label, so our rule would draw a SECOND control on top of the first. It
+   happens to be inert today - we never declare `display` - but that is an accident, so it is
+   marked [data-ui-raw] at the call site instead, which is what the attribute is for.
+   THE OTHER WAS BlogContribution.tsx's .bc-radio, visually hidden with opacity: 0 behind a
+   sibling .bc-choice-face pill. It was retired on 2026-10-10 when owner instruction turned that
+   block into a single WhatsApp anchor: the amount pill went, so the radio, its [data-ui-raw]
+   opt-out and all five of its rule sets went with it. The checkbox/radio census is 24 rule sets
+   in 9 files as a result - see src/test/FormControlsCss.test.ts assertion 10, which records the
+   arithmetic. Nothing in that component is a checkbox or a radio any more.
    ========================================================================== */
 
 /* THE DRAWN BOX, checkbox and radio together. The radius differs and is declared separately
