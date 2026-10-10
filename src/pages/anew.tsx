@@ -25,9 +25,17 @@ import { SITE_ORIGIN } from '../config/share';
  * with HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  */
 
-/** Newest cards handed to the panel. 30 is generous headroom over the panel's visible cap of 6,
- *  so category filtering and search have real material to work with without shipping the corpus. */
-const ANEW_PANEL_CARDS = 30;
+/**
+ * HOW MANY CARDS PER CATEGORY the panel receives.
+ *
+ * NEWEST-PER-CATEGORY, NOT NEWEST-OVERALL. The corpus has two categories (Conversations,
+ * Gastronomy) and the newest posts are overwhelmingly Conversations, so "newest 30 overall" gave
+ * the panel zero Gastronomy cards - its pill never appeared and clicking it would have shown
+ * nothing. Taking the newest N FROM EACH category guarantees every category pill has real cards
+ * behind it, which is what makes the switch meaningful. 20 each is generous headroom over the
+ * panel's visible cap of 6 so search and the category switch have material to work with.
+ */
+const ANEW_PANEL_CARDS_PER_CATEGORY = 20;
 
 interface AnewPageProps {
   blogCards: BlogCard[];
@@ -46,8 +54,28 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
 );
 
 export const getStaticProps: GetStaticProps<AnewPageProps> = async () => {
-  const posts = await listPublicBlogPosts();
-  const blogCards = listBlogCards( posts ).slice( 0, ANEW_PANEL_CARDS );
+  // listBlogCards is already newest-first, so taking the first N of each category keeps the
+  // per-category order correct without re-sorting.
+  const ordered = listBlogCards( await listPublicBlogPosts() );
+  const perCategory = new Map<string, number>();
+  const blogCards: BlogCard[] = [];
+  for ( const card of ordered ) {
+    const key = card.category || 'Uncategorised';
+    const count = perCategory.get( key ) || 0;
+    if ( count >= ANEW_PANEL_CARDS_PER_CATEGORY ) continue;
+    perCategory.set( key, count + 1 );
+    blogCards.push( card );
+  }
+  // Re-order the kept cards newest-first across categories so the default "All" pill still reads
+  // as a newest-first mix rather than category-grouped.
+  blogCards.sort( ( a, b ) => {
+    const at = a.publishedDate ? Date.parse( a.publishedDate ) : NaN;
+    const bt = b.publishedDate ? Date.parse( b.publishedDate ) : NaN;
+    if ( Number.isNaN( at ) && Number.isNaN( bt ) ) return a.slug.localeCompare( b.slug );
+    if ( Number.isNaN( at ) ) return 1;
+    if ( Number.isNaN( bt ) ) return -1;
+    return bt - at;
+  } );
   return { props: { blogCards } };
 };
 
