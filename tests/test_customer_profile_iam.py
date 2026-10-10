@@ -1,0 +1,173 @@
+"""`wecare-customer-profile-role` is the only role in the fleet that may link a contact.
+
+The identity claim is a WRITE performed on the strength of a verified phone number, so the
+interesting question about this role is not what it can do but what it cannot. The audit grant
+added for the claim is `PutItem` on the audit log and nothing else: append-only, so this function
+can record who linked which contact and can neither read the log back nor amend an entry.
+
+Assertions are by `Sid` and by EQUALITY of each action set, because a document whose value is what
+it leaves out is not tested by checking that it contains what it needs.
+
+`scripts/provision_customer_profile.py::ensure_role` only writes the policy when it CREATES the
+role, so an existing role does not gain a new statement from a re-run. That is pre-existing
+behaviour of this script and is out of scope here; the policy asserted below is what a fresh
+provision produces, and it is also the document to apply by hand if the deployed role predates
+the claim. Without it `record_audit` fails open and the link still happens - unaudited, which is
+why this file exists rather than a comment.
+"""
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+SCRIPT = ROOT / "scripts" / "provision_customer_profile.py"
+HANDLER = ROOT / "amplify/functions/auth/customer-profile/handler.py"
+
+ACCOUNT = "775261844268"
+
+#: Anything that could delete data, scan a table, move a file or message a person. None of these
+#: may appear anywhere in the policy.
+FORBIDDEN_ACTIONS = (
+    "dynamodb:Scan", "dynamodb:DeleteItem", "dynamodb:BatchWriteItem",
+    "dynamodb:DeleteTable", "dynamodb:UpdateTable",
+    "s3:", "sns:", "sqs:", "ses:", "iam:", "sts:", "kms:",
+    "lambda:InvokeFunction",
+)
+
+
+@pytest.fixture(scope="module")
+def provisioner():
+    spec = importlib.util.spec_from_file_location("provision_customer_profile", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["provision_customer_profile"] = module
+    spec.loader.exec_module(module)
+    yield module
+    sys.modules.pop("provision_customer_profile", None)
+
+
+def _statements(provisioner):
+    return provisioner.expected_role_policy(ACCOUNT)["Statement"]
+
+
+def _by_sid(provisioner):
+    return {statement["Sid"]: statement for statement in _statements(provisioner)}
+
+
+def _actions(provisioner):
+    return [action for statement in _statements(provisioner) for action in statement["Action"]]
+
+
+# ── the new audit grant ──────────────────────────────────────────────────────
+
+def test_the_audit_grant_is_put_item_only_and_names_only_the_audit_table(provisioner):
+    """One verb, one table. `PutItem` alone is append-only: no `GetItem`/`Query` to read other
+    functions' audit records back, and no `UpdateItem` to rewrite one already written."""
+    statement = _by_sid(provisioner)["WriteIdentityClaimAudit"]
+    assert statement["Effect"] == "Allow"
+    assert statement["Action"] == ["dynamodb:PutItem"]
+    assert statement["Resource"] == [
+        f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-AuditLogsTable"]
+
+
+def test_the_granted_audit_table_is_the_one_the_helper_actually_writes_to(provisioner):
+    """The ARN and `lambda_utils.audit`'s default are two copies of one name. If they drift the
+    claim is unaudited and nothing fails loudly, because `record_audit` fails open."""
+    sys.path.insert(0, str(ROOT / "amplify/functions/shared"))
+    from lambda_utils import audit
+
+    assert provisioner.AUDIT_LOG_TABLE == audit.AUDIT_TABLE
+
+
+def test_no_other_statement_names_the_audit_table(provisioner):
+    for statement in _statements(provisioner):
+        if statement["Sid"] == "WriteIdentityClaimAudit":
+            continue
+        assert "AuditLogsTable" not in json.dumps(statement["Resource"])
+
+
+# ── the contacts grant is unchanged by the claim ─────────────────────────────
+
+def test_the_contacts_grant_is_exactly_the_four_verbs_it_already_had(provisioner):
+    """The conditional claim write needs `UpdateItem` and `Query`, both of which were already
+    here. So the claim adds NO permission on contact rows, and this equality is what says so."""
+    statement = _by_sid(provisioner)["ContactsUpsert"]
+    assert set(statement["Action"]) == {
+        "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"}
+    assert statement["Resource"] == [
+        f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-ContactsTable",
+        f"arn:aws:dynamodb:us-east-1:{ACCOUNT}:table/stack-wecare-digital-ContactsTable/index/*",
+    ]
+
+
+def test_the_policy_is_exactly_these_five_statements(provisioner):
+    """Equality on the `Sid` set, so a sixth statement is a failure rather than an unnoticed
+    addition."""
+    assert sorted(_by_sid(provisioner)) == [
+        "ContactsUpsert", "ReadEmailProof", "ReadOtpPepper", "ValidateCustomerToken",
+        "WriteIdentityClaimAudit",
+    ]
+
+
+# ── what it cannot do ────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("forbidden", FORBIDDEN_ACTIONS)
+def test_no_destructive_or_messaging_verb_appears(provisioner, forbidden):
+    for action in _actions(provisioner):
+        assert not action.startswith(forbidden), f"{action} is granted and must not be"
+
+
+def test_every_wildcard_resource_is_one_of_three_bounded_shapes(provisioner):
+    """Three wildcards exist and each one is bounded by what precedes it.
+
+    `cognito-idp:GetUser` is called with an access token and authorises the CALLER's own session,
+    so it cannot name a user ARN at all. The pepper's `-*` is Secrets Manager's own six-character
+    random suffix, which is not known until the secret is created. `ContactsTable/index/*` is
+    that table's own indexes and nothing else. Anything outside these three is a widening.
+    """
+    for statement in _statements(provisioner):
+        for resource in statement["Resource"]:
+            if "*" not in resource:
+                continue
+            sid = statement["Sid"]
+            assert sid in ("ValidateCustomerToken", "ReadOtpPepper", "ContactsUpsert"), \
+                f"{sid} grants on a wildcard: {resource}"
+            if sid == "ContactsUpsert":
+                assert resource.endswith("ContactsTable/index/*")
+            if sid == "ReadOtpPepper":
+                assert resource.endswith(":secret:wecare/otp/pepper-*")
+            if sid == "ValidateCustomerToken":
+                assert resource == "*" and statement["Action"] == ["cognito-idp:GetUser"]
+
+
+def test_the_role_cannot_read_a_secret_other_than_the_otp_pepper(provisioner):
+    secrets = [resource for statement in _statements(provisioner)
+               for resource in statement["Resource"] if "secretsmanager" in resource]
+    assert secrets == [
+        f"arn:aws:secretsmanager:us-east-1:{ACCOUNT}:secret:wecare/otp/pepper-*"]
+
+
+def test_it_is_serialisable_as_an_iam_document(provisioner):
+    assert json.loads(json.dumps(provisioner.expected_role_policy(ACCOUNT)))
+
+
+# ── the document the script applies is the document asserted here ───────────
+
+def test_ensure_role_applies_exactly_this_document(provisioner):
+    """The whole value of lifting the policy out of `ensure_role`: there is one builder, so a
+    statement cannot be asserted here and omitted at provision time."""
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "PolicyDocument=json.dumps(expected_role_policy(account_id()))" in source
+    assert source.count("def expected_role_policy") == 1
+
+
+def test_the_claim_writes_through_the_shared_audit_helper(provisioner):
+    """The zip packages `handler.py` plus `lambda_utils`, so the helper has to come from the
+    shared layer rather than be re-implemented in the function."""
+    source = HANDLER.read_text(encoding="utf-8")
+    assert "from lambda_utils.audit import record_audit" in source
+    assert "identity.claim" in source and "identity.claim_refused" in source
