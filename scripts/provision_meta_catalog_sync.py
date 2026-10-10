@@ -65,7 +65,7 @@ a missing key, or simply missed an event.
 OWNER-APPROVED CATALOG MIGRATION, 2026-10-09
 -----------------------------------------
 The owner requested the fresh catalog and approval before new product publication.
-ENVIRONMENT stages all four existing paid variants against the fresh catalog, disabled and
+ENVIRONMENT stages all five paid service variants against the fresh catalog, disabled and
 dry-run, held out of stock pending approval and native purchase QA. Inspect remains read-only.
 The exact live plan is persisted in the existing AgentApprovals table under a catalog-specific
 namespaced key. An authenticated admin approval is bound to that exact hash; any Wix/Meta drift
@@ -128,7 +128,7 @@ ENVIRONMENT = {
     "META_CATALOG_SYNC_ENABLED": "false",
     "META_CATALOG_SYNC_DRY_RUN": "true",
     "META_CATALOG_APPROVALS_TABLE": CATALOG_APPROVALS_TABLE,
-    "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+    "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,8ee7e325-d772-4452-a993-5c79e927d42b",
     "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     "WIX_API_KEY_SECRET": WIX_API_KEY_SECRET,
     "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
@@ -503,7 +503,7 @@ def verify() -> int:
     if not problems:
         print("  in step")
         print(f"  no public surface: no HTTP API route, no function URL")
-        print("  owner rollout: Submit Request/Vault only; held out of stock")
+        print("  owner rollout: five paid service variants; held out of stock")
     return 1 if problems else 0
 
 
@@ -530,7 +530,7 @@ def main(argv=None) -> int:
     print()
     print("  no HTTP API route and no function URL are created: this function has no public")
     print("  surface. Its callers are the webhook's async invoke and the schedule above.")
-    print("  Owner rollout: Submit Request/Vault only; both remain out of stock for QA.")
+    print("  Owner rollout: five paid service variants; all remain out of stock for QA.")
     if not apply:
         print()
         print("  dry run: nothing above was changed. Re-run with --apply to act.")
