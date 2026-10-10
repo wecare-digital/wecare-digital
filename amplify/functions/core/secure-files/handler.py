@@ -1584,8 +1584,11 @@ def _dropdocs_identity(identity: Dict[str, Any]) -> customer_auth.CustomerIdenti
     Lambda and a document attached here agree on who the owner is.
     """
     subject = str(identity.get("subject") or "")
+    # `phone_verified=True` is a fact here, not an assumption: `_customer_identity` returns None
+    # unless `phone_number_verified` was the string 'true'.
     return customer_auth.CustomerIdentity(
-        customer_id=subject, phone=identity.get("phone", ""), subject=subject)
+        customer_id=subject, phone=identity.get("phone", ""), subject=subject,
+        phone_verified=True)
 
 
 def _dropdocs_attach(event: Dict[str, Any], identity: Dict[str, Any], origin: str):

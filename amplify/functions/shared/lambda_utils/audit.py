@@ -50,6 +50,10 @@ ACTIONS = {
     # Irreversible bulk deletes. These are the only callers that check the RETURN VALUE of
     # record_audit and refuse when it is None — see the fail-closed note in the docstring.
     'system.cleanup', 'messages.clear_all', 'invoice.delete', 'invoice.clear_all',
+    # A WhatsApp-first customer linking their verified phone to an existing unowned contact,
+    # and the refusal of that link. Both are recorded: the refusal is the one a human has to
+    # reconcile, so "nothing happened" must not be the only trace of it.
+    'identity.claim', 'identity.claim_refused',
 }
 
 
