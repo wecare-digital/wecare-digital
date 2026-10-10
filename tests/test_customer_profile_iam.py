@@ -156,11 +156,34 @@ def test_it_is_serialisable_as_an_iam_document(provisioner):
 # ── the document the script applies is the document asserted here ───────────
 
 def test_ensure_role_applies_exactly_this_document(provisioner):
-    """The whole value of lifting the policy out of `ensure_role`: there is one builder, so a
-    statement cannot be asserted here and omitted at provision time."""
+    """Fresh create and existing-role reconciliation both use the one policy builder."""
     source = SCRIPT.read_text(encoding="utf-8")
-    assert "PolicyDocument=json.dumps(expected_role_policy(account_id()))" in source
+    assert "policy_document = json.dumps(expected_role_policy(account_id()))" in source
+    assert source.count("PolicyDocument=policy_document") == 2
     assert source.count("def expected_role_policy") == 1
+
+
+def test_existing_role_is_reconciled_not_silently_skipped(provisioner, monkeypatch):
+    """A pre-existing role receives the current inline policy, closing live IAM drift."""
+    calls = []
+
+    class FakeIam:
+        def put_role_policy(self, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr(provisioner, "iam", lambda: FakeIam())
+    monkeypatch.setattr(
+        provisioner,
+        "_exists",
+        lambda *a, **k: {"Role": {"RoleName": provisioner.ROLE_NAME}},
+    )
+    monkeypatch.setattr(provisioner, "account_id", lambda: ACCOUNT)
+
+    assert provisioner.ensure_role(False) == "reconciled"
+    assert len(calls) == 1
+    assert calls[0]["RoleName"] == provisioner.ROLE_NAME
+    assert calls[0]["PolicyName"] == "CustomerProfileLeastPrivilege"
+    assert json.loads(calls[0]["PolicyDocument"]) == provisioner.expected_role_policy(ACCOUNT)
 
 
 def test_the_claim_writes_through_the_shared_audit_helper(provisioner):

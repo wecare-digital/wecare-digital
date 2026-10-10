@@ -253,6 +253,9 @@ def wiring(mod, monkeypatch, audit_calls):
     fake_sqs = FakeSqs()
 
     monkeypatch.setattr(mod, "dynamodb", fake_ddb)
+    # Confirmation tokens are stored by the shared destructive_confirm helper.
+    # Point it at the same fake Dynamo resource so this suite stays hermetic.
+    monkeypatch.setattr(mod.destructive_confirm, "_dynamodb", fake_ddb)
     monkeypatch.setattr(mod, "dynamodb_client", FakeDynamoClient(
         {"stack-wecare-digital-InvoicesTable": "invoiceId"}))
     monkeypatch.setattr(mod, "s3", fake_s3)
