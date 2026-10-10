@@ -511,7 +511,7 @@ export default function BlogPostPage ( {
               long-pressable and copyable. */}
           <a
             className="blog-wa-subscribe"
-            href="https://wa.me/message/BEA3HNW3LNM3A1"
+            href="https://wa.me/message/WUDPTMYSO6XII1"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Subscribe on WhatsApp"
