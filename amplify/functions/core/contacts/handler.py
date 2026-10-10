@@ -169,10 +169,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     from lambda_utils.middleware import require_auth
     # Viewer is the read floor. Stated explicitly rather than left as None: `require_auth`
     # no longer defaults an ungrouped principal to Viewer, so a call with no
-    # `required_role` has nothing to check. The DELETE arm re-gates at Operator.
+    # `required_role` has nothing to check. Every contact mutation re-gates at Operator.
     _auth = require_auth(event, required_role='Viewer')
     if _auth is not None:
         return _auth
+
+    # Reading customer data is a Viewer capability; changing customer identity is not.
+    # Keep this as one method-level floor so create, update, lock, unlock, soft delete,
+    # and hard delete cannot drift into different role policies as routes evolve.
+    if method in ('POST', 'PUT', 'DELETE'):
+        denied = require_auth(event, required_role='Operator')
+        if denied is not None:
+            return denied
 
     path_params = event.get('pathParameters', {}) or {}
     query_params = event.get('queryStringParameters', {}) or {}
