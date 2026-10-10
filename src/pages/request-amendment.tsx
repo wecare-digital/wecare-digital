@@ -1,6 +1,5 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
-import ServiceRequestPurchase from '../components/ServiceRequestPurchase';
 import { customerserviceBySlug } from '../content/customerservice';
 
 /**
@@ -21,12 +20,8 @@ import { customerserviceBySlug } from '../content/customerservice';
  * PUBLIC, AND NOT [retired public path]/request-amendment. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-// Phase O-1: the buy box renders AFTER the shared ProductPage, which is not edited.
 const RequestAmendmentPage: React.FC = () => (
-  <>
-    <ProductPage product={ customerserviceBySlug( 'request-amendment' ) } />
-    <ServiceRequestPurchase kind="REQUEST_AMENDMENT" />
-  </>
+  <ProductPage product={ customerserviceBySlug( 'request-amendment' ) } />
 );
 
 export default RequestAmendmentPage;
