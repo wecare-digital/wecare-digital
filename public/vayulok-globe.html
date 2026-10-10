@@ -125,6 +125,31 @@
     text-transform:uppercase;color:rgba(26,58,42,.45);
   }
 
+  /* The leader line: a thin, in-palette tie from the panel's right edge to the
+     selected pin. It uses the SELECTED city's accent (fed in as --leader-accent)
+     at reduced alpha, so it reads as "this panel belongs to that dot" without
+     adding a new colour. z-index sits just under the markers so a pin always
+     draws on top of its own leader. */
+  .city-leader{
+    position:absolute;inset:0;z-index:9;
+    width:100%;height:100%;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .22s ease;
+    overflow:visible;
+  }
+  .city-leader.is-visible{opacity:1}
+  .city-leader line{
+    stroke:var(--leader-accent,#3da35a);
+    stroke-width:1.4;
+    stroke-linecap:round;
+    stroke-dasharray:5 5;
+    /* A slow dash drift reinforces the connection; disabled under reduced motion
+       (see the media query) and when nothing is selected (layer is hidden). */
+    animation:leaderDash 1.1s linear infinite;
+  }
+  @keyframes leaderDash{to{stroke-dashoffset:-10}}
+
   /* City labels follow the real globe rotation. Their visual language borrows
      the thin leader + dot from the supplied reference, recolored for WECARE. */
   .city-marker {
@@ -223,6 +248,16 @@
   /* The selected capital's name chip reads a touch stronger so the choice is
      visible on the globe even though its data lives in the side panel. */
   .city-marker.is-active .city-card{border-color:#1a3a2a;box-shadow:0 6px 16px rgba(16,24,20,.16)}
+  /* The selected pin wears a prominent highlight ring in its OWN accent — the
+     same hue the panel's accent stripe/dot and the leader line use — so the eye
+     ties panel ↔ line ↔ dot together at a glance. Slightly larger than the
+     resting pin, with a crisp accent ring over the usual soft halo. */
+  .city-marker.is-active .city-pin{
+    width:14px;height:14px;
+    box-shadow:0 0 0 3px var(--city-marker,var(--city-accent,var(--mode-accent))),
+      0 0 0 8px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft))),
+      0 0 22px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)));
+  }
   /* Hover affordance lives on the dot itself, which costs nothing. */
   .city-marker:hover .city-pin{transform:translate(-50%,-50%) scale(1.25)}
 
@@ -270,14 +305,32 @@
        unselected capital is just its dot here; the selected one keeps its chip. */
     .city-marker:not(.is-active) .city-card,
     .city-marker:not(.is-active) .city-stem{display:none}
+    /* Fewer dots on the small disc: only the curated spread of five capitals is
+       shown so eleven pins do not pepper a ~190px globe. Hidden markers are also
+       removed from hit-testing/tab order in updateCityMarkers() (the `phone &&
+       !city.mobile` branch), so a hidden capital can never be selected here. */
+    .city-marker.city-off-mobile{display:none}
+    /* With fewer, better-spaced dots the phone pin can be a touch larger again,
+       so each tap target reads clearly rather than as a speck. */
+    .city-pin{width:11px;height:11px}
+    .city-pin::before{width:38px;height:38px}
   }
-  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card,.city-panel{transition:none}.city-marker.is-visible .city-pin{animation:none}}
+  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card,.city-panel,.city-leader{transition:none}.city-marker.is-visible .city-pin{animation:none}.city-leader line{animation:none}}
 
 </style>
 </head>
 <body>
   <main class="sorcerer-stage" id="stage" data-layer="air" aria-label="Interactive WECARE globe with city weather and air markers">
     <canvas id="globe" aria-hidden="true"></canvas>
+
+    <!-- Leader line tying the left info panel to the SELECTED capital's on-globe
+         pin. It is drawn in an SVG overlay that spans the stage and is repainted
+         every frame (the pin moves as the globe spins). pointer-events:none so it
+         never blocks a drag; hidden entirely when nothing is selected or when the
+         selected pin has rotated to the far side of the globe. -->
+    <svg class="city-leader" id="cityLeader" aria-hidden="true" preserveAspectRatio="none">
+      <line id="cityLeaderLine" x1="0" y1="0" x2="0" y2="0" />
+    </svg>
 
     <button
       class="data-toggle"
@@ -319,19 +372,24 @@
 
   // Single source of truth for every clickable capital. Each identity colour is
   // one of the globe's own palette tokens — never a red.
+  // `mobile:true` marks the curated subset shown on the small phone disc. All 11
+  // capitals peppering a ~190px disc read as cramped, so on ≤680px only a spread
+  // of five is kept — New Delhi (the default/home city) plus four well-separated
+  // anchors — and the dense clusters (Bengaluru/Dubai near Delhi, Beijing near
+  // Tokyo, Moscow, Singapore, São Paulo) are hidden. Desktop still shows all 11.
   const CITIES=[
-    {id:'delhi',       name:'New Delhi',     lat: 28.6139, lon:  77.2090, accent:'#f0a818'},
+    {id:'delhi',       name:'New Delhi',     lat: 28.6139, lon:  77.2090, accent:'#f0a818', mobile:true},
     {id:'bengaluru',   name:'Bengaluru',     lat: 12.9716, lon:  77.5946, accent:'#9849e8'},
     {id:'dubai',       name:'Dubai',         lat: 25.2048, lon:  55.2708, accent:'#c98a2e'},
     {id:'moscow',      name:'Moscow',        lat: 55.7558, lon:  37.6173, accent:'#2563eb'},
     // London only for western Europe: at the globe's limb longitudes compress, so a
     // second capital 2.5deg away (Paris) permanently overlaps its label chip.
-    {id:'london',      name:'London',        lat: 51.5072, lon:  -0.1276, accent:'#d1f470'},
+    {id:'london',      name:'London',        lat: 51.5072, lon:  -0.1276, accent:'#d1f470', mobile:true},
     {id:'beijing',     name:'Beijing',       lat: 39.9042, lon: 116.4074, accent:'#f0a818'},
-    {id:'tokyo',       name:'Tokyo',         lat: 35.6762, lon: 139.6503, accent:'#2563eb'},
+    {id:'tokyo',       name:'Tokyo',         lat: 35.6762, lon: 139.6503, accent:'#2563eb', mobile:true},
     {id:'singapore',   name:'Singapore',     lat:  1.3521, lon: 103.8198, accent:'#3da35a'},
-    {id:'sydney',      name:'Sydney',        lat:-33.8688, lon: 151.2093, accent:'#d1f470'},
-    {id:'washington',  name:'Washington DC', lat: 38.9072, lon: -77.0369, accent:'#3da35a'},
+    {id:'sydney',      name:'Sydney',        lat:-33.8688, lon: 151.2093, accent:'#d1f470', mobile:true},
+    {id:'washington',  name:'Washington DC', lat: 38.9072, lon: -77.0369, accent:'#3da35a', mobile:true},
     {id:'saopaulo',    name:'São Paulo',     lat:-23.5505, lon: -46.6333, accent:'#f0a818'},
   ];
   const CITY_BY_ID=new Map(CITIES.map(c=>[c.id,c]));
@@ -350,12 +408,18 @@
   const panelLayerEl=document.getElementById('cityPanelLayer');
   const panelReadingEl=document.getElementById('cityPanelReading');
   const panelMetaEl=document.getElementById('cityPanelMeta');
+  // The leader-line overlay that visually ties the panel to the selected pin.
+  const leaderEl=document.getElementById('cityLeader');
+  const leaderLineEl=document.getElementById('cityLeaderLine');
 
   function buildMarkers(){
     const frag=document.createDocumentFragment();
     for(const city of CITIES){
       const marker=document.createElement('div');
       marker.className='city-marker';
+      // Capitals outside the curated mobile subset are tagged so the ≤680px
+      // media query can drop them, leaving the small disc uncluttered.
+      if(!city.mobile)marker.classList.add('city-off-mobile');
       marker.id=`city-${city.id}`;
       marker.style.setProperty('--city-marker',city.accent);
       marker.style.setProperty('--city-marker-soft',`${city.accent}4d`);
@@ -864,6 +928,31 @@
     const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
     return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},.24)`;
   }
+  // One consistent format for the panel reading across every city.
+  //
+  // AIR: Google's `category` is already paraphrased by its own eyebrow label
+  // ("AIR QUALITY") above the reading, so the trailing "air quality"/"air" words
+  // in e.g. "Moderate air quality" are redundant and only push the line to wrap.
+  // Strip that suffix GENERICALLY — never hard-coded per city — so "Low air
+  // quality"→"Low", "Good air quality"→"Good", "Unhealthy for sensitive groups
+  // air quality"→"Unhealthy for sensitive groups". A category that is JUST
+  // "air quality" collapses to nothing and is dropped, never left blank.
+  function shortenAirCategory(category){
+    if(!category)return '';
+    let s=String(category).trim();
+    // Remove a trailing " air quality" or " air" (case-insensitive), repeated so
+    // an unusual double suffix cannot leave a stray word behind.
+    s=s.replace(/\s+air\s+quality$/i,'').replace(/\s+air$/i,'').trim();
+    // Guard against a category that was only the redundant words.
+    if(/^air(\s+quality)?$/i.test(String(category).trim()))s='';
+    return s;
+  }
+  // WEATHER: title-case the condition so every city reads uniformly regardless
+  // of whether Google returned "mostly sunny", "CLEAR" or "Light rain".
+  function titleCaseCondition(text){
+    if(!text)return '';
+    return String(text).trim().toLowerCase().replace(/\b([a-z])/g,(_,c)=>c.toUpperCase());
+  }
   // Renders the SELECTED city into the single left-side panel. The on-globe
   // markers get only their accent dot refreshed; no data is drawn on the globe.
   function renderCityData(){
@@ -879,13 +968,25 @@
     const data=cityData.get(cityId);
     if(!data)return;
     if(activeLayer==='air'){
-      const aqi=data.air?.aqi,category=data.air?.category,pollutant=data.air?.dominantPollutant;
-      const text=Number.isFinite(aqi)?`AQI ${Math.round(aqi)}${category?` · ${category}`:''}${pollutant?` · ${String(pollutant).toUpperCase()}`:''}`:'AIR · unavailable';
-      setCityReading(cityId,Number.isFinite(aqi)?'ready':'error',text);
+      // Consistent AIR format: "AQI {n} · {Category} · {POLLUTANT}", with the
+      // redundant "air quality" words trimmed from the category and each optional
+      // part omitted cleanly when the data is missing (never a dangling " · ").
+      const aqi=data.air?.aqi,pollutant=data.air?.dominantPollutant;
+      const category=shortenAirCategory(data.air?.category);
+      const bits=[];
+      if(Number.isFinite(aqi)){
+        bits.push(`AQI ${Math.round(aqi)}`);
+        if(category)bits.push(category);
+        if(pollutant)bits.push(String(pollutant).toUpperCase());
+      }
+      setCityReading(cityId,bits.length?'ready':'error',bits.length?bits.join(' · '):'AIR · unavailable');
     }else{
+      // Consistent WEATHER format: "{temp}°C · {Condition} · RH {n}% · Rain {n}%",
+      // title-cased condition, same " · " separators, missing parts omitted.
       const w=data.weather||{},bits=[];
       if(Number.isFinite(w.temperatureC))bits.push(`${Math.round(w.temperatureC)}°C`);
-      if(w.condition)bits.push(w.condition);
+      const condition=titleCaseCondition(w.condition);
+      if(condition)bits.push(condition);
       if(Number.isFinite(w.humidity))bits.push(`RH ${Math.round(w.humidity)}%`);
       if(Number.isFinite(w.precipitationPercent))bits.push(`Rain ${Math.round(w.precipitationPercent)}%`);
       setCityReading(cityId,bits.length?'ready':'error',bits.length?bits.join(' · '):'WEATHER · unavailable');
@@ -1052,6 +1153,8 @@
     card:markerEls.get(c.id).querySelector('.city-card'),
     lat:c.lat,
     lon:c.lon,
+    // Whether this capital appears on the small phone disc (the curated subset).
+    mobile:Boolean(c.mobile),
     // Last known visibility, so the focus/aria attributes are written only when
     // the state actually flips rather than on all 11 markers every frame.
     visible:null,
@@ -1071,17 +1174,42 @@
     a.width>0&&a.height>0&&b.width>0&&b.height>0&&
     a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
 
+  // Live screen position + visibility of the selected pin, filled each frame in
+  // updateCityMarkers() and consumed by updateLeaderLine() right after.
+  let selectedScreen=null;
+
+  const mobileMql=window.matchMedia('(max-width:680px)');
+
   function updateCityMarkers() {
     const w = stage.clientWidth || 1;
     const h = stage.clientHeight || 1;
+    selectedScreen=null;
+    const phone=mobileMql.matches;
     // Pass 1 — writes only: project every capital and place its marker.
     for (const city of cities) {
+      // A capital not in the mobile subset is CSS-hidden on the phone disc; keep
+      // it out of visibility/tab-order bookkeeping too so it is never focusable
+      // or selectable there and its leader never draws.
+      if(phone&&!city.mobile){
+        if(city.visible!==false){
+          city.visible=false;
+          city.pin.tabIndex=-1;
+          city.pin.setAttribute('aria-hidden','true');
+          if(document.activeElement===city.pin)city.pin.blur();
+          city.el.classList.remove('is-visible');
+        }
+        continue;
+      }
       const p = rotateForView(latLonToXYZ(city.lat,city.lon,1.035));
       const xNdc = p[0] * scale[0] + offset[0];
       const yNdc = p[1] * scale[1] + offset[1];
       const x = (xNdc + 1) * 0.5 * w;
       const y = (1 - yNdc) * 0.5 * h;
       const visible=p[2]>0.08&&x>-40&&x<w+40&&y>-40&&y<h+40;
+      // A pin counts as "on the near face" (so its leader may draw) only when it
+      // is comfortably in front — p[2]>0.08 is the same near-face test the
+      // visibility flag uses, so the leader hides exactly when the pin does.
+      if(city.id===selectedCity)selectedScreen={x,y,visible};
       city.el.classList.toggle('is-visible',visible);
       city.el.classList.toggle('place-left',x>w*.54);
       city.el.classList.toggle('place-right',x<=w*.54);
@@ -1124,6 +1252,51 @@
         city.el.classList.toggle('is-occluded',city.pendingOcclude);
       }
     }
+
+    updateLeaderLine(w,h);
+  }
+
+  // Draw/hide the leader line from the panel's right-centre to the selected pin.
+  // Called at the tail of updateCityMarkers (after the markers are placed) so it
+  // uses this frame's live pin position, keeping it glued as the globe spins.
+  function updateLeaderLine(w,h){
+    if(!leaderEl||!leaderLineEl)return;
+    // Nothing to tie: no selection, panel absent, or the pin is on the far side
+    // / off-stage. In every case hide the layer so no stray line lingers.
+    if(!selectedCity||!panelEl||!selectedScreen||!selectedScreen.visible){
+      if(leaderEl.classList.contains('is-visible'))leaderEl.classList.remove('is-visible');
+      return;
+    }
+    // On the phone layout the panel docks bottom-left and the disc is tiny; a
+    // line across the small stage adds clutter rather than clarity, so the
+    // accent stripe + matching pin ring carry the connection there instead.
+    if(window.matchMedia('(max-width:680px)').matches){
+      if(leaderEl.classList.contains('is-visible'))leaderEl.classList.remove('is-visible');
+      return;
+    }
+    const stageRect=stage.getBoundingClientRect();
+    const panelRect=panelEl.getBoundingClientRect();
+    // Origin: the right-centre edge of the panel, in stage-local coordinates.
+    const x1=panelRect.right-stageRect.left;
+    const y1=panelRect.top-stageRect.top+panelRect.height/2;
+    const x2=selectedScreen.x;
+    const y2=selectedScreen.y;
+    leaderLineEl.setAttribute('x1',x1.toFixed(1));
+    leaderLineEl.setAttribute('y1',y1.toFixed(1));
+    leaderLineEl.setAttribute('x2',x2.toFixed(1));
+    leaderLineEl.setAttribute('y2',y2.toFixed(1));
+    // Match the panel's current accent so panel ↔ line ↔ pin share one hue.
+    const accent=panelEl.style.getPropertyValue('--panel-accent')||'#3da35a';
+    leaderEl.style.setProperty('--leader-accent',hexToLeaderStroke(accent.trim()));
+    if(!leaderEl.classList.contains('is-visible'))leaderEl.classList.add('is-visible');
+  }
+  // The leader uses the accent at reduced alpha so it stays subtle. Accepts the
+  // panel accent (a #hex) and returns an rgba() string.
+  function hexToLeaderStroke(hex){
+    const h=(hex||'').replace('#','');
+    if(!/^[0-9a-f]{3}([0-9a-f]{3})?$/i.test(h))return 'rgba(61,163,90,.55)';
+    const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},.6)`;
   }
 
   const ro = new ResizeObserver(resize);
@@ -1176,11 +1349,46 @@
     gl.bindVertexArray(null);
   }
 
+  // ---------- render-loop lifecycle (perf) ----------
+  // The rAF loop drives the GPU every frame, which is wasted work when the globe
+  // is scrolled out of view or the tab is hidden. We PAUSE the loop in those
+  // cases and RESUME it on return, and cap the PASSIVE auto-spin to ~34fps so a
+  // low-end phone is not pushed to full refresh just to idle-spin. Drag/inertia
+  // always run at full rate so interaction stays crisp.
+  let rafId=0;
+  let running=false;
+  // Minimum ms between PASSIVE spin frames (~34fps). Interaction bypasses this.
+  const PASSIVE_FRAME_MS=1000/34;
+  let lastDrawnAt=0;
+
+  function startLoop(){
+    if(running)return;
+    running=true;
+    // Reset the frame clock so the first dt after a pause is a single ~1/60
+    // step, not the whole paused interval — the dt clamp would cap it anyway,
+    // but resetting means zero visible leap on resume.
+    lastFrameAt=0;
+    lastDrawnAt=0;
+    rafId=requestAnimationFrame(frame);
+  }
+  function stopLoop(){
+    running=false;
+    if(rafId){cancelAnimationFrame(rafId);rafId=0;}
+  }
+
   function frame(){
+    rafId=requestAnimationFrame(frame);
     resize();
     const t=performance.now();
-    // Seconds since the previous frame, clamped so a backgrounded tab that
-    // resumes does not jump the globe forward by a visible chunk.
+    // Interaction (drag or residual inertia) must stay at the full refresh rate;
+    // only the passive idle spin is throttled. Decide BEFORE the dt read so a
+    // skipped passive frame does not advance lastFrameAt and shrink the next dt.
+    const interacting=dragging||(!reduceMotion&&(Math.abs(velocityX)+Math.abs(velocityY)>.00005));
+    if(!interacting&&t-lastDrawnAt<PASSIVE_FRAME_MS)return;
+    lastDrawnAt=t;
+    // Seconds since the previous DRAWN frame, clamped so a backgrounded tab that
+    // resumes (or a throttled passive frame) does not jump the globe forward by
+    // a visible chunk.
     const dtSec=lastFrameAt?Math.min(0.05,Math.max(0,(t-lastFrameAt)/1000)):1/60;
     lastFrameAt=t;
     layerMix+=((layerTarget-layerMix)*(reduceMotion?1:.055));
@@ -1239,10 +1447,39 @@
     gl.depthMask(true);gl.disable(gl.BLEND);
 
     updateCityMarkers();
-    requestAnimationFrame(frame);
   }
 
-  requestAnimationFrame(frame);
+  // PAUSE WHEN OFFSCREEN. Observe the stage inside the iframe's own document. In
+  // the production embed the iframe is itself scrolled with the page, but an
+  // IntersectionObserver here only sees the stage relative to the IFRAME's
+  // viewport — which the stage usually fills — so this reliably catches an
+  // in-page scroll only when the iframe is shorter than the stage. It is kept
+  // because it is correct and cheap where it does fire; the tab-hidden fallback
+  // below covers the common "scrolled away / switched tab" case regardless.
+  let intersecting=true;
+  if('IntersectionObserver'in window){
+    try{
+      const io=new IntersectionObserver(entries=>{
+        for(const e of entries)intersecting=e.isIntersecting;
+        syncLoop();
+      },{threshold:0.01});
+      io.observe(stage);
+    }catch(_){/* no-op: fall through to always-intersecting */}
+  }
+
+  // PAUSE WHEN THE TAB IS HIDDEN. document.hidden flips when the user switches
+  // tab or minimises; this is the dependable signal inside an iframe and the
+  // main battery/GPU win on mobile. The embedding page being backgrounded hides
+  // this document too, so one listener covers both.
+  function pageVisible(){return !document.hidden;}
+  function syncLoop(){
+    if(intersecting&&pageVisible())startLoop();
+    else stopLoop();
+  }
+  document.addEventListener('visibilitychange',syncLoop,{passive:true});
+
+  // Kick off (or stay paused if we start hidden/offscreen).
+  syncLoop();
 })();
 </script>
 </body>
