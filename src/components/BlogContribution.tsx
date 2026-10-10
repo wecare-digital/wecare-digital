@@ -178,30 +178,33 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
          READABILITY: both gradient stops are measured on white - rgba(0,0,0,.54)=4.61:1 and
          #1a3a2a=12.48:1 - so the band only ever makes the text darker than its resting state,
          never a lime wash that would erase it. */
+      /* A CONTINUOUS COLOUR SWEEP, PLAYING ON ITS OWN - the .ft-tagline treatment in Footer.tsx,
+         but looping rather than one-shot because the owner asked the band to keep running without
+         hover or click. The gradient, the text clip and the transparent fill ALL live on the base
+         rule, together with the animation, so the band is clipped to the glyphs from the first
+         frame - declaring the gradient without background-clip:text is what painted the whole
+         paragraph box grey (the full-width bar bug). Both stops are measured on white -
+         rgba(0,0,0,.54)=4.61:1, #1a3a2a=12.48:1 - so the band only ever DARKENS the text, never a
+         lime wash that would erase it. background-position is the only animated property, so it
+         composites off the main thread. The resting colour is the fallback for any browser without
+         background-clip:text. */
       .bc-cta-note{
         font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
-      }
-      /* The sweep: the gradient's dark band travels across, once per hover. The gradient itself,
-         the clip and the transparent fill ALL live here, not at rest. Declaring the gradient at
-         rest without background-clip:text paints the whole paragraph box grey - the full-width
-         bar bug - so the resting line is plain muted text and the band only exists on hover.
-         background-position is the only animated property, so it composites off the main thread. */
-      .bc-cta-note:hover{
         background-image:linear-gradient(100deg,
-          rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
-        background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+          rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
+        background-size:300% 100%;background-repeat:no-repeat;
         -webkit-background-clip:text;background-clip:text;
-        -webkit-text-fill-color:transparent;color:transparent;
-        animation:bc-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
+        -webkit-text-fill-color:transparent;
+        animation:bc-note-sweep 3.2s linear infinite;
       }
-      @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
+      @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
       @media(prefers-reduced-motion:reduce){
         .bc-cta{transition:none}
         .bc-cta:hover{transform:none;box-shadow:none}
-        /* Neutralise the sweep: hand the text back its solid colour and kill the animation, or a
-           reduced-motion reader gets transparent text over a parked gradient - an invisible line.
+        /* Motion-sensitive readers get the line static and solid grey: no animation, no
+           transparent fill, no gradient - the WCAG 2.2.2 carve-out for auto-running motion.
            Matches the guard Footer.tsx applies to .ft-tagline under this preference. */
-        .bc-cta-note:hover{
+        .bc-cta-note{
           animation:none;background-image:none;
           -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
         }

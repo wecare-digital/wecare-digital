@@ -797,23 +797,26 @@ export default function BlogPostPage ( {
            the muted text on hover. Clip + transparent fill live under :hover only, so the resting
            line stays solid grey rather than invisible. Both gradient stops are measured on white
            (4.61:1 and 12.48:1), so the band only darkens the text, never washes it out. */
+        /* A CONTINUOUS COLOUR SWEEP, PLAYING ON ITS OWN - the .ft-tagline treatment in Footer.tsx,
+           looping rather than one-shot because the owner asked the band to keep running without
+           hover or click. The gradient, the text clip and the transparent fill all live on the
+           base rule with the animation, so the band is clipped to the glyphs from the first frame -
+           declaring the gradient without background-clip:text is what painted the whole paragraph
+           box grey (the full-width bar bug). Both stops are on white (4.61:1 and 12.48:1), so the
+           band only darkens the text, never washes it out. Resting colour is the no-clip fallback. */
         .blog-wa-note{
           font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
-        }
-        /* Gradient band under :hover ONLY. At rest, declaring the gradient without
-           background-clip:text paints the whole paragraph box grey - the full-width bar bug - so
-           the resting line stays plain muted text and the band is clipped to the glyphs on hover. */
-        .blog-wa-note:hover{
           background-image:linear-gradient(100deg,
-            rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
-          background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+            rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
+          background-size:300% 100%;background-repeat:no-repeat;
           -webkit-background-clip:text;background-clip:text;
-          -webkit-text-fill-color:transparent;color:transparent;
-          animation:blog-wa-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
+          -webkit-text-fill-color:transparent;
+          animation:blog-wa-note-sweep 3.2s linear infinite;
         }
-        @keyframes blog-wa-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
+        @keyframes blog-wa-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
+        /* Motion-sensitive readers get the line static and solid grey: WCAG 2.2.2 carve-out. */
         @media(prefers-reduced-motion:reduce){
-          .blog-wa-note:hover{
+          .blog-wa-note{
             animation:none;background-image:none;
             -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
           }

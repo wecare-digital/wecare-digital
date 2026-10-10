@@ -230,24 +230,31 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              the muted text on hover. Clip + transparent fill live under :hover only so the resting
              line stays solid grey, not invisible; both stops are measured on white (4.61:1 and
              12.48:1) so the band only darkens the text. */
+          /* A CONTINUOUS COLOUR SWEEP, PLAYING ON ITS OWN - the .ft-tagline treatment in
+             Footer.tsx ("Trusted everyday services for Bharat"), but looping rather than one-shot
+             because the owner asked the band to keep running without hover or click. The gradient,
+             the text clip and the transparent fill ALL live on the base rule here, together with
+             the animation, so the band is clipped to the glyphs from the first frame - declaring
+             the gradient without background-clip:text is what painted the whole paragraph box grey
+             (the full-width bar bug). Both stops are measured on white - rgba(0,0,0,.54) is 4.61:1
+             and #1a3a2a is 12.48:1 - so the band only ever DARKENS the text as it passes; it never
+             erases it. background-position is the only animated property, so it composites off the
+             main thread. The resting colour:rgba(0,0,0,.54) is the fallback for any browser without
+             background-clip:text (there, text-fill-color is ignored and the line is plain grey). */
           .pdp-cta-note{
             font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
-          }
-          /* The gradient band lives under :hover ONLY. Declaring it at rest paints the whole
-             paragraph box grey (background-clip is border-box until the hover rule sets it to
-             text), which is the full-width bar bug. At rest this is plain muted text; on hover
-             the band is clipped to the glyphs and swept across them. */
-          .pdp-cta-note:hover{
             background-image:linear-gradient(100deg,
-              rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
-            background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
+              rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
+            background-size:300% 100%;background-repeat:no-repeat;
             -webkit-background-clip:text;background-clip:text;
-            -webkit-text-fill-color:transparent;color:transparent;
-            animation:pdp-cta-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
+            -webkit-text-fill-color:transparent;
+            animation:pdp-cta-note-sweep 3.2s linear infinite;
           }
-          @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
+          @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
+          /* Motion-sensitive readers get the line static and solid grey: no animation, no
+             transparent fill, no gradient - the WCAG 2.2.2 carve-out for auto-running motion. */
           @media(prefers-reduced-motion:reduce){
-            .pdp-cta-note:hover{
+            .pdp-cta-note{
               animation:none;background-image:none;
               -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
             }
