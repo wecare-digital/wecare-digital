@@ -17,7 +17,7 @@ type FlowSubmission = api.FlowLog;
 
 const FLOW_TYPES = [
   { key: 'orders', label: 'Orders', icon: '📦', flowId: '2167802357142172', paid: false, price: 'Free', status: 'draft', confirmation: 'Order history' },
-  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: '1728231914933139', paid: true, price: '₹99', status: 'draft', confirmation: 'Request details' },
+  { key: 'submit_request', label: 'Submit Request', icon: '📋', flowId: '1107164111921876', paid: true, price: '₹99', status: 'published', confirmation: 'Request details' },
   { key: 'shipments', label: 'Shipments', icon: '🚚', flowId: '849713848195607', paid: false, price: 'Free', status: 'draft', confirmation: 'Shipment tracking' },
   { key: 'vault', label: 'Vault', icon: '🔐', flowId: '1735480734227899', paid: true, price: '₹49', status: 'draft', confirmation: 'Vault access' },
   { key: 'drop_docs', label: 'Drop Docs', icon: '📄', flowId: '1605008471323578', paid: true, price: '₹350', status: 'draft', confirmation: 'Document registered' },

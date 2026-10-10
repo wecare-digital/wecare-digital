@@ -626,6 +626,7 @@ def test_handler_never_calls_post_paid_order_keys(env):
 #: WABA2's phone id, per `amplify/functions/shared/config.ts` `PHONE_NUMBER_ID_2`. The sender
 #: resolver can legitimately return it; `PAYMENT_SENDERS` does not permit it to collect.
 WABA2_SENDER = 'phone-number-id-waba-t-direct-1055232054343117'
+CATALOG_CUSTOMER = '11111111-1111-1111-1111-111111111111'
 
 
 def _seed_preparing_session(fake, *, phone_number_id):
@@ -637,7 +638,7 @@ def _seed_preparing_session(fake, *, phone_number_id):
     """
     row = dict(CATALOG_SESSION)
     row.update({'phoneNumberId': phone_number_id,
-                'customerId': CUSTOMER,
+                'customerId': CATALOG_CUSTOMER,
                 'serviceIntentId': 'INTENT-TEST',
                 'status': 'PREPARING_PAYMENT',
                 'expiresAt': 4070908800})
@@ -660,7 +661,7 @@ def test_waba2_cannot_prepare_a_native_service_payment_and_leaves_no_claim(env):
     # the owned contact needed to reach that exact gate without any provider calls.
     fake.Table('stack-wecare-digital-ContactsTable').put_item(Item={
         'id': CATALOG_SESSION['contactId'],
-        'checkoutCustomerId': CUSTOMER,
+        'checkoutCustomerId': CATALOG_CUSTOMER,
     })
 
     result = h._native_catalog_service(

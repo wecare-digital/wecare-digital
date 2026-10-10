@@ -199,7 +199,7 @@ const VayuLokPage: React.FC = () => {
                   product's whole point - VayuLok reports the air and weather for the
                   exact spot you are in, not the city average. Brand cased VayuLok to
                   match every other reference in the repo. */}
-              <p className="vl-sub">Weather forecasts cover your town. VayuLok covers where you&rsquo;re standing &mdash; live air and weather for your exact location.</p>
+              <p className="vl-sub">Forecasts cover cities. VayuLok reads your street &mdash; live air and weather, exactly where you are.</p>
             </div>
 
             <div className="vl-hero-visual">
