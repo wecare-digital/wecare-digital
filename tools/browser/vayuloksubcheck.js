@@ -154,7 +154,7 @@ const ROLE1_BUTTONS = [
   [ 'Subscribe on WhatsApp', '#vl-sub-wa' ],
   [ 'Contribute', '.vl-bc-submit-wrap .vl-btn' ],
 ];
-const WA_HREF = 'https://wa.me/message/BEA3HNW3LNM3A1';
+const WA_HREF = 'https://wa.me/message/WUDPTMYSO6XII1';
 
 /* ROLE 3, from src/components/BlogSubscribe.tsx:329. */
 const ROLE3 = { height: 52, radius: '10px', borderWidth: '1px', borderColor: 'rgb(229, 231, 235)' };
