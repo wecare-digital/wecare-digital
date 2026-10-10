@@ -2615,17 +2615,30 @@ def _process_message(
         # Unknown "/foo" is left intact so free-form input still reaches the AI.
         if content_lower.startswith('/'):
             _cmd_token = content_lower.split(None, 1)[0]
-            _KNOWN_SLASH_COMMANDS = {
-                '/menu', '/subscribe', '/bharatstack', '/self' + 'service',
-                '/service', '/pay', '/help', '/commands',
+            _SLASH_COMMAND_ALIASES = {
+                '/menu': '/menu',
+                '/orders': 'orders',
+                '/submitrequest': 'submit request',
+                '/amendment': 'request amendment',
+                '/dropdocs': 'drop docs',
+                '/vault': 'vault',
+                '/shipments': 'shipments',
+                '/review': 'leave review',
+                '/subscribe': 'subscribe',
+                '/pay': '/pay',
+                '/bharatstack': '/bharatstack',
+                '/self' + 'service': '/self' + 'service',
+                '/service': '/service',
+                '/help': '/help',
+                '/commands': '/commands',
             }
-            if _cmd_token in _KNOWN_SLASH_COMMANDS:
+            if _cmd_token in _SLASH_COMMAND_ALIASES:
                 logger.info(json.dumps({
                     'event': 'slash_command_normalized',
                     'original': content_lower[:80], 'command': _cmd_token,
                     'contactId': mask_contact_id(contact_id), 'requestId': request_id,
                 }))
-                content_lower = _cmd_token
+                content_lower = _SLASH_COMMAND_ALIASES[_cmd_token]
 
         # Decoration-stripped alias, used as a FALLBACK by the greeting /
         # customer-service / commands checks below so "Hi 👋", "menu 🙏" and "❓ FAQs"
@@ -2636,7 +2649,7 @@ def _process_message(
 
         # Non-form service doors reuse secure website experiences. No second payment path.
         if _content_plain in {'vault', 'my vault', 'request amendment', 'drop docs',
-                              'shipments', 'submit request'}:
+                              'shipments', 'submit request', 'subscribe'}:
             service_doors = {
                 'vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
                 'my vault': ('Vault', '/vault/', 'Access documents linked to your verified account.'),
@@ -2644,6 +2657,7 @@ def _process_message(
                 'drop docs': ('View orders', '/orders/', 'Sign in to select your existing order and its request before attaching documents. The WhatsApp document checkout is being prepared.'),
                 'shipments': ('Orders', '/orders/', 'View your orders and delivery updates with this verified WhatsApp number.'),
                 'submit request': ('View orders', '/orders/', 'Sign in to select your existing order. Your service purchase and the order you need help with remain linked separately. The WhatsApp service checkout is being prepared.'),
+                'subscribe': ('Subscribe', '/subscribe/', 'Open the subscription page for the latest WECARE.DIGITAL updates and subscription options.'),
             }
             title, path, body = service_doors[_content_plain]
             _send_cta_button(contact_id, aws_phone_number_id, title,
