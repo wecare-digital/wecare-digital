@@ -20,12 +20,14 @@ import type { ProductDef } from '../content/products';
  * inversion), card headings at 22px/700/-.25px, and the single body level at
  * 20px/400/1.4/-.125px.
  *
- * THE NOTE IS A HAIRLINE BOX, NOT A LIME ONE. Several of these products are regulated or
- * easily misread - Dastavez is not a law firm, Clear Closure does not act for either party,
- * Anew is not therapy, Elsewhere cannot promise a visa. Those statements have to be read,
- * but lime on this site means "actionable", and the single lime surface on the page is
+ * THE NOTE IS A QUIET TINTED CARD, NOT A LIME ONE. Several of these products are regulated
+ * or easily misread - Dastavez is not a law firm, Clear Closure does not act for either
+ * party, Anew is not therapy, Elsewhere cannot promise a visa. Those statements have to be
+ * read, but lime on this site means "actionable", and the single lime surface on the page is
  * already spent on the call to action. A boundary statement competing with the CTA for the
- * same signal would be a worse outcome than a quiet one that is actually legible.
+ * same signal would be a worse outcome than a quiet one that is actually legible. So the box
+ * takes the house quiet-card geometry and the faint #fcfdfb lime-white used by the nav menu
+ * - part of the brand system, with no lime signal of its own. See the rule itself below.
  */
 
 interface ProductPageProps {
@@ -129,10 +131,25 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           .pdp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .pdp-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
-          /* Static 1px hairline, per the rule: 1px static, 2px hoverable. */
+          /* A QUIET TINTED CARD, STILL A 1px HAIRLINE. Geometry is the house quiet-card trio
+             - padding:22px, 1px #e5e7eb, 14px radius - the same declaration as
+             CheckoutIdentityCard, CheckoutProfile, .lgd-toc and .ord-nodetails, and the 14px
+             the home page's closing panel uses. #fcfdfb is the site's faint lime-white
+             surface (Header's .nav-menu, Layout's dropdown): part of the lime system without
+             being lime. NOT rgba(209,244,112,.22) - that is the actionable lime surface and
+             the page's one lime signal is the CTA above. No lime top border for the same
+             reason, which also keeps the border rule intact: 1px static, 2px hoverable.
+             Type is the legal-copy rung 17px/400/-.05px from .lgd-p, at .cl-value's 1.55
+             line-height, on the single public body colour rgba(0,0,0,.898). It was
+             16px/rgba(0,0,0,.54) - the faintest text on the page, which is the wrong
+             treatment for a statement that has to be read. It stays quiet through size and
+             surface, not faded ink. No mobile step-down: 17px is already the base size. */
           .pdp-note{
-            margin:34px 0 0;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;
-            font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
+            margin:34px 0 0;padding:22px;
+            border:1px solid #e5e7eb;border-radius:14px;
+            background:#fcfdfb;
+            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
+            color:rgba(0,0,0,.898);
           }
 
           @media(max-width:767px){

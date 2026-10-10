@@ -115,7 +115,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       { heading: 'You are told what it affects', body: 'If a change moves a date or affects something already arranged, you hear that before it is actioned rather than after.' },
     ],
     note:
-      'Some amendments depend on a third party accepting them - an airline, a registry, a supplier or a government office. We will tell you what is possible and what it depends on, but we cannot commit to a change that is not ours to make.',
+      'Some amendments need a third party to accept them - an airline, a registry, a supplier or a government office. We will tell you what is possible and what it depends on, but cannot commit to a change that is not ours to make.',
     ctaLabel: 'Request an amendment',
     ctaHref: CUSTOMERSERVICE_CTA,
   },
@@ -138,7 +138,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       { heading: 'Send only what is asked for', body: 'If you are not sure whether something is needed, ask first. Fewer documents held is better for you than more.' },
     ],
     note:
-      'Please do not send original certificates, and do not send card numbers, passwords or one-time codes - we never need them. Documents are handled under the practices described in our privacy policy.',
+      'Please do not send original certificates, or card numbers, passwords or one-time codes - we never need them. Documents are handled as our privacy policy describes.',
     ctaLabel: 'Send documents',
     ctaHref: CUSTOMERSERVICE_CTA,
   },
@@ -205,7 +205,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       },
     ],
     note:
-      'Documents are not kept indefinitely - our privacy policy sets how long each kind is retained, and once a period ends a copy may no longer exist to send. We also cannot release someone else\'s document to you, or a document to someone acting on your behalf without your authority.',
+      'Documents are not kept indefinitely - our privacy policy sets each retention period, and once one ends a copy may no longer exist to send. We cannot release someone else\'s document to you, or yours to someone acting for you without your authority.',
     ctaLabel: 'Request a copy',
     ctaHref: CUSTOMERSERVICE_CTA,
   },
@@ -228,7 +228,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       { heading: 'You can be as brief as you like', body: 'A line is fine. There is no rating to complete and no questionnaire to finish.' },
     ],
     note:
-      'Nothing you send is published anywhere without asking you first, and asking is not a condition of anything. Reviews you choose to leave on an external platform are governed by that platform, not by us.',
+      'Nothing you send is published without us asking you first, and asking is not a condition of anything. A review you choose to leave on an external platform is governed by that platform, not by us.',
     ctaLabel: 'Leave a review',
     /**
      * THE ONE CTA ON THESE PAGES THAT IS NOT THE CONTACT PAGE.
@@ -265,7 +265,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       { heading: 'You can see where it stands', body: 'Ask at any point whether an introduction you made went anywhere. You will get a straight answer.' },
     ],
     note:
-      'What a referral is worth depends on what the person you introduced goes on to do, so it is recognised case by case rather than at a fixed rate. Anyone who introduces people regularly should talk to us about a partner arrangement instead - that is a different conversation with terms written down.',
+      'What a referral is worth depends on what the person you introduced goes on to do, so it is recognised case by case, not at a fixed rate. If you introduce people regularly, ask us about a partner arrangement instead - a different conversation, with terms written down.',
     ctaLabel: 'Introduce someone',
     ctaHref: CUSTOMERSERVICE_CTA,
   },
