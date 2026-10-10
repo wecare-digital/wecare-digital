@@ -26,7 +26,7 @@
       "choiceId": "2af81a87-24a8-4729-80bf-1d967a637bc2",
       "sku": "SERVICE-SUBMIT-REQUEST",
       "route": "/submit-request/",
-      "imageUrl": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png"
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_b2872b90be0a4436a5f3d2f38e9f2e62~mv2.png"
     },
     {
       "name": "Request Amendment",
@@ -35,7 +35,7 @@
       "choiceId": "7111e864-e789-4641-8f28-74240af61561",
       "sku": "SERVICE-REQUEST-AMENDMENT",
       "route": "/request-amendment/",
-      "imageUrl": "https://static.wixstatic.com/media/478bf9_61bf98226abd4c7183413fd1b2fd76ce~mv2.png"
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_896d5b0e4c25456182d1ddbec01f936f~mv2.png"
     },
     {
       "name": "Drop Docs",
@@ -44,7 +44,7 @@
       "choiceId": "f981b729-748a-48ee-93b9-54ecc543b617",
       "sku": "SERVICE-DROP-DOCS",
       "route": "/drop-docs/",
-      "imageUrl": "https://static.wixstatic.com/media/478bf9_df2cd2060b1c4bbca3a6915001062adc~mv2.png"
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_4daebc4f975042779167334d739c718c~mv2.png"
     },
     {
       "name": "Vault",
@@ -53,7 +53,7 @@
       "choiceId": "bdaafdcf-7998-4d43-b7dd-1ab40cc6566c",
       "sku": "SERVICE-VAULT",
       "route": "/vault/",
-      "imageUrl": "https://static.wixstatic.com/media/478bf9_0d6ef02aebca413e8c5843057bff60dd~mv2.png"
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_1d3cf70a8a5442b7aadd49e05bd7bd4d~mv2.png"
     },
     {
       "name": "Request Pickup",
@@ -62,7 +62,7 @@
       "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
       "sku": "SERVICE-REQUEST-PICKUP",
       "route": "/request-pickup/",
-      "imageUrl": "https://static.wixstatic.com/media/478bf9_fafb1f49124d465cb1c3c076c3c7410c~mv2.png"
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_522a6f2573d54b9390683ed126f04d52~mv2.png"
     }
   ],
   "freeActions": [
