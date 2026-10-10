@@ -76,6 +76,55 @@
   }
   .data-toggle:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
+  /* THE SINGLE CITY INFO PANEL. It sits in the gap on the LEFT of the globe
+     disc, toward the headline, and is the only place a city's reading appears.
+     The stage is transparent over the white hero, so a dark glass pill would be
+     unreadable here: this is a LIGHT card with DARK text and a hairline border,
+     matching the site's quiet-card treatment. The active city's identity colour
+     shows only as a thin accent stripe + dot, never as the whole surface. */
+  .city-panel{
+    position:absolute;left:4.0%;top:50%;z-index:18;
+    transform:translateY(-50%);
+    display:flex;align-items:stretch;gap:11px;
+    width:clamp(176px,20%,236px);
+    padding:14px 16px;
+    border:1px solid #e5e7eb;border-radius:18px;
+    background:#fff;
+    box-shadow:0 10px 30px rgba(16,24,20,.10),0 2px 8px rgba(16,24,20,.06);
+    color:#1a3a2a;text-align:left;
+    pointer-events:none;
+    transition:opacity .22s ease,transform .22s cubic-bezier(.16,1,.3,1);
+  }
+  .city-panel-accent{
+    flex:0 0 auto;width:3px;align-self:stretch;border-radius:3px;
+    background:var(--panel-accent,#3da35a);
+  }
+  .city-panel-body{min-width:0;display:flex;flex-direction:column}
+  .city-panel-name{
+    display:flex;align-items:center;gap:7px;
+    font-size:clamp(14px,1.5vw,17px);font-weight:800;line-height:1.1;color:#1a3a2a;
+  }
+  .city-panel-name::before{
+    content:'';flex:0 0 auto;width:8px;height:8px;border-radius:50%;
+    background:var(--panel-accent,#3da35a);
+    box-shadow:0 0 0 3px var(--panel-accent-soft,rgba(61,163,90,.22));
+  }
+  .city-panel-layer{
+    margin-top:7px;font-size:10px;font-weight:800;letter-spacing:.1em;line-height:1;
+    text-transform:uppercase;color:rgba(26,58,42,.55);
+  }
+  .city-panel-reading{
+    margin-top:7px;font-size:clamp(12px,1.1vw,14px);font-weight:800;line-height:1.3;
+    color:#1a3a2a;white-space:normal;
+  }
+  .city-panel-reading[data-state='idle'],
+  .city-panel-reading[data-state='loading'],
+  .city-panel-reading[data-state='error']{color:rgba(26,58,42,.6);font-weight:700}
+  .city-panel-meta{
+    margin-top:9px;font-size:9px;font-weight:750;letter-spacing:.08em;line-height:1.1;
+    text-transform:uppercase;color:rgba(26,58,42,.45);
+  }
+
   /* City labels follow the real globe rotation. Their visual language borrows
      the thin leader + dot from the supplied reference, recolored for WECARE. */
   .city-marker {
@@ -131,17 +180,18 @@
     width: 1.5px;
     height: var(--stem-height);
     border-radius: 2px;
-    background:linear-gradient(to top,rgba(255,255,255,.70),rgba(255,255,255,.10));
+    /* Darkened for the transparent stage over the white hero. */
+    background:linear-gradient(to top,rgba(26,58,42,.55),rgba(26,58,42,.08));
   }
+  /* The on-globe card now carries ONLY the city name: all AQI/weather data has
+     moved to the single left-side .city-panel. It is a quiet light chip so it
+     stays legible against the transparent stage over the white hero. */
   .city-card{
-    position:absolute;right:15px;top:var(--label-y);min-width:154px;
-    padding:9px 13px 10px;border:1px solid rgba(26,58,42,.28);border-radius:18px;
-    /* Tinted glass: still see-through onto the globe, but opaque enough that the
-       white type keeps contrast where the pill overhangs the white hero. */
-    background:linear-gradient(135deg,rgba(10,20,16,.78),rgba(10,20,16,.62));
-    box-shadow:0 10px 26px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.10);
-    backdrop-filter:blur(3px) saturate(116%);-webkit-backdrop-filter:blur(3px) saturate(116%);
-    color:#fff;text-align:right;white-space:nowrap;
+    position:absolute;right:15px;top:var(--label-y);
+    padding:5px 11px 6px;border:1px solid #e5e7eb;border-radius:999px;
+    background:#fff;
+    box-shadow:0 4px 12px rgba(16,24,20,.12);
+    color:#1a3a2a;text-align:right;white-space:nowrap;
     transition:left .24s cubic-bezier(.16,1,.3,1),right .24s cubic-bezier(.16,1,.3,1),top .24s cubic-bezier(.16,1,.3,1),transform .24s cubic-bezier(.16,1,.3,1),border-color .28s,background .28s;
   }
   .city-marker.place-right .city-card{left:16px;right:auto;text-align:left}
@@ -153,60 +203,27 @@
   .city-marker.place-below .city-stem{transform:rotate(180deg);transform-origin:top center;height:34px;top:0}
   .city-marker.place-above .city-stem{height:38px;top:-38px}
   
-  .sorcerer-stage[data-layer='air'] .city-card{box-shadow:0 10px 26px rgba(0,0,0,.20),inset 0 1px 0 rgba(61,163,90,.10)}
-  .sorcerer-stage[data-layer='weather'] .city-card{box-shadow:0 10px 26px rgba(0,0,0,.20),inset 0 1px 0 rgba(240,168,24,.10)}
   .city-name {
-    display: block;
-    font-size: clamp(12px, 1.45vw, 16px);
-    font-weight: 800;
-    letter-spacing: 0;
-    line-height: 1.05;
-  }
-  .city-layer {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    margin-top: 5px;
-    color:rgba(255,255,255,.82);
-    font-size: clamp(8px, .82vw, 10px);
+    font-size: clamp(11px, 1.3vw, 15px);
     font-weight: 800;
-    letter-spacing: .08em;
-    line-height: 1;
-    text-transform: uppercase;
+    letter-spacing: 0;
+    line-height: 1.05;
+    color:#1a3a2a;
   }
-  .city-layer::before {
-    content: '';
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    /* Every city keeps its own identity colour even when live data changes. */
+  /* A small dot in the chip keeps each capital's identity colour; the actual
+     reading now lives in the left-side panel, not here. */
+  .city-name::before{
+    content:'';flex:0 0 auto;width:7px;height:7px;border-radius:50%;
     background:var(--city-marker,var(--city-accent,var(--mode-accent)));
     box-shadow:0 0 0 2px var(--city-marker-soft,var(--city-accent-soft,var(--mode-soft)));
   }
-  .sorcerer-stage[data-layer='weather'] .city-layer::after { content: 'WEATHER'; }
-  .sorcerer-stage[data-layer='air'] .city-layer::after { content: 'AIR'; }
-  .city-reading {
-    display:block;margin-top:5px;color:var(--city-accent,var(--mode-accent));
-    font-size:clamp(10px,1vw,12px);font-weight:800;line-height:1.22;
-    max-width:190px;white-space:normal;
-  }
-  .city-reading[data-state='idle']{color:rgba(255,255,255,.74)}
-  .city-reading[data-state='loading']{color:rgba(255,255,255,.74)}
-  .city-reading[data-state='error']{color:rgba(255,255,255,.74)}
-  .city-meta{display:block;margin-top:4px;color:rgba(255,255,255,.66);font-size:8px;font-weight:750;letter-spacing:.08em;line-height:1;text-transform:uppercase}
-
-  /* ONLY the selected capital expands into a full reading pill. Hover deliberately
-     does NOT expand: nothing in the hover path fetches, so it used to reveal an
-     empty pill. Every other visible capital stays a compact dot + name chip. */
-  .city-marker .city-layer,
-  .city-marker .city-reading,
-  .city-marker .city-meta{display:none}
-  .city-marker.is-active .city-layer{display:inline-flex}
-  .city-marker.is-active .city-reading,
-  .city-marker.is-active .city-meta{display:block}
-  .city-marker:not(.is-active) .city-card{min-width:0;padding:5px 10px 6px}
-  /* Hover affordance lives on the dot itself, which costs nothing and cannot
-     expose an unfetched reading. */
+  /* The selected capital's name chip reads a touch stronger so the choice is
+     visible on the globe even though its data lives in the side panel. */
+  .city-marker.is-active .city-card{border-color:#1a3a2a;box-shadow:0 6px 16px rgba(16,24,20,.16)}
+  /* Hover affordance lives on the dot itself, which costs nothing. */
   .city-marker:hover .city-pin{transform:translate(-50%,-50%) scale(1.25)}
 
   /* A collapsed chip whose box intersects the expanded pill (or a chip already
@@ -234,22 +251,27 @@
   @media (max-width:680px){
     .sorcerer-stage{width:100vw;border-radius:24px}
     .data-toggle{top:3%;right:3%;width:166px;height:44px}
-    /* The phone disc is only ~190px across, so the expanded pill is kept small
-       enough that it never swamps the globe it belongs to, and the reading is
-       given room to stay on ONE line. */
-    .city-card{min-width:96px;max-width:134px;padding:6px 8px 7px;border-radius:13px}
-    .city-name{font-size:11px}
-    .city-reading{font-size:9.5px;max-width:118px;margin-top:4px}
-    .city-layer{font-size:7.5px;margin-top:4px}
-    .city-meta{font-size:7px;margin-top:3px}
+    /* On the phone disc the panel drops to the bottom-left corner so it never
+       overlaps the globe body, and shrinks to a compact single reading. */
+    .city-panel{
+      left:3.5%;top:auto;bottom:4%;transform:none;
+      width:min(66%,230px);padding:11px 13px;gap:9px;border-radius:14px;
+    }
+    .city-panel-name{font-size:14px}
+    .city-panel-reading{font-size:12px;margin-top:5px}
+    .city-panel-layer{margin-top:5px}
+    .city-panel-meta{margin-top:6px}
+    /* The phone disc is small, so the name chip is kept compact. */
+    .city-card{padding:4px 8px 5px;border-radius:999px}
+    .city-name{font-size:10.5px}
     .city-stem{width:1px;left:-.5px}.city-pin{width:9px;height:9px}
     .city-pin::before{width:34px;height:34px}
     /* The phone-sized disc cannot hold several name chips at once, so an
-       unselected capital is just its dot here; tapping it opens the full pill. */
+       unselected capital is just its dot here; the selected one keeps its chip. */
     .city-marker:not(.is-active) .city-card,
     .city-marker:not(.is-active) .city-stem{display:none}
   }
-  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card{transition:none}.city-marker.is-visible .city-pin{animation:none}}
+  @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card,.city-panel{transition:none}.city-marker.is-visible .city-pin{animation:none}}
 
 </style>
 </head>
@@ -269,6 +291,19 @@
       <span class="mode mode-air">AIR</span>
       <span class="mode mode-weather">WEATHER</span>
     </button>
+
+    <!-- Single info panel, pinned to the LEFT of the globe disc (toward the
+         headline). It is the one place a city's reading is shown; the on-globe
+         markers only SELECT a city, they no longer draw the data themselves. -->
+    <aside class="city-panel" id="cityPanel" aria-live="polite">
+      <span class="city-panel-accent" aria-hidden="true"></span>
+      <div class="city-panel-body">
+        <span class="city-panel-name" id="cityPanelName">New Delhi</span>
+        <span class="city-panel-layer" id="cityPanelLayer">AIR</span>
+        <span class="city-panel-reading" id="cityPanelReading">Select a city for a live reading</span>
+        <span class="city-panel-meta" id="cityPanelMeta"></span>
+      </div>
+    </aside>
 
     <!-- Capital-city markers are built from the CITIES registry below. -->
   </main>
@@ -304,11 +339,17 @@
 
   const markerEls=new Map();
   const cityPinEls=new Map();
-  const cityReadingEls=new Map();
-  const cityMetaEls=new Map();
   const cityData = new Map();
   let selectedCity=null;
-  const IDLE_READING='Select for a live reading';
+  const IDLE_READING='Select a city for a live reading';
+
+  // The single left-side info panel. All of a city's data lives HERE now, never
+  // on the globe. The markers below only select which city the panel shows.
+  const panelEl=document.getElementById('cityPanel');
+  const panelNameEl=document.getElementById('cityPanelName');
+  const panelLayerEl=document.getElementById('cityPanelLayer');
+  const panelReadingEl=document.getElementById('cityPanelReading');
+  const panelMetaEl=document.getElementById('cityPanelMeta');
 
   function buildMarkers(){
     const frag=document.createDocumentFragment();
@@ -341,32 +382,19 @@
       // compatibility click away from the pin.
       pin.addEventListener('click',e=>{if(e.detail===0)selectCity(city.id);});
 
+      // The on-globe chip now carries ONLY the city name. No reading, layer or
+      // meta is drawn on the globe; those all live in the single side panel.
       const card=document.createElement('span');
       card.className='city-card';
       const name=document.createElement('span');
       name.className='city-name';
       name.textContent=city.name;
-      const layer=document.createElement('span');
-      layer.className='city-layer';
-      const reading=document.createElement('span');
-      reading.className='city-reading';
-      reading.dataset.cityReading=city.id;
-      reading.dataset.state='idle';
-      // Seeded so the pill can never expand onto an empty line, and announced
-      // politely because selecting a capital changes it without moving focus.
-      reading.textContent=IDLE_READING;
-      reading.setAttribute('aria-live','polite');
-      const meta=document.createElement('span');
-      meta.className='city-meta';
-      meta.dataset.cityMeta=city.id;
-      card.append(name,layer,reading,meta);
+      card.append(name);
 
       marker.append(stem,pin,card);
       frag.appendChild(marker);
       markerEls.set(city.id,marker);
       cityPinEls.set(city.id,pin);
-      cityReadingEls.set(city.id,reading);
-      cityMetaEls.set(city.id,meta);
     }
     stage.appendChild(frag);
   }
@@ -723,15 +751,27 @@
   const HOME_ROT_Y=-62*Math.PI/180;
   // Manual interaction: unlimited 360deg horizontal rotation.
   // Vertical drag is intentionally capped so the globe never flips upside-down.
-  // Automatic motion remains a small India-centred drift for the best passive view.
+  // Automatic motion is now a CONTINUOUS horizontal spin: the globe turns a full
+  // 360deg forever rather than drifting back to an India-facing home.
   const ROT_X_MIN=-62*Math.PI/180;
   const ROT_X_MAX=48*Math.PI/180;
+  // Continuous spin rate, expressed per-second and converted per-frame so the
+  // speed is frame-rate independent. ~6deg/s gives one full turn each minute: a
+  // calm, deliberate rotation that reads as alive without ever feeling busy.
+  const SPIN_PER_SEC=6*Math.PI/180;
+  // After a drag/inertia settles, resume spinning fairly quickly; an always-
+  // spinning globe should not sit frozen for several seconds. ~1.2s feels right.
+  const AUTO_RESUME_MS=1200;
+  // Vertical tilt eases back toward the reference tilt during the spin so a drag
+  // that left the globe tilted does not stay lopsided forever, while the spin
+  // itself only ever advances the horizontal angle.
   let rotX=HOME_ROT_X;
   let rotY=HOME_ROT_Y;
   let viewRotX=rotX,viewRotY=rotY;
   let dragging=false;
   let autoResumeAt=0;
   let velocityX=0,velocityY=0;
+  let lastFrameAt=0;
   const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   let lastX = 0, lastY = 0, lastMoveAt = 0;
   let moved = false;
@@ -747,9 +787,11 @@
   const clampTilt=()=>{
     rotX=Math.max(ROT_X_MIN,Math.min(ROT_X_MAX,rotX));
   };
-  const nearestHomeY=(angle)=>{
+  // Keep the horizontal angle bounded so it never grows without limit across a
+  // long session; the modulo is invisible on screen because 2π is a full turn.
+  const wrapRotY=(angle)=>{
     const turn=Math.PI*2;
-    return HOME_ROT_Y+Math.round((angle-HOME_ROT_Y)/turn)*turn;
+    return ((angle%turn)+turn)%turn;
   };
 
   function resize() {
@@ -764,11 +806,16 @@
     }
   }
 
+  // The reading/meta setters write to the single panel, but ONLY when the city
+  // they describe is the one currently selected; a late fetch for a city the
+  // user has since clicked away from must not overwrite the visible reading.
   function setCityReading(cityId,state,text){
-    const el=cityReadingEls.get(cityId);if(!el)return;el.dataset.state=state;el.textContent=text;
+    if(cityId!==selectedCity||!panelReadingEl)return;
+    panelReadingEl.dataset.state=state;panelReadingEl.textContent=text;
   }
   function setCityMeta(cityId,text){
-    const el=cityMetaEls.get(cityId);if(el)el.textContent=text;
+    if(cityId!==selectedCity||!panelMetaEl)return;
+    panelMetaEl.textContent=text;
   }
   function ageLabel(ts){
     if(!ts)return 'LIVE · CONNECTING';
@@ -805,24 +852,43 @@
     marker.style.setProperty('--city-accent',accent);
     marker.style.setProperty('--city-accent-soft',`${accent}42`);
   }
+  // The panel's accent stripe/dot follow the selected city: its live reading
+  // colour when data is in, otherwise its own identity hue.
+  function panelAccentFor(cityId){
+    const data=cityData.get(cityId);
+    if(data)return activeLayer==='air'?airAccent(data.air?.aqi):weatherAccent(data);
+    return CITY_BY_ID.get(cityId)?.accent||'#3da35a';
+  }
+  function hexToSoft(hex){
+    const h=hex.replace('#','');
+    const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16);
+    return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},.24)`;
+  }
+  // Renders the SELECTED city into the single left-side panel. The on-globe
+  // markers get only their accent dot refreshed; no data is drawn on the globe.
   function renderCityData(){
-    for(const city of CITIES){
-      const cityId=city.id;
-      const data=cityData.get(cityId);
-      if(!data)continue;
-      updateCityAccent(cityId,data);
-      if(activeLayer==='air'){
-        const aqi=data.air?.aqi,category=data.air?.category,pollutant=data.air?.dominantPollutant;
-        const text=Number.isFinite(aqi)?`AQI ${Math.round(aqi)}${category?` · ${category}`:''}${pollutant?` · ${String(pollutant).toUpperCase()}`:''}`:'AIR · unavailable';
-        setCityReading(cityId,Number.isFinite(aqi)?'ready':'error',text);
-      }else{
-        const w=data.weather||{},bits=[];
-        if(Number.isFinite(w.temperatureC))bits.push(`${Math.round(w.temperatureC)}°C`);
-        if(w.condition)bits.push(w.condition);
-        if(Number.isFinite(w.humidity))bits.push(`RH ${Math.round(w.humidity)}%`);
-        if(Number.isFinite(w.precipitationPercent))bits.push(`Rain ${Math.round(w.precipitationPercent)}%`);
-        setCityReading(cityId,bits.length?'ready':'error',bits.length?bits.join(' · '):'WEATHER · unavailable');
-      }
+    for(const [cityId,data] of cityData)updateCityAccent(cityId,data);
+    const cityId=selectedCity;
+    if(!cityId||!panelEl)return;
+    const meta=CITY_BY_ID.get(cityId);
+    if(panelNameEl)panelNameEl.textContent=meta?meta.name:'';
+    if(panelLayerEl)panelLayerEl.textContent=activeLayer==='air'?'AIR QUALITY':'WEATHER';
+    const accent=panelAccentFor(cityId);
+    panelEl.style.setProperty('--panel-accent',accent);
+    panelEl.style.setProperty('--panel-accent-soft',hexToSoft(accent));
+    const data=cityData.get(cityId);
+    if(!data)return;
+    if(activeLayer==='air'){
+      const aqi=data.air?.aqi,category=data.air?.category,pollutant=data.air?.dominantPollutant;
+      const text=Number.isFinite(aqi)?`AQI ${Math.round(aqi)}${category?` · ${category}`:''}${pollutant?` · ${String(pollutant).toUpperCase()}`:''}`:'AIR · unavailable';
+      setCityReading(cityId,Number.isFinite(aqi)?'ready':'error',text);
+    }else{
+      const w=data.weather||{},bits=[];
+      if(Number.isFinite(w.temperatureC))bits.push(`${Math.round(w.temperatureC)}°C`);
+      if(w.condition)bits.push(w.condition);
+      if(Number.isFinite(w.humidity))bits.push(`RH ${Math.round(w.humidity)}%`);
+      if(Number.isFinite(w.precipitationPercent))bits.push(`Rain ${Math.round(w.precipitationPercent)}%`);
+      setCityReading(cityId,bits.length?'ready':'error',bits.length?bits.join(' · '):'WEATHER · unavailable');
     }
   }
 
@@ -913,7 +979,14 @@
     const pin=cityPinEls.get(cityId);
     if(pin)pin.setAttribute('aria-pressed','true');
     selectedCity=cityId;
+    // Reset the panel to a neutral idle line before data arrives so the newly
+    // selected city never briefly shows the previous city's reading.
+    if(!cityData.has(cityId)){
+      setCityReading(cityId,'idle',IDLE_READING);
+      setCityMeta(cityId,'');
+    }
     renderCityData();
+    if(cityData.has(cityId))setCityMeta(cityId,ageLabel(cityData.get(cityId).fetchedAt));
     if(!cityData.has(cityId))loadCityData(cityId);
   }
   toggle.addEventListener('click', () => {
@@ -935,7 +1008,7 @@
   stage.addEventListener('pointerdown', e => {
     if (toggle.contains(e.target)) return;
     pendingCity = e.target.closest?.('.city-pin')?.dataset.city || null;
-    dragging=true;stage.classList.add('is-dragging');autoResumeAt=performance.now()+5200;
+    dragging=true;stage.classList.add('is-dragging');autoResumeAt=performance.now()+AUTO_RESUME_MS;
     moved=false;velocityX=0;velocityY=0;
     downX=e.clientX;downY=e.clientY;maxTravel=0;
     lastX=e.clientX;lastY=e.clientY;lastMoveAt=performance.now();
@@ -960,10 +1033,10 @@
     // A press that stayed within the slop is a selection, not a drag.
     if(pendingCity&&maxTravel<=TAP_SLOP)selectCity(pendingCity);
     pendingCity=null;
-    dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+5200;
+    dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+AUTO_RESUME_MS;
     try{stage.releasePointerCapture(e.pointerId);}catch(_){ }
   });
-  stage.addEventListener('pointercancel',()=>{pendingCity=null;dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+5200;});
+  stage.addEventListener('pointercancel',()=>{pendingCity=null;dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+AUTO_RESUME_MS;});
 
   // Double click returns to the exact reference orientation.
   stage.addEventListener('dblclick', e => {
@@ -1106,21 +1179,31 @@
   function frame(){
     resize();
     const t=performance.now();
+    // Seconds since the previous frame, clamped so a backgrounded tab that
+    // resumes does not jump the globe forward by a visible chunk.
+    const dtSec=lastFrameAt?Math.min(0.05,Math.max(0,(t-lastFrameAt)/1000)):1/60;
+    lastFrameAt=t;
     layerMix+=((layerTarget-layerMix)*(reduceMotion?1:.055));
-    if(!dragging&&!reduceMotion&&(Math.abs(velocityX)+Math.abs(velocityY)>.00005)){
+    // Residual inertia from a release plays out first; the decayed velocity is
+    // added every frame until it falls below the resume threshold.
+    const coasting=!dragging&&!reduceMotion&&(Math.abs(velocityX)+Math.abs(velocityY)>.00005);
+    if(coasting){
       rotX+=velocityX;rotY+=velocityY;velocityX*=.91;velocityY*=.91;clampTilt();
     }
-    const auto=!reduceMotion&&!dragging&&t>=autoResumeAt;
+    // CONTINUOUS SPIN: when not dragging, not coasting, past the resume delay and
+    // reduced-motion is off, advance the horizontal angle by a fixed angular
+    // velocity each frame so the globe turns a full 360deg forever.
+    const auto=!reduceMotion&&!dragging&&!coasting&&t>=autoResumeAt;
     if(auto){
-      // Passive mode: return by the SHORTEST route to the India-facing equivalent,
-      // then breathe only a few degrees. Manual mode is still unrestricted 360deg.
-      const homeY=nearestHomeY(rotY);
-      rotX+=(HOME_ROT_X-rotX)*.008;
-      rotY+=(homeY-rotY)*.008;
+      rotY+=SPIN_PER_SEC*dtSec;
+      rotY=wrapRotY(rotY);
+      // Ease the vertical tilt back toward the reference so a drag that left the
+      // globe tilted settles level; the spin itself only moves the Y angle.
+      rotX+=(HOME_ROT_X-rotX)*.02;
       clampTilt();
     }
-    viewRotY=rotY+(auto?Math.sin(t*0.00018)*(7*Math.PI/180):0);
-    viewRotX=rotX+(auto?Math.sin(t*0.00013)*(2.2*Math.PI/180):0);
+    viewRotY=rotY;
+    viewRotX=rotX;
 
     gl.clearColor(0,0,0,0);
     gl.clearDepth(1);
