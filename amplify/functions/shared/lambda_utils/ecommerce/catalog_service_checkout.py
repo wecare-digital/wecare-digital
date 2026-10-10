@@ -111,6 +111,6 @@ def meta_ready(readiness: dict, kind: str) -> bool:
         return False
     if kind == 'SUBMIT_REQUEST':
         flow = readiness.get('flow') or {}
-        if flow.get('id') != '1728231914933139' or flow.get('status') != 'PUBLISHED' or flow.get('validation_errors'):
+        if flow.get('id') != '1107164111921876' or flow.get('status') != 'PUBLISHED' or flow.get('validation_errors'):
             return False
     return kind in ALLOWED
