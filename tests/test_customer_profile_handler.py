@@ -47,10 +47,15 @@ ADDRESS_UPDATED_ATTRIBUTE = "checkoutAddressUpdatedAt"
 
 
 class Identity:
-    def __init__(self, customer_id=CUSTOMER, phone=PHONE):
+    #: `phone_verified` mirrors Cognito's `phone_number_verified`, and the stub asserts it True
+    #: because every session reaching this route was minted by a WhatsApp OTP. It matters here
+    #: only through `_attempt_claim`: with it False every refusal below would be earned by the
+    #: unverified phone instead of by the predicate under test.
+    def __init__(self, customer_id=CUSTOMER, phone=PHONE, phone_verified=True):
         self.customer_id = customer_id
         self.phone = phone
         self.subject = "sub-1"
+        self.phone_verified = phone_verified
 
 
 @pytest.fixture
@@ -72,6 +77,9 @@ def env(monkeypatch):
     )
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_pepper", lambda: PEPPER)
+    # `lambda_utils.audit` holds its OWN boto3 resource, so an unpatched `record_audit` on the
+    # claim-refusal path would reach the live AuditLogsTable from a unit test.
+    monkeypatch.setattr(h, "record_audit", lambda *args, **kwargs: "audit-stub")
     monkeypatch.setattr(h.customer_auth, "require_customer",
                         lambda event: (Identity(), None))
     return h, fake, monkeypatch
@@ -279,10 +287,18 @@ def test_creation_without_an_email_is_refused(env):
 def test_email_proof_does_not_adopt_a_legacy_phone_row(env):
     h, fake, _ = env
     # Email proof cannot authorize adoption of a legacy contact.
+    #
+    # The refusal is EARNED rather than incidental, and the assertion below says so: the seeded
+    # row carries no `lastInboundMessageAt`, so `_attempt_claim`'s predicate (e) refuses it as
+    # `NO_INBOUND_EVIDENCE` — a row typed by staff or created by an outbound send proves nothing
+    # about who holds the handset. The sibling test immediately after this one seeds the same row
+    # WITH inbound evidence and gets a 200, which is what keeps this pin honest: without it, this
+    # test would keep passing for the wrong reason the day the predicate was weakened.
     fake.Table(CONTACTS_TABLE).put_item(Item={
         "id": "legacy-1", "contactId": "legacy-1", "phone": PHONE,
         "email": "old@example.com", "tags": [], "deletedAt": None,
     })
+    assert "lastInboundMessageAt" not in row_of(fake)
     unproved = h.handler(event(firstName="Asha", lastName="Sen", email=EMAIL,
                                address=dict(ADDRESS)), None)
     assert unproved["statusCode"] == 400
@@ -296,6 +312,31 @@ def test_email_proof_does_not_adopt_a_legacy_phone_row(env):
     row = row_of(fake)
     assert "checkoutCustomerId" not in row
     assert "emailVerifiedAt" not in row
+
+
+def test_the_same_legacy_row_WITH_inbound_evidence_is_claimed_and_saved(env):
+    """The sibling of the test above, and the pair is the point.
+
+    Identical seed, identical body, one attribute different: `lastInboundMessageAt`. That is the
+    whole of the WhatsApp-first link — the number messaged us, the row has no owner, and the
+    session proved the same number by OTP — so the save becomes an edit of the existing row
+    instead of a 409 and a second contact.
+    """
+    h, fake, _ = env
+    fake.Table(CONTACTS_TABLE).put_item(Item={
+        "id": "legacy-1", "contactId": "legacy-1", "phone": PHONE,
+        "email": "old@example.com", "tags": [], "deletedAt": None,
+        "lastInboundMessageAt": 1700000000,
+    })
+    token = proof(h, fake)
+    resp = h.handler(event(firstName="Asha", lastName="Sen", email=EMAIL,
+                           emailProof=token, address=dict(ADDRESS)), None)
+    assert resp["statusCode"] == 200
+    row = row_of(fake)
+    assert row["id"] == "legacy-1", "the claim keeps the original row, it does not create a second"
+    assert row["checkoutCustomerId"] == CUSTOMER
+    assert row["identityClaimEvidence"] == h.CLAIM_EVIDENCE_INBOUND
+    assert row["identityClaimedAt"]
 
 
 # -- the email index is only consulted when there is a second identity to reconcile --------

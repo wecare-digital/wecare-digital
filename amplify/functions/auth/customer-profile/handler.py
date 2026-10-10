@@ -37,9 +37,11 @@ import boto3
 from boto3.dynamodb.conditions import Key
 
 from lambda_utils import contact_key, customer_auth, customer_session
+from lambda_utils.audit import record_audit
 from lambda_utils.ecommerce import contact_address
 from lambda_utils.identity import customer as identity
 from lambda_utils.identity import customer_uuid
+from lambda_utils.identity import provenance
 from lambda_utils.logging import get_logger
 from lambda_utils.response import cors_response, extract_origin, options_response
 from lambda_utils.validation import sanitize_html
@@ -54,6 +56,14 @@ OTP_PEPPER_SECRET_ID = os.environ.get("OTP_PEPPER_SECRET_ID", "wecare/otp/pepper
 PROOF_PURPOSE = "email_verification_proof"
 PROOF_PREFIX = "email-proof#"
 CUSTOMER_TAG = "Customer"
+
+#: Stamped on a row this session linked to itself, as the reason the link was allowed. A code,
+#: so the row never stores a second copy of the customer's identity.
+CLAIM_EVIDENCE_INBOUND = "WHATSAPP_INBOUND"
+
+#: The staff-visible marker on a refused link. `/workspace/contacts` renders arbitrary tags as
+#: chips and already searches them, so this literal is both the badge and the filter.
+CONFLICT_TAG = "Identity Conflict"
 
 _dynamodb = None
 _secrets = None
@@ -140,32 +150,247 @@ def _active_match(index: str, field: str, value: str) -> Optional[Dict[str, Any]
     return None
 
 
-def _claimable(item: Dict[str, Any]) -> bool:
-    """Whether this session may take ownership of a row that has no owner yet.
+def _row_deleted(row: Dict[str, Any]) -> bool:
+    """The live/deleted convention this table is written with, in one place.
 
-    A CRM-created contact — typed by staff, or arriving from an import or a People sync — carries
-    no `checkoutCustomerId`, because only the checkout path ever writes one. Treating that as
-    "not mine" made the row invisible and pushed a customer who already exists in the CRM through
-    the whole first-time create flow: name, email, a fresh email code, and an address.
-
-    Claiming it is defensible for exactly one reason, and it is worth stating because it is the
-    security trade: **the phone is not browser-supplied.** It comes from a Cognito session that
-    only a WhatsApp OTP can mint, and the lookup is keyed on the normalised form of that proven
-    number. So "a row bearing my verified phone and belonging to nobody" is a row about me.
-
-    It is still a real widening, so it is bounded on both sides:
-
-    - An EMPTY owner only. A row owned by a different `checkoutCustomerId` is refused exactly as
-      before — this cannot be used to reach another customer's contact.
-    - Claiming is NOT verifying. The claim writes `checkoutCustomerId` and nothing else; it
-      never stamps `emailVerifiedAt`, and `checkout/handler.py::_checkout_profile` still demands
-      that timestamp before the customer can pay. A claimed row with an unverified email must go
-      through email verification like any other.
-      Note this is about what claiming *writes*, not about what the row may already hold: a
-      claimable row CAN arrive already carrying a verified email, because `auth/blog-subscribe`
-      writes one onto an unowned row. See the row-1 comment in `handler` for why that is sound.
+    Two spellings exist and both have to be honoured: `deletedAt` is the soft-delete timestamp
+    the CRM writes, `isDeleted` is the archive flag the WhatsApp flows check
+    (`flows/customer_orders.py:157`). Reading only one of them would make an archived row look
+    live to the claim.
     """
-    return not str(item.get("checkoutCustomerId") or "").strip()
+    return row.get("deletedAt") is not None or bool(row.get("isDeleted"))
+
+
+def _claim_evidence(row: Dict[str, Any]) -> str:
+    """The provenance code proving this number's holder reached us, or `''` for none.
+
+    `lastInboundMessageAt` is the signal, and it is chosen because it cleanly separates the two
+    writers of a WhatsApp contact. `inbound-whatsapp-handler` stamps it when it creates a row and
+    refreshes it on every inbound message, while outbound's `_get_or_create_contact_by_phone`
+    creates a row without it and `core/contacts` writes it as `None` (stripped before storage).
+    So a truthy value means "this number messaged us", which is the fact a claim needs.
+
+    `fieldSources` is the second arm and the forward path: a `VERIFIED`-trust phone provenance —
+    `WHATSAPP_INBOUND`, `TRUECALLER`, or `PAYMENT_VERIFIED` for a completed verified checkout —
+    is evidence of the same quality. It is dormant today because nothing on the WhatsApp path
+    writes provenance yet (only `core/crm` does), and it costs nothing to honour now.
+
+    Two attributes are deliberately NOT evidence. `bsuid` is written by
+    `outbound-whatsapp::_enrich_contact_identity` after a *staff* send, so it proves only that we
+    messaged the number. `emailVerifiedAt` is written onto unowned rows by `auth/blog-subscribe`,
+    and accepting it would be an email-only claim, which this design forbids outright.
+    """
+    try:
+        if int(row.get("lastInboundMessageAt") or 0) > 0:
+            return CLAIM_EVIDENCE_INBOUND
+    except (TypeError, ValueError):
+        # A poisoned or non-numeric timestamp is not evidence; fall through to provenance.
+        pass
+    source = provenance.existing_source(row, "phone")
+    if not source:
+        return ""
+    try:
+        if provenance.trust_of(source) >= provenance.TRUST[provenance.VERIFIED]:
+            return provenance.normalize_source(source)
+    except provenance.UnknownSource:
+        # An undeclared source has no trust level, so it cannot clear a VERIFIED bar.
+        return ""
+    return ""
+
+
+def _claim_candidate(rows: Any, phone: str,
+                     phone_verified: bool) -> tuple[Optional[Dict[str, Any]], str]:
+    """`(row, '')` when this session may claim that row, `(None, reason)` when it may not.
+
+    `(None, '')` is the third answer and it is not a refusal: there is nothing on this number at
+    all, so the caller creates a row the ordinary way.
+
+    WHY A CLAIM IS DEFENSIBLE, stated because it is the security trade. **The phone is not
+    browser-supplied.** It comes from a Cognito session that only a WhatsApp OTP can mint, and
+    the lookup keys on the normalised form of that proven number. So "a row bearing my verified
+    phone, belonging to nobody, which messaged us from that number" is a row about me.
+
+    Every one of these must hold, and each refusal names itself so staff can reconcile it:
+
+    - the session's phone is Cognito-verified and non-empty, else `UNVERIFIED_PHONE`;
+    - exactly one LIVE row carries that exact phone string — two or more is `AMBIGUOUS_PHONE`,
+      because one number held by two records is a question only a human can answer, and all
+      tombstones is `DELETED_CONTACT`;
+    - the row has no owner at all, else `FOREIGN_OWNER`. This is never an ownership transfer;
+    - the row shows inbound evidence, else `NO_INBOUND_EVIDENCE` — a contact typed by staff or
+      created by an outbound send proves nothing about who holds the handset.
+
+    Pure: no I/O, so the predicate can be read and tested on its own. Claiming is also NOT
+    verifying — the caller writes `checkoutCustomerId` and never `emailVerifiedAt`, so a claimed
+    row with an unverified email still cannot pay.
+    """
+    exact = [row for row in rows if str(row.get("phone") or "").strip() == phone]
+    if not exact:
+        return None, ""
+    live = [row for row in exact if not _row_deleted(row)]
+    if not live:
+        return None, "DELETED_CONTACT"
+    if len(live) > 1:
+        return None, "AMBIGUOUS_PHONE"
+    row = live[0]
+    if not phone_verified or not phone:
+        return None, "UNVERIFIED_PHONE"
+    if str(row.get("checkoutCustomerId") or "").strip():
+        return None, "FOREIGN_OWNER"
+    if not _claim_evidence(row):
+        return None, "NO_INBOUND_EVIDENCE"
+    return row, ""
+
+
+def _audit_claim(action: str, identity_session: Any, contact_id: str, phone: str,
+                 details: Dict[str, Any]) -> None:
+    """One audit record per claim outcome, and it carries no identifier anyone could use.
+
+    `phoneLast4` rather than the number, no email and no name: an audit row is read by staff and
+    retained for 180 days, so the reason code plus a four-digit tail is what makes a conflict
+    reconcilable without copying the customer's identity into a second table.
+
+    `record_audit` already fails open, and this wrapper keeps that property true even for a test
+    double or a future sink that does not: an audit failure must not change the HTTP outcome.
+    """
+    try:
+        record_audit(action, actor=identity_session.customer_id, resource_type="contact",
+                     resource_id=contact_id,
+                     details={**details, "phoneLast4": str(phone or "")[-4:]})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(json.dumps({"event": "identity_claim_audit_failed",
+                                   "error": type(exc).__name__}))
+
+
+def _refuse_claim(rows: Any, phone: str, reason: str, identity_session: Any) -> None:
+    """Record a refused claim and leave staff something to reconcile it from.
+
+    The HTTP answer to the customer stays the existing generic `409 CONTACT_IDENTITY_CONFLICT`,
+    which names no reason and discloses no PII — a per-reason code would turn the refusal into an
+    oracle for "is this number already owned by somebody". The reason lives here instead: an
+    audit record, plus `identityConflictAt`, `identityConflictReason` (a code, never a value) and
+    the `Identity Conflict` tag on every live row on that number.
+
+    The tag is the whole of the staff surface and needs no frontend change:
+    `/workspace/contacts` renders arbitrary tags as chips and already searches them, so the badge
+    and the filter come for free. Ambiguity marks every row involved, because with two records on
+    one number either could be the one that is wrong.
+
+    Nothing in here may change the HTTP outcome, so every write is wrapped: a refusal must still
+    be a 409 even when the marker write fails.
+    """
+    targets = [row for row in rows
+               if str(row.get("phone") or "").strip() == phone and not _row_deleted(row)]
+    owned_by_other = any(str(row.get("checkoutCustomerId") or "").strip() for row in targets)
+    _audit_claim("identity.claim_refused", identity_session,
+                 contact_key.resolve(targets[0]) if targets else "", phone,
+                 {"reason": reason, "ownedByOther": owned_by_other})
+    now = int(time.time())
+    for row in targets:
+        contact_id = contact_key.resolve(row)
+        if not contact_id:
+            continue
+        try:
+            _table(CONTACTS_TABLE).update_item(
+                Key=contact_key.key(contact_id),
+                UpdateExpression=("SET identityConflictAt=:now, identityConflictReason=:reason, "
+                                  "tags=:tags"),
+                ConditionExpression="attribute_exists(id)",
+                ExpressionAttributeValues={
+                    ":now": now, ":reason": reason,
+                    # Read-modify-write rather than `list_append`, matching `_merge_tags` at the
+                    # upsert sites: the tag must not be duplicated on a second refusal.
+                    ":tags": _merge_tags(row.get("tags"), tag=CONFLICT_TAG),
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(json.dumps({"event": "identity_conflict_marker_failed",
+                                       "error": type(exc).__name__}))
+
+
+def _attempt_claim(phone: str, identity_session: Any) -> Optional[Dict[str, Any]]:
+    """Link one unowned WhatsApp-first contact to this session, or return None.
+
+    Runs ONLY when `_owned_contact` found nothing, which is what keeps it a separate step rather
+    than a widening: `_owned_contact` still means `checkoutCustomerId == sub` and nothing else,
+    so a read never quietly turns into a write.
+
+    The write is one conditional `update_item` and it sets FOUR attributes — the owner, the claim
+    timestamp, the evidence code and `updatedAt`. Not the email, not `emailVerifiedAt`, not the
+    name, not the address, not `tags`, not the public customer uuid: `_upsert_contact` writes all
+    of those immediately afterwards through `_set_fragments`, so repeating them here would be a
+    second, unconditioned clobber.
+
+    The condition re-states the predicate at the storage layer, so two concurrent requests cannot
+    both win. `attribute_not_exists(checkoutCustomerId) OR checkoutCustomerId=:empty` is
+    load-bearing: `_claim_candidate` treats an empty string as unowned, and a bare
+    `attribute_not_exists` would refuse exactly those rows.
+
+    Idempotency needs no extra store. A replayed save finds the row already owned, so
+    `_owned_contact` returns it and this function never runs. The only remaining case is a
+    genuinely concurrent duplicate, which the `ConditionalCheckFailedException` re-read settles:
+    if the owner is now this same customer the claim already landed, so the replay returns it.
+    """
+    table = _table(CONTACTS_TABLE)
+    # Ten rather than five: the ambiguity test needs to SEE the duplicate it refuses on. DynamoDB
+    # applies `Limit` before the live filter, so beyond ten rows on one number the count can be
+    # short — and under-counting can only happen in a state that already refuses, so the error
+    # direction is safe.
+    rows = table.query(IndexName="phone-index",
+                       KeyConditionExpression=Key("phone").eq(phone),
+                       Limit=10).get("Items") or []
+    phone_verified = bool(getattr(identity_session, "phone_verified", False))
+    candidate, reason = _claim_candidate(rows, phone, phone_verified)
+    if candidate is None:
+        if reason:
+            _refuse_claim(rows, phone, reason, identity_session)
+        return None
+
+    contact_id = contact_key.resolve(candidate)
+    evidence = _claim_evidence(candidate)
+    now = int(time.time())
+    try:
+        table.update_item(
+            Key=contact_key.key(contact_id),
+            UpdateExpression=("SET checkoutCustomerId=:customer, identityClaimedAt=:now, "
+                              "identityClaimEvidence=:evidence, updatedAt=:now"),
+            ConditionExpression=(
+                "attribute_exists(id) "
+                "AND (attribute_not_exists(checkoutCustomerId) OR checkoutCustomerId=:empty) "
+                "AND (attribute_not_exists(deletedAt) OR deletedAt=:null) "
+                "AND (attribute_not_exists(isDeleted) OR isDeleted=:false)"),
+            ExpressionAttributeValues={
+                ":customer": identity_session.customer_id, ":now": now,
+                # The CODE, never a phone or an email: this value is stored on the row and read
+                # by staff.
+                ":evidence": evidence, ":empty": "", ":null": None, ":false": False,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        response = getattr(exc, "response", None) or {}
+        if response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+        current = table.get_item(Key=contact_key.key(contact_id),
+                                 ConsistentRead=True).get("Item") or {}
+        if current.get("checkoutCustomerId") == identity_session.customer_id:
+            # One winner. The loser of the race is this same customer, so the claim it wanted
+            # already exists and re-stamping `identityClaimedAt` would falsify when it happened.
+            return current
+        _, race_reason = _claim_candidate([current] if current else [], phone, phone_verified)
+        if race_reason:
+            _refuse_claim([current], phone, race_reason, identity_session)
+        return None
+
+    _audit_claim("identity.claim", identity_session, contact_id, phone,
+                 {"evidence": evidence})
+    logger.info(json.dumps({"event": "identity_claim_linked", "evidence": evidence}))
+    # The caller builds its merged response from this row, so the three attributes just written
+    # are reflected locally rather than re-read.
+    claimed = dict(candidate)
+    claimed["checkoutCustomerId"] = identity_session.customer_id
+    claimed["identityClaimedAt"] = now
+    claimed["identityClaimEvidence"] = evidence
+    return claimed
 
 
 def _owned_contact(phone: str, customer_id: str) -> Optional[Dict[str, Any]]:
@@ -181,11 +406,17 @@ def _owned_contact(phone: str, customer_id: str) -> Optional[Dict[str, Any]]:
                  if item.get("deletedAt") is None
                  and item.get("checkoutCustomerId") == customer_id), None)
 
-def _merge_tags(existing: Any) -> list[str]:
+def _merge_tags(existing: Any, *, tag: str = CUSTOMER_TAG) -> list[str]:
+    """`existing` with `tag` added once, case-insensitively, and blanks dropped.
+
+    `tag` is a keyword with the `Customer` default so the three upsert sites read unchanged; the
+    conflict marker passes `CONFLICT_TAG`. One implementation, because "add a tag without
+    duplicating it" is the same operation either way.
+    """
     values = existing if isinstance(existing, list) else []
     out = [str(value).strip() for value in values if str(value).strip()]
-    if CUSTOMER_TAG.lower() not in {value.lower() for value in out}:
-        out.append(CUSTOMER_TAG)
+    if tag.lower() not in {value.lower() for value in out}:
+        out.append(tag)
     return out
 
 
@@ -440,6 +671,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # (4) The row this session owns, which decides what the rest of the body must carry.
     try:
         owned = _owned_contact(phone, identity_session.customer_id)
+        if owned is None:
+            # The WhatsApp-first link, and it runs here for two reasons. It is AFTER
+            # `_owned_contact` because an existing owned row always wins, and it is BEFORE
+            # validation because a claimed row makes this a presence-driven edit rather than a
+            # creation — which is the defect: a customer who had been messaging us for months was
+            # asked for a name, an email, a fresh email code and an address they had already
+            # given. A refusal returns None, so `creating` stays True and `_upsert_contact`
+            # produces the same generic 409 it always did.
+            owned = _attempt_claim(phone, identity_session)
     except Exception as exc:  # noqa: BLE001
         logger.error(json.dumps({"event": "customer_profile_error", "error": type(exc).__name__}))
         return _no_store(cors_response(500, {"error": "INTERNAL_ERROR"}, origin))

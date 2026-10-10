@@ -2,7 +2,7 @@
   "_comment": "Recorded state of live Lambda environment variables. Not deployed by anything - this is the source of truth to diff against. Regenerate with scripts/env_manifest.py --export; verify with no arguments.",
   "_region": "us-east-1",
   "_functions": 69,
-  "_variables": 435,
+  "_variables": 436,
   "_fingerprinted": 15,
   "functions": {
     "stack-wecare-url-shortener": {
@@ -450,6 +450,7 @@
       "S3_BUCKET": "wecare-digital-get"
     },
     "wecare-system-cleanup": {
+      "ADMIN_MFA_REQUIRED": "true",
       "AWS_REGION_OVERRIDE": "us-east-1",
       "LOG_LEVEL": "INFO",
       "MEDIA_BUCKET": "wecare-digital-get"

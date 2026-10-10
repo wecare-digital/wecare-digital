@@ -27,6 +27,10 @@ SHARED_DIR = ROOT / "amplify/functions/shared"
 
 OTP_TABLE = "stack-wecare-digital-DownloadGrantsTable"
 CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
+#: Where `lambda_utils.audit.record_audit` writes. A module constant rather than a literal in the
+#: policy for the same reason the other two are: the ARN and the helper's default must agree, and
+#: `tests/test_customer_profile_iam.py` asserts on this name.
+AUDIT_LOG_TABLE = "stack-wecare-digital-AuditLogsTable"
 OTP_PEPPER_SECRET_ID = "wecare/otp/pepper"
 
 _account = None
@@ -63,6 +67,40 @@ def _exists(client, method, **kwargs):
         raise
 
 
+def expected_role_policy(acct=None):
+    """The one inline policy this role carries. Pure, so create and the test agree.
+
+    Lifted out of `ensure_role` so `tests/test_customer_profile_iam.py` can assert the document
+    rather than the source text, the same shape `provision_customer_orders.py` already uses.
+
+    What is ABSENT is the point: no `Scan`, no `DeleteItem`, no S3, no SES, no SNS and no
+    `lambda:InvokeFunction`. The only write outside the contacts table is a single `PutItem` on
+    the audit log.
+    """
+    acct = acct or account_id()
+    return {"Version":"2012-10-17","Statement":[
+        {"Sid":"ReadOtpPepper","Effect":"Allow","Action":["secretsmanager:GetSecretValue"],
+         "Resource":[f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{OTP_PEPPER_SECRET_ID}-*"]},
+        {"Sid":"ReadEmailProof","Effect":"Allow","Action":["dynamodb:GetItem"],
+         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/{OTP_TABLE}"]},
+        # Unchanged by the identity claim. `UpdateItem` and `Query` were already here, and the
+        # conditional claim write needs nothing beyond them.
+        {"Sid":"ContactsUpsert","Effect":"Allow",
+         "Action":["dynamodb:GetItem","dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:Query"],
+         "Resource":[
+             f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}",
+             f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}/index/*",
+         ]},
+        # `lambda_utils.audit.record_audit` records who linked which contact, on what evidence,
+        # and every refusal. APPEND-ONLY on purpose: one verb, so this role can add an audit
+        # record and can neither read the log back nor amend one it already wrote.
+        {"Sid":"WriteIdentityClaimAudit","Effect":"Allow","Action":["dynamodb:PutItem"],
+         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/{AUDIT_LOG_TABLE}"]},
+        # customer_auth.GetUser validates the caller's own access token.
+        {"Sid":"ValidateCustomerToken","Effect":"Allow","Action":["cognito-idp:GetUser"],"Resource":["*"]},
+    ]}
+
+
 def ensure_role(dry_run):
     existing = _exists(iam(), "get_role", RoleName=ROLE_NAME)
     if existing:
@@ -80,24 +118,9 @@ def ensure_role(dry_run):
     iam().attach_role_policy(
         RoleName=ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole")
-    acct = account_id()
-    policy = {"Version":"2012-10-17","Statement":[
-        {"Sid":"ReadOtpPepper","Effect":"Allow","Action":["secretsmanager:GetSecretValue"],
-         "Resource":[f"arn:aws:secretsmanager:{REGION}:{acct}:secret:{OTP_PEPPER_SECRET_ID}-*"]},
-        {"Sid":"ReadEmailProof","Effect":"Allow","Action":["dynamodb:GetItem"],
-         "Resource":[f"arn:aws:dynamodb:{REGION}:{acct}:table/{OTP_TABLE}"]},
-        {"Sid":"ContactsUpsert","Effect":"Allow",
-         "Action":["dynamodb:GetItem","dynamodb:PutItem","dynamodb:UpdateItem","dynamodb:Query"],
-         "Resource":[
-             f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}",
-             f"arn:aws:dynamodb:{REGION}:{acct}:table/{CONTACTS_TABLE}/index/*",
-         ]},
-        # customer_auth.GetUser validates the caller's own access token.
-        {"Sid":"ValidateCustomerToken","Effect":"Allow","Action":["cognito-idp:GetUser"],"Resource":["*"]},
-    ]}
     iam().put_role_policy(
         RoleName=ROLE_NAME, PolicyName="CustomerProfileLeastPrivilege",
-        PolicyDocument=json.dumps(policy))
+        PolicyDocument=json.dumps(expected_role_policy(account_id())))
     return "created"
 
 
