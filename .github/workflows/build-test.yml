@@ -286,5 +286,5 @@ jobs:
       # for anyone who wants to compare it against the base branch.
       - name: Lint
         run: |
-          npx eslint . 2>&1 | tee /tmp/eslint.txt | tail -5
+          npx eslint . 2>&1 | tee /tmp/eslint.txt | tail -80
           exit "${PIPESTATUS[0]}"
