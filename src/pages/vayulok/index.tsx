@@ -191,6 +191,15 @@ const VayuLokPage: React.FC = () => {
                   <span className="vl-head-tail">Intelligence</span>
                 </span>
               </h1>
+
+              {/* HERO SUBTEXT, matching the Grahak OS hero's .hero-sub treatment
+                  (20px / 400 / rgba(0,0,0,.898) / line-height 1.4 / -.125px, capped
+                  width). Two sentences by design: the first names the familiar thing
+                  (town-level forecasts), the second draws the contrast that is the
+                  product's whole point - VayuLok reports the air and weather for the
+                  exact spot you are in, not the city average. Brand cased VayuLok to
+                  match every other reference in the repo. */}
+              <p className="vl-sub">Weather forecasts cover your town. VayuLok covers where you&rsquo;re standing &mdash; live air and weather for your exact location.</p>
             </div>
 
             <div className="vl-hero-visual">
@@ -277,6 +286,13 @@ const VayuLokPage: React.FC = () => {
         .vl-head-line-two{display:block;margin-top:.08em}
         .vl-head-tail{display:inline-block;white-space:nowrap}
 
+        /* Subtext under the headline. Values ported VERBATIM from the Grahak OS
+           hero's .hero-sub (measured from notion.com): 20px / 400 / 1.4 /
+           -.125px, body ink rgba(0,0,0,.898), capped width so it reads as a lede
+           and does not run the full column. The 22px top margin clears the
+           animated pill's descender without crowding it. */
+        .vl-sub{margin:22px 0 0;max-width:430px;font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898)}
+
         /* Rotating pill. Same geometry, easing and timings as .hero-mark on the
            Grahak OS page - em-based so it tracks the clamp() headline at every width. */
         .vl-mark{
@@ -362,6 +378,7 @@ const VayuLokPage: React.FC = () => {
           .vl-layout{padding:48px 16px 32px}
           .vl-head{line-height:1.1}
           .vl-hero-grid{gap:28px}
+          .vl-sub{font-size:17px;margin-top:18px;max-width:none}
         }
         @media(max-width:359px){
           .vl-head{font-size:clamp(31px,9vw,36px)}
