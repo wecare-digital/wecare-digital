@@ -43,7 +43,10 @@ def verified_identity(contact: dict, users: list[dict], phone: str):
     attrs = {a['Name']: a['Value'] for a in users[0].get('Attributes', [])}
     if attrs.get('sub') != owner or attrs.get('phone_number') != number or attrs.get('phone_number_verified') != 'true':
         raise customer_auth.CustomerNotAuthorized('verified customer required')
-    return customer_auth.CustomerIdentity(customer_id=owner, subject=owner, phone=number)
+    # The line above already refused anything but 'true', so the flag is proven rather than
+    # assumed and the identity may carry it honestly.
+    return customer_auth.CustomerIdentity(customer_id=owner, subject=owner, phone=number,
+                                          phone_verified=True)
 
 
 def selected_session(keys: Any, token: str, contact_id: str, phone: str, now: int) -> dict:
