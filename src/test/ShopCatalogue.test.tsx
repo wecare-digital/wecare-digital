@@ -539,8 +539,8 @@ describe( 'the product page', () => {
   it( 'names the canonical URL in the graph, never the route pattern', () => {
     // The whole reason this component owns the head: PUBLIC_PAGE_META is keyed on router.pathname,
     // which for a dynamic route is '/shop/[slug]'.
-    const json = JSON.stringify( shopProductSchema( shopProductBySlug( 'viveka' ) as ShopProduct ) );
-    expect( json ).toContain( 'https://wecare.digital/shop/viveka/' );
+    const json = JSON.stringify( shopProductSchema( shopProductBySlug( 'anew' ) as ShopProduct ) );
+    expect( json ).toContain( 'https://wecare.digital/shop/anew/' );
     expect( json ).not.toContain( '[slug]' );
   } );
 
@@ -755,7 +755,7 @@ describe( "the Wix template's own sample products are not this storefront", () =
     // the owner adds a product. What this pins is that the exclusion took out the template's
     // samples and nothing else.
     for ( const slug of [ 'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
-      'referral-partner', 'viveka' ] ) {
+      'referral-partner', 'anew' ] ) {
       expect( SHOP_PRODUCTS.some( product => product.slug === slug ), slug ).toBe( true );
     }
     // Exactly the visible rows, less the contribution vehicle, less the services vehicle
