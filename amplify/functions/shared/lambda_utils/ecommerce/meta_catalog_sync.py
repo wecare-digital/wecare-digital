@@ -74,6 +74,7 @@ SERVICE_PATH_BY_VARIANT = {
     "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
     "db166bc8-a763-41ec-9f65-0f718f18155a": "/drop-docs/",
     "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
+    "8ee7e325-d772-4452-a993-5c79e927d42b": "/request-pickup/",
 }
 
 # Customer-facing service copy is variant-specific; the shared Wix description
@@ -87,6 +88,8 @@ SERVICE_COPY_BY_VARIANT = {
         ("Drop Docs", "Upload documents for your order."),
     "dcff995e-448c-493a-9259-f6a82ccdc2b4":
         ("Vault", "Access and download your documents."),
+    "8ee7e325-d772-4452-a993-5c79e927d42b":
+        ("Request Pickup", "Arrange pickup of documents for your order."),
 }
 
 #: THE ONLY FIELDS THAT MAY REACH META, as an explicit allowlist rather than "whatever is in the

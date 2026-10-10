@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-10",
+  "meta": {
+    "catalogId": "1457045652952851",
+    "browserPixelId": "3411484995761247",
+    "capiDatasetId": "4554612361454941",
+    "appId": "2238810740192680",
+    "waba1Id": "2094615664435155",
+    "waba1PhoneNumberId": "1016149501586345",
+    "waba1PhoneE164": "+919330994400"
+  },
+  "wix": {
+    "siteId": "c993128b-26be-41cd-9fcd-904abe23462f",
+    "productId": "df976a0a-f582-4535-b2e1-d532f348bd27",
+    "productName": "Request",
+    "slug": "wecaredigital-services",
+    "currency": "INR",
+    "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee"
+  },
+  "paidServices": [
+    {
+      "name": "Submit Request",
+      "priceInr": 99,
+      "variantId": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
+      "choiceId": "2af81a87-24a8-4729-80bf-1d967a637bc2",
+      "sku": "SERVICE-SUBMIT-REQUEST",
+      "route": "/submit-request/",
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_b2872b90be0a4436a5f3d2f38e9f2e62~mv2.png"
+    },
+    {
+      "name": "Request Amendment",
+      "priceInr": 350,
+      "variantId": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
+      "choiceId": "7111e864-e789-4641-8f28-74240af61561",
+      "sku": "SERVICE-REQUEST-AMENDMENT",
+      "route": "/request-amendment/",
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_896d5b0e4c25456182d1ddbec01f936f~mv2.png"
+    },
+    {
+      "name": "Drop Docs",
+      "priceInr": 350,
+      "variantId": "db166bc8-a763-41ec-9f65-0f718f18155a",
+      "choiceId": "f981b729-748a-48ee-93b9-54ecc543b617",
+      "sku": "SERVICE-DROP-DOCS",
+      "route": "/drop-docs/",
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_4daebc4f975042779167334d739c718c~mv2.png"
+    },
+    {
+      "name": "Vault",
+      "priceInr": 49,
+      "variantId": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
+      "choiceId": "bdaafdcf-7998-4d43-b7dd-1ab40cc6566c",
+      "sku": "SERVICE-VAULT",
+      "route": "/vault/",
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_1d3cf70a8a5442b7aadd49e05bd7bd4d~mv2.png"
+    },
+    {
+      "name": "Request Pickup",
+      "priceInr": 350,
+      "variantId": "8ee7e325-d772-4452-a993-5c79e927d42b",
+      "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
+      "sku": "SERVICE-REQUEST-PICKUP",
+      "route": "/request-pickup/",
+      "imageUrl": "https://static.wixstatic.com/media/478bf9_522a6f2573d54b9390683ed126f04d52~mv2.png"
+    }
+  ],
+  "freeActions": [
+    "Orders",
+    "Track Request",
+    "Shipments / Track Shipment",
+    "Scan Tracking",
+    "Leave Review",
+    "Subscribe / Profile",
+    "Pay / Check Dues"
+  ],
+  "safety": {
+    "wixIsSourceOfTruthForPrice": true,
+    "metaSyncForceOutOfStock": true,
+    "metaSyncApprovalRequired": true
+  }
+}

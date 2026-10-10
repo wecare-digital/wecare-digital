@@ -381,7 +381,7 @@ def test_manifest_and_provisioner_preserve_owner_scoped_rollout():
     assert entry["META_CATALOG_APPROVALS_TABLE"] == "stack-wecare-digital-AgentApprovalsTable"
     assert entry["META_CATALOG_SYNC_FORCE_OUT_OF_STOCK"] == "true"
     assert set(entry["META_CATALOG_SYNC_VARIANT_IDS"].split(",")) == {
-        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", "db166bc8-a763-41ec-9f65-0f718f18155a", "dcff995e-448c-493a-9259-f6a82ccdc2b4"}
+        "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b", "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b", "db166bc8-a763-41ec-9f65-0f718f18155a", "dcff995e-448c-493a-9259-f6a82ccdc2b4", "8ee7e325-d772-4452-a993-5c79e927d42b"}
 
 
 def _load_provisioner():

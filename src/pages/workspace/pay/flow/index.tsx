@@ -89,6 +89,22 @@ const loadSavedConfig = (): FC => {
   try { const s = localStorage.getItem( CFG_KEY ); if ( s ) return { ...DEF_CFG, ...JSON.parse( s ), purposes: DEF_CFG.purposes }; } catch { }
   return DEF_CFG;
 };
+/*
+ * D4, mirrored from `invoice-engine._is_issued` — the ONE question the Edit button turns on.
+ *
+ * An invoice is a document of record the moment a number leaves the GST series, whatever its
+ * status says, and the server refuses a financial edit from that moment on with
+ * 409 INVOICE_ISSUED_IMMUTABLE. Since `create_invoice` assigns the number at creation, in
+ * practice EVERY invoice this page lists is issued: the Edit button therefore disappears, and
+ * the route for a wrong unpaid invoice is Cancel Invoice and raise a new one. Offering an edit
+ * that the server will refuse is worse than not offering it.
+ *
+ * The modal is kept for a row that genuinely carries no number (a legacy or imported invoice),
+ * which is the only state in which the edit it sends can succeed.
+ */
+const UNISSUED_STATUSES = [ '', 'claiming', 'created' ];
+const isIssued = ( inv: Invoice ): boolean =>
+  Boolean( ( inv.invoiceNumber || '' ).trim() ) || !UNISSUED_STATUSES.includes( inv.status || '' );
 const STATUS_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'created', label: 'Created' },
@@ -213,7 +229,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const [ remarkText, setRemarkText ] = useState( '' );
   const [ remarkAmount, setRemarkAmount ] = useState( '' );
   const [ editModal, setEditModal ] = useState<Invoice | null>( null );
-  const [ editForm, setEditForm ] = useState<{ customerName: string; customerPhone: string; customerEmail: string; shipping: string; discount: string; purpose: string; orderId: string; notes: string; shippingAddress: string; billingAddress: string }>( { customerName: '', customerPhone: '', customerEmail: '', shipping: '0', discount: '0', purpose: '', orderId: '', notes: '', shippingAddress: '', billingAddress: '' } );
+  // `shipping` and `discount` are GONE from this form (D4/D6). They are financial fields, and
+  // the server refuses them on an issued invoice - which is every invoice that has a number -
+  // so an input for them could only produce a 409. Subtractive: nothing replaces them here, and
+  // a wrong amount is corrected by cancelling and reissuing.
+  const [ editForm, setEditForm ] = useState<{ customerName: string; customerPhone: string; customerEmail: string; purpose: string; orderId: string; notes: string; shippingAddress: string; billingAddress: string }>( { customerName: '', customerPhone: '', customerEmail: '', purpose: '', orderId: '', notes: '', shippingAddress: '', billingAddress: '' } );
   /* The invoice-edit modal's address, structured. `update_invoice` accepts only the two address
      STRINGS (handler.py's `allowed` list), so this composes into them - which is exactly the
      point: one typed field set, one composed string, no second free-text input to disagree. */
@@ -552,8 +572,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
       customerName: inv.customerName || '',
       customerPhone: inv.customerPhone || '',
       customerEmail: inv.customerEmail || '',
-      shipping: String( inv.shipping || 0 ),
-      discount: String( inv.discount || 0 ),
       purpose: DEFAULT_BRAND,
       orderId: inv.orderId || '',
       notes: inv.notes || '',
@@ -574,8 +592,6 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
         customerName: editForm.customerName,
         customerPhone: editForm.customerPhone,
         customerEmail: editForm.customerEmail,
-        shipping: parseFloat( editForm.shipping ) || 0,
-        discount: parseFloat( editForm.discount ) || 0,
         purpose: DEFAULT_BRAND,
         orderId: editForm.orderId,
         notes: editForm.notes,
@@ -1023,7 +1039,7 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                       ) }
                       <Button variant="secondary" size="sm" loading={ actionLoading === 'img' } onClick={ () => doGenerateImage( selInvoice ) }>Generate Image</Button>
                       <Button variant="secondary" size="sm" loading={ actionLoading === 'pdf' } onClick={ () => doGeneratePdf( selInvoice ) }>Generate PDF</Button>
-                      { selInvoice.status !== 'paid' && selInvoice.status !== 'cancelled' && (
+                      { !isIssued( selInvoice ) && (
                         <Button variant="secondary" size="sm" loading={ actionLoading === 'edit' } onClick={ () => openEditModal( selInvoice ) }>Edit Invoice</Button>
                       ) }
                       <Button variant="secondary" size="sm" onClick={ () => openRemarkModal( selInvoice, 'remark' ) }>Add Remark</Button>
@@ -1169,8 +1185,11 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
                          record does not rewrite the brand it was raised under. */ }
                     <input aria-label="Brand" value={ DEFAULT_BRAND } readOnly />
                   </div>
-                  <div className="form-group"><label>Express / Shipping ({ '₹' })</label><input type="number" value={ editForm.shipping } onChange={ e => setEditForm( { ...editForm, shipping: e.target.value } ) } /></div>
-                  <div className="form-group"><label>Manual adjustment ({ '₹' })</label><input type="number" value={ editForm.discount } onChange={ e => setEditForm( { ...editForm, discount: e.target.value } ) } /></div>
+                  { /* The Express/Shipping and Manual adjustment inputs are REMOVED, not
+                       disabled. `update_invoice` refuses either field on an issued invoice with
+                       409 INVOICE_ISSUED_IMMUTABLE, so the control could only collect a figure
+                       and then fail - and a disabled input still advertises an edit that is not
+                       available. */ }
                   <div className="form-group"><label>Order ID</label><input type="text" value={ editForm.orderId } onChange={ e => setEditForm( { ...editForm, orderId: e.target.value } ) } /></div>
                   <div className="form-group"><label>Notes</label><textarea rows={ 2 } value={ editForm.notes } onChange={ e => setEditForm( { ...editForm, notes: e.target.value } ) } /></div>
                 </div>

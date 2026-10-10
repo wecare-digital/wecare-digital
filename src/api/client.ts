@@ -4891,7 +4891,10 @@ export interface InvoiceItem {
 
 export interface InvoiceAsset {
   invoiceId: string;
-  assetType: 'image' | 'pdf';
+  // `image` / `pdf` for the document of record, and `image#v2` / `pdf#v2` ... for a rendition
+  // generated after the invoice was issued. The engine writes a NEW row rather than overwriting
+  // the first one, so the union of two literals is no longer the truth about this field.
+  assetType: string;
   s3Key: string;
   url: string;
   contentType: string;
@@ -5276,10 +5279,15 @@ export interface InvoiceRemark {
   createdAt: number;
 }
 
-export async function addInvoiceRemark ( invoiceId: string, remarkType: 'remark' | 'refund' | 'credit_note', text: string, amount = 0, author = 'admin' ): Promise<{ invoiceId: string; remark: InvoiceRemark; totalRemarks: number } | null> {
+// `author` is GONE from the signature and from the body. The server derives it from the
+// Cognito token (`invoice-engine._remark_author`) and ignores `body.author` entirely, so a
+// parameter here could only ever be a value the browser sends and the server throws away -
+// and before that, it was the value the server STORED, which made a refund note signable
+// with anyone's name.
+export async function addInvoiceRemark ( invoiceId: string, remarkType: 'remark' | 'refund' | 'credit_note', text: string, amount = 0 ): Promise<{ invoiceId: string; remark: InvoiceRemark; totalRemarks: number } | null> {
   return apiCall<{ invoiceId: string; remark: InvoiceRemark; totalRemarks: number }>( `${INVOICE_BASE}/${invoiceId}/remark`, {
     method: 'POST',
-    body: JSON.stringify( { type: remarkType, text, amount, author } ),
+    body: JSON.stringify( { type: remarkType, text, amount } ),
   } );
 }
 
