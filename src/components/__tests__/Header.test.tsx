@@ -169,8 +169,8 @@ describe( 'Header', () => {
     const labels = Array.from( request?.querySelectorAll( '.nav-item' ) || [] )
       .map( node => node.textContent );
     expect( labels ).toEqual( [
-      'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Shipments',
-      'Leave Review', 'Subscribe',
+      'Orders', 'Submit Request', 'Request Amendment', 'Drop Docs', 'Vault', 'Request Pickup',
+      'Shipments', 'Leave Review', 'Subscribe',
     ] );
   } );
 
