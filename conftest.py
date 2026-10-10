@@ -99,6 +99,7 @@ _current_test = '<module import or fixture>'
 
 _real_connect = socket.socket.connect
 _real_connect_ex = socket.socket.connect_ex
+_real_getaddrinfo = socket.getaddrinfo
 
 
 class OutboundNetworkBlocked( RuntimeError ):
@@ -150,6 +151,27 @@ def _guarded_connect_ex( self, address ):
     )
 
 
+def _guarded_getaddrinfo( host, *args, **kwargs ):
+    """Refuse name resolution for a non-loopback host.
+
+    The connect guards fail an outbound socket, but a stray call that resolves first can
+    stall on DNS before it ever reaches `connect` — slow, and the error that eventually
+    surfaces does not name the test. Blocking resolution here makes the same stray call
+    fail fast and self-named, which is what turned the `test_bulk_delete_guards` admit-path
+    test from a multi-minute hang into an immediate, readable failure. Loopback and numeric
+    literals still resolve so local fixtures and `127.x`/`::1` fakes are unaffected.
+    """
+    host_text = str( host or '' )
+    if host in _LOOPBACK_HOSTS or host_text.startswith( '127.' ) \
+            or host_text in ( '::1', '::ffff:127.0.0.1', '' ):
+        return _real_getaddrinfo( host, *args, **kwargs )
+    raise OutboundNetworkBlocked(
+        f'{_current_test} tried to resolve the host {host_text!r} (getaddrinfo). '
+        f'Tests run offline. See the message on connect for what to do, or mark the test '
+        f'`@pytest.mark.live` if it genuinely must reach the network.'
+    )
+
+
 def pytest_configure( config ):
     if sys.version_info < REQUIRED:
         have = '.'.join( str( part ) for part in sys.version_info[ :3 ] )
@@ -184,11 +206,13 @@ def pytest_configure( config ):
 
     socket.socket.connect = _guarded_connect
     socket.socket.connect_ex = _guarded_connect_ex
+    socket.getaddrinfo = _guarded_getaddrinfo
 
 
 def pytest_unconfigure( config ):
     socket.socket.connect = _real_connect
     socket.socket.connect_ex = _real_connect_ex
+    socket.getaddrinfo = _real_getaddrinfo
 
 
 @pytest.hookimpl( hookwrapper = True )
@@ -205,9 +229,11 @@ def pytest_runtest_protocol( item, nextitem ):
     if live:
         socket.socket.connect = _real_connect
         socket.socket.connect_ex = _real_connect_ex
+        socket.getaddrinfo = _real_getaddrinfo
     try:
         yield
     finally:
         if live:
             socket.socket.connect = _guarded_connect
             socket.socket.connect_ex = _guarded_connect_ex
+            socket.getaddrinfo = _guarded_getaddrinfo
