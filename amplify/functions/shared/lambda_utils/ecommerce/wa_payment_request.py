@@ -557,6 +557,73 @@ def claim_send(attempts_table: Any, *, payment_attempt_id: str) -> bool:
                                     type(error).__name__) from error
 
 
+def release_send_claim(attempts_table: Any, *, payment_attempt_id: str) -> bool:
+    """The exact INVERSE of `claim_send`: a conditional `sendStatus PENDING -> NOT_STARTED`.
+
+    This exists for the one outcome the claim alone cannot express: the sender answered with a
+    DEFINITE rejection, so nothing is in the customer's hands and a staff retry must actually
+    re-invoke. A claim taken before the invoke and never released is what made a refused send
+    look like `send_in_progress` forever - deduplicated, never re-sent, and reported as a
+    success.
+
+    NEVER raises, which is the difference between this and `claim_send`. A failed release
+    degrades to "staff cannot retry yet", which is visible and recoverable; raising here would
+    replace the real send failure in the response with a storage error and hide the thing that
+    actually went wrong. A lost condition returns False.
+
+    The condition also means this can never release a row `record_sent` has already moved to
+    `SENT`: a late release on a delivered message would invite the second `order_details` message
+    the claim exists to prevent.
+    """
+    if not payment_attempt_id:
+        return False
+    try:
+        attempts_table.update_item(
+            Key={'paymentAttemptId': payment_attempt_id},
+            UpdateExpression='SET sendStatus = :new',
+            ConditionExpression='attribute_exists(paymentAttemptId) AND sendStatus = :pending',
+            ExpressionAttributeValues={':new': 'NOT_STARTED', ':pending': 'PENDING'})
+        return True
+    except Exception as error:  # noqa: BLE001
+        if order_keys.is_conditional_failure(error):
+            # The row is not PENDING: either already SENT, or already released. Not an error.
+            logger.info('{"event":"wa_payment_send_claim_release_lost","paymentAttemptId":"%s"}',
+                        payment_attempt_id)
+            return False
+        logger.error('{"event":"wa_payment_send_claim_release_failed","error":"%s"}',
+                     type(error).__name__)
+        return False
+
+
+def record_send_rejected(attempts_table: Any, *, payment_attempt_id: str, now: int) -> bool:
+    """Mark a send TERMINALLY rejected: `sendStatus='REJECTED'`. Never raises.
+
+    `release_send_claim`'s counterpart for the rejection the downstream says will not succeed on
+    a retry (a refused sender, an unprovable configuration, a shape it will not accept). Those
+    need a staff decision - a corrected invoice and a fresh collection - rather than the same
+    request invoked again, so the claim is left HELD under a name that says why.
+
+    Mirrors `record_sent`'s shape: guarded by condition rather than by read-then-write, so it can
+    never overwrite a row `record_sent` has already moved to `SENT`, and a failure to advance is
+    logged and swallowed rather than raised. The caller's response already carries the rejection;
+    losing the display state must not turn a reported rejection into a 500.
+    """
+    if not payment_attempt_id:
+        return False
+    try:
+        attempts_table.update_item(
+            Key={'paymentAttemptId': payment_attempt_id},
+            UpdateExpression='SET sendStatus = :rejected, updatedAt = :now',
+            ConditionExpression='attribute_exists(paymentAttemptId) AND sendStatus = :pending',
+            ExpressionAttributeValues={':rejected': 'REJECTED', ':pending': 'PENDING',
+                                       ':now': int(now)})
+        return True
+    except Exception as error:  # noqa: BLE001
+        logger.error('{"event":"wa_payment_send_rejected_record_failed","error":"%s"}',
+                     type(error).__name__)
+        return False
+
+
 def record_sent(attempts_table: Any, *, payment_attempt_id: str, now: int) -> bool:
     """Advance a sent attempt to `PAYMENT_REQUEST_SENT`. Never raises.
 
@@ -601,6 +668,8 @@ __all__ = [
     'intent_fingerprint',
     'reserve',
     'claim_send',
+    'release_send_claim',
+    'record_send_rejected',
     'record_sent',
     'WA_PAY_SENDER_NOT_PERMITTED',
     'WA_PAY_CONFIG_NAME_REQUIRED',

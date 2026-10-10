@@ -205,7 +205,10 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   const [ actionLoading, setActionLoading ] = useState( '' );
   const [ paymentGateway, setPaymentGateway ] = useState( 'razorpay' );
   const [ goodsType, setGoodsType ] = useState<'digital-goods' | 'physical-goods'>( 'digital-goods' );
-  const [ sendPhone, setSendPhone ] = useState( 'phone-number-id-waba-t-direct-1055232054343117' );
+  /* WABA1, the only number permitted to take a payment (`wa_payment_request.PAYMENT_SENDERS`).
+     This defaulted to WABA2, so every staff send from a freshly loaded page was refused
+     WA_PAY_SENDER_NOT_PERMITTED before it reached Meta - a default that guaranteed a refusal. */
+  const [ sendPhone, setSendPhone ] = useState( 'phone-number-id-waba1-direct-1016149501586345' );
   const [ remarkModal, setRemarkModal ] = useState<{ inv: Invoice; type: 'remark' | 'refund' | 'credit_note' } | null>( null );
   const [ remarkText, setRemarkText ] = useState( '' );
   const [ remarkAmount, setRemarkAmount ] = useState( '' );
@@ -460,8 +463,12 @@ const PayFlowPage: React.FC<PP> = ( { signOut, user, embedded } ) => {
   };
 
   /* Invoice action handlers */
+  /* ONE entry, and it is WABA1. All three "Send from" selectors drive `doSendPaymentLink`, and
+     the server's allowlist (`wa_payment_request.PAYMENT_SENDERS`) permits exactly this id - so
+     listing WABA2 was offering a sender whose every send is refused. The Select stays: with one
+     option it still states which number the customer will see, which is worth more than the
+     markup it costs. The allowlist keeps its one home on the server; no env var is added here. */
   const PHONE_OPTIONS = [
-    { id: 'phone-number-id-waba-t-direct-1055232054343117', label: '+91 99033 00044' },
     { id: 'phone-number-id-waba1-direct-1016149501586345', label: '+91 93309 94400' },
   ];
   // PayU removed 2026-08-23 - no PayU payment configuration exists on either
