@@ -3497,11 +3497,25 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # `order_details` message for one reservation would show the customer two payment requests.
     if not wa_payment_request.claim_send(attempts_table,
                                          payment_attempt_id=payment_attempt_id):
+        # The claim is held by someone, and WHY it is held decides the answer. Read off the
+        # resolved attempt row, which on the resume path is the stored one.
+        held_as = str(attempt.get('sendStatus') or '')
         logger.info(json.dumps({
             'event': 'wa_payment_send_already_claimed', 'invoiceId': invoice_id,
             'referenceId': reference_id, 'paymentAttemptId': payment_attempt_id,
-            'requestId': request_id,
+            'sendStatus': held_as, 'requestId': request_id,
         }))
+        if held_as == 'REJECTED':
+            # A claim held under REJECTED is NOT a send in progress, and answering 200
+            # 'send_in_progress' for it is the same lie this feature exists to remove. The
+            # downstream already said this request will not succeed, so the next step is a
+            # corrected invoice and a fresh collection, not another invoke.
+            return _resp(409, {
+                'error': 'This payment request was refused and was not sent. Cancel and raise '
+                         'the collection again. Nothing has been charged.',
+                'invoiceId': invoice_id, 'referenceId': reference_id,
+                'paymentAttemptId': payment_attempt_id,
+                'status': 'payment_link_rejected', 'sendStatus': 'REJECTED'})
         # 200, not 409. A 409 reads as "nothing happened" and invites a retry, and a second
         # invoke is the one thing this claim exists to prevent. `sendStatus` is resolved by
         # reading the OutboundTable row, never by sending again.
@@ -3607,6 +3621,39 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         })
     }
 
+    # ══ THE DELIVERY LOG, ONE HOME, EVERY OUTCOME ════════════════════════════════════════════
+    #
+    # It used to be a single write at the bottom of the function, reached only by the paths that
+    # fell through to it: the ambiguous path returned 502 above it and left NO record at all, and
+    # every row it did write carried `waMessageId: ''` and the word `sent`.
+    #
+    # Nested rather than module-level because the row is composed almost entirely of this send's
+    # locals; `status` is the only thing the three call sites disagree about, which is exactly
+    # what makes one home worth having.
+    def _log_delivery(status: str, *, wa_message_id: str = '', error: str = '') -> None:
+        try:
+            dynamodb.Table(INVOICE_DELIVERY_TABLE).put_item(Item={
+                'invoiceId': invoice_id,
+                'timestamp': int(time.time()),
+                'channel': 'whatsapp_payment',
+                'toNumber': customer_phone,
+                'waMessageId': wa_message_id,
+                'status': status,
+                'imageUrl': '',
+                'phoneNumberId': phone_number_id,
+                'contactId': contact_id,
+                'error': error,
+            })
+        except Exception as log_error:  # noqa: BLE001
+            # This row is the staff-VISIBLE record of a send, not the authority on it (the
+            # `PAYREF#` row and `sendStatus` are). So a failed log is logged and swallowed: a
+            # storage error here must not replace a truthful rejection with a 500, which is the
+            # one answer that would send an operator looking in the wrong place.
+            logger.error(json.dumps({
+                'event': 'payment_delivery_log_failed', 'invoiceId': invoice_id,
+                'status': status, 'error': type(log_error).__name__, 'requestId': request_id,
+            }))
+
     try:
         wa_response = lambda_client.invoke(
             FunctionName='wecare-outbound-whatsapp',
@@ -3614,26 +3661,122 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             Payload=json.dumps(wa_payload),
         )
         wa_result = json.loads(wa_response['Payload'].read())
-        wa_status_code = wa_result.get('statusCode', wa_response.get('StatusCode', 0))
-        if wa_status_code >= 400:
-            logger.error(json.dumps({'event': 'payment_link_outbound_error', 'invoiceId': invoice_id, 'statusCode': wa_status_code, 'body': wa_result.get('body', ''), 'requestId': request_id}))
+        wa_status_code = int(wa_result.get('statusCode', wa_response.get('StatusCode', 0)) or 0)
     except Exception as e:
-        # The reservation exists and no send happened, so `sendStatus` stays PENDING and is NOT
-        # auto-replayed: network acceptance cannot be inferred from a timeout, and a second
-        # message would show the customer two payment requests.
+        # ══ AMBIGUOUS ════════════════════════════════════════════════════════════════════════
+        #
+        # A timeout, an unreadable response, a transport failure: we do not know whether Meta
+        # took the message. The reservation exists and no send is replayed - `sendStatus` stays
+        # PENDING and the claim is deliberately NOT released, because network acceptance cannot
+        # be inferred from a timeout and a second message would show the customer two payment
+        # requests. Releasing here would invite exactly the double-send the claim exists to stop.
+        #
+        # What changes is that the row is written BEFORE the return, labelled `unknown`. An
+        # ambiguous send that leaves no record is indistinguishable from a send that never
+        # happened, and the two need opposite actions from staff.
         logger.error(json.dumps({
             'event': 'wa_payment_send_unknown', 'invoiceId': invoice_id,
             'referenceId': reference_id, 'error': type(e).__name__, 'requestId': request_id,
         }))
-        return _resp(502, {'error': 'Failed to send payment link',
+        _log_delivery('unknown', error=f'send outcome unknown: {type(e).__name__}')
+        return _resp(502, {'error': 'The payment request could not be confirmed as sent. '
+                                    'Reconcile this collection before raising it again.',
                            'referenceId': reference_id, 'sendStatus': 'PENDING'})
 
+    if wa_status_code >= 400:
+        # ══ DEFINITE REJECTION ═══════════════════════════════════════════════════════════════
+        #
+        # The downstream parsed our request and refused it. Nothing is in the customer's hands,
+        # so this function must not write `pending_payment`, must not advance the attempt, and
+        # must never answer 200 `payment_link_sent` - which is what it did until now, logging the
+        # failure and continuing as though the message had gone out.
+        #
+        # The CODE, not the raw body: the refusal codes are stable machine strings, and the body
+        # is downstream text this log has no reason to carry verbatim.
+        downstream = ''
+        try:
+            parsed = wa_result.get('body')
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed or '{}')
+            if isinstance(parsed, dict):
+                downstream = str(parsed.get('error') or parsed.get('message') or '')[:200]
+        except (ValueError, TypeError):
+            downstream = ''
+        logger.error(json.dumps({
+            'event': 'payment_link_outbound_error', 'invoiceId': invoice_id,
+            'statusCode': wa_status_code, 'code': downstream,
+            'referenceId': reference_id, 'paymentAttemptId': payment_attempt_id,
+            'requestId': request_id,
+        }))
+        _log_delivery('rejected',
+                      error=(f'outbound {wa_status_code}: {downstream}' if downstream
+                             else f'outbound {wa_status_code}'))
+        # A downstream 409 is that layer's own "this will not succeed" - a sender that may not
+        # take payments, a configuration it cannot prove, an envelope it refuses. Re-invoking the
+        # identical request would be refused identically, so the claim is left HELD under
+        # REJECTED and staff are told to raise the collection again. Any other rejection (a
+        # malformed request, a downstream 5xx) is one a staff member can fix and retry, so the
+        # claim is RELEASED and the same reservation re-sends.
+        terminal = wa_status_code == 409
+        if terminal:
+            wa_payment_request.record_send_rejected(attempts_table,
+                                                    payment_attempt_id=payment_attempt_id,
+                                                    now=int(time.time()))
+        else:
+            wa_payment_request.release_send_claim(attempts_table,
+                                                  payment_attempt_id=payment_attempt_id)
+        # `sendStatus: 'REJECTED'` describes THIS send's outcome, which is the thing the caller
+        # asked about; `retryable` is what the stored claim now permits. They are two different
+        # questions and conflating them is how "rejected" came to read as "sent".
+        return _resp(409 if terminal else 502, {
+            'error': 'The payment request was refused and was NOT sent. '
+                     'Nothing has been charged.',
+            'invoiceId': invoice_id,
+            'referenceId': reference_id,
+            'paymentAttemptId': payment_attempt_id,
+            'status': 'payment_link_rejected',
+            'sendStatus': 'REJECTED',
+            'downstreamStatusCode': wa_status_code,
+            'retryable': not terminal,
+        })
+
+    if wa_status_code not in (200, 202):
+        # Neither a rejection nor an acceptance: a response shape this function cannot read as
+        # either (a 0 from a missing `statusCode`, a redirect, anything new). Treated as the
+        # AMBIGUOUS outcome rather than as success - the old code fell through here and wrote
+        # `pending_payment` plus a `failed` delivery row, which is a contradiction in one invoice.
+        logger.error(json.dumps({
+            'event': 'wa_payment_send_unreadable', 'invoiceId': invoice_id,
+            'statusCode': wa_status_code, 'referenceId': reference_id,
+            'requestId': request_id,
+        }))
+        _log_delivery('unknown', error=f'unreadable outbound status {wa_status_code}')
+        return _resp(502, {'error': 'The payment request could not be confirmed as sent. '
+                                    'Reconcile this collection before raising it again.',
+                           'referenceId': reference_id, 'sendStatus': 'PENDING'})
+
+    # ══ ACCEPTANCE ═══════════════════════════════════════════════════════════════════════════
+    #
     # The attempt advances only after a send Meta accepted. Monotonic by condition, and a failure
     # to advance is logged rather than raised: the customer already has the message.
-    if wa_status_code in (200, 202):
-        wa_payment_request.record_sent(attempts_table,
-                                       payment_attempt_id=payment_attempt_id,
-                                       now=int(time.time()))
+    wa_payment_request.record_sent(attempts_table,
+                                   payment_attempt_id=payment_attempt_id,
+                                   now=int(time.time()))
+
+    # The REAL message id, read out of the outbound response the way `send_invoice_whatsapp`
+    # already reads it. Every row on this path used to carry `''`, which left the delivery log
+    # unjoinable to the message it claims to record. Parsed defensively: an id we cannot read is
+    # an empty id, never a failed send - the send was accepted either way.
+    wa_message_id = ''
+    try:
+        accepted_body = wa_result.get('body')
+        if isinstance(accepted_body, str):
+            accepted_body = json.loads(accepted_body or '{}')
+        if isinstance(accepted_body, dict):
+            wa_message_id = str(accepted_body.get('whatsappMessageId')
+                                or accepted_body.get('messageId') or '')
+    except (ValueError, TypeError):
+        wa_message_id = ''
 
     # Update invoice status to pending_payment
     try:
@@ -3689,20 +3832,11 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # NOTE: Do NOT send invoice image here — receipt with PAID stamp
     # is generated and sent AFTER payment is captured (in inbound handler).
 
-    # Log delivery
-    delivery_table = dynamodb.Table(INVOICE_DELIVERY_TABLE)
-    delivery_table.put_item(Item={
-        'invoiceId': invoice_id,
-        'timestamp': int(time.time()),
-        'channel': 'whatsapp_payment',
-        'toNumber': customer_phone,
-        'waMessageId': '',
-        'status': 'sent' if wa_status_code in (200, 202) else 'failed',
-        'imageUrl': '',
-        'phoneNumberId': phone_number_id,
-        'contactId': contact_id,
-        'error': '',
-    })
+    # `accepted`, never `sent` and never `delivered`. Meta accepting an `order_details` message
+    # is not the customer receiving it: delivery and read are separate webhook events on the
+    # message, and this row records only what we actually observed - that the request was taken
+    # for sending.
+    _log_delivery('accepted', wa_message_id=wa_message_id)
 
     logger.info(json.dumps({
         'event': 'payment_link_sent', 'invoiceId': invoice_id,
