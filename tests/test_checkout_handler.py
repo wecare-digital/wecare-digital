@@ -119,7 +119,11 @@ def env(monkeypatch):
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
 
-    fake = FakeDynamo(keys={ATTEMPTS_TABLE: 'paymentAttemptId', KEYS_TABLE: 'orderId'})
+    fake = FakeDynamo(keys={
+        ATTEMPTS_TABLE: 'paymentAttemptId',
+        KEYS_TABLE: 'orderId',
+        'stack-wecare-digital-ContactsTable': 'id',
+    })
     lam = _FakeLambda()
 
     monkeypatch.setattr(h, '_dynamodb', fake)
@@ -652,6 +656,12 @@ def test_waba2_cannot_prepare_a_native_service_payment_and_leaves_no_claim(env):
     monkeypatch.setenv('WHATSAPP_CATALOG_SERVICES_ENABLED', 'true')
     monkeypatch.setattr(h.wix_writeback, 'is_enabled', lambda: True)
     _seed_preparing_session(fake, phone_number_id=WABA2_SENDER)
+    # The sender refusal intentionally follows VERIFIED_CUSTOMER_REQUIRED, so seed
+    # the owned contact needed to reach that exact gate without any provider calls.
+    fake.Table('stack-wecare-digital-ContactsTable').put_item(Item={
+        'id': CATALOG_SESSION['contactId'],
+        'checkoutCustomerId': CUSTOMER,
+    })
 
     result = h._native_catalog_service(
         {'internalAction': 'prepareNativeCatalogService',

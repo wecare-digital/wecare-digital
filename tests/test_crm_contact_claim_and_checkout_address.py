@@ -164,10 +164,16 @@ def test_the_client_mapper_carries_the_checkout_address_not_just_the_type():
 # ─── FIX 4a: customer-profile claims an unowned row ────────────────────────────
 
 class ProfileIdentity:
-    def __init__(self, customer_id=CUSTOMER, phone=RAW_PHONE):
+    #: Cognito's `phone_number_verified`, True because a WhatsApp OTP is the only way this
+    #: session exists. The three `_owned_contact` assertions below are unaffected either way -
+    #: that predicate still means `checkoutCustomerId == sub` and reads no flag - but the handler
+    #: tests in this file reach `_attempt_claim`, and a False here would make their refusals
+    #: about the flag rather than about ownership.
+    def __init__(self, customer_id=CUSTOMER, phone=RAW_PHONE, phone_verified=True):
         self.customer_id = customer_id
         self.phone = phone
         self.subject = "sub-fixture"
+        self.phone_verified = phone_verified
 
 
 @pytest.fixture
@@ -182,6 +188,9 @@ def profile(monkeypatch):
     )
     monkeypatch.setattr(h, "_dynamodb", fake)
     monkeypatch.setattr(h, "_pepper", lambda: "claim-test-pepper")
+    # `lambda_utils.audit` holds its own boto3 resource, so an unpatched `record_audit` on the
+    # claim-refusal path would reach the live AuditLogsTable from a unit test.
+    monkeypatch.setattr(h, "record_audit", lambda *args, **kwargs: "audit-stub")
     monkeypatch.setattr(h.customer_auth, "require_customer",
                         lambda event: (ProfileIdentity(), None))
     return h, fake, monkeypatch

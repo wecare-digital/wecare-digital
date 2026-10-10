@@ -80,14 +80,24 @@ class CustomerNotAuthorized(PermissionError):
 
 
 class CustomerIdentity:
-    """A proven customer session."""
+    """A proven customer session.
 
-    __slots__ = ("customer_id", "phone", "subject")
+    `phone_verified` is Cognito's `phone_number_verified` flag, carried because one caller needs
+    to know it rather than assume it: `auth/customer-profile` links a WhatsApp-first contact to
+    this session on the strength of the phone alone, and a number the pool has not confirmed is
+    not proof of anything. It defaults to **False** so a construction site that has not proven
+    the flag cannot accidentally assert it — the ten test stubs and the checkout path that
+    rebuilds an identity from a stored payment attempt all land on that default.
+    """
 
-    def __init__(self, *, customer_id: str, phone: str, subject: str) -> None:
+    __slots__ = ("customer_id", "phone", "subject", "phone_verified")
+
+    def __init__(self, *, customer_id: str, phone: str, subject: str,
+                 phone_verified: bool = False) -> None:
         self.customer_id = customer_id
         self.phone = phone
         self.subject = subject
+        self.phone_verified = bool(phone_verified)
 
     def owns(self, customer_id: Optional[str]) -> bool:
         """Whether this session may act for `customer_id`. Exact match only."""
@@ -245,6 +255,9 @@ def authenticate(event: Dict[str, Any]) -> CustomerIdentity:
     return CustomerIdentity(
         customer_id=customer_id, phone=phone,
         subject=str(attributes.get("sub") or ""),
+        # Cognito renders the flag as the STRING 'true'. Compared explicitly rather than
+        # truthiness-tested, because the string 'false' is truthy.
+        phone_verified=attributes.get("phone_number_verified") == "true",
     )
 
 

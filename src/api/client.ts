@@ -5304,6 +5304,38 @@ export interface CleanupResource {
   prefix?: string;
   queue?: string;
   count: number;
+  /**
+   * Whether the SERVER will act on this id. The server is the authority — it refuses a
+   * protected table whatever the client sends — and these three fields exist so the UI can
+   * stop offering an action that is going to be refused, rather than discovering it in the
+   * result list.
+   *
+   * Optional because a response from an older deployment carries neither field. Absent is
+   * read as SELECTABLE, which keeps the tab working against an un-upgraded backend; the
+   * guard that matters is the server's, and it is not optional there.
+   */
+  selectable?: boolean;
+  /** Set when the server will never clear this id: customer, financial or message history. */
+  protected?: boolean;
+  /** Why it is protected, in the server's words. Shown to the operator verbatim. */
+  protectedReason?: string;
+}
+
+/**
+ * The full `GET /system-cleanup` envelope.
+ *
+ * `getCleanupPreview` keeps returning just the rows, because that is what the Data tab
+ * renders and what `src/test/DataTabCheckbox.test.tsx` mocks. The confirmation token rides
+ * alongside, and `lastCleanupConfirmation()` is how the caller reads it.
+ */
+export interface CleanupPreview {
+  resources: CleanupResource[];
+  /** The ids the server minted this token for. */
+  selectableIds: string[];
+  /** Single-use, bound to `selectableIds`. `''` when the server could not store one. */
+  confirmationToken: string;
+  /** Present when the confirmation store is unavailable, i.e. nothing can be deleted. */
+  warning?: string;
 }
 
 export interface CleanupResult {
@@ -5318,19 +5350,65 @@ export interface CleanupResult {
    * folding it into either number is how a sweep that left rows behind reads as finished.
    */
   refused?: number;
+  /** The server declined this whole id. `deleted` is 0 and that is the correct outcome. */
+  protected?: boolean;
+  /** Why, in the server's words. */
+  protectedReason?: string;
 }
 
+/** What `POST /system-cleanup` reports back. `protected`/`skipped` are server counts. */
+export interface CleanupRun {
+  results: CleanupResult[];
+  totalDeleted: number;
+  /** Ids the server declined. Rendered as "kept", NOT as an error. */
+  protected?: number;
+  /** Ids it did not act on at all, protected or unknown. */
+  skipped?: number;
+}
+
+/**
+ * The most recent preview envelope.
+ *
+ * Module-level because `getCleanupPreview` has to keep its `CleanupResource[]` return type:
+ * `src/test/DataTabCheckbox.test.tsx` mocks it with a bare array and that test must keep
+ * passing unchanged. Holding the token here rather than widening the signature means the
+ * Data tab gets both from one request instead of minting a second token it would not use.
+ *
+ * "Most recent" is the right scope: the server's token is single-use and bound to the
+ * selection it was minted for, so an older one is worthless by construction.
+ */
+let lastPreview: CleanupPreview | null = null;
+
 export async function getCleanupPreview (): Promise<CleanupResource[]> {
-  const data = await apiCall<any>( `${API_BASE}/system-cleanup` );
+  const data = await apiCall<CleanupPreview>( `${API_BASE}/system-cleanup` );
+  lastPreview = data ?? null;
   return data?.resources || [];
 }
 
-export async function executeCleanup ( selected: string[] ): Promise<{ results: CleanupResult[]; totalDeleted: number }> {
+/** The confirmation token from the most recent `getCleanupPreview`, if any. */
+export function lastCleanupConfirmation (): { token: string; selectableIds: string[]; warning?: string } {
+  return {
+    token: lastPreview?.confirmationToken || '',
+    selectableIds: lastPreview?.selectableIds || [],
+    warning: lastPreview?.warning,
+  };
+}
+
+export async function executeCleanup ( selected: string[], confirmationToken?: string ): Promise<CleanupRun> {
   const data = await apiCall<any>( `${API_BASE}/system-cleanup`, {
     method: 'POST',
-    body: JSON.stringify( { selected } ),
+    // The server REQUIRES the token and refuses 400 without it. Sent as a plain field
+    // rather than made a required argument so the one remaining legacy caller still
+    // compiles; it gets the refusal, which is the correct outcome for a call that never
+    // previewed.
+    body: JSON.stringify( { selected, confirmationToken: confirmationToken || '' } ),
   } );
-  return { results: data?.results || [], totalDeleted: data?.totalDeleted || 0 };
+  return {
+    results: data?.results || [],
+    totalDeleted: data?.totalDeleted || 0,
+    protected: data?.protected || 0,
+    skipped: data?.skipped || 0,
+  };
 }
 
 // ============================================================================

@@ -249,9 +249,15 @@ const VayuLokPage: React.FC = () => {
            owns it. A column gap would apply to nothing and quietly mislead whoever
            adds the second element. */
         .vl-layout{width:100%;max-width:1300px;margin:0 auto;padding:80px 24px 48px;box-sizing:border-box}
-        .vl-hero-grid{display:grid;grid-template-columns:minmax(0,.88fr) minmax(540px,1.12fr);gap:48px;align-items:center}
+        /* The two columns read as a deliberate, balanced pair: the copy holds a
+           little under half the width and the globe a little over, with the globe
+           CENTRED in its column and capped so it never dwarfs the headline. The
+           globe's own left-side info panel lives inside the right column, which is
+           why the gap is generous: it keeps the panel clear of the headline. */
+        .vl-hero-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.05fr);gap:56px;align-items:center}
         .vl-hero-copy{min-width:0}
-        .vl-hero-visual{min-width:0;width:100%}
+        .vl-hero-visual{min-width:0;width:100%;display:flex;justify-content:center}
+        .vl-hero-visual :global(.vag-shell){width:100%;max-width:720px}
 
         /* Spacing only. The badge paints itself inside BrandBadge. */
         .vl-eyebrow{margin:0 0 20px}
@@ -343,11 +349,13 @@ const VayuLokPage: React.FC = () => {
         }
 
         @media(max-width:1024px){
-          .vl-hero-grid{grid-template-columns:minmax(0,.9fr) minmax(460px,1.1fr);gap:32px}
+          .vl-hero-grid{grid-template-columns:minmax(0,.96fr) minmax(0,1.04fr);gap:36px}
+          .vl-hero-visual :global(.vag-shell){max-width:620px}
         }
         @media(max-width:860px){
           .vl-hero-grid{grid-template-columns:1fr;gap:36px}
           .vl-hero-visual{max-width:760px;margin:0 auto}
+          .vl-hero-visual :global(.vag-shell){max-width:760px}
         }
         @media(max-width:767px){
           .vl-shell{padding-top:96px}

@@ -95,7 +95,20 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           ) ) }
         </ul>
 
-        <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>{ product.ctaLabel }</a>
+        {/* ONE pill for every page that sets only ctaLabel/ctaHref; a SECOND pill appears only
+            when the product carries both ctaLabel2 and ctaHref2 (today just /shipments/, which
+            has a tracking door and a pickup door). The first anchor is byte-for-byte what it was
+            before this wrapper — same whatsappServiceLink() resolution — so single-CTA pages are
+            unchanged. The second anchor uses ctaHref2 directly and is NOT routed through
+            whatsappServiceLink(): the slug resolves to one service link, so the pickup button
+            would otherwise open the tracking conversation. The 30px top gap now lives on
+            .pdp-ctas (it was on .pdp-cta), so single-CTA spacing is identical to the pixel. */}
+        <div className="pdp-ctas">
+          <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>{ product.ctaLabel }</a>
+          { product.ctaHref2 && product.ctaLabel2 && (
+            <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
+          ) }
+        </div>
 
         { product.note && <p className="pdp-note">{ product.note }</p> }
 
@@ -122,10 +135,16 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           .pdp-point-t{display:block;margin:5px 0 6px;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px;color:#000}
           .pdp-p{font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0}
 
+          /* The CTA row. One or two pills, wrapping rather than overflowing on a narrow
+             viewport. margin-top:30px lives HERE, not on .pdp-cta, so a page with a single pill
+             keeps the exact gap it had before the wrapper existed — the anchor's own line box
+             contributed no height, so moving the margin up one level is a no-op for single-CTA
+             pages (RequestNotes.test.ts pins this). gap:12px separates the pair on /shipments/. */
+          .pdp-ctas{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:30px}
           /* Full-strength #d1f470 with #1a3a2a type - the contract's own-surface pairing -
              and 2px because the hairline rule is that 2px means hoverable. */
           .pdp-cta{
-            display:inline-flex;align-items:center;min-height:52px;margin-top:30px;
+            display:inline-flex;align-items:center;min-height:52px;
             padding:0 26px;border:2px solid #1a3a2a;border-radius:50px;
             background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;text-decoration:none;
             transition:background-color .2s,transform .2s,box-shadow .2s;

@@ -107,7 +107,7 @@
       "path": "/shipments",
       "group": "start",
       "name": "Shipments",
-      "description": "Everything about your request, delivery or pickup in one place: track an order, amend a request, send documents, open your vault or leave a review."
+      "description": "Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp."
     },
     {
       "path": "/subscribe",

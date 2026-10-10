@@ -12,7 +12,8 @@ shape, the tests fail here until this fake is taught it. That is the intended co
 
 Supported, and only this
 ------------------------
-    condition   attribute_exists(X) | attribute_not_exists(X) | X = :v | X <> :v
+    condition   attribute_exists(X) | attribute_not_exists(X) | attribute_type(X, :t)
+                | X = :v | X <> :v
                 | X <= :v | X < :v | X >= :v | X > :v , joined by AND and OR, with parentheses
     update      SET a = :v, b = if_not_exists(b, :v2) [REMOVE c, d] [ADD n :delta]
     delete      delete_item(Key), optional ConditionExpression in the same form as above
@@ -64,6 +65,17 @@ class FakeClientError(_BotoClientError):
 
 _ATTR_EXISTS = re.compile(r"attribute_exists\(\s*([#\w]+)\s*\)")
 _ATTR_NOT_EXISTS = re.compile(r"attribute_not_exists\(\s*([#\w]+)\s*\)")
+#: `attribute_type(X, :t)` — the documented way to ask "is this attribute NULL", which the
+#: customer-profile identity claim uses instead of comparing an attribute to a NULL-typed
+#: operand. Matched before `attribute_exists`/`attribute_not_exists` would ever see it, because
+#: the name differs; listed here so the leftover check does not reject it as unparsed.
+_ATTR_TYPE = re.compile(r"attribute_type\(\s*([#\w]+)\s*,\s*(:[\w]+)\s*\)")
+#: The DynamoDB type codes this fake can answer for. Deliberately not the full set: a code that
+#: is not here raises, so an expression the fake cannot really evaluate fails loudly rather than
+#: quietly passing.
+_TYPE_CODES: Dict[str, Any] = {
+    "NULL": type(None), "S": str, "BOOL": bool, "L": list, "M": dict,
+}
 _EQUALITY = re.compile(r"([#\w]+)\s*=\s*(:[\w]+)")
 #: `attr <> :v` — matched BEFORE equality so the `=` inside `<>` is not mistaken for one. Used by
 #: conditional settlements that must only write a row still in a given state (e.g. not-already-paid).
@@ -187,6 +199,16 @@ def _evaluate_predicate(text: str, row: Optional[Dict[str, Any]],
     for match in _ATTR_NOT_EXISTS.finditer(text):
         attr = _resolve(match.group(1), names)
         if row is not None and attr in row:
+            result = False
+        consumed = consumed.replace(match.group(0), "", 1)
+
+    for match in _ATTR_TYPE.finditer(text):
+        attr = _resolve(match.group(1), names)
+        code = str(values[match.group(2)])
+        if code not in _TYPE_CODES:
+            raise AssertionError(f"attribute_type({attr}, {code!r}) is not modelled by this fake")
+        # DynamoDB's `attribute_type` is false when the attribute is absent, not an error.
+        if row is None or attr not in row or not isinstance(row.get(attr), _TYPE_CODES[code]):
             result = False
         consumed = consumed.replace(match.group(0), "", 1)
 

@@ -546,7 +546,12 @@ const PUBLIC_PAGE_META: Record<string, {
   // AND config/public-pages.json, so the retired name went out to crawlers and to every consumer
   // of that config. Renaming the nav row alone could never fix it. On owner instruction
   // (2026-10-02) the name is gone entirely: key, `name`, route and page file all read shipments.
-  '/shipments': { name: 'Shipments', type: 'WebPage', description: 'Everything about your request, delivery or pickup in one place: track an order, amend a request, send documents, open your vault or leave a review.' },
+  // The description below is a LITERAL, not SHIPMENTS.description, on purpose:
+  // scripts/generate-public-pages.js reads this map by static text parse (it must not import
+  // _app.tsx, which runs Amplify.configure), so a non-literal value makes it see no entry and
+  // refuse. Drift from src/content/shipments.ts is instead guarded by an equality assertion in
+  // src/test/ShipmentsPage.test.tsx, the same shape the CTA-1 href already uses.
+  '/shipments': { name: 'Shipments', type: 'WebPage', description: 'Everything about your request, delivery or pickup in one place. Track what you already have with WECARE.DIGITAL, or ask us to arrange a pickup, on WhatsApp.' },
   // Subscribe sits after Leave Review in the Request menu, on owner instruction. Its CTA goes to
   // /contact/ until a subscription backend exists, and the page stores nothing, so the sentence
   // says that subscribing is handled through the contact page rather than promising a sign-up.

@@ -1,20 +1,51 @@
 """
 System Cleanup Lambda Handler
-Provides selective cleanup of DynamoDB tables and S3 prefixes.
-GET previews item counts; POST deletes the resources named in `selected`.
-Preserves: SystemConfig table always.
+Previews and clears a NARROW allow-list of cache/analytics tables.
+GET previews item counts and mints a confirmation token; POST deletes the resources named
+in `selected`, which must match that token's selection exactly.
 
 What actually gates the delete, stated precisely
 ------------------------------------------------
-This docstring used to say "on confirm", which overstated it. There is **no server-side
-confirmation token**. Deletion is gated by exactly two things:
+Four things, all of which have to hold:
 
-1. `require_auth` - the caller must be an authenticated admin.
-2. An explicit `selected` list in the POST body. Nothing is deleted by default, there is
-   no "all" shorthand, and an empty list deletes nothing.
+1. `require_auth(event, required_role='Admin')` - an Admin on a STAFF-pool token. The
+   docstring here used to claim "the caller must be an authenticated admin" while the
+   code passed no `required_role` at all, so **any** authenticated caller qualified, and
+   before the staff-pool pin in `lambda_utils.middleware` that included a customer-pool
+   token.
+2. For POST, an enrolled second factor: `event['_auth']['mfaEnrolled'] is True`. Read off
+   the auth result rather than off `ADMIN_MFA_REQUIRED`, which is NOT set on
+   `wecare-system-cleanup` - so relying on the env var would have been a check that does
+   nothing on the one function that needs it most.
+3. A server-side confirmation token from `GET`, bound to the exact selection and
+   single-use. The word "confirm" used to refer to a dialog in the admin UI, which is a
+   client-side courtesy; a direct POST skipped it entirely. It is now a server fact.
+4. An explicit `selected` list, every entry of which is on `CLEANUP_ALLOWLIST`. Nothing
+   is deleted by default, there is no "all" shorthand, and an empty list deletes nothing.
 
-The word "confirm" refers to the dialog in the admin UI, which is a client-side courtesy
-and not a guarantee. Any authenticated caller can POST a `selected` list directly.
+And one thing that has to be recorded: a durable audit row, written BEFORE the first
+delete, and failing CLOSED. `lambda_utils.audit.record_audit` fails open by design; for
+an irreversible bulk delete that trade is wrong, so this handler checks the return value
+and refuses 503 on `None`. `AuditLogsTable` is in `PROTECTED_TABLES` and matches the
+keyword deny list, because an audit trail inside the deletable set is not an audit trail.
+
+What is NO LONGER selectable, and why
+-------------------------------------
+Auto-discovery is gone. `_discover_tables()` merged every `stack-wecare-digital-*` table
+not in a four-entry `PROTECTED_TABLES` into the registry, and `_discover_s3_prefixes()`
+did the same for every folder three levels under `o/stack/`. So ContactsTable,
+InvoicesTable, PaymentsTable, AuditLogsTable and every future table were selectable, and
+a new table became selectable merely by existing. The curated registry was a hole too -
+it named contacts, invoices, invoice_items, payments, razorpay_webhook_log, wix_order_ids
+and audit_logs outright.
+
+The registry below is kept for DISPLAY, so an operator can still see what exists and how
+much is in it, but every entry is now marked `selectable` or `protected` with a reason,
+and only `CLEANUP_ALLOWLIST` is selectable. **All S3 prefixes and all SQS queues are
+refused**: S3 under `o/stack/` and `secure/stack/` holds customer media, invoice
+renditions and product images, and purging a DLQ or the bulk queue discards undelivered
+customer work. Neither is a cache. Extending the allow-list is an owner decision, taken
+one table at a time with a recorded reason.
 
 No EventBridge rule targets this function, so nothing here runs on a schedule. The
 similarly named `wecare-media-cleanup` IS scheduled daily, but it only expires
@@ -32,11 +63,13 @@ import json
 import time
 import logging
 import boto3
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 
+from lambda_utils import destructive_confirm
+from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
 
@@ -44,6 +77,15 @@ logger = get_logger(__name__)
 
 REGION = os.environ.get('AWS_REGION', 'us-east-1')
 BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+# Compatibility/source-of-truth alias: confirmation storage is owned by the shared helper.
+# Tests and diagnostics read this name from the handler, while the value itself lives in one place.
+SYSTEM_CONFIG_TABLE = destructive_confirm.SYSTEM_CONFIG_TABLE
+#: Namespaces this route's confirmation tokens, so a token minted for a message wipe can
+#: never be redeemed here and vice versa.
+CONFIRM_SCOPE = 'cleanup'
+#: How long a preview's token stays usable. Long enough to read the counts and decide,
+#: short enough that a token left in a tab is not a standing authorisation.
+CONFIRM_TOKEN_TTL_SECONDS = 15 * 60
 
 dynamodb = boto3.resource('dynamodb', region_name=REGION)
 dynamodb_client = boto3.client('dynamodb', region_name=REGION)
@@ -354,13 +396,11 @@ CLEANUP_RESOURCES = {
     },
 }
 
-# ── Dynamic discovery config ──
+# The stack's table-name prefix. All that is left of the "dynamic discovery config" block:
+# `S3_ROOT_PREFIX` and `S3_MAX_DEPTH` went with `_discover_s3_prefixes`, and
+# `_discover_tables` went with them, because a registry that grows by itself is a
+# destructive surface that grows by itself.
 TABLE_PREFIX = 'stack-wecare-digital-'
-# Rooted in the public tree. This was 'stack/' - a prefix with zero objects under it -
-# so discovery listed nothing and every S3 cleanup reported success having deleted
-# nothing. See lambda_utils/media_paths for why the data sits one level lower.
-S3_ROOT_PREFIX = media_paths.public('stack/')
-S3_MAX_DEPTH = 3  # how many folder levels under stack/ to expose
 
 # Tables that must NEVER be wiped by factory reset (config + durable assets).
 # Short links are permanent by design — they are printed on materials, embedded in
@@ -377,89 +417,121 @@ PROTECTED_TABLES = {
     'stack-wecare-digital-SystemConfig',
     'stack-wecare-digital-ShortLinksTable',   # short links — manual-delete only
     'stack-wecare-digital-LinkClicksTable',   # short-link click analytics
+    # The audit sink. It was the `audit_logs` registry entry below, i.e. this handler
+    # could delete the record of its own deletions. An audit trail inside the deletable
+    # set is not an audit trail.
+    'stack-wecare-digital-AuditLogsTable',
 }
 
+# ── The allow-list. Nothing outside this is deletable, by anybody, ever. ──
+#
+# Four tables, each one a cache or a derived aggregate that rebuilds itself. The test for
+# membership is not "is this low value" but "if this were empty in five minutes, would the
+# system repopulate it without anyone intervening".
+#
+# This deliberately removes most of what "Factory Reset" used to do. That is the point:
+# the previous registry named contacts, invoices, payments and audit_logs, and
+# auto-discovery added every table that merely existed. Extending this is an owner
+# decision, taken one table at a time, with the reason recorded in this comment block.
+CLEANUP_ALLOWLIST = {
+    # ephemeral throttle counters, rebuilt inside one rate-limit window
+    'stack-wecare-digital-RateLimitTable',
+    # derived analytics; re-fetchable from Meta's template insights API
+    'stack-wecare-digital-TemplateAnalyticsTable',
+    # pure cache, rebuilt by the catalogue sync
+    'stack-wecare-digital-WixProductsCache',
+    # Airtel SMS DLT template cache; Airtel is retired
+    'stack-wecare-digital-DLTTemplates',
+}
 
-def _discover_tables() -> List[str]:
-    """List every DynamoDB table that belongs to this stack (by name prefix)."""
-    names: List[str] = []
-    kwargs: Dict[str, Any] = {}
-    try:
-        while True:
-            resp = dynamodb_client.list_tables(**kwargs)
-            names.extend(resp.get('TableNames', []))
-            last = resp.get('LastEvaluatedTableName')
-            if not last:
-                break
-            kwargs['ExclusiveStartTableName'] = last
-    except Exception as e:
-        logger.warning(f'{{"event":"list_tables_error","error":"{e}"}}')
-    return [n for n in names if n.startswith(TABLE_PREFIX) and n not in PROTECTED_TABLES]
+#: Empty on purpose, and the reason is in `_protected_reason`: S3 under `o/stack/` and
+#: `secure/stack/` holds customer media, invoice renditions and product images. None of it
+#: is a cache. Kept as a set so a future narrowing is one line of data with a reason next
+#: to it, in the same shape as CLEANUP_ALLOWLIST.
+S3_PREFIX_ALLOWLIST: set = set()
+#: Empty on purpose. Purging a DLQ or the bulk queue discards undelivered customer work.
+SQS_QUEUE_ALLOWLIST: set = set()
+
+# ── The independent second layer. ──
+#
+# Two layers because the registry and this guard fail differently: the allow-list protects
+# against auto-discovery and a mis-typed id, and this keyword predicate protects against a
+# future careless allow-list edit. A name that matches any of these can never be selected,
+# even by an MFA'd Admin, even if someone adds it to CLEANUP_ALLOWLIST.
+#
+# `wixorder` is here because AUDIT-REPORT.md records `stack-wecare-digital-WixOrderIds`'
+# `PAYREF#` / `PAYMENTATTEMPT#` / `INVOICECOLLECT#` rows as the canonical payment
+# idempotency anchors — losing them makes a replayed webhook charge twice.
+PROTECTED_NAME_KEYWORDS = (
+    'contact', 'customer', 'order', 'wixorder', 'invoice', 'payment', 'paymentattempt',
+    'servicerequest', 'document', 'securefile', 'downloadgrant', 'entitlement',
+    'flowsubmission', 'submitrequest', 'message', 'inbound', 'outbound', 'audit',
+    'conversation',
+)
 
 
-def _discover_s3_prefixes(max_depth: int = S3_MAX_DEPTH) -> List[str]:
-    """List every 'folder' (common prefix) under the stack/ root, up to max_depth levels."""
-    found: List[str] = []
+class CleanupRefused(Exception):
+    """A destination the guard will not touch.
 
-    def walk(prefix: str, depth: int) -> None:
-        if depth > max_depth:
-            return
-        token = None
-        while True:
-            kwargs = {'Bucket': BUCKET, 'Prefix': prefix, 'Delimiter': '/'}
-            if token:
-                kwargs['ContinuationToken'] = token
-            try:
-                resp = s3.list_objects_v2(**kwargs)
-            except Exception as e:
-                logger.warning(f'{{"event":"s3_walk_error","prefix":"{prefix}","error":"{e}"}}')
-                return
-            for cp in resp.get('CommonPrefixes', []):
-                p = cp['Prefix']
-                found.append(p)
-                walk(p, depth + 1)
-            if resp.get('IsTruncated'):
-                token = resp.get('NextContinuationToken')
-            else:
-                break
+    Raised rather than returning 0, because "deleted 0 rows" and "refused to look" are
+    different outcomes and a caller that cannot tell them apart will read a refusal as a
+    finished sweep.
+    """
 
-    walk(S3_ROOT_PREFIX, 1)
-    return found
+
+def _matched_keyword(name: str) -> Optional[str]:
+    """The first protected keyword `name` contains, or None. Case- and separator-blind."""
+    flat = ''.join(ch for ch in (name or '').lower() if ch.isalnum())
+    for keyword in PROTECTED_NAME_KEYWORDS:
+        if keyword in flat:
+            return keyword
+    return None
+
+
+def _table_protected_reason(table_name: str) -> Optional[str]:
+    """Why `table_name` may not be wiped, or None if it may be. The single authority."""
+    if table_name in PROTECTED_TABLES:
+        return 'Protected: configuration, durable assets or the audit trail'
+    keyword = _matched_keyword(table_name)
+    if keyword:
+        return f'Protected: customer, financial or message history (matched "{keyword}")'
+    if table_name not in CLEANUP_ALLOWLIST:
+        return 'Not on the cleanup allow-list'
+    return None
+
+
+def _protected_reason(res: Dict[str, Any]) -> Optional[str]:
+    """Why this resource may not be selected, or None if it may be."""
+    if res.get('type') == 'dynamodb':
+        return _table_protected_reason(res.get('table', ''))
+    if res.get('type') == 's3':
+        return ('S3 is never cleared here: these prefixes hold customer media, invoice '
+                'renditions and product images, none of which rebuild themselves')
+    if res.get('type') == 'sqs':
+        return ('SQS is never purged here: a DLQ or the bulk queue holds undelivered '
+                'customer work, not cache')
+    return 'Unknown resource type'
 
 
 def _build_resources() -> Dict[str, Dict[str, Any]]:
     """
-    Build the full id -> resource map: curated entries (with friendly labels/categories)
-    merged with every dynamically discovered table and S3 folder so nothing is missed.
+    Build the id -> resource map from the CURATED registry only, each entry marked
+    `selectable` / `protected` / `protectedReason`.
+
+    Auto-discovery is deliberately absent — see the module docstring. A new
+    `stack-wecare-digital-*` table therefore does NOT become deletable by appearing in
+    `list_tables`; it has to be added to CLEANUP_ALLOWLIST on purpose.
+
     Used by both preview (counts) and cleanup (delete) so ids always resolve consistently.
     """
-    resources: Dict[str, Dict[str, Any]] = {k: dict(v) for k, v in CLEANUP_RESOURCES.items()}
-
-    curated_tables = {v['table'] for v in CLEANUP_RESOURCES.values() if v['type'] == 'dynamodb'}
-    curated_prefixes = {v['prefix'] for v in CLEANUP_RESOURCES.values() if v['type'] == 's3'}
-
-    # Add any stack table not already curated
-    for table in _discover_tables():
-        if table in curated_tables:
-            continue
-        resources['auto_tbl_' + table] = {
-            'label': table[len(TABLE_PREFIX):] or table,
-            'category': 'Other Tables',
-            'type': 'dynamodb',
-            'table': table,
-        }
-
-    # Add any S3 folder not already curated
-    for prefix in _discover_s3_prefixes():
-        if prefix in curated_prefixes:
-            continue
-        resources['auto_s3_' + prefix] = {
-            'label': 'S3: ' + prefix,
-            'category': 'S3 Storage',
-            'type': 's3',
-            'prefix': prefix,
-        }
-
+    resources: Dict[str, Dict[str, Any]] = {}
+    for key, value in CLEANUP_RESOURCES.items():
+        entry = dict(value)
+        reason = _protected_reason(entry)
+        entry['protected'] = reason is not None
+        entry['selectable'] = reason is None
+        entry['protectedReason'] = reason or ''
+        resources[key] = entry
     return resources
 
 
@@ -479,16 +551,58 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return options_response(origin)
 
     from lambda_utils.middleware import require_auth
-    _auth = require_auth(event)
+    # Admin, and only from a STAFF-pool token. Passing `required_role` is also what makes
+    # `require_auth` populate `_auth['mfaEnrolled']` - it only runs the enrolment lookup
+    # when Admin is actually required.
+    _auth = require_auth(event, required_role='Admin')
     if _auth is not None:
         return _auth
 
     if method == 'GET':
-        return _preview()
+        return _preview(event)
     elif method == 'POST':
+        # Fails CLOSED on an unknown answer: `mfaEnrolled` is True / False / None, and
+        # None means the Cognito lookup could not answer. Read off the auth result rather
+        # than off `ADMIN_MFA_REQUIRED`, which is not set on this function - deferring to
+        # the env var would be a second factor that is not required on the one route that
+        # can empty a table.
+        if (event.get('_auth') or {}).get('mfaEnrolled') is not True:
+            logger.warning(json.dumps({'event': 'cleanup_refused_no_mfa'}))
+            return cors_response(403, {
+                'error': 'MFA required',
+                'detail': ('Deleting data requires a second factor. Enrol an '
+                           'authenticator app in your account settings, sign in again, '
+                           'and retry.'),
+            }, origin)
         return _cleanup(event)
     else:
         return {'statusCode': 405, 'headers': cors_headers(origin), 'body': json.dumps({'error': 'Method not allowed'})}
+
+
+# ─── Confirmation token (single-use, bound to one exact selection) ──────────
+#
+# The handshake itself lives in `lambda_utils.destructive_confirm`, shared with
+# `messages/clear-all` and `invoices/clear-all`, which need exactly the same thing. See
+# that module for why it is a SystemConfigTable row rather than an HMAC over an env secret.
+
+
+def _actor(event: Dict[str, Any]) -> str:
+    """The Cognito `sub` of the caller, falling back to the username. Never a body field."""
+    auth = event.get('_auth') or {}
+    return str((auth.get('attributes') or {}).get('sub') or auth.get('username') or 'unknown')
+
+
+def _mint_confirmation(selectable_ids: List[str], counts: Dict[str, int],
+                       actor: str) -> Optional[str]:
+    """Token for this exact selection, or None if the store could not be written."""
+    return destructive_confirm.mint(
+        CONFIRM_SCOPE, selectable_ids, counts, actor,
+        ttl_seconds=CONFIRM_TOKEN_TTL_SECONDS)
+
+
+def _consume_confirmation(token: str, selection: List[str]) -> Dict[str, Any]:
+    """Verify and consume the token. `{'ok': True, ...}` or `{'error': ..., 'status': ...}`."""
+    return destructive_confirm.consume(CONFIRM_SCOPE, token, selection)
 
 
 
@@ -536,15 +650,29 @@ def _get_sqs_count(queue_name: str) -> int:
         return -1
 
 
-def _preview() -> Dict[str, Any]:
-    """Return live item counts for every clearable resource (curated + auto-discovered)."""
+def _preview(event: Dict[str, Any]) -> Dict[str, Any]:
+    """Live counts for every registry resource, each marked selectable or protected.
+
+    Protected rows are still listed WITH their counts. Hiding them would answer "what is
+    in this system" with a lie, and the operator needs to see that ContactsTable has rows
+    and that those rows are not reachable from here.
+
+    Also mints the confirmation token POST requires, bound to the selectable ids and their
+    counts at this moment.
+    """
     resources = []
+    selectable_ids: List[str] = []
+    counts: Dict[str, int] = {}
+
     for key, res in _build_resources().items():
         entry = {
             'id': key,
             'label': res['label'],
             'category': res['category'],
             'type': res['type'],
+            'selectable': bool(res.get('selectable')),
+            'protected': bool(res.get('protected')),
+            'protectedReason': res.get('protectedReason', ''),
         }
         if res['type'] == 'dynamodb':
             entry['table'] = res['table']
@@ -556,21 +684,40 @@ def _preview() -> Dict[str, Any]:
             entry['queue'] = res['queue']
             entry['count'] = _get_sqs_count(res['queue'])
         resources.append(entry)
+        if entry['selectable']:
+            selectable_ids.append(key)
+            counts[key] = int(entry.get('count') or 0)
+
+    token = _mint_confirmation(selectable_ids, counts, _actor(event))
+    body: Dict[str, Any] = {
+        'resources': resources,
+        'selectableIds': selectable_ids,
+        'confirmationToken': token or '',
+    }
+    if token is None:
+        body['warning'] = ('Confirmation store unavailable — counts are live but nothing '
+                           'can be deleted until it recovers.')
 
     return {
         'statusCode': 200,
         'headers': cors_headers(origin),
-        'body': json.dumps({'resources': resources}),
+        'body': json.dumps(body),
     }
 
 
 def _wipe_table(table_name: str) -> int:
-    """Delete all items from a DynamoDB table."""
-    # Hard guard: protected tables (config + short links) can never be wiped,
-    # even if explicitly selected. Short links are manual-delete only.
-    if table_name in PROTECTED_TABLES:
-        logger.warning(f'{{"event":"wipe_blocked_protected","table":"{table_name}"}}')
-        return 0
+    """Delete all items from an allow-listed DynamoDB table.
+
+    The guard is re-asked here, not only in the registry, and it is the single authority
+    `_table_protected_reason`. The previous version checked only the four-entry
+    `PROTECTED_TABLES` and returned 0, which read as "nothing to delete".
+    """
+    reason = _table_protected_reason(table_name)
+    if reason:
+        logger.warning(json.dumps({
+            'event': 'wipe_blocked_protected', 'table': table_name, 'reason': reason,
+        }))
+        raise CleanupRefused(reason)
     try:
         key_schema = dynamodb_client.describe_table(TableName=table_name)['Table']['KeySchema']
     except Exception as e:
@@ -605,7 +752,22 @@ def _wipe_table(table_name: str) -> int:
 
 
 def _wipe_s3_prefix(prefix: str) -> int:
-    """Delete content files under an S3 prefix, preserving folder markers (0-byte keys ending with /)."""
+    """Delete content files under an allow-listed S3 prefix. The allow-list is EMPTY.
+
+    Folder markers (0-byte keys ending with /) are preserved by the filter below, which
+    `scripts/create_s3_prefix.py` and `tests/test_create_s3_prefix.py` both depend on.
+
+    Had no guard at all until now, while `_wipe_table` did. Expressed as an empty
+    allow-list rather than an unconditional `raise` so that narrowing the refusal to one
+    specific prefix later is a data change with a recorded reason, in the same shape as
+    `CLEANUP_ALLOWLIST`, rather than a rewrite of this function.
+    """
+    if prefix not in S3_PREFIX_ALLOWLIST:
+        logger.warning(json.dumps({'event': 'wipe_blocked_s3', 'prefix': prefix}))
+        raise CleanupRefused(
+            'S3 is never cleared here: these prefixes hold customer media, invoice '
+            'renditions and product images, none of which rebuild themselves')
+
     deleted = 0
     paginator = s3.get_paginator('list_objects_v2')
     for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
@@ -624,7 +786,12 @@ def _wipe_s3_prefix(prefix: str) -> int:
 
 
 def _purge_sqs_queue(queue_name: str) -> int:
-    """Purge all messages from an SQS queue."""
+    """Purge an allow-listed SQS queue. The allow-list is EMPTY. See `_wipe_s3_prefix`."""
+    if queue_name not in SQS_QUEUE_ALLOWLIST:
+        logger.warning(json.dumps({'event': 'purge_blocked_sqs', 'queue': queue_name}))
+        raise CleanupRefused(
+            'SQS is never purged here: a DLQ or the bulk queue holds undelivered '
+            'customer work, not cache')
     try:
         url = sqs.get_queue_url(QueueName=queue_name)['QueueUrl']
         attrs = sqs.get_queue_attributes(QueueUrl=url, AttributeNames=['ApproximateNumberOfMessages'])
@@ -637,26 +804,84 @@ def _purge_sqs_queue(queue_name: str) -> int:
 
 
 def _cleanup(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Delete selected resources."""
+    """Delete selected resources. Admin + MFA is already proven by `handler`.
+
+    Order matters and is the whole design:
+
+      parse -> require a token -> consume the token -> partition selectable/protected
+            -> write the audit record (fail CLOSED) -> delete -> report
+
+    The token is consumed before anything is deleted, so a concurrent or replayed POST is
+    refused rather than deleting twice. The audit row is written before the first delete,
+    so there is no window in which data is gone and nothing says who did it.
+    """
     try:
         body = json.loads(event.get('body', '{}'))
     except Exception:
         return {'statusCode': 400, 'headers': cors_headers(origin), 'body': json.dumps({'error': 'Invalid JSON body'})}
 
-    selected = body.get('selected', [])
+    selected = [str(s) for s in (body.get('selected') or [])]
     if not selected:
         return {'statusCode': 400, 'headers': cors_headers(origin), 'body': json.dumps({'error': 'No resources selected'})}
 
-    all_resources = _build_resources()
-    results = []
-    total_deleted = 0
+    token = str(body.get('confirmationToken') or '').strip()
+    if not token:
+        # This is the UI-bypass case: a direct POST that never called GET has no token and
+        # therefore cannot delete, whatever it names in `selected`.
+        logger.warning(json.dumps({'event': 'cleanup_refused_no_token'}))
+        return {'statusCode': 400, 'headers': cors_headers(origin), 'body': json.dumps({
+            'error': 'confirmationToken required — call GET /system-cleanup first',
+        })}
 
+    consumed = _consume_confirmation(token, selected)
+    if not consumed.get('ok'):
+        return {'statusCode': consumed.get('status', 409), 'headers': cors_headers(origin),
+                'body': json.dumps({'error': consumed.get('error', 'Confirmation failed')})}
+
+    all_resources = _build_resources()
+    results: List[Dict[str, Any]] = []
+    deletable: List[str] = []
+    protected_count = 0
+
+    # Partition first, so the audit record states exactly what was about to be deleted and
+    # what was refused — not what a second pass later decided.
     for key in selected:
         res = all_resources.get(key)
         if not res:
             results.append({'id': key, 'error': 'Unknown resource', 'deleted': 0})
             continue
+        if res.get('protected'):
+            protected_count += 1
+            results.append({'id': key, 'label': res['label'], 'deleted': 0,
+                            'protected': True, 'protectedReason': res.get('protectedReason', '')})
+            continue
+        deletable.append(key)
 
+    actor = _actor(event)
+    if deletable:
+        log_id = record_audit(
+            action='system.cleanup',
+            actor=actor,
+            resource_type='system-cleanup',
+            resource_id=','.join(sorted(deletable))[:256],
+            details={
+                'selection': sorted(deletable),
+                'requested': sorted(selected),
+                'protected': sorted(k for k in selected if (all_resources.get(k) or {}).get('protected')),
+                'previewCounts': consumed.get('counts', {}),
+            },
+        )
+        if not log_id:
+            # `record_audit` fails open by design. For an irreversible bulk delete that
+            # trade is wrong: if we cannot record who did it, we do not do it.
+            logger.error(json.dumps({'event': 'cleanup_refused_audit_unavailable', 'actor': actor}))
+            return {'statusCode': 503, 'headers': cors_headers(origin), 'body': json.dumps({
+                'error': 'Audit log unavailable — nothing was deleted',
+            })}
+
+    total_deleted = 0
+    for key in deletable:
+        res = all_resources[key]
         t0 = time.time()
         try:
             if res['type'] == 'dynamodb':
@@ -666,15 +891,23 @@ def _cleanup(event: Dict[str, Any]) -> Dict[str, Any]:
             elif res['type'] == 'sqs':
                 count = _purge_sqs_queue(res['queue'])
             else:
-                count = 0
+                raise CleanupRefused('Unknown resource type')
             elapsed = round(time.time() - t0, 1)
             results.append({'id': key, 'label': res['label'], 'deleted': count, 'elapsed': elapsed})
             total_deleted += count
+        except CleanupRefused as refusal:
+            # The second layer caught something the registry let through. Reported as
+            # protected, not as an error: refusing is the correct outcome.
+            protected_count += 1
+            results.append({'id': key, 'label': res['label'], 'deleted': 0,
+                            'protected': True, 'protectedReason': str(refusal)})
         except Exception as e:
             logger.error(f"Cleanup error for {key}: {e}")
             results.append({'id': key, 'label': res['label'], 'error': str(e), 'deleted': 0})
 
-    logger.info(json.dumps({'event': 'system_cleanup', 'selected': selected, 'totalDeleted': total_deleted}))
+    logger.info(json.dumps({'event': 'system_cleanup', 'actor': actor, 'selected': selected,
+                            'deleted': sorted(deletable), 'protected': protected_count,
+                            'totalDeleted': total_deleted}))
 
     return {
         'statusCode': 200,
@@ -683,5 +916,7 @@ def _cleanup(event: Dict[str, Any]) -> Dict[str, Any]:
             'success': True,
             'results': results,
             'totalDeleted': total_deleted,
+            'protected': protected_count,
+            'skipped': len(selected) - len(deletable),
         }),
     }

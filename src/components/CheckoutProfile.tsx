@@ -353,7 +353,13 @@ const CheckoutProfile: React.FC<Props> = ( { accessToken, mode = 'create', initi
     } catch ( error ) {
       const payload = ( error as Error & { payload?: Record<string, any> } ).payload || {};
       if ( payload.error === 'CONTACT_IDENTITY_CONFLICT' ) {
-        setMessage( 'This phone and email are already linked to different contact records. Please contact us.' );
+        // The server deliberately sends one generic code for every refused link, so this copy
+        // must not guess at a reason. The old wording named a phone AND an email "linked to
+        // different contact records", which was wrong for most of the cases that reach here -
+        // an existing owner, two records on one number, no proof the number messaged us - and it
+        // described a second identity the customer may never have supplied. Naming the reason
+        // would also answer "is this number already taken", which is not a question to answer.
+        setMessage( 'We could not link these details to your account automatically. Please contact us and we will complete this for you.' );
       } else if ( payload.error === 'EMAIL_VERIFICATION_REQUIRED' ) {
         setProof( '' );
         setStep( 'idle' );
