@@ -10,6 +10,44 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'fun
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'amplify', 'functions', 'messaging', 'inbound-whatsapp-handler', 'modules'))
 
 
+@pytest.fixture(autouse=True)
+def _offline_shared_stores():
+    """Keep the SHARED stores off the network for every test in this file.
+
+    WHAT WAS MEASURED, on f87ea643. This file made real outbound TLS connections to AWS
+    us-east-1 **and to 57.144.142.141 = edge-star-shv-02-ccu2.facebook.com** — a live Meta
+    Graph POST — from a test run, with the ambient root credential.
+
+    The leak was not for want of patching. Every `h` fixture here already loads the
+    handler with `boto3.resource` and `boto3.client` patched, so the handler's OWN clients
+    are mocks. Two SHARED modules are not covered by that:
+
+      * `lambda_utils.thread_ownership` builds its resource LAZILY inside `_get_table()`
+        and caches it in a module global. Lazy construction is correct there (a
+        module-scope resource is built at Lambda cold start, which that module's docstring
+        explains), but it means the client is created on first CALL — which happens after
+        the import-time patch has exited. It already provides `set_table()` for exactly
+        this, so the fix is to use the seam that exists.
+      * `lambda_utils.message_store` builds `_dynamodb` at module scope, so it is bound
+        once for the whole session by whichever import came first.
+
+    Both call sites swallow their exceptions, which is why the connections were invisible
+    and why these tests pass identically with them stubbed — nothing asserted on them.
+    Reset afterwards so one test file cannot leave a stub installed for another.
+    """
+    from lambda_utils import message_store, thread_ownership
+
+    real_message_store_ddb = message_store._dynamodb
+    thread_ownership.set_table(MagicMock())
+    message_store._dynamodb = MagicMock()
+    try:
+        yield
+    finally:
+        thread_ownership.set_table(None)
+        thread_ownership._dynamodb = None
+        message_store._dynamodb = real_message_store_ddb
+
+
 def _make_sns_event(webhook_entry: dict) -> dict:
     """Build a minimal SNS event wrapping a WhatsApp webhook entry."""
     return {

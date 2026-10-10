@@ -17,7 +17,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -148,7 +148,27 @@ def _load_outbound():
 
 @pytest.fixture
 def outbound():
-    return _load_outbound()
+    """The handler module, with its AWS clients replaced so nothing leaves the machine.
+
+    WHY THE STUBS ARE HERE AND NOT IN EACH TEST. The module builds `dynamodb`, `s3`,
+    `cloudwatch` and `secrets_client` at import (handler.py:58-60, 103). The tests below
+    that call `outbound.handler(...)` walk the real send pipeline — rate limit, contact
+    lookup, latest-inbound-wamid — and each of those reads DynamoDB. Measured on
+    f87ea643: six live connections to AWS us-east-1 from this file alone, with the
+    ambient (root) credential, every one of them landing inside a swallowed-exception
+    path. So the assertions never depended on the calls succeeding; the calls were pure
+    side effect, and the tests pass for the same reasons with them stubbed.
+
+    MagicMock rather than a modelled fake on purpose: these tests assert on the lockdown
+    decision, not on stored rows, so a fake with real semantics would be more machinery
+    pinning behaviour nothing here is testing.
+    """
+    module = _load_outbound()
+    module.dynamodb = MagicMock()
+    module.s3 = MagicMock()
+    module.cloudwatch = MagicMock()
+    module.secrets_client = MagicMock()
+    return module
 
 
 class TestWireGuard:
