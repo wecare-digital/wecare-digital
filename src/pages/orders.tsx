@@ -18,6 +18,7 @@ import { featureFlags } from '../config/featureFlags';
 import { clearSession, getSession, restoreSession } from '../lib/customerAuth';
 import { formatPaiseINR } from '../lib/money';
 import { isCarriableReference, reviewWaLink } from '../lib/reviewLink';
+import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 
 /**
  * /orders — what a customer has bought from us, and what each payment is doing.
@@ -679,6 +680,11 @@ export default function OrdersPage (): React.ReactElement {
                 as="a"
                 href="/account/sign-in/?return=/orders/"
                 action="Sign in on WhatsApp"
+              />
+              <PillButton
+                as="a"
+                href={ whatsappServiceLink( 'orders' ) }
+                action="Open WhatsApp"
               />
             </div>
           ) }

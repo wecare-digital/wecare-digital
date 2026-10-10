@@ -29,6 +29,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from coupon_fake_dynamo import FakeTable  # noqa: E402
 from lambda_utils import customer_auth  # noqa: E402
 from lambda_utils.ecommerce import catalog_service_checkout as catalog  # noqa: E402
+from lambda_utils.ecommerce import wa_payment_request  # noqa: E402
 
 PHONE = '+919876543210'
 
@@ -101,6 +102,11 @@ def _drive_checkout(monkeypatch, subject):
 
     `row['customerId']` is deliberately set to the SAME malformed value, so the pre-existing
     `owner != row.get('customerId')` half cannot be what refuses. Only the new predicate can.
+
+    `phoneNumberId` is seeded to the ONE permitted sender for the same reason. The A2.5
+    sender-membership check sits ABOVE this predicate in `_native_catalog_service`, so a session
+    row without it refuses `PAYMENT_SENDER_NOT_PERMITTED` and this test would pass on a subject
+    that was never examined.
     """
     monkeypatch.setenv('CONTACTS_TABLE', 'contacts')
     monkeypatch.setenv('WHATSAPP_CATALOG_SERVICES_ENABLED', 'true')
@@ -110,6 +116,7 @@ def _drive_checkout(monkeypatch, subject):
     keys = FakeTable(key_attr='orderId')
     keys.seed({'orderId': catalog.SESSION_PREFIX + token, 'status': 'PREPARING_PAYMENT',
                'expiresAt': int(time.time()) + 3600, 'contactId': 'contact',
+               'phoneNumberId': wa_payment_request.PHONE_NUMBER_ID_1,
                'customerId': subject, 'phone': PHONE, 'kind': 'SUBMIT_REQUEST'})
     contacts = FakeTable(key_attr='id')
     contacts.seed({'id': 'contact', 'phone': PHONE, 'checkoutCustomerId': subject})

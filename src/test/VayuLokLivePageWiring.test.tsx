@@ -13,9 +13,10 @@ import { act, render } from '@testing-library/react';
  *
  * It runs on the KEYLESS path - NEXT_PUBLIC_GOOGLE_MAPS_KEY stubbed empty, which is also CI's
  * natural state - so no Maps JS is injected and no air/weather fetch is issued, and the test
- * needs neither a google stub nor a network stub. The keyless path still renders a
- * maps.google.com embed iframe where the interactive canvas would be; that is the component's
- * documented behaviour, asserted in VayuLokLive.test.tsx, and not what this file is about.
+ * needs neither a google stub nor a network stub. The keyless path renders a self-contained
+ * .vl-live-map-placeholder where the interactive canvas would be and reaches no third-party
+ * host at all; that is the component's documented behaviour, pinned by VayuLokLive.test.tsx's
+ * map-free keyless test, and not what this file is about.
  */
 
 // A fresh module graph AFTER the env stub: VayuLokLive and VayuLokApprovedGlobe both read the

@@ -30,8 +30,8 @@ import type { ProductDef } from './products';
  * place to change, together with the three copy lines below that mention the contact page and
  * the test in src/test/SubscribePage.test.tsx that pins them.
  */
-export const SUBSCRIBE_CTA_LABEL = 'Contact us to subscribe';
-export const SUBSCRIBE_CTA_HREF = 'https://wecare.digital/contact/';
+export const SUBSCRIBE_CTA_LABEL = 'Open WhatsApp';
+export const SUBSCRIBE_CTA_HREF = 'https://wa.me/message/WUDPTMYSO6XII1';
 
 const BLUE = { tint: '#dbeafe', dot: '#2563eb' };
 const AMBER = { tint: '#fef3c7', dot: '#f0a818' };
@@ -51,17 +51,17 @@ export const SUBSCRIBE: ProductDef = {
   blurb: 'Ask to hear from WECARE.DIGITAL.',
   title: 'Subscribe | WECARE.DIGITAL',
   description:
-    'Subscribe to WECARE.DIGITAL updates. For now, subscribing is handled through the contact page. What you receive, how it works, and what we do not do.',
+    'Subscribe to WECARE.DIGITAL updates. Open WhatsApp to start the subscription conversation. What you receive, how it works, and what we do not do.',
   frame: 'Get our',
   words: WORDS,
-  sub: 'For now, subscribing is handled through the contact page.',
+  sub: 'Open WhatsApp to start your subscription conversation.',
   sectionHeading: 'How subscribing works',
   lead:
-    'Subscribers receive updates, service news and new posts from WECARE.DIGITAL. There is no automatic sign-up on this page yet, so subscribing is handled through the contact page for now.',
+    'Subscribers receive updates, service news and new posts from WECARE.DIGITAL. Use the button below to open WhatsApp and send the Subscribe message.',
   points: [
-    { heading: 'Open the contact page', body: 'Use the button below. The contact page lists the ways to reach us, including phone and email.' },
+    { heading: 'Open WhatsApp', body: 'Use the button below to open the verified WECARE.DIGITAL WhatsApp conversation with Subscribe ready to send.' },
     { heading: 'Say you would like to subscribe', body: 'Tell us your name and whether you want updates by phone or by email, and give the number or address to use.' },
-    { heading: 'Nothing is saved by this page', body: 'There is no form here, and nothing you do on this page is stored. Your request reaches us only when you send it through the contact page.' },
+    { heading: 'Nothing is saved by this page', body: 'There is no form here, and nothing you do on this page is stored. Your request starts only when you send the message in WhatsApp.' },
   ],
   note:
     'We do not sign anyone up without being asked, and this page does not store anything you do. You can ask us to stop at any time. Messages about your own orders and payments are not marketing, so they carry on whatever you choose here. Our privacy policy explains how your details are handled.',
