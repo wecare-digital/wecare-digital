@@ -164,7 +164,7 @@ describe( 'the product pages are untouched by it (ITEM 2)', () => {
       // product is added or removed in Wix.
       for ( const slug of [
         'file-assist', 'guided-resolution', 'kiosk', 'merchandise', 'paperwork',
-        'referral-partner', 'viveka',
+        'referral-partner', 'anew',
       ] ) {
         expect( slugs, `${ slug } has no static path` ).toContain( slug );
       }
