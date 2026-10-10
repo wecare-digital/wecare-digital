@@ -56,7 +56,12 @@ CUSTOMER_POOL_ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_46
 def _token(issuer: str) -> str:
     """A JWT-shaped string with a readable payload. Not signed — nothing here verifies it."""
     payload = base64.urlsafe_b64encode(
-        json.dumps({"iss": issuer, "sub": "sub-staff-1"}).encode()
+        json.dumps({"iss": issuer, "sub": "sub-staff-1",
+                    # `require_auth` pins the app client as well as the pool, so a token
+                    # the gate should ACCEPT has to carry the claim a real access token
+                    # carries. The customer-pool token below carries it too, so the pool
+                    # refusal these rows assert is still the pool refusal.
+                    "client_id": mw.STAFF_APP_CLIENT_ID}).encode()
     ).decode().rstrip("=")
     return f"header.{payload}.signature"
 
@@ -201,6 +206,20 @@ def as_staff(monkeypatch, groups, mfa=("SOFTWARE_TOKEN_MFA",)):
     return _token(mw.staff_pool_issuer())
 
 
+def as_other_app_client(monkeypatch, groups=("Admin",)):
+    """A token from the RIGHT pool but a DIFFERENT app client, with staff Admin groups.
+    `iss` names the pool, not the client, so the issuer pin alone admits every client on
+    `us-east-1_cSx0RHCIR`. One row per family, because a client pin applied in the gate but
+    bypassed by a handler that authorises some other way would pass a single-route test.
+    """
+    monkeypatch.setattr(mw, "cognito", FakeCognito(groups))
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-staff-1",
+                    "client_id": "9zzzzzz99z9z9zzz9z999zzz9z"}).encode()
+    ).decode().rstrip("=")
+    return f"header.{payload}.signature"
+
+
 def as_customer(monkeypatch, groups=("Admin",)):
     """A customer-pool token, with the STAFF pool holding an Admin of the same username.
 
@@ -278,6 +297,18 @@ def _invoke(handlers, row, token, body=None):
 def test_a_customer_pool_token_is_refused_on_every_staff_route(handlers, monkeypatch, row):
     """THE FINDING. Every one of these answered a customer token as a staff Viewer."""
     resp = _invoke(handlers, row, as_customer(monkeypatch))
+    assert resp["statusCode"] == 401, (row[0], resp)
+
+
+@pytest.mark.parametrize("row", ROUTES, ids=ROUTE_IDS)
+def test_a_token_from_another_app_client_is_refused_on_every_staff_route(
+        handlers, monkeypatch, row):
+    """Right pool, wrong client, full Admin groups — refused everywhere.
+
+    This is the residue the issuer pin left: a second app client on the staff pool mints
+    tokens with an identical `iss`, so every row here would have admitted one.
+    """
+    resp = _invoke(handlers, row, as_other_app_client(monkeypatch))
     assert resp["statusCode"] == 401, (row[0], resp)
 
 

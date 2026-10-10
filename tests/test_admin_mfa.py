@@ -94,7 +94,9 @@ def _staff_token() -> str:
     installs. No assertion in this module changed.
     """
     payload = base64.urlsafe_b64encode(
-        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234"}).encode()
+        # `client_id` because `require_auth` pins the staff app client as well as the pool.
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234",
+                    "client_id": mw.STAFF_APP_CLIENT_ID}).encode()
     ).decode().rstrip("=")
     return f"header.{payload}.signature"
 

@@ -43,10 +43,16 @@ CUSTOMER_POOL_ISSUER = "https://cognito-idp.us-east-1.amazonaws.com/us-east-1_46
 FOREIGN_POOL_ISSUER = "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_attacker"
 
 
-def _token(issuer: str) -> str:
-    """A JWT-shaped string with a readable payload. Not signed — nothing here verifies it."""
+def _token(issuer: str, client: str | None = None) -> str:
+    """A JWT-shaped string with a readable payload. Not signed — nothing here verifies it.
+
+    `client` defaults to the pinned staff app client, read at call time so a test that
+    overrides `mw.STAFF_APP_CLIENT_ID` still mints a token the gate accepts. Pass it
+    explicitly to mint a token from a DIFFERENT app client on the same pool.
+    """
     payload = base64.urlsafe_b64encode(
-        json.dumps({"iss": issuer, "sub": "sub-1234"}).encode()
+        json.dumps({"iss": issuer, "sub": "sub-1234",
+                    "client_id": mw.STAFF_APP_CLIENT_ID if client is None else client}).encode()
     ).decode().rstrip("=")
     return f"header.{payload}.signature"
 
@@ -164,6 +170,137 @@ def test_a_token_with_no_iss_claim_is_refused(monkeypatch):
     _install(monkeypatch, FakeCognito(groups=["Admin"]))
     payload = base64.urlsafe_b64encode(json.dumps({"sub": "x"}).encode()).decode().rstrip("=")
     assert mw.require_auth(gw_event(f"header.{payload}.sig"))["statusCode"] == 401
+
+
+#: A second app client on the SAME staff pool. Shaped like a Cognito client id.
+#: No such client exists today — that is the point: the pin is what keeps it that way.
+OTHER_STAFF_CLIENT = "9zzzzzz99z9z9zzz9z999zzz9z"
+
+
+# ==========================================================================
+# wrong app client — the issuer pin narrows the pool, not the client within it
+# ==========================================================================
+def test_a_token_from_another_app_client_on_the_staff_pool_is_refused(monkeypatch):
+    """The gap the issuer pin leaves open.
+
+    `iss` names the POOL. Every app client on a pool mints tokens bearing the same `iss`,
+    so the issuer pin alone admits any client anyone adds to `us-east-1_cSx0RHCIR` — a
+    partner integration, a machine-to-machine client with `ALLOW_USER_PASSWORD_AUTH`, a
+    throwaway created for a test. Each would have reached every `require_auth` route with
+    whatever groups its user held.
+    """
+    fake = _install(monkeypatch, FakeCognito(groups=["Admin"]))
+    event = gw_event(_token(mw.staff_pool_issuer(), client=OTHER_STAFF_CLIENT))
+    result = mw.require_auth(event, required_role="Admin")
+    assert result is not None
+    assert result["statusCode"] == 401
+    assert "_auth" not in event
+    assert fake.group_lookups == 0, "the staff group lookup ran for an unpinned client"
+
+
+def test_a_token_naming_no_app_client_is_refused(monkeypatch):
+    """Fails CLOSED. A token with neither `client_id` nor `aud` names no client, and the
+    staff pool has exactly one client that every real token names."""
+    fake = _install(monkeypatch, FakeCognito(groups=["Admin"]))
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234"}).encode()
+    ).decode().rstrip("=")
+    result = mw.require_auth(gw_event(f"header.{payload}.sig"))
+    assert result["statusCode"] == 401
+    assert fake.group_lookups == 0
+
+
+def test_an_id_token_carrying_the_client_in_aud_is_accepted(monkeypatch):
+    """Access tokens spell it `client_id`; ID tokens spell it `aud`. Both must pass.
+
+    `require_auth` validates an ACCESS token, so `client_id` is what answers in production.
+    Reading `aud` as well means the pin cannot be slipped by sending the other token type,
+    and cannot refuse a caller who legitimately sends one.
+    """
+    _install(monkeypatch, FakeCognito(groups=["Operator"]))
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234",
+                    "aud": mw.STAFF_APP_CLIENT_ID}).encode()
+    ).decode().rstrip("=")
+    event = gw_event(f"header.{payload}.sig")
+    assert mw.require_auth(event, required_role="Operator") is None
+    assert event["_auth"]["role"] == "Operator"
+
+
+def test_an_aud_list_containing_the_staff_client_is_accepted(monkeypatch):
+    """`aud` is permitted to be a list by the JWT spec. A list is not a mismatch."""
+    _install(monkeypatch, FakeCognito(groups=["Viewer"]))
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234",
+                    "aud": ["something-else", mw.STAFF_APP_CLIENT_ID]}).encode()
+    ).decode().rstrip("=")
+    assert mw.require_auth(gw_event(f"header.{payload}.sig"),
+                           required_role="Viewer") is None
+
+
+def test_an_aud_list_without_the_staff_client_is_refused(monkeypatch):
+    _install(monkeypatch, FakeCognito(groups=["Admin"]))
+    payload = base64.urlsafe_b64encode(
+        json.dumps({"iss": mw.staff_pool_issuer(), "sub": "sub-1234",
+                    "aud": ["something-else", OTHER_STAFF_CLIENT]}).encode()
+    ).decode().rstrip("=")
+    assert mw.require_auth(gw_event(f"header.{payload}.sig"))["statusCode"] == 401
+
+
+def test_the_wrong_pool_refusal_still_wins_over_the_client_refusal(monkeypatch, caplog):
+    """A customer-pool token that happens to carry the staff client id is refused as the
+    WRONG POOL, not the wrong client. Order matters for diagnosis: the pool is the
+    coarser fact and the one that was the live hole."""
+    _install(monkeypatch, FakeCognito(groups=["Admin"]))
+    with caplog.at_level("WARNING"):
+        result = mw.require_auth(gw_event(_token(CUSTOMER_POOL_ISSUER)))
+    assert result["statusCode"] == 401
+    assert "auth_wrong_pool" in caplog.text
+    assert "auth_wrong_client" not in caplog.text
+
+
+def test_the_client_refusal_has_its_own_log_event(monkeypatch, caplog):
+    """A fourth refusal cause needs a fourth event name, for the reason the three above do:
+    one shared "refused" line would let a regression in any of them pass unnoticed."""
+    with caplog.at_level("WARNING"):
+        _install(monkeypatch, FakeCognito(groups=["Admin"]))
+        mw.require_auth(gw_event(_token(mw.staff_pool_issuer(), client=OTHER_STAFF_CLIENT)))
+    assert "auth_wrong_client" in caplog.text
+    assert "auth_wrong_pool" not in caplog.text
+
+
+def test_the_client_pin_is_overridable_for_a_client_rotation(monkeypatch):
+    """Rotating the app client must be a one-line change, not a reason to delete the pin.
+
+    The failure mode a pin has to avoid is refusing every token the moment the thing it
+    pins legitimately moves — that is what gets pins removed rather than updated.
+    """
+    monkeypatch.setattr(mw, "STAFF_APP_CLIENT_ID", OTHER_STAFF_CLIENT)
+    _install(monkeypatch, FakeCognito(groups=["Viewer"]))
+    assert mw.require_auth(gw_event(_token(mw.staff_pool_issuer(), client=OTHER_STAFF_CLIENT)),
+                           required_role="Viewer") is None
+    assert mw.require_auth(
+        gw_event(_token(mw.staff_pool_issuer(), client="1j8kbi48m4v2rped3n224rlevb")),
+    )["statusCode"] == 401
+
+
+def test_the_pinned_client_is_the_one_the_repository_declares(monkeypatch):
+    """Anti-drift, and the reason this pin cannot lock out real staff.
+
+    A pin on the WRONG client refuses everyone, which is worse than no pin at all. The
+    value is therefore cross-checked against the two committed declarations that decide
+    what the browser actually uses — `amplify/auth/resource.ts`'s `userPoolClientId` and
+    `shared/config.ts`'s `COGNITO_CONFIG.APP_CLIENT_ID` — plus the independent pin
+    `ai/workspace-mcp/handler.py` already carries for the same pool.
+    """
+    functions = pathlib.Path(__file__).resolve().parents[1] / "amplify/functions"
+    auth_resource = (functions.parent / "auth/resource.ts").read_text()
+    shared_config = (functions / "shared/config.ts").read_text()
+    workspace_mcp = (functions / "ai/workspace-mcp/handler.py").read_text()
+
+    assert f"userPoolClientId: '{mw.STAFF_APP_CLIENT_ID}'" in auth_resource
+    assert f"APP_CLIENT_ID: '{mw.STAFF_APP_CLIENT_ID}'" in shared_config
+    assert f'STAFF_CLIENT = "{mw.STAFF_APP_CLIENT_ID}"' in workspace_mcp
 
 
 def test_the_pin_follows_the_configured_pool(monkeypatch):
