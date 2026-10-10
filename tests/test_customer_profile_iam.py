@@ -8,12 +8,12 @@ can record who linked which contact and can neither read the log back nor amend 
 Assertions are by `Sid` and by EQUALITY of each action set, because a document whose value is what
 it leaves out is not tested by checking that it contains what it needs.
 
-`scripts/provision_customer_profile.py::ensure_role` only writes the policy when it CREATES the
-role, so an existing role does not gain a new statement from a re-run. That is pre-existing
-behaviour of this script and is out of scope here; the policy asserted below is what a fresh
-provision produces, and it is also the document to apply by hand if the deployed role predates
-the claim. Without it `record_audit` fails open and the link still happens - unaudited, which is
-why this file exists rather than a comment.
+`scripts/provision_customer_profile.py::ensure_role` used to write the policy only when it CREATED
+the role, which meant the already-deployed `wecare-customer-profile-role` never gained the audit
+statement from a re-run: the `PutItem` stayed denied, `record_audit` fails open, and the link
+landed unaudited with nothing failing loudly. It now reconciles the inline policy on BOTH
+branches, and the last two tests in this file pin that - one per branch - because a grant that is
+asserted here and never applied is a grant that does not exist.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from botocore.exceptions import ClientError
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "provision_customer_profile.py"
@@ -163,6 +164,78 @@ def test_ensure_role_applies_exactly_this_document(provisioner):
     source = SCRIPT.read_text(encoding="utf-8")
     assert "PolicyDocument=json.dumps(expected_role_policy(account_id()))" in source
     assert source.count("def expected_role_policy") == 1
+
+
+class FakeIam:
+    """Just enough IAM to tell the two `ensure_role` branches apart, and to record every write."""
+
+    def __init__(self, role_exists):
+        self._role_exists = role_exists
+        self.calls = []
+
+    def get_role(self, **kwargs):
+        self.calls.append(("get_role", kwargs))
+        if self._role_exists:
+            return {"Role": {"Arn": "arn:aws:iam::%s:role/%s" % (ACCOUNT, kwargs["RoleName"])}}
+        raise ClientError({"Error": {"Code": "NoSuchEntity", "Message": "absent"}}, "GetRole")
+
+    def create_role(self, **kwargs):
+        self.calls.append(("create_role", kwargs))
+        self._role_exists = True
+        return {"Role": {"Arn": "arn"}}
+
+    def attach_role_policy(self, **kwargs):
+        self.calls.append(("attach_role_policy", kwargs))
+
+    def put_role_policy(self, **kwargs):
+        self.calls.append(("put_role_policy", kwargs))
+
+
+@pytest.fixture
+def iam_stub(provisioner, monkeypatch):
+    def install(role_exists):
+        fake = FakeIam(role_exists)
+        monkeypatch.setattr(provisioner, "iam", lambda: fake)
+        monkeypatch.setattr(provisioner, "account_id", lambda: ACCOUNT)
+        return fake
+
+    return install
+
+
+def _policy_writes(fake):
+    return [kwargs for name, kwargs in fake.calls if name == "put_role_policy"]
+
+
+def test_an_existing_role_has_its_inline_policy_reconciled(provisioner, iam_stub):
+    """THE finding this test exists for. The deployed role predates the audit statement, so a
+    provision run that skips `put_role_policy` leaves the claim unaudited for ever - and nothing
+    complains, because `record_audit` and the handler's wrapper both fail open."""
+    fake = iam_stub(role_exists=True)
+    assert provisioner.ensure_role(False) == "exists, inline policy reconciled"
+    writes = _policy_writes(fake)
+    assert len(writes) == 1
+    assert writes[0]["PolicyName"] == provisioner.ROLE_POLICY_NAME
+    document = json.loads(writes[0]["PolicyDocument"])
+    assert document == provisioner.expected_role_policy(ACCOUNT)
+    assert {statement["Sid"] for statement in document["Statement"]} >= {
+        "WriteIdentityClaimAudit"}
+    assert not [name for name, _ in fake.calls if name == "create_role"]
+
+
+def test_a_dry_run_against_an_existing_role_writes_nothing(provisioner, iam_stub):
+    fake = iam_stub(role_exists=True)
+    assert provisioner.ensure_role(True) == "exists, would reconcile inline policy"
+    assert _policy_writes(fake) == []
+
+
+def test_creating_the_role_applies_the_identical_document(provisioner, iam_stub):
+    """One builder, both branches: a create and a reconcile cannot drift apart."""
+    fake = iam_stub(role_exists=False)
+    assert provisioner.ensure_role(False) == "created"
+    writes = _policy_writes(fake)
+    assert len(writes) == 1
+    assert json.loads(writes[0]["PolicyDocument"]) == provisioner.expected_role_policy(ACCOUNT)
+    assert writes[0]["PolicyName"] == provisioner.ROLE_POLICY_NAME
 
 
 def test_the_claim_writes_through_the_shared_audit_helper(provisioner):

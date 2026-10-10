@@ -32,6 +32,9 @@ CONTACTS_TABLE = "stack-wecare-digital-ContactsTable"
 #: `tests/test_customer_profile_iam.py` asserts on this name.
 AUDIT_LOG_TABLE = "stack-wecare-digital-AuditLogsTable"
 OTP_PEPPER_SECRET_ID = "wecare/otp/pepper"
+#: One name for the inline policy, because `ensure_role` now writes it on both branches and a
+#: second spelling would leave the old document attached under the old name.
+ROLE_POLICY_NAME = "CustomerProfileLeastPrivilege"
 
 _account = None
 
@@ -101,10 +104,27 @@ def expected_role_policy(acct=None):
     ]}
 
 
+def _put_role_policy():
+    iam().put_role_policy(
+        RoleName=ROLE_NAME, PolicyName=ROLE_POLICY_NAME,
+        PolicyDocument=json.dumps(expected_role_policy(account_id())))
+
+
 def ensure_role(dry_run):
+    """Create the role, and RECONCILE its inline policy whether or not it already existed.
+
+    The policy used to be written only on the create branch, which meant a statement added to
+    `expected_role_policy` never reached the already-deployed role: the new `PutItem` on the
+    audit log would simply be denied, `record_audit` fails open, and the identity claim would
+    land unaudited with nothing failing loudly. The document is built by one pure function, so
+    re-putting it is idempotent — the same bytes on a role that already has them.
+    """
     existing = _exists(iam(), "get_role", RoleName=ROLE_NAME)
     if existing:
-        return "exists"
+        if dry_run:
+            return "exists, would reconcile inline policy"
+        _put_role_policy()
+        return "exists, inline policy reconciled"
     if dry_run:
         return "would create"
     assume = {"Version":"2012-10-17","Statement":[{
@@ -118,9 +138,7 @@ def ensure_role(dry_run):
     iam().attach_role_policy(
         RoleName=ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole")
-    iam().put_role_policy(
-        RoleName=ROLE_NAME, PolicyName="CustomerProfileLeastPrivilege",
-        PolicyDocument=json.dumps(expected_role_policy(account_id())))
+    _put_role_policy()
     return "created"
 
 
