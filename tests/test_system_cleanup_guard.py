@@ -43,6 +43,7 @@ if str(SHARED) not in sys.path:
 
 from unittest.mock import MagicMock, patch  # noqa: E402
 
+import lambda_utils.destructive_confirm as dc  # noqa: E402
 import lambda_utils.middleware as mw  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/operations/system-cleanup/handler.py"
@@ -259,6 +260,14 @@ def wiring(mod, monkeypatch, audit_calls):
         {"stack-wecare-digital-InvoicesTable": "invoiceId"}))
     monkeypatch.setattr(mod, "s3", fake_s3)
     monkeypatch.setattr(mod, "sqs", fake_sqs)
+    # THE SEAM THAT WAS MISSING. The handler delegates the confirmation token to
+    # `lambda_utils.destructive_confirm` (handler.py:71, 598, 605), which builds its OWN
+    # resource lazily — so stubbing `mod.dynamodb` leaves the token store pointed at real
+    # AWS. With the outbound network guard in conftest.py now refusing that call, `mint`
+    # returned None, every preview handed back `confirmationToken: ''`, and 27 of the 64
+    # tests in this file failed on the empty token rather than on anything they assert.
+    # Measured on origin/stack f280825e: 29 failed, of which 27 were this one line.
+    monkeypatch.setattr(dc, "_dynamodb", fake_ddb)
 
     def fake_audit(**kwargs):
         audit_calls.append(kwargs)
