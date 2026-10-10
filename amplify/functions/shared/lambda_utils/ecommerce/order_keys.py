@@ -85,6 +85,8 @@ PAYMENT_REFERENCE_PREFIX = "PAYREF#"
 PAYMENT_ATTEMPT_PREFIX = "PAYMENTATTEMPT#"
 PROVIDER_PAYMENT_PREFIX = "PROVIDERPAYMENT#"
 ORDER_NUMBER_PREFIX = "ORDERNO#"
+#: Every GST invoice number this system has ever handed out. See `reserve_invoice_number`.
+INVOICE_NUMBER_PREFIX = "INVOICENO#"
 
 #: Superseded by PAYMENT_REFERENCE_PREFIX. Retained read-only so rows written before the
 #: order-after-payment rule remain resolvable; nothing writes it.
@@ -1106,6 +1108,82 @@ def resolve_gateway_order(table: Any, gateway_order_id: str, *,
     return _read_row(table, key_attr, GATEWAY_ORDER_PREFIX + gateway_order_id)
 
 
+# ── the GST invoice number: issued once, never again ──────────────────────────
+
+#: One row per invoice number that has ever been handed out.
+#:
+#: WHY THIS ROW EXISTS AT ALL. `invoice-engine._get_next_invoice_number` advances an atomic
+#: counter on a single `InvoiceSequenceTable` row keyed by financial year. A counter remembers
+#: only where it got to, not what it gave out, so the moment that row is lost the series restarts
+#: at 1 - and that is not hypothetical: `clear_all_invoice_data` wipes `InvoiceSequenceTable`,
+#: and `WD/2627/00001` consequently went to two different customers. Under Rule 46(b) an invoice
+#: number is part of a consecutive series for the financial year and cannot be reassigned once it
+#: has gone out, so the fix cannot be a better counter. It has to be a record of ISSUANCE that
+#: outlives the counter, which is exactly what a conditional `attribute_not_exists` write is.
+#:
+#: WHY IT LIVES ON THIS TABLE AND NOT BESIDE THE COUNTER. `InvoiceSequenceTable` is wiped by the
+#: very operation that caused the duplicate, so a reservation stored there would be destroyed by
+#: the event it exists to defend against. The commerce-keys table is this repo's immutable
+#: identity space (`PAYREF#`, `ORDERNO#`, `REQUESTKEY#` all live here), `clear_all_invoice_data`
+#: does not touch it, and `invoice-engine` already has it wired - so no new table, no new grant.
+#:
+#: NO TTL, ever - as for every other row in this key space. A uniqueness reservation that expires
+#: is an identifier that gets reissued, and for a tax series that is the whole defect.
+INVOICE_NUMBER_KIND = "INVOICE_NUMBER_RESERVATION"
+
+
+def reserve_invoice_number(table: Any,
+                           *,
+                           invoice_number: str,
+                           fy: str,
+                           key_attr: str = "orderId",
+                           extra: Optional[Dict[str, Any]] = None) -> bool:
+    """Record that `invoice_number` has been issued. True if won, False if already issued.
+
+    The three-way contract of `_claim_row` is the point: True means storage has committed to the
+    number and the caller may hand it out, False means somebody else already holds it and the
+    caller must advance, and a storage error raises `OrderIdentityUnavailable` rather than
+    answering False - because a throttle read as "already issued" would make the counter walk
+    forward for no reason, and a throttle read as "won" would hand out a number nothing recorded.
+
+    Call this LAST, immediately before the number is returned, the way
+    `reserve_public_order_number` does. Anything that can fail after the reservation leaves a
+    reserved-but-unused number, which is a harmless advance; anything that fails before it would
+    leave an issued number with no record, which is the defect this row exists to prevent.
+    """
+    if not invoice_number:
+        raise ValueError("invoice_number is required")
+    if not fy:
+        raise ValueError("fy is required")
+
+    item = {
+        "kind": INVOICE_NUMBER_KIND,
+        # `invoiceNumber`, not `orderId`: on this table `orderId` IS the partition attribute, so
+        # a business field of that name would be overwritten by the key and the number itself
+        # would only survive inside the prefixed key string.
+        "invoiceNumber": invoice_number,
+        "fy": fy,
+        "reservedAt": int(time.time()),
+    }
+    if extra:
+        item.update(extra)
+    return _claim_row(
+        table, key_attr, INVOICE_NUMBER_PREFIX + invoice_number, item
+    )
+
+
+def resolve_invoice_number(table: Any, invoice_number: str, *,
+                           key_attr: str = "orderId") -> Optional[Dict[str, Any]]:
+    """The reservation row for one invoice number, or None when it was never issued.
+
+    Read through `_read_row`, so a storage failure raises instead of answering "never issued" -
+    reconciliation reading absence as fact is how a number gets handed out twice.
+    """
+    if not invoice_number:
+        return None
+    return _read_row(table, key_attr, INVOICE_NUMBER_PREFIX + invoice_number)
+
+
 # ── native WhatsApp collection: one live collection per invoice ────────────────
 
 #: At most one live WhatsApp payment collection per invoice. Written as a `Put` entry INSIDE
@@ -2057,6 +2135,8 @@ __all__ = [
     "PAYMENT_ATTEMPT_PREFIX",
     "PROVIDER_PAYMENT_PREFIX",
     "ORDER_NUMBER_PREFIX",
+    "INVOICE_NUMBER_PREFIX",
+    "INVOICE_NUMBER_KIND",
     "LEGACY_REFERENCE_PREFIX",
     "REFERENCE_ID_PREFIX",
     "OrderIdentityUnavailable",
@@ -2075,6 +2155,8 @@ __all__ = [
     "resolve_payment_reference",
     "allocate_payment_reference",
     "reserve_public_order_number",
+    "reserve_invoice_number",
+    "resolve_invoice_number",
     "claim_order_for_payment",
     "record_order_number_on_claim",
     "resolve_order_for_payment",
