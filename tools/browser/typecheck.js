@@ -182,7 +182,11 @@ async function main() {
      * If anything it should be a <p>, or move onto the documented 12px/700/.08em eyebrow
      * rung - a small semantic tidy, not a type-scale question.
      */
-    const NON_SECTION = /(-card|-chip|card-|widget|wa-|fa-|sr-only|visually|cl-card|-toc-)/;
+    const NON_SECTION = /(-card|-chip|card-|widget|wa-|fa-|sr-only|visually|cl-card|-toc-|^pbp-h$)/;
+
+    // `.pbp-h` labels ProductBlogPanel's compact right-hand blog reader on /anew/.
+    // It belongs to an <aside> widget, not the page's section-h2 ladder; keeping its compact
+    // 28px treatment avoids turning a utility panel heading into a second page-section heading.
 
     /**
      * DOCUMENTED EXCEPTIONS: headings that ARE section headings and are deliberately NOT on
