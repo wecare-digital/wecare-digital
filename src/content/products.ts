@@ -80,8 +80,7 @@ export interface ProductDef {
    * Optional microcopy under the primary CTA. A very short, muted line (the "Continue on
    * WhatsApp →" treatment used by the blog post page's Subscribe/Contribute pills) that names
    * where the button goes when the label itself does not. Rendered aria-hidden, so the anchor's
-   * own text/label remains the accessible name. Omit it (every entry except /anew/ does today)
-   * and no line renders.
+   * own text/label remains the accessible name. Omit it and no line renders.
    */
   ctaNote?: string;
   /**
@@ -229,10 +228,10 @@ export const PRODUCTS: ProductDef[] = [
     // page recast as a written-reflection service the lead now opens on what Anew does.
     slug: 'anew',
     name: 'Anew',
-    blurb: 'Reflection-led conversations that end in a decision.',
-    title: 'Anew — reflection-led conversations | WECARE.DIGITAL',
+    blurb: 'A considered written reflection on a decision that matters.',
+    title: 'Anew — a considered written reflection | WECARE.DIGITAL',
     description:
-      'Anew by WECARE.DIGITAL — a considered written reflection on a decision that matters. Share it in your own words; we reflect back what matters, no calls or meetings.',
+      'A considered written reflection on a decision that matters — read in your own time, no calls.',
     frame: 'Reflection into',
     words: cycle( 'clarity', 'action', 'direction', 'focus' ),
     sub: 'A considered written reflection on a decision that matters — read in your own time, no calls.',
@@ -240,16 +239,22 @@ export const PRODUCTS: ProductDef[] = [
     lead:
       'Tell us about a decision in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension is, and what could deserve another look before you act.',
     points: [
-      { heading: 'Written, not a meeting', body: 'No calls, no scheduling, no questionnaire. You write naturally; we respond in writing you can save and return to whenever you need another look.' },
-      { heading: 'A reflection, not a verdict', body: 'We weigh the assumptions, priorities, tensions and trade-offs in your situation — not a generic pros-and-cons list, and not a decision made for you.' },
-      { heading: 'Usually within 2–3 business days', body: 'Once we have what we need to review, you receive your personalised reflection. One short written clarification is included if something needs it.' },
+      {
+        heading: 'Written, not a meeting',
+        body: 'No calls, no scheduling, no questionnaire. You write naturally; we respond in writing you can save and return to whenever you need another look.',
+      },
+      {
+        heading: 'A reflection, not a verdict',
+        body: 'We weigh the assumptions, priorities, tensions and trade-offs in your situation — not a generic pros-and-cons list, and not a decision made for you.',
+      },
+      {
+        heading: 'Usually within 2–3 business days',
+        body: 'Once we have what we need to review, you receive your personalised reflection. One short written clarification is included if something needs it.',
+      },
     ],
     note:
       'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. The conclusions you draw and any action you take remain yours. If you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
     ctaLabel: 'Start a conversation',
-    // Anew opens the owner's Anew WhatsApp conversation directly, not the generic contact page.
-    // `anew` is not in WHATSAPP_SERVICE_ENTRIES, so whatsappServiceLink('anew') is null and
-    // ProductPage falls back to this ctaHref - which is why the link is written here as a literal.
     ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
     // Text-only pill plus the quiet "Continue on WhatsApp →" microcopy, matching the blog post
     // page's Subscribe/Contribute pills. The arrow is part of the text, not an icon.

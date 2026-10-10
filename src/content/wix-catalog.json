@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-10T09:58:39.781Z",
+  "fetchedAt": "2026-10-10T14:35:05.681Z",
   "productCount": 10,
   "products": [
     {
@@ -39,6 +39,44 @@
           "optionId": "",
           "image": "",
           "pricePaise": 100
+        }
+      ]
+    },
+    {
+      "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
+      "name": "Anew",
+      "slug": "anew",
+      "productType": "PHYSICAL",
+      "visible": true,
+      "ribbon": "",
+      "price": "599.00",
+      "priceMax": "599.00",
+      "currency": "INR",
+      "formattedPrice": "₹599.00",
+      "compareAtPrice": null,
+      "inStock": true,
+      "descriptionHtml": "<p><span style=\"font-weight: 700\">Anew by WECARE.DIGITAL</span></p><p><span style=\"font-weight: 700\">Reflection into </span><em><span style=\"font-weight: 700\">clarity / action / direction / focus</span></em></p><p>A considered written reflection on a decision that matters — read in your own time, no calls.</p><p><span style=\"font-weight: 700\">Start a conversation</span></p>",
+      "categoryIds": [
+        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
+      ],
+      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
+      "optionCount": 0,
+      "modifierCount": 0,
+      "variantCount": 1,
+      "mediaCount": 0,
+      "infoSectionCount": 5,
+      "productUrl": "https://wecare.digital/shop/anew/",
+      "image": "",
+      "variants": [
+        {
+          "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
+          "label": "Standard",
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 59900
         }
       ]
     },
@@ -399,44 +437,6 @@
       ]
     },
     {
-      "id": "abfdad33-b853-4aeb-b2f9-fa4051e75928",
-      "name": "Viveka",
-      "slug": "viveka",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "599.00",
-      "priceMax": "599.00",
-      "currency": "INR",
-      "formattedPrice": "₹599.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p><span style=\"font-weight: 700\">Think it through before you decide.</span></p><p>You’ve already thought about it.</p><p>You may have compared the options, spoken to people you trust, and gone over the same possibilities more than once. Yet something still feels unsettled.</p><p>Viveka gives you a thoughtful written reflection on a decision that matters to you.</p><p>Share what is happening in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension may be, and what could deserve another look before you act.</p><p><span style=\"font-weight: 700\">No calls. No meetings. Just a considered written reflection you can read in your own time and return to whenever you need another look.</span></p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 0,
-      "infoSectionCount": 7,
-      "productUrl": "https://wecare.digital/shop/viveka/",
-      "image": "",
-      "variants": [
-        {
-          "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
-          "label": "Standard",
-          "inStock": true,
-          "sku": "",
-          "choiceId": "",
-          "optionId": "",
-          "image": "",
-          "pricePaise": 59900
-        }
-      ]
-    },
-    {
       "id": "df976a0a-f582-4535-b2e1-d532f348bd27",
       "name": "Request",
       "slug": "wecaredigital-services",
@@ -515,5 +515,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-10T09:58:39.758Z"
+  "variantVerifiedAt": "2026-10-10T14:35:05.674Z"
 }

@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 from lambda_utils import flow_completion
 
 FLOW_KEY = 'wd_leave_review_v2'
-FLOW_ID = '2352304845587149'
+FLOW_ID = '1578178897413815'
 FLOW_CODE = 'WD_IDEA'
 REVIEWS_TABLE = os.environ.get('REVIEWS_TABLE', 'stack-wecare-digital-ReviewTable')
 TOPICS = {

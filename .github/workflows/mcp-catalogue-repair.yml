@@ -1,0 +1,41 @@
+name: One-time MCP catalogue repair
+
+on:
+  push:
+    branches: [stack]
+    paths:
+      - '.github/workflows/mcp-catalogue-repair.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: public-surface-deploy
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pinned AWS SDK
+        run: |
+          grep -E '^(boto3|botocore)==' requirements-dev.txt > ci-aws-requirements.txt
+          python -m pip install -r ci-aws-requirements.txt
+      - name: Check write role
+        run: |
+          test -n "${{ vars.PUBLIC_SURFACE_ROLE_ARN }}"
+      - name: Assume write role
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.PUBLIC_SURFACE_ROLE_ARN }}
+          aws-region: us-east-1
+      - name: Deploy MCP Lambda
+        run: python scripts/deploy_mcp_server.py
+      - name: Verify live catalogue
+        run: python scripts/deploy_mcp_server.py --verify-live

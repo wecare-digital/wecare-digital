@@ -265,6 +265,10 @@ ROUTES = [
     ("messages-delete-one",        "messages",  "DELETE", "/prod/messages/m-1",                               {"messageId": "m-1"}),
     ("contacts-list",              "contacts",  "GET",    "/prod/contacts",                                   {}),
     ("contacts-search",            "contacts",  "GET",    "/prod/contacts/search",                            {}),
+    ("contacts-create",            "contacts",  "POST",   "/prod/contacts",                                   {}),
+    ("contacts-update",            "contacts",  "PUT",    "/prod/contacts/c-1",                               {"contactId": "c-1"}),
+    ("contacts-lock",              "contacts",  "POST",   "/prod/contacts/c-1/lock",                          {"contactId": "c-1"}),
+    ("contacts-unlock",            "contacts",  "POST",   "/prod/contacts/c-1/unlock",                        {"contactId": "c-1"}),
     ("contacts-delete",            "contacts",  "DELETE", "/prod/contacts/c-1",                               {"contactId": "c-1"}),
     ("documents-list",             "wa",        "GET",    "/prod/wa-business/documents",                      {}),
     ("documents-read",             "wa",        "GET",    "/prod/wa-business/documents/d-1",                  {}),
@@ -382,6 +386,27 @@ def test_a_role_below_the_floor_is_refused(handlers, monkeypatch, row, too_low):
     body = json.loads(resp["body"])
     assert body["error"] == "Insufficient permissions"
     assert body["currentRole"] == too_low
+
+
+CONTACT_MUTATIONS = [
+    ("contacts-create", "contacts", "POST", "/prod/contacts", {}),
+    ("contacts-update", "contacts", "PUT", "/prod/contacts/c-1", {"contactId": "c-1"}),
+    ("contacts-lock", "contacts", "POST", "/prod/contacts/c-1/lock", {"contactId": "c-1"}),
+    ("contacts-unlock", "contacts", "POST", "/prod/contacts/c-1/unlock", {"contactId": "c-1"}),
+    ("contacts-delete", "contacts", "DELETE", "/prod/contacts/c-1", {"contactId": "c-1"}),
+]
+
+
+@pytest.mark.parametrize("row", CONTACT_MUTATIONS, ids=[row[0] for row in CONTACT_MUTATIONS])
+def test_a_viewer_cannot_mutate_contacts(handlers, monkeypatch, row):
+    resp = _invoke(handlers, row, as_staff(monkeypatch, groups=("Viewer",)))
+    assert resp["statusCode"] == 403, (row[0], resp)
+
+
+@pytest.mark.parametrize("row", CONTACT_MUTATIONS, ids=[row[0] for row in CONTACT_MUTATIONS])
+def test_an_operator_can_attempt_each_contact_mutation(handlers, monkeypatch, row):
+    resp = _invoke(handlers, row, as_staff(monkeypatch, groups=("Operator",)))
+    assert resp["statusCode"] not in (401, 403), (row[0], resp)
 
 
 def test_a_viewer_can_read_contacts_and_cannot_delete_them(handlers, monkeypatch):
