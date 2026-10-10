@@ -807,6 +807,62 @@ def test_a_tombstone_refusal_names_the_row_it_refused_without_marking_it(env):
     assert entry["resource_id"] == "legacy-1"
 
 
+def test_a_refusal_names_the_live_row_when_a_tombstone_shares_the_number(env):
+    """The audit record and the marker must point at the SAME row, and it must be the live one.
+
+    A number can hold both a tombstone and the live row that is actually in the way. The
+    tombstone comes back first from the index — `phone-index` has no sort key, so the page is in
+    whatever order the rows exist — and naming it would send staff to the one row they cannot act
+    on while the `Identity Conflict` tag sits on the other. `len(live) == 1` here, so the reason
+    is `FOREIGN_OWNER` rather than `AMBIGUOUS_PHONE`: the tombstone is not a second candidate.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake, deletedAt=1699999999)
+    legacy_row(fake, id="legacy-2", contactId="legacy-2", tags=[],
+               checkoutCustomerId="CUS_01J9999999999999999999999")
+    recorded = capture_audit(h, monkeypatch)
+
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    rows = {row["id"]: row for row in fake.all_rows(CONTACTS_TABLE)}
+    assert "identityConflictAt" not in rows["legacy-1"], "a tombstone is never marked"
+    assert rows["legacy-2"]["tags"] == [h.CONFLICT_TAG]
+    assert rows["legacy-2"]["identityConflictReason"] == "FOREIGN_OWNER"
+    assert "checkoutCustomerId" not in rows["legacy-1"]
+
+    entry = refusals_of(recorded)[0]
+    assert entry["details"]["reason"] == "FOREIGN_OWNER"
+    assert entry["resource_id"] == "legacy-2", \
+        "the record names the row the marker landed on, not the tombstone the index returned first"
+
+
+def test_a_refusal_record_narrows_its_details_to_a_four_digit_tail(env):
+    """What `phoneLast4` is and is not a claim about.
+
+    `details` is narrowed, and against the DIGITS form as well as the `+E.164` one — a test that
+    only checked `PHONE not in rendered` would pass on the strength of the leading `+` and mean
+    nothing. `resource_id` is the deliberate exception: an audit record about a contact has to
+    name the contact, and a WhatsApp-first row's key IS the number (`wa<national digits>`, from
+    `inbound-whatsapp-handler._deterministic_contact_id`), so the digits are in the record as the
+    primary key of the row acted on. Internal table, 180-day retention, and it is the claimer's
+    own verified number — but the narrowing above is of the payload, not of the whole record, and
+    this test is what says so.
+    """
+    h, fake, monkeypatch = env
+    digits = PHONE.lstrip("+")
+    legacy_row(fake, id=f"wa{digits}", contactId=f"wa{digits}", lastInboundMessageAt=None)
+    recorded = capture_audit(h, monkeypatch)
+
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    entry = refusals_of(recorded)[0]
+    assert entry["details"]["phoneLast4"] == PHONE[-4:]
+    details = json.dumps(entry["details"])
+    assert PHONE not in details and digits not in details, "a last-4 tail, never the number"
+    assert EMAIL not in json.dumps(entry) and "old@example.com" not in json.dumps(entry)
+    assert entry["resource_id"] == f"wa{digits}"
+    assert [key for key, value in entry.items()
+            if key != "resource_id" and digits in json.dumps(value)] == []
+
+
 def test_the_owned_row_is_still_found_beyond_the_first_five_on_a_number(env):
     """The two phone-index reads must agree about which rows exist on a number.
 
@@ -833,11 +889,45 @@ def test_the_owned_row_is_still_found_beyond_the_first_five_on_a_number(env):
 
 
 def test_the_two_phone_index_reads_share_one_page_size(env):
-    """Pinned as a constant rather than as two literals, because the bug was the disagreement."""
-    h, _fake, _ = env
-    source = HANDLER_PATH.read_text(encoding="utf-8")
-    assert source.count("Limit=PHONE_PAGE_LIMIT") == 2
+    """Pinned as a constant rather than as two literals, because the bug was the disagreement.
+
+    Asserted on the `Limit` each read actually passes, not by grepping the source for
+    `Limit=PHONE_PAGE_LIMIT` twice. A source-text count is the brittleness this file removed from
+    the IAM test: it would fail if `_active_match` were migrated to the shared constant, which
+    would be an improvement to the code, and it would pass if both literals were changed in step
+    to a wrong value.
+
+    `_active_match`'s own read is deliberately NOT part of this. It still pages 5 and is out of
+    scope — it decides which row `_upsert_contact` merges into, not whether a claim may run — so
+    the third read is asserted to exist and left alone.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake)
+    limits = []
+    # `FakeDynamo.Table` mints a fresh handle per call, exactly as boto3 does, so the recorder
+    # goes on the factory rather than on one handle.
+    inner_table = fake.Table
+
+    def recording_table(name):
+        table = inner_table(name)
+        inner_query = table.query
+
+        def query(**kwargs):
+            if name == CONTACTS_TABLE and kwargs.get("IndexName") == "phone-index":
+                limits.append(kwargs.get("Limit"))
+            return inner_query(**kwargs)
+
+        table.query = query
+        return table
+
+    monkeypatch.setattr(fake, "Table", recording_table)
+    assert save_with_proof(h, fake)["statusCode"] == 200
+
+    # In order: `_owned_contact`'s ownership read, then `_attempt_claim`'s.
+    assert limits[:2] == [h.PHONE_PAGE_LIMIT, h.PHONE_PAGE_LIMIT], \
+        "the ownership read and the claim read must see the same rows on a number"
     assert h.PHONE_PAGE_LIMIT >= 5
+    assert len(limits) == 3, "and `_active_match` reads the index once more, at its own page size"
 
 
 def test_a_conflict_marker_retries_rather_than_dropping_a_concurrent_tag(env):

@@ -263,11 +263,18 @@ def _claim_candidate(rows: Any, phone: str,
 
 def _audit_claim(action: str, identity_session: Any, contact_id: str, phone: str,
                  details: Dict[str, Any]) -> None:
-    """One audit record per claim outcome, and it carries no identifier anyone could use.
+    """One audit record per claim outcome, carrying the contact id and nothing else about anyone.
 
-    `phoneLast4` rather than the number, no email and no name: an audit row is read by staff and
-    retained for 180 days, so the reason code plus a four-digit tail is what makes a conflict
-    reconcilable without copying the customer's identity into a second table.
+    `details` gets `phoneLast4` rather than the number, and no email and no name: an audit row is
+    read by staff and retained for 180 days, so the reason code plus a four-digit tail is what
+    makes a conflict reconcilable without copying the customer's identity into a second table.
+
+    `resource_id` is the exception, and deliberately so: an audit record about a contact has to
+    name that contact, and for a WhatsApp-first row `_deterministic_contact_id` makes the id
+    `wa<national digits>` — so the number IS in the record, in digits form, as the primary key of
+    the row acted on. That is not a leak to the claimer (it never leaves this table, and it is the
+    claimer's own verified number), but it is why `phoneLast4` above is a narrowing of the
+    `details` payload and not a claim about the whole record.
 
     `record_audit` already fails open, and this wrapper keeps that property true even for a test
     double or a future sink that does not: an audit failure must not change the HTTP outcome.
@@ -304,23 +311,38 @@ def _refuse_claim(rows: Any, phone: str, reason: str, identity_session: Any) -> 
     thing that gives staff a row to find. A session-side reason marks nothing at all.
 
     The audit record names the contact even when nothing is marked, so a refusal is never a
-    record with an empty `resource_id`.
+    record with an empty `resource_id`. It names the FIRST LIVE row rather than the first row the
+    index happened to return: a number can hold a tombstone and the live row that is actually in
+    the way, and a record pointing at the tombstone would send staff to the one row they cannot
+    act on while the marker sits on the other. `exact[0]` is the fallback for the all-dead case,
+    where there is no live row to name and the id is still better than an empty string.
 
     Nothing in here may change the HTTP outcome, so every write is wrapped: a refusal must still
     be a 409 even when the marker write fails.
     """
     exact = [row for row in rows if str(row.get("phone") or "").strip() == phone]
+    marked = [row for row in exact if row.get("deletedAt") is None]
     owned_by_other = any(str(row.get("checkoutCustomerId") or "").strip()
                          for row in exact if not _row_deleted(row))
+    named = next((row for row in marked if contact_key.resolve(row)),
+                 exact[0] if exact else None)
     _audit_claim("identity.claim_refused", identity_session,
-                 contact_key.resolve(exact[0]) if exact else "", phone,
+                 contact_key.resolve(named) if named else "", phone,
                  {"reason": reason, "ownedByOther": owned_by_other})
+    # The reason CODE and the marked-row count, never a number, an email or an owner id. This is
+    # the only machine-readable trace of a refusal outside the audit table, which nothing
+    # watches, and it exists for the refusals that leave NO staff surface at all: a
+    # `SESSION_SIDE_REFUSALS` reason marks no contact, so an `UNVERIFIED_PHONE` dead end would
+    # otherwise be a permanent 409 visible from nowhere.
+    # `scripts/provision_identity_claim_alarms.py` turns this line into a metric and an alarm.
+    logger.warning(json.dumps({"event": "identity_claim_refused", "reason": reason,
+                               "markedRows": len(marked)}))
     if reason in SESSION_SIDE_REFUSALS:
         return
     now = int(time.time())
-    for row in exact:
+    for row in marked:
         contact_id = contact_key.resolve(row)
-        if not contact_id or row.get("deletedAt") is not None:
+        if not contact_id:
             continue
         _mark_conflict(contact_id, row.get("tags"), reason, now)
 
