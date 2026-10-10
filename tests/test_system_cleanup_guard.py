@@ -43,6 +43,7 @@ if str(SHARED) not in sys.path:
 
 from unittest.mock import MagicMock, patch  # noqa: E402
 
+import lambda_utils.destructive_confirm as dc  # noqa: E402
 import lambda_utils.middleware as mw  # noqa: E402
 
 HANDLER = ROOT / "amplify/functions/operations/system-cleanup/handler.py"
@@ -246,7 +247,7 @@ def wiring(mod, monkeypatch, audit_calls):
         "stack-wecare-digital-ContactsTable": [{"id": "c-1"}, {"id": "c-2"}],
         "stack-wecare-digital-InvoicesTable": [{"invoiceId": "INV-1"}],
         "stack-wecare-digital-AuditLogsTable": [{"id": "a-1"}],
-        mod.SYSTEM_CONFIG_TABLE: [],
+        dc.SYSTEM_CONFIG_TABLE: [],
     })
     fake_s3 = FakeS3()
     fake_sqs = FakeSqs()
@@ -256,6 +257,9 @@ def wiring(mod, monkeypatch, audit_calls):
         {"stack-wecare-digital-InvoicesTable": "invoiceId"}))
     monkeypatch.setattr(mod, "s3", fake_s3)
     monkeypatch.setattr(mod, "sqs", fake_sqs)
+    # The confirmation handshake lives in the shared layer and builds its own resource
+    # lazily, so the fake has to be installed there rather than on the handler.
+    monkeypatch.setattr(dc, "_dynamodb", fake_ddb)
 
     def fake_audit(**kwargs):
         audit_calls.append(kwargs)
@@ -310,7 +314,7 @@ def rebind_token(mod, wiring, confirm, selection):
     refusing. It models a caller who has tampered with both the UI's payload AND the
     stored selection, which is the worst case the guard has to survive.
     """
-    config = wiring["ddb"].Table(mod.SYSTEM_CONFIG_TABLE)
+    config = wiring["ddb"].Table(dc.SYSTEM_CONFIG_TABLE)
     row = config.get_item(Key={"id": f"cleanup_confirm_{confirm}"})["Item"]
     row["selection"] = sorted(selection)
     config.put_item(Item=row)
@@ -449,7 +453,7 @@ def test_no_allow_listed_table_matches_the_deny_keywords(mod):
 def test_the_preview_mints_a_token_bound_to_the_selectable_ids(mod, monkeypatch, wiring):
     data, token, _ = preview(mod, monkeypatch)
     assert token
-    row = wiring["ddb"].Table(mod.SYSTEM_CONFIG_TABLE).get_item(
+    row = wiring["ddb"].Table(dc.SYSTEM_CONFIG_TABLE).get_item(
         Key={"id": f"cleanup_confirm_{token}"})["Item"]
     assert row["selection"] == sorted(data["selectableIds"])
     assert row["actor"] == "sub-admin-1"
@@ -493,7 +497,7 @@ def test_a_replayed_token_is_refused_so_a_retry_cannot_double_delete(mod, monkey
 
 def test_an_expired_token_is_refused(mod, monkeypatch, wiring):
     data, token, bearer = preview(mod, monkeypatch)
-    config = wiring["ddb"].Table(mod.SYSTEM_CONFIG_TABLE)
+    config = wiring["ddb"].Table(dc.SYSTEM_CONFIG_TABLE)
     row = config.get_item(Key={"id": f"cleanup_confirm_{token}"})["Item"]
     row["expiresAt"] = 1
     config.put_item(Item=row)
