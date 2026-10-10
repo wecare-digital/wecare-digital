@@ -665,7 +665,7 @@
     {name:'blue',       rgb:new Float32Array([0.1451,0.3882,0.9216]), weight:17, size:2.66}, // #2563eb
     {name:'purple',     rgb:new Float32Array([0.5961,0.2863,0.9098]), weight:13, size:2.66}, // #9849e8
     {name:'amber',      rgb:new Float32Array([0.9412,0.6588,0.0941]), weight:18, size:2.70}, // #f0a818
-    {name:'ochre',      rgb:new Float32Array([0.7882,0.5412,0.1804]), weight:4,  size:2.72}, // #c98a2e (NO-RED: was #dc2626)
+    {name:'red',        rgb:new Float32Array([0.7882,0.5412,0.1804]), weight:4,  size:2.72}, // #c98a2e ochre (NO-RED: recolored from #dc2626; name kept as opacity-map key)
   ];
   const totalWeight=PALETTE.reduce((a,c)=>a+c.weight,0);
   const buckets=PALETTE.map(()=>({p:[],s:[]}));
