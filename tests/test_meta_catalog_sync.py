@@ -10,11 +10,11 @@ projects the live V3 payload onto exactly that shape - so a test against the sna
 against the live input shape, not an approximation of it. A hand-written fixture would agree with
 whatever this module happened to do.
 
-WHAT THE 25 IS. Ten products, every one of them real, and one Meta item per Wix VARIANT gives 25:
+WHAT THE 23 IS. Ten products, every one of them real, and one Meta item per Wix VARIANT gives 23:
 
     Request (services)  5     Kiosk               1     Paperwork    1
-    Merchandise        10     Referral Partner    1     Viveka       1
-    Contribute          3     Guided Resolution   1     File Assist  1
+    Merchandise        10     Referral Partner    1     Anew         1
+    Contribute          1     Guided Resolution   1     File Assist  1
                                                         Rs1 test     1
 
 THE ARITHMETIC USED TO START AT 22 AND SUBTRACT TWELVE. The Wix store template's twelve demo
@@ -65,7 +65,7 @@ EXPECTED_ITEMS_BY_SLUG = {
     "guided-resolution": 1,
     "file-assist": 1,
     "paperwork": 1,
-    "viveka": 1,
+    "anew": 1,
     "1-test-product": 1,
 }
 
@@ -360,7 +360,7 @@ def test_the_snapshot_prices_survive_the_round_trip(desired):
     prices = {item["item_group_id"]: item["price"] for item in desired}
     assert prices["121c9d57-2cc9-490b-8eed-66bf7b9c172a"] == "1.00"      # Rs1 test product
     assert prices["a12e9e74-e109-4136-a12e-ab49ea6f98c3"] == "24999.00"  # Kiosk
-    assert prices["abfdad33-b853-4aeb-b2f9-fa4051e75928"] == "599.00"    # Viveka
+    assert prices["abfdad33-b853-4aeb-b2f9-fa4051e75928"] == "599.00"    # Anew
 
 
 @pytest.mark.parametrize("value", ["599.005", "0", "-1", "abc", "", None, "1,199.00"])
@@ -515,7 +515,7 @@ EXPECTED_BLOCKED = [
     "Merchandise",
     "Paperwork",
     "Referral Partner",
-    "Viveka",
+    "Anew",
     "\u20b91 test product",
 ]
 
