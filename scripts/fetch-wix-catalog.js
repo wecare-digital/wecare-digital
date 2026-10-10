@@ -121,6 +121,65 @@
  * `variantVerifiedAt` is emitted TOP-LEVEL, not per product, and records the date the variants
  * endpoint was actually read - it is the field that distinguishes "this snapshot has verified
  * variant data" from "this snapshot predates variant hydration".
+ *
+ * THE PER-VARIANT CATALOGUE IDENTITY, ADDED 2026-10-10, AND WHY IT IS PULLED RATHER THAN TYPED
+ * -------------------------------------------------------------------------------------------
+ * The variant projection used to stop at `{ id, label, inStock }`, so three values that ARE part
+ * of Wix's own catalogue identity had to be written out by hand somewhere else -
+ * `src/config/services.ts` declares them, and a hand-kept copy of an upstream id is a copy that
+ * eventually disagrees with upstream. The repo has a documented history of exactly that failure
+ * with Meta catalog ids. The `query-variants` call this script ALREADY makes returns all three,
+ * so they are now read instead:
+ *
+ *   sku         from `sku`. The V3 SKU lives on the variant, not the product - which is why
+ *               `sku` is asserted ABSENT at product level in tests/test_wix_catalog_snapshot.py
+ *               and present here. `SERVICE-VAULT`, `SERVICE-DROP-DOCS` and so on.
+ *   choiceId    from `optionChoices[0].optionChoiceIds.choiceId`. The id of the chosen option
+ *               value, stable across a rename of the choice's display name.
+ *   optionId    from `optionChoices[0].optionChoiceIds.optionId`. The id of the option the choice
+ *               belongs to ('Service' for the services product).
+ *   pricePaise  from `price.actualPrice.amount`, converted by digit slicing - see
+ *               `paiseFromMajor()`. THE PRODUCT-LEVEL PRICE CANNOT STAND IN FOR IT: V3 reports a
+ *               product as a price RANGE and `price` is the MINIMUM, so for the services product
+ *               (49-350) four of the five variants would be understated by up to 301 rupees.
+ *               `_variant_price_paise` in meta_catalog_sync.py refuses the product-level fallback
+ *               outright when it is about to write to Meta, for that reason.
+ *
+ * ONLY THE FIRST optionChoices ENTRY is read for choiceId/optionId. A multi-option product
+ * (merchandise is Style x Size) has several, and collapsing them to one pair would be wrong - but
+ * `label` already carries the full combination, and the single-option services product is the only
+ * consumer of the id pair today. A second option's ids are deliberately NOT invented here.
+ *
+ * ABSENT FIELDS ARE EMITTED AS EMPTY STRINGS, not omitted. A uniform row shape means a consumer
+ * can read `row.sku` without first proving the key exists, and it makes "Wix sent nothing" visible
+ * in the committed diff rather than silent.
+ *
+ * `image` IS WHATEVER WIX RETURNS, AND THIS SCRIPT IS A PURE OVERWRITE
+ * -------------------------------------------------------------------
+ * Owner decision, 2026-10-10, recorded because the alternative was chosen against explicitly.
+ *
+ * `image` at product level comes from `media.main`; `image` on a variant comes from that variant's
+ * own `media` in the query-variants response. Both are copied and neither is derived, inferred or
+ * carried forward. That matters because the committed snapshot used to hold FOUR DISTINCT service
+ * pictures that this script never produced - they were written into the file by hand on 9 October,
+ * along with a `serviceArtworkVerifiedAt` stamp, and a refresh therefore deleted them. Wix no
+ * longer declares which gallery image belongs to which choice: every
+ * `options[].choicesSettings.choices[].linkedMedia` comes back empty to a visitor token, and
+ * query-variants answers with the product's MAIN image for all five rows.
+ *
+ * Three ways to keep the old pictures were considered and REJECTED by the owner:
+ * carrying the previous snapshot's values forward (this script would become a merge, and the
+ * snapshot would stop being a read of Wix), joining choice name to media `altText` (an inference
+ * Wix does not declare, which a rename in the dashboard breaks silently), and blocking the sync
+ * until the artwork is re-linked in Wix.
+ *
+ * THE ACCEPTED CONSEQUENCE: the Meta/WhatsApp catalogue items for the services product all show
+ * the product's main image until the per-choice artwork is re-linked in the Wix dashboard. The fix
+ * belongs in Wix, not in a mirror of Wix - the same reasoning `slim()` already applies to
+ * `productType`. Nothing is invented here to cover for it: `blockers()` in meta_catalog_sync.py
+ * reports an imageless item rather than substituting a placeholder, because an item with a
+ * made-up picture would pass Meta commerce review under false pretences. Nine of the ten products
+ * carry no media at all today and are blocked for exactly that reason.
  */
 
 // ESM, because package.json declares "type": "module" - a require() here dies with
@@ -198,12 +257,36 @@ async function visitorToken( clientId ) {
 
 const money = range => ( range && range.minValue ) || {};
 
+/** First media item url for a product or a variant, '' when Wix sent none. */
+const mediaUrl = item => String( ( ( item || {} ).image || {} ).url || '' );
+
+/**
+ * A Wix decimal-string amount in major units ( '350.00' ) -> integer paise, or null.
+ *
+ * BY CONCATENATING DIGITS, not by multiplying, which is the same rule `price_text` in
+ * meta_catalog_sync.py applies in the other direction and for the same reason: `3.50 * 100` is a
+ * binary-floating-point question with a wrong answer available, and a one-paise disagreement with
+ * a checkout total has to be impossible rather than unlikely.
+ *
+ * An amount with more than two decimal places is REFUSED rather than rounded - a fractional paise
+ * in a catalogue price is a data error in Wix, and rounding it here would hide it and plant the
+ * mismatch further downstream. `paise_from_major` refuses it too.
+ */
+function paiseFromMajor( value ) {
+  const text = String( value == null ? '' : value ).trim();
+  if ( !/^\d+(\.\d{1,2})?$/.test( text ) ) return null;
+  const [ rupees, fraction = '' ] = text.split( '.' );
+  const paise = Number( rupees + fraction.padEnd( 2, '0' ) );
+  return paise > 0 ? paise : null;
+}
+
 /**
  * Hydrate every product's variants from /stores/v3/products/query-variants.
  *
- * Returns a Map of productId -> [ { id, label, inStock } ], with the API's own order preserved
- * within each product. Order matters: the fit/size <select> renders in array order, and sorting it
- * here would make the committed snapshot churn whenever Wix reordered its response.
+ * Returns a Map of productId -> [ { id, label, inStock, sku, choiceId, optionId, pricePaise } ],
+ * with the API's own order preserved within each product. Order matters: the fit/size <select>
+ * renders in array order, and sorting it here would make the committed snapshot churn whenever
+ * Wix reordered its response.
  *
  * `visible !== false` rather than `visible === true`: a row that omits the field is treated as
  * visible, which matches how slim() reads the product-level flag.
@@ -243,6 +326,9 @@ async function fetchVariants( token, productIds ) {
       if ( row.visible === false ) continue;
       const productId = ( row.productData || {} ).productId;
       if ( !byProduct.has( productId ) ) continue;
+      // Only the FIRST option pair - see the header. A multi-option product has several and
+      // collapsing them would misreport the combination that `label` already carries in full.
+      const ids = ( ( row.optionChoices || [] )[ 0 ] || {} ).optionChoiceIds || {};
       byProduct.get( productId ).push( {
         id: row.variantId || row.id,
         label: ( row.optionChoices || [] )
@@ -250,6 +336,15 @@ async function fetchVariants( token, productIds ) {
           .filter( Boolean )
           .join( ' / ' ) || 'Standard',
         inStock: ( row.inventoryStatus || {} ).inStock === true,
+        sku: String( row.sku || '' ),
+        choiceId: String( ids.choiceId || '' ),
+        optionId: String( ids.optionId || '' ),
+        // EXACTLY what Wix returns for this variant and nothing else - see the header. Today that
+        // is the product's main image for every row, because no choice carries linked media.
+        image: mediaUrl( row.media ),
+        // The variant's OWN price. The product-level `price` is the range minimum and would be
+        // wrong for most variants of a product priced per choice.
+        pricePaise: paiseFromMajor( ( ( row.price || {} ).actualPrice || {} ).amount ),
       } );
     }
 
@@ -305,6 +400,11 @@ function slim( p, variantsByProduct ) {
     mediaCount: ( ( ( p.media || {} ).itemsInfo || {} ).items || [] ).length,
     infoSectionCount: ( p.infoSections || [] ).length,
     productUrl: `https://wecare.digital/shop/${p.slug}/`,
+    // Wix's own MAIN image, falling back to the first gallery item. '' when the product carries no
+    // media, which is the state nine of the ten products are in - and which `blockers()` in
+    // meta_catalog_sync.py reports rather than papering over with a placeholder.
+    image: mediaUrl( ( p.media || {} ).main )
+      || mediaUrl( ( ( ( p.media || {} ).itemsInfo || {} ).items || [] )[ 0 ] ),
     // Hydrated from query-variants, not from the product payload - the search endpoint does not
     // return variants at all. Emitting this is what stops a refresh destroying the fit/size
     // selector and the catalogReference.options.variantId the cart sends.

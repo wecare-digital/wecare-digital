@@ -74,6 +74,11 @@ SERVICE_PATH_BY_VARIANT = {
     "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": "/request-amendment/",
     "db166bc8-a763-41ec-9f65-0f718f18155a": "/drop-docs/",
     "dcff995e-448c-493a-9259-f6a82ccdc2b4": "/vault/",
+    # Added 2026-10-10 with the fifth Wix variant. A SERVICE VARIANT WITHOUT A ROUTE IS NOT A
+    # COSMETIC GAP: `desired_items` omits `url` entirely for one, and `_batch_requests` in the
+    # handler reads `item["url"]` to build Meta's `link` - so a routeless variant takes the whole
+    # sync down with a KeyError rather than publishing a linkless item. The page this names is
+    # src/pages/request-pickup.tsx, and this map is what decides the address it answers on.
     "8ee7e325-d772-4452-a993-5c79e927d42b": "/request-pickup/",
 }
 
@@ -89,6 +94,8 @@ SERVICE_COPY_BY_VARIANT = {
     "dcff995e-448c-493a-9259-f6a82ccdc2b4":
         ("Vault", "Access and download your documents."),
     "8ee7e325-d772-4452-a993-5c79e927d42b":
+        # "Arrange", not "book": a collection depends on a courier agreeing to it, which is the
+        # same claim /request-pickup/ makes. This wording is stack's and is kept as it stands.
         ("Request Pickup", "Arrange pickup of documents for your order."),
 }
 
@@ -354,10 +361,11 @@ def _image_url(product: Mapping[str, Any]) -> str:
     """The product's public image URL, or `""`.
 
     `image` is the key `scripts/fetch-wix-catalog.js` emits and `shop.ts` reads; `imageUrl` is
-    accepted too because the live Catalog V3 read the Lambda performs names it that way. EVERY ONE
-    of the ten real products carries `mediaCount: 0` in the committed snapshot, so in practice this
-    returns `""` for all of them today - which is what `blockers` reports. Nothing here invents a
-    placeholder: an item with a made-up image would pass Meta commerce review under false pretences.
+    accepted too because the live Catalog V3 read the Lambda performs names it that way. NINE of
+    the ten real products carry `mediaCount: 0` in the committed snapshot, so this returns `""` for
+    all of them - which is what `blockers` reports. Only the services product has media in Wix.
+    Nothing here invents a placeholder: an item with a made-up image would pass Meta commerce
+    review under false pretences.
     """
     for key in ("image", "imageUrl"):
         value = str(product.get(key) or "").strip()
@@ -371,11 +379,14 @@ def _variant_price_paise(product: Mapping[str, Any], variant: Mapping[str, Any],
     """The variant's own price in paise, falling back to the product's when permitted.
 
     THE FALLBACK IS AN OFFLINE-ONLY CONVENIENCE AND THE LIVE PATH REFUSES IT.
-    `src/content/wix-catalog.json`'s variant rows carry `id`, `label` and `inStock` and no price at
-    all - per-variant price needs `/stores/v3/products/query-variants`, which
-    `scripts/fetch-wix-catalog.js:107` documents and the snapshot generator does not call. So for a
-    product with a price RANGE (Contribute is 100-500, WECARE.DIGITAL Services 49-350) the
-    product-level `price` is the minimum and would be wrong for most variants.
+    `src/content/wix-catalog.json`'s variant rows now carry `pricePaise` alongside `id`, `label`,
+    `inStock`, `sku`, `choiceId` and `optionId`: `scripts/fetch-wix-catalog.js` reads
+    `/stores/v3/products/query-variants` and projects the variant's own price (2026-10-10 - before
+    that the snapshot carried no per-variant price at all and this fallback was the only answer).
+    The fallback stays because a row can still arrive without one - a product whose variants Wix
+    did not price, or a hand-built fixture - and for a product with a price RANGE (Contribute is
+    100-500, the Request services product 49-350) the product-level `price` is the RANGE MINIMUM
+    and would be wrong for most variants.
 
     That is why `require_variant_price=True` - which the Lambda always passes - raises instead.
     The permissive default exists so the diff can be computed against the committed snapshot in a
@@ -451,8 +462,15 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
                 # reach Meta because `meta_payload` projects through `META_ITEM_FIELDS`.
                 "product_name": product_name,
             }
-            # Wix resolves option-choice media onto each read-only variant. Prefer it
-            # so Submit Request and Vault do not inherit the same service artwork.
+            # The variant's own image first, the product's as the fallback. The preference is kept
+            # because it is the right order, NOT because it currently changes anything: as of
+            # 2026-10-10 Wix returns no per-choice media to a storefront read - every
+            # `choicesSettings.choices[].linkedMedia` comes back empty - so all five service
+            # variants carry the product's main image and the five Meta items share one picture.
+            # Owner decision, recorded in scripts/fetch-wix-catalog.js: the snapshot mirrors Wix
+            # rather than keeping the four distinct pictures that were hand-written into it, and
+            # the artwork is to be re-linked in the Wix dashboard. When it is, this line starts
+            # distinguishing them again with no code change.
             image = _image_url(variant) or _image_url(product)
             if image:
                 item["image_url"] = image
@@ -481,14 +499,14 @@ def blockers(desired: Sequence[Mapping[str, Any]]) -> List[str]:
     """The products that cannot pass Meta commerce review, because they have no image.
 
     Meta rejects an imageless item, so publishing one is a review failure rather than a listing.
-    MEASURED against the committed snapshot: all ten real products carry `mediaCount: 0`, so today
-    every real item is blocked and this returns all ten names. That is the honest state of the
-    catalogue and it is reported rather than worked around - nothing here invents a placeholder
-    image.
+    MEASURED against the committed snapshot: NINE of the ten real products carry `mediaCount: 0`
+    and are blocked; the services product is the only one with media in Wix. That is the honest
+    state of the catalogue and it is reported rather than worked around - nothing here invents a
+    placeholder image.
 
     REPORTED PER PRODUCT, NOT PER ITEM, and deduplicated on `item_group_id`: media belongs to the
-    Wix product and all its variants share it, so ten lines name the ten things the owner has to
-    fix while twenty-four would name the same ten twice over.
+    Wix product and all its variants share it, so nine lines name the nine things the owner has to
+    fix while twenty-five would name the same nine several times over.
     """
     names: Dict[str, str] = {}
     for item in desired or []:

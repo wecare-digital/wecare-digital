@@ -1,8 +1,8 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-06T04:43:35.265Z",
-  "productCount": 22,
+  "fetchedAt": "2026-10-10T07:50:05.233Z",
+  "productCount": 10,
   "products": [
     {
       "id": "121c9d57-2cc9-490b-8eed-66bf7b9c172a",
@@ -28,81 +28,17 @@
       "mediaCount": 0,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/1-test-product/",
+      "image": "",
       "variants": [
         {
           "id": "c2edc783-c8fa-4b3e-a922-f7800889e56a",
           "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "618dcfe4-8d85-40a9-87c6-0dea57abe644",
-      "name": "Baseball Cap",
-      "slug": "baseball-cap",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": {
-        "id": "5d536f20-dbf0-4254-928e-8c9d911c34b0",
-        "name": "Sale"
-      },
-      "price": "68.00",
-      "priceMax": "68.00",
-      "currency": "INR",
-      "formattedPrice": "₹68.00",
-      "compareAtPrice": "129.00",
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/baseball-cap/",
-      "variants": [
-        {
-          "id": "9b10eb5c-96fd-4601-9aa8-7c2adc1fca30",
-          "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "af654225-662f-42e5-ac51-fbebc88f63ed",
-      "name": "Ceramic Flower Vase",
-      "slug": "ceramic-flower-vase",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": {
-        "id": "6b64ba2b-aa72-4c41-9a82-62e6816fc42b",
-        "name": "Best Seller"
-      },
-      "price": "270.00",
-      "priceMax": "270.00",
-      "currency": "INR",
-      "formattedPrice": "₹270.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/ceramic-flower-vase/",
-      "variants": [
-        {
-          "id": "e5547ac4-8461-48fd-9b46-6d08b27aae0b",
-          "label": "Standard",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 100
         }
       ]
     },
@@ -130,100 +66,37 @@
       "mediaCount": 0,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/contribute/",
+      "image": "",
       "variants": [
         {
           "id": "19283bd8-a61d-455e-a992-79eb10b9228f",
           "label": "₹500",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "9a01bb6b-0a6b-4c0c-bcb3-df63336c368c",
+          "optionId": "c0c2d393-d62c-4e23-b632-6e64c01564a1",
+          "image": "",
+          "pricePaise": 50000
         },
         {
           "id": "8ad6f376-a526-4631-b510-0e047b33a5b9",
           "label": "₹250",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "616cbd34-a1ad-4fe7-82b5-1d28e901aebc",
+          "optionId": "c0c2d393-d62c-4e23-b632-6e64c01564a1",
+          "image": "",
+          "pricePaise": 25000
         },
         {
           "id": "ab4ee1a2-1568-4dc4-abe1-55e24fa51576",
           "label": "₹100",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "df8ae122-9a06-4fa2-96bb-4b058db5959f",
-      "name": "Crew T-Shirt",
-      "slug": "crew-t-shirt",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "120.00",
-      "priceMax": "120.00",
-      "currency": "INR",
-      "formattedPrice": "₹120.00",
-      "compareAtPrice": null,
-      "inStock": false,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 1,
-      "modifierCount": 0,
-      "variantCount": 4,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/crew-t-shirt/",
-      "variants": [
-        {
-          "id": "572e9206-6d33-4c92-bcb2-b72570f6fe80",
-          "label": "X-Large",
-          "inStock": true
-        },
-        {
-          "id": "9b165c78-3c0a-4d36-818c-6ca9b1be771b",
-          "label": "Medium",
-          "inStock": false
-        },
-        {
-          "id": "a7d5c30e-6656-4c93-bec7-1fc4110bb8fd",
-          "label": "Large",
-          "inStock": true
-        },
-        {
-          "id": "fef4869a-62bf-46bb-b7af-501d42d2ff36",
-          "label": "Small",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "f68519fb-2095-4dfc-8684-ec55d60c2adc",
-      "name": "Essential Oil Diffuser",
-      "slug": "essential-oil-diffuser",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "119.00",
-      "priceMax": "119.00",
-      "currency": "INR",
-      "formattedPrice": "₹119.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/essential-oil-diffuser/",
-      "variants": [
-        {
-          "id": "149119f2-7d5d-4efa-a3a3-393df631eb02",
-          "label": "Standard",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "8b6557ad-382c-432c-b79e-6991083a2686",
+          "optionId": "c0c2d393-d62c-4e23-b632-6e64c01564a1",
+          "image": "",
+          "pricePaise": 10000
         }
       ]
     },
@@ -251,58 +124,17 @@
       "mediaCount": 0,
       "infoSectionCount": 10,
       "productUrl": "https://wecare.digital/shop/file-assist/",
+      "image": "",
       "variants": [
         {
           "id": "1960aa09-7585-4813-91b5-13b30e64d342",
           "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "96ff5295-1660-40d1-89e4-d1f1a34309be",
-      "name": "Foaming Facial Cleanser",
-      "slug": "foaming-facial-cleanser",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "85.00",
-      "priceMax": "85.00",
-      "currency": "INR",
-      "formattedPrice": "₹85.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 1,
-      "modifierCount": 0,
-      "variantCount": 4,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/foaming-facial-cleanser/",
-      "variants": [
-        {
-          "id": "776c3f2b-c036-46ea-8710-93be1da707d2",
-          "label": "100ml",
-          "inStock": true
-        },
-        {
-          "id": "9b75cd22-bcb6-4f56-88cd-204b9a6cdc70",
-          "label": "250ml",
-          "inStock": true
-        },
-        {
-          "id": "a2d4a224-150d-4f0b-875b-21449f1c0d89",
-          "label": "150ml",
-          "inStock": true
-        },
-        {
-          "id": "dff2a4eb-9cc5-4c71-89e4-2b14f36f9d34",
-          "label": "500ml",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 699900
         }
       ]
     },
@@ -330,43 +162,17 @@
       "mediaCount": 0,
       "infoSectionCount": 11,
       "productUrl": "https://wecare.digital/shop/guided-resolution/",
+      "image": "",
       "variants": [
         {
           "id": "9a108efe-e3b9-42f2-b465-0e8470a293e4",
           "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "ca71fee6-1fc9-4a57-8fa7-967c8edcaabb",
-      "name": "Hydrating Eye Serum - Pre Order",
-      "slug": "hydrating-eye-serum",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "56.00",
-      "priceMax": "56.00",
-      "currency": "INR",
-      "formattedPrice": "₹56.00",
-      "compareAtPrice": null,
-      "inStock": false,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/hydrating-eye-serum/",
-      "variants": [
-        {
-          "id": "f978920c-b09d-4659-bf1d-387cf91954c1",
-          "label": "Standard",
-          "inStock": false
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 1399900
         }
       ]
     },
@@ -394,98 +200,17 @@
       "mediaCount": 0,
       "infoSectionCount": 10,
       "productUrl": "https://wecare.digital/shop/kiosk/",
+      "image": "",
       "variants": [
         {
           "id": "4d3e2b31-7888-4250-8f5a-0587344431db",
           "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "99684dfe-d36a-4869-858a-dba67af9b993",
-      "name": "Knitted Golf Sweater",
-      "slug": "knitted-golf-sweater",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "275.00",
-      "priceMax": "275.00",
-      "currency": "INR",
-      "formattedPrice": "₹275.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 2,
-      "modifierCount": 0,
-      "variantCount": 12,
-      "mediaCount": 4,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/knitted-golf-sweater/",
-      "variants": [
-        {
-          "id": "2034da09-f052-4942-ac91-b44366cd019d",
-          "label": "Medium / Dark Green",
-          "inStock": true
-        },
-        {
-          "id": "35ce2200-5e88-4e7f-985e-36d422913fe1",
-          "label": "X-Large / Dark Blue",
-          "inStock": true
-        },
-        {
-          "id": "449e9087-a290-4ba9-8289-98f756409ef1",
-          "label": "X-Large / White",
-          "inStock": true
-        },
-        {
-          "id": "4f905739-5c78-407f-8f56-49aa8b3f586c",
-          "label": "X-Large / Dark Green",
-          "inStock": true
-        },
-        {
-          "id": "66c683d6-622c-4f87-b67e-48e88db9e7d7",
-          "label": "Small / Dark Green",
-          "inStock": true
-        },
-        {
-          "id": "6faf50a4-2dc5-4986-96a4-2a328118ffbf",
-          "label": "Medium / White",
-          "inStock": true
-        },
-        {
-          "id": "9bbf7977-245f-4dc4-a500-ebd3297e0ecf",
-          "label": "Large / Dark Green",
-          "inStock": true
-        },
-        {
-          "id": "bb33d12b-a954-421d-ab0d-1ce18e2d8b61",
-          "label": "Large / White",
-          "inStock": true
-        },
-        {
-          "id": "c1df7354-ed67-45c7-8701-2a14557cd8a5",
-          "label": "Medium / Dark Blue",
-          "inStock": true
-        },
-        {
-          "id": "dd8e116e-3e9c-4853-b09e-c1229dcf4bfe",
-          "label": "Large / Dark Blue",
-          "inStock": true
-        },
-        {
-          "id": "e722833d-5f30-4e3e-8694-f27ca3a1b1a3",
-          "label": "Small / Dark Blue",
-          "inStock": true
-        },
-        {
-          "id": "f0348d42-7307-4825-bcd9-44997dd93e98",
-          "label": "Small / White",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 2499900
         }
       ]
     },
@@ -513,93 +238,107 @@
       "mediaCount": 0,
       "infoSectionCount": 8,
       "productUrl": "https://wecare.digital/shop/merchandise/",
+      "image": "",
       "variants": [
         {
           "id": "3788a657-9af2-4ecf-8c9b-f218669d753c",
           "label": "Men’s / XL",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "3879304e-f924-430e-991a-bd9592c1d8f7",
           "label": "Men’s / S",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "4a691fd4-549d-4698-bff6-2df7c094ccf9",
           "label": "Men’s / L",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "973e32ca-6272-43d9-b9ea-9dc1dd9ac2af",
           "label": "Men’s / M",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "997508d6-1f2a-4d33-80df-83e992b4910a",
           "label": "Women’s / 2XL",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "9a3ac454-45b6-44ed-9d4a-7b4106e45556",
           "label": "Men’s / 2XL",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "a3559cf9-ced8-47d4-be89-ba6267af0b83",
           "label": "Women’s / M",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "b2dc278c-1653-4012-acd8-feb0cf871899",
           "label": "Women’s / S",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "b6aeb636-d3d8-4765-a63c-751c440d9a32",
           "label": "Women’s / L",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         },
         {
           "id": "da9a27b8-d781-49c2-954a-66d8020861df",
           "label": "Women’s / XL",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "fedfcb20-1ad2-405b-950b-e65112bb6222",
-      "name": "Minimalist Tote Bag",
-      "slug": "minimalist-tote-bag",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "20.00",
-      "priceMax": "20.00",
-      "currency": "INR",
-      "formattedPrice": "₹20.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 1,
-      "modifierCount": 0,
-      "variantCount": 2,
-      "mediaCount": 3,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/minimalist-tote-bag/",
-      "variants": [
-        {
-          "id": "0c660cc7-fe77-4394-b6cd-9c779338776c",
-          "label": "Purple",
-          "inStock": true
-        },
-        {
-          "id": "69ca8646-cc1f-4fbd-960d-5d754a7fb518",
-          "label": "White",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
+          "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
+          "image": "",
+          "pricePaise": 119900
         }
       ]
     },
@@ -627,11 +366,17 @@
       "mediaCount": 0,
       "infoSectionCount": 9,
       "productUrl": "https://wecare.digital/shop/paperwork/",
+      "image": "",
       "variants": [
         {
           "id": "ac5cee5d-0dd1-4a1e-ac13-c3767d3fd8dd",
           "label": "Standard",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 349900
         }
       ]
     },
@@ -659,142 +404,17 @@
       "mediaCount": 0,
       "infoSectionCount": 7,
       "productUrl": "https://wecare.digital/shop/referral-partner/",
+      "image": "",
       "variants": [
         {
           "id": "081aa95d-82e4-451c-80f2-bc076d1cdb4d",
           "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "d86d7bea-fe19-4654-a597-bfe8dd449407",
-      "name": "Round Eyeglasses",
-      "slug": "round-eyeglasses",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": {
-        "id": "3fa3213f-63ae-4397-9657-bc88b1bfaf1e",
-        "name": "New"
-      },
-      "price": "80.00",
-      "priceMax": "80.00",
-      "currency": "INR",
-      "formattedPrice": "₹80.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/round-eyeglasses/",
-      "variants": [
-        {
-          "id": "6a4b6309-92ee-49bd-a74b-552d91e5fa08",
-          "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "42941ee7-1707-4b5d-a7d7-41e12da6ab9e",
-      "name": "Solid Wood Chair",
-      "slug": "solid-wood-chair",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "690.00",
-      "priceMax": "690.00",
-      "currency": "INR",
-      "formattedPrice": "₹690.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/solid-wood-chair/",
-      "variants": [
-        {
-          "id": "8a5a94af-5c77-4488-b8cc-89661ea49d17",
-          "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "1190303d-1fb5-40ca-bb60-2d5c1af3ae97",
-      "name": "Stainless Steel Water Bottle",
-      "slug": "stainless-steel-water-bottle",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "199.00",
-      "priceMax": "199.00",
-      "currency": "INR",
-      "formattedPrice": "₹199.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/stainless-steel-water-bottle/",
-      "variants": [
-        {
-          "id": "79040a57-27ad-4496-bc1d-402c5e678a47",
-          "label": "Standard",
-          "inStock": true
-        }
-      ]
-    },
-    {
-      "id": "d2dc8bef-0a26-414a-b1dc-7bbba867bc6a",
-      "name": "Textured Loop Earrings",
-      "slug": "textured-loop-earrings",
-      "productType": "PHYSICAL",
-      "visible": true,
-      "ribbon": "",
-      "price": "269.00",
-      "priceMax": "269.00",
-      "currency": "INR",
-      "formattedPrice": "₹269.00",
-      "compareAtPrice": null,
-      "inStock": true,
-      "descriptionHtml": "<p>I'm a product description. I'm a great place to add more details about your product such as sizing, material, care instructions and cleaning instructions.</p>",
-      "categoryIds": [
-        "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
-      ],
-      "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
-      "optionCount": 0,
-      "modifierCount": 0,
-      "variantCount": 1,
-      "mediaCount": 2,
-      "infoSectionCount": 3,
-      "productUrl": "https://wecare.digital/shop/textured-loop-earrings/",
-      "variants": [
-        {
-          "id": "aebd3261-d48a-42e4-b0ed-63555cf56229",
-          "label": "Standard",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 99900
         }
       ]
     },
@@ -822,17 +442,23 @@
       "mediaCount": 0,
       "infoSectionCount": 7,
       "productUrl": "https://wecare.digital/shop/viveka/",
+      "image": "",
       "variants": [
         {
           "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
           "label": "Standard",
-          "inStock": true
+          "inStock": true,
+          "sku": "",
+          "choiceId": "",
+          "optionId": "",
+          "image": "",
+          "pricePaise": 59900
         }
       ]
     },
     {
       "id": "df976a0a-f582-4535-b2e1-d532f348bd27",
-      "name": "WECARE.DIGITAL Services",
+      "name": "Request",
       "slug": "wecaredigital-services",
       "productType": "PHYSICAL",
       "visible": true,
@@ -842,7 +468,7 @@
       "currency": "INR",
       "formattedPrice": "₹49.00",
       "compareAtPrice": null,
-      "inStock": false,
+      "inStock": true,
       "descriptionHtml": "<p>Get help with your order, upload documents or access your Vault.</p>",
       "categoryIds": [
         "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6"
@@ -850,43 +476,64 @@
       "mainCategoryId": "2c19f033-2ddf-44d4-b0a5-61ef1b18cca6",
       "optionCount": 1,
       "modifierCount": 0,
-      "variantCount": 4,
-      "mediaCount": 4,
+      "variantCount": 5,
+      "mediaCount": 6,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/wecaredigital-services/",
+      "image": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
       "variants": [
         {
           "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
           "label": "Request Amendment",
-          "inStock": false,
-          "image": "https://static.wixstatic.com/media/478bf9_61bf98226abd4c7183413fd1b2fd76ce~mv2.png",
-          "pricePaise": 9900
+          "inStock": true,
+          "sku": "SERVICE-REQUEST-AMENDMENT",
+          "choiceId": "7111e864-e789-4641-8f28-74240af61561",
+          "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
+          "image": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
+          "pricePaise": 35000
+        },
+        {
+          "id": "8ee7e325-d772-4452-a993-5c79e927d42b",
+          "label": "Request Pickup",
+          "inStock": true,
+          "sku": "SERVICE-REQUEST-PICKUP",
+          "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
+          "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
+          "image": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
+          "pricePaise": 35000
         },
         {
           "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
           "label": "Drop Docs",
-          "inStock": false,
-          "image": "https://static.wixstatic.com/media/478bf9_df2cd2060b1c4bbca3a6915001062adc~mv2.png",
+          "inStock": true,
+          "sku": "SERVICE-DROP-DOCS",
+          "choiceId": "f981b729-748a-48ee-93b9-54ecc543b617",
+          "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
+          "image": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
           "pricePaise": 35000
         },
         {
           "id": "dcff995e-448c-493a-9259-f6a82ccdc2b4",
           "label": "Vault",
-          "inStock": false,
-          "image": "https://static.wixstatic.com/media/478bf9_0d6ef02aebca413e8c5843057bff60dd~mv2.png",
+          "inStock": true,
+          "sku": "SERVICE-VAULT",
+          "choiceId": "bdaafdcf-7998-4d43-b7dd-1ab40cc6566c",
+          "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
+          "image": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
           "pricePaise": 4900
         },
         {
           "id": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b",
           "label": "Submit Request",
-          "inStock": false,
-          "image": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png",
+          "inStock": true,
+          "sku": "SERVICE-SUBMIT-REQUEST",
+          "choiceId": "2af81a87-24a8-4729-80bf-1d967a637bc2",
+          "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
+          "image": "https://static.wixstatic.com/media/478bf9_0e3248f1367e43c4825acfeb4cb6f5f7~mv2.png",
           "pricePaise": 9900
         }
-      ],
-      "image": "https://static.wixstatic.com/media/478bf9_44e9dff1170e484ca242a7c849b082d4~mv2.png",
-      "serviceArtworkVerifiedAt": "2026-10-09"
+      ]
     }
   ],
-  "variantVerifiedAt": "2026-10-06T04:43:35.257Z"
+  "variantVerifiedAt": "2026-10-10T07:50:05.222Z"
 }

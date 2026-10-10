@@ -724,13 +724,26 @@ describe( "the Wix template's own sample products are not this storefront", () =
       expect( SHOP_PRODUCTS.some( product => product.id.toLowerCase() === id ), id ).toBe( false );
     }
   } );
-  it( 'still carries every one of them in the committed snapshot', () => {
-    // The rows are NOT removed from wix-catalog.json. The snapshot stays a faithful read of the
-    // live catalogue -- `scripts/fetch-wix-catalog.js` would re-add them anyway -- and the shop is
-    // what filters. A test that passed by them being absent would pass for the wrong reason.
+  it( 'no longer carries them in the snapshot, because Wix deleted them', () => {
+    /*
+     * THIS ASSERTION WAS THE EXACT OPPOSITE until 2026-10-10: the twelve rows were present in
+     * wix-catalog.json and the comment here explained that the snapshot stays a faithful read of
+     * live Wix while the shop does the filtering. Both halves of that are still true - what
+     * changed is upstream. The twelve demo products were DELETED IN THE WIX DASHBOARD, so a
+     * faithful read no longer contains them, and `scripts/fetch-wix-catalog.js` will not re-add
+     * what Wix does not return.
+     *
+     * The exclusion lists above are NOT deleted along with them, and that is the point of keeping
+     * a test here at all: a deny-list earns its keep when its entries are absent.
+     * .github/workflows/catalogue-sync.yml refreshes this snapshot unattended, so re-creating a
+     * demo product - or restoring the template - would put the row back with nobody reviewing it.
+     */
     const rows = ( catalog as { products?: { id?: string; slug?: string }[] } ).products || [];
     for ( const id of WIX_TEMPLATE_SAMPLE_PRODUCT_IDS ) {
-      expect( rows.some( row => String( row.id ).toLowerCase() === id ), id ).toBe( true );
+      expect( rows.some( row => String( row.id ).toLowerCase() === id ), id ).toBe( false );
+    }
+    for ( const slug of WIX_TEMPLATE_SAMPLE_SLUGS ) {
+      expect( rows.some( row => String( row.slug ).toLowerCase() === slug ), slug ).toBe( false );
     }
   } );
   it( 'leaves the real listings and the contribution vehicle untouched', () => {
@@ -743,11 +756,18 @@ describe( "the Wix template's own sample products are not this storefront", () =
       expect( SHOP_PRODUCTS.some( product => product.slug === slug ), slug ).toBe( true );
     }
     // Exactly the visible rows, less the contribution vehicle, less the services vehicle
-    // (Phase O-1, a second payment vehicle excluded by id), less the twelve samples.
-    const visible = ( ( catalog as { products?: { slug?: string; name?: string;
+    // (Phase O-1, a second payment vehicle excluded by id). The twelve samples used to be
+    // subtracted here too; they were deleted in Wix before the 2026-10-10 refresh, so the snapshot
+    // no longer supplies them and there is nothing left to subtract. Derived from the snapshot
+    // rather than written as a number, so adding a product in Wix does not make this a hand edit.
+    const visible = ( ( catalog as { products?: { id?: string; slug?: string; name?: string;
       visible?: boolean }[] } ).products || [] )
       .filter( row => row.visible !== false && !!row.slug && !!row.name );
-    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 2 - WIX_TEMPLATE_SAMPLE_SLUGS.length );
+    const samplesStillInSnapshot = visible.filter( row =>
+      WIX_TEMPLATE_SAMPLE_SLUGS.includes( String( row.slug ).toLowerCase() )
+      || WIX_TEMPLATE_SAMPLE_PRODUCT_IDS.includes( String( row.id ).toLowerCase() ) ).length;
+    expect( samplesStillInSnapshot ).toBe( 0 );
+    expect( SHOP_PRODUCTS.length ).toBe( visible.length - 2 - samplesStillInSnapshot );
     expect( SHOP_PRODUCTS.some( product => product.id === SERVICES_PRODUCT_ID ) ).toBe( false );
     expect( SHOP_PRODUCTS.some( product => product.slug === CONTRIBUTION_SLUG ) ).toBe( false );
     expect( CONTRIBUTION_PRODUCT?.slug ).toBe( CONTRIBUTION_SLUG );

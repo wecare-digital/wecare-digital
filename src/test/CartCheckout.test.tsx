@@ -11,6 +11,8 @@ import { CONTRIBUTION_CHOICES } from '../config/contribution';
 import { colors } from '../lib/design-tokens';
 import { MEDIA_BASE } from '../config/share';
 import type { ShopProduct } from '../content/shop';
+import { KNOWN_CATALOGUE_PRODUCT_IDS, SHOP_PRODUCTS } from '../content/shop';
+import { SERVICES_PRODUCT_ID } from '../config/services';
 import type { StoredAddress } from '../components/AddressFields';
 import * as customerAuth from '../lib/customerAuth';
 
@@ -369,8 +371,8 @@ describe( 'the cart store', () => {
   } );
 
   it( 'keeps a contribution line, which /shop/ deliberately does not list', () => {
-    // The drop rule must not key on SHOP_PRODUCTS: the contribution vehicle and the twelve Wix
-    // template samples are excluded from it and are still real, purchasable catalogue rows.
+    // The drop rule must not key on SHOP_PRODUCTS: the contribution vehicle and the services
+    // vehicle are excluded from it and are still real, purchasable catalogue rows.
     // A contribution is recognised from src/config/contribution.ts, not from the snapshot.
     cart.setContribution( LOW.variantId );
     const items = cart.readCart();
@@ -378,16 +380,27 @@ describe( 'the cart store', () => {
     expect( cart.contributionOf( items[ 0 ] ) ).not.toBeNull();
   } );
 
-  it( 'keeps a Wix template sample id, which the catalogue has and /shop/ hides', () => {
-    // Baseball Cap: in src/content/wix-catalog.json, excluded from SHOP_PRODUCTS by owner
-    // decision, and still orderable by direct cart reference.
-    const sample = '618dcfe4-8d85-40a9-87c6-0dea57abe644';
+  it( 'drops a template sample Wix deleted, and still reads the raw snapshot not /shop/', () => {
+    /*
+     * THIS TEST WAS 'keeps a Wix template sample id, which the catalogue has and /shop/ hides'.
+     * Baseball Cap and the other eleven template samples were DELETED IN WIX before the
+     * 2026-10-10 snapshot refresh, so the catalogue genuinely no longer has them. A stored row
+     * naming one is now exactly the pre-migration case `droppableUnknown` was written for - a
+     * well-formed catalogue id the snapshot has never heard of - and dropping it is correct.
+     */
+    const deleted = '618dcfe4-8d85-40a9-87c6-0dea57abe644';
     window.localStorage.setItem( 'wecare.cart.v1', JSON.stringify( [ {
-      productId: sample, ref: sample, slug: 'baseball-cap', name: 'Baseball Cap',
+      productId: deleted, ref: deleted, slug: 'baseball-cap', name: 'Baseball Cap',
       formattedPrice: '₹1,200.00', quantity: 1,
     } ] ) );
 
-    expect( cart.readCart().map( item => item.productId ) ).toEqual( [ sample ] );
+    expect( cart.readCart() ).toEqual( [] );
+
+    // The guarantee the old assertion protected is unchanged and still worth pinning: the rule
+    // keys on the RAW SNAPSHOT, not on SHOP_PRODUCTS. With the samples gone those two lists differ
+    // only by the contribution and services vehicles, so those are what prove it now.
+    expect( KNOWN_CATALOGUE_PRODUCT_IDS.has( SERVICES_PRODUCT_ID ) ).toBe( true );
+    expect( SHOP_PRODUCTS.some( product => product.id === SERVICES_PRODUCT_ID ) ).toBe( false );
   } );
 
   it( 'leaves a legacy non-UUID reference alone rather than guessing it is dead', () => {

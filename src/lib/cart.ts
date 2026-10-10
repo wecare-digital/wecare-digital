@@ -165,11 +165,13 @@ const CATALOGUE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
  *
  * Three things it is careful NOT to do:
  *
- *   * **It does not key on `SHOP_PRODUCTS`.** That list excludes thirteen real, purchasable rows -
- *     the contribution vehicle and the twelve Wix template samples - so "absent from /shop/" is not
- *     "absent from the catalogue". `KNOWN_CATALOGUE_PRODUCT_IDS` reads the raw snapshot for that
- *     reason, and a contribution line is kept on CONFIG identity whether or not the snapshot has
- *     been refreshed at all.
+ *   * **It does not key on `SHOP_PRODUCTS`.** That list excludes real, purchasable rows - the
+ *     contribution vehicle and the services vehicle - so "absent from /shop/" is not "absent from
+ *     the catalogue". `KNOWN_CATALOGUE_PRODUCT_IDS` reads the raw snapshot for that reason, and a
+ *     contribution line is kept on CONFIG identity whether or not the snapshot has been refreshed
+ *     at all. (It used to exclude thirteen: the twelve Wix template samples were deleted in Wix
+ *     before the 2026-10-10 refresh, so the snapshot no longer carries them either and a stored
+ *     row naming one is now correctly dropped.)
  *   * **It does not touch a non-UUID `ref`.** Those are the pre-2026-10 rows that carry a slug or
  *     an opaque reference, and the slug fallback in `currentProduct` is what repairs them; a row
  *     that fallback cannot place keeps today's behaviour exactly rather than being deleted on a

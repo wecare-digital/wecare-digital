@@ -5,18 +5,29 @@ credential, no network and no AWS client - which is the whole reason the retaile
 the diff live in a module separate from the Lambda.
 
 THE FIXTURE IS THE REAL CATALOGUE, NOT A HAND-WRITTEN ONE. `src/content/wix-catalog.json` is the
-committed Wix snapshot (22 products, fetched 2026-10-06T04:43:35Z), and `_slim_product` in the
-handler projects the live V3 payload onto exactly that shape - so a test against the snapshot is a
-test against the live input shape, not an approximation of it. A hand-written fixture would agree
-with whatever this module happened to do.
+committed Wix snapshot (10 products, refreshed 2026-10-10), and `_slim_product` in the handler
+projects the live V3 payload onto exactly that shape - so a test against the snapshot is a test
+against the live input shape, not an approximation of it. A hand-written fixture would agree with
+whatever this module happened to do.
 
-WHAT THE 24 IS. 22 products minus the twelve Wix template samples leaves ten real products, and
-one Meta item per Wix VARIANT gives 24:
+WHAT THE 25 IS. Ten products, every one of them real, and one Meta item per Wix VARIANT gives 25:
 
-    WECARE.DIGITAL Services  4     Kiosk               1     Paperwork    1
-    Merchandise             10     Referral Partner    1     Viveka       1
-    Contribute               3     Guided Resolution   1     File Assist  1
-                                                             Rs1 test     1
+    Request (services)  5     Kiosk               1     Paperwork    1
+    Merchandise        10     Referral Partner    1     Viveka       1
+    Contribute          3     Guided Resolution   1     File Assist  1
+                                                        Rs1 test     1
+
+THE ARITHMETIC USED TO START AT 22 AND SUBTRACT TWELVE. The Wix store template's twelve demo
+products (Baseball Cap, Crew T-Shirt and so on) were live, `visible: true` rows that the snapshot
+carried and `is_syncable` filtered out. They were DELETED IN WIX before the 2026-10-10 refresh, so
+the snapshot no longer contains them and the subtraction has nothing left to subtract. The
+exclusion lists stay exactly as they are - see `test_the_template_exclusion_survives_their_deletion`
+for why removing them would be the wrong lesson to draw.
+
+WHAT ELSE THAT REFRESH MOVED, because several numbers below are measurements rather than choices:
+the services product was RENAMED in Wix from `WECARE.DIGITAL Services` to `Request`, gained a
+fifth variant (`Request Pickup`), went from out of stock to in stock on every row, had its stale
+`Request Amendment` price corrected from 99 to 350, and went from 4 media items to 6.
 """
 
 from __future__ import annotations
@@ -46,7 +57,7 @@ CONTRIBUTE = sync.CONTRIBUTION_PRODUCT_ID
 #: snapshot, because deriving it would make this test agree with any snapshot - including one a
 #: bad refresh had emptied.
 EXPECTED_ITEMS_BY_SLUG = {
-    "wecaredigital-services": 4,
+    "wecaredigital-services": 5,
     "merchandise": 10,
     "contribute": 3,
     "kiosk": 1,
@@ -58,7 +69,7 @@ EXPECTED_ITEMS_BY_SLUG = {
     "1-test-product": 1,
 }
 
-EXPECTED_ITEM_COUNT = 24
+EXPECTED_ITEM_COUNT = 25
 
 
 @pytest.fixture(scope="module")
@@ -154,16 +165,36 @@ def test_anything_that_is_not_ours_parses_to_None(value):
 # ── 2. which rows are syncable ───────────────────────────────────────────────
 
 
-def test_all_twelve_template_samples_are_excluded(products):
+def test_the_template_exclusion_survives_their_deletion(products):
     """Parity with `/shop/`. Publishing a store template's demo products to a customer-visible
-    WhatsApp catalogue would offer Baseball Caps and Ceramic Flower Vases for sale."""
+    WhatsApp catalogue would offer Baseball Caps and Ceramic Flower Vases for sale.
+
+    THIS TEST USED TO ASSERT THE TWELVE WERE PRESENT IN THE SNAPSHOT and excluded from there. They
+    were deleted in Wix before the 2026-10-10 refresh, so that is no longer a fact about the
+    snapshot and asserting it would fail for the right reason about the wrong thing.
+
+    WHAT IS ASSERTED INSTEAD, and why the lists are NOT deleted along with the products: the
+    exclusion is a DENY-LIST, and a deny-list is worth keeping precisely when its entries are
+    absent. `.github/workflows/catalogue-sync.yml` refreshes the snapshot unattended, and
+    re-creating a demo product in the Wix dashboard - or restoring the template - would put the row
+    straight back without anybody reviewing it. So the lists keep their twelve entries and this
+    checks the guard still rejects each one ON SIGHT, by id and by slug, rather than checking that
+    there is currently something for it to reject.
+    """
     assert len(sync.WIX_TEMPLATE_SAMPLE_PRODUCT_IDS) == 12
     assert len(sync.WIX_TEMPLATE_SAMPLE_SLUGS) == 12
 
-    by_id = {product["id"]: product for product in products}
+    live = {product["id"] for product in products}
     for sample in sync.WIX_TEMPLATE_SAMPLE_PRODUCT_IDS:
-        assert sample in by_id, f"{sample} is no longer in the snapshot"
-        assert sync.is_syncable(by_id[sample]) is False
+        assert sample not in live, (
+            f"{sample} is back in the snapshot - a template sample was re-created in Wix")
+        # Presented as a row Wix could return tomorrow. `visible` is deliberately true: the guard
+        # must turn it away on identity, not because it happens to be hidden.
+        assert sync.is_syncable({"id": sample, "slug": "anything", "visible": True}) is False
+    for slug in sync.WIX_TEMPLATE_SAMPLE_SLUGS:
+        assert sync.is_syncable(
+            {"id": "00000000-0000-4000-8000-000000000000", "slug": slug,
+             "visible": True}) is False
 
 
 def test_a_sample_is_excluded_by_SLUG_even_when_its_id_changed():
@@ -245,12 +276,29 @@ def test_a_multi_variant_product_carries_its_label_and_a_single_one_does_not(des
     assert kiosk["name"] == "Kiosk", "a single-variant product must not read 'Kiosk - Standard'"
 
 
-def test_an_out_of_stock_variant_is_reported_out_of_stock(desired):
-    """All four `WECARE.DIGITAL Services` variants are `inStock: false` in the snapshot."""
+def test_stock_state_is_projected_and_the_out_of_stock_branch_is_still_pinned(desired):
+    """Two halves, because the snapshot stopped carrying an out-of-stock row.
+
+    Until the 2026-10-10 refresh all four service variants were `inStock: false` in Wix and this
+    read that straight off the projection. Every variant Wix now returns is in stock: the services
+    product was restocked, and the two out-of-stock template samples (Crew T-Shirt Medium,
+    Hydrating Eye Serum) were deleted upstream along with the other ten.
+
+    So the OUT_OF_STOCK branch has no live example left, and it is asserted on a constructed row
+    rather than dropped. The mapping is the thing under test; a branch with no test at all is how
+    `availability` would quietly start reporting a sold-out item as buyable.
+    """
     services = [i for i in desired
                 if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]
-    assert len(services) == 4
-    assert all(i["availability"] == sync.OUT_OF_STOCK for i in services)
+    assert len(services) == 5
+    assert all(i["availability"] == sync.IN_STOCK for i in services)
+    assert all(i["availability"] == sync.IN_STOCK for i in desired)
+
+    sold_out = sync.desired_items([{
+        "id": TEST_PRODUCT, "slug": "x", "name": "X", "price": "1.00",
+        "variants": [{"id": TEST_VARIANT, "label": "Standard", "inStock": False}],
+    }])[0]
+    assert sold_out["availability"] == sync.OUT_OF_STOCK
 
 
 def test_an_imageless_product_has_NO_image_url_key():
@@ -454,7 +502,8 @@ def test_the_plan_fingerprint_is_stable_under_reordering(desired):
 # ── 6. the blockers ──────────────────────────────────────────────────────────
 
 
-#: MEASURED from the snapshot: every one of the ten real products carries `mediaCount: 0`.
+#: MEASURED from the snapshot: nine of the ten real products carry `mediaCount: 0`. The services
+#: product is the only one with media in Wix, so it is the only one absent from this list.
 EXPECTED_BLOCKED = [
     "Contribute",
     "File Assist",
@@ -468,20 +517,37 @@ EXPECTED_BLOCKED = [
 ]
 
 
-def test_remaining_imageless_products_are_blocked_but_service_artwork_is_ready(desired, products):
+def test_remaining_imageless_products_are_blocked_and_every_service_item_has_a_picture(
+        desired, products):
     """Meta commerce review rejects an imageless item, so this is the state of the catalogue
     rather than a defect in the plan. Reported in full; no placeholder is invented.
 
-    The four service choices gained verified artwork on 9 October. Other missing
-    product images remain explicit blockers; no placeholder is invented.
+    THE SERVICE ITEMS ALL CARRY AN IMAGE, BUT THEY NOW CARRY THE SAME ONE. Until 2026-10-10 the
+    snapshot held four distinct service pictures, written into the file by hand on 9 October
+    alongside a `serviceArtworkVerifiedAt` stamp - values `scripts/fetch-wix-catalog.js` never
+    produced and therefore deleted on every refresh. Wix no longer declares which gallery image
+    belongs to which choice (every `choicesSettings.choices[].linkedMedia` comes back empty to a
+    storefront read), so the refreshed snapshot carries the product's main image on all five
+    variants. Owner decision 2026-10-10: the snapshot mirrors Wix, and the per-choice artwork is to
+    be re-linked in the Wix dashboard rather than re-typed here.
+
+    PRESENCE IS ASSERTED, NOT SAMENESS, deliberately. Pinning "all five share one URL" would make
+    this fail the day the owner fixes the artwork in Wix, which is the opposite of useful. What
+    matters to Meta is that none of the five is blocked.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
     assert len(EXPECTED_BLOCKED) == 9
 
     syncable = [p for p in products if sync.is_syncable(p)]
     assert len(syncable) == 10
-    assert all(p.get("mediaCount") == (4 if p["slug"] == "wecaredigital-services" else 0) for p in syncable), (
+    assert all(p.get("mediaCount") == (6 if p["slug"] == "wecaredigital-services" else 0)
+               for p in syncable), (
         "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening this")
+
+    services = [i for i in desired
+                if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]
+    assert len(services) == 5
+    assert all(i.get("image_url") for i in services)
 
 
 def test_an_item_with_an_image_is_not_blocked():

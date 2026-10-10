@@ -244,7 +244,7 @@ def run(wix, graph, reader=None, event=None, approval_store=None):
 
 
 def test_with_the_enable_flag_ABSENT_nothing_is_written(snapshot_products):
-    """The shipped configuration. 24 items to create, and not one request constructed."""
+    """The shipped configuration. 25 items to create, and not one request constructed."""
     wix, graph = FakeWix(snapshot_products), FakeGraph()
     answer = run(wix, graph)
 
@@ -252,7 +252,7 @@ def test_with_the_enable_flag_ABSENT_nothing_is_written(snapshot_products):
     assert answer["enabled"] is False
     assert answer["dryRun"] is True
     assert answer["applied"] == 0
-    assert answer["counts"] == {"create": 24, "update": 0, "retire": 0, "foreign": 0}
+    assert answer["counts"] == {"create": 25, "update": 0, "retire": 0, "foreign": 0}
     assert graph.writes == []
 
 
@@ -488,7 +488,7 @@ def test_the_reader_is_called_once_per_invocation(snapshot_products):
 
 def test_a_missing_token_refuses_and_reads_nothing(snapshot_products):
     """Fail closed. A sync that cannot authenticate must do nothing - not a partial read, which
-    would look like an empty Meta catalogue and plan 24 creates.
+    would look like an empty Meta catalogue and plan 25 creates.
     """
     wix, graph = FakeWix(snapshot_products), FakeGraph()
     answer = run(wix, graph, reader_for(token=""))
@@ -560,7 +560,7 @@ def test_a_wix_failure_does_not_become_a_write(snapshot_products, monkeypatch):
 
 def test_a_META_read_failure_does_not_become_a_write(snapshot_products, monkeypatch):
     """The dangerous direction. A short or failed read of the existing catalogue makes every item
-    look absent, so a tolerated failure would plan - and with both gates open, send - 24 creates
+    look absent, so a tolerated failure would plan - and with both gates open, send - 25 creates
     against a catalogue that already has them.
     """
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
@@ -577,7 +577,7 @@ def test_a_META_read_failure_does_not_become_a_write(snapshot_products, monkeypa
 def test_a_variant_without_a_price_refuses_rather_than_publishing_the_products(
         snapshot_products, monkeypatch):
     """`require_variant_price=True` on the live path. `Contribute` is 100-500 and
-    `WECARE.DIGITAL Services` 49-350, so the product-level price is the minimum and would be wrong
+    the `Request` services product 49-350, so the product-level price is the minimum and would be wrong
     for most variants - a wrong price in a customer-visible catalogue, not a cosmetic defect.
     """
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
@@ -616,9 +616,11 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["catalogId"] == "1457045652952851"
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
-    assert planned["create"] == 24
-    assert planned["blocked"] == 9  # The service product now has verified artwork.
-    assert "WECARE.DIGITAL Services" not in planned["blockedProducts"]
+    assert planned["create"] == 25
+    # Nine of the ten real products carry no media in Wix. The services product is the only one
+    # that does, so it is the only one absent from the blocked list.
+    assert planned["blocked"] == 9
+    assert "Request" not in planned["blockedProducts"]
     assert planned["enabled"] is False
     assert planned["dryRun"] is True
     assert planned["planHash"]
@@ -811,7 +813,7 @@ def test_inspection_does_not_write_when_sync_is_enabled(snapshot_products, monke
                               graph_requester=graph, secret_reader=lambda name: {"access_token": FAKE_TOKEN},
         approval_store=FakeApprovalStore())
     assert answer["readOnly"] is True
-    assert len(answer["desiredItems"]) == 24
+    assert len(answer["desiredItems"]) == 25
     assert graph.writes == []
 
 
