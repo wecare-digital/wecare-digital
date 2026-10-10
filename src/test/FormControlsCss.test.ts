@@ -338,11 +338,28 @@ describe( 'form-controls.css — invariant 4', () => {
     // :focus-visible. A census presented as exhaustive is how the select half went wrong twice.
     const cbr = census.checkboxRadio;
 
-    // 9 of these 10 are pre-existing and stay. form-controls.css is the new one - and it has to
-    // be allow-listed, because without it this assertion fails the moment this batch writes the
+    // BLOGCONTRIBUTION.TSX LEFT THIS LIST ON 2026-10-10, AND IT LEFT BY LOSING ITS RADIO RATHER
+    // THAN BY HAVING ITS CSS EDITED - the same kind of migration consequence the select half
+    // records above, so the figures below are an arithmetic consequence and not a loosened gate.
+    // Owner instruction turned the blog contribution block into a single WhatsApp anchor: the
+    // ₹250 amount pill went, and with it the visually-hidden `.bc-radio`, its `data-ui-raw`
+    // opt-out and all five of the rule sets keyed on that class (the hidden control itself plus
+    // the four sibling-combinator rules that drew the `.bc-choice-face` pill). There is no
+    // checkbox or radio anywhere in that component now, so nothing in it can compete with the
+    // shared skin.
+    //
+    //   29 - 5 = 24 rule sets, 10 - 1 = 9 files, B-styledjsx 8 - 5 = 3 in 3 - 1 = 2 files,
+    //   16 - 1 = 15 geometry (only `.bc-radio` itself set a box property; the other four are
+    //   state rules on the sibling), and class-resolved 5 - 5 = 0.
+    //
+    // MECHANISM A DID NOT MOVE: A-global is still 21 rule sets in 7 files and form-controls.css
+    // still contributes exactly 9, so the global stylesheets - the only mechanism whose rules
+    // can actually win the cascade - are byte-for-byte the set 1.3c froze.
+    //
+    // 8 of these 9 are pre-existing and stay. form-controls.css is 1.3c's own - and it has to
+    // be allow-listed, because without it this assertion fails the moment that batch writes the
     // very file it exists to protect.
     expect( cbr.files ).toEqual( [
-      'src/components/BlogContribution.tsx',
       'src/pages/workspace/engage/sms/index.tsx',
       'src/pages/workspace/engage/voice-in/index.tsx',
       'src/styles/Dashboard.css',
@@ -355,20 +372,22 @@ describe( 'form-controls.css — invariant 4', () => {
     ] );
 
     // Counts asserted separately from the file set, so a new rule in an already-allowed file is
-    // caught as well as a new file. 20 pre-batch + form-controls.css's own 9 = 29. The 9 are:
-    // the shared drawn box, the checkbox radius, the radio radius, :hover, checkbox :checked,
-    // radio :checked, :indeterminate, :focus, and the <=768px floor.
-    expect( cbr.summary.ruleSets ).toBe( 29 );
-    expect( cbr.summary.files ).toBe( 10 );
-    expect( cbr.summary.geometryRuleSets ).toBe( 16 );
+    // caught as well as a new file. 20 pre-1.3c + form-controls.css's own 9 = 29, then - 5 with
+    // BlogContribution's radio = 24. form-controls.css's 9 are: the shared drawn box, the
+    // checkbox radius, the radio radius, :hover, checkbox :checked, radio :checked,
+    // :indeterminate, :focus, and the <=768px floor.
+    expect( cbr.summary.ruleSets ).toBe( 24 );
+    expect( cbr.summary.files ).toBe( 9 );
+    expect( cbr.summary.geometryRuleSets ).toBe( 15 );
     expect( cbr.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 21, files: 7 } );
     expect( cbr.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    expect( cbr.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 8, files: 3 } );
+    expect( cbr.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
     expect( cbr.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    // 5 class-resolved, all five in BlogContribution: `.bc-radio` itself and the four sibling
-    // rules. If this moves, a class worn by a checkbox or radio gained a skin somewhere.
-    expect( cbr.summary.matchModes ).toMatchObject( { element: 24, class: 5 } );
-    expect( cbr.hits.filter( h => h.file === 'src/components/BlogContribution.tsx' ) ).toHaveLength( 5 );
+    // NO class-resolved hits left: all five were BlogContribution's `.bc-radio` rules, which went
+    // with the amount pill. If this moves off 0, a class worn by a checkbox or radio gained a
+    // skin somewhere - which is the signal the mode split exists to give.
+    expect( cbr.summary.matchModes ).toMatchObject( { element: 24, class: 0 } );
+    expect( cbr.hits.filter( h => h.file === 'src/components/BlogContribution.tsx' ) ).toHaveLength( 0 );
     expect( cbr.hits.filter( h => h.file === 'src/styles/form-controls.css' ) ).toHaveLength( 9 );
   } );
 
