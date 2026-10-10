@@ -8,12 +8,13 @@ can record who linked which contact and can neither read the log back nor amend 
 Assertions are by `Sid` and by EQUALITY of each action set, because a document whose value is what
 it leaves out is not tested by checking that it contains what it needs.
 
-`scripts/provision_customer_profile.py::ensure_role` used to write the policy only when it CREATED
-the role, which meant the already-deployed `wecare-customer-profile-role` never gained the audit
-statement from a re-run: the `PutItem` stayed denied, `record_audit` fails open, and the link
-landed unaudited with nothing failing loudly. It now reconciles the inline policy on BOTH
-branches, and the last two tests in this file pin that - one per branch - because a grant that is
-asserted here and never applied is a grant that does not exist.
+`scripts/provision_customer_profile.py::ensure_role` now reconciles the inline policy even when
+the role already exists, so a re-run closes IAM drift instead of silently leaving the deployed
+role without a newly required narrow grant. Without the audit grant `record_audit` fails open and
+the identity link can still happen unaudited, so source and live IAM must remain aligned. The last
+three tests drive `ensure_role` through a stub IAM and pin BOTH branches plus the dry run, because
+a grant that is asserted in this file and never applied to the role is a grant that does not
+exist.
 """
 from __future__ import annotations
 
@@ -158,12 +159,19 @@ def test_it_is_serialisable_as_an_iam_document(provisioner):
 
 # ── the document the script applies is the document asserted here ───────────
 
-def test_ensure_role_applies_exactly_this_document(provisioner):
-    """The whole value of lifting the policy out of `ensure_role`: there is one builder, so a
-    statement cannot be asserted here and omitted at provision time."""
+def test_there_is_exactly_one_builder_for_this_document(provisioner):
+    """The whole value of lifting the policy out of `ensure_role`: one builder, so a statement
+    cannot be asserted in this file and omitted at provision time.
+
+    This used to also grep the script for the literal call expression, which broke the moment
+    `ensure_role` hoisted the `json.dumps(...)` into a local - a true statement about the code
+    that a source-text match reads as a regression. The three tests below assert the same thing
+    properly, by running `ensure_role` against a stub IAM and comparing the document it writes.
+    """
     source = SCRIPT.read_text(encoding="utf-8")
-    assert "PolicyDocument=json.dumps(expected_role_policy(account_id()))" in source
     assert source.count("def expected_role_policy") == 1
+    assert source.count("put_role_policy(") == 2, \
+        "one call per ensure_role branch; a third would be a second document to keep in step"
 
 
 class FakeIam:
@@ -202,6 +210,11 @@ def iam_stub(provisioner, monkeypatch):
     return install
 
 
+#: The inline policy's name, spelled once here. Both `ensure_role` branches must write THIS
+#: name, or a reconcile would leave the stale document attached under the old one.
+POLICY_NAME = "CustomerProfileLeastPrivilege"
+
+
 def _policy_writes(fake):
     return [kwargs for name, kwargs in fake.calls if name == "put_role_policy"]
 
@@ -211,10 +224,10 @@ def test_an_existing_role_has_its_inline_policy_reconciled(provisioner, iam_stub
     provision run that skips `put_role_policy` leaves the claim unaudited for ever - and nothing
     complains, because `record_audit` and the handler's wrapper both fail open."""
     fake = iam_stub(role_exists=True)
-    assert provisioner.ensure_role(False) == "exists, inline policy reconciled"
+    assert provisioner.ensure_role(False) == "reconciled"
     writes = _policy_writes(fake)
     assert len(writes) == 1
-    assert writes[0]["PolicyName"] == provisioner.ROLE_POLICY_NAME
+    assert writes[0]["PolicyName"] == POLICY_NAME
     document = json.loads(writes[0]["PolicyDocument"])
     assert document == provisioner.expected_role_policy(ACCOUNT)
     assert {statement["Sid"] for statement in document["Statement"]} >= {
@@ -224,7 +237,7 @@ def test_an_existing_role_has_its_inline_policy_reconciled(provisioner, iam_stub
 
 def test_a_dry_run_against_an_existing_role_writes_nothing(provisioner, iam_stub):
     fake = iam_stub(role_exists=True)
-    assert provisioner.ensure_role(True) == "exists, would reconcile inline policy"
+    assert provisioner.ensure_role(True) == "would reconcile policy"
     assert _policy_writes(fake) == []
 
 
@@ -235,7 +248,7 @@ def test_creating_the_role_applies_the_identical_document(provisioner, iam_stub)
     writes = _policy_writes(fake)
     assert len(writes) == 1
     assert json.loads(writes[0]["PolicyDocument"]) == provisioner.expected_role_policy(ACCOUNT)
-    assert writes[0]["PolicyName"] == provisioner.ROLE_POLICY_NAME
+    assert writes[0]["PolicyName"] == POLICY_NAME
 
 
 def test_the_claim_writes_through_the_shared_audit_helper(provisioner):

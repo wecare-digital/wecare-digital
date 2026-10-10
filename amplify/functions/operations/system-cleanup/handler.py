@@ -60,7 +60,6 @@ are.
 
 import os
 import json
-import secrets
 import time
 import logging
 import boto3
@@ -69,6 +68,7 @@ from botocore.exceptions import ClientError
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
 
+from lambda_utils import destructive_confirm
 from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils import media_paths  # one bucket, two roots: o/ public, secure/ gated
@@ -77,10 +77,12 @@ logger = get_logger(__name__)
 
 REGION = os.environ.get('AWS_REGION', 'us-east-1')
 BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
-#: Where the single-use confirmation token lives. Already in PROTECTED_TABLES, already
-#: spoken to by a dozen handlers, and - unlike an HMAC over an env secret - it survives a
-#: cold start and needs no env change to deploy.
-SYSTEM_CONFIG_TABLE = os.environ.get('SYSTEM_CONFIG_TABLE', 'stack-wecare-digital-SystemConfigTable')
+# Compatibility/source-of-truth alias: confirmation storage is owned by the shared helper.
+# Tests and diagnostics read this name from the handler, while the value itself lives in one place.
+SYSTEM_CONFIG_TABLE = destructive_confirm.SYSTEM_CONFIG_TABLE
+#: Namespaces this route's confirmation tokens, so a token minted for a message wipe can
+#: never be redeemed here and vice versa.
+CONFIRM_SCOPE = 'cleanup'
 #: How long a preview's token stays usable. Long enough to read the counts and decide,
 #: short enough that a token left in a tab is not a standing authorisation.
 CONFIRM_TOKEN_TTL_SECONDS = 15 * 60
@@ -579,10 +581,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 # ─── Confirmation token (single-use, bound to one exact selection) ──────────
 #
-# D4: a row in SystemConfigTable rather than an HMAC over an env secret. No env change is
-# needed to deploy it, and a per-container secret would not survive a cold start. Single
-# use gives idempotency for free - a replayed POST finds no row and is refused, so a retry
-# cannot double-delete.
+# The handshake itself lives in `lambda_utils.destructive_confirm`, shared with
+# `messages/clear-all` and `invoices/clear-all`, which need exactly the same thing. See
+# that module for why it is a SystemConfigTable row rather than an HMAC over an env secret.
 
 
 def _actor(event: Dict[str, Any]) -> str:
@@ -593,62 +594,15 @@ def _actor(event: Dict[str, Any]) -> str:
 
 def _mint_confirmation(selectable_ids: List[str], counts: Dict[str, int],
                        actor: str) -> Optional[str]:
-    """Store a token bound to this exact selection. None if the row could not be written.
-
-    Returning None rather than raising, because a preview is still worth showing: the
-    operator sees the counts, and POST then refuses for want of a token. The failure
-    direction is "cannot delete", not "delete unconfirmed".
-    """
-    token = secrets.token_urlsafe(24)
-    try:
-        dynamodb.Table(SYSTEM_CONFIG_TABLE).put_item(Item={
-            'id': f'cleanup_confirm_{token}',
-            'selection': sorted(selectable_ids),
-            'counts': {k: int(v) for k, v in counts.items()},
-            'actor': actor,
-            'createdAt': int(time.time()),
-            'expiresAt': int(time.time()) + CONFIRM_TOKEN_TTL_SECONDS,
-        })
-        return token
-    except Exception as e:  # noqa: BLE001
-        logger.warning(json.dumps({'event': 'cleanup_token_write_failed', 'error': str(e)[:160]}))
-        return None
+    """Token for this exact selection, or None if the store could not be written."""
+    return destructive_confirm.mint(
+        CONFIRM_SCOPE, selectable_ids, counts, actor,
+        ttl_seconds=CONFIRM_TOKEN_TTL_SECONDS)
 
 
 def _consume_confirmation(token: str, selection: List[str]) -> Dict[str, Any]:
-    """Read, verify and DELETE the token row. `{'ok': True, ...}` or `{'error': ..., 'status': ...}`.
-
-    The row is consumed before anything is deleted, so two concurrent POSTs cannot both
-    proceed: the second one's conditional delete fails and it is refused.
-    """
-    key = {'id': f'cleanup_confirm_{token}'}
-    table = dynamodb.Table(SYSTEM_CONFIG_TABLE)
-    try:
-        row = table.get_item(Key=key).get('Item')
-    except Exception as e:  # noqa: BLE001
-        logger.error(json.dumps({'event': 'cleanup_token_read_failed', 'error': str(e)[:160]}))
-        return {'error': 'Confirmation store unavailable', 'status': 503}
-
-    if not row:
-        # Covers both "never existed" and "already used" - deliberately one message, so a
-        # caller probing tokens learns nothing from the difference.
-        return {'error': 'Confirmation token is invalid or already used', 'status': 409}
-
-    if int(row.get('expiresAt') or 0) < int(time.time()):
-        return {'error': 'Confirmation token has expired — preview again', 'status': 409}
-
-    # Exact match, order-insensitive. One extra id is a different request.
-    if sorted(str(s) for s in (row.get('selection') or [])) != sorted(selection):
-        logger.warning(json.dumps({'event': 'cleanup_selection_mismatch'}))
-        return {'error': 'Selection does not match the confirmed preview', 'status': 409}
-
-    try:
-        table.delete_item(Key=key, ConditionExpression='attribute_exists(id)')
-    except Exception as e:  # noqa: BLE001
-        logger.warning(json.dumps({'event': 'cleanup_token_consume_failed', 'error': str(e)[:160]}))
-        return {'error': 'Confirmation token is invalid or already used', 'status': 409}
-
-    return {'ok': True, 'counts': {k: int(v) for k, v in (row.get('counts') or {}).items()}}
+    """Verify and consume the token. `{'ok': True, ...}` or `{'error': ..., 'status': ...}`."""
+    return destructive_confirm.consume(CONFIRM_SCOPE, token, selection)
 
 
 

@@ -1101,13 +1101,17 @@ const Dashboard: React.FC<PageProps> = ( { signOut, user } ) => {
               try { await api.cancelScheduledMessage( s.scheduledId ); deleted++; } catch { /* skip */ }
             }
           }
-        } else if ( id === 'media_files' || id === 'bulk_recipients' || id === 's3_whatsapp_media' || id === 's3_voice_recordings' || id === 's3_whatsapp_voice' )
-        {
-          const bulk = await tryBulkClear( `${API_BASE}/system-cleanup`, 'POST', { selected: [ id ] } );
-          if ( bulk >= 0 ) { deleted = bulk; } else
-          {
-            results.push( { id, label, deleted: 0, error: 'Deploy system-cleanup Lambda to clear this' } ); continue;
-          }
+          // The `system-cleanup` POST fallback that stood here has been removed. It was a
+          // SECOND written path to the destructive endpoint, posting a bare
+          // `{ selected: [ id ] }` with no server preview and no confirmation token — and
+          // it named `s3_whatsapp_media`, `s3_voice_recordings` and `s3_whatsapp_voice`,
+          // none of which the endpoint will clear any more (S3 is never selectable; see
+          // `operations/system-cleanup`). The whole block it sits in is dead code —
+          // `executeSystemCleanup` and `selectAllCleanup` each occur exactly once in this
+          // file, at their own definitions, and the rendered Data tab is
+          // `components/dashboard/tabs/DataTab`, lazy-loaded at line 52. Deleting the
+          // remaining ~400 dead lines is the right follow-up; doing it inside a safety fix
+          // would bury the guard in an unreviewable diff.
         } else
         {
           results.push( { id, label, deleted: 0, error: 'No cleanup endpoint available' } );
