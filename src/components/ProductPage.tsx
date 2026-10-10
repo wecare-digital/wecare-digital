@@ -305,7 +305,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             /* The product column keeps its own 700px cap inside the flexible track so the copy
                measure is unchanged; the grid track just stops it stretching under the panel. */
             .pdp-wrap.has-aside .pdp{max-width:700px}
-            .pdp-wrap.has-aside .pdp-aside{margin:0}
+            /* The panel sits at the TOP of the content row (align-items:start) and sticks there
+               as the product column scrolls past, so it reads as "beside the section, after the
+               header" rather than drifting down. 24px clears the fixed site header. */
+            .pdp-wrap.has-aside .pdp-aside{margin:0;position:sticky;top:24px;align-self:start}
           }
         `}</style>
       </section>

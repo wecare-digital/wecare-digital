@@ -17,9 +17,10 @@ import { SITE_ORIGIN } from '../config/share';
  * carries a right-hand blog panel, so it needs the blog corpus, and the corpus is fetched at
  * build time (output: 'export', so there is no runtime fetch). getStaticProps calls the same
  * listPublicBlogPosts() / listBlogCards() that /blog/ uses - no new data source, no new fetch
- * logic - and hands the newest ~30 cards to ProductPage, which renders the panel. The panel
- * filters and caps client-side. The build-time memo in public-blog.ts means this adds no extra
- * upstream request: /blog/ and /post/[slug] already warm the same cached promise.
+ * logic - and hands the cards to ProductPage, which renders the panel. The panel shows them all
+ * in a scroll rail and filters client-side. The build-time memo in public-blog.ts means this adds
+ * no extra upstream request: /blog/ and /post/[slug] already warm the same cached promise, and
+ * every build re-fetches the live corpus from Wix, so the panel is always current.
  *
  * ROUTING: '/anew' must be in the EXACT-MATCH allowlist in _app.tsx or this renders an empty body
  * with HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
@@ -28,14 +29,13 @@ import { SITE_ORIGIN } from '../config/share';
 /**
  * HOW MANY CARDS PER CATEGORY the panel receives.
  *
- * NEWEST-PER-CATEGORY, NOT NEWEST-OVERALL. The corpus has two categories (Conversations,
- * Gastronomy) and the newest posts are overwhelmingly Conversations, so "newest 30 overall" gave
- * the panel zero Gastronomy cards - its pill never appeared and clicking it would have shown
- * nothing. Taking the newest N FROM EACH category guarantees every category pill has real cards
- * behind it, which is what makes the switch meaningful. 20 each is generous headroom over the
- * panel's visible cap of 6 so search and the category switch have material to work with.
+ * The owner asked for "all blogs" with no visible cap, and the panel now scrolls, so there is no
+ * count limit in the UI. This per-category ceiling is a PAYLOAD guard, not a UX one: shipping all
+ * ~1300 cards into __NEXT_DATA__ would add ~400kB to the page for a browsing rail. 80 of each
+ * category (newest first) is deep enough to read as "everything" while keeping the page lean, and
+ * it guarantees both categories are well represented regardless of which has the newest posts.
  */
-const ANEW_PANEL_CARDS_PER_CATEGORY = 20;
+const ANEW_PANEL_CARDS_PER_CATEGORY = 80;
 
 interface AnewPageProps {
   blogCards: BlogCard[];
@@ -64,8 +64,8 @@ export const getStaticProps: GetStaticProps<AnewPageProps> = async () => {
     perCategory.set( key, count + 1 );
     blogCards.push( card );
   }
-  // Re-order the kept cards newest-first across categories so the default "All" pill still reads
-  // as a newest-first mix rather than category-grouped.
+  // Re-order the kept cards newest-first across categories so the first category's rail reads as
+  // newest-first rather than category-grouped.
   blogCards.sort( ( a, b ) => {
     const at = a.publishedDate ? Date.parse( a.publishedDate ) : NaN;
     const bt = b.publishedDate ? Date.parse( b.publishedDate ) : NaN;

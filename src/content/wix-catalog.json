@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-10T14:35:05.681Z",
+  "fetchedAt": "2026-10-10T17:30:33.503Z",
   "productCount": 10,
   "products": [
     {
@@ -515,5 +515,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-10T14:35:05.674Z"
+  "variantVerifiedAt": "2026-10-10T17:30:33.481Z"
 }

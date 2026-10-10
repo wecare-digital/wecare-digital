@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
 
@@ -6,9 +6,10 @@ import type { BlogCard } from '../lib/public-blog';
  * THE RIGHT-HAND BLOG PANEL on a product page (today only /anew/).
  *
  * A product page is one centred column at most 700px wide inside RotatingHero's 1300px measure,
- * so on a wide screen there is ~500px of unused space to its right. This fills it with a compact
- * reader of the blog: a category switch, a live borderless search, and a short list of cards that
- * link to the real post pages. On a narrow screen the two-column grid in ProductPage collapses and
+ * so on a wide screen there is ~500px of unused space to its right. This fills it with a reader of
+ * the blog: a two-category switch, a live borderless search, and the FULL list of cards (no cap)
+ * in a scrollable rail, with a progress bar at the foot that tracks how far the reader has
+ * scrolled through the list. On a narrow screen the two-column grid in ProductPage collapses and
  * this drops below the product copy.
  *
  * SELF-STYLING, pbp- prefixed, for the same reason as RotatingHero and BlogSearch: styled-jsx does
@@ -19,28 +20,24 @@ import type { BlogCard } from '../lib/public-blog';
  * tags, publishedDate. Nothing new is fetched; anew.tsx hands these in from getStaticProps.
  *
  * THE SEARCH BOX IS DELIBERATELY PLAINER THAN BlogSearch. Owner spec: no inner border, no search
- * icon, no submit button - it filters live as you type. So this does not reuse BlogSearch (which
- * carries a 1px pill border and a lime Search button); it is a bare controlled input with a quiet
- * bottom hairline, which is the one edge it keeps so it still reads as a field.
+ * icon, no submit button - it filters live as you type.
  *
- * CATEGORY PILLS = THE REAL CATEGORIES. The corpus has exactly two (Conversations, Gastronomy),
- * plus an "All" default that shows newest overall, mixed. The set is derived from the cards handed
- * in, not hard-coded, so a third category added later appears on its own.
+ * TWO CATEGORIES, NO "ALL". Owner instruction: the switch shows only the real categories
+ * (Conversations, Gastronomy today), with no "All" option. It defaults to the first category.
+ * The set is derived from the cards handed in, so a third category added later appears on its own.
  *
- * CARD STATUS. A "New" badge on anything published within NEW_WINDOW_DAYS, and the category shown
- * as a quiet chip - the two readings of "status" the owner asked for.
+ * THE PROGRESS BAR TRACKS SCROLL, NOT COUNT. It fills as the reader scrolls down the (unlimited)
+ * list - 0% at the top, 100% at the bottom - rather than reporting shown-of-total. No numbers are
+ * shown, per owner instruction: it is a pure visual scroll indicator.
  */
 
 export interface ProductBlogPanelProps {
   cards: BlogCard[];
   /** Panel heading. */
   heading?: string;
-  /** Cap on how many cards show at once, so the panel never out-runs the product column. */
-  limit?: number;
 }
 
 const NEW_WINDOW_DAYS = 30;
-const ALL = 'All';
 
 /** Published within the last NEW_WINDOW_DAYS. Missing/!parseable date is never "new". */
 function isNew ( publishedDate?: string ): boolean {
@@ -58,22 +55,24 @@ function cardDate ( publishedDate?: string ): string {
   return d.toLocaleDateString( 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' } );
 }
 
-const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = 'From the blog', limit = 6 } ) => {
-  const [ category, setCategory ] = useState<string>( ALL );
-  const [ query, setQuery ] = useState<string>( '' );
-
-  // Categories present in the data, sorted, with ALL first. Derived, not hard-coded.
+const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = 'From the blog' } ) => {
+  // The real categories present in the data, sorted. No "All" - owner instruction.
   const categories = useMemo<string[]>( () => {
     const set = new Set<string>();
     for ( const c of cards ) if ( c.category ) set.add( c.category );
-    return [ ALL, ...Array.from( set ).sort( ( a, b ) => a.localeCompare( b ) ) ];
+    return Array.from( set ).sort( ( a, b ) => a.localeCompare( b ) );
   }, [ cards ] );
+
+  const [ category, setCategory ] = useState<string>( () => categories[ 0 ] || '' );
+  const [ query, setQuery ] = useState<string>( '' );
+  const [ scrolled, setScrolled ] = useState<number>( 0 );
+  const listRef = useRef<HTMLUListElement | null>( null );
 
   // Filter by active category, then by the typed query across title + excerpt + category + tags.
   const filtered = useMemo<BlogCard[]>( () => {
     const q = query.trim().toLowerCase();
     return cards.filter( c => {
-      if ( category !== ALL && c.category !== category ) return false;
+      if ( category && c.category !== category ) return false;
       if ( !q ) return true;
       const hay = [
         c.title,
@@ -85,14 +84,29 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
     } );
   }, [ cards, category, query ] );
 
-  const shown = filtered.slice( 0, limit );
+  // Scroll progress: 0 at the top of the list, 1 at the bottom. When the content fits (nothing to
+  // scroll) it reads full, so the bar is never stuck empty on a short list.
+  const onScroll = useCallback( (): void => {
+    const el = listRef.current;
+    if ( !el ) return;
+    const max = el.scrollHeight - el.clientHeight;
+    setScrolled( max <= 0 ? 1 : Math.min( 1, Math.max( 0, el.scrollTop / max ) ) );
+  }, [] );
+
+  // Reset scroll to the top when the result set changes, so the bar is not left mid-way over a
+  // list that is now shorter.
+  const selectCategory = useCallback( ( c: string ): void => {
+    setCategory( c );
+    const el = listRef.current;
+    if ( el ) { el.scrollTop = 0; setScrolled( 0 ); }
+  }, [] );
 
   return (
     <aside className="pbp" aria-label={ heading }>
       <h2 className="pbp-h">{ heading }</h2>
 
-      {/* Category switch. Real buttons, lime when active, hairline when not - the site's pill
-          language, no new colours. */}
+      {/* Category switch - the two real categories, no "All". Lime when active, hairline when
+          not; the site's pill language, no new colours. */}
       <div className="pbp-pills" role="group" aria-label="Filter posts by category">
         { categories.map( c => (
           <button
@@ -100,13 +114,12 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
             type="button"
             className={ c === category ? 'pbp-pill is-on' : 'pbp-pill' }
             aria-pressed={ c === category }
-            onClick={ () => setCategory( c ) }
+            onClick={ () => selectCategory( c ) }
           >{ c }</button>
         ) ) }
       </div>
 
-      {/* Borderless live search. A real labelled input (sr-only label), no icon, no button. The
-          one edge it keeps is a quiet bottom hairline so it still reads as a field. */}
+      {/* Borderless live search. A real labelled input (sr-only label), no icon, no button. */}
       <div className="pbp-search">
         <label className="pbp-sr" htmlFor="pbp-q">Search the blog</label>
         <input
@@ -115,53 +128,47 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           autoComplete="off"
           placeholder="Search posts"
           value={ query }
-          onChange={ e => setQuery( e.target.value ) }
+          onChange={ e => { setQuery( e.target.value ); const el = listRef.current; if ( el ) { el.scrollTop = 0; setScrolled( 0 ); } } }
         />
       </div>
 
-      <p className="pbp-count" aria-live="polite">
-        { filtered.length === 0
-          ? 'No posts match that search.'
-          : `Showing ${Math.min( shown.length, filtered.length )} of ${filtered.length}` }
-      </p>
+      {/* The FULL list - no cap - in a scrollable rail. */}
+      { filtered.length === 0
+        ? <p className="pbp-empty" aria-live="polite">No posts match that search.</p>
+        : (
+          <ul className="pbp-list" ref={ listRef } onScroll={ onScroll }>
+            { filtered.map( card => (
+              <li key={ card.slug } className="pbp-card">
+                <Link className="pbp-link" href={ `/post/${card.slug}/` }>
+                  <span className="pbp-meta">
+                    { isNew( card.publishedDate ) && <span className="pbp-badge">New</span> }
+                    { card.category && <span className="pbp-chip">{ card.category }</span> }
+                    { cardDate( card.publishedDate ) && <span className="pbp-date">{ cardDate( card.publishedDate ) }</span> }
+                  </span>
+                  <span className="pbp-title">{ card.title }</span>
+                  { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
+                </Link>
+              </li>
+            ) ) }
+          </ul>
+        ) }
 
-      <ul className="pbp-list">
-        { shown.map( card => (
-          <li key={ card.slug } className="pbp-card">
-            <Link className="pbp-link" href={ `/post/${card.slug}/` }>
-              <span className="pbp-meta">
-                { isNew( card.publishedDate ) && <span className="pbp-badge">New</span> }
-                { card.category && <span className="pbp-chip">{ card.category }</span> }
-                { cardDate( card.publishedDate ) && <span className="pbp-date">{ cardDate( card.publishedDate ) }</span> }
-              </span>
-              <span className="pbp-title">{ card.title }</span>
-              { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
-            </Link>
-          </li>
-        ) ) }
-      </ul>
-
-      {/* PROGRESS BAR AT THE BOTTOM. How much of the current filtered set is on screen - shown
-          vs filtered - as a quiet lime fill. It moves whenever the category pill or the search
-          changes the result set, so the reader can see how much more there is below the cap.
-          role=progressbar with aria-valuenow/min/max so it is not just a visual. Hidden when
-          there is nothing to show (no matches), where a 0-width bar would read as broken. */}
+      {/* SCROLL PROGRESS BAR at the foot of the panel. Pure visual - no numbers. The fill tracks
+          how far the reader has scrolled through the list (0% top, 100% bottom). role=progressbar
+          with a 0-100 range and a percentage valuenow so it is announced, with no on-screen text.
+          Hidden when there is nothing to show. */}
       { filtered.length > 0 && (
         <div className="pbp-progress">
           <div
             className="pbp-progress-track"
             role="progressbar"
-            aria-label="Blog posts shown"
+            aria-label="Reading progress through the list"
             aria-valuemin={ 0 }
-            aria-valuemax={ filtered.length }
-            aria-valuenow={ shown.length }
+            aria-valuemax={ 100 }
+            aria-valuenow={ Math.round( scrolled * 100 ) }
           >
-            <div
-              className="pbp-progress-fill"
-              style={ { width: `${Math.round( ( shown.length / filtered.length ) * 100 )}%` } }
-            />
+            <div className="pbp-progress-fill" style={ { width: `${Math.round( scrolled * 100 )}%` } } />
           </div>
-          <span className="pbp-progress-label">{ shown.length } of { filtered.length } shown</span>
         </div>
       ) }
 
@@ -185,9 +192,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-pill:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
         /* BORDERLESS SEARCH. No inner border, no icon, no button. One quiet bottom hairline so it
-           still reads as a field; the hairline darkens and a lime underline grows on focus - an
-           indicator that clears WCAG 1.4.11 without a box. */
-        .pbp-search{position:relative;margin:0 0 6px}
+           still reads as a field; the hairline darkens and a lime underline grows on focus. */
+        .pbp-search{position:relative;margin:0 0 16px}
         .pbp-sr{
           position:absolute;width:1px;height:1px;padding:0;margin:-1px;
           overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
@@ -203,26 +209,36 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
 
-        .pbp-count{margin:0 0 16px;font-size:13px;line-height:1.4;color:rgba(0,0,0,.54)}
+        .pbp-empty{margin:0;font-size:14px;line-height:1.4;color:rgba(0,0,0,.54)}
 
-        .pbp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+        /* THE LIST IS A SCROLL RAIL. Unlimited cards, capped by HEIGHT not count: it scrolls
+           within the panel so the whole corpus is reachable without the panel running taller than
+           the page. The progress bar below tracks this element's scroll. max-height leaves room
+           for the heading, pills, search and the bar. Thin scrollbar, lime thumb, to match. */
+        .pbp-list{
+          list-style:none;margin:0;padding:0 2px 0 0;
+          display:flex;flex-direction:column;gap:10px;
+          max-height:min(70vh,620px);overflow-y:auto;overscroll-behavior:contain;
+          scrollbar-width:thin;scrollbar-color:#d1f470 transparent;
+        }
+        .pbp-list::-webkit-scrollbar{width:6px}
+        .pbp-list::-webkit-scrollbar-thumb{background:#d1f470;border-radius:50px}
+        .pbp-list::-webkit-scrollbar-track{background:transparent}
         .pbp-card{margin:0}
 
-        /* PROGRESS BAR at the foot of the panel. The track is the site hairline on near-white;
-           the fill is lime - the one place lime labels progress rather than action, which reads
-           cleanly here because it is a thin bar, not a pill. The label is the muted-metadata rung.
-           16px of air above it separates it from the last card. */
-        .pbp-progress{margin:16px 0 0;display:flex;flex-direction:column;gap:6px}
+        /* SCROLL PROGRESS BAR. The track is a hairline on near-white; the fill is lime - the one
+           place lime labels progress rather than action, fine as a thin bar. No numbers. 14px of
+           air above it. */
+        .pbp-progress{margin:14px 0 0}
         .pbp-progress-track{
           width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
         }
         .pbp-progress-fill{
           height:100%;border-radius:50px;background:#d1f470;
-          transition:width .3s cubic-bezier(.16,1,.3,1);
+          transition:width .12s linear;
         }
-        .pbp-progress-label{font-size:12px;line-height:1.4;color:rgba(0,0,0,.54)}
-        /* The whole card is the link. Hairline quiet card, lifts and borders dark on hover like
-           the share buttons and the home CTA. */
+
+        /* The whole card is the link. Hairline quiet card, lifts and borders dark on hover. */
         .pbp-link{
           display:flex;flex-direction:column;gap:6px;
           padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#fcfdfb;
