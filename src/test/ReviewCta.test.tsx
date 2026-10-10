@@ -293,7 +293,7 @@ describe( '/leave-review/ page CTA', () => {
 
   it( 'exists and says where the button goes', () => {
     expect( entry() ).toBeTruthy();
-    expect( entry().ctaLabel ).toBe( 'Leave a review on WhatsApp' );
+    expect( entry().ctaLabel ).toBe( 'Leave a review' );
   } );
 
   it( 'is the owner\'s wa.me short link, which is the shipped state', () => {
