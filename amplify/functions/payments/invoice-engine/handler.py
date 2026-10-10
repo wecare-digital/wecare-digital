@@ -397,7 +397,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         # POST /invoices/{id}/remark — add remark/refund/credit note
         if method == 'POST' and 'remark' in path:
             inv_id = path_params.get('invoiceId') or body.get('invoiceId')
-            return add_remark(inv_id, body, request_id)
+            # `_auth` is what `require_auth` attached above, and it is the ONLY identity
+            # `add_remark` will accept. The author used to come off the request body, so a
+            # refund note could be signed with anyone's name by the caller who wrote it.
+            # `require_auth` skips an internal Lambda-to-Lambda invoke, so this is absent on
+            # that path and `add_remark` labels it server-side rather than trusting the body.
+            return add_remark(inv_id, body, request_id, auth=event.get('_auth'))
 
         # DELETE /invoices/clear-all — wipe all invoice-related tables (admin cleanup)
         if method == 'DELETE' and 'clear-all' in path:
@@ -1684,6 +1689,64 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
 
 # ─── Update / Read / List ───
 
+#: The FINANCIAL CONTENT of the document — the fields a tax invoice is read for.
+#:
+#: Immutable once the invoice is issued (see `_is_issued`). Contact, address, `notes`, `purpose`
+#: and `goodsType` are deliberately NOT here: correcting a spelling of the customer's name does
+#: not change what was charged, and refusing it would push staff toward cancel-and-reissue for a
+#: typo, which burns a GST number for no reason.
+#:
+#: `orderId` and `referenceId` are in the set because they are the document's identity claims:
+#: the reference is what the WhatsApp payment, the rendered asset key and the reconciliation all
+#: join on, so re-pointing it after issue re-attributes money that has already moved.
+_INVOICE_FINANCIAL_FIELDS = frozenset({
+    'subtotal', 'discount', 'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
+    'referenceId', 'orderId',
+})
+
+#: The two fields a client may never write, on ANY row state. See D5.
+#:
+#: They are not conditioned on the row's state, and that is the whole point: a field that is
+#: only sometimes client-writable is a field whose guard can be bypassed by finding the state
+#: where it is permitted. An issued unpaid invoice used to be markable `paid`/`captured` by a
+#: PUT with no payment anywhere behind it.
+_INVOICE_SERVER_OWNED_FIELDS = frozenset({'status', 'paymentStatus'})
+
+#: The server transitions that DO own them, named in the refusal so the operator is not left
+#: guessing which button to press instead.
+_INVOICE_STATUS_WRITERS = ('create_invoice (dedup branch)', 'cancel_invoice',
+                           'send_payment_link', 'razorpay-webhook capture path')
+
+#: Document-lifecycle statuses that still mean "nothing has been issued".
+#:
+#: `claiming` is the transient dedup placeholder `create_invoice` writes before it has a number;
+#: `created` is a row that exists but has not moved. Everything beyond this set — `sent`,
+#: `pending_payment`, `paid`, `cancelled` — is a document that has left the building.
+_INVOICE_UNISSUED_STATUSES = frozenset({'', 'claiming', 'created'})
+
+
+def _is_issued(invoice: Optional[Dict]) -> bool:
+    """Whether this row is a DOCUMENT OF RECORD rather than an unissued draft.
+
+    True once the row carries an `invoiceNumber` — the moment a number leaves the GST series is
+    the moment the document exists, whatever the row's status says — or once its status has moved
+    past the unissued set.
+
+    ONE helper on purpose. The three refusal sites that consult it (the financial-field guard in
+    `update_invoice`, and the asset version keys in `generate_invoice_image` /
+    `generate_invoice_pdf`) cannot disagree about what "issued" means, which is how a guard gets
+    bypassed: refuse the edit but overwrite the asset, or vice versa.
+
+    An absent/unreadable row answers False here. Callers must NOT treat "could not read" as
+    "draft" — `update_invoice` refuses before it ever reaches this function on a failed read.
+    """
+    if not invoice:
+        return False
+    if str(invoice.get('invoiceNumber', '') or '').strip():
+        return True
+    return str(invoice.get('status', '') or '').strip() not in _INVOICE_UNISSUED_STATUSES
+
+
 def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     """Update an existing invoice (admin). Blocks amount changes on paid/cancelled invoices."""
     table = dynamodb.Table(INVOICES_TABLE)
@@ -1701,24 +1764,85 @@ def update_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
             'errorCode': 'USE_CREATE',
         })
 
-    # Status guard: block amount changes on paid/cancelled invoices
-    amount_fields = {'subtotal', 'discount', 'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total'}
-    if amount_fields & set(body.keys()):
+    # ── D5: `status` and `paymentStatus` are not client-writable, on any row state ──
+    #
+    # Refused BEFORE the row is read, because the answer does not depend on the row. A draft is
+    # refused as firmly as a paid invoice: the alternative - permitting it while the row is
+    # young - is the bypass, since a PUT can simply be sent at the state where the field is
+    # allowed. The dangerous case this closes is concrete: an issued unpaid invoice could be
+    # PUT to `status: paid` / `paymentStatus: captured` with no payment, no capture and no
+    # webhook, and every downstream reader then treated it as money received.
+    server_owned = sorted(_INVOICE_SERVER_OWNED_FIELDS & set(body.keys()))
+    if server_owned:
+        return _resp(400, {
+            'error': ('Payment state is not editable. It is set only from verified payment '
+                      'evidence. Nothing has been charged.'),
+            'errorCode': 'STATUS_NOT_CLIENT_WRITABLE',
+            'fields': server_owned,
+            'ownedBy': list(_INVOICE_STATUS_WRITERS),
+        })
+
+    # ── D4: the financial content of an ISSUED invoice is immutable ──
+    financial = sorted(_INVOICE_FINANCIAL_FIELDS & set(body.keys()))
+    if financial:
         try:
             existing = table.get_item(Key={'invoiceId': invoice_id}).get('Item', {})
-            ex_status = existing.get('status', '')
-            ex_ps = existing.get('paymentStatus', '')
-            if ex_status in ('paid', 'cancelled') or ex_ps in ('captured', 'refunded'):
-                return _resp(400, {'error': f'Cannot modify amounts on {ex_status} invoice (paymentStatus={ex_ps})'})
-        except Exception as e:
-            logger.warning(f'Invoice status guard check failed for {invoice_id}: {e}')
+        except Exception as error:  # noqa: BLE001
+            # Fails CLOSED, replacing a warn-and-continue. An immutability guard that proceeds
+            # when it could not read the row is not a guard: one throttled GetItem was all it
+            # took to rewrite the totals on a paid tax invoice. Retryable, because the request
+            # is well-formed and will be answered correctly once the read succeeds.
+            logger.error(json.dumps({
+                'event': 'invoice_immutability_guard_unreadable', 'invoiceId': invoice_id,
+                'error': type(error).__name__, 'requestId': request_id,
+            }))
+            return _resp(503, {
+                'error': 'The invoice could not be read, so no change was applied',
+                'errorCode': 'INVOICE_STATE_UNREADABLE',
+                'retryable': True,
+            })
+
+        if _is_issued(existing):
+            ex_ps = pay_status.canonical(existing.get('paymentStatus', ''))
+            paid = ex_ps in (pay_status.CAPTURED, pay_status.REFUNDED) or \
+                existing.get('status', '') == 'paid'
+            # The route to use INSTEAD is in the message, because a refusal with no alternative
+            # gets worked around. An unpaid issued invoice can be cancelled and reissued under a
+            # new number; a paid one cannot, because the document the customer holds is the one
+            # the money was taken against, so the correction is an append-only record beside it.
+            return _resp(409, {
+                'error': ('An issued invoice cannot be rewritten. '
+                          + ('Record a credit note or a refund against it instead.' if paid
+                             else 'Cancel it and reissue under a new invoice number.')),
+                'errorCode': 'INVOICE_ISSUED_IMMUTABLE',
+                'fields': financial,
+                'invoiceNumber': existing.get('invoiceNumber', ''),
+                'useInstead': 'remark' if paid else 'cancel+reissue',
+                'editable': ['customerName', 'customerPhone', 'customerEmail',
+                             'shippingAddress', 'billingAddress', 'notes'],
+            })
+
+        # The original paid/cancelled amount guard, kept as a BACKSTOP rather than deleted.
+        # `_is_issued` already covers every row this could catch, but the two tests differ in
+        # shape and a row that somehow carries a paid payment state with no number must still
+        # be refused. Canonicalised, because `paid` and `captured` are one state and this is a
+        # money decision, not a document lifecycle one.
+        ex_status = existing.get('status', '')
+        ex_ps = pay_status.canonical(existing.get('paymentStatus', ''))
+        if ex_status in ('paid', 'cancelled') or ex_ps in (pay_status.CAPTURED,
+                                                           pay_status.REFUNDED):
+            return _resp(400, {'error': f'Cannot modify amounts on {ex_status} invoice (paymentStatus={ex_ps})'})
 
     update_parts = []
     values = {}
     names = {}
 
+    # `status` and `paymentStatus` are GONE from this list, not conditioned inside it (D5). The
+    # refusal above answers before anything reaches here, so there is no state in which a client
+    # body can reach either attribute. The financial fields stay listed because a DRAFT is still
+    # fully editable - the issued check above is what removes them once a number exists.
     allowed = ['customerName', 'customerPhone', 'paidByPhone', 'customerEmail',
-               'shippingAddress', 'billingAddress', 'goodsType', 'status', 'paymentStatus',
+               'shippingAddress', 'billingAddress', 'goodsType',
                'discount', 'shipping', 'handling', 'gstRate', 'tax', 'convenienceFee', 'total',
                'gstin', 'purpose', 'notes', 'subtotal', 'orderId', 'referenceId']
 
@@ -2094,6 +2218,77 @@ td{{padding:3px 2px;vertical-align:top;color:#000}}
 
 
 
+# ─── Rendered-asset versioning (D4) ───
+
+#: What separates an asset row's base type from its version. `image` / `image#v2` / `image#v3`.
+#:
+#: The `InvoiceAssets` key is (invoiceId HASH, assetType RANGE), so a version lives in the SORT
+#: KEY and a new rendition is a new ROW rather than an overwrite of the old one. The base row
+#: (`image`, `pdf`) keeps pointing at the FIRST rendition - the document of record - which is
+#: also what `whatsapp-business-api/flows/customer_invoice.py` compares against by exact key and
+#: what `ecommerce/customer-invoice` point-reads. Versioning by overwriting the base row would
+#: have broken both of those while claiming to protect the document.
+_ASSET_VERSION_SEPARATOR = '#v'
+
+
+def _next_asset_version(invoice_id: str, asset_type: str, request_id: str) -> int:
+    """The next version number for this invoice's `asset_type`, 1 when nothing is on record.
+
+    The base row counts as version 1, so the first render of an issued invoice still writes the
+    un-suffixed key and the un-suffixed row.
+
+    A read failure does NOT fall back to 1. Returning 1 would hand back the base key and
+    overwrite the issued document of record, which is the exact thing this function exists to
+    prevent - so the fallback is the clock, which is monotonic, cannot collide with a small
+    version number, and is never the base key. The plan permits either scheme.
+    """
+    prefix = f'{asset_type}{_ASSET_VERSION_SEPARATOR}'
+    try:
+        assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
+        rows = assets_table.query(
+            KeyConditionExpression=boto3.dynamodb.conditions.Key('invoiceId').eq(invoice_id)
+        ).get('Items', [])
+    except Exception as error:  # noqa: BLE001
+        logger.warning(json.dumps({
+            'event': 'invoice_asset_version_unreadable', 'invoiceId': invoice_id,
+            'assetType': asset_type, 'error': type(error).__name__, 'requestId': request_id,
+        }))
+        return int(time.time())
+
+    highest = 0
+    for row in rows:
+        stored = str(row.get('assetType', '') or '')
+        if stored == asset_type:
+            highest = max(highest, 1)
+        elif stored.startswith(prefix):
+            suffix = stored[len(prefix):]
+            if suffix.isdigit():
+                highest = max(highest, int(suffix))
+    return highest + 1
+
+
+def _asset_target(invoice: Dict, *, invoice_id: str, asset_type: str, stem: str, extension: str,
+                  request_id: str) -> tuple:
+    """`(s3_key, asset_row_key)` for this rendition.
+
+    An UNISSUED draft keeps the current behaviour exactly: the base key, overwritten in place.
+    There is no document of record yet, so a version history of a draft is noise - and the
+    `.png` key of a draft is what the WhatsApp flow expects to find.
+
+    An ISSUED invoice gets a NEW key, so the previous object stays in S3 and the previous
+    `InvoiceAssets` row stays untouched. A re-render after issue happens for honest reasons (a
+    corrected delivery address, a logo fix) and for dishonest ones; either way the rendition the
+    customer was sent must remain retrievable, because it is the document they hold.
+    """
+    base_key = f'{stem}.{extension}'
+    if not _is_issued(invoice):
+        return base_key, asset_type
+    version = _next_asset_version(invoice_id, asset_type, request_id)
+    if version <= 1:
+        return base_key, asset_type
+    return f'{stem}-v{version}.{extension}', f'{asset_type}{_ASSET_VERSION_SEPARATOR}{version}'
+
+
 # ─── Generate Invoice Image (PNG) ───
 
 def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
@@ -2117,9 +2312,13 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
     # Render to PNG using pure-Python bitmap font (zero dependencies, proven working)
     png_bytes = _generate_receipt_png(invoice, items)
 
-    # S3 key uses WhatsApp payment reference ID (unguessable, unique)
+    # S3 key uses WhatsApp payment reference ID (unguessable, unique), and carries a VERSION
+    # once the invoice is issued so a re-render never writes over the document of record.
     ref_id = invoice.get('referenceId', invoice_id)
-    s3_key = f"{INVOICE_PREFIX}wecare-digital-{ref_id}.png"
+    s3_key, asset_row_key = _asset_target(
+        invoice, invoice_id=invoice_id, asset_type='image',
+        stem=f"{INVOICE_PREFIX}wecare-digital-{ref_id}", extension='png',
+        request_id=request_id)
 
     s3.put_object(
         Bucket=MEDIA_BUCKET,
@@ -2143,7 +2342,9 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
     assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
     assets_table.put_item(Item={
         'invoiceId': invoice_id,
-        'assetType': 'image',
+        # `image` for a draft or a first rendition, `image#v<n>` for a re-render after issue —
+        # an ADDITIONAL row, so the earlier rendition stays resolvable.
+        'assetType': asset_row_key,
         's3Key': s3_key,
         'contentType': 'image/png',
         'version': int(time.time()),
@@ -2152,8 +2353,8 @@ def generate_invoice_image(invoice_id: str, request_id: str) -> Dict:
 
     # The URL is a bearer grant, so the key is logged and the URL is not.
     logger.info(json.dumps({'event': 'invoice_image_generated', 'invoiceId': invoice_id,
-                            's3Key': s3_key, 'signed': bool(image_url),
-                            'requestId': request_id}))
+                            's3Key': s3_key, 'assetType': asset_row_key,
+                            'signed': bool(image_url), 'requestId': request_id}))
     return _resp(200, {'invoiceId': invoice_id, 'imageUrl': image_url, 's3Key': s3_key})
 
 
@@ -2925,8 +3126,13 @@ def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
             'help': 'Retry PDF generation, or use the existing invoice HTML or image view.',
         })
 
+    # Versioned on the same terms as the PNG: an issued invoice's PDF is re-rendered beside the
+    # previous one, never over it.
     ref_id = invoice.get('referenceId', invoice_id)
-    s3_key = f"{INVOICE_PREFIX}wecare-digital-{ref_id}.pdf"
+    s3_key, asset_row_key = _asset_target(
+        invoice, invoice_id=invoice_id, asset_type='pdf',
+        stem=f"{INVOICE_PREFIX}wecare-digital-{ref_id}", extension='pdf',
+        request_id=request_id)
 
     s3.put_object(
         Bucket=MEDIA_BUCKET,
@@ -2945,14 +3151,16 @@ def generate_invoice_pdf(invoice_id: str, request_id: str) -> Dict:
     assets_table = dynamodb.Table(INVOICE_ASSETS_TABLE)
     assets_table.put_item(Item={
         'invoiceId': invoice_id,
-        'assetType': 'pdf',
+        'assetType': asset_row_key,
         's3Key': s3_key,
         'contentType': 'application/pdf',
         'version': int(time.time()),
         'generatedAt': int(time.time()),
     })
 
-    logger.info(json.dumps({'event': 'invoice_pdf_generated', 'invoiceId': invoice_id, 'url': pdf_url, 'requestId': request_id}))
+    logger.info(json.dumps({'event': 'invoice_pdf_generated', 'invoiceId': invoice_id,
+                            'assetType': asset_row_key, 'url': pdf_url,
+                            'requestId': request_id}))
     return _resp(200, {'invoiceId': invoice_id, 'pdfUrl': pdf_url, 's3Key': s3_key})
 
 
@@ -4086,8 +4294,92 @@ def clear_all_invoice_data(request_id: str) -> Dict:
 
 # ─── Add Remark / Refund / Credit Note ───
 
-def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
-    """Add a remark, refund note, or credit note to an invoice."""
+#: The author a remark carries when no API Gateway identity exists.
+#:
+#: `require_auth` SKIPS authentication for an internal Lambda-to-Lambda invoke, so there is no
+#: token to read on that path. The label names THIS FUNCTION rather than anything out of the
+#: payload: on an internal invoke the only unforgeable fact about the writer is which function
+#: performed the write, and a caller-supplied name is precisely what this change removes.
+_SYSTEM_REMARK_AUTHOR = 'system:invoice-engine'
+
+
+def _remark_author(auth: Optional[Dict]) -> str:
+    """Who the stored remark says wrote it — from the TOKEN, never from the body.
+
+    `body['author']` is ignored entirely. It used to default to `'admin'`, so every remark in
+    the table was signed by whoever the browser said, and a refund note - the record of money
+    leaving - was attributable to nobody.
+    """
+    if isinstance(auth, dict):
+        for attribute in ('username', 'email'):
+            name = str(auth.get(attribute, '') or '').strip()
+            if name:
+                return name
+    return _SYSTEM_REMARK_AUTHOR
+
+
+def _resolve_refund_evidence(*, invoice: Dict, body: Dict, request_id: str) -> Optional[str]:
+    """The provider refund id, PROVEN against `PaymentsTable`, or `None`.
+
+    A refund is money leaving. `type='refund'` used to write `paymentStatus='refunded'` on the
+    strength of a request body alone, so an invoice could read as refunded with nothing refunded
+    anywhere - unreconcilable in the direction that loses money twice (the customer is told they
+    were refunded, and the capture still sits with the provider).
+
+    The evidence is the provider's own record as `razorpay-webhook._handle_refund` stored it: a
+    `refund.processed` event writes `refundId` onto the payment row and moves its status to
+    `refunded` under the rank condition. So the bar here is "the webhook has seen this refund",
+    which is the same fact a human would check in the Razorpay dashboard.
+
+    The webhook LOG table is deliberately not consulted: it is keyed by the dedup id, so
+    resolving a refund id there needs a scan, and it carries no fact the payment row does not
+    already carry by then.
+    """
+    refund_id = str(body.get('refundId') or body.get('providerRefundId') or '').strip()
+    payment_id = str(body.get('paymentId') or invoice.get('paymentId') or '').strip()
+    if not refund_id or not payment_id:
+        return None
+
+    try:
+        # A POINT READ: `PaymentsTable`'s key attribute is `id` and `razorpay-webhook` writes
+        # `id = payment_id`, so no scan is needed on this path.
+        payment = dynamodb.Table(PAYMENTS_TABLE).get_item(
+            Key={'id': payment_id}).get('Item') or {}
+    except Exception as error:  # noqa: BLE001
+        # Fails toward NO refund state. An unreadable payment row is "we could not prove it",
+        # which must never read the same as "it was refunded".
+        logger.error(json.dumps({
+            'event': 'refund_evidence_unreadable', 'paymentId': payment_id,
+            'error': type(error).__name__, 'requestId': request_id,
+        }))
+        return None
+
+    if str(payment.get('refundId', '') or '').strip() != refund_id:
+        logger.warning(json.dumps({
+            'event': 'refund_evidence_not_on_record', 'paymentId': payment_id,
+            'requestId': request_id,
+        }))
+        return None
+
+    if pay_status.canonical(payment.get('status', '')) != pay_status.REFUNDED:
+        logger.warning(json.dumps({
+            'event': 'refund_evidence_payment_not_refunded', 'paymentId': payment_id,
+            'storedStatus': pay_status.canonical(payment.get('status', '')),
+            'requestId': request_id,
+        }))
+        return None
+
+    return refund_id
+
+
+def add_remark(invoice_id: str, body: Dict, request_id: str,
+               *, auth: Optional[Dict] = None) -> Dict:
+    """Add a remark, refund note, or credit note to an invoice.
+
+    `auth` is KEYWORD-ONLY and defaults to `None`, which resolves to the server-side system
+    label - so a caller that does not pass an identity cannot accidentally inherit one from the
+    request body.
+    """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
 
@@ -4100,7 +4392,7 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
         amount_paise = wa_payment_request.exact_paise(body.get('amount', 0))
     except wa_payment_request.PaymentRequestRefused:
         return _resp(400, {'error': 'amount must be an exact rupee figure (two decimal places)'})
-    author = body.get('author', 'admin')
+    author = _remark_author(auth)
 
     if not text and remark_type == 'remark':
         return _resp(400, {'error': 'text required for remarks'})
@@ -4111,6 +4403,11 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
     if not invoice:
         return _resp(404, {'error': 'Invoice not found'})
 
+    # Resolved BEFORE anything is written, so the remark and the payment state are decided from
+    # one answer rather than two reads that could disagree.
+    refund_evidence = (_resolve_refund_evidence(invoice=invoice, body=body, request_id=request_id)
+                       if remark_type == 'refund' else None)
+
     now = int(time.time())
     remark_entry = {
         'id': str(uuid.uuid4())[:8],
@@ -4120,6 +4417,9 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
         'amountPaise': amount_paise,
         'amount': pay_status.rupees_str(amount_paise),
         'author': author,
+        # The evidence trail, empty when there is none: a reader can tell a proven refund from a
+        # note that someone intended one.
+        'providerRefundId': refund_evidence or '',
         'createdAt': now,
     }
 
@@ -4135,16 +4435,18 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
         ':now': now,
     }
 
-    # For refund/credit note, also update status
-    if remark_type == 'refund':
+    # For a PROVEN refund, also update status
+    if remark_type == 'refund' and refund_evidence:
         # The rupee column stays for the existing readers, derived EXACTLY from the integer
         # rather than from a float; the paise column beside it is the comparable one.
         update_expr += (', refundAmount = :ra, refundAmountPaise = :rap, refundAt = :rat, '
-                        'paymentStatus = :ps')
+                        'refundId = :rid, paymentStatus = :ps')
         expr_values[':ra'] = Decimal(amount_paise) / 100
         expr_values[':rap'] = amount_paise
         expr_values[':rat'] = now
-        expr_values[':ps'] = 'refunded'
+        expr_values[':rid'] = refund_evidence
+        # The vocabulary's own word, not a local spelling of it.
+        expr_values[':ps'] = pay_status.for_storage(pay_status.REFUNDED)
     elif remark_type == 'credit_note':
         update_expr += (', creditNoteAmount = :cna, creditNoteAmountPaise = :cnap, '
                         'creditNoteAt = :cnt')
@@ -4164,8 +4466,30 @@ def add_remark(invoice_id: str, body: Dict, request_id: str) -> Dict:
     logger.info(json.dumps({
         'event': f'invoice_{remark_type}_added', 'invoiceId': invoice_id,
         'remarkType': remark_type, 'amountPaise': amount_paise,
-        'amount': pay_status.rupees_str(amount_paise), 'requestId': request_id,
+        'amount': pay_status.rupees_str(amount_paise), 'author': author,
+        'refundEvidence': bool(refund_evidence), 'requestId': request_id,
     }))
+
+    if remark_type == 'refund' and not refund_evidence:
+        # The remark IS recorded - the operator's note of what they believe happened is worth
+        # keeping, and discarding it would push them to record it somewhere we cannot see - but
+        # the payment state is untouched and the answer is a refusal, not a 200. A 200 here is
+        # what let the invoice read `refunded` with no refund behind it.
+        logger.warning(json.dumps({
+            'event': 'invoice_refund_evidence_required', 'invoiceId': invoice_id,
+            'note': 'remark recorded, paymentStatus unchanged', 'requestId': request_id,
+        }))
+        return _resp(400, {
+            'error': ('A refund needs the provider refund id. The remark was recorded and the '
+                      'payment state is unchanged. Nothing has been refunded.'),
+            'errorCode': 'REFUND_EVIDENCE_REQUIRED',
+            'help': ('Refund in Razorpay first, then record it here with `refundId` (and '
+                     '`paymentId` if the invoice carries none) once the refund webhook has '
+                     'landed.'),
+            'invoiceId': invoice_id,
+            'remark': remark_entry,
+            'paymentStatus': invoice.get('paymentStatus', ''),
+        })
 
     return _resp(200, {
         'invoiceId': invoice_id,
