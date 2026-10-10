@@ -34,6 +34,18 @@ def test_checkout_never_prefills_a_contact_without_exact_ownership(checkout_env,
 
 @pytest.mark.parametrize("owner", [None, "", "another-permanent-customer"])
 def test_valid_new_email_proof_cannot_replace_existing_contact_ownership(profile_env, owner):
+    """A proven email is a claim about an ADDRESS and never about an owner.
+
+    The seeded row carries no `lastInboundMessageAt`, so the WhatsApp-first link refuses it as
+    well - `NO_INBOUND_EVIDENCE` for the two unowned spellings, `FOREIGN_OWNER` for the third -
+    and the answer stays the same generic 409.
+
+    The assertion is no longer byte equality of the row, because a refused link now deliberately
+    leaves staff something to reconcile from: `identityConflictAt`, a reason CODE and the
+    `Identity Conflict` tag. So every other field is pinned by name instead, which is the
+    stronger statement about the thing this test is actually for - the owner, the email, the
+    verification timestamp and the stored address must all come through a refusal untouched.
+    """
     h, fake, _ = profile_env
     seed_owned(fake, checkoutCustomerId=owner)
     before = copy.deepcopy(fake.all_rows(CONTACTS_TABLE))
@@ -42,7 +54,19 @@ def test_valid_new_email_proof_cannot_replace_existing_contact_ownership(profile
                                emailProof=token, address=dict(ADDRESS)), None)
     assert response["statusCode"] == 409
     assert json.loads(response["body"])["error"] == "CONTACT_IDENTITY_CONFLICT"
-    assert fake.all_rows(CONTACTS_TABLE) == before
+
+    after = fake.all_rows(CONTACTS_TABLE)
+    assert len(after) == len(before) == 1
+    for field, value in before[0].items():
+        if field == "tags":
+            continue
+        assert after[0][field] == value, f"{field} must not change on a refused claim"
+    assert after[0].get("checkoutCustomerId") == before[0].get("checkoutCustomerId")
+    # The marker, and ONLY the marker, is new. A `checkoutCustomerId` or an `identityClaimedAt`
+    # appearing here would be the ownership replacement this test exists to refuse.
+    assert set(after[0]) - set(before[0]) == {"identityConflictAt", "identityConflictReason"}
+    assert set(before[0]["tags"]) < set(after[0]["tags"])
+    assert h.CONFLICT_TAG in after[0]["tags"]
 
 
 def test_owner_change_after_lookup_prevents_the_contact_update(profile_env, monkeypatch):
