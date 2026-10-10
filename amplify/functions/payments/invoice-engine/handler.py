@@ -448,10 +448,36 @@ class InvoiceSequenceUnavailable(RuntimeError):
     """
 
 
+#: How many candidates `_get_next_invoice_number` will walk past before refusing.
+#:
+#: The cap is the difference between self-healing and wedged. A counter that has been reset sits
+#: BELOW numbers that are already out, so the first candidates it offers are all reserved; the
+#: loop walks past them and the series continues from the true floor. Refusing on the first
+#: collision instead would leave every subsequent invoice failing until an operator ran the
+#: reconciliation script. The cap stops the other failure mode - a loop walking thousands of
+#: numbers inside one API request - and 25 covers the observed drift (a reset to 0 against four
+#: issued numbers) with a wide margin, while `scripts/reconcile_invoice_sequence.py` is the
+#: correct tool for a larger gap.
+_INVOICE_NUMBER_ATTEMPTS = 25
+
+
+def _current_fy() -> str:
+    """The Indian financial year as `YYYY-YYYY`, which starts in April."""
+    now = time.localtime()
+    year = now.tm_year
+    return f"{year}-{year+1}" if now.tm_mon >= 4 else f"{year-1}-{year}"
+
+
+def _format_invoice_number(prefix: str, fy: str, seq: int) -> str:
+    """`WD/2627/00001` - the one place the GST number's shape is written."""
+    fy_short = fy.replace('20', '').replace('-', '')
+    return f"{prefix}/{fy_short}/{seq:05d}"
+
+
 def _get_next_invoice_number(fy: str = None) -> str:
     """Generate next sequential invoice number. Format: WD/FY/NNNNN
 
-    Raises InvoiceSequenceUnavailable if the counter cannot be advanced.
+    Raises InvoiceSequenceUnavailable if a number cannot be both advanced AND reserved.
 
     This used to fall back to `WD-PAY-TEMP-<uuid>`, which put a non-sequential
     number into the GST series. Under Rule 46(b) an invoice number has to be part
@@ -461,48 +487,109 @@ def _get_next_invoice_number(fy: str = None) -> str:
     the next number should be. Nothing downstream could distinguish it either,
     because it was returned as an ordinary success.
 
+    WHY THE COUNTER ALONE IS NOT ENOUGH
+    -----------------------------------
+    The `update_item` below is atomic, so two concurrent callers cannot read the
+    same `last_seq`. What it cannot do is remember what it gave out: the counter
+    is one row on `InvoiceSequenceTable`, `clear_all_invoice_data` wipes that
+    table, and a wiped counter restarts at 1. That is not a hypothesis - it is
+    how `WD/2627/00001` reached two different customers eight days apart.
+
+    So the number is not the counter's output any more; it is the counter's
+    output CONFIRMED by an immutable reservation row (`INVOICENO#<number>` on the
+    commerce-keys table, which that wipe does not touch). The reservation is the
+    last thing that happens before the number is returned, so no caller can hold
+    a number storage has not committed to, and the number can never fall at or
+    below one already issued.
+
+    On a collision the counter is advanced and the next candidate tried, up to
+    `_INVOICE_NUMBER_ATTEMPTS`. Walking past an already-issued number is the
+    series continuing correctly, not a gap - the gap is the erased invoice rows,
+    which is data loss, not a numbering fault.
+
     Failing here is recoverable: the caller returns 503, the client retries, and
     no document is issued. Issuing the wrong number is not recoverable, because a
     GST invoice number cannot be reassigned once it has been sent to a customer.
     """
-    if not fy:
-        now = time.localtime()
-        year = now.tm_year
-        month = now.tm_mon
-        fy = f"{year}-{year+1}" if month >= 4 else f"{year-1}-{year}"
+    fy = fy or _current_fy()
 
     table = dynamodb.Table(INVOICE_SEQ_TABLE)
-    try:
-        resp = table.update_item(
-            Key={'fy': fy},
-            UpdateExpression='SET last_seq = if_not_exists(last_seq, :zero) + :inc, prefix = if_not_exists(prefix, :pfx), updated_at = :now',
-            ExpressionAttributeValues={':zero': 0, ':inc': 1, ':pfx': 'WD', ':now': int(time.time())},
-            ReturnValues='UPDATED_NEW',
-        )
-        seq = int(resp['Attributes']['last_seq'])
-        prefix = resp['Attributes'].get('prefix', 'WD')
-        fy_short = fy.replace('20', '').replace('-', '')
-        return f"{prefix}/{fy_short}/{seq:05d}"
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'invoice_sequence_unavailable',
+    keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+
+    for attempt in range(1, _INVOICE_NUMBER_ATTEMPTS + 1):
+        try:
+            resp = table.update_item(
+                Key={'fy': fy},
+                UpdateExpression='SET last_seq = if_not_exists(last_seq, :zero) + :inc, prefix = if_not_exists(prefix, :pfx), updated_at = :now',
+                ExpressionAttributeValues={':zero': 0, ':inc': 1, ':pfx': 'WD', ':now': int(time.time())},
+                ReturnValues='UPDATED_NEW',
+            )
+            seq = int(resp['Attributes']['last_seq'])
+            prefix = resp['Attributes'].get('prefix', 'WD')
+        except Exception as e:
+            logger.error(json.dumps({
+                'event': 'invoice_sequence_unavailable',
+                'fy': fy,
+                'table': INVOICE_SEQ_TABLE,
+                'error': str(e)[:300],
+            }))
+            raise InvoiceSequenceUnavailable(
+                f"Could not advance the invoice sequence for FY {fy}"
+            ) from e
+
+        candidate = _format_invoice_number(prefix, fy, seq)
+
+        try:
+            reserved = order_keys.reserve_invoice_number(
+                keys_table, invoice_number=candidate, fy=fy)
+        except order_keys.OrderIdentityUnavailable as e:
+            # A storage error, NOT a lost race - `reserve_invoice_number` keeps those apart on
+            # purpose. Retrying here would hand out a number nothing recorded, so this refuses.
+            logger.error(json.dumps({
+                'event': 'invoice_number_reservation_unavailable',
+                'fy': fy,
+                'invoiceNumber': candidate,
+                'attempt': attempt,
+                'error': str(e)[:300],
+            }))
+            raise InvoiceSequenceUnavailable(
+                f"Could not reserve an invoice number for FY {fy}"
+            ) from e
+
+        if reserved:
+            return candidate
+
+        logger.warning(json.dumps({
+            'event': 'invoice_number_already_reserved',
             'fy': fy,
-            'table': INVOICE_SEQ_TABLE,
-            'error': str(e)[:300],
+            'invoiceNumber': candidate,
+            'attempt': attempt,
+            'attemptCap': _INVOICE_NUMBER_ATTEMPTS,
+            'note': 'counter was behind the issued series; advancing',
         }))
-        raise InvoiceSequenceUnavailable(
-            f"Could not advance the invoice sequence for FY {fy}"
-        ) from e
+
+    logger.error(json.dumps({
+        'event': 'invoice_sequence_unavailable',
+        'fy': fy,
+        'reason': 'every candidate was already reserved',
+        'attempts': _INVOICE_NUMBER_ATTEMPTS,
+    }))
+    raise InvoiceSequenceUnavailable(
+        f"Exhausted {_INVOICE_NUMBER_ATTEMPTS} candidates for FY {fy}; "
+        "run scripts/reconcile_invoice_sequence.py to realign the counter"
+    )
 
 
 def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
-    """Preview next invoice number without incrementing."""
-    fy = body.get('fy')
-    if not fy:
-        now = time.localtime()
-        year = now.tm_year
-        month = now.tm_mon
-        fy = f"{year}-{year+1}" if month >= 4 else f"{year-1}-{year}"
+    """Preview next invoice number without incrementing.
+
+    The counter alone cannot answer this: if it has been reset, `last_seq + 1` is a number that
+    is already out, and showing it to staff is how a duplicate gets typed into a conversation.
+    So the preview probes the reservation rows forward from the counter and reports the number
+    `_get_next_invoice_number` would actually reach, alongside the raw `lastSeq` so the drift is
+    visible rather than silently corrected. Point reads only - no scan, nothing written.
+    """
+    fy = body.get('fy') or _current_fy()
 
     table = dynamodb.Table(INVOICE_SEQ_TABLE)
     try:
@@ -510,9 +597,26 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
         item = resp.get('Item', {})
         last = int(item.get('last_seq', 0))
         prefix = item.get('prefix', 'WD')
-        fy_short = fy.replace('20', '').replace('-', '')
-        next_num = f"{prefix}/{fy_short}/{last+1:05d}"
-        return _resp(200, {'nextInvoiceNumber': next_num, 'fy': fy, 'lastSeq': last})
+
+        keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        seq = last + 1
+        probes = 0
+        while probes < _INVOICE_NUMBER_ATTEMPTS and order_keys.resolve_invoice_number(
+                keys_table, _format_invoice_number(prefix, fy, seq)) is not None:
+            seq += 1
+            probes += 1
+
+        return _resp(200, {
+            'nextInvoiceNumber': _format_invoice_number(prefix, fy, seq),
+            'fy': fy,
+            'lastSeq': last,
+            # The highest number known to be issued, counter and reservations combined. Equal to
+            # `lastSeq` when they agree; higher when the counter is behind what went out.
+            'reservedFloorSeq': seq - 1,
+            # True when the probe ran out of attempts, so the floor reported is a lower bound and
+            # the counter needs reconciling rather than another preview.
+            'reservationProbeExhausted': probes >= _INVOICE_NUMBER_ATTEMPTS,
+        })
     except Exception as e:
         return _resp(500, {'error': str(e)})
 
