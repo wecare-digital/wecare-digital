@@ -1,6 +1,5 @@
 import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 import React from 'react';
-import Link from 'next/link';
 import PageMeta from './PageMeta';
 import RotatingHero from './RotatingHero';
 import ProductBlogPanel from './ProductBlogPanel';
@@ -54,12 +53,6 @@ interface ProductPageProps {
   price?: string;
   priceUnit?: string;
   /**
-   * OPTIONAL CATALOGUE LINK - a quiet secondary link under the CTA pointing at the full
-   * purchasable listing (/shop/). Named rather than assumed so a page without one renders nothing.
-   */
-  catalogueHref?: string;
-  catalogueLabel?: string;
-  /**
    * OPTIONAL SHARE ROW. When an absolute URL is passed, the same ShareLinks component the blog and
    * post pages use is rendered under the left column.
    */
@@ -74,8 +67,6 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   blogCards,
   price,
   priceUnit,
-  catalogueHref,
-  catalogueLabel = 'See the full catalogue',
   shareUrl,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
@@ -157,19 +148,15 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             Subscribe/Contribute pills (.bc-cta-note / .blog-wa-note). */}
         { product.ctaNote && <p className="pdp-cta-note" aria-hidden="true">{ product.ctaNote }</p> }
 
-        {/* PRICE + CATALOGUE, so a reader knows what they will pay and where to see everything
-            else that is purchasable before they open the chat. Both are opt-in: a page that
-            passes neither renders nothing here, which is every product page except /anew/. */}
-        { ( price || catalogueHref ) && (
+        {/* PRICE, so a reader knows what they will pay before they open the chat. Opt-in: a page
+            that passes no price renders nothing here, which is every product page except /anew/.
+            (The "See everything on WECARE.DIGITAL" catalogue link that used to sit beside the
+            price was removed on owner instruction 2026-10-10.) */}
+        { price && (
           <p className="pdp-buy">
-            { price && (
-              <span className="pdp-price" data-wc-no-translate="true">
-                { price }{ priceUnit && <span className="pdp-price-unit"> { priceUnit }</span> }
-              </span>
-            ) }
-            { catalogueHref && (
-              <Link className="pdp-catalogue" href={ catalogueHref }>{ catalogueLabel } →</Link>
-            ) }
+            <span className="pdp-price" data-wc-no-translate="true">
+              { price }{ priceUnit && <span className="pdp-price-unit"> { priceUnit }</span> }
+            </span>
           </p>
         ) }
 
@@ -230,31 +217,30 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              the muted text on hover. Clip + transparent fill live under :hover only so the resting
              line stays solid grey, not invisible; both stops are measured on white (4.61:1 and
              12.48:1) so the band only darkens the text. */
-          /* A CONTINUOUS COLOUR SWEEP, PLAYING ON ITS OWN - the .ft-tagline treatment in
-             Footer.tsx ("Trusted everyday services for Bharat"), but looping rather than one-shot
-             because the owner asked the band to keep running without hover or click. The gradient,
-             the text clip and the transparent fill ALL live on the base rule here, together with
-             the animation, so the band is clipped to the glyphs from the first frame - declaring
-             the gradient without background-clip:text is what painted the whole paragraph box grey
-             (the full-width bar bug). Both stops are measured on white - rgba(0,0,0,.54) is 4.61:1
-             and #1a3a2a is 12.48:1 - so the band only ever DARKENS the text as it passes; it never
-             erases it. background-position is the only animated property, so it composites off the
-             main thread. The resting colour:rgba(0,0,0,.54) is the fallback for any browser without
-             background-clip:text (there, text-fill-color is ignored and the line is plain grey). */
+          /* MATCHED TO THE FOOTER TAGLINE, "Trusted everyday services for Bharat" (.ft-tagline
+             in Footer.tsx): same 16px/1.6 muted-grey type, and the lime colour sweep runs ONCE
+             ON HOVER rather than looping on its own. The continuous auto-sweep was the right
+             idea but kept moving with no interaction, which pulled the eye to a line of quiet
+             microcopy - so it now behaves like the footer line: solid grey at rest, the lime
+             band passing through the glyphs when the reader hovers. The gradient, the text clip
+             and the transparent fill live on the base rule so the band is clipped to the glyphs,
+             and both stops are measured on white (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the
+             band only darkens the text, never erases it. At rest background-position sits off to
+             one side so no band shows; :hover plays it across once. */
           .pdp-cta-note{
-            font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+            font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
             background-image:linear-gradient(100deg,
               rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-            background-size:300% 100%;background-repeat:no-repeat;
+            background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
             -webkit-background-clip:text;background-clip:text;
             -webkit-text-fill-color:transparent;
-            animation:pdp-cta-note-sweep 3.2s linear infinite;
           }
+          .pdp-cta-note:hover{animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1}
           @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
-          /* Motion-sensitive readers get the line static and solid grey: no animation, no
-             transparent fill, no gradient - the WCAG 2.2.2 carve-out for auto-running motion. */
+          /* Motion-sensitive readers get the line static and solid grey: no sweep, no transparent
+             fill, no gradient - the WCAG carve-out for motion on interaction. */
           @media(prefers-reduced-motion:reduce){
-            .pdp-cta-note{
+            .pdp-cta-note,.pdp-cta-note:hover{
               animation:none;background-image:none;
               -webkit-text-fill-color:currentColor;color:rgba(0,0,0,.54);
             }
@@ -286,25 +272,23 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             color:rgba(0,0,0,.898);
           }
 
-          /* PRICE + CATALOGUE line. The price is the card rung in dark green (lime means
-             actionable and the pill owns lime); the catalogue is a quiet text link. 30px of air
-             above it, matching the CTA row's own top gap. */
+          /* PRICE line. The price is the card rung in dark green (lime means actionable and the
+             pill owns lime). 22px of air above it, matching the CTA row's own top gap. */
           .pdp-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
           .pdp-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
           .pdp-price-unit{font-size:15px;font-weight:600;color:rgba(0,0,0,.54)}
-          .pdp-catalogue{font-size:15px;font-weight:600;color:#1a3a2a;text-decoration:underline;text-underline-offset:3px}
-          .pdp-catalogue:hover{text-decoration-thickness:2px}
-          .pdp-catalogue:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
           /* The share row sits below the boundary note with its own air. */
           .pdp-share{margin:28px 0 0}
 
           /* THE TWO-COLUMN WRAP, SCOPED TO .has-aside so every other product page is untouched.
              Default (no aside): a plain block, so .pdp keeps its own 700px measure exactly as
-             before. With an aside: a grid that gives the product column up to 700px and the panel
-             the rest, with a 64px gutter. Collapses to one column below 1024px, where the panel
-             drops under the product copy. These classes live on nodes OUTSIDE .pdp, but styled-jsx
-             scopes by component not by element, so one block styles the whole return tree. */
+             before. With an aside: a grid - a flexible product column on the left and a fixed
+             blog rail on the right, with a 48px gutter. The split starts at 960px (not 1024px)
+             so a ~1024px desktop window - the common case - gets the panel on the right rather
+             than stacked under the copy; below 960px it stacks and the panel drops below. These
+             classes live on nodes OUTSIDE .pdp, but styled-jsx scopes by component not by
+             element, so one block styles the whole return tree. */
           .pdp-wrap{display:block}
           .pdp-aside{margin:64px 0 0}
 
@@ -313,11 +297,14 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             .pdp-p{font-size:18px}
             .pdp-point-t{font-size:20px}
           }
-          @media(min-width:1024px){
+          @media(min-width:960px){
             .pdp-wrap.has-aside{
-              display:grid;grid-template-columns:minmax(0,700px) minmax(0,1fr);
-              column-gap:64px;align-items:start;
+              display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);
+              column-gap:48px;align-items:start;
             }
+            /* The product column keeps its own 700px cap inside the flexible track so the copy
+               measure is unchanged; the grid track just stops it stretching under the panel. */
+            .pdp-wrap.has-aside .pdp{max-width:700px}
             .pdp-wrap.has-aside .pdp-aside{margin:0}
           }
         `}</style>

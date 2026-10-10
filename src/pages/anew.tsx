@@ -47,8 +47,6 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
     blogCards={ blogCards }
     price="₹599"
     priceUnit="one written reflection"
-    catalogueHref="/shop/"
-    catalogueLabel="See everything on WECARE.DIGITAL"
     shareUrl={ `${SITE_ORIGIN}/anew/` }
   />
 );

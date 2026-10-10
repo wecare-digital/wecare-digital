@@ -141,6 +141,30 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         ) ) }
       </ul>
 
+      {/* PROGRESS BAR AT THE BOTTOM. How much of the current filtered set is on screen - shown
+          vs filtered - as a quiet lime fill. It moves whenever the category pill or the search
+          changes the result set, so the reader can see how much more there is below the cap.
+          role=progressbar with aria-valuenow/min/max so it is not just a visual. Hidden when
+          there is nothing to show (no matches), where a 0-width bar would read as broken. */}
+      { filtered.length > 0 && (
+        <div className="pbp-progress">
+          <div
+            className="pbp-progress-track"
+            role="progressbar"
+            aria-label="Blog posts shown"
+            aria-valuemin={ 0 }
+            aria-valuemax={ filtered.length }
+            aria-valuenow={ shown.length }
+          >
+            <div
+              className="pbp-progress-fill"
+              style={ { width: `${Math.round( ( shown.length / filtered.length ) * 100 )}%` } }
+            />
+          </div>
+          <span className="pbp-progress-label">{ shown.length } of { filtered.length } shown</span>
+        </div>
+      ) }
+
       <style jsx>{`
         .pbp{max-width:460px}
         .pbp-h{
@@ -183,6 +207,20 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
 
         .pbp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
         .pbp-card{margin:0}
+
+        /* PROGRESS BAR at the foot of the panel. The track is the site hairline on near-white;
+           the fill is lime - the one place lime labels progress rather than action, which reads
+           cleanly here because it is a thin bar, not a pill. The label is the muted-metadata rung.
+           16px of air above it separates it from the last card. */
+        .pbp-progress{margin:16px 0 0;display:flex;flex-direction:column;gap:6px}
+        .pbp-progress-track{
+          width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+        }
+        .pbp-progress-fill{
+          height:100%;border-radius:50px;background:#d1f470;
+          transition:width .3s cubic-bezier(.16,1,.3,1);
+        }
+        .pbp-progress-label{font-size:12px;line-height:1.4;color:rgba(0,0,0,.54)}
         /* The whole card is the link. Hairline quiet card, lifts and borders dark on hover like
            the share buttons and the home CTA. */
         .pbp-link{
@@ -217,7 +255,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-search input{transition:none}
+          .pbp-pill,.pbp-link,.pbp-search input,.pbp-progress-fill{transition:none}
           .pbp-link:hover{transform:none;box-shadow:none}
         }
       `}</style>
