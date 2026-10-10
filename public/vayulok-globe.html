@@ -62,17 +62,18 @@
   .data-toggle .mode{
     position:relative;display:grid;place-items:center;height:100%;border-radius:999px;
     font-size:11px;font-weight:850;letter-spacing:.09em;line-height:1;
-    transition:transform .24s cubic-bezier(.16,1,.3,1),opacity .2s,box-shadow .24s;
+    transition:transform .24s cubic-bezier(.16,1,.3,1),color .2s,box-shadow .24s;
   }
+  /* The resting segment is dimmed with COLOUR only. Stacking an opacity
+     multiplier on top of this composited to ~rgb(178,178,178) on white — about
+     2.1:1, below every WCAG threshold. rgba(0,0,0,.62) measures ~6.2:1. */
   .mode-air,
-  .mode-weather{color:rgba(0,0,0,.54);background:transparent;box-shadow:none}
+  .mode-weather{color:rgba(0,0,0,.62);background:transparent;box-shadow:none}
   .data-toggle[aria-checked='false'] .mode-air,
   .data-toggle[aria-checked='true'] .mode-weather{
     background:#d1f470;color:#1a3a2a;box-shadow:0 2px 8px rgba(26,58,42,.18);
-    transform:translateY(-1px);opacity:1;
+    transform:translateY(-1px);
   }
-  .data-toggle[aria-checked='false'] .mode-weather,
-  .data-toggle[aria-checked='true'] .mode-air{opacity:.56}
   .data-toggle:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
 
   /* City labels follow the real globe rotation. Their visual language borrows
@@ -189,28 +190,42 @@
     font-size:clamp(10px,1vw,12px);font-weight:800;line-height:1.22;
     max-width:190px;white-space:normal;
   }
+  .city-reading[data-state='idle']{color:rgba(255,255,255,.74)}
   .city-reading[data-state='loading']{color:rgba(255,255,255,.74)}
   .city-reading[data-state='error']{color:rgba(255,255,255,.74)}
   .city-meta{display:block;margin-top:4px;color:rgba(255,255,255,.66);font-size:8px;font-weight:750;letter-spacing:.08em;line-height:1;text-transform:uppercase}
 
-  /* Only the selected or hovered capital expands into a full reading pill. Every
-     other visible capital stays a compact dot + name chip so the globe reads clean. */
+  /* ONLY the selected capital expands into a full reading pill. Hover deliberately
+     does NOT expand: nothing in the hover path fetches, so it used to reveal an
+     empty pill. Every other visible capital stays a compact dot + name chip. */
   .city-marker .city-layer,
   .city-marker .city-reading,
   .city-marker .city-meta{display:none}
-  .city-marker.is-active .city-layer,
-  .city-marker:hover .city-layer{display:inline-flex}
+  .city-marker.is-active .city-layer{display:inline-flex}
   .city-marker.is-active .city-reading,
-  .city-marker.is-active .city-meta,
-  .city-marker:hover .city-reading,
-  .city-marker:hover .city-meta{display:block}
-  .city-marker:not(.is-active):not(:hover) .city-card{min-width:0;padding:5px 10px 6px}
+  .city-marker.is-active .city-meta{display:block}
+  .city-marker:not(.is-active) .city-card{min-width:0;padding:5px 10px 6px}
+  /* Hover affordance lives on the dot itself, which costs nothing and cannot
+     expose an unfetched reading. */
+  .city-marker:hover .city-pin{transform:translate(-50%,-50%) scale(1.25)}
+
+  /* A collapsed chip whose box intersects the expanded pill (or a chip already
+     placed) is hidden instead of stacked behind it, so dense clusters such as
+     India and the Gulf stay readable. visibility — not display — is used on
+     purpose: it keeps the box measurable, so the collision test cannot oscillate
+     between hidden and shown on alternate frames. */
+  .city-marker.is-occluded:not(.is-active) .city-card,
+  .city-marker.is-occluded:not(.is-active) .city-stem{visibility:hidden}
 
   /* Only the pin is interactive; the card stays pass-through so dragging the
-     globe is never blocked by a label. */
+     globe is never blocked by a label. A pin on the FAR SIDE of the globe is
+     invisible, so it must not hit-test or take focus either — otherwise a press
+     on blank globe selects a capital nobody can see, and all 11 pins sit in the
+     tab order with focus rings on invisible ancestors. */
   .city-pin{
-    pointer-events:auto;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;
+    pointer-events:none;cursor:pointer;padding:0;appearance:none;-webkit-appearance:none;
   }
+  .city-marker.is-visible .city-pin{pointer-events:auto}
   .city-pin::before{
     content:'';position:absolute;left:50%;top:50%;
     width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;
@@ -219,13 +234,20 @@
   @media (max-width:680px){
     .sorcerer-stage{width:100vw;border-radius:24px}
     .data-toggle{top:3%;right:3%;width:166px;height:44px}
-    .city-card{min-width:118px;max-width:168px;padding:7px 9px 8px;border-radius:14px}
+    /* The phone disc is only ~190px across, so the expanded pill is kept small
+       enough that it never swamps the globe it belongs to, and the reading is
+       given room to stay on ONE line. */
+    .city-card{min-width:96px;max-width:134px;padding:6px 8px 7px;border-radius:13px}
+    .city-name{font-size:11px}
+    .city-reading{font-size:9.5px;max-width:118px;margin-top:4px}
+    .city-layer{font-size:7.5px;margin-top:4px}
+    .city-meta{font-size:7px;margin-top:3px}
     .city-stem{width:1px;left:-.5px}.city-pin{width:9px;height:9px}
     .city-pin::before{width:34px;height:34px}
     /* The phone-sized disc cannot hold several name chips at once, so an
        unselected capital is just its dot here; tapping it opens the full pill. */
-    .city-marker:not(.is-active):not(:hover) .city-card,
-    .city-marker:not(.is-active):not(:hover) .city-stem{display:none}
+    .city-marker:not(.is-active) .city-card,
+    .city-marker:not(.is-active) .city-stem{display:none}
   }
   @media (prefers-reduced-motion:reduce){.data-toggle .mode,.city-marker,.city-card{transition:none}.city-marker.is-visible .city-pin{animation:none}}
 
@@ -281,10 +303,12 @@
   const DEFAULT_CITY='delhi';
 
   const markerEls=new Map();
+  const cityPinEls=new Map();
   const cityReadingEls=new Map();
   const cityMetaEls=new Map();
   const cityData = new Map();
   let selectedCity=null;
+  const IDLE_READING='Select for a live reading';
 
   function buildMarkers(){
     const frag=document.createDocumentFragment();
@@ -306,6 +330,12 @@
       pin.type='button';
       pin.dataset.city=city.id;
       pin.setAttribute('aria-label',`Show live air and weather for ${city.name}`);
+      // Selection state for assistive tech, kept in step by selectCity.
+      pin.setAttribute('aria-pressed','false');
+      // A capital on the far side of the globe starts hidden, so it stays out of
+      // the tab order and the accessibility tree until it rotates into view.
+      pin.tabIndex=-1;
+      pin.setAttribute('aria-hidden','true');
       // Keyboard path only (Enter/Space report detail 0). A pointer tap is handled
       // on the stage's pointerup, because stage.setPointerCapture retargets the
       // compatibility click away from the pin.
@@ -322,6 +352,10 @@
       reading.className='city-reading';
       reading.dataset.cityReading=city.id;
       reading.dataset.state='idle';
+      // Seeded so the pill can never expand onto an empty line, and announced
+      // politely because selecting a capital changes it without moving focus.
+      reading.textContent=IDLE_READING;
+      reading.setAttribute('aria-live','polite');
       const meta=document.createElement('span');
       meta.className='city-meta';
       meta.dataset.cityMeta=city.id;
@@ -330,6 +364,7 @@
       marker.append(stem,pin,card);
       frag.appendChild(marker);
       markerEls.set(city.id,marker);
+      cityPinEls.set(city.id,pin);
       cityReadingEls.set(city.id,reading);
       cityMetaEls.set(city.id,meta);
     }
@@ -701,8 +736,14 @@
   let lastX = 0, lastY = 0, lastMoveAt = 0;
   let moved = false;
   // Set on pointerdown when the press started on a pin; consumed on pointerup
-  // only if the pointer never travelled, so a drag never selects a city.
+  // only if the pointer stayed inside the tap slop, so a drag never selects.
   let pendingCity = null;
+  // Tap-vs-drag is decided on TOTAL travel from the pointerdown origin, not on
+  // the per-move `moved` flag: touch-action:none removes the browser's own slop
+  // filtering, so ordinary finger jitter trips a 1px per-move threshold and
+  // silently swallows the tap. 9px matches the usual platform touch slop.
+  const TAP_SLOP = 9;
+  let downX = 0, downY = 0, maxTravel = 0;
   const clampTilt=()=>{
     rotX=Math.max(ROT_X_MIN,Math.min(ROT_X_MAX,rotX));
   };
@@ -822,7 +863,8 @@
     // Without a browser key every request 403s, which the browser logs before any
     // JS can catch it. Short-circuit so the keyless build degrades quietly.
     if(!GOOGLE_API_KEY){
-      setCityReading(cityId,'error',activeLayer==='air'?'AIR · live key not set':'WEATHER · live key not set');
+      // Kept short so it stays on one line inside the narrow phone pill.
+      setCityReading(cityId,'error',activeLayer==='air'?'AIR · no live key':'WEATHER · no live key');
       setCityMeta(cityId,'LIVE · KEY NOT SET');
       return;
     }
@@ -831,13 +873,21 @@
     setCityMeta(cityId,'LIVE · CONNECTING');
     try{
       const [air,weather]=await Promise.allSettled([fetchAir(meta),fetchWeather(meta)]);
+      // A total failure is NOT cached: caching it would pin the pill to
+      // "unavailable" until the 10-minute refresh, and selectCity only fetches
+      // when the id is absent from cityData, so there would be no way to retry.
+      if(air.status!=='fulfilled'&&weather.status!=='fulfilled'){
+        setCityReading(cityId,'error','Live data unavailable · select again to retry');
+        setCityMeta(cityId,'LIVE · TAP TO RETRY');
+        return;
+      }
       const data={
         air:air.status==='fulfilled'?air.value:{},
         weather:weather.status==='fulfilled'?weather.value:{},
         fetchedAt:Date.now()
       };
       cityData.set(cityId,data);renderCityData();refreshCityMeta();
-    }catch(err){console.warn(`Live data failed for ${cityId}`,err);setCityReading(cityId,'error','Live data unavailable');}
+    }catch(err){console.warn(`Live data failed for ${cityId}`,err);setCityReading(cityId,'error','Live data unavailable · select again to retry');}
     finally{inFlight.delete(cityId);}
   }
   // Lazy: only the selected city is ever fetched, and the interval refreshes
@@ -847,11 +897,21 @@
     await Promise.allSettled(ids.map(loadCityData));
   }
   function selectCity(cityId){
-    if(!CITY_BY_ID.has(cityId)||cityId===selectedCity)return;
+    if(!CITY_BY_ID.has(cityId))return;
+    // Re-selecting the city that is already active is the RETRY gesture: a
+    // previous attempt that failed outright was never cached, so this refetches.
+    if(cityId===selectedCity){
+      if(!cityData.has(cityId))loadCityData(cityId);
+      return;
+    }
     const previous=markerEls.get(selectedCity);
     if(previous)previous.classList.remove('is-active');
+    const previousPin=cityPinEls.get(selectedCity);
+    if(previousPin)previousPin.setAttribute('aria-pressed','false');
     const marker=markerEls.get(cityId);
     if(marker)marker.classList.add('is-active');
+    const pin=cityPinEls.get(cityId);
+    if(pin)pin.setAttribute('aria-pressed','true');
     selectedCity=cityId;
     renderCityData();
     if(!cityData.has(cityId))loadCityData(cityId);
@@ -877,6 +937,7 @@
     pendingCity = e.target.closest?.('.city-pin')?.dataset.city || null;
     dragging=true;stage.classList.add('is-dragging');autoResumeAt=performance.now()+5200;
     moved=false;velocityX=0;velocityY=0;
+    downX=e.clientX;downY=e.clientY;maxTravel=0;
     lastX=e.clientX;lastY=e.clientY;lastMoveAt=performance.now();
     stage.setPointerCapture(e.pointerId);
   });
@@ -886,6 +947,9 @@
     const dt=Math.max(8,Math.min(40,now-lastMoveAt));
     const dx=e.clientX-lastX,dy=e.clientY-lastY;
     if(Math.abs(dx)+Math.abs(dy)>1)moved=true;
+    // Peak distance from the press origin, so a drag that wanders back to where
+    // it started is still a drag.
+    maxTravel=Math.max(maxTravel,Math.hypot(e.clientX-downX,e.clientY-downY));
     // No horizontal clamp: drag freely through every longitude, repeatedly if desired.
     rotY+=dx*0.0036;rotX+=dy*0.0032;clampTilt();
     velocityY=(dx*0.0036)/(dt/16.67);
@@ -893,8 +957,8 @@
     lastX=e.clientX;lastY=e.clientY;lastMoveAt=now;
   });
   stage.addEventListener('pointerup', e => {
-    // A tap that never moved is a selection, not a drag.
-    if(pendingCity&&!moved)selectCity(pendingCity);
+    // A press that stayed within the slop is a selection, not a drag.
+    if(pendingCity&&maxTravel<=TAP_SLOP)selectCity(pendingCity);
     pendingCity=null;
     dragging=false;stage.classList.remove('is-dragging');autoResumeAt=performance.now()+5200;
     try{stage.releasePointerCapture(e.pointerId);}catch(_){ }
@@ -908,7 +972,18 @@
     rotX=HOME_ROT_X;rotY=HOME_ROT_Y;velocityX=0;velocityY=0;autoResumeAt=0;
   });
 
-  const cities=CITIES.map(c=>({el:markerEls.get(c.id),lat:c.lat,lon:c.lon}));
+  const cities=CITIES.map(c=>({
+    id:c.id,
+    el:markerEls.get(c.id),
+    pin:cityPinEls.get(c.id),
+    card:markerEls.get(c.id).querySelector('.city-card'),
+    lat:c.lat,
+    lon:c.lon,
+    // Last known visibility, so the focus/aria attributes are written only when
+    // the state actually flips rather than on all 11 markers every frame.
+    visible:null,
+    occluded:null
+  }));
 
   function rotateForView(p) {
     let [x, y, z] = p;
@@ -919,9 +994,14 @@
     return [x, y, z];
   }
 
+  const rectsOverlap=(a,b)=>
+    a.width>0&&a.height>0&&b.width>0&&b.height>0&&
+    a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
+
   function updateCityMarkers() {
     const w = stage.clientWidth || 1;
     const h = stage.clientHeight || 1;
+    // Pass 1 — writes only: project every capital and place its marker.
     for (const city of cities) {
       const p = rotateForView(latLonToXYZ(city.lat,city.lon,1.035));
       const xNdc = p[0] * scale[0] + offset[0];
@@ -936,6 +1016,40 @@
       city.el.classList.toggle('place-below',y<=h*.30);
       city.el.style.left=`${x}px`;
       city.el.style.top=`${y}px`;
+      // A capital that just rotated out of view leaves the tab order and the
+      // accessibility tree; one rotating in rejoins both. Written only on the
+      // flip, and focus is surrendered so a focus ring cannot sit on a marker
+      // the user can no longer see.
+      if(city.visible!==visible){
+        city.visible=visible;
+        city.pin.tabIndex=visible?0:-1;
+        if(visible)city.pin.removeAttribute('aria-hidden');
+        else{
+          city.pin.setAttribute('aria-hidden','true');
+          if(document.activeElement===city.pin)city.pin.blur();
+        }
+      }
+    }
+    // Pass 2 — reads only: resolve label collisions. The expanded pill claims
+    // its box first, then each visible collapsed chip in registry order claims
+    // its own or is hidden. Reads are grouped after all writes so the frame
+    // costs a single forced layout.
+    const claimed=[];
+    const activeCity=selectedCity?cities.find(c=>c.id===selectedCity):null;
+    if(activeCity&&activeCity.visible)claimed.push(activeCity.card.getBoundingClientRect());
+    for(const city of cities){
+      if(!city.visible||city===activeCity){city.pendingOcclude=false;continue;}
+      const rect=city.card.getBoundingClientRect();
+      const hit=claimed.some(r=>rectsOverlap(rect,r));
+      city.pendingOcclude=hit;
+      if(!hit)claimed.push(rect);
+    }
+    // Pass 3 — writes only.
+    for(const city of cities){
+      if(city.occluded!==city.pendingOcclude){
+        city.occluded=city.pendingOcclude;
+        city.el.classList.toggle('is-occluded',city.pendingOcclude);
+      }
     }
   }
 
@@ -1028,6 +1142,10 @@
 
     // Seven WECARE dot hues. AIR favours the greens; WEATHER favours blue/purple/amber.
     gl.enable(gl.DEPTH_TEST);gl.depthMask(false);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    // These keys MUST stay identical to PALETTE[].name — the lookup below is by
+    // name, so a mismatch yields undefined, opacity becomes NaN, gl.uniform1f
+    // accepts it silently and that entire hue stops rendering. The 'red' key is
+    // the ochre cloud's historical name; recolour the RGB, never rename the key.
     const airOpacity={lime:.96,darkGreen:.78,green:1,blue:.80,purple:.76,amber:.84,red:.34};
     const weatherOpacity={lime:.84,darkGreen:.70,green:.78,blue:1,purple:.96,amber:1,red:.42};
     for(const d of paletteClouds){
