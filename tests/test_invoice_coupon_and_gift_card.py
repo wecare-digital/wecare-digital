@@ -179,6 +179,32 @@ class _SequenceTable:
         return {"Item": dict(row)} if row else {}
 
 
+class _KeysTable:
+    """The commerce-keys table, key `orderId`, with its `attribute_not_exists` put evaluated.
+
+    `_get_next_invoice_number` confirms every number it hands out with an immutable
+    `INVOICENO#<number>` reservation row here, so this table is now on the numbering path. The
+    condition is honoured rather than ignored: a fake that accepted every put would let a number
+    be re-issued and still pass, which is the one thing the reservation exists to prevent.
+    """
+
+    def __init__(self) -> None:
+        self.rows: dict = {}
+
+    def put_item(self, Item=None, ConditionExpression=None, **_):
+        item = dict(Item or {})
+        key = item["orderId"]
+        if ConditionExpression and "attribute_not_exists(orderId)" in str(ConditionExpression) \
+                and key in self.rows:
+            raise _conditional_failure()
+        self.rows[key] = item
+        return {}
+
+    def get_item(self, Key=None, **_):
+        row = self.rows.get((Key or {})["orderId"])
+        return {"Item": dict(row)} if row else {}
+
+
 class _InertTable:
     """A table whose contents no assertion here depends on: contacts, assets, the delivery log.
 
@@ -214,6 +240,7 @@ class _Tables:
         self.invoices = _InvoicesTable()
         self.items = _ItemsTable()
         self.sequence = _SequenceTable()
+        self.keys = _KeysTable()
         self.coupons = FakeTable(key_attr=cs.KEY_ATTRIBUTE,
                                  indexes={cs.STATUS_INDEX: (cs.STATUS_ATTRIBUTE, "createdAt")})
         self.cards = FakeTable(key_attr=gc.KEY_ATTRIBUTE,
@@ -225,6 +252,7 @@ class _Tables:
             handler.INVOICES_TABLE: self.invoices,
             handler.INVOICE_ITEMS_TABLE: self.items,
             handler.INVOICE_SEQ_TABLE: self.sequence,
+            handler.COMMERCE_KEYS_TABLE: self.keys,
             handler.COUPONS_TABLE: self.coupons,
             handler.GIFT_CARDS_TABLE: self.cards,
             handler.CONTACTS_TABLE: self.contacts,

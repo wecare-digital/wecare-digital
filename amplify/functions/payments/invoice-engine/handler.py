@@ -29,9 +29,10 @@ import logging
 import boto3
 import io
 from typing import Dict, Any, Optional, List
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from lambda_utils.response import cors_response, cors_headers, options_response, extract_origin
+from lambda_utils.audit import record_audit
 from lambda_utils.logging import get_logger
 from lambda_utils.privacy import mask_phone  # a full number must never reach CloudWatch
 from lambda_utils import media_paths
@@ -245,6 +246,17 @@ def _flatten_onto_white(png_img):
 # Module-level origin for CORS (set per-invocation in handler)
 origin = ''
 
+#: The caller's Cognito `sub` for this invocation, set by `handler` alongside `origin` and
+#: read only by `_audit_actor`. Module-level for the same reason `origin` is: the route
+#: functions below take `(id, body, request_id)` and threading an actor through all of
+#: them to reach two audit calls would be a wider diff than the fix.
+_actor_sub = ''
+
+
+def _audit_actor() -> str:
+    """Who to record for an audited refusal. The token's `sub`, never a body field."""
+    return _actor_sub or 'unknown'
+
 # Company details for invoice
 # GSTIN/PAN appear on issued tax invoices. The PAN is embedded in the GSTIN at
 # characters 3-12, so the two MUST stay consistent:
@@ -328,10 +340,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
 
     from lambda_utils.middleware import require_auth
-    required_role = 'Admin' if method in ('POST', 'PUT', 'DELETE') else None
+    # Viewer on reads, Admin on anything that writes. The read floor is stated explicitly
+    # rather than left as None: `require_auth` no longer defaults an ungrouped principal
+    # to Viewer, so `required_role=None` would have nothing to check.
+    required_role = 'Admin' if method in ('POST', 'PUT', 'DELETE') else 'Viewer'
     _auth = require_auth(event, required_role=required_role)
     if _auth is not None:
         return _auth
+
+    global _actor_sub
+    _auth_info = event.get('_auth') or {}
+    _actor_sub = str((_auth_info.get('attributes') or {}).get('sub')
+                     or _auth_info.get('username') or '')
 
     path = event.get('rawPath', event.get('path', ''))
     params = event.get('queryStringParameters') or {}
@@ -448,10 +468,36 @@ class InvoiceSequenceUnavailable(RuntimeError):
     """
 
 
+#: How many candidates `_get_next_invoice_number` will walk past before refusing.
+#:
+#: The cap is the difference between self-healing and wedged. A counter that has been reset sits
+#: BELOW numbers that are already out, so the first candidates it offers are all reserved; the
+#: loop walks past them and the series continues from the true floor. Refusing on the first
+#: collision instead would leave every subsequent invoice failing until an operator ran the
+#: reconciliation script. The cap stops the other failure mode - a loop walking thousands of
+#: numbers inside one API request - and 25 covers the observed drift (a reset to 0 against four
+#: issued numbers) with a wide margin, while `scripts/reconcile_invoice_sequence.py` is the
+#: correct tool for a larger gap.
+_INVOICE_NUMBER_ATTEMPTS = 25
+
+
+def _current_fy() -> str:
+    """The Indian financial year as `YYYY-YYYY`, which starts in April."""
+    now = time.localtime()
+    year = now.tm_year
+    return f"{year}-{year+1}" if now.tm_mon >= 4 else f"{year-1}-{year}"
+
+
+def _format_invoice_number(prefix: str, fy: str, seq: int) -> str:
+    """`WD/2627/00001` - the one place the GST number's shape is written."""
+    fy_short = fy.replace('20', '').replace('-', '')
+    return f"{prefix}/{fy_short}/{seq:05d}"
+
+
 def _get_next_invoice_number(fy: str = None) -> str:
     """Generate next sequential invoice number. Format: WD/FY/NNNNN
 
-    Raises InvoiceSequenceUnavailable if the counter cannot be advanced.
+    Raises InvoiceSequenceUnavailable if a number cannot be both advanced AND reserved.
 
     This used to fall back to `WD-PAY-TEMP-<uuid>`, which put a non-sequential
     number into the GST series. Under Rule 46(b) an invoice number has to be part
@@ -461,48 +507,109 @@ def _get_next_invoice_number(fy: str = None) -> str:
     the next number should be. Nothing downstream could distinguish it either,
     because it was returned as an ordinary success.
 
+    WHY THE COUNTER ALONE IS NOT ENOUGH
+    -----------------------------------
+    The `update_item` below is atomic, so two concurrent callers cannot read the
+    same `last_seq`. What it cannot do is remember what it gave out: the counter
+    is one row on `InvoiceSequenceTable`, `clear_all_invoice_data` wipes that
+    table, and a wiped counter restarts at 1. That is not a hypothesis - it is
+    how `WD/2627/00001` reached two different customers eight days apart.
+
+    So the number is not the counter's output any more; it is the counter's
+    output CONFIRMED by an immutable reservation row (`INVOICENO#<number>` on the
+    commerce-keys table, which that wipe does not touch). The reservation is the
+    last thing that happens before the number is returned, so no caller can hold
+    a number storage has not committed to, and the number can never fall at or
+    below one already issued.
+
+    On a collision the counter is advanced and the next candidate tried, up to
+    `_INVOICE_NUMBER_ATTEMPTS`. Walking past an already-issued number is the
+    series continuing correctly, not a gap - the gap is the erased invoice rows,
+    which is data loss, not a numbering fault.
+
     Failing here is recoverable: the caller returns 503, the client retries, and
     no document is issued. Issuing the wrong number is not recoverable, because a
     GST invoice number cannot be reassigned once it has been sent to a customer.
     """
-    if not fy:
-        now = time.localtime()
-        year = now.tm_year
-        month = now.tm_mon
-        fy = f"{year}-{year+1}" if month >= 4 else f"{year-1}-{year}"
+    fy = fy or _current_fy()
 
     table = dynamodb.Table(INVOICE_SEQ_TABLE)
-    try:
-        resp = table.update_item(
-            Key={'fy': fy},
-            UpdateExpression='SET last_seq = if_not_exists(last_seq, :zero) + :inc, prefix = if_not_exists(prefix, :pfx), updated_at = :now',
-            ExpressionAttributeValues={':zero': 0, ':inc': 1, ':pfx': 'WD', ':now': int(time.time())},
-            ReturnValues='UPDATED_NEW',
-        )
-        seq = int(resp['Attributes']['last_seq'])
-        prefix = resp['Attributes'].get('prefix', 'WD')
-        fy_short = fy.replace('20', '').replace('-', '')
-        return f"{prefix}/{fy_short}/{seq:05d}"
-    except Exception as e:
-        logger.error(json.dumps({
-            'event': 'invoice_sequence_unavailable',
+    keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+
+    for attempt in range(1, _INVOICE_NUMBER_ATTEMPTS + 1):
+        try:
+            resp = table.update_item(
+                Key={'fy': fy},
+                UpdateExpression='SET last_seq = if_not_exists(last_seq, :zero) + :inc, prefix = if_not_exists(prefix, :pfx), updated_at = :now',
+                ExpressionAttributeValues={':zero': 0, ':inc': 1, ':pfx': 'WD', ':now': int(time.time())},
+                ReturnValues='UPDATED_NEW',
+            )
+            seq = int(resp['Attributes']['last_seq'])
+            prefix = resp['Attributes'].get('prefix', 'WD')
+        except Exception as e:
+            logger.error(json.dumps({
+                'event': 'invoice_sequence_unavailable',
+                'fy': fy,
+                'table': INVOICE_SEQ_TABLE,
+                'error': str(e)[:300],
+            }))
+            raise InvoiceSequenceUnavailable(
+                f"Could not advance the invoice sequence for FY {fy}"
+            ) from e
+
+        candidate = _format_invoice_number(prefix, fy, seq)
+
+        try:
+            reserved = order_keys.reserve_invoice_number(
+                keys_table, invoice_number=candidate, fy=fy)
+        except order_keys.OrderIdentityUnavailable as e:
+            # A storage error, NOT a lost race - `reserve_invoice_number` keeps those apart on
+            # purpose. Retrying here would hand out a number nothing recorded, so this refuses.
+            logger.error(json.dumps({
+                'event': 'invoice_number_reservation_unavailable',
+                'fy': fy,
+                'invoiceNumber': candidate,
+                'attempt': attempt,
+                'error': str(e)[:300],
+            }))
+            raise InvoiceSequenceUnavailable(
+                f"Could not reserve an invoice number for FY {fy}"
+            ) from e
+
+        if reserved:
+            return candidate
+
+        logger.warning(json.dumps({
+            'event': 'invoice_number_already_reserved',
             'fy': fy,
-            'table': INVOICE_SEQ_TABLE,
-            'error': str(e)[:300],
+            'invoiceNumber': candidate,
+            'attempt': attempt,
+            'attemptCap': _INVOICE_NUMBER_ATTEMPTS,
+            'note': 'counter was behind the issued series; advancing',
         }))
-        raise InvoiceSequenceUnavailable(
-            f"Could not advance the invoice sequence for FY {fy}"
-        ) from e
+
+    logger.error(json.dumps({
+        'event': 'invoice_sequence_unavailable',
+        'fy': fy,
+        'reason': 'every candidate was already reserved',
+        'attempts': _INVOICE_NUMBER_ATTEMPTS,
+    }))
+    raise InvoiceSequenceUnavailable(
+        f"Exhausted {_INVOICE_NUMBER_ATTEMPTS} candidates for FY {fy}; "
+        "run scripts/reconcile_invoice_sequence.py to realign the counter"
+    )
 
 
 def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
-    """Preview next invoice number without incrementing."""
-    fy = body.get('fy')
-    if not fy:
-        now = time.localtime()
-        year = now.tm_year
-        month = now.tm_mon
-        fy = f"{year}-{year+1}" if month >= 4 else f"{year-1}-{year}"
+    """Preview next invoice number without incrementing.
+
+    The counter alone cannot answer this: if it has been reset, `last_seq + 1` is a number that
+    is already out, and showing it to staff is how a duplicate gets typed into a conversation.
+    So the preview probes the reservation rows forward from the counter and reports the number
+    `_get_next_invoice_number` would actually reach, alongside the raw `lastSeq` so the drift is
+    visible rather than silently corrected. Point reads only - no scan, nothing written.
+    """
+    fy = body.get('fy') or _current_fy()
 
     table = dynamodb.Table(INVOICE_SEQ_TABLE)
     try:
@@ -510,9 +617,26 @@ def get_next_sequence_preview(body: Dict, request_id: str) -> Dict:
         item = resp.get('Item', {})
         last = int(item.get('last_seq', 0))
         prefix = item.get('prefix', 'WD')
-        fy_short = fy.replace('20', '').replace('-', '')
-        next_num = f"{prefix}/{fy_short}/{last+1:05d}"
-        return _resp(200, {'nextInvoiceNumber': next_num, 'fy': fy, 'lastSeq': last})
+
+        keys_table = dynamodb.Table(COMMERCE_KEYS_TABLE)
+        seq = last + 1
+        probes = 0
+        while probes < _INVOICE_NUMBER_ATTEMPTS and order_keys.resolve_invoice_number(
+                keys_table, _format_invoice_number(prefix, fy, seq)) is not None:
+            seq += 1
+            probes += 1
+
+        return _resp(200, {
+            'nextInvoiceNumber': _format_invoice_number(prefix, fy, seq),
+            'fy': fy,
+            'lastSeq': last,
+            # The highest number known to be issued, counter and reservations combined. Equal to
+            # `lastSeq` when they agree; higher when the counter is behind what went out.
+            'reservedFloorSeq': seq - 1,
+            # True when the probe ran out of attempts, so the floor reported is a lower bound and
+            # the counter needs reconciling rather than another preview.
+            'reservationProbeExhausted': probes >= _INVOICE_NUMBER_ATTEMPTS,
+        })
     except Exception as e:
         return _resp(500, {'error': str(e)})
 
@@ -638,6 +762,79 @@ def _rupees_to_paise(value, *, code: str = 'AMOUNT_MISMATCH') -> int:
 def _paise_to_rupees(paise: int) -> Decimal:
     """Integer paise back to rupees, ONCE, as an exact `Decimal`. The only conversion back."""
     return Decimal(str(int(paise))) / Decimal('100')
+
+
+def _back_calculate_inclusive(total_paise: int, gst_rate: Decimal) -> tuple:
+    """Split a GST-INCLUSIVE total into `(taxable_paise, tax_paise)` that sum to it EXACTLY.
+
+    WHY THE TAX IS A REMAINDER AND NOT A SECOND CALCULATION
+    ------------------------------------------------------
+    The taxable value is `total * 100 / (100 + rate)`, which is almost never a whole number of
+    paise: at 18% a 100.01 capture has a taxable value of 8475.42372... paise. Quantising BOTH
+    legs independently - taxable rounded one way, tax computed as `taxable * rate / 100` and
+    rounded another - lets the two disagree with the figure they came from by a paise, and that
+    paise is not cosmetic here. A captured amount is compared against the invoice total with
+    exact integer equality, so a one-paise drift refuses a payment that actually settled.
+
+    Taking the tax as `total - taxable` makes the identity `taxable + tax == total` structural
+    rather than something each rate has to happen to satisfy. The paise lands on the TAX leg,
+    which is the conservative direction for a tax invoice: the taxable value is never overstated.
+
+    `ROUND_HALF_UP` is the quantiser (not banker's rounding) because it is what the rest of this
+    tree and the GST rules use for a rupee figure, and because `Decimal`'s default `ROUND_HALF_EVEN`
+    would make the taxable value of two adjacent amounts move in different directions.
+
+    A rate of 0 is the identity: the whole amount is taxable and the tax is 0.
+
+    All `Decimal` and `int`. No float touches a money value here - `0.1 + 0.2` is not `0.3` in
+    binary floating point and `tests/test_payment_path_has_no_float_money.py` AST-walks this file.
+    """
+    total = int(total_paise)
+    rate = gst_rate if isinstance(gst_rate, Decimal) else Decimal(str(gst_rate))
+    if total < 0:
+        raise ValueError('a tax-inclusive total cannot be negative')
+    if rate < 0:
+        raise ValueError('a GST rate cannot be negative')
+    taxable_paise = int((Decimal(total) * Decimal(100) / (Decimal(100) + rate)).quantize(
+        Decimal('1'), rounding=ROUND_HALF_UP))
+    return taxable_paise, total - taxable_paise
+
+
+def _split_tax_halves(tax_paise: int) -> tuple:
+    """Split a tax figure into `(cgst_paise, sgst_paise)` that sum to it EXACTLY.
+
+    An intra-state supply prints CGST and SGST at half the rate each, so the two lines together
+    ARE the tax. `tax / 2` twice is the obvious spelling and the wrong one: an odd number of
+    paise formatted to two decimals prints two halves that sum to a paise less (or more) than the
+    Total Tax row directly above them, and a tax invoice whose own breakdown does not add up is a
+    document a GST officer reads as arithmetic they cannot follow.
+
+    The odd paise goes on CGST, deliberately and always the same way, so the figure is a function
+    of the amount rather than of which renderer drew it.
+    """
+    tax = int(tax_paise)
+    sgst = tax // 2
+    return tax - sgst, sgst
+
+
+def _tax_halves_rupees(tax_value) -> tuple:
+    """`(cgst, sgst)` as exact rupee `Decimal`s for the three renderers, summing to `tax_value`.
+
+    The renderers hold a STORED tax figure off an invoice row that is already final, so this
+    converts rather than decides. It falls back to a Decimal halving for a stored figure that is
+    not expressible in whole paise, because this is a display path: refusing here would fail the
+    rendering of a legacy row over a value nothing compares - the same reason `_money_display`
+    falls back. The fallback still takes the second half as the remainder, so the two printed
+    lines sum to the printed tax either way.
+    """
+    try:
+        cgst_paise, sgst_paise = _split_tax_halves(
+            wa_payment_request.exact_paise(tax_value))
+        return _paise_to_rupees(cgst_paise), _paise_to_rupees(sgst_paise)
+    except Exception:  # noqa: BLE001 - any unrepresentable stored figure takes the fallback
+        tax_dec = Decimal(str(tax_value or 0))
+        cgst = (tax_dec / 2).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return cgst, tax_dec - cgst
 
 
 def _assert_inr(body: Dict) -> None:
@@ -990,11 +1187,97 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
         if int(it_v.get('quantity', 1)) < 1:
             return _resp(400, {'error': f'Item {idx_v+1} quantity must be at least 1'})
 
-    tax = sum(
-        float(i.get('amount', 0)) * int(i.get('quantity', 1)) * float(i.get('gstRate', gst_rate)) / 100
-        for i in items
-    )
-    tax = round(tax, 2)
+    # ── Tax-inclusive mode (opt-in): the figure given is ALREADY the total ──
+    #
+    # WHAT THIS FIXES
+    # ---------------
+    # The additive path below computes the tax ON TOP of the item amounts, which is right for an
+    # invoice somebody is about to pay. It is wrong for an invoice raised FROM a capture: the
+    # money has already moved, and `create_invoice_from_payment` sent the captured amount as a
+    # single line item with the default 18% rate, so a 100.00 capture became a 118.00 invoice
+    # stamped PAID. Eighteen rupees the customer was never charged, on a GST document.
+    #
+    # D3: a captured amount is GST-INCLUSIVE. So in this mode the rate decides the SPLIT and
+    # never the total - the taxable value is back-calculated and the tax is the remainder (see
+    # `_back_calculate_inclusive`), and nothing may be added to the figure afterwards.
+    #
+    # WHY IT IS OPT-IN AND WHY `expectedTotalPaise` IS MANDATORY
+    # ----------------------------------------------------------
+    # Opt-in because the additive path is correct for every other caller and must stay unchanged
+    # byte for byte when the flag is absent. Mandatory because the whole value of the mode is the
+    # EXACT comparison further down: without the expected figure there is nothing to compare the
+    # computed total against, and a silent fall back to the additive path would reintroduce the
+    # defect on exactly the caller that asked not to have it. Absent is therefore a 400.
+    #
+    # Everything here happens before `_get_next_invoice_number`, so a refusal leaves no document
+    # and burns no GST number - the ordering this whole block exists to preserve.
+    amount_is_tax_inclusive = bool(body.get('amountIsTaxInclusive'))
+    expected_total_paise = 0
+    if amount_is_tax_inclusive:
+        if body.get('expectedTotalPaise') is None:
+            return _resp(400, {
+                'error': 'A tax-inclusive amount requires expectedTotalPaise',
+                'errorCode': 'EXPECTED_TOTAL_PAISE_REQUIRED',
+            })
+        try:
+            # Integral check rather than `int()`: `int(10000.5)` truncates, and a figure that is
+            # not a whole paise cannot be what a provider captured.
+            expected_decimal = Decimal(str(body.get('expectedTotalPaise')))
+        except (InvalidOperation, ValueError, TypeError):
+            expected_decimal = None
+        if (expected_decimal is None or not expected_decimal.is_finite()
+                or expected_decimal != expected_decimal.to_integral_value()
+                or expected_decimal <= 0):
+            return _resp(400, {
+                'error': 'expectedTotalPaise must be a positive whole number of paise',
+                'errorCode': 'EXPECTED_TOTAL_PAISE_INVALID',
+            })
+        expected_total_paise = int(expected_decimal)
+
+        # REFUSED rather than silently dropped. A coupon is a price change and a gift card is
+        # tender; both would have had to apply before the customer paid, and applying either to
+        # money already taken would either contradict the capture or leave the arithmetic below
+        # mixing a discounted total with a figure the provider settled.
+        if (str(body.get('couponCode') or '').strip()
+                or str(body.get('giftCardCode') or '').strip()):
+            return _resp(400, {
+                'error': 'A coupon or gift card cannot be applied to an amount already captured',
+                'errorCode': 'AMOUNT_ALREADY_CAPTURED',
+            })
+
+        gst_rate_decimal = Decimal(str(gst_rate))
+        if not gst_rate_decimal.is_finite():
+            return _resp(400, {'error': 'GST rate must be between 0 and 100'})
+        taxable_paise, tax_paise = _back_calculate_inclusive(
+            expected_total_paise, gst_rate_decimal)
+        subtotal = _paise_to_rupees(taxable_paise)
+        tax = _paise_to_rupees(tax_paise)
+        # Every additive component is forced to zero, not merely left alone: a captured amount
+        # cannot grow a charge, a fee or a shipping line after the fact. `Decimal` throughout, so
+        # the total below is exact arithmetic on the two figures the split produced.
+        discount = Decimal('0')
+        shipping = Decimal('0')
+        handling = Decimal('0')
+        effective_gp = Decimal('0')
+        effective_nf = Decimal('0')
+        green_packing = Decimal('0')
+        notification_fee = Decimal('0')
+        # ONE line item, at the TAXABLE amount, so the persisted `InvoiceItems` rows still
+        # reconcile to the persisted `subtotal`. Storing the gross figure here is what made the
+        # old document self-contradictory: a 100.00 line, a 118.00 total and 18.00 of tax that
+        # belonged to neither.
+        items = [{
+            'name': (items[0].get('name') if items else '') or 'Payment',
+            'amount': subtotal,
+            'quantity': 1,
+            'gstRate': gst_rate,
+        }]
+    else:
+        tax = sum(
+            float(i.get('amount', 0)) * int(i.get('quantity', 1)) * float(i.get('gstRate', gst_rate)) / 100
+            for i in items
+        )
+        tax = round(tax, 2)
 
     # ── Optional coupon, applied BEFORE the fee because a coupon is a price change ──
     #
@@ -1054,13 +1337,51 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     # outbound-whatsapp/handler.py defaulted to 0.022 - three copies, three answers. All
     # three are 2.5% now and must move together.
     convenience_fee = float(body.get('convenienceFee', 0))
-    if convenience_fee == 0 and entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
+    if amount_is_tax_inclusive:
+        # Zero, whatever the caller sent. The fee is a charge for taking the money, and the money
+        # is already taken - adding 2.5% + GST here would put the invoice above the capture by
+        # construction and the invariant below would then refuse every single one of them.
+        convenience_fee = Decimal('0')
+    elif convenience_fee == 0 and entry_point in ('pay_flow', 'manual', 'whatsapp_payment'):
         collection = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax
         conv_base = round(collection * 0.025, 2)
         conv_gst = round(conv_base * 0.18, 2)
         convenience_fee = round(conv_base + conv_gst, 2)
 
     total = subtotal - discount + shipping + effective_gp + effective_nf + handling + tax + convenience_fee
+
+    # ── The exact-total invariant: an invoice from a capture IS the capture ──
+    #
+    # Exact integer equality in paise, on the figure about to be stored, BEFORE a GST number is
+    # consumed. Not a tolerance: the old matcher compared rupee floats with
+    # `abs(inv_total - amount) < 0.02` and that is how an 18-rupee discrepancy stayed invisible
+    # for as long as it did. A one-paise difference here means the two sides genuinely disagree
+    # about what was collected, and the honest answer to that is a refusal with nothing written -
+    # not a document, and not a number out of the consecutive series.
+    #
+    # `exact_paise` is the same reader the reservation and the capture comparison use, so a total
+    # carrying sub-paise noise fails closed rather than being rounded into agreement.
+    if amount_is_tax_inclusive:
+        try:
+            computed_total_paise = wa_payment_request.exact_paise(total)
+        except wa_payment_request.PaymentRequestRefused:
+            computed_total_paise = None
+        if computed_total_paise != expected_total_paise:
+            logger.error(json.dumps({
+                'event': 'invoice_total_mismatch',
+                'referenceId': reference_id,
+                'paymentId': payment_id,
+                'expectedTotalPaise': expected_total_paise,
+                'computedTotalPaise': computed_total_paise,
+                'note': 'no invoice number consumed, nothing written',
+                'requestId': request_id,
+            }))
+            return _resp(400, {
+                'error': 'The invoice total does not equal the captured amount',
+                'errorCode': 'INVOICE_TOTAL_MISMATCH',
+                'expectedTotalPaise': expected_total_paise,
+                'computedTotalPaise': computed_total_paise,
+            })
 
     # ── Optional gift card, applied LAST because a gift card is tender, not a price change ──
     #
@@ -1213,9 +1534,14 @@ def create_invoice(body: Dict, request_id: str) -> Dict:
     has_green = any('green' in n and 'pack' in n for n in existing_names)
     has_notif = any('notification' in n or 'alert' in n for n in existing_names)
 
-    # Legacy support: if sent as separate fields and NOT already in items, append them
-    green_packing = float(body.get('greenPacking', 0))
-    notification_fee = float(body.get('notificationFee', 0))
+    # Legacy support: if sent as separate fields and NOT already in items, append them.
+    # Zero in tax-inclusive mode, for the same reason the amounts block zeroed them: a charge
+    # line appended here would be a line the capture never paid for, and the stored items would
+    # stop reconciling to the stored subtotal.
+    green_packing = (Decimal('0') if amount_is_tax_inclusive
+                     else float(body.get('greenPacking', 0)))
+    notification_fee = (Decimal('0') if amount_is_tax_inclusive
+                        else float(body.get('notificationFee', 0)))
     if green_packing > 0 and not has_green:
         all_items.append({'name': 'Green Packing', 'amount': green_packing, 'quantity': 1, 'isCharge': True})
     if notification_fee > 0 and not has_notif:
@@ -1283,6 +1609,38 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
     except Exception as e:
         return _resp(500, {'error': f'Payment lookup failed: {e}'})
 
+    # ── The captured amount, read as the authoritative INTEGER paise ──
+    #
+    # `payment['amount']` is what `razorpay-webhook` stored - `Decimal(amount_paise)`, in PAISE
+    # (razorpay-webhook/handler.py:1978). `amountInRupees` beside it is a DISPLAY STRING, and
+    # reading that one is where the 118-for-a-100-capture defect started: the display figure went
+    # in as a line item and the 18% default was then applied on top of it.
+    #
+    # The rupee round trip through `exact_paise` is not ceremony - it is what PROVES the stored
+    # figure is a whole paise. A plain `int()` would truncate a drifted value into one that
+    # compares equal to nothing, and `exact_paise` is the same reader the capture comparison uses,
+    # so both sides of the invariant below agree on what a money value is.
+    #
+    # A payment row with no usable integer amount is a REFUSAL. The alternative the old code took
+    # - `float(payment.get('amountInRupees', 0))`, defaulting to zero - issues a zero-rupee tax
+    # invoice against a real capture and burns a GST number doing it.
+    try:
+        captured_paise = wa_payment_request.exact_paise(
+            Decimal(str(payment.get('amount'))) / Decimal('100'))
+    except (wa_payment_request.PaymentRequestRefused, InvalidOperation, ValueError, TypeError):
+        captured_paise = 0
+    if captured_paise <= 0:
+        logger.error(json.dumps({
+            'event': 'invoice_not_created_payment_amount_unusable',
+            'paymentId': payment_id,
+            'note': 'no invoice number consumed, nothing written',
+            'requestId': request_id,
+        }))
+        return _resp(400, {
+            'error': 'The payment record carries no usable captured amount',
+            'errorCode': 'PAYMENT_AMOUNT_UNUSABLE',
+        })
+
     # Fetch contact if available
     contact_phone = payment.get('contact', '')
     contact = _lookup_contact_by_phone(contact_phone)
@@ -1319,11 +1677,23 @@ def create_invoice_from_payment(body: Dict, request_id: str) -> Dict:
         'city': contact.get('city', '') if contact else '',
         'state': contact.get('state', '') if contact else '',
         'postalCode': contact.get('postalCode', '') if contact else '',
-        'items': body.get('items', [{'name': body.get('itemName', 'Payment'), 'amount': float(payment.get('amountInRupees', 0)), 'quantity': 1}]),
+        'items': body.get('items', [{'name': body.get('itemName', 'Payment'),
+                                     'amount': _paise_to_rupees(captured_paise),
+                                     'quantity': 1}]),
         'discount': float(body.get('discount', 0)),
         'shipping': float(body.get('shipping', 0)),
+        # Still configurable and still 18 by default - but the rate now decides the SPLIT of the
+        # captured amount, never the total. See `_back_calculate_inclusive`.
         'gstRate': float(body.get('gstRate', 18)),
         'convenienceFee': float(body.get('convenienceFee', 0)),
+        # ── D3: what the provider captured IS the GST-inclusive total ──
+        # `create_invoice` back-calculates the taxable value and the tax from `gstRate`, forces
+        # every additive component to zero, and refuses with `INVOICE_TOTAL_MISMATCH` if the
+        # document it is about to write does not equal this figure to the paise - before a GST
+        # number is consumed. The three money fields above are therefore zeroed by that mode
+        # whatever a caller sends: money already taken cannot grow a charge.
+        'amountIsTaxInclusive': True,
+        'expectedTotalPaise': captured_paise,
         'gstin': body.get('gstin', contact.get('gstin', '') if contact else '') or COMPANY['gstin'],
         'purpose': body.get('purpose', ''),
         'currency': payment.get('currency', 'INR'),
@@ -1550,8 +1920,10 @@ def _build_invoice_html(invoice: Dict, items: List[Dict]) -> str:
     else:
         paid_str = ''
 
-    cgst = tax / 2
-    sgst = tax / 2
+    # The two printed tax lines are the EXACT halves of the stored tax, not two independent
+    # halvings - see `_split_tax_halves`. Read off the stored row rather than off the `tax` float
+    # above, so the breakdown is derived from the figure the document actually carries.
+    cgst, sgst = _tax_halves_rupees(invoice.get('tax', 0))
 
     # ── Coupon and gift card: two separate lines, because they are two different things ──
     #
@@ -3145,11 +3517,25 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # `order_details` message for one reservation would show the customer two payment requests.
     if not wa_payment_request.claim_send(attempts_table,
                                          payment_attempt_id=payment_attempt_id):
+        # The claim is held by someone, and WHY it is held decides the answer. Read off the
+        # resolved attempt row, which on the resume path is the stored one.
+        held_as = str(attempt.get('sendStatus') or '')
         logger.info(json.dumps({
             'event': 'wa_payment_send_already_claimed', 'invoiceId': invoice_id,
             'referenceId': reference_id, 'paymentAttemptId': payment_attempt_id,
-            'requestId': request_id,
+            'sendStatus': held_as, 'requestId': request_id,
         }))
+        if held_as == 'REJECTED':
+            # A claim held under REJECTED is NOT a send in progress, and answering 200
+            # 'send_in_progress' for it is the same lie this feature exists to remove. The
+            # downstream already said this request will not succeed, so the next step is a
+            # corrected invoice and a fresh collection, not another invoke.
+            return _resp(409, {
+                'error': 'This payment request was refused and was not sent. Cancel and raise '
+                         'the collection again. Nothing has been charged.',
+                'invoiceId': invoice_id, 'referenceId': reference_id,
+                'paymentAttemptId': payment_attempt_id,
+                'status': 'payment_link_rejected', 'sendStatus': 'REJECTED'})
         # 200, not 409. A 409 reads as "nothing happened" and invites a retry, and a second
         # invoke is the one thing this claim exists to prevent. `sendStatus` is resolved by
         # reading the OutboundTable row, never by sending again.
@@ -3255,6 +3641,39 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
         })
     }
 
+    # ══ THE DELIVERY LOG, ONE HOME, EVERY OUTCOME ════════════════════════════════════════════
+    #
+    # It used to be a single write at the bottom of the function, reached only by the paths that
+    # fell through to it: the ambiguous path returned 502 above it and left NO record at all, and
+    # every row it did write carried `waMessageId: ''` and the word `sent`.
+    #
+    # Nested rather than module-level because the row is composed almost entirely of this send's
+    # locals; `status` is the only thing the three call sites disagree about, which is exactly
+    # what makes one home worth having.
+    def _log_delivery(status: str, *, wa_message_id: str = '', error: str = '') -> None:
+        try:
+            dynamodb.Table(INVOICE_DELIVERY_TABLE).put_item(Item={
+                'invoiceId': invoice_id,
+                'timestamp': int(time.time()),
+                'channel': 'whatsapp_payment',
+                'toNumber': customer_phone,
+                'waMessageId': wa_message_id,
+                'status': status,
+                'imageUrl': '',
+                'phoneNumberId': phone_number_id,
+                'contactId': contact_id,
+                'error': error,
+            })
+        except Exception as log_error:  # noqa: BLE001
+            # This row is the staff-VISIBLE record of a send, not the authority on it (the
+            # `PAYREF#` row and `sendStatus` are). So a failed log is logged and swallowed: a
+            # storage error here must not replace a truthful rejection with a 500, which is the
+            # one answer that would send an operator looking in the wrong place.
+            logger.error(json.dumps({
+                'event': 'payment_delivery_log_failed', 'invoiceId': invoice_id,
+                'status': status, 'error': type(log_error).__name__, 'requestId': request_id,
+            }))
+
     try:
         wa_response = lambda_client.invoke(
             FunctionName='wecare-outbound-whatsapp',
@@ -3262,26 +3681,122 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
             Payload=json.dumps(wa_payload),
         )
         wa_result = json.loads(wa_response['Payload'].read())
-        wa_status_code = wa_result.get('statusCode', wa_response.get('StatusCode', 0))
-        if wa_status_code >= 400:
-            logger.error(json.dumps({'event': 'payment_link_outbound_error', 'invoiceId': invoice_id, 'statusCode': wa_status_code, 'body': wa_result.get('body', ''), 'requestId': request_id}))
+        wa_status_code = int(wa_result.get('statusCode', wa_response.get('StatusCode', 0)) or 0)
     except Exception as e:
-        # The reservation exists and no send happened, so `sendStatus` stays PENDING and is NOT
-        # auto-replayed: network acceptance cannot be inferred from a timeout, and a second
-        # message would show the customer two payment requests.
+        # ══ AMBIGUOUS ════════════════════════════════════════════════════════════════════════
+        #
+        # A timeout, an unreadable response, a transport failure: we do not know whether Meta
+        # took the message. The reservation exists and no send is replayed - `sendStatus` stays
+        # PENDING and the claim is deliberately NOT released, because network acceptance cannot
+        # be inferred from a timeout and a second message would show the customer two payment
+        # requests. Releasing here would invite exactly the double-send the claim exists to stop.
+        #
+        # What changes is that the row is written BEFORE the return, labelled `unknown`. An
+        # ambiguous send that leaves no record is indistinguishable from a send that never
+        # happened, and the two need opposite actions from staff.
         logger.error(json.dumps({
             'event': 'wa_payment_send_unknown', 'invoiceId': invoice_id,
             'referenceId': reference_id, 'error': type(e).__name__, 'requestId': request_id,
         }))
-        return _resp(502, {'error': 'Failed to send payment link',
+        _log_delivery('unknown', error=f'send outcome unknown: {type(e).__name__}')
+        return _resp(502, {'error': 'The payment request could not be confirmed as sent. '
+                                    'Reconcile this collection before raising it again.',
                            'referenceId': reference_id, 'sendStatus': 'PENDING'})
 
+    if wa_status_code >= 400:
+        # ══ DEFINITE REJECTION ═══════════════════════════════════════════════════════════════
+        #
+        # The downstream parsed our request and refused it. Nothing is in the customer's hands,
+        # so this function must not write `pending_payment`, must not advance the attempt, and
+        # must never answer 200 `payment_link_sent` - which is what it did until now, logging the
+        # failure and continuing as though the message had gone out.
+        #
+        # The CODE, not the raw body: the refusal codes are stable machine strings, and the body
+        # is downstream text this log has no reason to carry verbatim.
+        downstream = ''
+        try:
+            parsed = wa_result.get('body')
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed or '{}')
+            if isinstance(parsed, dict):
+                downstream = str(parsed.get('error') or parsed.get('message') or '')[:200]
+        except (ValueError, TypeError):
+            downstream = ''
+        logger.error(json.dumps({
+            'event': 'payment_link_outbound_error', 'invoiceId': invoice_id,
+            'statusCode': wa_status_code, 'code': downstream,
+            'referenceId': reference_id, 'paymentAttemptId': payment_attempt_id,
+            'requestId': request_id,
+        }))
+        _log_delivery('rejected',
+                      error=(f'outbound {wa_status_code}: {downstream}' if downstream
+                             else f'outbound {wa_status_code}'))
+        # A downstream 409 is that layer's own "this will not succeed" - a sender that may not
+        # take payments, a configuration it cannot prove, an envelope it refuses. Re-invoking the
+        # identical request would be refused identically, so the claim is left HELD under
+        # REJECTED and staff are told to raise the collection again. Any other rejection (a
+        # malformed request, a downstream 5xx) is one a staff member can fix and retry, so the
+        # claim is RELEASED and the same reservation re-sends.
+        terminal = wa_status_code == 409
+        if terminal:
+            wa_payment_request.record_send_rejected(attempts_table,
+                                                    payment_attempt_id=payment_attempt_id,
+                                                    now=int(time.time()))
+        else:
+            wa_payment_request.release_send_claim(attempts_table,
+                                                  payment_attempt_id=payment_attempt_id)
+        # `sendStatus: 'REJECTED'` describes THIS send's outcome, which is the thing the caller
+        # asked about; `retryable` is what the stored claim now permits. They are two different
+        # questions and conflating them is how "rejected" came to read as "sent".
+        return _resp(409 if terminal else 502, {
+            'error': 'The payment request was refused and was NOT sent. '
+                     'Nothing has been charged.',
+            'invoiceId': invoice_id,
+            'referenceId': reference_id,
+            'paymentAttemptId': payment_attempt_id,
+            'status': 'payment_link_rejected',
+            'sendStatus': 'REJECTED',
+            'downstreamStatusCode': wa_status_code,
+            'retryable': not terminal,
+        })
+
+    if wa_status_code not in (200, 202):
+        # Neither a rejection nor an acceptance: a response shape this function cannot read as
+        # either (a 0 from a missing `statusCode`, a redirect, anything new). Treated as the
+        # AMBIGUOUS outcome rather than as success - the old code fell through here and wrote
+        # `pending_payment` plus a `failed` delivery row, which is a contradiction in one invoice.
+        logger.error(json.dumps({
+            'event': 'wa_payment_send_unreadable', 'invoiceId': invoice_id,
+            'statusCode': wa_status_code, 'referenceId': reference_id,
+            'requestId': request_id,
+        }))
+        _log_delivery('unknown', error=f'unreadable outbound status {wa_status_code}')
+        return _resp(502, {'error': 'The payment request could not be confirmed as sent. '
+                                    'Reconcile this collection before raising it again.',
+                           'referenceId': reference_id, 'sendStatus': 'PENDING'})
+
+    # ══ ACCEPTANCE ═══════════════════════════════════════════════════════════════════════════
+    #
     # The attempt advances only after a send Meta accepted. Monotonic by condition, and a failure
     # to advance is logged rather than raised: the customer already has the message.
-    if wa_status_code in (200, 202):
-        wa_payment_request.record_sent(attempts_table,
-                                       payment_attempt_id=payment_attempt_id,
-                                       now=int(time.time()))
+    wa_payment_request.record_sent(attempts_table,
+                                   payment_attempt_id=payment_attempt_id,
+                                   now=int(time.time()))
+
+    # The REAL message id, read out of the outbound response the way `send_invoice_whatsapp`
+    # already reads it. Every row on this path used to carry `''`, which left the delivery log
+    # unjoinable to the message it claims to record. Parsed defensively: an id we cannot read is
+    # an empty id, never a failed send - the send was accepted either way.
+    wa_message_id = ''
+    try:
+        accepted_body = wa_result.get('body')
+        if isinstance(accepted_body, str):
+            accepted_body = json.loads(accepted_body or '{}')
+        if isinstance(accepted_body, dict):
+            wa_message_id = str(accepted_body.get('whatsappMessageId')
+                                or accepted_body.get('messageId') or '')
+    except (ValueError, TypeError):
+        wa_message_id = ''
 
     # Update invoice status to pending_payment
     try:
@@ -3337,20 +3852,11 @@ def send_payment_link(invoice_id: str, phone_number_id: str, payment_configurati
     # NOTE: Do NOT send invoice image here — receipt with PAID stamp
     # is generated and sent AFTER payment is captured (in inbound handler).
 
-    # Log delivery
-    delivery_table = dynamodb.Table(INVOICE_DELIVERY_TABLE)
-    delivery_table.put_item(Item={
-        'invoiceId': invoice_id,
-        'timestamp': int(time.time()),
-        'channel': 'whatsapp_payment',
-        'toNumber': customer_phone,
-        'waMessageId': '',
-        'status': 'sent' if wa_status_code in (200, 202) else 'failed',
-        'imageUrl': '',
-        'phoneNumberId': phone_number_id,
-        'contactId': contact_id,
-        'error': '',
-    })
+    # `accepted`, never `sent` and never `delivered`. Meta accepting an `order_details` message
+    # is not the customer receiving it: delivery and read are separate webhook events on the
+    # message, and this row records only what we actually observed - that the request was taken
+    # for sending.
+    _log_delivery('accepted', wa_message_id=wa_message_id)
 
     logger.info(json.dumps({
         'event': 'payment_link_sent', 'invoiceId': invoice_id,
@@ -3468,13 +3974,75 @@ def cancel_invoice(invoice_id: str, reason: str, request_id: str) -> Dict:
                        'collectionSeq': next_seq})
 
 
-# ─── Delete Invoice (hard delete + sequence adjustment) ───
+# ─── Delete Invoice — REFUSED. Cancel instead. ───
 
 def delete_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
-    """Hard delete an invoice and optionally adjust the sequence counter."""
+    """Refuses 410. Hard-deleting a GST invoice is not safe at any role.
+
+    WHY A REFUSAL RATHER THAN A NARROWED DELETE
+    -------------------------------------------
+    The obvious fix was "refuse when the invoice is issued or paid, allow it otherwise".
+    There is no otherwise. `create_invoice` assigns `invoiceNumber` from the consecutive
+    GST series to EVERY invoice at creation — it is the last thing that can fail there,
+    and that code already states the rule this refusal enforces:
+
+        "a number outside the consecutive series is worse than no invoice, because it
+         cannot be reassigned once it has gone out"
+
+    So every row this function can reach is an issued, numbered tax document and there is
+    no draft state to permit. What it used to do, in one call:
+
+      * hard-deleted the invoice row, paid or not — no status guard of any kind, unlike
+        `update_invoice` (blocks amount edits past `captured`) and `cancel_invoice`
+        (blocks voiding past `captured`). This route was the hole in a rule the other two
+        already enforced.
+      * deleted the rendered PDF/PNG from S3 — the artefact the customer was sent.
+      * with `adjustSequence`, DECREMENTED the GST sequence counter, so the next invoice
+        reused a number that had already gone out. Two documents, one number.
+
+    `cancel_invoice` is the supported void: it keeps the row and the number, records the
+    reason, refuses once money has moved, and bumps the collection sequence so a re-raise
+    composes a fresh payment reservation. That already exists and is what a void should be.
+
+    410 rather than 403 because the caller's role is not the problem and a better token
+    will not help — the capability is withdrawn, and the body names its replacement.
+    """
     if not invoice_id:
         return _resp(400, {'error': 'invoiceId required'})
 
+    # Best effort, not fail-closed: nothing is being deleted, so a missing audit row costs
+    # a log line rather than an unrecorded destruction. Recorded at all because an attempt
+    # to hard-delete a tax document is worth knowing about.
+    record_audit(
+        action='invoice.delete',
+        actor=_audit_actor(),
+        resource_type='invoice',
+        resource_id=invoice_id,
+        details={'outcome': 'refused', 'reason': 'gst_invoice_immutable',
+                 'adjustSequenceRequested': bool((body or {}).get('adjustSequence')),
+                 'requestId': request_id},
+    )
+    logger.warning(json.dumps({
+        'event': 'invoice_delete_refused', 'invoiceId': invoice_id, 'requestId': request_id,
+    }))
+    return _resp(410, {
+        'error': 'Invoices cannot be deleted',
+        'errorCode': 'INVOICE_IMMUTABLE',
+        'detail': ('Every invoice carries a number from the consecutive GST series, and '
+                   'that number cannot be reassigned once issued. Cancel the invoice '
+                   'instead — it is voided, the reason is recorded, and the number is '
+                   'preserved.'),
+        'use': f'POST /invoices/{invoice_id}/cancel',
+    })
+
+
+def _delete_invoice_withdrawn(invoice_id: str, body: Dict, request_id: str) -> Dict:
+    """UNREACHABLE. The former hard-delete, kept as the record of what was withdrawn.
+
+    Here rather than deleted outright so a reader can see exactly which operations this
+    PR removed — the S3 asset delete and the sequence decrement in particular — without
+    reconstructing them from history. Nothing calls this.
+    """
     table = dynamodb.Table(INVOICES_TABLE)
     resp = table.get_item(Key={'invoiceId': invoice_id})
     invoice = resp.get('Item')
@@ -3535,10 +4103,63 @@ def delete_invoice(invoice_id: str, body: Dict, request_id: str) -> Dict:
     return _resp(200, {'invoiceId': invoice_id, 'deleted': True, 'invoiceNumber': inv_number})
 
 
-# ─── Clear All Invoice Data (admin cleanup) ───
+# ─── Clear All Invoice Data — REFUSED. ───
 
 def clear_all_invoice_data(request_id: str) -> Dict:
-    """Wipe all invoice-related tables: Invoices, InvoiceItems, InvoiceAssets, InvoiceDeliveryLog, InvoiceSequence, Payments, RazorpayWebhookLog. Also clears S3 invoices/ prefix."""
+    """Refuses 410. There is no safe version of this operation.
+
+    WHY A REFUSAL RATHER THAN A GUARDED WIPE
+    ----------------------------------------
+    Every table it emptied is a record this business is required to keep, and the set is
+    not separable into "history" and "scratch":
+
+      InvoicesTable          issued GST documents (see `delete_invoice` — all of them are
+                             numbered from the consecutive series at creation)
+      InvoiceSequenceTable   the GST counter itself. Emptying it restarts numbering at 1,
+                             so the next invoice reuses a number already sent to a
+                             customer — the same defect as `adjustSequence`, applied to
+                             the whole series at once.
+      PaymentsTable          money of record
+      RazorpayWebhookLogTable  the provider's account of what it charged, i.e. the
+                             evidence in a chargeback
+      InvoiceItems / Assets / DeliveryLog  the line items, the rendered documents and the
+                             proof of delivery for the above
+
+    Narrowing it to "unpaid only" does not help: unpaid invoices are still issued numbered
+    documents, and the sequence counter and the webhook log are not per-invoice, so they
+    would be wiped wholesale or not at all. Any version that deletes something deletes
+    financial history, and a version that deletes nothing is this refusal.
+
+    It was also reachable three ways — `DELETE /invoices/clear-all`,
+    `POST /invoices/clear-all`, and `POST /invoices` with `_action=clear-all`, which ran
+    BEFORE every other POST arm. All three now land here.
+
+    Cancel an individual invoice with `POST /invoices/{id}/cancel`. Genuine cache clearing
+    lives in `operations/system-cleanup`, whose allow-list deliberately excludes every
+    table named above.
+    """
+    record_audit(
+        action='invoice.clear_all',
+        actor=_audit_actor(),
+        resource_type='invoice',
+        resource_id='clear-all',
+        details={'outcome': 'refused', 'reason': 'financial_history_immutable',
+                 'requestId': request_id},
+    )
+    logger.warning(json.dumps({'event': 'invoice_clear_all_refused', 'requestId': request_id}))
+    return _resp(410, {
+        'error': 'Bulk invoice deletion has been withdrawn',
+        'errorCode': 'INVOICE_HISTORY_IMMUTABLE',
+        'detail': ('This cleared issued GST invoices, the GST sequence counter, payments '
+                   'and the provider webhook log — all records that must be retained. '
+                   'Cancel individual invoices instead; cache clearing lives in '
+                   'system-cleanup, which cannot select any of these tables.'),
+        'use': 'POST /invoices/{invoiceId}/cancel',
+    })
+
+
+def _clear_all_invoice_data_withdrawn(request_id: str) -> Dict:
+    """UNREACHABLE. The former bulk wipe, kept as the record of what was withdrawn."""
     tables_to_clear = {
         'invoices': (INVOICES_TABLE, 'invoiceId'),
         'invoice_items': (INVOICE_ITEMS_TABLE, None),
