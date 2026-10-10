@@ -110,6 +110,12 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           ) }
         </div>
 
+        {/* MICROCOPY under the CTA, rendered only when the product declares one (today just
+            /anew/). Very small and quiet, naming where the button goes. aria-hidden because the
+            anchor's own label is the accessible name. Matches the blog post page's
+            Subscribe/Contribute pills (.bc-cta-note / .blog-wa-note). */}
+        { product.ctaNote && <p className="pdp-cta-note" aria-hidden="true">{ product.ctaNote }</p> }
+
         { product.note && <p className="pdp-note">{ product.note }</p> }
 
         <style jsx>{`
@@ -151,6 +157,10 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
           }
           .pdp-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .pdp-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+          /* MICROCOPY under the CTA row - the twin of .bc-cta-note / .blog-wa-note on the blog
+             post page. 13px/rgba(0,0,0,.54) is the muted-metadata rung; 10px of air sits it close
+             to the button it belongs to. Only /anew/ carries one today. */
+          .pdp-cta-note{font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0}
 
           /* A ROOMIER QUIET CARD, STILL A 1px HAIRLINE. Geometry is the house quiet-card trio
              - padding:22px, 1px #e5e7eb, 14px radius - the same declaration as

@@ -77,6 +77,13 @@ export interface ProductDef {
   ctaLabel: string;
   ctaHref: string;
   /**
+   * Optional microcopy under the primary CTA. A very short, muted line (the "Continue on
+   * WhatsApp →" treatment used by the blog post page's Subscribe/Contribute pills) that names
+   * where the button goes when the label itself does not. Rendered aria-hidden, so the anchor's
+   * own text/label remains the accessible name. Omit it and no line renders.
+   */
+  ctaNote?: string;
+  /**
    * Optional SECOND call to action. When both are present, ProductPage renders a second pill
    * beside the first; omit them (every entry except /shipments/ does) and the page renders one
    * pill exactly as before. Unlike the first CTA, `ctaHref2` is rendered LITERALLY and is never
@@ -216,12 +223,9 @@ export const PRODUCTS: ProductDef[] = [
     // Legacy public aliases were retired by owner instruction on 2026-10-01.
     // Link directly to /anew/; do not recreate SEO redirects.
     //
-    // THE SANSKRIT STAYS, BUT ITS JOB HAS CHANGED. स्वाध्याय (svādhyāya, self-study) is
-    // literally where the FIRST name came from, so the epigraph was originally the
-    // etymology of the word "Swdhya". It cannot do that for "Anew". It is kept because it
-    // still describes the METHOD exactly - self-study, then self-awareness, then light -
-    // while the name now names the RESULT: the chance to start again. The lead is written
-    // so the line reads as the root of the practice, not as an explanation of the name.
+    // THE SANSKRIT EPIGRAPH WAS REMOVED by owner instruction. It was the etymology of the
+    // FIRST name ("Swdhya", from svādhyāya / self-study) and never named "Anew"; with the
+    // page recast as a written-reflection service the lead now opens on what Anew does.
     slug: 'anew',
     name: 'Anew',
     blurb: 'A considered written reflection on a decision that matters.',
@@ -252,6 +256,9 @@ export const PRODUCTS: ProductDef[] = [
       'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. The conclusions you draw and any action you take remain yours. If you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
     ctaLabel: 'Start a conversation',
     ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
+    // Text-only pill plus the quiet "Continue on WhatsApp →" microcopy, matching the blog post
+    // page's Subscribe/Contribute pills. The arrow is part of the text, not an icon.
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     /*
