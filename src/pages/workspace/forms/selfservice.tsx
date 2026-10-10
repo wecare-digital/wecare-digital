@@ -29,22 +29,15 @@ const FLOW_TYPES = [
 ];
 
 const MESSAGE_LINKS: Record<string, string> = {
-  submit_request: 'https://wa.me/message/J3ZJ4W52TPJEN1',
+  submit_request: 'https://wa.me/message/5DRZXKBJTZDQG1',
   subscribe: 'https://wa.me/message/APDM5HUWH26SG1',
-  amend_request: 'https://wa.me/message/SPK7SJDMHQRAJ1',
-  track_request: 'https://wa.me/message/X6BSGEMRJHUFP1',
-  rx_slot: 'https://wa.me/message/FO3XV7AL3E3WJ1',
-  drop_docs: 'https://wa.me/message/OD6YW34USZKDI1',
-  enterprise_assist: 'https://wa.me/message/TDFJNUEY3KY7A1',
-  schedule_appointment: 'https://wa.me/message/BQQ4GNN7CRLPL1',
+  amend_request: 'https://wa.me/message/HD5C4LAUYOOID1',
+  drop_docs: 'https://wa.me/message/BCYW2SEPI5R4D1',
   // Owner-managed short link, from src/lib/reviewEntry.ts. Resolves to WABA 1
   // (919330994400) with the prefill "Leave Review", which lowercases to the first keyword
   // below, so the customer's own message opens the published flow. Same constant as the
   // /leave-review/ page CTA, so the two cannot diverge.
   leave_review: REVIEW_ENTRY_URL,
-  order_notes: 'https://wa.me/message/ZVMYMOK37GWCH1',
-  pay: 'https://wa.me/message/UUJ6P5HGADBAC1',
-  faq: 'https://wa.me/message/U3ENEHLR7CICJ1',
 };
 /* The submissions filter, built from FLOW_TYPES so a new flow appears here for free. */
 const FLOW_FILTER_OPTIONS: SelectOption[] = [
