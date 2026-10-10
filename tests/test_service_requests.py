@@ -1,4 +1,4 @@
-"""The server allow-list: four services offered and priced, none refused by name, integer paise.
+"""The server allow-list: five services offered and priced, none refused by name, integer paise.
 
 Pure module, pure tests: no AWS, no network, no credential, no Wix call.
 """
@@ -23,6 +23,7 @@ SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
 DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
 VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+PICKUP = "8ee7e325-d772-4452-a993-5c79e927d42b"
 APP = "215238eb-22a5-4c36-9e7b-e7c08025e04e"
 INTENT = "01928f3e-7b2a-7c3d-8e4f-0a1b2c3d4e5f"
 KIOSK = "00d4c72b-f694-441a-a192-e16f4b192440"
@@ -53,7 +54,7 @@ def test_the_server_choices_mirror_the_frontend_contract():
     choices = re.findall(
         r"kind: '(\w+)', variantId: '([0-9a-f-]{36})',\s*label: '[^']+', "
         r"slug: '([a-z-]+)', path: '[^']+',\s*needsTarget: (true|false),", source)
-    assert len(choices) == 4
+    assert len(choices) == 5
     assert {variant: kind for kind, variant, _slug, _t in choices} == \
         dict(sr.SERVICE_KIND_BY_VARIANT)
     # The slug vocabulary is the key the live-price payload is read by, so a drift here would show
@@ -95,11 +96,11 @@ def test_the_refusal_sentences_mirror_the_frontend():
         assert declared.get(code) == message, code
 
 
-def test_exactly_four_services_are_offered_and_the_map_carries_no_price():
+def test_exactly_five_services_are_offered_and_the_map_carries_no_price():
     """Was `..._at_their_committed_paise`. The committed paise are gone; Wix owns the price."""
     assert dict(sr.SERVICE_KIND_BY_VARIANT) == {
         SUBMIT: "SUBMIT_REQUEST", AMEND: "REQUEST_AMENDMENT",
-        DROP_DOCS: "DROP_DOCS", VAULT: "VAULT"}
+        DROP_DOCS: "DROP_DOCS", VAULT: "VAULT", PICKUP: "REQUEST_PICKUP"}
     assert all(isinstance(kind, str) for kind in sr.SERVICE_KIND_BY_VARIANT.values())
     assert dict(sr.SERVICE_VARIANT_BY_KIND) == {
         kind: variant for variant, kind in sr.SERVICE_KIND_BY_VARIANT.items()}
@@ -134,10 +135,12 @@ def test_nothing_is_refused_by_name_any_more_but_the_guard_is_still_there():
     assert "NOT_OFFERED_VARIANT_IDS" in body and "SERVICE_NOT_OFFERED" in body
 
 
-def test_three_of_the_four_need_a_target_submit_request():
-    assert set(sr.TARGET_REQUIRED_KINDS) == {"REQUEST_AMENDMENT", "DROP_DOCS", "VAULT"}
+def test_four_of_the_five_need_a_target_submit_request():
+    assert set(sr.TARGET_REQUIRED_KINDS) == {
+        "REQUEST_AMENDMENT", "DROP_DOCS", "VAULT", "REQUEST_PICKUP"}
     assert sr.SUBMIT_REQUEST not in sr.TARGET_REQUIRED_KINDS
     assert sr.DROP_DOCS == "DROP_DOCS" and sr.VAULT == "VAULT"
+    assert sr.REQUEST_PICKUP == "REQUEST_PICKUP"
 
 
 def test_every_refusal_sentence_says_nothing_was_charged():
@@ -171,7 +174,13 @@ def test_an_unpriced_line_is_distinguishable_from_a_free_one():
 @pytest.mark.parametrize("variant", ["00000000-0000-4000-8000-000000000001",
                                      "db166bc8-a763-41ec-9f65-0f718f18155b"])
 def test_an_unknown_variant_of_the_same_product_is_still_an_unknown_choice(variant):
-    """The allow-list is closed: a fifth Wix variant is refused, not sold."""
+    """The allow-list is closed: a variant it does not name is refused, not sold.
+
+    Both ids here are FABRICATED - one is all zeros, the other is the Drop Docs id with its last
+    character changed. Neither is a variant live Wix returns. The five it does return are offered,
+    so what this pins is that membership is decided by the map rather than by the id looking
+    plausible for the product.
+    """
     with pytest.raises(sr.ServiceRejected) as caught:
         sr.service_line([line(variant)])
     assert caught.value.code == "SERVICE_UNKNOWN_CHOICE"
@@ -224,10 +233,14 @@ def test_a_non_service_basket_is_untouched(basket):
 
 
 def test_a_contribution_basket_is_not_a_service_basket():
+    # The LIVE contribution reference: product 8514c405-… at its single Rs.250 variant
+    # 8ad6f376-…, which is all `Contribute` carries since the owner reduced it in Wix on
+    # 2026-10-10. The deleted Rs.100 variant stood here before; a basket nothing can price is a
+    # weaker subject for "this is not a service" than one that can.
     contribution = {"catalogReference": {"appId": APP,
                                          "catalogItemId": "8514c405-3971-4786-ad0d-15406ca23407",
                                          "options": {"variantId":
-                                                     "ab4ee1a2-1568-4dc4-abe1-55e24fa51576"}},
+                                                     "8ad6f376-a526-4631-b510-0e047b33a5b9"}},
                     "quantity": 1}
     assert sr.service_line([contribution]) is None
     assert sr.checkout_preflight([contribution], {}, v2_enabled=True) is None

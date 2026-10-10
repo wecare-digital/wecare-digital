@@ -11,7 +11,7 @@ import type { ProductDef } from './products';
 import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
 
 /**
- * The five Customer service pages, as data.
+ * The seven Customer service pages, as data.
  *
  * WHY THESE EXIST. The header's Customer service column offers six rows - Submit Request, Request
  * Amendment, Drop Docs, Leave Review, Refer & Earn and Contact us - and until now every one
@@ -21,7 +21,14 @@ import { REVIEW_ENTRY_URL } from '../lib/reviewEntry';
  * Header.tsx recorded that as a placeholder and spelled out the way out of it: "To give these
  * rows their own pages, build PUBLIC ones ... and register each in PUBLIC_PAGE_META -
  * otherwise they render a blank 200 or a login wall." This is that. Contact us keeps
- * /contact/, which is its real destination, so five pages are needed rather than six.
+ * /contact/, which is its real destination, so five of those six labels needed a page rather
+ * than all six.
+ *
+ * THE GROUP HAS GROWN TWICE SINCE, which is why there are seven entries below and not five:
+ * Vault joined on 2026-09-30 as the return leg of Drop Docs, and Request Pickup on 2026-10-10
+ * with the fifth variant of the Wix services product. Both are request ACTIONS like the
+ * originals, so they belong to this file rather than to STRUCTURAL in
+ * scripts/generate-public-pages.js; the count here is pinned by tests/test_mcp_server.py.
  *
  * THEY ARE PUBLIC, AND NOT THE [retired public path]/ PAGES. [retired public path]/submit-request and its siblings
  * already exist and are AUTHENTICATED by design - they render the dashboard Layout and read
@@ -69,7 +76,7 @@ const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
 
 /**
  * Every CTA lands on the public contact page, which is the real entry point - its own badge
- * reads "Customer service by WECARE.DIGITAL" and its rotation already names these five actions.
+ * reads "Customer service by WECARE.DIGITAL" and its rotation already names these actions.
  * Through a constant so `grep CUSTOMERSERVICE_CTA` lists them all, the way PRODUCT_CTA does.
  */
 const CUSTOMERSERVICE_CTA = 'https://wecare.digital/contact/';
@@ -207,6 +214,47 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     note:
       'Documents are not kept indefinitely - our privacy policy sets how long each kind is held, after which a copy may no longer exist to send. We cannot release someone else\'s document to you, or any document to someone acting for you without your authority.',
     ctaLabel: 'Request a copy',
+    ctaHref: CUSTOMERSERVICE_CTA,
+  },
+  {
+    /*
+     * REQUEST PICKUP SITS DIRECTLY AFTER VAULT so the data order mirrors the menu, which is the
+     * only reason the position matters: Header.tsx types its rows out by hand, and this file's
+     * order is what config/public-pages.json and the MCP page list read.
+     *
+     * IT IS THE THIRD DOOR IN THE SAME PAIR. Drop Docs sends paperwork in, Vault asks for a copy
+     * back out, and this one has it collected rather than sent - the same documents, a different
+     * leg. It became a real page on 2026-10-10, when live Wix began returning a fifth variant of
+     * the services product visible and in stock.
+     *
+     * THE NOTE IS THE POINT OF THIS PAGE'S COPY. A collection is the one request action that
+     * depends on somebody who is not us: a courier or partner has to turn up. So the page says
+     * what is arranged rather than promised, and names no window, no price and no turnaround -
+     * the three things this file's header forbids, and the three a pickup page is most tempted to
+     * invent. "Coming soon" courier pickup on /shipments/ is a different claim and stays as it
+     * is: that row is GENERAL courier pickup with no backend, while this page asks for a
+     * collection the same way every other row here asks - through /contact/.
+     */
+    slug: 'request-pickup',
+    name: 'Request Pickup',
+    blurb: 'Have the paperwork a request needs collected.',
+    title: 'Request a pickup | WECARE.DIGITAL',
+    description:
+      'Ask WECARE.DIGITAL to collect documents for a request already under way - what to have ready, how a collection is arranged, and what depends on a courier.',
+    frame: 'Collect your',
+    words: cycle( 'papers', 'parcel', 'folder', 'docket' ),
+    sub: 'Some paperwork is easier handed over than sent.',
+    sectionHeading: 'Arranging a collection',
+    lead:
+      'A pickup is for the paperwork you would rather not scan, post or carry - a stack of originals, a folder a request needs seen, something too bulky for a photo. You say where it is and what it is for, and the collection is arranged around that.',
+    points: [
+      { heading: 'Say where it is', body: 'An address and the hours somebody can hand it over. A reachable number matters more than a precise time, because the person collecting will call before arriving.' },
+      { heading: 'Name the request it belongs to', body: 'Quote the request the documents are for, so what arrives is filed against it rather than sitting unattached while somebody works out whose it is.' },
+      { heading: 'Pack it as a single handover', body: 'One envelope or folder, sealed, with your name on it. Loose sheets handed over at a doorstep are the ones that go missing.' },
+    ],
+    note:
+      'A collection depends on a courier or partner who is not us, so a pickup is arranged rather than guaranteed - if nobody can collect from where you are, you are told that instead of being left waiting. Please do not hand over original certificates unless we have asked for them specifically; a copy is usually what a request needs.',
+    ctaLabel: 'Request a pickup',
     ctaHref: CUSTOMERSERVICE_CTA,
   },
   {

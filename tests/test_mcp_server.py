@@ -463,13 +463,14 @@ class TestTools:
         read, which would assert nothing. It is SUPPOSED to fail when a page joins the
         group - that failure is what makes adding a page a decision about which heading an
         agent will find it under, instead of something that happens silently. /vault was
-        added on 2026-09-30 and this is the line that noticed."""
+        added on 2026-09-30 and this is the line that noticed, and /request-pickup on
+        2026-10-10."""
         _, body = rpc("tools/call", {"name": "list_pages", "arguments": {"group": "customerservice"}})
         payload = body["result"]["structuredContent"]
-        assert payload["count"] == 6
+        assert payload["count"] == 7
         assert {p["path"] for p in payload["pages"]} == {
             "/submit-request", "/request-amendment", "/drop-docs", "/vault",
-            "/leave-review", "/refer-and-earn",
+            "/request-pickup", "/leave-review", "/refer-and-earn",
         }
 
     def test_an_unknown_group_names_the_valid_ones(self):

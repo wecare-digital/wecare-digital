@@ -243,7 +243,7 @@ def test_a_dry_run_is_the_default_and_calls_no_mutating_api(provisioner):
 
 
 def test_the_provisioned_environment_matches_the_owner_scoped_rollout(provisioner):
-    """Keep the fresh-catalog four-variant approval hold explicit.
+    """Keep the fresh-catalog five-variant approval hold explicit.
 
     Fresh handler defaults remain closed. This provisioner records the separately
     authorized staged rollout, so testing it as an unprovisioned disabled feature
@@ -254,7 +254,7 @@ def test_the_provisioned_environment_matches_the_owner_scoped_rollout(provisione
     expected = {
         "META_CATALOG_SYNC_ENABLED": "false",
         "META_CATALOG_SYNC_DRY_RUN": "true",
-        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4",
+        "META_CATALOG_SYNC_VARIANT_IDS": "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b,864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b,db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,8ee7e325-d772-4452-a993-5c79e927d42b",
         "META_CATALOG_SYNC_FORCE_OUT_OF_STOCK": "true",
     }
     for key, value in expected.items():

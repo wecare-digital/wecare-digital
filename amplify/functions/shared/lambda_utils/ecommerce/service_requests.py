@@ -1,9 +1,9 @@
-"""WECARE.DIGITAL services: four fixed-price product lines on the ONE checkout.
+"""WECARE.DIGITAL services: five fixed-price product lines on the ONE checkout.
 
 What this is, and why it mirrors `blog_contribution`
 ----------------------------------------------------
 A WECARE.DIGITAL service is bought exactly the way a contribution is: ONE fixed-price VARIANT of
-ONE Wix product (`WECARE.DIGITAL Services`, PHYSICAL in Wix), added to the existing cart at
+ONE Wix product (`Request`, PHYSICAL in Wix), added to the existing cart at
 quantity 1 and paid on the ONE live checkout path -- `POST /ecommerce/prepare-checkout` ->
 `cart_v2.calculate` -> Razorpay -> verify-callback / razorpay-webhook reconciliation, which
 creates ONE order. There is no second payment implementation for a service, and this module has
@@ -15,10 +15,12 @@ separately on purpose so the browser cannot widen the trusted set;
 
 WHAT IS OFFERED, AND WHAT IS REFUSED
 ------------------------------------
-FOUR services, all four variants of the one Wix product: Submit Request, Request Amendment,
-Drop Docs and Vault. Drop Docs and Vault were refused by name in O-1 (``SERVICE_NOT_OFFERED``)
-because nothing could deliver them; O-2 added them to the allow-list instead, which was the
-whole of that change -- no second payment path and no new ownership machinery.
+FIVE services, all five variants of the one Wix product: Submit Request, Request Amendment,
+Drop Docs, Vault and Request Pickup. Drop Docs and Vault were refused by name in O-1
+(``SERVICE_NOT_OFFERED``) because nothing could deliver them; O-2 added them to the allow-list
+instead, which was the whole of that change -- no second payment path and no new ownership
+machinery. Request Pickup joined on 2026-10-10, when live Wix began returning a fifth variant
+visible and in stock and `src/content/wix-catalog.json` was refreshed from that read.
 
 **No price appears in this module any more.** See "WIX IS THE PRICE AUTHORITY" below.
 
@@ -27,11 +29,12 @@ message and the not-offered branch in ``service_line`` all deliberately remain. 
 for the NEXT variant somebody adds in Wix: naming it here refuses it by name rather than letting it
 through as an ordinary product line, which would charge for a service nothing can deliver.
 
-Three of the four REQUIRE a target Submit Request (``TARGET_REQUIRED_KINDS``): an amendment amends
-one, Drop Docs sends documents for "a request already under way", and Vault asks for "a copy of a
-document held against one of your requests". A target-free Drop Docs would let a customer pay
-Rs.350 to attach documents to nothing. The target is resolved and owned-checked in
-``service_request_store`` BEFORE money moves.
+Four of the five REQUIRE a target Submit Request (``TARGET_REQUIRED_KINDS``): an amendment amends
+one, Drop Docs sends documents for "a request already under way", Vault asks for "a copy of a
+document held against one of your requests", and Request Pickup collects documents for one. A
+target-free Drop Docs would let a customer pay Rs.350 to attach documents to nothing, and a
+target-free pickup would send a courier to collect paperwork for no request. The target is
+resolved and owned-checked in ``service_request_store`` BEFORE money moves.
 
 WIX IS THE PRICE AUTHORITY (owner decision 2026-10-08)
 ------------------------------------------------------
@@ -88,8 +91,8 @@ logger = logging.getLogger(__name__)
 SERVICE_CURRENCY = "INR"
 
 #: The Wix catalogue product that carries every service variant, lowercased. A catalogue
-#: reference, not a secret. Measured in `src/content/wix-catalog.json` (`WECARE.DIGITAL
-#: Services`, PHYSICAL, four variants).
+#: reference, not a secret. Measured in `src/content/wix-catalog.json` (`Request`, renamed from
+#: `WECARE.DIGITAL Services` on 2026-10-10, PHYSICAL, five variants).
 SERVICE_PRODUCT_IDS: FrozenSet[str] = frozenset({
     "df976a0a-f582-4535-b2e1-d532f348bd27",
 })
@@ -99,8 +102,9 @@ SUBMIT_REQUEST = "SUBMIT_REQUEST"
 REQUEST_AMENDMENT = "REQUEST_AMENDMENT"
 DROP_DOCS = "DROP_DOCS"
 VAULT = "VAULT"
+REQUEST_PICKUP = "REQUEST_PICKUP"
 
-#: THE ONLY FOUR SERVICES THAT CAN BE BOUGHT, as ``{variant id: kind}``. NO PRICE: the mapping is
+#: THE ONLY FIVE SERVICES THAT CAN BE BOUGHT, as ``{variant id: kind}``. NO PRICE: the mapping is
 #: stable catalogue identity, the price is Wix's and is read live. Mirrored in
 #: src/config/services.ts as SERVICE_CHOICES.
 SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({
@@ -108,6 +112,7 @@ SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({
     "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b": REQUEST_AMENDMENT,
     "db166bc8-a763-41ec-9f65-0f718f18155a": DROP_DOCS,
     "dcff995e-448c-493a-9259-f6a82ccdc2b4": VAULT,
+    "8ee7e325-d772-4452-a993-5c79e927d42b": REQUEST_PICKUP,
 })
 
 #: THE CATASTROPHE RAIL, and the only bound on a service line now that Wix owns the price.
@@ -123,7 +128,7 @@ SERVICE_KIND_BY_VARIANT: Mapping[str, str] = MappingProxyType({
 SERVICE_LINE_MIN_PAISE = 1
 SERVICE_LINE_MAX_PAISE = 5_000_000
 
-#: The four PUBLIC PAGE SLUGS, ``{slug: kind}``. One owner for the slug vocabulary, shared by the
+#: The five PUBLIC PAGE SLUGS, ``{slug: kind}``. One owner for the slug vocabulary, shared by the
 #: public price endpoint (`service_pricing.resolve_all`) and mirrored in src/config/services.ts as
 #: each choice's ``slug``. A slug is a URL path segment, never an identifier Wix sees.
 SERVICE_KIND_BY_SLUG: Mapping[str, str] = MappingProxyType({
@@ -131,14 +136,16 @@ SERVICE_KIND_BY_SLUG: Mapping[str, str] = MappingProxyType({
     "request-amendment": REQUEST_AMENDMENT,
     "drop-docs": DROP_DOCS,
     "vault": VAULT,
+    "request-pickup": REQUEST_PICKUP,
 })
 
 #: The services that cannot exist without a target Submit Request of the CALLER'S OWN. One
-#: frozenset rather than three ``kind ==`` comparisons, so adding a fourth target-taking service
-#: cannot reach only two of the three places that have to agree.
-TARGET_REQUIRED_KINDS: FrozenSet[str] = frozenset({REQUEST_AMENDMENT, DROP_DOCS, VAULT})
+#: frozenset rather than a ``kind ==`` comparison per service, so adding another target-taking
+#: service cannot reach only some of the places that have to agree.
+TARGET_REQUIRED_KINDS: FrozenSet[str] = frozenset({
+    REQUEST_AMENDMENT, DROP_DOCS, VAULT, REQUEST_PICKUP})
 
-#: Variants of the same product that are deliberately NOT offered. EMPTY: all four are offered.
+#: Variants of the same product that are deliberately NOT offered. EMPTY: all five are offered.
 #: Kept, with its refusal code and its branch in ``service_line``, as the guard for the next Wix
 #: variant somebody adds -- refusing by name beats charging for something nothing can deliver.
 #: Mirrored in src/config/services.ts as NOT_OFFERED_SERVICE_VARIANT_IDS.
@@ -148,7 +155,7 @@ NOT_OFFERED_VARIANT_IDS: FrozenSet[str] = frozenset()
 #: EMPTY for the same reason, and kept for the same reason.
 NOT_OFFERED_KINDS: FrozenSet[str] = frozenset()
 
-#: ``{kind: variant id}`` for the four offered services. Derived, so the two cannot drift.
+#: ``{kind: variant id}`` for the five offered services. Derived, so the two cannot drift.
 SERVICE_VARIANT_BY_KIND: Mapping[str, str] = MappingProxyType(
     {kind: variant for variant, kind in SERVICE_KIND_BY_VARIANT.items()})
 
@@ -258,7 +265,7 @@ def service_line(line_items: Any) -> Optional[ServiceLine]:
 
     The not-offered check runs BEFORE the allow-list so that a named-but-unavailable variant is
     refused by name (``SERVICE_NOT_OFFERED``) rather than as an unknown choice.
-    ``NOT_OFFERED_VARIANT_IDS`` is currently empty -- all four services are offered -- so this
+    ``NOT_OFFERED_VARIANT_IDS`` is currently empty -- all five services are offered -- so this
     branch is the guard for the next variant added in Wix, not dead code.
     """
     if not isinstance(line_items, list):
@@ -497,8 +504,9 @@ def assert_service_line_price(calculated: Dict[str, Any], line_items: Any, *,
 
 __all__ = [
     "DROP_DOCS", "INTENT_ID_RE", "NOT_OFFERED_KINDS", "NOT_OFFERED_VARIANT_IDS",
-    "PUBLIC_REQUEST_ID_RE", "REQUEST_AMENDMENT", "SERVICE_CURRENCY", "SERVICE_KIND_BY_SLUG",
-    "SERVICE_KIND_BY_VARIANT", "SERVICE_LINE_MAX_PAISE", "SERVICE_LINE_MIN_PAISE",
+    "PUBLIC_REQUEST_ID_RE", "REQUEST_AMENDMENT", "REQUEST_PICKUP", "SERVICE_CURRENCY",
+    "SERVICE_KIND_BY_SLUG", "SERVICE_KIND_BY_VARIANT",
+    "SERVICE_LINE_MAX_PAISE", "SERVICE_LINE_MIN_PAISE",
     "SERVICE_MESSAGES", "SERVICE_PRODUCT_IDS", "SERVICE_SLUG_BY_KIND", "SERVICE_VARIANT_BY_KIND",
     "SUBMIT_REQUEST", "TARGET_REQUIRED_KINDS", "VAULT", "ServiceLine",
     "ServiceNotPayable", "ServicePriceChanged", "ServiceRejected", "assert_service_line_price",

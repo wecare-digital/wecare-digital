@@ -206,6 +206,12 @@
       "description": "Ask for a copy of a document held against one of your requests."
     },
     {
+      "path": "/request-pickup",
+      "group": "customerservice",
+      "name": "Request Pickup",
+      "description": "Ask us to collect documents for a request already under way."
+    },
+    {
       "path": "/leave-review",
       "group": "customerservice",
       "name": "Leave Review",

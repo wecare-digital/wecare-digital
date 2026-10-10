@@ -11,7 +11,9 @@ import {
  * "unavailable" rather than a number the checkout would refuse.
  */
 
-const SLUGS = [ 'submit-request', 'request-amendment', 'drop-docs', 'vault' ] as const;
+const SLUGS = [
+  'submit-request', 'request-amendment', 'drop-docs', 'vault', 'request-pickup',
+] as const;
 
 let requested: string[] = [];
 
@@ -30,6 +32,7 @@ function good ( overrides: Record<string, unknown> = {} ) {
       'request-amendment': { available: true, paise: 20100 },
       'drop-docs': { available: true, paise: 45050 },
       'vault': { available: true, paise: 7700 },
+      'request-pickup': { available: true, paise: 28800 },
       ...overrides,
     },
   };
@@ -39,7 +42,7 @@ beforeEach( () => { requested = []; } );
 afterEach( () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); } );
 
 describe( 'fetchServicePrices', () => {
-  it( 'reads all four slugs, as integer paise with a rupee face', async () => {
+  it( 'reads all five slugs, as integer paise with a rupee face', async () => {
     reply( 200, good() );
     const prices = await fetchServicePrices();
     expect( requested ).toEqual( [ SERVICE_PRICES_URL ] );
@@ -48,17 +51,18 @@ describe( 'fetchServicePrices', () => {
       'request-amendment': { available: true, paise: 20100, rupees: '201' },
       'drop-docs': { available: true, paise: 45050, rupees: '450.50' },
       'vault': { available: true, paise: 7700, rupees: '77' },
+      'request-pickup': { available: true, paise: 28800, rupees: '288' },
     } );
   } );
 
-  it( 'keeps four DIFFERENT prices different', async () => {
+  it( 'keeps five DIFFERENT prices different', async () => {
     reply( 200, good() );
     const prices = await fetchServicePrices();
     const faces = SLUGS.map( slug => {
       const price = prices[ slug ];
       return price.available ? price.rupees : '';
     } );
-    expect( new Set( faces ).size ).toBe( 4 );
+    expect( new Set( faces ).size ).toBe( 5 );
   } );
 
   it( 'preserves a PER-SLUG unavailable rather than widening it', async () => {

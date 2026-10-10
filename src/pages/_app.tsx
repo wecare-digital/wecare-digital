@@ -463,7 +463,8 @@ const serviceSchema = {
  * organisation.
  *
  * IT IS NOT SET ON THE REQUESTS PAGES, deliberately. /submit-request, /drop-docs, /vault,
- * /leave-review, /refer-and-earn, /request-amendment and /subscribe are ways to interact with us, not
+ * /request-pickup, /leave-review, /refer-and-earn, /request-amendment and /subscribe are ways to
+ * interact with us, not
  * services we sell - "Leave Review" is not an offering, and typing it as a Service to get a
  * richer graph would be describing the site we wish we had. Nor on /terms, /privacy, /contact
  * or /orders, which are page kinds rather than products.
@@ -507,7 +508,8 @@ const PUBLIC_PAGE_META: Record<string, {
   // The Customer service pages. They exist because the header's Customer service column offered
   // six labels and every one resolved to /contact/ - six promises, one destination, on every
   // page of the site. Header.tsx recorded that as a placeholder and named this as the fix.
-  // Contact us keeps /contact/, which is its real destination, so there are five and not six.
+  // Contact us keeps /contact/, which is its real destination, so five of those six labels got a
+  // page. Vault (2026-09-30) and Request Pickup (2026-10-10) joined the group afterwards.
   // Being listed HERE is what makes them render at all: this map is the public allowlist as
   // well as the structured-data source, so a route missing from it serves an empty body at
   // HTTP 200. They must stay in step with PUBLIC_EXACT in scripts/generate-sitemap.js.
@@ -519,6 +521,11 @@ const PUBLIC_PAGE_META: Record<string, {
   // identity check, so a description promising an on-demand download would describe a
   // different page from the one that renders.
   '/vault': { name: 'Vault', type: 'WebPage', description: 'Ask for a copy of a document held against one of your requests.' },
+  // Request Pickup is the third door in the same pair - Drop Docs sends paperwork in, Vault asks
+  // for a copy out, this one has it collected - so it sits directly after Vault. The sentence
+  // says "ask us to collect" rather than "book a pickup": a courier has to agree, so a
+  // description promising a booking would describe a page that does not exist.
+  '/request-pickup': { name: 'Request Pickup', type: 'WebPage', description: 'Ask us to collect documents for a request already under way.' },
   '/leave-review': { name: 'Leave Review', type: 'WebPage', description: 'Tell us how something went, well or badly.' },
   '/refer-and-earn': { name: 'Refer & Earn', type: 'WebPage', description: 'Introduce someone who would find this useful.' },
   // THE CATALOGUE INDEX IS WITHDRAWN, 2026-10-04, on owner instruction: /shop/ is no longer

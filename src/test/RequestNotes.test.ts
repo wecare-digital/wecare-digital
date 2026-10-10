@@ -8,10 +8,11 @@ import { CUSTOMERSERVICE } from '../content/customerservice';
  *
  * WHY THIS TEST EXISTS
  * --------------------
- * Five of the six request pages carry a `note` that is the page's legal boundary - what a
+ * Every request page but one carries a `note` that is the page's legal boundary - what a
  * third party controls, what we never want sent, how long a document is held, that nothing
- * is published without asking, that a referral is not a fixed rate. `submit-request` has
- * none, deliberately: it asks for nothing and promises nothing. A copy edit that drops a
+ * is published without asking, that a referral is not a fixed rate, that a pickup needs a
+ * courier who is not us. `submit-request` has none, deliberately: it asks for nothing and
+ * promises nothing. A copy edit that drops a
  * note, or adds one to `submit-request`, changes what the page commits to and nothing else
  * in the suite would notice - `ReviewCta.test.tsx` reads this content file but only asserts
  * `slug`, `ctaLabel` and `ctaHref`.
@@ -41,10 +42,11 @@ const NOTE_RULE = ( /\.pdp-note\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 const CTAS_RULE = ( /\.pdp-ctas\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 const CTA_RULE = ( /\.pdp-cta\{([^}]*)\}/.exec( PRODUCT_PAGE ) ?? [] )[ 1 ];
 
-const WITH_NOTE = [ 'request-amendment', 'drop-docs', 'vault', 'leave-review', 'refer-and-earn' ];
+const WITH_NOTE = [ 'request-amendment', 'drop-docs', 'vault', 'request-pickup', 'leave-review',
+  'refer-and-earn' ];
 
 describe( 'request-page boundary notes', () => {
-  it( 'gives all five request pages a note and leaves submit-request without one', () => {
+  it( 'gives every request page but submit-request a note', () => {
     for ( const slug of WITH_NOTE ) {
       const page = CUSTOMERSERVICE.find( p => p.slug === slug );
       expect( page, slug ).toBeDefined();

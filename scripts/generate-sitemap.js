@@ -66,6 +66,9 @@ const PUBLIC_EXACT = new Set( [
   '/leave-review',
   '/refer-and-earn',
   '/request-amendment',
+  // Request Pickup joined the group on 2026-10-10 with the fifth variant of the Wix services
+  // product. Alphabetical, so it follows /request-amendment.
+  '/request-pickup',
   '/submit-request',
   // Vault is the return leg of Drop Docs: one page sends paperwork in, this one asks for a
   // copy back. It is NOT /get/, which stays out of the sitemap because it needs a verified

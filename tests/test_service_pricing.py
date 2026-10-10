@@ -25,15 +25,17 @@ SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
 DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
 VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+PICKUP = "8ee7e325-d772-4452-a993-5c79e927d42b"
 
-#: Four DIFFERENT figures, none of them the figures live today, so a test that passes cannot be
+#: Five DIFFERENT figures, none of them the figures live today, so a test that passes cannot be
 #: passing because the old constants leaked back in somewhere.
-PRICED = {SUBMIT: 14900, AMEND: 20100, DROP_DOCS: 45050, VAULT: 7700}
+PRICED = {SUBMIT: 14900, AMEND: 20100, DROP_DOCS: 45050, VAULT: 7700, PICKUP: 28800}
 
 CART_IDS = {SUBMIT: "11111111-1111-4111-8111-111111111111",
             AMEND: "22222222-2222-4222-8222-222222222222",
             DROP_DOCS: "33333333-3333-4333-8333-333333333333",
-            VAULT: "44444444-4444-4444-8444-444444444444"}
+            VAULT: "44444444-4444-4444-8444-444444444444",
+            PICKUP: "55555555-5555-4555-8555-555555555555"}
 
 
 class FakeTable:
@@ -152,14 +154,14 @@ class Clock:
 
 # ── the slug vocabulary has one owner ─────────────────────────────────────────
 
-def test_the_four_public_slugs_map_to_the_four_kinds_and_variants():
+def test_the_five_public_slugs_map_to_the_five_kinds_and_variants():
     assert dict(sr.SERVICE_KIND_BY_SLUG) == {
         "submit-request": "SUBMIT_REQUEST", "request-amendment": "REQUEST_AMENDMENT",
-        "drop-docs": "DROP_DOCS", "vault": "VAULT"}
+        "drop-docs": "DROP_DOCS", "vault": "VAULT", "request-pickup": "REQUEST_PICKUP"}
     assert dict(sr.SERVICE_SLUG_BY_KIND) == {
         kind: slug for slug, kind in sr.SERVICE_KIND_BY_SLUG.items()}
     assert {sr.SERVICE_VARIANT_BY_KIND[k] for k in sr.SERVICE_KIND_BY_SLUG.values()} == \
-        {SUBMIT, AMEND, DROP_DOCS, VAULT}
+        {SUBMIT, AMEND, DROP_DOCS, VAULT, PICKUP}
     assert dict(sp.SERVICE_SLUGS) == dict(sr.SERVICE_KIND_BY_SLUG)
 
 
@@ -292,7 +294,7 @@ def test_a_stored_cart_that_is_not_one_unit_of_this_variant_is_discarded(lines):
 def test_a_cart_with_no_readable_quantity_is_still_reused():
     """The asymmetry is deliberate. The variant shape is proven live by the working checkout;
     which quantity field a plain cart READ carries is not measured in this repo, so refusing on
-    an unreadable one would take all four services off sale instead of pricing them. A quantity
+    an unreadable one would take all five services off sale instead of pricing them. A quantity
     that IS readable and is not 1 is refused -- the case above."""
     line = _line(SUBMIT)
     line.pop("quantityInfo")
@@ -312,9 +314,9 @@ def test_the_variant_is_matched_case_insensitively():
 
 
 def test_a_mismatched_pointer_cannot_cross_two_slugs_in_one_payload():
-    """End to end: every pointer row points at the NEXT service's cart. All four must still
+    """End to end: every pointer row points at the NEXT service's cart. All five must still
     publish their own figure rather than rotating by one."""
-    rotated = [SUBMIT, AMEND, DROP_DOCS, VAULT]
+    rotated = [SUBMIT, AMEND, DROP_DOCS, VAULT, PICKUP]
     rows = {}
     for index, variant in enumerate(rotated):
         wrong = CART_IDS[rotated[(index + 1) % len(rotated)]]
@@ -326,6 +328,7 @@ def test_a_mismatched_pointer_cannot_cross_two_slugs_in_one_payload():
         "request-amendment": {"available": True, "paise": PRICED[AMEND]},
         "drop-docs": {"available": True, "paise": PRICED[DROP_DOCS]},
         "vault": {"available": True, "paise": PRICED[VAULT]},
+        "request-pickup": {"available": True, "paise": PRICED[PICKUP]},
     }
 
 
@@ -349,7 +352,7 @@ def test_an_unknown_variant_id_is_rejected_before_any_call():
     assert adapter.creates == [] and adapter.gets == []
 
 
-# ── all four ──────────────────────────────────────────────────────────────────
+# ── all five ──────────────────────────────────────────────────────────────────
 
 def test_resolve_all_prices_every_slug_with_its_own_figure():
     payload = sp.resolve_all(FakeCart(), FakeTable(), clock=Clock())
@@ -359,23 +362,24 @@ def test_resolve_all_prices_every_slug_with_its_own_figure():
         "request-amendment": {"available": True, "paise": PRICED[AMEND]},
         "drop-docs": {"available": True, "paise": PRICED[DROP_DOCS]},
         "vault": {"available": True, "paise": PRICED[VAULT]},
+        "request-pickup": {"available": True, "paise": PRICED[PICKUP]},
     }
     assert all(type(price["paise"]) is int for price in payload["prices"].values())
 
 
-def test_four_distinct_prices_stay_distinct():
-    """"Each is a different item": the four slugs must not collapse onto one figure."""
+def test_five_distinct_prices_stay_distinct():
+    """"Each is a different item": the five slugs must not collapse onto one figure."""
     payload = sp.resolve_all(FakeCart(), FakeTable(), clock=Clock())
-    assert len({price["paise"] for price in payload["prices"].values()}) == 4
+    assert len({price["paise"] for price in payload["prices"].values()}) == 5
 
 
-def test_one_slug_failing_leaves_the_other_three_priced_and_carries_no_paise():
+def test_one_slug_failing_leaves_the_other_four_priced_and_carries_no_paise():
     broken = dict(PRICED)
     broken[VAULT] = None
     payload = sp.resolve_all(FakeCart(subtotal=broken), FakeTable(), clock=Clock())
     assert payload["prices"]["vault"] == {"available": False}
     assert "paise" not in payload["prices"]["vault"]
-    for slug in ("submit-request", "request-amendment", "drop-docs"):
+    for slug in ("submit-request", "request-amendment", "drop-docs", "request-pickup"):
         assert payload["prices"][slug]["available"] is True
 
 
@@ -414,7 +418,7 @@ def test_the_cache_expires_and_a_new_wix_price_is_then_served():
 
 
 def test_an_all_unavailable_payload_is_not_cached():
-    """A transient Wix outage must not pin four pages as unavailable for a whole minute."""
+    """A transient Wix outage must not pin five pages as unavailable for a whole minute."""
     clock = Clock()
     table = FakeTable()
     dead = sp.resolve_all(FakeCart(raise_on_create=True), table, clock=clock)

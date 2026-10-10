@@ -77,8 +77,8 @@ const OFFERINGS = [
  * availability - through components/ShopProductHead.tsx.
  */
 const NOT_OFFERINGS = [
-  '/submit-request', '/request-amendment', '/drop-docs', '/vault', '/leave-review',
-  '/refer-and-earn',
+  '/submit-request', '/request-amendment', '/drop-docs', '/vault', '/request-pickup',
+  '/leave-review', '/refer-and-earn',
   '/terms', '/privacy', '/contact', '/orders',
   // Shipments is a hub that signposts the request actions, and Perks is a quiet landing page for
   // the small thank-yous we send - neither is a thing we sell, and both render their non-backed

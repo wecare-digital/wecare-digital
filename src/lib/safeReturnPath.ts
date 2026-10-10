@@ -108,6 +108,12 @@ const ALLOWED: ReadonlySet<string> = new Set( [
   // exported page.
   '/drop-docs/',
   '/vault/',
+  // Request Pickup, ADDED 2026-10-10 with the fifth Wix service variant. It carries the same buy
+  // box and the same "Sign in on WhatsApp to continue" CTA as its siblings, which returns to
+  // `service.path` - so leaving it out would drop a customer on `/cart/` after a sign-in they
+  // started here. `src/pages/request-pickup.tsx` exists, which is what the contract above asks of
+  // every member.
+  '/request-pickup/',
   '/',
 ] );
 

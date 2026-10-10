@@ -181,6 +181,12 @@ const COLUMNS: NavColumn[] = [
           // that file alone gives Vault a page and a sitemap line but no way to reach it
           // from the menu. If Vault ever goes missing from the nav, this list is why.
           { label: 'Vault', href: '/vault/', match: '/vault' },
+          // REQUEST PICKUP FOLLOWS VAULT, completing the paperwork trio: in, out, collected.
+          // TYPED HERE BY HAND for the same reason as the row above - this group's rows are
+          // written out rather than mapped from src/content/customerservice.ts, so the content
+          // entry alone would give it a page and a sitemap line and no way to reach it from the
+          // menu. If Request Pickup ever goes missing from the nav, this list is why.
+          { label: 'Request Pickup', href: '/request-pickup/', match: '/request-pickup' },
           // SHIPMENTS SITS DIRECTLY ABOVE LEAVE REVIEW, on owner instruction: it is the single
           // place that gathers "track it, arrange it, keep it moving" for a request, delivery or
           // pickup, so it rounds out the request actions just before Leave Review (which was the

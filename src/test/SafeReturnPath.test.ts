@@ -150,7 +150,7 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
   // rejection is asserted positively in the inversion block further down, rather than only by
   // absence here.
   it( 'accepts each customer destination in its slashed form', () => {
-    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/' ] ) {
+    for ( const ok of [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/', '/' ] ) {
       expect( safeLocalReturnPath( ok ) ).toBe( ok );
     }
   } );
@@ -177,7 +177,7 @@ describe( 'safeLocalReturnPath — the accepted set', () => {
     // Phase O-1 added the first two service pages, which link signed-out customers to sign in.
     // Phase O-2's two (`/drop-docs/`, `/vault/`) joined them on 2026-10-08: they carry the same
     // buy box and the same return, and their absence was sending those customers to `/cart/`.
-    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/' ] );
+    const allowed = new Set( [ '/cart/', '/orders/', '/blog/', '/submit-request/', '/request-amendment/', '/drop-docs/', '/vault/', '/request-pickup/', '/' ] );
     const inputs = [
       '/cart', '/cart/', '/', '//evil', '/workspace/access', 'https://evil.example/',
       '%2f%2fevil', '/../x', '', null, undefined, '/terms/', '/cart/#f',
@@ -261,6 +261,10 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     // because the withdrawal is the owner's instruction, so the entry left and the fallback is
     // asserted below.
     //
+    // SEVEN BECAME EIGHT ON 2026-10-10, when Request Pickup became the fifth service: the loop
+    // is derived from SERVICE_CHOICES, so it covered the new page the moment the config did -
+    // which is the property the rewrite below was for.
+    //
     // FOUR BECAME SEVEN ON 2026-10-08. The four service pages were never in this loop even
     // though two of them were already in `ALLOWED`, which is the gap that let `/drop-docs/` and
     // `/vault/` be missing from `ALLOWED` unnoticed. The loop is now driven off the service
@@ -269,7 +273,7 @@ describe( 'safeLocalReturnPath — the gap is closed and the validator is wired 
     expect( fs.existsSync( path.join( PAGES_DIR, 'index.tsx' ) ), '/ must have an exported page' ).toBe( true );
     const serviceSegments = SERVICE_CHOICES.map( choice => choice.slug );
     expect( serviceSegments ).toEqual(
-      [ 'submit-request', 'request-amendment', 'drop-docs', 'vault' ] );
+      [ 'submit-request', 'request-amendment', 'drop-docs', 'vault', 'request-pickup' ] );
     for ( const segment of [ 'cart', 'orders', 'blog', ...serviceSegments ] ) {
       expect( pageExists( segment ), `/${segment}/ must have an exported page` ).toBe( true );
     }

@@ -33,16 +33,18 @@ SUBMIT = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
 AMEND = "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b"
 DROP_DOCS = "db166bc8-a763-41ec-9f65-0f718f18155a"
 VAULT = "dcff995e-448c-493a-9259-f6a82ccdc2b4"
+PICKUP = "8ee7e325-d772-4452-a993-5c79e927d42b"
 
-#: Four DIFFERENT figures, and none of them the prices live today, so a pass cannot be a leaked
+#: Five DIFFERENT figures, and none of them the prices live today, so a pass cannot be a leaked
 #: constant. `{variant: rupees}`.
-RUPEES = {SUBMIT: 149, AMEND: 201, DROP_DOCS: 450, VAULT: 77}
+RUPEES = {SUBMIT: 149, AMEND: 201, DROP_DOCS: 450, VAULT: 77, PICKUP: 288}
 PAISE = {variant: rupees * 100 for variant, rupees in RUPEES.items()}
 
 CART_IDS = {SUBMIT: "11111111-1111-4111-8111-111111111111",
             AMEND: "22222222-2222-4222-8222-222222222222",
             DROP_DOCS: "33333333-3333-4333-8333-333333333333",
-            VAULT: "44444444-4444-4444-8444-444444444444"}
+            VAULT: "44444444-4444-4444-8444-444444444444",
+            PICKUP: "55555555-5555-4555-8555-555555555555"}
 
 
 class PriceWix:
@@ -143,14 +145,15 @@ def test_the_get_answers_without_a_session_and_prices_every_slug(monkeypatch):
         "request-amendment": {"available": True, "paise": PAISE[AMEND]},
         "drop-docs": {"available": True, "paise": PAISE[DROP_DOCS]},
         "vault": {"available": True, "paise": PAISE[VAULT]},
+        "request-pickup": {"available": True, "paise": PAISE[PICKUP]},
     }}
 
 
-def test_the_four_slugs_carry_four_DIFFERENT_prices(monkeypatch):
-    """The owner's report was "each is a different item". One payload, four distinct figures."""
+def test_the_five_slugs_carry_five_DIFFERENT_prices(monkeypatch):
+    """The owner's report was "each is a different item". One payload, five distinct figures."""
     h, _fake, _wix = _env(monkeypatch)
     prices = body_of(h.handler(prices_event(), None))["prices"]
-    assert len({price["paise"] for price in prices.values()}) == 4
+    assert len({price["paise"] for price in prices.values()}) == 5
 
 
 def test_the_response_is_edge_cacheable_for_sixty_seconds(monkeypatch):
@@ -212,13 +215,13 @@ def test_nothing_the_caller_supplies_reaches_wix(monkeypatch):
     assert [body for _m, _e, body in dirty.calls] == [body for _m, _e, body in clean.calls]
 
 
-def test_the_pointer_rows_bound_wix_cart_creation_to_four_forever(monkeypatch):
+def test_the_pointer_rows_bound_wix_cart_creation_to_five_forever(monkeypatch):
     h, fake, wix = _env(monkeypatch)
     h.handler(prices_event(), None)
-    assert len(wix.creates()) == 4
+    assert len(wix.creates()) == 5
     pointers = [row for row in fake.all_rows(KEYS_TABLE)
                 if str(row["orderId"]).startswith(service_pricing.SERVICE_PRICE_CART_PREFIX)]
-    assert len(pointers) == 4
+    assert len(pointers) == 5
     # A cold resolver on the same table reuses them and creates nothing.
     service_pricing.reset_cache()
     again = PriceWix()
@@ -250,7 +253,7 @@ def test_a_trailing_slash_is_the_same_route(monkeypatch):
 
 # ── fail closed ───────────────────────────────────────────────────────────────
 
-def test_one_unpriceable_slug_leaves_the_other_three_on_sale(monkeypatch):
+def test_one_unpriceable_slug_leaves_the_other_four_on_sale(monkeypatch):
     h, _fake, _wix = _env(monkeypatch, wix=PriceWix(unpriced={VAULT}))
     response = h.handler(prices_event(), None)
     assert response["statusCode"] == 200, body_of(response)
@@ -258,7 +261,7 @@ def test_one_unpriceable_slug_leaves_the_other_three_on_sale(monkeypatch):
     assert prices["vault"] == {"available": False}
     assert "paise" not in prices["vault"]
     assert all(prices[slug]["available"] for slug in
-               ("submit-request", "request-amendment", "drop-docs"))
+               ("submit-request", "request-amendment", "drop-docs", "request-pickup"))
 
 
 def test_no_price_at_all_is_a_503_rather_than_an_empty_payload(monkeypatch):
