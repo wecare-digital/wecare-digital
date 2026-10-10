@@ -15,14 +15,14 @@
  */
 
 /**
- * WD_Leave_Review_v2, PUBLISHED on WABA 1.
+ * WD_Leave_Review_Design_v1, retained canonical design Flow on WABA 1.
  *
  * Shared with the `customer_idea` inbound door: Meta has no per-door Flow identity, so one
  * room with two doors is the only available shape. The Flow is ENDPOINTLESS (no
  * `data_api_version`, first screen `FEEDBACK` carries no `data` block), which is why the
  * handler must open it with `navigate` — see `STATIC_ENTRY_SCREENS`.
  */
-export const REVIEW_FLOW_ID = '1578178897413815';
+export const REVIEW_FLOW_ID = '2352304845587149';
 
 /**
  * The owner's WhatsApp short link, and the one public CTA on these pages that is not the
