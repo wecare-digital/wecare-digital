@@ -180,14 +180,16 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
          never a lime wash that would erase it. */
       .bc-cta-note{
         font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+      }
+      /* The sweep: the gradient's dark band travels across, once per hover. The gradient itself,
+         the clip and the transparent fill ALL live here, not at rest. Declaring the gradient at
+         rest without background-clip:text paints the whole paragraph box grey - the full-width
+         bar bug - so the resting line is plain muted text and the band only exists on hover.
+         background-position is the only animated property, so it composites off the main thread. */
+      .bc-cta-note:hover{
         background-image:linear-gradient(100deg,
           rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
         background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
-      }
-      /* The sweep: the gradient's dark band travels across, once per hover. background-position
-         is the only animated property, so it composites off the main thread. The clip and the
-         transparent fill are introduced here, not at rest, so the line is never invisible. */
-      .bc-cta-note:hover{
         -webkit-background-clip:text;background-clip:text;
         -webkit-text-fill-color:transparent;color:transparent;
         animation:bc-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;

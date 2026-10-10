@@ -232,11 +232,15 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              12.48:1) so the band only darkens the text. */
           .pdp-cta-note{
             font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+          }
+          /* The gradient band lives under :hover ONLY. Declaring it at rest paints the whole
+             paragraph box grey (background-clip is border-box until the hover rule sets it to
+             text), which is the full-width bar bug. At rest this is plain muted text; on hover
+             the band is clipped to the glyphs and swept across them. */
+          .pdp-cta-note:hover{
             background-image:linear-gradient(100deg,
               rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
             background-size:300% 100%;background-position:100% 0;background-repeat:no-repeat;
-          }
-          .pdp-cta-note:hover{
             -webkit-background-clip:text;background-clip:text;
             -webkit-text-fill-color:transparent;color:transparent;
             animation:pdp-cta-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
