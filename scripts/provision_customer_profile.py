@@ -103,8 +103,21 @@ def expected_role_policy(acct=None):
 
 def ensure_role(dry_run):
     existing = _exists(iam(), "get_role", RoleName=ROLE_NAME)
+    policy_document = json.dumps(expected_role_policy(account_id()))
+
     if existing:
-        return "exists"
+        # Reconcile the inline least-privilege policy on every provision run. Previously this
+        # returned "exists" and silently left old roles without newly required narrow grants
+        # such as WriteIdentityClaimAudit.
+        if dry_run:
+            return "would reconcile policy"
+        iam().put_role_policy(
+            RoleName=ROLE_NAME,
+            PolicyName="CustomerProfileLeastPrivilege",
+            PolicyDocument=policy_document,
+        )
+        return "reconciled"
+
     if dry_run:
         return "would create"
     assume = {"Version":"2012-10-17","Statement":[{
@@ -119,8 +132,10 @@ def ensure_role(dry_run):
         RoleName=ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole")
     iam().put_role_policy(
-        RoleName=ROLE_NAME, PolicyName="CustomerProfileLeastPrivilege",
-        PolicyDocument=json.dumps(expected_role_policy(account_id())))
+        RoleName=ROLE_NAME,
+        PolicyName="CustomerProfileLeastPrivilege",
+        PolicyDocument=policy_document,
+    )
     return "created"
 
 

@@ -8,12 +8,10 @@ can record who linked which contact and can neither read the log back nor amend 
 Assertions are by `Sid` and by EQUALITY of each action set, because a document whose value is what
 it leaves out is not tested by checking that it contains what it needs.
 
-`scripts/provision_customer_profile.py::ensure_role` only writes the policy when it CREATES the
-role, so an existing role does not gain a new statement from a re-run. That is pre-existing
-behaviour of this script and is out of scope here; the policy asserted below is what a fresh
-provision produces, and it is also the document to apply by hand if the deployed role predates
-the claim. Without it `record_audit` fails open and the link still happens - unaudited, which is
-why this file exists rather than a comment.
+`scripts/provision_customer_profile.py::ensure_role` now reconciles the inline policy even when
+the role already exists, so a re-run closes IAM drift instead of silently leaving the deployed
+role without a newly required narrow grant. Without the audit grant `record_audit` fails open and
+the identity link can still happen unaudited, so source and live IAM must remain aligned.
 """
 from __future__ import annotations
 

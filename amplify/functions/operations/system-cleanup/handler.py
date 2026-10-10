@@ -77,6 +77,9 @@ logger = get_logger(__name__)
 
 REGION = os.environ.get('AWS_REGION', 'us-east-1')
 BUCKET = os.environ.get('MEDIA_BUCKET', media_paths.BUCKET)
+# Compatibility/source-of-truth alias: confirmation storage is owned by the shared helper.
+# Tests and diagnostics read this name from the handler, while the value itself lives in one place.
+SYSTEM_CONFIG_TABLE = destructive_confirm.SYSTEM_CONFIG_TABLE
 #: Namespaces this route's confirmation tokens, so a token minted for a message wipe can
 #: never be redeemed here and vice versa.
 CONFIRM_SCOPE = 'cleanup'
