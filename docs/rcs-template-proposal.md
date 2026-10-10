@@ -508,7 +508,7 @@ avoidable.
 
 **Observation, not a change:** the code `APDM5HUWH26SG1` is the one labelled
 **`subscribe`** in `customerservice.tsx`'s `MESSAGE_LINKS`, while `submit_request` is a
-different code, `J3ZJ4W52TPJEN1`. The widget has pointed at the `subscribe` deep
+different code, `5DRZXKBJTZDQG1`. The widget has pointed at the `subscribe` deep
 link since before this work, deliberately preserved from the old script. Flagging it
 in case the RCS button ought to open `submit_request` instead — that is a product
 call, so nothing was changed.
