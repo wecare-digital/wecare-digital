@@ -513,6 +513,7 @@
       "LOG_LEVEL": "INFO",
       "MEDIA_BUCKET": "wecare-digital-get",
       "META_API_VERSION": "v25.0",
+      "META_CAPI_DATASET_ID": "4554612361454941",
       "META_TOKEN_SECRET": "wecare/meta-system-user-token",
       "PAYMENT_WABA_ID": "2094615664435155",
       "RAZORPAY_MID": "acc_TTFSyolquKEZEy",
