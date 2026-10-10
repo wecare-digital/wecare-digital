@@ -625,3 +625,354 @@ def test_the_conditional_check_fallback_writes_the_address_and_leaves_merged_tag
     assert row["checkoutCustomerId"] == CUSTOMER
     assert row[ADDRESS_ATTRIBUTE]["city"] == "Bengaluru"
     assert row["emailVerifiedAt"]
+
+
+# -- what a refused link writes, and on WHICH row -------------------------------------------
+#
+# The conflict marker (`identityConflictAt`, a reason CODE and the `Identity Conflict` tag) is
+# the staff reconciliation surface, and the tests below are about its aim rather than its
+# existence. A marker on the wrong row is worse than no marker: it fills the one CRM view staff
+# are told to work from with rows that need no work. Two rules are pinned here —
+#   * a refusal reason that describes the SESSION never marks a contact, and
+#   * the rows that get marked are the rows `_upsert_contact` can still collide with.
+
+
+def legacy_row(fake, **overrides):
+    """An unowned WhatsApp-first row, as the inbound writer leaves one.
+
+    `lastInboundMessageAt` present, no `checkoutCustomerId`. Overrides are applied verbatim,
+    including `None`s, because the spelling of "live" is exactly what several of these tests are
+    about: an attribute absent and an attribute stored as NULL are two different rows.
+    """
+    row = {
+        "id": "legacy-1", "contactId": "legacy-1", "phone": PHONE,
+        "email": "old@example.com", "tags": ["Lead"], "deletedAt": None,
+        "lastInboundMessageAt": 1700000000,
+    }
+    row.update(overrides)
+    fake.Table(CONTACTS_TABLE).put_item(Item=row)
+    return row
+
+
+def capture_audit(h, monkeypatch):
+    """The audit calls this request makes. The fixture's stub discards them."""
+    recorded = []
+    monkeypatch.setattr(h, "record_audit",
+                        lambda action, **kwargs: recorded.append({"action": action, **kwargs}))
+    return recorded
+
+
+def refusals_of(recorded):
+    return [entry for entry in recorded if entry["action"] == "identity.claim_refused"]
+
+
+def save_with_proof(h, fake):
+    return h.handler(event(firstName="Asha", lastName="Sen", email=EMAIL,
+                           emailProof=proof(h, fake), address=dict(ADDRESS)), None)
+
+
+class TagRacingContacts:
+    """The fake contacts table, except its first `update_item` loses to a concurrent tag edit.
+
+    The other writer's tag is applied to the row BEFORE this call raises, because that is the
+    causal order in production: our conditioned write fails *precisely* because the list it was
+    computed from is no longer the list in the table.
+    """
+
+    def __init__(self, inner, added_tag):
+        self._inner = inner
+        self._added_tag = added_tag
+        self.armed = True
+
+    def update_item(self, **kwargs):
+        if self.armed:
+            self.armed = False
+            row = self._inner.rows[kwargs["Key"]["id"]]
+            row["tags"] = [*row.get("tags", []), self._added_tag]
+            raise FakeClientError("ConditionalCheckFailedException")
+        return self._inner.update_item(**kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
+def arm_losing_tag_write(fake, monkeypatch, *, added_tag):
+    """Make the next contacts `update_item` lose to a tag edit it could not have seen, once."""
+    real_table = fake.Table
+    proxy = {}
+
+    def Table(name):  # noqa: N802 - boto3's spelling
+        inner = real_table(name)
+        if name != CONTACTS_TABLE:
+            return inner
+        if "it" not in proxy:
+            proxy["it"] = TagRacingContacts(inner, added_tag)
+        # `FakeTable` is a thin view over the parent's rows, so re-pointing keeps the proxy's own
+        # `armed` state across the several `_table()` calls one request makes.
+        proxy["it"]._inner = inner
+        return proxy["it"]
+
+    monkeypatch.setattr(fake, "Table", Table)
+    return proxy
+
+
+def test_an_unverified_session_leaves_no_conflict_marker_on_its_own_row(env):
+    """`UNVERIFIED_PHONE` is a fact about the CALLER'S SESSION, not about the contact.
+
+    The row here is the customer's own, perfectly good, inbound WhatsApp contact; the only thing
+    wrong is that the pool has not confirmed this session's number. Marking it would put a
+    staff-visible conflict on a row with nothing wrong with it, again on every save. The audit
+    record is still written, because the attempt did happen and is worth reading.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake)
+    recorded = capture_audit(h, monkeypatch)
+    monkeypatch.setattr(h.customer_auth, "require_customer",
+                        lambda event: (Identity(phone_verified=False), None))
+
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    row = row_of(fake)
+    assert "identityConflictAt" not in row
+    assert "identityConflictReason" not in row
+    assert row["tags"] == ["Lead"], "no conflict tag for a reason that is not about this row"
+    assert "checkoutCustomerId" not in row
+    assert [entry["details"]["reason"] for entry in refusals_of(recorded)] == ["UNVERIFIED_PHONE"]
+    assert refusals_of(recorded)[0]["resource_id"] == "legacy-1"
+
+
+def test_an_unverified_session_cannot_earn_a_data_shaped_refusal_reason(env):
+    """Order of the predicate's checks, and it is load-bearing.
+
+    With two rows on the number an unverified session would otherwise be told `AMBIGUOUS_PHONE`
+    — a statement about the CRM — and both rows would be tagged for a conflict whose real cause
+    is the session flag. The session check runs first, so the reason stays `UNVERIFIED_PHONE`.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake)
+    legacy_row(fake, id="legacy-2", contactId="legacy-2")
+    recorded = capture_audit(h, monkeypatch)
+    monkeypatch.setattr(h.customer_auth, "require_customer",
+                        lambda event: (Identity(phone_verified=False), None))
+
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    for row in fake.all_rows(CONTACTS_TABLE):
+        assert "identityConflictReason" not in row
+        assert h.CONFLICT_TAG not in row["tags"]
+    assert [entry["details"]["reason"] for entry in refusals_of(recorded)] == ["UNVERIFIED_PHONE"]
+
+
+def test_an_archived_row_is_marked_so_its_dead_end_has_a_staff_surface(env):
+    """The one refusal that would otherwise be a permanent 409 with nothing to reconcile from.
+
+    `isDeleted=True` with no `deletedAt` is read two ways on purpose: the claim treats it as
+    deleted and refuses, while `_upsert_contact`'s `_active_match` reads only `deletedAt` and
+    still sees a live, unowned row — so the save ends in `CONTACT_IDENTITY_CONFLICT` every time,
+    for ever. Marking it is the only thing that turns that into something staff can find, which
+    is why the assertion below is on the HTTP answer AND on the row.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake, deletedAt=None, isDeleted=True, tags=[])
+    fake.Table(CONTACTS_TABLE).rows["legacy-1"].pop("deletedAt")
+    recorded = capture_audit(h, monkeypatch)
+
+    response = save_with_proof(h, fake)
+    assert response["statusCode"] == 409
+    assert json.loads(response["body"])["error"] == "CONTACT_IDENTITY_CONFLICT"
+    row = row_of(fake)
+    assert "checkoutCustomerId" not in row, "an archived row is never claimed"
+    assert row["identityConflictReason"] == "DELETED_CONTACT"
+    assert row["identityConflictAt"]
+    assert row["tags"] == [h.CONFLICT_TAG]
+    assert [entry["resource_id"] for entry in refusals_of(recorded)] == ["legacy-1"]
+
+
+def test_a_tombstone_refusal_names_the_row_it_refused_without_marking_it(env):
+    """A `deletedAt` tombstone is the opposite case, and it is deliberately NOT marked.
+
+    `_active_match` skips it, so the customer simply gets a fresh row and there is no conflict to
+    reconcile — a tag here would be noise nobody can act on. The audit record still names the
+    row, so the refusal is never a record with an empty `resource_id`.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake, deletedAt=1699999999)
+    recorded = capture_audit(h, monkeypatch)
+
+    assert save_with_proof(h, fake)["statusCode"] == 200
+    tombstone = {row["id"]: row for row in fake.all_rows(CONTACTS_TABLE)}["legacy-1"]
+    assert "checkoutCustomerId" not in tombstone, "a tombstone is never resurrected"
+    assert "identityConflictAt" not in tombstone
+    assert tombstone["tags"] == ["Lead"]
+    entry = refusals_of(recorded)[0]
+    assert entry["details"]["reason"] == "DELETED_CONTACT"
+    assert entry["resource_id"] == "legacy-1"
+
+
+def test_a_refusal_names_the_live_row_when_a_tombstone_shares_the_number(env):
+    """The audit record and the marker must point at the SAME row, and it must be the live one.
+
+    A number can hold both a tombstone and the live row that is actually in the way. The
+    tombstone comes back first from the index — `phone-index` has no sort key, so the page is in
+    whatever order the rows exist — and naming it would send staff to the one row they cannot act
+    on while the `Identity Conflict` tag sits on the other. `len(live) == 1` here, so the reason
+    is `FOREIGN_OWNER` rather than `AMBIGUOUS_PHONE`: the tombstone is not a second candidate.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake, deletedAt=1699999999)
+    legacy_row(fake, id="legacy-2", contactId="legacy-2", tags=[],
+               checkoutCustomerId="CUS_01J9999999999999999999999")
+    recorded = capture_audit(h, monkeypatch)
+
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    rows = {row["id"]: row for row in fake.all_rows(CONTACTS_TABLE)}
+    assert "identityConflictAt" not in rows["legacy-1"], "a tombstone is never marked"
+    assert rows["legacy-2"]["tags"] == [h.CONFLICT_TAG]
+    assert rows["legacy-2"]["identityConflictReason"] == "FOREIGN_OWNER"
+    assert "checkoutCustomerId" not in rows["legacy-1"]
+
+    entry = refusals_of(recorded)[0]
+    assert entry["details"]["reason"] == "FOREIGN_OWNER"
+    assert entry["resource_id"] == "legacy-2", \
+        "the record names the row the marker landed on, not the tombstone the index returned first"
+
+
+def test_a_refusal_record_narrows_its_details_to_a_four_digit_tail(env):
+    """What `phoneLast4` is and is not a claim about.
+
+    `details` is narrowed, and against the DIGITS form as well as the `+E.164` one — a test that
+    only checked `PHONE not in rendered` would pass on the strength of the leading `+` and mean
+    nothing. `resource_id` is the deliberate exception: an audit record about a contact has to
+    name the contact, and a WhatsApp-first row's key IS the number (`wa<national digits>`, from
+    `inbound-whatsapp-handler._deterministic_contact_id`), so the digits are in the record as the
+    primary key of the row acted on. Internal table, 180-day retention, and it is the claimer's
+    own verified number — but the narrowing above is of the payload, not of the whole record, and
+    this test is what says so.
+    """
+    h, fake, monkeypatch = env
+    digits = PHONE.lstrip("+")
+    legacy_row(fake, id=f"wa{digits}", contactId=f"wa{digits}", lastInboundMessageAt=None)
+    recorded = capture_audit(h, monkeypatch)
+
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    entry = refusals_of(recorded)[0]
+    assert entry["details"]["phoneLast4"] == PHONE[-4:]
+    details = json.dumps(entry["details"])
+    assert PHONE not in details and digits not in details, "a last-4 tail, never the number"
+    assert EMAIL not in json.dumps(entry) and "old@example.com" not in json.dumps(entry)
+    assert entry["resource_id"] == f"wa{digits}"
+    assert [key for key, value in entry.items()
+            if key != "resource_id" and digits in json.dumps(value)] == []
+
+
+def test_the_owned_row_is_still_found_beyond_the_first_five_on_a_number(env):
+    """The two phone-index reads must agree about which rows exist on a number.
+
+    With six rows and a five-row page, the ownership read missed the row the customer owns and
+    the claim then ran on a view that could not see it — refusing, and tagging the customer's own
+    contact for a conflict that does not exist. The 409 here is the PRE-EXISTING answer for a
+    number carrying several live rows (`_active_match` returns the first one and it is not this
+    session's), and it is not what this test is about: the absence of a conflict marker is.
+    """
+    h, fake, monkeypatch = env
+    for index in range(5):
+        legacy_row(fake, id=f"other-{index}", contactId=f"other-{index}",
+                   lastInboundMessageAt=None)
+    owned = seed_owned(fake, id="owned-6", contactId="owned-6")
+    recorded = capture_audit(h, monkeypatch)
+
+    assert h._owned_contact(PHONE, CUSTOMER)["id"] == owned["id"], \
+        "the sixth row on a number is still the row this session owns"
+    save_with_proof(h, fake)
+    for row in fake.all_rows(CONTACTS_TABLE):
+        assert "identityConflictReason" not in row, f"{row['id']} was tagged for nothing"
+        assert h.CONFLICT_TAG not in row["tags"]
+    assert refusals_of(recorded) == [], "the claim must not run when the row is already owned"
+
+
+def test_the_two_phone_index_reads_share_one_page_size(env):
+    """Pinned as a constant rather than as two literals, because the bug was the disagreement.
+
+    Asserted on the `Limit` each read actually passes, not by grepping the source for
+    `Limit=PHONE_PAGE_LIMIT` twice. A source-text count is the brittleness this file removed from
+    the IAM test: it would fail if `_active_match` were migrated to the shared constant, which
+    would be an improvement to the code, and it would pass if both literals were changed in step
+    to a wrong value.
+
+    `_active_match`'s own read is deliberately NOT part of this. It still pages 5 and is out of
+    scope — it decides which row `_upsert_contact` merges into, not whether a claim may run — so
+    the third read is asserted to exist and left alone.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake)
+    limits = []
+    # `FakeDynamo.Table` mints a fresh handle per call, exactly as boto3 does, so the recorder
+    # goes on the factory rather than on one handle.
+    inner_table = fake.Table
+
+    def recording_table(name):
+        table = inner_table(name)
+        inner_query = table.query
+
+        def query(**kwargs):
+            if name == CONTACTS_TABLE and kwargs.get("IndexName") == "phone-index":
+                limits.append(kwargs.get("Limit"))
+            return inner_query(**kwargs)
+
+        table.query = query
+        return table
+
+    monkeypatch.setattr(fake, "Table", recording_table)
+    assert save_with_proof(h, fake)["statusCode"] == 200
+
+    # In order: `_owned_contact`'s ownership read, then `_attempt_claim`'s.
+    assert limits[:2] == [h.PHONE_PAGE_LIMIT, h.PHONE_PAGE_LIMIT], \
+        "the ownership read and the claim read must see the same rows on a number"
+    assert h.PHONE_PAGE_LIMIT >= 5
+    assert len(limits) == 3, "and `_active_match` reads the index once more, at its own page size"
+
+
+def test_a_conflict_marker_retries_rather_than_dropping_a_concurrent_tag(env):
+    """The marker is a read-modify-write of `tags`, so it is conditioned on the list it read.
+
+    A tag another writer added between the query and the write would otherwise vanish — and this
+    path fires on refusals the customer never asked for, so it fires often. The condition turns
+    that loss into one `ConditionalCheckFailedException`, and the retry merges against a
+    consistent re-read.
+    """
+    h, fake, monkeypatch = env
+    legacy_row(fake, lastInboundMessageAt=None)
+    arm_losing_tag_write(fake, monkeypatch, added_tag="VIP")
+    assert save_with_proof(h, fake)["statusCode"] == 409
+    row = row_of(fake)
+    assert row["tags"] == ["Lead", "VIP", h.CONFLICT_TAG], "the concurrent tag must survive"
+    assert row["identityConflictReason"] == "NO_INBOUND_EVIDENCE"
+
+
+@pytest.mark.parametrize("live_spelling", [
+    pytest.param({}, id="both-attributes-absent"),
+    pytest.param({"deletedAt": None}, id="deletedAt-stored-as-NULL"),
+    pytest.param({"isDeleted": None}, id="isDeleted-stored-as-NULL"),
+    pytest.param({"isDeleted": False}, id="isDeleted-false"),
+    pytest.param({"deletedAt": None, "isDeleted": False}, id="both-spelled-out"),
+])
+def test_every_spelling_of_live_satisfies_the_claim_condition(env, live_spelling):
+    """The claim's `ConditionExpression` has to accept every row its predicate accepts.
+
+    "Live" is written four ways by four writers: the attribute absent (`core/contacts` strips
+    `None` before storage), stored as NULL (the CRM writes `deletedAt: None` outright), or
+    `isDeleted` present as NULL or `False`. `_row_deleted` treats all of them as live, so a
+    condition that disagreed with one would refuse a row the predicate had just approved — and
+    because a rejected condition is not a `ConditionalCheckFailedException` when the operand
+    types are wrong, the customer would get a 500 rather than a refusal.
+    """
+    h, fake, _ = env
+    row = {"id": "legacy-1", "contactId": "legacy-1", "phone": PHONE,
+           "email": "old@example.com", "tags": ["Lead"],
+           "lastInboundMessageAt": 1700000000}
+    row.update(live_spelling)
+    fake.Table(CONTACTS_TABLE).put_item(Item=row)
+
+    assert save_with_proof(h, fake)["statusCode"] == 200
+    stored = row_of(fake)
+    assert stored["id"] == "legacy-1", "the claim edits the row; it does not create a second"
+    assert stored["checkoutCustomerId"] == CUSTOMER
+    assert stored["identityClaimEvidence"] == h.CLAIM_EVIDENCE_INBOUND
