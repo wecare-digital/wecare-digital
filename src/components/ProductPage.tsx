@@ -1,8 +1,12 @@
 import { whatsappServiceLink } from '../config/whatsappServiceEntries';
 import React from 'react';
+import Link from 'next/link';
 import PageMeta from './PageMeta';
 import RotatingHero from './RotatingHero';
+import ProductBlogPanel from './ProductBlogPanel';
+import ShareLinks from './ShareLinks';
 import type { ProductDef } from '../content/products';
+import type { BlogCard } from '../lib/public-blog';
 
 /**
  * One layout for every product page. Copy comes from src/content/products.ts.
@@ -34,12 +38,48 @@ import type { ProductDef } from '../content/products';
 
 interface ProductPageProps {
   product: ProductDef;
+  /**
+   * OPTIONAL RIGHT-HAND BLOG PANEL. When cards are passed (today only /anew/, from its
+   * getStaticProps), the page becomes a two-column grid on a wide screen: product copy left, the
+   * ProductBlogPanel right. Omit it - every other product page does - and the layout is byte-for-
+   * byte what it was: one 700px column, no grid, no panel. That is why the grid rules below are
+   * scoped to .pdp-wrap.has-aside.
+   */
+  blogCards?: BlogCard[];
+  /**
+   * OPTIONAL PRICE LINE under the CTA, so a reader sees what they will pay before they open the
+   * chat. A short string like "₹599" plus an optional unit. Omitted on pages that do not sell a
+   * fixed-price item here.
+   */
+  price?: string;
+  priceUnit?: string;
+  /**
+   * OPTIONAL CATALOGUE LINK - a quiet secondary link under the CTA pointing at the full
+   * purchasable listing (/shop/). Named rather than assumed so a page without one renders nothing.
+   */
+  catalogueHref?: string;
+  catalogueLabel?: string;
+  /**
+   * OPTIONAL SHARE ROW. When an absolute URL is passed, the same ShareLinks component the blog and
+   * post pages use is rendered under the left column.
+   */
+  shareUrl?: string;
 }
 
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
 // keeping a second copy of it here would be a second place for it to be wrong.
 
-const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
+const ProductPage: React.FC<ProductPageProps> = ( {
+  product,
+  blogCards,
+  price,
+  priceUnit,
+  catalogueHref,
+  catalogueLabel = 'See the full catalogue',
+  shareUrl,
+} ) => {
+  const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
+  return (
   <>
     {/* All seven product pages get their share preview from the same two strings that make
         their <title> and <meta description>, so there is nothing to keep in sync. Before
@@ -57,6 +97,7 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
       words={ product.words }
       sub={ product.sub }
     >
+      <div className={ hasAside ? 'pdp-wrap has-aside' : 'pdp-wrap' }>
       <section className="pdp" aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
         <p className="pdp-lead">{ product.lead }</p>
@@ -116,7 +157,31 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
             Subscribe/Contribute pills (.bc-cta-note / .blog-wa-note). */}
         { product.ctaNote && <p className="pdp-cta-note" aria-hidden="true">{ product.ctaNote }</p> }
 
+        {/* PRICE + CATALOGUE, so a reader knows what they will pay and where to see everything
+            else that is purchasable before they open the chat. Both are opt-in: a page that
+            passes neither renders nothing here, which is every product page except /anew/. */}
+        { ( price || catalogueHref ) && (
+          <p className="pdp-buy">
+            { price && (
+              <span className="pdp-price" data-wc-no-translate="true">
+                { price }{ priceUnit && <span className="pdp-price-unit"> { priceUnit }</span> }
+              </span>
+            ) }
+            { catalogueHref && (
+              <Link className="pdp-catalogue" href={ catalogueHref }>{ catalogueLabel } →</Link>
+            ) }
+          </p>
+        ) }
+
         { product.note && <p className="pdp-note">{ product.note }</p> }
+
+        {/* SHARE - the same component the blog and post pages use, so the Anew page can be sent
+            on in one tap. Rendered only when an absolute URL is supplied. */}
+        { shareUrl && (
+          <div className="pdp-share">
+            <ShareLinks url={ shareUrl } title={ product.title } label="Share Anew" />
+          </div>
+        ) }
 
         <style jsx>{`
           .pdp{max-width:700px}
@@ -210,15 +275,52 @@ const ProductPage: React.FC<ProductPageProps> = ( { product } ) => (
             color:rgba(0,0,0,.898);
           }
 
+          /* PRICE + CATALOGUE line. The price is the card rung in dark green (lime means
+             actionable and the pill owns lime); the catalogue is a quiet text link. 30px of air
+             above it, matching the CTA row's own top gap. */
+          .pdp-buy{display:flex;flex-wrap:wrap;align-items:baseline;gap:16px;margin:22px 0 0}
+          .pdp-price{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.25px;color:#1a3a2a;font-variant-numeric:tabular-nums}
+          .pdp-price-unit{font-size:15px;font-weight:600;color:rgba(0,0,0,.54)}
+          .pdp-catalogue{font-size:15px;font-weight:600;color:#1a3a2a;text-decoration:underline;text-underline-offset:3px}
+          .pdp-catalogue:hover{text-decoration-thickness:2px}
+          .pdp-catalogue:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+
+          /* The share row sits below the boundary note with its own air. */
+          .pdp-share{margin:28px 0 0}
+
+          /* THE TWO-COLUMN WRAP, SCOPED TO .has-aside so every other product page is untouched.
+             Default (no aside): a plain block, so .pdp keeps its own 700px measure exactly as
+             before. With an aside: a grid that gives the product column up to 700px and the panel
+             the rest, with a 64px gutter. Collapses to one column below 1024px, where the panel
+             drops under the product copy. These classes live on nodes OUTSIDE .pdp, but styled-jsx
+             scopes by component not by element, so one block styles the whole return tree. */
+          .pdp-wrap{display:block}
+          .pdp-aside{margin:64px 0 0}
+
           @media(max-width:767px){
             .pdp-lead{font-size:18px}
             .pdp-p{font-size:18px}
             .pdp-point-t{font-size:20px}
           }
+          @media(min-width:1024px){
+            .pdp-wrap.has-aside{
+              display:grid;grid-template-columns:minmax(0,700px) minmax(0,1fr);
+              column-gap:64px;align-items:start;
+            }
+            .pdp-wrap.has-aside .pdp-aside{margin:0}
+          }
         `}</style>
       </section>
+
+      { hasAside && (
+        <div className="pdp-aside">
+          <ProductBlogPanel cards={ blogCards! } />
+        </div>
+      ) }
+      </div>
     </RotatingHero>
   </>
-);
+  );
+};
 
 export default ProductPage;
