@@ -792,7 +792,7 @@ describe( 'Blog post page', () => {
    * THE WHATSAPP SUBSCRIBE BUTTON AND CONTRIBUTION SIT BETWEEN TAGS AND SHARE, in that order.
    *
    * The in-page subscriber form was removed in favour of a single button that opens a WhatsApp
-   * conversation (a.blog-wa-subscribe, href wa.me/message/BEA3HNW3LNM3A1). It sits where the box used to,
+   * conversation (a.blog-wa-subscribe, href wa.me/message/WUDPTMYSO6XII1). It sits where the box used to,
    * so the end of the article is content -> Tags -> WhatsApp subscribe -> Contribution -> Share.
    * Document position is asserted rather than mere presence so either block moving silently fails.
    */
@@ -813,7 +813,7 @@ describe( 'Blog post page', () => {
     expect( container.querySelector( 'section.blog-subscribe' ) ).toBeNull();
 
     // The button points directly at the WhatsApp subscribe deep link.
-    expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BEA3HNW3LNM3A1' );
+    expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
 
     expect( tags!.compareDocumentPosition( subscribe! ) & Node.DOCUMENT_POSITION_FOLLOWING )
       .toBeTruthy();
