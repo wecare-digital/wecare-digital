@@ -86,6 +86,12 @@ Served as `https://wecare.digital/get/<key>` via CloudFront `E2GP22R4BIFGQ3`
 | WECARE.DIGITAL | 2094615664435155 | waba-e47d916f3c7a47e1a34a19653893dd4b |
 | Manish Agarwal | 2513394156072604 | waba-dbe343f210204752b74c80a0a59631a6 |
 
+The `ID` column above is the AWS-side identifier the code reads; Meta's own WABA id is in the
+`Meta ID` column. The Catalog, Pixel, Dataset/CAPI, App and phone-number ids Meta knows these
+assets by are listed in
+[Meta assets and the services catalogue](docs/meta-assets-and-services-catalog.md), together with
+the five paid services and their Wix variant ids.
+
 See [repository layout and maintenance boundaries](docs/execution/repository-layout.md) for the active web/backend install roots, operational scripts, generated outputs and retained history.
 
 ## Project Structure
