@@ -866,9 +866,14 @@ describe( 'Blog post page', () => {
     expect( links[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
     expect( links[ 0 ].textContent ).toBe( 'Contribute' );
     expect( links[ 0 ] ).toHaveAttribute( 'aria-label', 'Contribute on WhatsApp' );
-    // No explanatory line under the button: the WhatsApp glyph on it is what says where it goes.
-    // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md, which revises the
-    // brief's subtext requirement to this icon-only treatment.
+    // TEXT-ONLY pill (no glyph), with the destination in a short microcopy line below it.
+    // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md: the glyph was dropped
+    // as too busy inside the filled pill, and the quiet line carries the destination instead.
+    expect( links[ 0 ].querySelector( 'svg' ) ).toBeNull();
+    const note = block.querySelector( '.bc-cta-note' )!;
+    expect( note.textContent ).toBe( 'Continue on WhatsApp \u2192' );
+    expect( note.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    // No radio-era .bc-note remains.
     expect( block.querySelector( '.bc-note' ) ).toBeNull();
 
     // Nothing to choose and nothing to submit: the amount pill, its radio and the submit button
@@ -883,16 +888,17 @@ describe( 'Blog post page', () => {
    * TWO WHATSAPP CTAS AT THE TAIL OF A POST: A MATCHED PAIR, TWO DISTINCT CONVERSATIONS.
    *
    * Owner instruction, 2026-10-10: Subscribe and Contribute are the same object - lime pill,
-   * WhatsApp glyph, one word - and they open DIFFERENT Meta message links, WUDPTMYSO6XII1 and
-   * BYFLCAAMSZBXD1. Pointing one button at the other's link would look entirely correct on
-   * screen, which is why both hrefs are pinned here as literals AND asserted to differ.
+   * one word, text only, and a short "Continue on WhatsApp →" microcopy line below - and they
+   * open DIFFERENT Meta message links, WUDPTMYSO6XII1 and BYFLCAAMSZBXD1. Pointing one button at
+   * the other's link would look entirely correct on screen, which is why both hrefs are pinned
+   * here as literals AND asserted to differ.
    *
-   * The glyph is asserted on BOTH, by path data, because the icon is what tells the reader the
-   * button opens WhatsApp - it is the reason neither CTA carries an explanatory subtext line.
-   * That reason is the owner's, recorded at
+   * NEITHER button carries a glyph: the owner found the WhatsApp logo inside the filled pill too
+   * busy and dropped it, moving the destination into the microcopy. Both the glyph's absence and
+   * the microcopy's presence are asserted on each. Recorded at
    * .agents/tasks/contribute-whatsapp-cta/owner-decision.md.
    */
-  it( 'pairs Subscribe and Contribute as two distinct WhatsApp links with the same glyph', () => {
+  it( 'pairs Subscribe and Contribute as two distinct text-only WhatsApp links with twin microcopy', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
 
     const subscribe = container.querySelector( 'a.blog-wa-subscribe' )!;
@@ -908,13 +914,19 @@ describe( 'Blog post page', () => {
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
     expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
 
-    // THE IDENTICAL GLYPH, by path data rather than by presence.
-    const pathOf = ( el: Element ) => el.querySelector( 'svg path' )?.getAttribute( 'd' ) || '';
-    expect( pathOf( subscribe ) ).toMatch( /^M17\.47 14\.38/ );
-    expect( pathOf( contribute ) ).toBe( pathOf( subscribe ) );
+    // NEITHER carries a glyph any more.
+    expect( subscribe.querySelector( 'svg' ) ).toBeNull();
+    expect( contribute.querySelector( 'svg' ) ).toBeNull();
 
-    // NO SUBTEXT UNDER EITHER ONE - the recorded owner decision cited in the docblock above.
-    expect( container.querySelector( '.blog-wa-note' ) ).toBeNull();
+    // TWIN MICROCOPY under each, identical text, both aria-hidden (the accessible name already
+    // carries "on WhatsApp"). This is the pair's shared "where it goes" line.
+    const subNote = container.querySelector( '.blog-wa-note' )!;
+    const bcNote = container.querySelector( '.bc-cta-note' )!;
+    expect( subNote.textContent ).toBe( 'Continue on WhatsApp \u2192' );
+    expect( bcNote.textContent ).toBe( 'Continue on WhatsApp \u2192' );
+    expect( subNote.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    expect( bcNote.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    // No radio-era .bc-note remains.
     expect( container.querySelector( '.bc-note' ) ).toBeNull();
 
     // And the same pill object: both carry the home CTA's values.
@@ -933,7 +945,7 @@ describe( 'Blog post page', () => {
       expect( rule, selector ).toContain( 'border-radius:50px' );
       expect( rule, selector ).toContain( 'background:#d1f470' );
       expect( rule, selector ).toContain( 'font-size:17px;font-weight:600' );
-      expect( rule, selector ).toContain( 'gap:10px' );
+      expect( rule, selector ).toContain( 'justify-content:center' );
     }
   } );
 } );
