@@ -26,7 +26,7 @@ def _send(client, row, **body):
 
 
 def readiness(get_flow, graph):
-    flow_result = get_flow('1107164111921876')
+    flow_result = get_flow('1728231914933139')
     flow = json.loads(flow_result.get('body') or '{}').get('flow') or {}
     templates = {}
     for name, ident in {'wecarepay_wa': '1783774039408860',
