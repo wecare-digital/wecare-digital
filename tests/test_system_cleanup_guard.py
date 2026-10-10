@@ -72,7 +72,9 @@ PROTECTED_IDS = [
 
 def _token(issuer: str) -> str:
     payload = base64.urlsafe_b64encode(
-        json.dumps({"iss": issuer, "sub": "sub-admin-1"}).encode()
+        # `client_id` because `require_auth` pins the staff app client as well as the pool.
+        json.dumps({"iss": issuer, "sub": "sub-admin-1",
+                    "client_id": mw.STAFF_APP_CLIENT_ID}).encode()
     ).decode().rstrip("=")
     return f"header.{payload}.signature"
 

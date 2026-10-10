@@ -14,9 +14,18 @@ def _token(issuer: str) -> str:
     `tests/test_customer_auth_and_throttle.py`. No assertion below changed.
     """
     payload = base64.urlsafe_b64encode(
-        json.dumps({'iss': issuer, 'sub': 'sub-1234'}).encode()
+        json.dumps({'iss': issuer, 'sub': 'sub-1234',
+                    # `require_auth` also pins the app client, so the fixture has to carry
+                    # the claim a real access token carries. See `_unverified_clients`.
+                    'client_id': _staff_client()}).encode()
     ).decode().rstrip('=')
     return f'header.{payload}.signature'
+
+
+def _staff_client() -> str:
+    """Read at call time so a test that overrides the pinned client still mints a valid token."""
+    from lambda_utils.middleware import STAFF_APP_CLIENT_ID
+    return STAFF_APP_CLIENT_ID
 
 
 def _staff_token() -> str:

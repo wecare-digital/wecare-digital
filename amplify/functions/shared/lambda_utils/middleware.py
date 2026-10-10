@@ -18,7 +18,10 @@ Three things, all of which have to hold:
 2. The token was issued by the STAFF pool — `staff_pool_issuer()`. Step 1 does NOT
    establish this: `GetUser` takes only a token and resolves it against whichever pool
    issued it, so a customer-pool token used to pass here. See `_unverified_issuer`.
-3. The principal holds a staff group that is in `ROLE_HIERARCHY`. There is **no default
+3. The token was minted by the STAFF APP CLIENT — `STAFF_APP_CLIENT_ID`. Step 2 narrows
+   the pool but not the client within it, and an app client is the unit that decides
+   which auth flows, scopes and token lifetimes apply. See `_unverified_clients`.
+4. The principal holds a staff group that is in `ROLE_HIERARCHY`. There is **no default
    role**. An ungrouped principal, a `Partner`-only principal, and a group lookup that
    failed are all refused rather than treated as `Viewer`.
 
@@ -36,7 +39,7 @@ import base64
 import os
 import json
 import boto3
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from lambda_utils.response import cors_response, extract_origin
 from lambda_utils.logging import get_logger
@@ -68,6 +71,24 @@ def staff_pool_issuer() -> str:
 #: `require_auth` reads `staff_pool_issuer()` so a pool override is honoured.
 STAFF_POOL_ISSUER = staff_pool_issuer()
 
+#: The ONE app client on the staff pool. An identifier, not a secret - the same public
+#: value `amplify/auth/resource.ts` declares as `userPoolClientId`, `README.md` records as
+#: the App Client, `shared/config.ts` holds as `COGNITO_CONFIG.APP_CLIENT_ID`, and the
+#: Amplify branch environment ships to the browser as `NEXT_PUBLIC_COGNITO_CLIENT_ID`.
+#:
+#: A LITERAL rather than an env read, deliberately, and on the precedent of
+#: `ai/workspace-mcp/handler.py:31` (`STAFF_CLIENT`), which already pins exactly this value
+#: alongside its issuer check. A new env var would make the pin optional on any function
+#: whose environment was not updated, i.e. would ship a pin that is absent where it is most
+#: needed. `USER_POOL_ID` is env-readable because the pool is a deployment coordinate; the
+#: client within that pool is not.
+#:
+#: Why pinning cannot lock out real staff: `docs/execution/aws-inventory.json` records the
+#: staff pool `us-east-1_cSx0RHCIR` with exactly ONE client
+#: (`/cognito/user_pools[1]/clients[0]/id`), and this is it. There is no second staff client
+#: to refuse. Every token a signed-in staff member holds is minted here.
+STAFF_APP_CLIENT_ID = '1j8kbi48m4v2rped3n224rlevb'
+
 
 def _unverified_issuer(token: str) -> str:
     """The `iss` claim, read WITHOUT signature verification.
@@ -91,6 +112,45 @@ def _unverified_issuer(token: str) -> str:
         return str(json.loads(base64.urlsafe_b64decode(payload)).get('iss') or '')
     except Exception:  # noqa: BLE001 - a malformed token simply has no issuer
         return ''
+
+
+def _unverified_clients(token: str) -> Set[str]:
+    """Every app client the token names, read WITHOUT signature verification.
+
+    Same safety argument as `_unverified_issuer`, and the same single use: these values
+    only ever cause a REJECTION. `GetUser` has proven the token live and the issuer pin has
+    proven which pool proved it; this narrows which client within that pool minted it.
+
+    Returns a SET because the two Cognito token types spell the claim differently and one
+    of them may be plural:
+
+      * an ACCESS token carries `client_id`, a string. This is the token `require_auth`
+        actually receives — it validates with `get_user(AccessToken=token)` — so in
+        production this is the claim that answers.
+      * an ID token carries `aud`, which the JWT spec permits to be either a string or a
+        list of strings. Read as well, so the pin does not silently pass a caller who sends
+        the other token type.
+
+    An empty set means the token named no client, and the gate refuses that: a token with
+    no `client_id` and no `aud` is not a token this pool issued through its one app client.
+    """
+    try:
+        payload = token.split('.')[1]
+        payload += '=' * (-len(payload) % 4)
+        claims = json.loads(base64.urlsafe_b64decode(payload))
+    except Exception:  # noqa: BLE001 - a malformed token simply names no client
+        return set()
+    if not isinstance(claims, dict):
+        return set()
+
+    presented: Set[str] = set()
+    for claim in ('client_id', 'aud'):
+        value = claims.get(claim)
+        if isinstance(value, str) and value:
+            presented.add(value)
+        elif isinstance(value, (list, tuple)):
+            presented.update(str(item) for item in value if isinstance(item, str) and item)
+    return presented
 
 # Paths that skip auth. Only genuinely self-authenticating provider endpoints
 # belong here - a Meta Flows data-exchange endpoint proves authenticity by RSA
@@ -215,6 +275,25 @@ def require_auth(
     # neither true nor useful to the caller.
     if _unverified_issuer(token) != staff_pool_issuer():
         logger.warning(json.dumps({'event': 'auth_wrong_pool'}))
+        return cors_response(401, {'error': 'Invalid or expired token'}, origin)
+
+    # The pool is right. Narrow WHICH APP CLIENT on that pool minted the token.
+    #
+    # The issuer pin above is not sufficient on its own: `iss` names the pool, and every
+    # app client on a pool issues tokens bearing the same `iss`. An app client is the unit
+    # that carries the auth flows, the OAuth scopes, the callback URLs and the token
+    # lifetimes, so a second client added to this pool for any purpose — a partner
+    # integration, a machine-to-machine client with `ALLOW_USER_PASSWORD_AUTH`, a
+    # throwaway for a test — would mint tokens that passed every check below and reached
+    # every staff route. Pinning the one client that exists closes that before it opens.
+    #
+    # 401, placed BEFORE the group lookup, and logged under its own event name, for the
+    # same three reasons as the issuer pin: the credential is not valid for this API at
+    # all; a refused caller must not cause an `admin_list_groups_for_user` against the
+    # staff pool keyed on a username it chose; and three refusal causes sharing one log
+    # line would let two of them regress unnoticed.
+    if STAFF_APP_CLIENT_ID not in _unverified_clients(token):
+        logger.warning(json.dumps({'event': 'auth_wrong_client'}))
         return cors_response(401, {'error': 'Invalid or expired token'}, origin)
 
     username = user_info.get('Username', '')
