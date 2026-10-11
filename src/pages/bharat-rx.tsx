@@ -107,7 +107,9 @@ const BharatRxPage: React.FC = () => (
           </li>
         </ol>
 
-        <a className="brx-cta" href={ CUSTOMERSERVICE }>Start a request</a>
+        {/* OPTION A: the WhatsApp pill names its channel ("Continue on WhatsApp →") to match the
+            "Continue to checkout →" pill below, same as every ProductPage-based page. */}
+        <a className="brx-cta" href={ CUSTOMERSERVICE }>Continue on WhatsApp &rarr;</a>
 
         {/* The "Continue to checkout →" pill and live price, beneath the WhatsApp CTA — the same
             ProductBuyBox the eight ProductPage-based product pages mount. Bharat Rx owns its own

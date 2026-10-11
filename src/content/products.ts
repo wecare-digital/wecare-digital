@@ -145,6 +145,7 @@ export const PRODUCTS: ProductDef[] = [
       'Visas, entry permissions and travel approvals are granted by governments and airlines, not by us. We prepare and submit what is needed and keep you informed; we cannot guarantee an outcome another authority controls.',
     ctaLabel: 'Plan a journey',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'expo-week',
@@ -166,6 +167,7 @@ export const PRODUCTS: ProductDef[] = [
     ],
     ctaLabel: 'Enter the expo',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'dastavez',
@@ -189,6 +191,7 @@ export const PRODUCTS: ProductDef[] = [
       'Dastavez is not a law firm and is not a substitute for a lawyer\'s advice. We prepare and process documentation; where a matter needs legal representation or an opinion, that is work for a qualified advocate.',
     ctaLabel: 'Start a filing',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'clear-closure',
@@ -212,6 +215,7 @@ export const PRODUCTS: ProductDef[] = [
       'Clear Closure provides the platform and connects you to independent professionals. It does not act for either party, and nothing here removes your right to approach a consumer commission, regulator or court — Terms sections 37 and 39 set that out.',
     ctaLabel: 'Open a matter',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'ritual-guru',
@@ -233,6 +237,7 @@ export const PRODUCTS: ProductDef[] = [
     ],
     ctaLabel: 'Browse kits',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     // RENAMED TWICE, and the slug moved with the name both times: Swdhya -> Open
@@ -347,6 +352,7 @@ export const PRODUCTS: ProductDef[] = [
       'Hunar improves how your experience is presented. It does not place candidates, guarantee interviews or employment outcomes, and it will not add experience you do not have — an inflated CV fails at the point it is checked, which is later and more expensively.',
     ctaLabel: 'Sharpen a CV',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'niji-setu',
@@ -368,6 +374,7 @@ export const PRODUCTS: ProductDef[] = [
     ],
     ctaLabel: 'Get a code',
     ctaHref: PRODUCT_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
 ];
 

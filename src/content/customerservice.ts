@@ -102,6 +102,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
     ],
     ctaLabel: 'Submit a request',
     ctaHref: CUSTOMERSERVICE_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'request-amendment',
@@ -125,6 +126,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       'Some amendments need a third party\'s agreement - an airline, registry, supplier or government office. We will tell you what is possible and what it depends on, but cannot commit to a change that is not ours.',
     ctaLabel: 'Request an amendment',
     ctaHref: CUSTOMERSERVICE_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'drop-docs',
@@ -148,6 +150,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       'Please do not send original certificates, card numbers, passwords or one-time codes - we never need them. Documents are handled as our privacy policy describes.',
     ctaLabel: 'Send documents',
     ctaHref: CUSTOMERSERVICE_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     /*
@@ -215,6 +218,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       'Documents are not kept indefinitely - our privacy policy sets how long each kind is held, after which a copy may no longer exist to send. We cannot release someone else\'s document to you, or any document to someone acting for you without your authority.',
     ctaLabel: 'Request a copy',
     ctaHref: CUSTOMERSERVICE_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     /*
@@ -256,6 +260,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       'A collection depends on a courier or partner who is not us, so a pickup is arranged rather than guaranteed - if nobody can collect from where you are, you are told that instead of being left waiting. Please do not hand over original certificates unless we have asked for them specifically; a copy is usually what a request needs.',
     ctaLabel: 'Request a pickup',
     ctaHref: CUSTOMERSERVICE_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'leave-review',
@@ -293,6 +298,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
      * hero is untouched.
      */
     ctaHref: REVIEW_ENTRY_URL,
+    ctaNote: 'Continue on WhatsApp →',
   },
   {
     slug: 'refer-and-earn',
@@ -316,6 +322,7 @@ export const CUSTOMERSERVICE: ProductDef[] = [
       'What a referral is worth depends on what the person you introduced does next, so it is recognised case by case, not at a fixed rate. Anyone introducing people regularly should ask us about a partner arrangement - a different conversation, with terms written down.',
     ctaLabel: 'Introduce someone',
     ctaHref: CUSTOMERSERVICE_CTA,
+    ctaNote: 'Continue on WhatsApp →',
   },
 ];
 

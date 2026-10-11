@@ -56,7 +56,7 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
     price="₹599"
     priceUnit="· one decision · written reflection · usually 2–3 business days"
     shareUrl={ `${SITE_ORIGIN}/anew/` }
-    belowCta={ <ProductBuyBox slug="anew" /> }
+    belowCta={ <ProductBuyBox slug="anew" showPrice={ false } /> }
   />
 );
 

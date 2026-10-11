@@ -180,25 +180,31 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             whatsappServiceLink(): the slug resolves to one service link, so the pickup button
             would otherwise open the tracking conversation. The 30px top gap now lives on
             .pdp-ctas (it was on .pdp-cta), so single-CTA spacing is identical to the pixel. */}
+        {/* OPTION A (owner decision): the primary WhatsApp pill reads "Continue on WhatsApp →" so
+            it NAMES its channel, matching the "Continue to checkout →" pill in the belowCta slot —
+            two labelled, same-shape pills instead of an action verb plus a floating grey note.
+            `ctaLabel` is kept in the content for menus/future use but is no longer the pill face;
+            it is consumed nowhere else (verified). A page that declares a second anchor
+            (ctaLabel2/ctaHref2, today only /shipments/) keeps its own labels — Shipments is a
+            tracking/pickup page, not a checkout page, so its two WhatsApp doors are unchanged. */}
         <div className="pdp-ctas">
-          <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>{ product.ctaLabel }</a>
+          <a className="pdp-cta" href={ whatsappServiceLink( product.slug ) || product.ctaHref }>
+            { product.ctaLabel2 ? product.ctaLabel : 'Continue on WhatsApp \u2192' }
+          </a>
           { product.ctaHref2 && product.ctaLabel2 && (
             <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
           ) }
         </div>
 
-        {/* OPTIONAL "CONTINUE TO CHECKOUT" SLOT — the service/product pages' second pill and its
-            price (ServiceBuyBox / ProductBuyBox), rendered under the WhatsApp CTA. Pages that pass
-            no `belowCta` render nothing here and are unchanged. */}
-        { belowCta }
+        {/* OPTION A: the floating "Continue on WhatsApp →" microcopy is GONE — that label now
+            lives on the primary pill above, so a quiet grey note repeating it would be redundant.
+            `ctaNote` stays in the type for pages that still want a note under a single-channel CTA
+            (none today), but it is not rendered here. */}
 
-        {/* MICROCOPY under the CTA, rendered only when the product declares one (today just
-            /anew/). Very small and quiet, naming where the button goes. aria-hidden because the
-            anchor's own label is the accessible name. Matches the blog post page's
-            Subscribe/Contribute pills, all now sharing the global .wc-sweep-note class. */}
-        {/* The shared .wc-sweep-note treatment (src/styles/inner-ux.css) - muted microcopy with
-            the footer-tagline lime sweep on hover. One global class, no per-page CSS. */}
-        { product.ctaNote && <p className="wc-sweep-note" aria-hidden="true">{ product.ctaNote }</p> }
+        {/* "CONTINUE TO CHECKOUT" SLOT — the service/product pages' second pill and its price
+            (ServiceBuyBox / ProductBuyBox), the matched partner to the WhatsApp pill above. Pages
+            that pass no `belowCta` render nothing here and are unchanged. */}
+        { belowCta }
 
         {/* PRICE, so a reader knows what they will pay before they open the chat. Opt-in: a page
             that passes no price renders nothing here, which is every product page except /anew/.

@@ -28,9 +28,16 @@ import { productCheckoutLine, isPlaceholderCheckout } from '../config/productChe
 interface ProductBuyBoxProps {
   /** The product page's slug, e.g. 'elsewhere'. Chooses the checkout line from the config. */
   slug: string;
+  /**
+   * Show the buy box's own price line. Default true. Set FALSE on a page that already prints a
+   * price through ProductPage's `price` prop (today only /anew/, which shows its real ₹599) — so
+   * the ₹1 placeholder figure does not sit beside the real one and read as two competing prices.
+   * The checkout still charges the server-decided amount regardless of what is shown.
+   */
+  showPrice?: boolean;
 }
 
-const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug } ) => {
+const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug, showPrice = true } ) => {
   const router = useRouter();
   const [ signedIn, setSignedIn ] = useState( false );
   const [ busy, setBusy ] = useState( false );
@@ -104,10 +111,13 @@ const ProductBuyBox: React.FC<ProductBuyBoxProps> = ( { slug } ) => {
 
       {/* The price, in /anew/'s own treatment: just the amount, no extra copy. While on the ₹1
           placeholder this reads ₹1.00; it becomes the product's real price the moment its config
-          entry is added. */}
-      <p className="pbb-buy">
-        <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
-      </p>
+          entry is added. Hidden when `showPrice` is false (a page already printing its own price,
+          e.g. /anew/'s ₹599) so two prices never sit side by side. */}
+      { showPrice && (
+        <p className="pbb-buy">
+          <span className="pbb-price" data-wc-no-translate="true">{ line.formattedPrice }</span>
+        </p>
+      ) }
 
       { error && <p className="pbb-error" role="alert">{ error }</p> }
 
