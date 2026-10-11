@@ -2315,7 +2315,13 @@ const VayuLokLive: React.FC = () => {
                       : 'India Standard Time default while Google Time Zone is unavailable or loading' }
                   >
                     <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
-                    <time dateTime={ new Date( clockNow ).toISOString() }>{ locationClock }</time>
+                    {/* clockNow is seeded from Date.now() at render, so the value baked into the
+                        static export (build time) differs from the client's value at hydration -
+                        an unavoidable, benign server/client difference React otherwise reports as
+                        hydration error #418. suppressHydrationWarning tells React to accept the
+                        client value for this node (both the dateTime and the text derive from
+                        clockNow), which is the intended mechanism for live timestamps. */}
+                    <time dateTime={ new Date( clockNow ).toISOString() } suppressHydrationWarning>{ locationClock }</time>
                     <small>{ locationZoneLabel }</small>
                   </span>
                 </div>
