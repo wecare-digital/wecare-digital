@@ -300,8 +300,13 @@
    * the file set. src/components/WorkflowTerminal.tsx is the one allowed exception
    * (white-on-dark terminal panel, where this palette is unreadable).
    * ======================================== */
-  --scrollbar-thumb: #4a9e73;
-  --scrollbar-thumb-hover: #3a7d5a;
+  /* LIME THUMB, on owner instruction (2026-10-11). The scrollbar now matches the home page /
+   * site lime. NOTE: #d1f470 on the lime-tint track is ~1.18:1, under the WCAG 1.4.11 3:1 the
+   * old mid-green (#4a9e73) was chosen to satisfy; the owner has accepted that tradeoff and the
+   * enforcing test (src/test/ScrollbarTokens.test.ts) was removed with this change. Hover is the
+   * full solid lime so the thumb reads a touch stronger on interaction. */
+  --scrollbar-thumb: #d1f470;
+  --scrollbar-thumb-hover: #b7dd4a;
   --scrollbar-track: var(--lime-tint);
   --scrollbar-size: 10px;
   --scrollbar-size-compact: 7px;

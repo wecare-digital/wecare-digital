@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
+import ProductBlogPanel from '../components/ProductBlogPanel';
 import { CONTRIBUTE_AMOUNT_LABEL } from '../components/BlogContribution';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
@@ -174,20 +175,37 @@ describe( 'Blog design alignment', () => {
     // Exactly one h1, and it is the hero's - the page has no competing headline.
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
 
-    // The breadcrumb is present. The search box is GONE (owner instruction, 2026-10-11):
-    // the blog shows every post rather than offering a box to find one, so there is no
-    // form[role="search"] on the index any more.
+    // The breadcrumb is present. The borderless live search is back (owner instruction): a real
+    // labelled input, no inner border, no icon, no submit button - the /anew/ panel's field - so
+    // it is NOT a form[role="search"] (that was the old GET-form search). It is found by its
+    // accessible name instead.
     expect( container.querySelector( 'nav[aria-label="Breadcrumb"]' ) ).not.toBeNull();
     expect( container.querySelector( 'form[role="search"]' ) ).toBeNull();
+    expect( screen.getByLabelText( 'Search the blog' ) ).toBeInTheDocument();
+    expect( container.querySelector( '.blog-search input[type="search"]' ) ).not.toBeNull();
 
-    // In its place, the RSS subscribe link: a plain <a> to the feed /blog/rss.xml, which is an
-    // XML file a build script writes to out/ rather than a Next route. The icon is decorative.
-    const rss = container.querySelector( 'a.blog-rss' );
+    // The RSS affordance is now ICON-ONLY and at the BOTTOM: a plain <a> to the feed
+    // /blog/rss.xml (an XML file a build script writes to out/, not a Next route), containing an
+    // SVG glyph and a visually-hidden label - no visible "Subscribe via RSS" text. The old top
+    // text pill (.blog-rss) and the "N posts" count (.blog-count) are gone.
+    expect( container.querySelector( '.blog-rss' ) ).toBeNull();
+    expect( container.querySelector( '.blog-count' ) ).toBeNull();
+    const rss = container.querySelector( 'a.rss-icon' );
     expect( rss ).not.toBeNull();
     expect( rss!.getAttribute( 'href' ) ).toBe( '/blog/rss.xml' );
     expect( rss!.getAttribute( 'type' ) ).toBe( 'application/rss+xml' );
+    expect( rss!.getAttribute( 'aria-label' ) ).toBe( 'Subscribe via RSS' );
     expect( rss!.querySelector( 'svg[aria-hidden="true"]' ) ).not.toBeNull();
-    expect( rss!.textContent ).toContain( 'Subscribe via RSS' );
+    // The label is sr-only: the accessible name exists, but no VISIBLE text node reads it.
+    const srLabel = rss!.querySelector( '.rss-icon-sr' );
+    expect( srLabel?.textContent ).toBe( 'Subscribe via RSS' );
+    // It sits at the foot of the page, after the post grid.
+    const grid = container.querySelector( '.post-grid' );
+    const foot = container.querySelector( '.blog-rss-foot' );
+    expect( foot ).not.toBeNull();
+    if ( grid ) {
+      expect( grid.compareDocumentPosition( foot! ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+    }
   } );
 
   /**
@@ -222,23 +240,20 @@ describe( 'Blog design alignment', () => {
     expect( String( other.getAttribute( 'href' ) ).replace( /\/$/, '' ) ).toBe( '/blog/topic/guides' );
   } );
 
-  it( 'keeps the post count OFF the category pills, and on the toolbar line that reports it', () => {
+  it( 'keeps the post count off the pills, and renders no count anywhere on the index', () => {
     /*
-     * REVERSED ON OWNER INSTRUCTION. This test used to assert the opposite - that each pill
-     * showed its own size, "Conversations 824" - so it is inverted rather than deleted: the
-     * count must now be absent from the pills, and the assertion is what stops it drifting back.
+     * NO COUNT ANYWHERE, on owner instruction. The pills never carried their size - that was
+     * reversed earlier - and now the "N posts" toolbar line is gone too: the reader can see the
+     * whole list, so a count is a label on nothing. The number must be absent from the nav AND
+     * from the page, and this assertion is what stops either drifting back.
      *
-     * It is asserted as "no digits in the nav" rather than "no <i> element", because the element
-     * is an implementation detail and a future pill could reintroduce the number some other way.
-     *
-     * The second half matters as much as the first: `categoryCounts` is still a live prop,
-     * feeding the toolbar's "N posts" count, so the count was moved off the pills rather than
-     * deleted from the page. With the search box gone the count no longer waits on a query - it
-     * is a plain label on the full list the reader can now see - so it is read straight off
-     * .blog-count on a plain render, with no interaction to drive.
+     * `categoryCounts` is STILL a live prop on the interface - callers and the props builder pass
+     * it - so it is given a large value here specifically to prove nothing on the page renders
+     * it. The prop is retained for compatibility; the body no longer reads it.
      */
-    mockSearchIndex( [ firstCard, secondCard ] );
-    render( <BlogIndex { ...propsFor( { categoryCounts: { Conversations: 824, Guides: 40 } } ) } /> );
+    const { container } = render(
+      <BlogIndex { ...propsFor( { categoryCounts: { Conversations: 824, Guides: 40 } } ) } />
+    );
 
     const nav = document.querySelector( '.category-switch' );
     expect( nav?.textContent ).toContain( 'Conversations' );
@@ -246,9 +261,10 @@ describe( 'Blog design alignment', () => {
     expect( nav?.textContent ).not.toMatch( /\d/ );
     expect( nav?.querySelector( 'i' ) ).toBeNull();
 
-    // The count still comes from categoryCounts, on the toolbar line that reports it: the active
-    // category's whole-corpus size, "824 posts", not this page's two cards.
-    expect( document.querySelector( '.blog-count' )?.textContent ).toContain( '824 posts' );
+    // The old toolbar count element is gone, and neither of the passed counts prints anywhere.
+    expect( container.querySelector( '.blog-count' ) ).toBeNull();
+    expect( container.textContent ).not.toContain( '824 posts' );
+    expect( container.textContent ).not.toContain( '40 posts' );
   } );
 
   it( 'fetches the full list on mount and shows every post in the category', async () => {
@@ -299,6 +315,111 @@ describe( 'Blog design alignment', () => {
     } );
     // The Gastronomy post is in the fetched index but in another stream, so it stays out.
     expect( screen.queryByRole( 'heading', { name: 'A Gastronomy Post' } ) ).toBeNull();
+  } );
+
+  it( 'filters the full corpus live as the reader types, and lists every match', async () => {
+    /*
+     * THE BORDERLESS LIVE SEARCH (owner instruction). The box filters the WHOLE corpus - fetched
+     * on mount into allCards - across title + excerpt + category + tags, scoped to the active
+     * category, and shows ALL matches. Typing a query that one card carries and the other does
+     * not must leave only the matching card.
+     */
+    const matching = { ...firstCard, title: 'Clarity on a hard decision', category: 'Conversations' };
+    const other = { ...secondCard, title: 'An unrelated piece', excerpt: 'nothing to see', category: 'Conversations' };
+    mockSearchIndex( [ matching, other ] );
+    render( <BlogIndex { ...propsFor( {
+      posts: [ matching, other ], totalPosts: 2,
+      categories: [ 'Conversations' ], categoryCounts: { Conversations: 2 },
+      activeCategory: 'Conversations', defaultCategory: 'Conversations',
+    } ) } /> );
+
+    // The full list is in once the on-mount fetch lands.
+    await waitFor( () => {
+      expect( screen.getByRole( 'heading', { name: 'An unrelated piece' } ) ).toBeInTheDocument();
+    } );
+
+    // Typing narrows to the one post whose title carries the word.
+    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'clarity' } } );
+    await waitFor( () => {
+      expect( screen.queryByRole( 'heading', { name: 'An unrelated piece' } ) ).toBeNull();
+    } );
+    expect( screen.getByRole( 'heading', { name: 'Clarity on a hard decision' } ) ).toBeInTheDocument();
+
+    // Clearing the box restores the whole list.
+    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: '' } } );
+    await waitFor( () => {
+      expect( screen.getByRole( 'heading', { name: 'An unrelated piece' } ) ).toBeInTheDocument();
+    } );
+  } );
+
+  it( 'matches on tags, not just the visible title and excerpt', async () => {
+    /*
+     * TAGS ARE SEARCHED. The global tag links point at /blog/?q=<tag>, so the filter has to match
+     * the tag field even when the word appears nowhere a reader can see - which is the whole
+     * reason generate-blog-search-index.js carries tags for search rather than for display.
+     */
+    const tagged = { ...firstCard, title: 'A piece about nothing in particular', tags: [ 'Lemongrass' ], category: 'Conversations' };
+    const plain = { ...secondCard, title: 'Another piece', excerpt: 'no herbs here', tags: [], category: 'Conversations' };
+    mockSearchIndex( [ tagged, plain ] );
+    render( <BlogIndex { ...propsFor( {
+      posts: [ tagged, plain ], totalPosts: 2,
+      categories: [ 'Conversations' ], categoryCounts: { Conversations: 2 },
+      activeCategory: 'Conversations', defaultCategory: 'Conversations',
+    } ) } /> );
+
+    await waitFor( () => {
+      expect( screen.getByRole( 'heading', { name: 'Another piece' } ) ).toBeInTheDocument();
+    } );
+
+    // 'Lemongrass' is in the tagged post's tags only - its title and excerpt do not contain it.
+    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'lemongrass' } } );
+    await waitFor( () => {
+      expect( screen.queryByRole( 'heading', { name: 'Another piece' } ) ).toBeNull();
+    } );
+    expect( screen.getByRole( 'heading', { name: 'A piece about nothing in particular' } ) ).toBeInTheDocument();
+  } );
+
+  it( 'seeds the search from ?q= on first render, so a tag link lands on a filtered list', async () => {
+    /*
+     * THE GLOBAL TAG LINKS WORK. A tag on the post page / panel is /blog/?q=<tag>; arriving here
+     * with that parameter must seed the box and filter the list to the tag on the FIRST render,
+     * before any typing. The seed is a lazy, window-guarded initializer.
+     */
+    const matching = { ...firstCard, title: 'Seeded match', category: 'Conversations' };
+    const other = { ...secondCard, title: 'Not the seeded one', excerpt: 'different', category: 'Conversations' };
+    mockSearchIndex( [ matching, other ] );
+
+    // Put ?q= on the URL the lazy initializer reads. jsdom lets us set the search string.
+    const original = window.location.search;
+    Object.defineProperty( window, 'location', {
+      value: { ...window.location, search: '?q=Seeded%20match' },
+      writable: true,
+      configurable: true,
+    } );
+
+    try {
+      render( <BlogIndex { ...propsFor( {
+        posts: [ matching, other ], totalPosts: 2,
+        categories: [ 'Conversations' ], categoryCounts: { Conversations: 2 },
+        activeCategory: 'Conversations', defaultCategory: 'Conversations',
+      } ) } /> );
+
+      // The box is pre-filled with the decoded query.
+      expect( ( screen.getByLabelText( 'Search the blog' ) as HTMLInputElement ).value ).toBe( 'Seeded match' );
+
+      // Once the corpus lands, the list is already filtered to the seeded query - the other post
+      // never appears.
+      await waitFor( () => {
+        expect( screen.getByRole( 'heading', { name: 'Seeded match' } ) ).toBeInTheDocument();
+      } );
+      expect( screen.queryByRole( 'heading', { name: 'Not the seeded one' } ) ).toBeNull();
+    } finally {
+      Object.defineProperty( window, 'location', {
+        value: { ...window.location, search: original },
+        writable: true,
+        configurable: true,
+      } );
+    }
   } );
 
   /**
@@ -990,8 +1111,8 @@ describe( 'Blog pills sit on the home page design language', () => {
     const { container } = render( <BlogPostPage post={ samplePost } /> );
     // There is no /blog/tag/<x>/ route, and the destination does not need inventing:
     // generate-blog-search-index.js records that `tags` is requested FOR SEARCH rather than for
-    // display. BlogSearch is a form with action="/blog/" method="get" and name="q", so /blog/?q=
-    // is a real target that also works with JavaScript off.
+    // display. /blog/ reads ?q= on first render and seeds its live filter from it, so /blog/?q=
+    // is a real target - the blog index filters to that tag.
     const hrefs = Array.from( container.querySelectorAll( '.tags a' ) ).map( a => a.getAttribute( 'href' ) );
     expect( hrefs.length ).toBeGreaterThan( 0 );
     // The slash is optional in this assertion ON PURPOSE. next.config.js sets trailingSlash,
@@ -1029,5 +1150,98 @@ describe( 'Blog pills sit on the home page design language', () => {
     const declared = declarationsOnly( cssOf( container ) );
     expect( declared ).not.toContain( 'rgba(209,244,112,.28)' );
     expect( declared ).toContain( 'rgba(209,244,112,.22)' );
+  } );
+
+  /**
+   * THE GLOBAL BORDERLESS SEARCH IS ON THE POST PAGE, AND THE RSS LINK IS AT THE FOOT, TO THE
+   * SIDE. Owner instruction, 2026-10-11: the post page carries the same button-less borderless
+   * search field as /blog/ and the /anew/ panel - here a GET form to /blog/?q= because a post page
+   * has no list to filter live - and the icon-only RSS affordance sits end-aligned (not centered)
+   * at the foot.
+   */
+  it( 'has the global borderless search and an end-aligned icon-only RSS link at the foot', () => {
+    const { container } = render( <BlogPostPage post={ samplePost } /> );
+
+    // The borderless search is back: a real GET form to /blog/ with a q field and NO submit
+    // button, found by its accessible name.
+    const form = container.querySelector( 'form.post-search[role="search"]' );
+    expect( form ).not.toBeNull();
+    expect( form!.getAttribute( 'action' ) ).toBe( '/blog/' );
+    expect( form!.getAttribute( 'method' ) ).toBe( 'get' );
+    expect( screen.getByLabelText( 'Search the blog' ) ).toBeInTheDocument();
+    expect( form!.querySelector( 'input[name="q"][type="search"]' ) ).not.toBeNull();
+    expect( form!.querySelector( 'button' ) ).toBeNull();
+
+    // The RSS icon is present, icon-only (no visible text, name is sr-only), pointing at the feed.
+    const rss = container.querySelector( 'a.rss-icon' );
+    expect( rss ).not.toBeNull();
+    expect( rss!.getAttribute( 'href' ) ).toBe( '/blog/rss.xml' );
+    expect( rss!.getAttribute( 'aria-label' ) ).toBe( 'Subscribe via RSS' );
+    expect( rss!.querySelector( 'svg[aria-hidden="true"]' ) ).not.toBeNull();
+    // It sits at the foot: after the tags nav, inside the article, end-aligned (not centered).
+    const tags = container.querySelector( 'nav.tags' )!;
+    expect( tags.compareDocumentPosition( rss! ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+    expect( cssOf( container ) ).toContain( '.post-rss{display:flex;justify-content:flex-end' );
+  } );
+} );
+
+/**
+ * THE /anew/ PANEL'S TAGS ARE THE SHARED LINKS NOW.
+ *
+ * ProductBlogPanel used to render its own plain-span .pbp-chip chips; they are the shared
+ * BlogTags links now, so a tag reads as the same object on the panel as on the post page. These
+ * are light checks: the tags are anchors to /blog/?q=, they carry a tag-h hue class, and - the
+ * part that was invalid before - no anchor is nested inside the card's own anchor.
+ */
+describe( 'Anew blog panel tags are the shared link component', () => {
+  const panelCards: BlogCard[] = [
+    {
+      slug: 'anew-post-1',
+      title: 'A panel post',
+      excerpt: 'An excerpt for the panel card.',
+      category: 'Conversations',
+      tags: [ 'Practice', 'Inquiry' ],
+    },
+  ];
+
+  it( 'renders the card tags as links to the blog search, with a hue class', () => {
+    const { container } = render( <ProductBlogPanel cards={ panelCards } /> );
+
+    // The tag row is the shared nav, and its entries are links, not spans.
+    const tagLinks = Array.from( container.querySelectorAll( '.pbp-card nav.tags a' ) );
+    expect( tagLinks.length ).toBeGreaterThan( 0 );
+    tagLinks.forEach( a => {
+      expect( a.getAttribute( 'href' ) ).toMatch( /^\/blog\/?\?q=/ );
+      expect( a.getAttribute( 'class' ) ).toMatch( /tag-h[0-3]\b/ );
+      expect( a.getAttribute( 'class' ) ).not.toMatch( /tag-h-/ );
+    } );
+
+    // The old span chips are gone.
+    expect( container.querySelector( '.pbp-chip' ) ).toBeNull();
+  } );
+
+  it( 'does not nest a tag anchor inside the card link', () => {
+    const { container } = render( <ProductBlogPanel cards={ panelCards } /> );
+
+    // No <a> anywhere inside another <a> - the tags are siblings of .pbp-link, not children.
+    for ( const anchor of Array.from( container.querySelectorAll( 'a' ) ) ) {
+      expect( anchor.querySelector( 'a' ) ).toBeNull();
+    }
+    // The main card link covers the title; the tag nav sits after it, inside the same li.
+    const li = container.querySelector( '.pbp-card' )!;
+    const link = li.querySelector( 'a.pbp-link' )!;
+    const tagNav = li.querySelector( 'nav.tags' )!;
+    expect( link.contains( tagNav ) ).toBe( false );
+    expect( link.compareDocumentPosition( tagNav ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+  } );
+
+  it( 'places an icon-only RSS link at the foot of the panel', () => {
+    const { container } = render( <ProductBlogPanel cards={ panelCards } /> );
+
+    const rss = container.querySelector( 'a.rss-icon' );
+    expect( rss ).not.toBeNull();
+    expect( rss!.getAttribute( 'href' ) ).toBe( '/blog/rss.xml' );
+    expect( rss!.getAttribute( 'aria-label' ) ).toBe( 'Subscribe via RSS' );
+    expect( rss!.querySelector( 'svg[aria-hidden="true"]' ) ).not.toBeNull();
   } );
 } );

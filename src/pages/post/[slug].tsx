@@ -14,52 +14,8 @@ import { getPublicBlogPost, listPublicBlogPosts, PublicBlogPost } from '../../li
 import { postContext, type PostLink } from '../../lib/post-neighbours';
 import RotatingHero, { CycleWord } from '../../components/RotatingHero';
 import Breadcrumbs from '../../components/Breadcrumbs';
-import BlogSearch from '../../components/BlogSearch';
-
-/**
- * WHICH ACCENT A TAG GETS, DERIVED FROM THE TAG ITSELF RATHER THAN FROM ITS POSITION.
- *
- * The blog already cycles the contract's accent hues by position: .post-card steps
- * #3da35a, #2563eb, #9849e8 with nth-child(3n+...). That is right for a card in a stream,
- * where position is the only thing available and nobody expects card three to look like
- * card three on another page.
- *
- * It is wrong for a tag. The same tag appears across many posts, and position-based cycling
- * would colour "Chai" green on one post and blue on the next - which spends the colour
- * without buying the recognition it is for. Hashing the tag name makes a tag look the same
- * everywhere it appears, so the colour becomes a property of the tag rather than of the row.
- *
- * Deterministic and pure, so the server and the client compute the same value and hydration
- * does not mismatch - that is the reason this is a hash rather than a random pick or a
- * useState.
- *
- * FOUR HUES, NOT FIVE. Amber #f0a818 is the one the hero pills use that is excluded here: it
- * measures 2.04:1 on white, which is the ratio the design contract records as the reason it
- * was rejected for light surfaces. The other four all clear the 3:1 that WCAG 1.4.11 asks of
- * a graphic used to identify a control - green 3.19:1, blue 5.17:1, purple 4.72:1, red
- * 4.83:1 - so this palette is measured rather than picked.
- *
- * Verified against the real corpus: 433 distinct tags in the built export distribute
- * 112/108/108/105 across the four, which is close enough to even that no hue dominates a
- * post's row by accident.
- *
- * THE UNSIGNED SHIFT IS LOAD-BEARING, and this is the bug the first version shipped.
- * It used & 0xffffffff, which in JavaScript yields a SIGNED 32-bit integer - and a negative
- * remainder stays negative, because -5 % 4 is -1 in JS rather than 3. So tags hashing to a
- * negative value produced class names like tag-h-1 and tag-h-2, which match no rule, and
- * those pills silently fell back to the neutral grey border. Measured in the browser: of
- * three tags on one post, two were grey.
- *
- * It survived its own verification because that was written in Python, where & 0xffffffff is
- * UNSIGNED and the distribution came out even. The check and the code disagreed about the
- * language, not about the maths. The distribution figures above are re-measured in Node.
- */
-const TAG_HUE_COUNT = 4;
-const tagHue = ( tag: string ): number => {
-  let h = 0;
-  for ( let i = 0; i < tag.length; i += 1 ) h = ( h * 33 + tag.charCodeAt( i ) ) >>> 0;
-  return h % TAG_HUE_COUNT;
-};
+import BlogTags from '../../components/BlogTags';
+import RssIcon from '../../components/RssIcon';
 
 /**
  * EVERY FIELD BELOW `post` IS OPTIONAL, and that is not defensiveness - it is what keeps
@@ -441,9 +397,17 @@ export default function BlogPostPage ( {
             { label: 'Blog', href: '/blog/' },
             { label: post.title },
           ] } />
-          {/* GET mode: the post list is not in this page, so the box navigates to /blog/?q=
-              and the index filters. Same component, same markup, different mode. */}
-          <BlogSearch />
+          {/* THE GLOBAL BORDERLESS SEARCH, button-less - the same field as /blog/ and the /anew/
+              panel, so a reader meets one search control across the blog. On a POST page there is
+              no post list in the page to filter live, so this is a real GET form to /blog/: typing
+              a term and pressing Enter navigates to /blog/?q=<term>, where the index reads ?q= and
+              filters the full corpus. name="q" is the param /blog/ reads. No submit button and no
+              icon, matching the borderless field on the other surfaces; the form still submits on
+              Enter, and the sr-only label gives it an accessible name. */}
+          <form className="post-search" role="search" action="/blog/" method="get">
+            <label className="post-search-sr" htmlFor="post-q">Search the blog</label>
+            <input id="post-q" name="q" type="search" autoComplete="off" placeholder="Search posts" />
+          </form>
           { post.category && <div className="category">{ post.category }</div> }
           <h1>{ post.title }</h1>
           {/* NO PUBLISHED DATE IN THE BYLINE, on owner instruction. It rendered beside the
@@ -475,41 +439,17 @@ export default function BlogPostPage ( {
                 return <p key={ index }>{ inlineFormat( line ) }</p>;
               } ) }
           </div>
-          {/* TAGS ARE LINKS NOW, AND THEY GO WHERE TAGS ARE ALREADY USED.
-              They were plain spans, so giving them a hover would have been an affordance for
-              nothing - the trap Footer.tsx documents at .ft-tagline, where a hover was removed
-              precisely because the line was not a link.
-              There is no /blog/tag/<x>/ route and inventing one is not the answer, because the
-              destination already exists: scripts/generate-blog-search-index.js records that
-              `tags` is requested FOR SEARCH rather than for display - "Beverages", "Herbal Tea",
-              "Chai", "Lemongrass" are tags on posts whose title and excerpt contain none of
-              those words. So a tag linking to a search FOR ITSELF is the one destination that
-              matches what the field is for.
-              /blog/?q= is a real target, not a guess: BlogSearch is a form with
-              action="/blog/" method="get" and name="q", and its own note says q is "the one
-              /blog/ reads". It also works with JavaScript off, which is why this is a plain
-              navigation rather than a click handler.
-              next/link with :global() in the CSS below, matching .category-switch and
-              .post-related-card - styled-jsx does not scope a composite component, so a
-              className passed to Link would arrive unstyled. */}
-          {/* nav + aria-label, copying .category-switch rather than adding a visible heading.
-              A heading was tried first and is wrong here twice over: typecheck.js asserts every
-              section h2 sits on the 40px/700 rung, so a 14px "Tagged" would either fail it or
-              need a documented exception the way .lgd-toc-title does - and the row does not
-              need a heading to be understood, it needs a NAME, which is what aria-label gives a
-              landmark. */}
-          { post.tags && post.tags.length > 0 && (
-            <nav className="tags" aria-label="Tags on this post">
-              { post.tags.map( tag => (
-                <Link
-                  key={ tag }
-                  href={ `/blog/?q=${encodeURIComponent( tag )}` }
-                  className={ `tag-h${tagHue( tag )}` }
-                  aria-label={ `Search posts tagged ${tag}` }
-                >{ tag }</Link>
-              ) ) }
-            </nav>
-          ) }
+          {/* TAGS ARE LINKS, AND THEY GO WHERE TAGS ARE ALREADY USED - the markup, the hue hash
+              and the whole .tags/.tag-h0..3 style block moved to components/BlogTags.tsx so a tag
+              reads as the SAME object here and on the /anew/ panel rather than being re-typed per
+              surface. The behaviour is unchanged: each tag is a next/link to /blog/?q=<tag>, the
+              one destination that matches what the field is for (generate-blog-search-index.js
+              records that `tags` is carried FOR SEARCH, not for display), and the search works
+              with JavaScript off because it is a plain navigation.
+              className="tags" so this page's layout rule still applies, and the aria-label names
+              the landmark - copying .category-switch rather than adding a visible heading, which
+              typecheck.js would hold to the 40px/700 section-h2 rung. */}
+          <BlogTags tags={ post.tags || [] } className="tags" ariaLabel="Tags on this post" />
 
           {/* SUBSCRIBE ON WHATSAPP - the in-page signup box was removed in favour of a single
               button that opens a WhatsApp conversation at this subscribe deep link. A real
@@ -637,12 +577,43 @@ export default function BlogPostPage ( {
               </Link>
             </section>
           ) }
+
+          {/* THE RSS SUBSCRIBE AFFORDANCE, icon-only, at the foot of the post - the same control
+              /blog/ and the /anew/ panel place below their lists, so every blog surface advertises
+              the feed with one shared lime glyph. On owner instruction it is on the post page too.
+              NOTE: /blog/rss.xml is written by scripts/generate-blog-rss.js at build time into
+              out/, so this link resolves on the built/live site but 404s on `next dev`, which does
+              not run that generator. */}
+          <div className="post-rss">
+            <RssIcon />
+          </div>
         </article>
       </main>
       <style jsx>{`
         /* padding-top is 40px, not 156px: the hero above now owns the header offset. */
         .article-shell{max-width:1300px;margin:0 auto;padding:40px 24px 96px;color:#1a1a1a;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
         article{max-width:700px;margin:0 auto}
+        /* THE GLOBAL BORDERLESS SEARCH FIELD, matching /blog/ (.blog-search) and the /anew/ panel
+           (.pbp-search): transparent fill, one quiet bottom hairline, no icon, no button. On focus
+           the hairline darkens and a lime underline grows. A GET form, so it works with no JS. */
+        .post-search{position:relative;margin:0 0 24px;max-width:520px}
+        .post-search-sr{
+          position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+          overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
+        }
+        .post-search input{
+          width:100%;box-sizing:border-box;height:52px;padding:0 2px;
+          font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
+          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          transition:border-color .2s,box-shadow .2s;
+        }
+        .post-search input::placeholder{color:rgba(0,0,0,.44)}
+        .post-search input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        @media(prefers-reduced-motion:reduce){.post-search input{transition:none}}
+        /* The RSS icon's row at the foot of the post, END-aligned (to the side, not centered)
+           under the related section - owner instruction. The icon styles itself
+           (components/RssIcon.tsx); this only places the row. */
+        .post-rss{display:flex;justify-content:flex-end;margin:48px 0 0}
         /* .back rules removed with the link - Breadcrumbs replaced it. */
         /* THE SAME BADGE AS THE INDEX CARD'S, SO IT GETS THE SAME TREATMENT.
            A reader meets this category on the listing card and again at the top of the post;
@@ -678,110 +649,10 @@ export default function BlogPostPage ( {
         .content :global(a:hover){text-decoration-thickness:2px}
         .content :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:3px;border-radius:2px}
         .content :global(strong){font-weight:700}
-        /* TAG PILLS, ON THE HOME PAGE'S PILL LANGUAGE.
-           These were 11px on a #f3f4f6 fill with no border, which made them the only pill on
-           the site that did not look like one. Measured against the design contract, four
-           things were off:
-           1. #f3f4f6 is off-palette. The palette's grey is #e5e7eb, and this repo has already
-              retired #4b5563 and #9ca3af from the same Tailwind family for reading cooler than
-              the neutrals beside them.
-           2. No border at all, where every pill in this language carries a hairline. The rule
-              is weight-as-meaning: 2px means hoverable, 1px means static. A tag is a plain
-              span with no hover, so 1px is the correct half of that rule - the same weight
-              .trust-card uses.
-           3. 11px is below every documented rung. The label rung is 14px, which is also what
-              BrandBadge uses, so 14px lands them on an existing level rather than inventing a
-              fifth one. Tracking -.125px matches that rung; weight stays 400 because these are
-              metadata, not identity - the contract's label spec is plain 14px/400.
-           4. It was the one contrast miss on the page. rgba(0,0,0,.54) over #f3f4f6 measured
-              4.49:1, which fails the 4.5:1 AA minimum for normal text by 0.01. The same label
-              colour over #fff measures 4.59:1 and passes, so moving to the palette fixed the
-              contrast as a side effect rather than needing a darker grey.
-           The wrapper already used the palette hairline and is unchanged. */
-        /* ONE LINE THAT SCROLLS, NOT A BLOCK THAT WRAPS.
-           This was flex-wrap:wrap, so on a phone a post with six tags grew the row to three
-           lines and pushed the footer down; on a landscape phone it wrapped for no reason at
-           all, because the width was there and the row simply refused to use it. nowrap plus
-           overflow-x:auto keeps it to a single line at every width and lets the row scroll
-           instead - which is exactly what .category-switch on /blog/ already does, so this is
-           the site's existing answer to the same problem rather than a new one.
-
-           DIRECTION IS NOT HARD-CODED. overflow-x on a flex row follows the document's dir
-           so under the RTL languages SupportWidget switches to, the row starts at the right and
-           scrolls leftward with no separate rule. That is why there is no direction or
-           margin-left declaration here - a logical layout gets RTL for free, and rtlcheck asserts it.
-
-           padding-bottom:6px is for the FOCUS RING, not for looks. A scroll container clips its
-           children, and these pills carry a 3px outline at 2px offset; without the room the ring
-           on a focused tag is sliced off at the container's edge. .category-switch carries the
-           same 6px for the same reason. -2px top padding does the same for the hover lift.
-
-           scrollbar-width:thin rather than hidden: a row that scrolls should say so. Hiding the
-           bar leaves a mouse-only user with no indication there is more to the right. */
-        .tags{
-          display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;
-          margin-top:52px;padding:26px 0 6px;border-top:1px solid #e5e7eb;
-          scrollbar-width:thin;align-items:center;
-        }
-        /* 2px, not 1px - and that change is the whole point of making these links.
-           The hairline rule is weight-as-meaning: 2px means hoverable, 1px means static. These
-           were spans at 1px, correctly, because nothing happened when you moused over them. Now
-           that each one navigates to a search for itself, it is a hoverable control and takes
-           the 2px edge that .pill, .pp-pill and .category-switch all carry.
-           :global() because these are next/link, and styled-jsx does not scope a composite
-           component - the same reason .category-switch and .post-related-card use it. */
-        .tags :global(a){
-          flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;
-          font-size:14px;font-weight:400;letter-spacing:-.125px;
-          background:#fff;border:2px solid #e5e7eb;border-radius:999px;
-          padding:6px 13px;color:rgba(0,0,0,.54);text-decoration:none;white-space:nowrap;
-          transition:background-color .2s,border-color .2s,color .2s,transform .2s,box-shadow .2s;
-        }
-        /* THE DOT IS THE HOME HERO PILL'S OTHER HALF.
-           Those pills are a pale tint with a saturated dot of the same hue. The dot travels
-           here; the tint does not, and that is a contrast decision rather than a stylistic
-           one. The label is rgba(0,0,0,.54), which measures 4.61:1 on white and clears the
-           4.5:1 AA minimum for normal text with almost nothing to spare - over a pale tint it
-           drops under. That is not hypothetical: these pills were on #f3f4f6 until recently
-           and measured 4.49:1, failing by 0.01. So the ground stays white and the hue arrives
-           as a dot and a border instead.
-           A pseudo-element, so it is decorative by construction and never reaches the
-           accessibility tree - the same reason the hero dot carries aria-hidden. */
-        .tags :global(a)::before{
-          content:'';flex:0 0 auto;width:7px;height:7px;border-radius:50%;
-          background:#e5e7eb;transition:background-color .2s;
-        }
-        /* THE HUE IS IN THE DOT ONLY. THE BORDER STAYS THE NEUTRAL HAIRLINE.
-           An earlier pass put the accent on the border as well, and it was too loud: a 2px
-           saturated edge runs the whole perimeter, so three or four tags in different hues
-           sitting side by side competed with the post they belong to instead of labelling it.
-           The dot is 7px and carries the same information for a fraction of the ink.
-           There is a consistency argument too, and it is the stronger one. Every other pill in
-           this design language rests on 2px #e5e7eb - .pill, .pp-pill and .category-switch all
-           do. A coloured resting edge made the tags the only pill on the site with one, which
-           is the opposite of matching the home page. Neutral border, coloured dot: quieter AND
-           more consistent, rather than a trade between the two.
-           What does not change is the split the contract cares about - accent for identity,
-           lime for interaction. Hover still swaps the border to lime, and because the resting
-           border is now neutral that swap reads more clearly than it did against a saturated
-           hue. .post-card keeps its accent on the border because there it is a single 3px
-           inline-start edge on a large card, not a ring around a 34px pill. */
-        .tags :global(.tag-h0)::before{background:#3da35a}
-        .tags :global(.tag-h1)::before{background:#2563eb}
-        .tags :global(.tag-h2)::before{background:#9849e8}
-        .tags :global(.tag-h3)::before{background:#dc2626}
-        /* THE HOME PAGE'S HOVER, EXACTLY. Lime border, the .22 state tint, a 2px lift and the one
-           shadow this design language uses - the same four properties .category-switch and the
-           home closing CTA move, at the same .2s. The label also goes from the muted
-           rgba(0,0,0,.54) to solid #1a3a2a, because a control being pointed at should read as
-           active rather than as quiet metadata: 12.48:1 on the tint.
-           Anchored on :hover AND :focus-visible so a keyboard user gets the same feedback a
-           mouse user does, which is the split .lgd-toc-link needed for the opposite reason. */
-        .tags :global(a:hover),.tags :global(a:focus-visible){
-          border-color:#d1f470;background:rgba(209,244,112,.22);color:#1a3a2a;
-          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
-        }
-        .tags :global(a:focus-visible){outline:3px solid #1a3a2a;outline-offset:2px}
+        /* THE TAG ROW'S CSS MOVED WITH ITS MARKUP to components/BlogTags.tsx - the .tags
+           layout rule, the .tags :global(a) pill, the four .tag-h0..3 dots and the hover/focus
+           and reduced-motion handling all live there now, so the one component styles itself on
+           every surface it renders. Nothing was dropped; it is the same block, in one place. */
         /* SUBSCRIBE ON WHATSAPP BUTTON. Same object as the home-page CTA: 52px minimum
            height, 28px inline padding, a 2px dark-green edge, 50px pill radius, 17px/600
            label, and the same white hover inversion. TEXT ONLY now - the glyph was dropped,
@@ -986,12 +857,7 @@ export default function BlogPostPage ( {
         @media(prefers-reduced-motion:reduce){
           .post-related-card,.post-related :global(.post-related-all){transition:none}
           .post-related-card:hover,.post-related :global(.post-related-all:hover){transform:none;box-shadow:none}
-          /* The tag pills lose the lift, not the feedback. transform is the part a reader who
-             asked for less motion should not get; the lime border, the tint and the darkened
-             label all stay, so the control still answers when it is pointed at. Same treatment
-             the related cards above get, and the same reason. */
-          .tags :global(a),.tags :global(a)::before{transition:none}
-          .tags :global(a:hover),.tags :global(a:focus-visible){transform:none;box-shadow:none}
+          /* The tag pills' reduced-motion handling moved to BlogTags with the rest of their CSS. */
           /* THE REVEAL IS CANCELLED HERE AS WELL AS SKIPPED IN SCRIPT, and the belt and the
              braces do different jobs. The effect reads the preference once, on mount, and never
              arms if it is set - that covers the normal case. This covers the one the script

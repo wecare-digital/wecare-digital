@@ -1,6 +1,8 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
+import BlogTags from './BlogTags';
+import RssIcon from './RssIcon';
 
 /**
  * THE RIGHT-HAND BLOG PANEL on a product page (today only /anew/).
@@ -246,22 +248,22 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
                 >
                   { pageCards.map( card => (
                     <li key={ card.slug } className="pbp-card">
+                      {/* THE MAIN LINK COVERS TITLE + EXCERPT ONLY. The tags below are LINKS
+                          now (shared BlogTags), and an <a> inside an <a> is invalid HTML - a
+                          browser closes the outer anchor at the inner one, so the card's own
+                          link would end early and the layout would break. So the tag nav is a
+                          SIBLING after the card link, still inside the <li>: the card stays
+                          clickable to the post, and each tag is its own link to a search. */}
                       <Link className="pbp-link" href={ `/post/${card.slug}/` } tabIndex={ pageIndex === activePage ? undefined : -1 }>
                         <span className="pbp-title">{ card.title }</span>
                         { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
-                        {/* REAL TAGS, not a "New" badge. The owner asked to drop the recency
-                            badge and show the post's own tags. We print up to CARD_TAGS of them as
-                            quiet chips; the category is NOT repeated here because the active
-                            category pill at the top already says which stream this is. Guarded so
-                            a tagless post simply shows none. */}
-                        { cardTags( card ).length > 0 && (
-                          <span className="pbp-tags">
-                            { cardTags( card ).map( tag => (
-                              <span className="pbp-chip" key={ tag }>{ tag }</span>
-                            ) ) }
-                          </span>
-                        ) }
                       </Link>
+                      {/* REAL TAGS, the shared component. Up to CARD_TAGS of the post's own tags,
+                          each a link to /blog/?q=<tag> - the same object the post page renders.
+                          The category is NOT repeated here because the active category pill at
+                          the top already says which stream this is. Renders nothing when the post
+                          carries no tags. */}
+                      <BlogTags tags={ cardTags( card ) } className="pbp-tagrow" />
                     </li>
                   ) ) }
                 </ul>
@@ -269,8 +271,17 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
             </div>
         ) }
 
+      {/* THE RSS SUBSCRIBE AFFORDANCE, icon-only, at the foot of the panel - the same component
+          /blog/ places below its grid, so both surfaces advertise the feed with one control. It
+          sits under the pager track, end-aligned to the panel's measure. */}
+      <div className="pbp-rss">
+        <RssIcon />
+      </div>
+
       <style jsx>{`
         .pbp{max-width:560px}
+        /* The RSS icon's row at the foot of the panel, end-aligned under the cards. */
+        .pbp-rss{display:flex;justify-content:flex-end;margin:16px 0 0}
 
         /* HEADER ROW: heading left, pager arrows pinned right. Baseline-aligned so the arrows sit
            on the heading's line rather than floating. The progress bar follows directly below. */
@@ -397,28 +408,16 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           border-color:#1a3a2a;background:rgba(209,244,112,.18);
           transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
         }
-        /* The tag chips pick up lime on card hover: full #d1f470 fill, dark-green border and ink,
-           so they read as "ours" rather than staying grey islands on the warmed card. This is the
-           same lime the pills and CTA use; on a 22px chip it is an accent, not a second CTA. */
-        .pbp-link:hover .pbp-chip{background:#d1f470;border-color:#1a3a2a;color:#1a3a2a}
         .pbp-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
-        /* TAG ROW at the foot of a card: the post's own tags as quiet chips, replacing the old
-           "New" badge. Wraps rather than overflowing, sits a touch under the excerpt. */
-        .pbp-tags{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 0}
-        /* A quiet hairline chip. Not uppercase - a tag is a word a reader typed, shown as written,
-           not a status label like the old badge. */
-        /* LIME AT REST, on owner instruction - a tag reads as "ours" without needing a hover, and
-           it shows on touch where :hover never fires. A soft rgba(209,244,112,.35) fill with a
-           dark-green border and ink; strong enough to register as lime, light enough that a row of
-           them is not a wall of CTA colour. On card hover they deepen to full #d1f470 for the
-           desktop affordance. */
-        .pbp-chip{
-          display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:50px;
-          border:1px solid #1a3a2a;color:#1a3a2a;font-size:13px;font-weight:600;
-          line-height:1;background:rgba(209,244,112,.35);
-          transition:background-color .2s,border-color .2s,color .2s;
-        }
+        /* TAG ROW at the foot of a card, now the shared BlogTags component (nav.tags.pbp-tagrow).
+           BlogTags styles the pills themselves - the dot, the hairline, the lime hover; this only
+           overrides its container, which at rest carries the 52px top margin and the hairline rule
+           that suit the end of an article, not the foot of a 16px card. :global() because the nav
+           is a composite component, so styled-jsx does not scope it from here - the same reason
+           .pbp-link below is reached through the structure rather than a scoped class. The old
+           per-card .pbp-chip went with the markup: the chips are links now and live in BlogTags. */
+        .pbp-card :global(.pbp-tagrow){margin-top:4px;padding-top:0;border-top:0}
         .pbp-title{font-size:20px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
         /* The short review: the post excerpt, clamped to two lines so no card runs long. */
         .pbp-excerpt{
@@ -427,7 +426,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill,.pbp-chip{transition:none}
+          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
           .pbp-link:hover{transform:none;box-shadow:none}
           /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
              track still snaps, it just does not animate the slide. */
