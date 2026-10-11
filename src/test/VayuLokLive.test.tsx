@@ -824,7 +824,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const nextHealth = screen.getByRole( 'button', { name: 'Next health recommendation' } );
     expect( prevHealth ).toBeTruthy();
     expect( nextHealth ).toBeTruthy();
-    expect( container.querySelector( '.vl-live-air-health-page-count' )?.textContent ).toMatch( /\d+ \/ 7/ );
+    expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
 
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
