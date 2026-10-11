@@ -2283,7 +2283,7 @@ const VayuLokLive: React.FC = () => {
                 autoComplete="off"
                 autoCorrect="off"
                 spellCheck={ false }
-                placeholder="Search a city or place"
+                placeholder="Search"
                 value={ query }
                 onChange={ onQueryChange }
                 onFocus={ () => {
@@ -2376,29 +2376,14 @@ const VayuLokLive: React.FC = () => {
                   air ? (
                     <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
                       <div className="vl-live-air-gauge-row">
-                        <div className={ `vl-live-air-gauge vl-live-air-sev-${air.sev}` }>
-                          { ( () => {
-                            // SVG ring gauge. The sweep encodes the AQI within the no-red ramp
-                            // (dark green -> lime -> amber -> terracotta) mapped from air.sev;
-                            // the number + category WORD carry severity so it never relies on
-                            // colour alone (WCAG 1.4.1). AQI is clamped to a 0-500 scale sweep.
-                            const r = 52;
-                            const c = 2 * Math.PI * r;
-                            const frac = Math.max( 0, Math.min( 1, air.aqi / 500 ) );
-                            const dash = `${( frac * c ).toFixed( 1 )} ${c.toFixed( 1 )}`;
-                            return (
-                              <svg viewBox="0 0 120 120" className="vl-live-air-gauge-svg" role="img" aria-label={ `Universal AQI ${Math.round( air.aqi )}, ${air.word}` }>
-                                <circle className="vl-live-air-gauge-track" cx="60" cy="60" r={ r } />
-                                <circle
-                                  className="vl-live-air-gauge-arc"
-                                  cx="60" cy="60" r={ r }
-                                  strokeDasharray={ dash }
-                                  transform="rotate(-90 60 60)"
-                                />
-                              </svg>
-                            );
-                          } )() }
-                          <span className="vl-live-air-gauge-value" aria-hidden="true">{ Math.round( air.aqi ) }</span>
+                        <span className="vl-live-air-aqi-spine" aria-hidden="true" />
+                        <div
+                          className="vl-live-air-aqi-score"
+                          role="img"
+                          aria-label={ `Universal AQI ${Math.round( air.aqi )}, ${air.word}` }
+                        >
+                          <strong className="vl-live-air-aqi-number" aria-hidden="true">{ Math.round( air.aqi ) }</strong>
+                          <span className="vl-live-air-aqi-unit" aria-hidden="true">AQI</span>
                         </div>
                         <div className="vl-live-air-gauge-meta">
                           <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
@@ -2878,19 +2863,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-panel{margin-top:16px}
         .vl-live-air-empty{margin:0;padding:14px 0;color:var(--muted);font-size:12.5px;line-height:1.5}
         .vl-live-air-gauge-label{margin:0 0 10px;color:var(--green);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-        .vl-live-air-gauge-row{display:flex;align-items:center;gap:18px}
-        .vl-live-air-gauge{position:relative;flex:0 0 auto;width:96px;height:96px}
-        .vl-live-air-gauge-svg{width:96px;height:96px;display:block}
-        .vl-live-air-gauge-track{fill:none;stroke:var(--hair);stroke-width:10}
-        /* The arc colour walks the no-red ramp mapped from air.sev. Severity is also
-           carried by the number + category word, never by colour alone (WCAG 1.4.1). */
-        .vl-live-air-gauge-arc{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dasharray .4s ease}
-        .vl-live-air-sev-good .vl-live-air-gauge-arc{stroke:#1a3a2a}
-        .vl-live-air-sev-sat .vl-live-air-gauge-arc{stroke:#3da35a}
-        .vl-live-air-sev-mod .vl-live-air-gauge-arc{stroke:#d1f470}
-        .vl-live-air-sev-poor .vl-live-air-gauge-arc{stroke:#e8c547}
-        .vl-live-air-sev-worst .vl-live-air-gauge-arc{stroke:#c98a2e}
-        .vl-live-air-gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--heading);font-size:30px;font-weight:700;letter-spacing:-.6px}
+        .vl-live-air-gauge-row{display:grid;grid-template-columns:4px auto minmax(0,1fr);align-items:center;gap:14px}
+        /* HOME-PAGE HUE SPINE, not an AQI severity encoding. These are the exact three
+           accent bars used by .home-flow-list: green / blue / purple. The AQI number +
+           category text carry the meaning, so the decorative hue never has to be decoded. */
+        .vl-live-air-aqi-spine{display:block;width:4px;height:64px;border-radius:999px;background:linear-gradient(180deg,#3da35a 0 33.333%,#2563eb 33.333% 66.666%,#9849e8 66.666% 100%)}
+        .vl-live-air-aqi-score{display:flex;min-width:56px;flex-direction:column;align-items:flex-start;justify-content:center}
+        .vl-live-air-aqi-number{display:block;color:#000;font-size:30px;font-weight:700;line-height:1;letter-spacing:-.6px}
+        .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:10.5px;font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-meta{min-width:0}
         .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
@@ -3072,9 +3052,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
-        /* DESTINATION SEARCH is a separate page section ABOVE the map shell. It is not
-           a child of the map main/workspace/region and cannot visually overlap the map. */
-        .vl-live-map-search{position:relative;z-index:30;width:min(760px,calc(100% - 48px));margin:14px auto 20px;padding:8px 14px 10px;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;box-shadow:none}
+        /* DESTINATION SEARCH is a separate page section ABOVE the map shell. Its outer
+           wrapper is deliberately invisible: the only visible field chrome is the same
+           bottom hairline used by Header .nav-search and ProductBlogPanel .pbp-search. */
+        .vl-live-map-search{position:relative;z-index:30;width:min(760px,calc(100% - 48px));margin:14px auto 20px;padding:0;background:transparent;border:0;border-radius:0;box-shadow:none}
         .vl-live-search{position:relative}
         /* Exact Header.tsx .nav-search field treatment: no icon, no input box/radius,
            44px minimum row, transparent fill, 16px/400 type, one bottom hairline,
@@ -3082,6 +3063,8 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-field{display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
         .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
+        .vl-live-search-field input::-webkit-search-cancel-button,.vl-live-search-field input::-webkit-search-decoration{display:none;-webkit-appearance:none}
+        .vl-live-search-field input::-ms-clear{display:none;width:0;height:0}
         .vl-live-search-field input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
         .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
         .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
@@ -3096,7 +3079,7 @@ const VayuLokLive: React.FC = () => {
         @media(max-width:700px){
           .vl-live-shell{padding:0 max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
           .vl-live-map-shell{height:auto;min-height:min(460px,62svh);max-height:none}
-          .vl-live-map-search{width:calc(100% - 20px);margin:10px auto 16px;padding:8px 12px 10px}
+          .vl-live-map-search{width:calc(100% - 20px);margin:10px auto 16px;padding:0}
           .vl-live-air-card-wrap{width:calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right));margin:10px 0 112px max(10px,env(safe-area-inset-left))}
           .vl-live-air-card{padding:20px}
           .vl-live-air-context{align-items:flex-start}
@@ -3104,7 +3087,7 @@ const VayuLokLive: React.FC = () => {
           .vl-live-air-context-item.is-time{margin-left:auto}
           .vl-live-air-health-tabs{scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scroll-padding-inline:2px}
           .vl-live-air-health-tab{scroll-snap-align:start}
-          .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
+          .vl-live-air-gauge-row{gap:12px}
           .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
         @media(max-height:500px) and (orientation:landscape){
