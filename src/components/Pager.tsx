@@ -159,7 +159,13 @@ const Pager: React.FC<PagerProps> = ( {
         /* The current page: filled, and it is a <span>, so there is nothing to hover. */
         .pager :global(.pager-num.is-here){background:#d1f470;border:2px solid #1a3a2a;cursor:default}
         .pager :global(.pager-gap){color:rgba(0,0,0,.42);font-weight:400;min-width:24px;padding:0}
-        .pager :global(.pager-step){border:2px solid rgba(26,58,42,.22)}
+        /* The prev/next steps carry a FULL dark-green 2px edge, matching the Anew panel's lime
+           arrows (.pbp-arrow: 2px #1a3a2a, lime hover) so the two pagers read as one control
+           language across the site. It was a faint rgba(26,58,42,.22) edge; the solid edge says
+           "hoverable" per the house rule (2px means hoverable) and pairs with the lime hover tint
+           already declared above. The .is-off disabled end keeps its own faint #e5e7eb edge below
+           - that carve-out is intentional and is NOT overridden here. */
+        .pager :global(.pager-step){border:2px solid #1a3a2a}
         /* The end of the run. Rendered rather than omitted so the row does not reflow as a
            reader pages through, and aria-hidden so it is not announced as a dead control. */
         /* LIGHTHOUSE FLAGS THIS AT 2.24:1 AND IT IS CORRECT TO LEAVE IT.
