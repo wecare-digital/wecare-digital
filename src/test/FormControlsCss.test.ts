@@ -109,7 +109,8 @@ describe( 'form-controls.css — invariant 4', () => {
   } );
 
   it( '3. the set of files skinning a select is exactly the frozen allow-list', () => {
-    // 21 of these 22 are pre-existing and stay; form-controls.css is the one 1.3a added.
+    // Pre-existing entries stay; form-controls.css is the one 1.3a added, and
+    // ServiceBuyBox.tsx is the one the dual-channel checkout work added (its .sbb-select picker).
     // AddressFields.tsx and cart.tsx are still here because 1.3a rewrote their rule sets onto
     // the tokens rather than retiring them, and the `input,select` selector list survives with
     // an unreached `select` arm — retiring an arm from a shared list is its own consolidation.
@@ -119,6 +120,9 @@ describe( 'form-controls.css — invariant 4', () => {
     // shop/[slug].tsx — the last of which did delete its rule, with the control, in batch 2e.
     expect( census.files ).toEqual( [
       'src/components/AddressFields.tsx',
+      // ServiceBuyBox's order-target picker (.sbb-select) is a skinned <select>, added with the
+      // dual-channel "Continue to checkout" work. A legitimate new entry on this allow-list.
+      'src/components/ServiceBuyBox.tsx',
       'src/components/dashboard/tabs/AppBuilderTab.tsx',
       'src/pages/cart.tsx',
       'src/pages/workspace/engage/logs/index.tsx',
@@ -143,14 +147,17 @@ describe( 'form-controls.css — invariant 4', () => {
     // The counts are asserted SEPARATELY from the file set, so a new rule added to an
     // already-allowed file is caught as well as a new file. The arithmetic from 1.3a's frozen
     // 83/41/29 to these figures is in this file's header, property by property.
-    expect( census.summary.ruleSets ).toBe( 62 );
-    expect( census.summary.files ).toBe( 20 );
-    expect( census.summary.geometryRuleSets ).toBe( 27 );
+    // 62 -> 64 ruleSets, 20 -> 21 files, 27 -> 28 geometry: ServiceBuyBox's .sbb-select adds the
+    // file plus its two rule blocks (the box-property block is the geometry one).
+    expect( census.summary.ruleSets ).toBe( 64 );
+    expect( census.summary.files ).toBe( 21 );
+    expect( census.summary.geometryRuleSets ).toBe( 28 );
     // A-global, A-module and C-injected are UNCHANGED from 1.3a. Only mechanism B moved, and
     // only because elements moved - so a regression in the global stylesheets still fails here.
     expect( census.summary.mechanisms[ 'A-global' ] ).toMatchObject( { ruleSets: 40, files: 8 } );
     expect( census.summary.mechanisms[ 'A-module' ] ).toMatchObject( { ruleSets: 0, files: 0 } );
-    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 19, files: 10 } );
+    // 19 -> 21 ruleSets, 10 -> 11 files: ServiceBuyBox's styled-jsx .sbb-select (block + focus).
+    expect( census.summary.mechanisms[ 'B-styledjsx' ] ).toMatchObject( { ruleSets: 21, files: 11 } );
     expect( census.summary.mechanisms[ 'C-injected' ] ).toMatchObject( { ruleSets: 3, files: 2 } );
 
     // The allow-list entry for tokens.css no longer covers its `input, textarea` base rule, and
