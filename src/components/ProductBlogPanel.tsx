@@ -399,10 +399,15 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-tags{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 0}
         /* A quiet hairline chip. Not uppercase - a tag is a word a reader typed, shown as written,
            not a status label like the old badge. */
+        /* LIME AT REST, on owner instruction - a tag reads as "ours" without needing a hover, and
+           it shows on touch where :hover never fires. A soft rgba(209,244,112,.35) fill with a
+           dark-green border and ink; strong enough to register as lime, light enough that a row of
+           them is not a wall of CTA colour. On card hover they deepen to full #d1f470 for the
+           desktop affordance. */
         .pbp-chip{
           display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:50px;
-          border:1px solid #e5e7eb;color:rgba(0,0,0,.62);font-size:12px;font-weight:600;
-          line-height:1;background:#fff;
+          border:1px solid #1a3a2a;color:#1a3a2a;font-size:12px;font-weight:600;
+          line-height:1;background:rgba(209,244,112,.35);
           transition:background-color .2s,border-color .2s,color .2s;
         }
         .pbp-title{font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
