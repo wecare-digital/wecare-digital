@@ -939,6 +939,28 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     }
   } );
 
+
+  it( 'reopens typed autocomplete on focus and selects suggestions with pointer input', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const input = await screen.findByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    expect( option ).toBeTruthy();
+
+    // Close results, then refocus while the query remains. Focus should re-open/re-run search.
+    fireEvent.keyDown( input, { key: 'Escape' } );
+    expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
+    fireEvent.focus( input );
+    await waitFor( () => expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'true' ) );
+
+    fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
+  } );
+
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -1109,26 +1131,38 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     // MAP SHELL stays full-bleed while the Air card gets the shape-only callout tail.
     const shellRule = css.match( /\.vl-live-map-shell\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( shellRule ).toContain( 'overflow:hidden' );
+    expect( shellRule ).toContain( 'overflow:visible' );
     expect( shellRule ).toContain( 'isolation:isolate' );
-    expect( shellRule ).toContain( 'height:72dvh' );
+    expect( shellRule ).toContain( 'height:auto' );
     const cardTailRule = css.match( /\.vl-live-air-card-wrap::after\{[^}]*\}/ )?.[ 0 ] || '';
     expect( cardTailRule ).toContain( 'transform:translateX(-50%) rotate(45deg)' );
     expect( cardTailRule ).toContain( 'background:#fff' );
 
-    // HEADER SEARCH IDIOM: no search icon, transparent field, 16px/400, bottom hairline,
-    // same dark-green + lime focus treatment as Header.tsx .nav-search.
+    // HEADER SEARCH IDIOM: no search icon, transparent field, 16px/400, exact Header hairline,
+    // same #1a3a2a + lime focus treatment, and the map wrapper itself carries no shadow.
     expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( inputRule ).toContain( 'border-bottom:1px solid var(--hair)' );
+    expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( inputRule ).toContain( 'border:0' );
     expect( inputRule ).toContain( 'font-size:16px' );
     expect( inputRule ).toContain( 'font-weight:400' );
     expect( inputRule ).toContain( 'background:transparent' );
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( inputFocus ).toContain( 'border-bottom-color:var(--green)' );
+    expect( inputFocus ).toContain( 'border-bottom-color:#1a3a2a' );
     expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
+    const searchWrapRule = css.match( /\.vl-live-map-search\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( searchWrapRule ).toContain( 'box-shadow:none' );
+    expect( searchWrapRule ).toContain( 'z-index:30' );
+
+    // Pollutant info control is lime on white/neutral, never a dark-green filled disk.
+    const infoRule = css.match( /\.vl-live-air-pollutant-info\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( infoRule ).toContain( 'background:#fff' );
+    expect( infoRule ).toContain( 'color:var(--lime)' );
+    expect( infoRule ).not.toContain( 'background:var(--green)' );
+
+    // The duplicate top Air Quality Details heading is gone; the inner section is now Pollutants.
+    expect( container.textContent ).not.toContain( 'Air Quality Details' );
   } );
 } );

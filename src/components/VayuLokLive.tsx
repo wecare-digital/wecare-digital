@@ -1895,17 +1895,23 @@ const VayuLokLive: React.FC = () => {
           } )
           .filter( Boolean )
           .slice( 0, 6 ) as SearchResult[];
-        setResults( mapped );
-        setActive( mapped.length ? 0 : -1 );
-        setOpen( true );
-        setSearchStatus( mapped.length ? 'idle' : 'no-results' );
-        return;
+        if ( mapped.length ) {
+          setResults( mapped );
+          setActive( 0 );
+          setOpen( true );
+          setSearchStatus( 'idle' );
+          return;
+        }
+        // A permitted Maps JS load can still have Places (New) blocked by the browser key's
+        // API-target restrictions. Empty suggestions must not dead-end the field: fall through
+        // to the Geocoder path below so destination search remains usable.
+        autocompleteTokenRef.current = null;
       } catch {
         autocompleteTokenRef.current = null;
       }
     }
 
-    // Fallback for a partial Maps load: Geocoding is worldwide. The Geocoder
+    // Fallback for a partial/restricted Places load: Geocoding is worldwide. The Geocoder
     // comes from importLibrary('geocoding') via ensureGeocoder, NOT from a pre-populated
     // google.maps.Geocoder, so this path works under the modern loading=async loader.
     const gc = await ensureGeocoder();
@@ -2081,11 +2087,6 @@ const VayuLokLive: React.FC = () => {
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
               <div className="vl-live-air-card-wrap">
               <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
-                <div className="vl-live-air-card-head">
-                  <h3 className="vl-live-air-card-title">Air Quality Details</h3>
-                </div>
-                <hr className="vl-live-air-card-rule" aria-hidden="true" />
-
                 {/* Air/Weather toggle - the same tint + saturated dot idiom as the hero's
                     rotating pill (Air #e0f7c8/#3da35a, Weather #dbeafe/#2563eb). Drives the
                     existing detailTab state; clicking it triggers no network call. */}
@@ -2152,7 +2153,7 @@ const VayuLokLive: React.FC = () => {
 
                       { air.pollutants.length > 0 && (
                         <div className="vl-live-air-pollutants">
-                          <h4 className="vl-live-air-pollutants-title">Air Quality Details</h4>
+                          <h4 className="vl-live-air-pollutants-title">Pollutants</h4>
                           <ul className="vl-live-air-pollutant-list">
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
@@ -2449,7 +2450,7 @@ const VayuLokLive: React.FC = () => {
                     <div className="vl-live-search-field">
                       <input
                         id="vl-live-search"
-                        type="text"
+                        type="search"
                         role="combobox"
                         aria-controls="vl-live-search-results"
                         aria-expanded={ open }
@@ -2461,7 +2462,11 @@ const VayuLokLive: React.FC = () => {
                         value={ query }
                         onChange={ onQueryChange }
                         onFocus={ () => {
-                          if ( query.trim() ) return;
+                          if ( query.trim() ) {
+                            if ( results.length ) setOpen( true );
+                            else void runSearch( query );
+                            return;
+                          }
                           const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
                           setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
                         } }
@@ -2470,7 +2475,7 @@ const VayuLokLive: React.FC = () => {
                     </div>
                     <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
                       { results.map( ( r, i ) => (
-                        <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onMouseDown={ e => { e.preventDefault(); void choose( r ); } }>
+                        <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
                           <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
                         </li>
                       ) ) }
@@ -2558,12 +2563,9 @@ const VayuLokLive: React.FC = () => {
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card-wrap{position:absolute;z-index:12;top:16px;left:16px;width:min(372px,calc(100% - 32px));max-height:calc(100% - 124px);filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
+        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(372px,calc(100% - 32px));margin:16px 0 112px 16px;filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
         .vl-live-air-card-wrap::after{content:"";position:absolute;left:52%;bottom:-11px;width:22px;height:22px;background:#fff;border-right:1px solid rgba(26,58,42,.14);border-bottom:1px solid rgba(26,58,42,.14);transform:translateX(-50%) rotate(45deg);border-radius:0 0 4px 0}
-        .vl-live-air-card{position:relative;width:100%;max-height:inherit;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:24px 24px 22px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
-        .vl-live-air-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .vl-live-air-card-title{margin:0;color:var(--heading);font-size:26px;font-weight:700;line-height:1.08;letter-spacing:-.8px}
-        .vl-live-air-card-rule{height:3px;margin:14px 0 16px;border:0;border-radius:999px;background:linear-gradient(90deg,#3da35a 0%,#2563eb 50%,#9849e8 100%)}
+        .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:22px 24px 22px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
@@ -2620,9 +2622,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-label{color:var(--status);font-size:13px;font-weight:600}
         /* Exact Google Material Symbols "info" glyph. Lime sits on the site's dark green
            disk, so the requested lime icon stays crisp against the white card. */
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--green);color:var(--lime);cursor:help;transition:transform .16s ease,box-shadow .16s ease}
-        .vl-live-air-pollutant-info svg{width:19px;height:19px;fill:currentColor}
-        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.18)}
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--lime);cursor:help;box-shadow:0 2px 7px rgba(26,58,42,.08);transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+        .vl-live-air-pollutant-info svg{width:20px;height:20px;fill:currentColor}
+        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);background:#fafbf7;box-shadow:0 4px 10px rgba(26,58,42,.12)}
         .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
@@ -2722,7 +2724,7 @@ const VayuLokLive: React.FC = () => {
            contained, and the height band is unchanged. The floating .vl-live-air-card and search
            stay positioned over the edge-to-edge map, while the card's bottom inset still clears
            Google's bottom-left logo and bottom-right legal corners. */
-        .vl-live-map-shell{position:relative;height:72vh;height:72dvh;min-height:min(620px,72svh);max-height:860px;overflow:hidden;background:#eef1ed;isolation:isolate;contain:layout paint}
+        .vl-live-map-shell{position:relative;display:grid;height:auto;min-height:min(620px,72svh);max-height:none;overflow:visible;background:#eef1ed;isolation:isolate;contain:layout}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
@@ -2731,7 +2733,7 @@ const VayuLokLive: React.FC = () => {
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
            reference. Live Google Weather values drive opacity, direction and speed. */
-        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:-4%;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
+        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
         .vl-live-atmosphere svg{display:block;width:100%;height:100%;overflow:visible}
         .vl-live-cloud-field{opacity:var(--vl-cloud-opacity);animation:vl-live-cloud-drift var(--vl-cloud-duration) ease-in-out infinite alternate}
         .vl-live-cloud-field ellipse{fill:rgba(255,255,255,.88)}
@@ -2755,16 +2757,15 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
-        .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px));padding:0 12px 7px;background:rgba(252,253,251,.96);box-shadow:0 8px 22px rgba(26,58,42,.10)}
+        .vl-live-map-search{position:absolute;z-index:30;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px));padding:0 2px;background:#fcfdfb;box-shadow:none;border-radius:0}
         .vl-live-search{position:relative}
-        /* Exact Header.tsx search-field contract: no icon, no rounded input box, transparent
-           input, 1px bottom hairline, 16px/400 type and the same dark-green + lime focus line.
-           Only the neutral backing belongs to the map context; the field itself is the menu field. */
+        /* Byte-for-byte Header.tsx field treatment: no icon, no box/radius, 44px minimum row,
+           transparent fill, 16px/400 type, one bottom hairline, green + lime focus underline. */
         .vl-live-search-field{display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
-        .vl-live-search-field input{width:100%;min-height:44px;padding:0 2px;border:0;border-bottom:1px solid var(--hair);border-radius:0;outline:none;background:transparent;color:rgba(0,0,0,.898);font-size:16px;font-weight:400;line-height:1.3;font-family:inherit;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
-        .vl-live-search-field input:focus-visible{border-bottom-color:var(--green);box-shadow:0 1px 0 0 #d1f470}
-        .vl-live-search-results{position:absolute;top:50px;left:-12px;right:-12px;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
+        .vl-live-search-field input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
+        .vl-live-search-results{position:absolute;top:46px;left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:12px;background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
         .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
         .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
         .vl-live-search-results strong,.vl-live-search-results span{display:block}
@@ -2772,23 +2773,21 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-results span{margin-top:2px;font-size:11px;color:var(--muted)}
         .vl-live-search-status{margin:6px 8px 0;font-size:11px;color:var(--muted)}
         @media(max-width:1050px){
-          .vl-live-map-shell{height:66vh;height:66dvh;min-height:min(560px,66svh)}
+          .vl-live-map-shell{height:auto;min-height:min(560px,66svh)}
         }
         @media(max-width:700px){
           .vl-live-shell{padding:10px max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
-          .vl-live-map-shell{height:62vh;height:62dvh;min-height:min(460px,62svh);max-height:640px}
+          .vl-live-map-shell{height:auto;min-height:min(460px,62svh);max-height:none}
           .vl-live-map-search{top:max(10px,env(safe-area-inset-top));width:calc(100% - 20px)}
-          .vl-live-air-card-wrap{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100% - 144px)}
-          .vl-live-air-card{max-height:inherit;padding:19px 19px 17px}
-          .vl-live-air-card-title{font-size:24px}
+          .vl-live-air-card-wrap{width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));margin:max(68px,calc(env(safe-area-inset-top) + 58px)) 0 112px max(10px,env(safe-area-inset-left))}
+          .vl-live-air-card{padding:19px 19px 17px}
           .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
           .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-shell{padding-top:max(8px,env(safe-area-inset-top))}
-          .vl-live-map-shell{height:calc(100vh - 24px);height:calc(100dvh - 24px);min-height:250px}
+          .vl-live-map-shell{height:auto;min-height:250px}
           .vl-live-search-field{min-height:44px}
-          .vl-live-air-card-wrap{max-height:calc(100% - 32px)}
         }
         @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
           .vl-live-air-card-wrap{width:min(330px,42%)}
