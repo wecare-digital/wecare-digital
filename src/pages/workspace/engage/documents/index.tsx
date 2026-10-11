@@ -21,6 +21,8 @@ import EmptyState from '../../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
+import type { ApiFailure } from '../../../../api/client';
+import ServiceDataState from '../../../../components/service/ServiceDataState';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'uploaded', 'under_review', 'approved', 'rejected', 'reupload_requested' ];
@@ -83,6 +85,7 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
   const toast = useToastContext();
   const [ docs, setDocs ] = useState<api.Document[]>( [] );
   const [ loading, setLoading ] = useState( true );
+  const [ failure, setFailure ] = useState<ApiFailure | null>( null );
   const [ statusFilter, setStatusFilter ] = useState( '' );
   const [ sourceFilter, setSourceFilter ] = useState( '' );
   const [ typeFilter, setTypeFilter ] = useState( '' );
@@ -96,15 +99,15 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
 
   const loadData = useCallback( async () => {
     setLoading( true );
-    try
-    {
-      const data = await api.listDocuments( {
-        status: statusFilter || undefined,
-        source: sourceFilter || undefined,
-        type: typeFilter || undefined,
-      } );
-      setDocs( data.documents || [] );
-    } catch { toast.error( 'Failed to load documents' ); }
+    // A failed load must show an error, not an empty "No documents" table.
+    const { data, failures } = await api.collectApiFailures( () => api.listDocuments( {
+      status: statusFilter || undefined,
+      source: sourceFilter || undefined,
+      type: typeFilter || undefined,
+    } ) );
+    const rows = data.documents || [];
+    setDocs( rows );
+    setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
     setLoading( false );
   }, [ statusFilter, sourceFilter, typeFilter, toast ] );
 
@@ -229,14 +232,17 @@ const DocumentsPage: React.FC<PageProps> = ( { signOut, user, embedded = false }
             options={ TYPE_FILTER_OPTIONS } style={ FILTER_STYLE } />
         </div>
 
-        { docs.length === 0 && !loading ? (
-          <EmptyState icon="default" title="No documents" description="Documents from WhatsApp, web uploads, and manual entries will appear here" />
-        ) : (
-          <>
-            <Table columns={ columns } data={ paged } keyField="documentId" loading={ loading } />
-            { totalPages > 1 && <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }><Pagination currentPage={ page } totalPages={ totalPages } onPageChange={ setPage } /></div> }
-          </>
-        ) }
+        <ServiceDataState
+          loading={ loading }
+          failure={ failure }
+          empty={ docs.length === 0 }
+          emptyLabel="No documents"
+          emptyIcon="default"
+          onRetry={ loadData }
+        >
+          <Table columns={ columns } data={ paged } keyField="documentId" loading={ loading } />
+          { totalPages > 1 && <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }><Pagination currentPage={ page } totalPages={ totalPages } onPageChange={ setPage } /></div> }
+        </ServiceDataState>
       </div>
 
       {/* Detail Modal */ }

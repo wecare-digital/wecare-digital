@@ -13,6 +13,8 @@ import EmptyState from '../../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
+import type { ApiFailure } from '../../../../api/client';
+import ServiceDataState from '../../../../components/service/ServiceDataState';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS = [ 'pending', 'approved', 'hidden', 'flagged' ];
@@ -65,6 +67,7 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
   const toast = useToastContext();
   const [ reviews, setReviews ] = useState<api.Review[]>( [] );
   const [ loading, setLoading ] = useState( true );
+  const [ failure, setFailure ] = useState<ApiFailure | null>( null );
   const [ statusFilter, setStatusFilter ] = useState( '' );
   const [ sourceFilter, setSourceFilter ] = useState( '' );
   const [ ratingFilter, setRatingFilter ] = useState( '' );
@@ -73,15 +76,16 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
 
   const loadData = useCallback( async () => {
     setLoading( true );
-    try
-    {
-      const data = await api.listReviews( {
-        status: statusFilter || undefined,
-        source: sourceFilter || undefined,
-        minRating: ratingFilter ? Number( ratingFilter ) : undefined,
-      } );
-      setReviews( data.reviews || [] );
-    } catch { toast.error( 'Failed to load reviews' ); }
+    // collectApiFailures recovers the error the list wrapper would otherwise swallow, so a
+    // failed load shows an error instead of an empty "No reviews" table.
+    const { data, failures } = await api.collectApiFailures( () => api.listReviews( {
+      status: statusFilter || undefined,
+      source: sourceFilter || undefined,
+      minRating: ratingFilter ? Number( ratingFilter ) : undefined,
+    } ) );
+    const rows = data.reviews || [];
+    setReviews( rows );
+    setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
     setLoading( false );
   }, [ statusFilter, sourceFilter, ratingFilter, toast ] );
 
@@ -185,14 +189,17 @@ const ReviewsPage: React.FC<PageProps> = ( { signOut, user, embedded = false } )
             options={ RATING_FILTER_OPTIONS } style={ filterStyle } />
         </div>
 
-        { reviews.length === 0 && !loading ? (
-          <EmptyState icon="default" title="No reviews" description="Customer reviews will appear here" />
-        ) : (
-          <>
-            <Table columns={ columns } data={ paged } keyField="reviewId" loading={ loading } />
-            { totalPages > 1 && <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }><Pagination currentPage={ page } totalPages={ totalPages } onPageChange={ setPage } /></div> }
-          </>
-        ) }
+        <ServiceDataState
+          loading={ loading }
+          failure={ failure }
+          empty={ reviews.length === 0 }
+          emptyLabel="No reviews"
+          emptyIcon="default"
+          onRetry={ loadData }
+        >
+          <Table columns={ columns } data={ paged } keyField="reviewId" loading={ loading } />
+          { totalPages > 1 && <div style={ { marginTop: 16, display: 'flex', justifyContent: 'center' } }><Pagination currentPage={ page } totalPages={ totalPages } onPageChange={ setPage } /></div> }
+        </ServiceDataState>
       </div>
 
       <Modal isOpen={ !!selected } onClose={ () => setSelected( null ) } title="Review Details" size="md">

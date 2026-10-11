@@ -14,6 +14,8 @@ import EmptyState from '../../../../components/ui/EmptyState';
 import Select, { type SelectOption } from '../../../../components/ui/Select';
 import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
+import type { ApiFailure } from '../../../../api/client';
+import ErrorState from '../../../../components/ErrorState';
 
 const PAGE_SIZE = 20;
 const ORDER_STATUSES = [ 'active', 'fulfilled', 'cancelled' ];
@@ -168,6 +170,7 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
   // Data
   const [ orders, setOrders ] = useState<api.Order[]>( [] );
   const [ loading, setLoading ] = useState( true );
+  const [ failure, setFailure ] = useState<ApiFailure | null>( null );
 
   // Filters
   const [ search, setSearch ] = useState( '' );
@@ -198,18 +201,15 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
 
   const loadOrders = useCallback( async () => {
     setLoading( true );
-    try
-    {
-      const data = await api.listOrders( {
-        status: statusFilter || undefined,
-        source: sourceFilter || undefined,
-        search: search || undefined,
-      } );
-      setOrders( data.orders || [] );
-    } catch
-    {
-      toast.error( 'Failed to load orders' );
-    }
+    // A failed load must read as an error, not an empty "No orders found" table.
+    const { data, failures } = await api.collectApiFailures( () => api.listOrders( {
+      status: statusFilter || undefined,
+      source: sourceFilter || undefined,
+      search: search || undefined,
+    } ) );
+    const rows = data.orders || [];
+    setOrders( rows );
+    setFailure( rows.length === 0 && failures.length ? failures[ 0 ] : null );
     setLoading( false );
   }, [ statusFilter, sourceFilter, search, toast ] );
 
@@ -336,7 +336,10 @@ const OrdersPage: React.FC<PageProps> = ( { signOut, user, embedded = false } ) 
         </div>
 
         {/* ── Table ── */ }
-        { filtered.length === 0 && !loading ? (
+        { !loading && failure ? (
+          // A failed load shows WHY, with a retry — never a misleading "No orders found".
+          <div role="alert"><ErrorState message="Could not load orders" detail={ failure.message } onRetry={ failure.retryable ? loadOrders : undefined } /></div>
+        ) : filtered.length === 0 && !loading ? (
           <EmptyState icon="order" title="No orders found" description="Create a manual order or sync from Wix to get started." action={ { label: 'New Order', onClick: () => setShowCreate( true ) } } />
         ) : (
           <div style={ { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' } }>
