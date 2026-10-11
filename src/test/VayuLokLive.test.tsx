@@ -321,14 +321,10 @@ async function loadComponent() {
 }
 
 async function selectMumbai() {
-  // The map search is rendered only after the Maps tilesloaded signal flips mapReady.
-  // Wait for that UI boundary instead of racing it after the FakeMap constructor runs.
   const input = await screen.findByRole( 'combobox' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
   fireEvent.mouseDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
-  await waitFor( () => {
-    expect( screen.getByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
-  } );
+  await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
 }
 
 afterEach( () => {
@@ -508,7 +504,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec = installGoogleMaps();
   } );
 
-  it( 'loads Lumpyngngad data over a global hybrid satellite map with no India pan restriction', async () => {
+  it( 'loads a draggable global hybrid map and omits the removed map pills', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -519,26 +515,23 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
+    expect( rec.mapOpts?.gestureHandling ).toBe( 'greedy' );
+    expect( rec.mapOpts?.draggable ).toBe( true );
+    expect( rec.mapOpts?.scrollwheel ).toBe( true );
+    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( false );
     expect( rec.mapOpts?.zoomControl ).toBe( false );
-    expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
+    expect( rec.mapClickHandler ).toBeUndefined();
 
-    // The old left place-card is gone; the default place name now rides the on-map
-    // selected label while the floating Air card overlays the map.
     expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-left' ) ).toBeNull();
-    const label = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-selected-label' );
-      expect( el ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-    expect( label.textContent ).toContain( 'Lumpyngngad' );
+    expect( container.querySelector( '.vl-live-layers' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-selected-label' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
     expect( screen.queryByText( 'Search India to see live weather and air.' ) ).toBeNull();
-    expect( await screen.findByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
-    expect( await screen.findByRole( 'button', { name: 'PM2.5' } ) ).not.toBeDisabled();
     await waitFor( () => expect( fetchSpy ).toHaveBeenCalled() );
   } );
 
-  it( 'renders the place card without internal selected-place wording and keeps the branded marker', async () => {
+  it( 'search selection recenters the map and keeps only the map marker, not a bottom pill', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -546,13 +539,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    const label = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-selected-label' );
-      expect( el ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-    expect( label.textContent ).toContain( 'Mumbai' );
-    expect( label.textContent ).not.toContain( 'Selected place' );
+    expect( container.querySelector( '.vl-live-selected-label' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-layers' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
@@ -562,8 +550,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( typeof icon ).toBe( 'string' );
     expect( decodeURIComponent( String( icon ) ) ).toContain( '#1a3a2a' );
     expect( decodeURIComponent( String( icon ) ) ).toContain( '#d1f470' );
-
-    await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
   } );
 
@@ -881,35 +867,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_CONCENTRATION' );
   } );
-
-  it( 'requests the India CPCB local AQI on the layer-activation grid/center-point air body (airRequestBody) too', async () => {
-    // INDIA API PARITY FIX (grid path). Clicking AQI activates the heatmap layer, which fires the
-    // shared airRequestBody currentConditions:lookup for the grid + its CENTER point. That center
-    // point feeds the left-card air state, and airStateFromApiData prefers the ind_cpcb index, so
-    // this body must also carry customLocalAqis - matching fetchAir + forecast + history. Before
-    // the fix airRequestBody was MISSING customLocalAqis, so ind_cpcb never came back on this path.
-    const fetchSpy = airConditionsFetch( 450, 180 );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-    render( <VayuLokLive /> );
-
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
-
-    const gridLookupCall = await waitFor( () => {
-      const call = fetchSpy.mock.calls.find( call =>
-        requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' )
-        && Boolean( ( call[ 1 ] as RequestInit | undefined )?.body ) );
-      expect( call ).toBeTruthy();
-      return call!;
-    } );
-    const body = JSON.parse( String( ( gridLookupCall[ 1 ] as RequestInit ).body ) );
-    expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
-    expect( body.universalAqi ).toBe( true );
-    expect( body.languageCode ).toBe( 'en' );
-  } );
-
   it( 'fires the place autocomplete on the fast 120ms debounce - not immediately, and not on the old 300ms lag', async () => {
     // PINS "auto-complete should work very quickly". The component debounces the Autocomplete
     // Data API request by SEARCH_DEBOUNCE_MS (120ms): one request per settled keystroke, but
@@ -1039,37 +996,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
   } );
 
-  it( 'keeps spatial PM2.5 dots user-triggered, deck.gl based and on the no-red v8 palette', async () => {
-    const fetchSpy = airConditionsFetch( 450, 180 );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-
-    render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    // User-triggered: no deck.gl overlay before the PM2.5 pill is clicked.
-    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
-    fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
-
-    await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
-    const props = deckRec.scatterProps.at( -1 )!;
-    const point = Array.isArray( props.data ) ? props.data[ 0 ] : null;
-    expect( point ).toBeTruthy();
-    const fill = props.getFillColor( point ) as [ number, number, number, number ];
-    expect( matchesVayuLokRamp( fill ) ).toBe( true );
-    expect( isRedDominant( fill ) ).toBe( false );
-    // PM2.5 is deck.gl dots - it does not build the AQI heatmap tile overlay.
-    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( true );
-    const liveOverlays = rec.overlayEntries as { name?: string }[];
-    expect( liveOverlays.some( o => o && o.name === 'vl-live-aqi-heatmap' ) ).toBe( false );
-    // The atmosphere is not an ImageMapType, so switching to PM2.5 leaves no map-tile
-    // overlay entries after AQI detaches. The SVG/CSS storm layer remains independent.
-    expect( liveOverlays.some( o => o && o.name === 'vl-live-weather-storm' ) ).toBe( false );
-    expect( liveOverlays ).toHaveLength( 0 );
-  } );
-
-  it( 'shows the approved passive bottom label and no chevron/action control', async () => {
+  it( 'does not render the removed map layer or selected-location pills', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -1077,14 +1004,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    const label = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-selected-label' );
-      expect( el ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-    expect( label.tagName ).toBe( 'DIV' );
-    expect( label.textContent ).toContain( 'Mumbai' );
-    expect( label.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-layers' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-selected-label' ) ).toBeNull();
   } );
 
   it( 'requests address descriptors but never invents descriptor or elevation text', async () => {
