@@ -22,10 +22,11 @@ import json
 import logging
 import math
 import os
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, Mapping, Optional
 
 import boto3
 
@@ -36,14 +37,13 @@ REGION = os.environ.get("AWS_REGION", "us-east-1")
 GOOGLE_SECRET_NAME = os.environ.get(
     "VAYULOK_GOOGLE_SECRET", "wecare/google/cloud"
 )
-GOOGLE_SECRET_FIELDS: Tuple[str, ...] = tuple(
-    part.strip()
-    for part in os.environ.get(
-        "VAYULOK_GOOGLE_SECRET_FIELD", "api_key,unified_google_api_key"
-    ).split(",")
-    if part.strip()
+GOOGLE_SECRET_FIELD = (
+    os.environ.get("VAYULOK_GOOGLE_SECRET_FIELD", "api_key").strip() or "api_key"
 )
 GOOGLE_TIMEOUT_SECONDS = float(os.environ.get("VAYULOK_GOOGLE_TIMEOUT", "10"))
+KEY_CACHE_TTL_SECONDS = max(
+    0.0, float(os.environ.get("VAYULOK_KEY_CACHE_TTL", "300"))
+)
 MAX_REQUEST_BYTES = int(os.environ.get("VAYULOK_MAX_REQUEST_BYTES", "8192"))
 MAX_UPSTREAM_BYTES = int(
     os.environ.get("VAYULOK_MAX_UPSTREAM_BYTES", str(6 * 1024 * 1024))
@@ -72,8 +72,20 @@ OPERATIONS = frozenset(
     }
 )
 
+_COMMON_FIELDS = frozenset({"operation", "latitude", "longitude"})
+OPERATION_FIELDS = {
+    "air_current": _COMMON_FIELDS,
+    "air_grid": _COMMON_FIELDS | {"gridSize"},
+    "weather_current": _COMMON_FIELDS,
+    "weather_hourly": _COMMON_FIELDS | {"pageToken"},
+    "weather_daily": _COMMON_FIELDS,
+    "weather_history": _COMMON_FIELDS,
+    "air_forecast": _COMMON_FIELDS,
+    "air_history": _COMMON_FIELDS | {"hours", "pageToken"},
+}
+
 _secret_client = None
-_key_cache: Dict[str, Any] = {"loaded": False, "key": ""}
+_key_cache: Dict[str, Any] = {"loaded": False, "key": "", "loaded_at": 0.0}
 
 
 class ProviderUnavailable(RuntimeError):
@@ -120,6 +132,8 @@ def _response(event: Mapping[str, Any], status: int, body: Any) -> Dict[str, Any
         "Access-Control-Allow-Headers": "Content-Type",
         "Access-Control-Allow-Methods": "POST,OPTIONS",
         "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
         "Vary": "Origin",
     }
     if _origin_allowed(event):
@@ -197,12 +211,12 @@ def _page_token(payload: Mapping[str, Any]) -> str:
 
 def _history_hours(payload: Mapping[str, Any]) -> int:
     value = payload.get("hours", 24)
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("invalid history range")
-    try:
-        hours = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("invalid history range") from exc
+    numeric = float(value)
+    if not math.isfinite(numeric) or not numeric.is_integer():
+        raise ValueError("invalid history range")
+    hours = int(numeric)
     if hours not in (24, 168, 720):
         raise ValueError("history range must be 24, 168 or 720 hours")
     return hours
@@ -215,9 +229,20 @@ def _grid_size(payload: Mapping[str, Any]) -> int:
     return int(value)
 
 
+def _validate_payload_fields(operation: str, payload: Mapping[str, Any]) -> None:
+    allowed = OPERATION_FIELDS[operation]
+    unexpected = sorted(str(key) for key in payload.keys() if key not in allowed)
+    if unexpected:
+        raise ValueError(f"unexpected field(s): {', '.join(unexpected)}")
+
+
 def _google_key() -> str:
+    now = time.monotonic()
     if _key_cache["loaded"]:
-        return _key_cache["key"]
+        age = now - float(_key_cache.get("loaded_at") or 0.0)
+        if age < KEY_CACHE_TTL_SECONDS:
+            return _key_cache["key"]
+        _key_cache.update({"loaded": False, "key": "", "loaded_at": 0.0})
 
     key = ""
     resolved_from = ""
@@ -226,14 +251,12 @@ def _google_key() -> str:
         raw = _secrets().get_secret_value(SecretId=GOOGLE_SECRET_NAME)
         data = json.loads(raw.get("SecretString") or "{}")
         if isinstance(data, dict):
-            for field in GOOGLE_SECRET_FIELDS:
-                value = str(data.get(field) or "").strip()
-                if value:
-                    key = value
-                    resolved_from = field
-                    break
+            value = str(data.get(GOOGLE_SECRET_FIELD) or "").strip()
+            if value:
+                key = value
+                resolved_from = GOOGLE_SECRET_FIELD
         if not key:
-            failure = "no_candidate_field"
+            failure = "missing_server_key_field"
     except Exception as exc:
         failure = type(exc).__name__
 
@@ -260,7 +283,7 @@ def _google_key() -> str:
     # exposing_detail seeds {"loaded": True, "key": ""} to pin the 503 without a
     # boto3 call, and a truthiness check would send that test to the network.
     if key:
-        _key_cache.update({"loaded": True, "key": key})
+        _key_cache.update({"loaded": True, "key": key, "loaded_at": now})
     return key
 
 
@@ -512,6 +535,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:  # noqa: ARG
         operation = payload.get("operation")
         if not isinstance(operation, str) or operation not in OPERATIONS:
             raise ValueError("unsupported operation")
+        _validate_payload_fields(operation, payload)
         return _response(event, 200, _dispatch(operation, payload))
     except ValueError as exc:
         return _response(
