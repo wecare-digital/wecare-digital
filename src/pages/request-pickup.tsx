@@ -1,6 +1,8 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ServiceBuyBox from '../components/ServiceBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
+import { serviceByKind } from '../config/services';
 
 /**
  * /request-pickup — the Request Pickup page.
@@ -17,8 +19,14 @@ import { customerserviceBySlug } from '../content/customerservice';
  * with HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  * trailingSlash means the URL is /request-pickup/.
  */
-const RequestPickupPage: React.FC = () => (
-  <ProductPage product={ customerserviceBySlug( 'request-pickup' ) } />
-);
+const RequestPickupPage: React.FC = () => {
+  const service = serviceByKind( 'REQUEST_PICKUP' );
+  return (
+    <ProductPage
+      product={ customerserviceBySlug( 'request-pickup' ) }
+      belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
+    />
+  );
+};
 
 export default RequestPickupPage;

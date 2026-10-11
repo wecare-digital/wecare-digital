@@ -1,6 +1,8 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ServiceBuyBox from '../components/ServiceBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
+import { serviceByKind } from '../config/services';
 
 /**
  * /request-amendment — the Request Amendment page.
@@ -20,8 +22,14 @@ import { customerserviceBySlug } from '../content/customerservice';
  * PUBLIC, AND NOT [retired public path]/request-amendment. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-const RequestAmendmentPage: React.FC = () => (
-  <ProductPage product={ customerserviceBySlug( 'request-amendment' ) } />
-);
+const RequestAmendmentPage: React.FC = () => {
+  const service = serviceByKind( 'REQUEST_AMENDMENT' );
+  return (
+    <ProductPage
+      product={ customerserviceBySlug( 'request-amendment' ) }
+      belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
+    />
+  );
+};
 
 export default RequestAmendmentPage;

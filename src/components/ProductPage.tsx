@@ -73,6 +73,13 @@ interface ProductPageProps {
    * this prop closes.
    */
   crumbs?: Crumb[];
+  /**
+   * OPTIONAL NODE rendered immediately under the CTA row (`.pdp-ctas`), above the ctaNote/price.
+   * Used by the service pages and the product pages to mount the "Continue to checkout →" buy box
+   * (ServiceBuyBox / ProductBuyBox) beneath the unchanged WhatsApp CTA. Omit it and the page
+   * renders byte-for-byte what it did before: the node simply is not there.
+   */
+  belowCta?: React.ReactNode;
 }
 
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
@@ -86,6 +93,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   priceUnit,
   shareUrl,
   crumbs,
+  belowCta,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   return (
@@ -178,6 +186,11 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             <a className="pdp-cta" href={ product.ctaHref2 }>{ product.ctaLabel2 }</a>
           ) }
         </div>
+
+        {/* OPTIONAL "CONTINUE TO CHECKOUT" SLOT — the service/product pages' second pill and its
+            price (ServiceBuyBox / ProductBuyBox), rendered under the WhatsApp CTA. Pages that pass
+            no `belowCta` render nothing here and are unchanged. */}
+        { belowCta }
 
         {/* MICROCOPY under the CTA, rendered only when the product declares one (today just
             /anew/). Very small and quiet, naming where the button goes. aria-hidden because the

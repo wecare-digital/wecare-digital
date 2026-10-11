@@ -4,6 +4,13 @@ import {
 } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
+// /get now carries a "Continue to checkout →" button beside each file's WhatsApp pay pill (the
+// website leg of the both-channels change), so the page calls useRouter. jsdom has no router
+// provider, so mock it the same minimal way BottomNav/HeaderCartBadge tests do.
+vi.mock( 'next/router', () => ( {
+  useRouter: () => ( { push: vi.fn(), pathname: '/get', query: {}, isReady: true } ),
+} ) );
+
 import * as customerAuth from '../lib/customerAuth';
 import * as api from '../api/client';
 import GetPage from '../pages/get';

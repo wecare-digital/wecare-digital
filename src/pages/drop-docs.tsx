@@ -1,6 +1,8 @@
 import React from 'react';
 import ProductPage from '../components/ProductPage';
+import ServiceBuyBox from '../components/ServiceBuyBox';
 import { customerserviceBySlug } from '../content/customerservice';
+import { serviceByKind } from '../config/services';
 
 /**
  * /drop-docs — the Drop Docs page.
@@ -20,8 +22,14 @@ import { customerserviceBySlug } from '../content/customerservice';
  * PUBLIC, AND NOT [retired public path]/drop-docs. That route exists and is authenticated by design — it
  * renders the dashboard Layout and reads a Cognito session. This page touches neither.
  */
-const DropDocsPage: React.FC = () => (
-  <ProductPage product={ customerserviceBySlug( 'drop-docs' ) } />
-);
+const DropDocsPage: React.FC = () => {
+  const service = serviceByKind( 'DROP_DOCS' );
+  return (
+    <ProductPage
+      product={ customerserviceBySlug( 'drop-docs' ) }
+      belowCta={ service ? <ServiceBuyBox service={ service } /> : null }
+    />
+  );
+};
 
 export default DropDocsPage;

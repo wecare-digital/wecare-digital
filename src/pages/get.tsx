@@ -34,12 +34,18 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
 import SEO from '../components/SEO';
 import OtpResend from '../components/OtpResend';
 import PhoneField from '../components/PhoneField';
 import PillButton from '../components/PillButton';
 import RotatingHero from '../components/RotatingHero';
 import type { CycleWord } from '../components/RotatingHero';
+import PublicShare from '../components/PublicShare';
+import { addItem } from '../lib/cart';
+import type { ShopProduct } from '../content/shop';
+import { PLACEHOLDER_LINE } from '../config/productCheckout';
+import { CHECKOUT_PATH } from '../lib/serviceEntry';
 import * as api from '../api/client';
 import type { SecureFile } from '../api/client';
 import { DEFAULT_DIAL_CODE } from '../lib/dialCodes';
@@ -75,6 +81,7 @@ const GET_WORDS: CycleWord[] = [
 type Stage = 'mobile' | 'otp' | 'files';
 
 export default function FilesPage () {
+    const router = useRouter();
     const [ stage, setStage ] = useState<Stage>( 'mobile' );
     // `mobile` holds the COMPOSED E.164 string, not raw keystrokes. The field itself is now the
     // divided PhoneField, which owns a dial-code segment and a national-number segment, so the two
@@ -246,6 +253,34 @@ export default function FilesPage () {
      * nothing to poll for and no download to trigger — which is why there is no
      * Razorpay Checkout script here any more.
      */
+    /**
+     * "Continue to checkout →" for a file — the website leg beside the WhatsApp pay button, so a
+     * customer has BOTH channels. For the time being this adds the ₹1 placeholder catalogue line
+     * (there is no website per-file payment backend yet) and goes to /cart/, so the format is live
+     * end to end; the real per-file line/amount replaces PLACEHOLDER_LINE later. The WhatsApp pay
+     * button is untouched.
+     */
+    const handleContinueToCheckout = async () => {
+        try
+        {
+            const product: ShopProduct = {
+                id: PLACEHOLDER_LINE.productId,
+                name: PLACEHOLDER_LINE.name,
+                slug: PLACEHOLDER_LINE.slug,
+                formattedPrice: PLACEHOLDER_LINE.formattedPrice,
+                price: '',
+                currency: 'INR',
+                inStock: true,
+                tagline: '',
+                body: [],
+                variants: [ { id: PLACEHOLDER_LINE.variantId, label: 'Standard', inStock: true } ],
+            };
+            addItem( product, 1, PLACEHOLDER_LINE.variantId );
+        }
+        catch { /* a malformed line writes nothing; checkout still loads */ }
+        await router.push( CHECKOUT_PATH );
+    };
+
     const handlePayOnWhatsApp = async ( file: SecureFile ) => {
         setError( '' );
         setMessage( '' );
@@ -486,6 +521,18 @@ export default function FilesPage () {
                                         disabled={ !!working }
                                         busy={ working === file.fileId }
                                     />
+                                    {/* BOTH CHANNELS: a quiet "Continue to checkout →" beside the
+                                        WhatsApp pay button, so a customer can pay on the website
+                                        too. ₹1 placeholder for now (no website per-file payment
+                                        backend yet). The WhatsApp button above is unchanged. */}
+                                    <button
+                                        type="button"
+                                        className="sf-checkout"
+                                        onClick={ () => { void handleContinueToCheckout(); } }
+                                        disabled={ !!working }
+                                    >
+                                        Continue to checkout &rarr;
+                                    </button>
                                 </div>
                             ) ) }
 
@@ -502,6 +549,9 @@ export default function FilesPage () {
                         </div>
                     ) }
                 </div>
+
+                {/* The Share block at the foot of this page's content, inside the hero's measure. */}
+                <PublicShare />
             </RotatingHero>
 
             <style jsx>{ `
@@ -636,6 +686,26 @@ export default function FilesPage () {
                 }
                 .sf-file-meta{
                   margin:6px 0 16px;font-size:14px;color:rgba(26,58,42,.68);
+                }
+
+                /* THE WEBSITE LEG beneath the WhatsApp pay pill: the house secondary pill —
+                   white fill, 2px #1a3a2a edge and type, lime #d1f470 hover with the house lift,
+                   full width to match the PillButton above it. Reduced-motion drops the lift. */
+                .sf-checkout{
+                  display:inline-flex;align-items:center;justify-content:center;width:100%;
+                  min-height:52px;margin-top:10px;padding:0 26px;box-sizing:border-box;
+                  border:2px solid #1a3a2a;border-radius:50px;background:#fff;color:#1a3a2a;
+                  font-size:17px;font-weight:600;cursor:pointer;
+                  transition:background-color .2s,transform .2s,box-shadow .2s;
+                }
+                .sf-checkout:hover:not(:disabled){
+                  background:#d1f470;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+                }
+                .sf-checkout:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+                .sf-checkout:disabled{opacity:.5;cursor:default}
+                @media(prefers-reduced-motion:reduce){
+                  .sf-checkout{transition:background-color .2s}
+                  .sf-checkout:hover:not(:disabled){transform:none;box-shadow:none}
                 }
 
                 .sf-empty,.sf-fine{

@@ -44,12 +44,16 @@ describe( 'Subscribe page', () => {
     for ( const word of words ) expect( ( word || '' ).length ).toBeLessThanOrEqual( 18 );
   } );
 
-  it( 'sends the primary CTA into WhatsApp via the official Meta message link', () => {
+  it( 'sends the primary CTA into WhatsApp via the placeholder deep link', () => {
     render( <SubscribePage /> );
     expect( SUBSCRIBE_CTA_LABEL ).toBe( 'Open WhatsApp' );
-    expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    // DUMMY / PLACEHOLDER for the time being (owner instruction): the keyword deep link to the
+    // business number stands in until the dedicated Subscribe short link is ready. When it is,
+    // update this literal, SUBSCRIBE_CTA_HREF, the whatsappServiceEntries 'subscribe' row and the
+    // copy lines together — the pin is deliberate so the four cannot drift.
+    expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/919330994400?text=Subscribe' );
     expect( screen.getByRole( 'link', { name: SUBSCRIBE_CTA_LABEL } ) )
-      .toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
+      .toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
   } );
 
   it( 'resolves its WhatsApp service entry to the same Meta message link the CTA uses', () => {
@@ -60,11 +64,22 @@ describe( 'Subscribe page', () => {
 
   it( 'has no form, field or button, so nothing looks like an on-page sign-up', () => {
     const { container } = render( <SubscribePage /> );
-    expect( container.querySelectorAll( 'form, input, textarea, select, button' ) ).toHaveLength( 0 );
-    // The ONE anchor the page carries is the WhatsApp CTA, and it points at the Meta message link.
-    const waLinks = container.querySelectorAll( 'a[href*="wa.me"]' );
-    expect( waLinks ).toHaveLength( 1 );
-    expect( waLinks[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/WUDPTMYSO6XII1' );
+    // The page's OWN body has no form controls. The end-of-content Share block (.public-share)
+    // ships ShareLinks' own share-sheet / copy-link buttons and a hidden copy-fallback input on
+    // every public page, so it is excluded here - it is sitewide furniture, not an on-page sign-up.
+    const share = container.querySelector( '.public-share' );
+    const ownControls = Array.from(
+      container.querySelectorAll( 'form, input, textarea, select, button' ),
+    ).filter( el => !share || !share.contains( el ) );
+    expect( ownControls ).toHaveLength( 0 );
+    // The ONE anchor the page's OWN body carries is the WhatsApp CTA. The end-of-content
+    // .public-share band also carries a sitewide Subscribe pill (the same placeholder wa.me link),
+    // which is excluded here for the same reason its form controls are above: it is sitewide
+    // furniture, not this page's on-page sign-up. Both resolve to SUBSCRIBE_CTA_HREF.
+    const ownWaLinks = Array.from( container.querySelectorAll( 'a[href*="wa.me"]' ) )
+      .filter( el => !share || !share.contains( el ) );
+    expect( ownWaLinks ).toHaveLength( 1 );
+    expect( ownWaLinks[ 0 ] ).toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
     expect( container.querySelectorAll( 'a[href^="mailto:"]' ) ).toHaveLength( 0 );
   } );
 
