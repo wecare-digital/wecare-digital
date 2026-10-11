@@ -1237,12 +1237,21 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
     const searchWrapRule = css.match( /\.vl-live-map-search\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( searchWrapRule ).toContain( 'width:min(760px,calc(100% - 32px))' );
+    expect( searchWrapRule ).toContain( 'width:min(760px,100%)' );
+    expect( searchWrapRule ).toContain( 'margin:0 auto 18px' );
     expect( searchWrapRule ).toContain( 'border:1px solid #e5e7eb' );
     expect( searchWrapRule ).toContain( 'border-top:3px solid #d1f470' );
     expect( searchWrapRule ).toContain( 'border-radius:14px' );
     expect( searchWrapRule ).toContain( 'box-shadow:0 8px 28px rgba(0,0,0,.10)' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
+    expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
+
+    // Search is structurally OUTSIDE the map section: it appears before the map region in DOM.
+    const searchSurface = container.querySelector( '.vl-live-map-search' );
+    const mapRegion = container.querySelector( '.vl-live-map-region' );
+    expect( searchSurface ).not.toBeNull();
+    expect( mapRegion ).not.toBeNull();
+    expect( searchSurface?.compareDocumentPosition( mapRegion as Node ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
 
     // Pollutant info control follows the final icon language: black glyph on solid lime,
     // then inverts to dark green + lime on hover.
