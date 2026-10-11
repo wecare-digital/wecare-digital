@@ -807,13 +807,17 @@ export default function BlogPostPage ( {
         .blog-wa-note{
           font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
         }
-        .blog-wa-note:hover{
-          background-image:linear-gradient(100deg,
-            rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-          background-size:300% 100%;background-repeat:no-repeat;
-          -webkit-background-clip:text;background-clip:text;
-          -webkit-text-fill-color:transparent;
-          animation:blog-wa-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+        /* GUARDED BY @supports so an engine without background-clip:text never paints the hover
+           text transparent (invisible). Unsupported engines keep the solid grey line on hover. */
+        @supports ((-webkit-background-clip:text) or (background-clip:text)){
+          .blog-wa-note:hover{
+            background-image:linear-gradient(100deg,
+              rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
+            background-size:300% 100%;background-repeat:no-repeat;
+            -webkit-background-clip:text;background-clip:text;
+            -webkit-text-fill-color:transparent;
+            animation:blog-wa-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+          }
         }
         @keyframes blog-wa-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
         /* Motion-sensitive readers get the line static and solid grey: WCAG 2.2.2 carve-out. */

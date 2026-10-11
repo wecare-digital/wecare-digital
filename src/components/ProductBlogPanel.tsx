@@ -288,7 +288,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         /* PILLS - the site's pill geometry. Lime active, hairline inactive, no new colours. */
         .pbp-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
         .pbp-pill{
-          display:inline-flex;align-items:center;min-height:36px;padding:0 16px;
+          display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
           border:1px solid #e5e7eb;border-radius:50px;background:#fff;
           color:#1a3a2a;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s;
@@ -329,6 +329,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           display:flex;flex-direction:row;
           overflow-x:auto;overflow-y:hidden;
           scroll-snap-type:x mandatory;overscroll-behavior:contain;
+          /* Momentum scrolling for the horizontal swipe on older iOS Safari / iOS WebView, where
+             it is off by default and a swipe otherwise feels dead. Harmless elsewhere. */
+          -webkit-overflow-scrolling:touch;
           scrollbar-width:none;outline:none;
         }
         .pbp-track::-webkit-scrollbar{display:none}
@@ -342,7 +345,11 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           flex:0 0 100%;width:100%;box-sizing:border-box;
           scroll-snap-align:start;scroll-snap-stop:always;
           display:flex;flex-direction:column;gap:10px;
-          max-height:min(70vh,620px);overflow-y:auto;overscroll-behavior:contain;
+          /* dvh over vh so collapsing mobile browser chrome (address bar) does not clip the page;
+             the vh line is the fallback for engines without dynamic viewport units. */
+          max-height:min(70vh,620px);
+          max-height:min(70dvh,620px);
+          overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
         }
         .pbp-card{margin:0}
 
@@ -352,7 +359,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
            the CTA. 2px border because the house rule is 2px means hoverable. */
         .pbp-arrow{
           display:inline-flex;align-items:center;justify-content:center;
-          width:34px;height:34px;flex:0 0 auto;
+          /* 44x44 is the WCAG 2.5.8 / platform minimum touch target, so the arrows are reliably
+             tappable on phones, foldables and in-app browsers, not just clickable with a mouse. */
+          width:44px;height:44px;flex:0 0 auto;
           border:2px solid #1a3a2a;border-radius:50%;background:#fff;
           color:#1a3a2a;font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s,opacity .2s;

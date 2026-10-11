@@ -288,13 +288,21 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           .pdp-cta-note{
             font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
           }
-          .pdp-cta-note:hover{
-            background-image:linear-gradient(100deg,
-              rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-            background-size:300% 100%;background-repeat:no-repeat;
-            -webkit-background-clip:text;background-clip:text;
-            -webkit-text-fill-color:transparent;
-            animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+          /* The lime sweep on hover. GUARDED BY @supports: the transparent text fill is only safe
+             where background-clip:text actually works. A browser/WebView that supports the
+             gradient but NOT clip-to-text would otherwise paint the glyphs transparent on hover -
+             i.e. invisible text. Inside @supports the glyphs are clipped and the band shows; the
+             rest - gradient, size, one-shot animation - is harmless without it, so it stays
+             outside. On an unsupported engine the line simply stays solid grey on hover. */
+          @supports ((-webkit-background-clip:text) or (background-clip:text)){
+            .pdp-cta-note:hover{
+              background-image:linear-gradient(100deg,
+                rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
+              background-size:300% 100%;background-repeat:no-repeat;
+              -webkit-background-clip:text;background-clip:text;
+              -webkit-text-fill-color:transparent;
+              animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+            }
           }
           @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
           /* Motion-sensitive readers get the line static and solid grey: no sweep, no transparent
