@@ -508,16 +508,17 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec = installGoogleMaps();
   } );
 
-  it( 'loads Lumpyngngad as the default local destination while keeping the map India-scoped', async () => {
+  it( 'loads Lumpyngngad data over a global hybrid satellite map with no India pan restriction', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    expect( rec.mapOpts?.restriction ).toEqual( { latLngBounds: { north: 37.6, south: 6.4, west: 68.1, east: 97.4 }, strictBounds: true } );
-    expect( rec.mapOpts?.center ).toEqual( { lat: 25.5586, lng: 91.8985 } );
-    expect( rec.mapOpts?.zoom ).toBe( 13 );
+    expect( rec.mapOpts?.restriction ).toBeUndefined();
+    expect( rec.mapOpts?.center ).toEqual( { lat: 20, lng: 20 } );
+    expect( rec.mapOpts?.zoom ).toBe( 2 );
+    expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
     expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
 
@@ -952,8 +953,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       // is recorded. A 300ms debounce would NOT have fired by this point, failing the test.
       await vi.advanceTimersByTimeAsync( 40 );
       expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 );
-      // And it is the India-scoped Autocomplete request, unchanged by the faster debounce.
-      expect( rec.autocompleteCalls.at( -1 )?.includedRegionCodes ).toEqual( [ 'in' ] );
+      // The request is intentionally worldwide: no India-only region or viewport restriction.
+      const req = rec.autocompleteCalls.at( -1 ) || {};
+      expect( req.includedRegionCodes ).toBeUndefined();
+      expect( req.locationRestriction ).toBeUndefined();
+      expect( req.region ).toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
