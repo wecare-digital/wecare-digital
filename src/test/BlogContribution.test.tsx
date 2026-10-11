@@ -132,10 +132,13 @@ describe( 'BlogContribution is one WhatsApp link', () => {
     // THE MICROCOPY carries the destination the button no longer shows, in three words and a
     // trailing arrow. aria-hidden because the anchor's accessible name already says
     // "on WhatsApp"; see owner-decision.md for the design chain.
-    const note = container.querySelector( '.bc-cta-note' );
+    // The microcopy now uses the shared global .wc-sweep-note class (src/styles/inner-ux.css),
+    // replacing the old per-component .bc-cta-note.
+    const note = container.querySelector( '.wc-sweep-note' );
     expect( note ).not.toBeNull();
     expect( note!.textContent ).toBe( 'Continue on WhatsApp \u2192' );
     expect( note!.getAttribute( 'aria-hidden' ) ).toBe( 'true' );
+    expect( container.querySelector( '.bc-cta-note' ) ).toBeNull();
     // The old "no subtext" assertion is retired: there is now one copy line above the pill and
     // one microcopy line below it, and no radio-era .bc-note remains.
     expect( container.querySelector( '.bc-note' ) ).toBeNull();
