@@ -278,15 +278,24 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              and both stops are measured on white (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the
              band only darkens the text, never erases it. At rest background-position sits off to
              one side so no band shows; :hover plays it across once. */
+          /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs
+             its sweep ONCE and then stops. The clip/gradient/transparent-fill now live ONLY under
+             :hover (inside the animation), so the resting line is a plain solid grey with a real
+             color, never a transparent-filled gradient that could read as "moving" or faint. On
+             hover the lime band passes through the glyphs a single time (1 iteration, forwards)
+             and settles; it does not loop. Both gradient stops are measured on white
+             (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the band only darkens the text. */
           .pdp-cta-note{
             font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
+          }
+          .pdp-cta-note:hover{
             background-image:linear-gradient(100deg,
               rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-            background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
+            background-size:300% 100%;background-repeat:no-repeat;
             -webkit-background-clip:text;background-clip:text;
             -webkit-text-fill-color:transparent;
+            animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
           }
-          .pdp-cta-note:hover{animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1}
           @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
           /* Motion-sensitive readers get the line static and solid grey: no sweep, no transparent
              fill, no gradient - the WCAG carve-out for motion on interaction. */

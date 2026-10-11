@@ -246,10 +246,10 @@ export const PRODUCTS: ProductDef[] = [
     // page recast as a written-reflection service the lead now opens on what Anew does.
     slug: 'anew',
     name: 'Anew',
-    blurb: 'A considered written reflection on a decision that matters.',
-    title: 'Anew — a considered written reflection | WECARE.DIGITAL',
+    blurb: 'A second look at a decision that matters.',
+    title: 'Anew — a second look at a decision | WECARE.DIGITAL',
     description:
-      'A considered written reflection on a decision that matters — read in your own time, no calls.',
+      'Share a decision you’re weighing and receive a written reflection — what matters most, what’s driving it, what deserves another look. No calls; read in your own time.',
     frame: 'Reflection into',
     words: cycle( 'clarity', 'action', 'direction', 'focus' ),
     sub: 'Share what you’re considering. Receive a written reflection on your situation that you can read and revisit in your own time — no calls.',

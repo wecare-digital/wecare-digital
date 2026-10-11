@@ -178,24 +178,23 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
          READABILITY: both gradient stops are measured on white - rgba(0,0,0,.54)=4.61:1 and
          #1a3a2a=12.48:1 - so the band only ever makes the text darker than its resting state,
          never a lime wash that would erase it. */
-      /* A CONTINUOUS COLOUR SWEEP, PLAYING ON ITS OWN - the .ft-tagline treatment in Footer.tsx,
-         but looping rather than one-shot because the owner asked the band to keep running without
-         hover or click. The gradient, the text clip and the transparent fill ALL live on the base
-         rule, together with the animation, so the band is clipped to the glyphs from the first
-         frame - declaring the gradient without background-clip:text is what painted the whole
-         paragraph box grey (the full-width bar bug). Both stops are measured on white -
-         rgba(0,0,0,.54)=4.61:1, #1a3a2a=12.48:1 - so the band only ever DARKENS the text, never a
-         lime wash that would erase it. background-position is the only animated property, so it
-         composites off the main thread. The resting colour is the fallback for any browser without
-         background-clip:text. */
+      /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs its
+         sweep once and stops. The continuous looping was removed on owner instruction: a quiet
+         line of microcopy that keeps moving on its own pulls the eye. The clip, gradient and
+         transparent fill now live ONLY under :hover, so the resting line is plain solid grey; on
+         hover the band passes through the glyphs a single time (1 iteration, forwards) and settles.
+         Both stops are measured on white - rgba(0,0,0,.54)=4.61:1, #1a3a2a=12.48:1 - so the band
+         only DARKENS the text, never a lime wash that would erase it. */
       .bc-cta-note{
         font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+      }
+      .bc-cta-note:hover{
         background-image:linear-gradient(100deg,
           rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
         background-size:300% 100%;background-repeat:no-repeat;
         -webkit-background-clip:text;background-clip:text;
         -webkit-text-fill-color:transparent;
-        animation:bc-note-sweep 3.2s linear infinite;
+        animation:bc-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
       }
       @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
       @media(prefers-reduced-motion:reduce){

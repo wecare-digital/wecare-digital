@@ -797,21 +797,23 @@ export default function BlogPostPage ( {
            the muted text on hover. Clip + transparent fill live under :hover only, so the resting
            line stays solid grey rather than invisible. Both gradient stops are measured on white
            (4.61:1 and 12.48:1), so the band only darkens the text, never washes it out. */
-        /* A CONTINUOUS COLOUR SWEEP, PLAYING ON ITS OWN - the .ft-tagline treatment in Footer.tsx,
-           looping rather than one-shot because the owner asked the band to keep running without
-           hover or click. The gradient, the text clip and the transparent fill all live on the
-           base rule with the animation, so the band is clipped to the glyphs from the first frame -
-           declaring the gradient without background-clip:text is what painted the whole paragraph
-           box grey (the full-width bar bug). Both stops are on white (4.61:1 and 12.48:1), so the
-           band only darkens the text, never washes it out. Resting colour is the no-clip fallback. */
+        /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs
+           its sweep once and stops. The continuous looping was removed on owner instruction: a
+           line of quiet microcopy that keeps moving on its own pulls the eye. The
+           clip/gradient/transparent-fill now live ONLY under :hover, so the resting line is plain
+           solid grey; on hover the band passes through the glyphs a single time (1 iteration,
+           forwards) and settles. Both stops are on white (4.61:1 and 12.48:1), so the band only
+           darkens the text. */
         .blog-wa-note{
           font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+        }
+        .blog-wa-note:hover{
           background-image:linear-gradient(100deg,
             rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
           background-size:300% 100%;background-repeat:no-repeat;
           -webkit-background-clip:text;background-clip:text;
           -webkit-text-fill-color:transparent;
-          animation:blog-wa-note-sweep 3.2s linear infinite;
+          animation:blog-wa-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
         }
         @keyframes blog-wa-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
         /* Motion-sensitive readers get the line static and solid grey: WCAG 2.2.2 carve-out. */
