@@ -71,9 +71,17 @@ const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } )
         name: title,
         description,
         inLanguage: 'en-IN',
-        // The WebPage _app.tsx emits for /shop/, by the @id it emits it under. Resolving rather
-        // than dangling is the whole reason the shape is `${url}#webpage`.
-        isPartOf: { '@type': 'WebPage', '@id': `${SHOP_ROOT}#webpage`, url: SHOP_ROOT, name: 'Shop' },
+        // PART OF THE WEBSITE, BY REFERENCE. This used to inline a full WebPage node
+        // ({ '@type':'WebPage', '@id':`${SHOP_ROOT}#webpage`, url, name }). Because it carried
+        // BOTH @type and @id, tools/audit/schemacheck.js counted it as a DEFINITION of
+        // /shop/#webpage - so that page-scoped @id was "defined" on /shop/ (page 1, the real
+        // one) AND on every paginated /shop/page/N, which the cross-route collision gate fails
+        // (a page-scoped @id must live on exactly one route). Page 2 is not part of page 1's
+        // WebPage anyway. Point isPartOf at the site-level WebSite instead - the same bare-@id
+        // reference every WebPage node in _app.tsx uses - which is defined on THIS page via
+        // SITE_ENTITIES below (so nothing dangles) and is cross-route by design (so nothing
+        // collides). The CollectionPage's own #page @id already carries the per-route identity.
+        isPartOf: { '@id': `${ORIGIN}/#website` },
         breadcrumb: { '@id': `${canonical}#breadcrumb` },
         publisher: { '@id': ORG_ID },
       },
