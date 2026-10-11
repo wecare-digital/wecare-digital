@@ -286,5 +286,23 @@ jobs:
       # for anyone who wants to compare it against the base branch.
       - name: Lint
         run: |
-          npx eslint . 2>&1 | tee /tmp/eslint.txt | tail -80
-          exit "${PIPESTATUS[0]}"
+          code=0
+          npx eslint . -f json > /tmp/eslint.json || code=$?
+          node <<'NODE'
+          const fs = require('node:fs');
+          const rows = JSON.parse(fs.readFileSync('/tmp/eslint.json', 'utf8'));
+          let errors = 0;
+          let warnings = 0;
+          for (const file of rows) {
+            for (const msg of file.messages || []) {
+              if (msg.severity === 2) {
+                errors++;
+                console.log(`${file.filePath}:${msg.line || 0}:${msg.column || 0} error ${msg.ruleId || 'unknown'} ${msg.message}`);
+              } else if (msg.severity === 1) {
+                warnings++;
+              }
+            }
+          }
+          console.log(`eslint summary: ${errors} error(s), ${warnings} warning(s)`);
+          NODE
+          exit "$code"
