@@ -361,9 +361,10 @@ def _image_url(product: Mapping[str, Any]) -> str:
     """The product's public image URL, or `""`.
 
     `image` is the key `scripts/fetch-wix-catalog.js` emits and `shop.ts` reads; `imageUrl` is
-    accepted too because the live Catalog V3 read the Lambda performs names it that way. NINE of
-    the ten real products carry `mediaCount: 0` in the committed snapshot, so this returns `""` for
-    all of them - which is what `blockers` reports. Only the services product has media in Wix.
+    accepted too because the live Catalog V3 read the Lambda performs names it that way. All ten
+    real products carry `mediaCount: 0` in the committed snapshot today (the services product's
+    per-choice artwork is re-linked in the Wix dashboard, not carried forward here, and Wix
+    currently returns none), so this returns `""` for every one - which is what `blockers` reports.
     Nothing here invents a placeholder: an item with a made-up image would pass Meta commerce
     review under false pretences.
     """
@@ -499,14 +500,14 @@ def blockers(desired: Sequence[Mapping[str, Any]]) -> List[str]:
     """The products that cannot pass Meta commerce review, because they have no image.
 
     Meta rejects an imageless item, so publishing one is a review failure rather than a listing.
-    MEASURED against the committed snapshot: NINE of the ten real products carry `mediaCount: 0`
-    and are blocked; the services product is the only one with media in Wix. That is the honest
-    state of the catalogue and it is reported rather than worked around - nothing here invents a
-    placeholder image.
+    MEASURED against the committed snapshot: all ten real products carry `mediaCount: 0` and are
+    blocked today - the services product lost its per-choice artwork when the snapshot became a
+    pure read of Wix, and Wix currently returns none. That is the honest state of the catalogue
+    and it is reported rather than worked around - nothing here invents a placeholder image.
 
     REPORTED PER PRODUCT, NOT PER ITEM, and deduplicated on `item_group_id`: media belongs to the
-    Wix product and all its variants share it, so nine lines name the nine things the owner has to
-    fix while twenty-five would name the same nine several times over.
+    Wix product and all its variants share it, so ten lines name the ten things the owner has to
+    fix while twenty-five would name the same ten several times over.
     """
     names: Dict[str, str] = {}
     for item in desired or []:

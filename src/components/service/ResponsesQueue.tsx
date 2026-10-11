@@ -70,7 +70,7 @@ const reference = ( r: FlowSubmissionItem ): string =>
   r.submissionNumber || r.requestId || r.referenceId || r.orderNumber || r.orderId || r.submissionId;
 
 const th: React.CSSProperties = { textAlign: 'left', padding: '10px 12px', fontSize: 12, fontWeight: 600, color: '#64748b', borderBottom: '1px solid #e2e8f0', whiteSpace: 'nowrap' };
-const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, color: '#1e293b', borderBottom: '1px solid #f1f5f9', verticalAlign: 'middle' };
+const td: React.CSSProperties = { padding: '10px 12px', fontSize: 13, color: '#1a1a1a', borderBottom: '1px solid #f1f5f9', verticalAlign: 'middle' };
 
 export interface ResponsesQueueProps {
   /** Lock the capability filter to one value (used by a capability page embedding the queue). */
@@ -158,7 +158,7 @@ const ResponsesQueue: React.FC<ResponsesQueueProps> = ( { lockCapability } ) => 
                 <tr key={r.submissionId}>
                   <td style={td}>
                     <div style={{ fontWeight: 600 }}>{r.senderName || r.customerName || 'Unknown'}</div>
-                    <div style={{ color: '#94a3b8', fontSize: 12 }}>
+                    <div style={{ color: '#6b7280', fontSize: 12 }}>
                       {maskPhone( r.phone )}{r.customerUuid ? ` · ${r.customerUuid.slice( 0, 8 )}` : ''}
                     </div>
                   </td>

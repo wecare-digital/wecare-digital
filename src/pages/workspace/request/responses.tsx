@@ -21,7 +21,7 @@ const RequestResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } 
     <main style={{ padding: embedded ? 0 : '24px', maxWidth: 1200, margin: '0 auto' }}>
       {!embedded && (
         <header style={{ marginBottom: 16 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', margin: 0 }}>Responses</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'rgba(0,0,0,.95)', margin: 0 }}>Responses</h1>
           <p style={{ color: '#64748b', fontSize: 14, margin: '4px 0 0' }}>
             Every request, review and submission across WhatsApp Flows and the website — one queue.
           </p>
