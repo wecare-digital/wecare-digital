@@ -19,8 +19,9 @@ import { shopListingPageHref, type ShopListing } from '../content/shopProducts';
  * WHAT CHANGED AND WHY. This listing was a PageTopBand heading over a three-up auto-fill grid of
  * the eight visible Wix rows. It is now the home page's own animated headline (RotatingHero,
  * mounted directly under the header), the blog listing's exact search box and exact paginator,
- * and one card per row with a rotating hue spine - over the whole shelf, every product the site
- * sells, from src/content/shopProducts.ts. Moving off PageTopBand is free:
+ * and the blog's card look laid out in a SINGLE HORIZONTAL ROW THAT SCROLLS sideways - a rotating
+ * hue spine on each card, over the whole shelf, every product the site sells, from
+ * src/content/shopProducts.ts. Moving off PageTopBand is free:
  * src/test/PublicPageTopBand.test.tsx lists src/pages/shop/[slug].tsx in BAND_PAGE_FILES and
  * never this listing.
  *
@@ -175,10 +176,26 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
              only the stack between the hero and the list, which is its own job. */
           .shop-in{width:100%;display:flex;flex-direction:column;gap:28px}
 
-          /* ONE CARD PER ROW AT EVERY VIEWPORT - the single row the brief asked for. One column
-             means no repeat() and no auto-fill: there is nothing to reflow, so this grid has no
-             breakpoint of its own. The gap is the blog listing's one-column gap. */
-          .shop-grid{display:grid;grid-template-columns:1fr;gap:20px;margin:0;padding:0}
+          /* ONE HORIZONTAL ROW THAT SCROLLS - the brief: blog-style cards, laid out in a single
+             row, the rest reached by scrolling sideways rather than wrapping down the page.
+             A flex row with overflow-x:auto is the whole mechanism: the cards never wrap
+             (flex-wrap:nowrap), each keeps a fixed width (set on .shop-card below) so it does not
+             squash as more are added, and the row scrolls horizontally past the viewport edge.
+             scroll-snap-type keeps a card aligned to the start edge after a flick on touch, and
+             -webkit-overflow-scrolling:touch gives momentum on iOS. The gap matches the blog
+             grid's. padding-bottom leaves room for the scrollbar so it does not sit on the cards,
+             and the small negative/positive inline padding lets the first and last card breathe
+             against the measure's gutter without clipping the hover lift. */
+          .shop-grid{
+            display:flex;flex-wrap:nowrap;gap:24px;margin:0;padding:4px 2px 16px;
+            overflow-x:auto;overflow-y:hidden;
+            scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+            scrollbar-width:thin;
+          }
+          /* A visible but quiet scrollbar track, so a reader can tell the row scrolls. */
+          .shop-grid::-webkit-scrollbar{height:8px}
+          .shop-grid::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
+          .shop-grid::-webkit-scrollbar-track{background:transparent}
 
           /* :global() IS MANDATORY ON EVERY .shop-card RULE - styled-jsx attaches its scoping
              class only to the lowercase DOM tags it can see in this file, and <Link> is a
@@ -197,6 +214,12 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
              than a hairline. The cards are the direct children of section.shop-grid, so
              nth-child counts cards and nothing else. */
           .shop-in :global(.shop-card){
+            /* A FIXED-WIDTH FLEX CHILD so the cards sit side by side in the scrolling row and
+               keep their shape no matter how many there are. 320px is the blog card's natural
+               three-up width at the 1300px measure; flex:0 0 means never grow and never shrink,
+               which is what stops the row collapsing the cards to fit. scroll-snap-align:start
+               pairs with the row's scroll-snap-type so a card settles against the left edge. */
+            flex:0 0 320px;scroll-snap-align:start;
             display:flex;flex-direction:column;gap:10px;
             padding:26px;background:#fff;
             border:1px solid #e5e7eb;border-radius:14px;
@@ -251,10 +274,11 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
           .shop-asof{margin:28px 0 0;font-size:16px;line-height:1.55;color:rgba(0,0,0,.54)}
 
           /* 767px is the home page's narrow step, which RotatingHero above also breaks at. The
-             column count does not change; it is already one. The body rung steps down and the
-             clamp opens, the same pair of moves the blog listing makes at one column. */
+             row still scrolls horizontally; the card just narrows so a reader sees most of one
+             card plus a hint of the next, which is the cue that the row scrolls. The body rung
+             steps down and the clamp opens, the same pair of moves the blog listing makes. */
           @media(max-width:767px){
-            .shop-in :global(.shop-card){padding:22px}
+            .shop-in :global(.shop-card){flex-basis:82vw;padding:22px}
             .shop-in :global(.shop-card-tag){font-size:18px;-webkit-line-clamp:4}
           }
           /* A shadow appearing under a card is the same "something moved" cue as the lift. */

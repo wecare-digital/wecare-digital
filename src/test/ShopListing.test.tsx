@@ -194,12 +194,22 @@ describe( 'the listing page', () => {
     expect( seen.sort() ).toEqual( SHOP_LISTINGS.map( l => samePath( l.href ) ).sort() );
   } );
 
-  it( 'lays the cards out one per row', () => {
+  it( 'lays the cards out in a single horizontal row that scrolls', () => {
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
-    const block = declarationsOnly( styleBlockWith( container, '.shop-grid' ) );
-    expect( block ).toContain( 'grid-template-columns:1fr' );
-    // One column has nothing to reflow, so there is no auto-fill and no multi-column step.
-    expect( block ).not.toContain( 'repeat(' );
+    const grid = declarationsOnly( styleBlockWith( container, '.shop-grid' ) );
+    // The row itself: a non-wrapping flex line that scrolls sideways. Owner brief - blog-style
+    // cards in one row, the rest reached by scrolling rather than wrapping down the page.
+    expect( grid ).toContain( 'display:flex' );
+    expect( grid ).toContain( 'flex-wrap:nowrap' );
+    expect( grid ).toContain( 'overflow-x:auto' );
+    // It is NOT a vertical stack any more: no single-column grid track.
+    expect( grid ).not.toContain( 'grid-template-columns:1fr' );
+    expect( grid ).not.toContain( 'repeat(' );
+    // Each card is a fixed-width flex child, so cards sit side by side and keep their shape as
+    // more are added rather than squashing to fit.
+    const card = declarationsOnly( styleBlockWith( container, '.shop-card' ) );
+    expect( card ).toContain( 'flex:0 0 320px' );
+    expect( card ).toContain( 'scroll-snap-align:start' );
   } );
 
   it( 'rotates three hues on the card spine, through :global(), and excludes amber', () => {
