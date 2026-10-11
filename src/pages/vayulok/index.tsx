@@ -480,7 +480,11 @@ const VayuLokPage: React.FC = () => {
         /* EXPLANATORY FAQ beneath the live widget. Matches the page's Inter stack and the
            homepage card-ish spacing; no new colours, no red. */
         .vl-faq{max-width:760px;margin:0 auto;padding:48px max(24px,env(safe-area-inset-left)) 72px max(24px,env(safe-area-inset-right))}
-        .vl-faq-title{margin:0 0 20px;color:rgba(0,0,0,.95);font-size:24px;font-weight:700;letter-spacing:-.4px;line-height:1.2}
+        /* .vl-faq-title is a real SECTION heading, so it sits on the site's section-h2 contract
+           rung (clamp(28px,3.2vw,40px)/700/lh 1.08/ls -1.2px) that tools/browser/typecheck.js
+           enforces for every content page's h2 - the same rung as .cl-h2, .home-flow-title and
+           .brx-h2. An earlier 24px value here failed that gate. */
+        .vl-faq-title{margin:0 0 20px;color:rgba(0,0,0,.95);font-size:clamp(28px,3.2vw,40px);font-weight:700;line-height:1.08;letter-spacing:-1.2px}
         .vl-faq-list{margin:0;padding:0}
         .vl-faq-item{padding:18px 0;border-top:1px solid #e5e7eb}
         .vl-faq-item:first-child{border-top:0}
@@ -488,7 +492,6 @@ const VayuLokPage: React.FC = () => {
         .vl-faq-a{margin:0;color:rgba(0,0,0,.72);font-size:16px;font-weight:400;line-height:1.55}
         @media(max-width:767px){
           .vl-faq{padding:36px 20px 56px}
-          .vl-faq-title{font-size:21px}
         }
       `}</style>
     </>
