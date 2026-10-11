@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-11T04:26:53.343Z",
+  "fetchedAt": "2026-10-11T04:27:08.478Z",
   "productCount": 10,
   "products": [
     {
@@ -469,7 +469,7 @@
           "sku": "SERVICE-REQUEST-AMENDMENT",
           "choiceId": "7111e864-e789-4641-8f28-74240af61561",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_896d5b0e4c25456182d1ddbec01f936f~mv2.png",
+          "image": "",
           "pricePaise": 35000
         },
         {
@@ -479,7 +479,7 @@
           "sku": "SERVICE-REQUEST-PICKUP",
           "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_522a6f2573d54b9390683ed126f04d52~mv2.png",
+          "image": "",
           "pricePaise": 35000
         },
         {
@@ -489,7 +489,7 @@
           "sku": "SERVICE-DROP-DOCS",
           "choiceId": "f981b729-748a-48ee-93b9-54ecc543b617",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_4daebc4f975042779167334d739c718c~mv2.png",
+          "image": "",
           "pricePaise": 35000
         },
         {
@@ -499,7 +499,7 @@
           "sku": "SERVICE-VAULT",
           "choiceId": "bdaafdcf-7998-4d43-b7dd-1ab40cc6566c",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_1d3cf70a8a5442b7aadd49e05bd7bd4d~mv2.png",
+          "image": "",
           "pricePaise": 4900
         },
         {
@@ -509,11 +509,11 @@
           "sku": "SERVICE-SUBMIT-REQUEST",
           "choiceId": "2af81a87-24a8-4729-80bf-1d967a637bc2",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b2872b90be0a4436a5f3d2f38e9f2e62~mv2.png",
+          "image": "",
           "pricePaise": 9900
         }
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-11T04:26:53.335Z"
+  "variantVerifiedAt": "2026-10-11T04:27:08.471Z"
 }
