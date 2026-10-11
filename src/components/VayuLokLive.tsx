@@ -105,6 +105,7 @@ const SEARCH_DEBOUNCE_MS = 120;
 // Google's server-rendered radar/cloud imagery MAY contain colour (including red) inside the
 // tile IMAGES; that red lives ONLY in the remote tiles, never in this component's CSS/markup.
 const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
+const PM25_HEATMAP_MAP_TYPE = 'PM25_INDIGO_PERSIAN';
 const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
 
 // The storm look is rendered locally as SVG/CSS over the live map and is driven by Google
@@ -1380,7 +1381,7 @@ const VayuLokLive: React.FC = () => {
     // the PM2.5 dots first so the two overlay types are never shown at once, then attach the
     // ImageMapType exactly once. Attached by DEFAULT here (layer defaults to 'AQI') once the
     // keyed map is ready - never at module load, never on the keyless path.
-    if ( layer === 'AQI' ) {
+    if ( layer === 'AQI' || layer === 'PM25' ) {
       detachDots();
       const w = window as unknown as { google?: { maps?: {
         ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
@@ -1388,19 +1389,16 @@ const VayuLokLive: React.FC = () => {
       } } };
       const gmaps = w.google?.maps;
       const omt = ( map as { overlayMapTypes?: { push?: ( v: unknown ) => void } } ).overlayMapTypes;
-      // Idempotent: if one is already attached, leave it; never push a duplicate.
+      const mapType = layer === 'AQI' ? AQI_HEATMAP_MAP_TYPE : PM25_HEATMAP_MAP_TYPE;
       if ( gmaps?.ImageMapType && gmaps?.Size && omt?.push && !heatmapOverlayRef.current ) {
         const imageMapType = new gmaps.ImageMapType( {
-          name: 'vl-live-aqi-heatmap',
+          name: layer === 'AQI' ? 'vl-live-aqi-heatmap' : 'vl-live-pm25-heatmap',
           tileSize: new gmaps.Size( 256, 256 ),
           minZoom: 0,
           maxZoom: 16,
-          opacity: 0.64, // reference balance: vivid AQI colour with satellite terrain still visible
-          // SCOPED RED EXCEPTION (see AQI_HEATMAP_MAP_TYPE above): these server-rendered
-          // tiles may contain red for high pollution and that is deliberately allowed for
-          // the tile IMAGES only. No component CSS/markup introduces red.
+          opacity: 0.64,
           getTileUrl: ( coord: { x: number; y: number }, zoom: number ): string =>
-            `${AQI_HEATMAP_TILE_BASE}/${AQI_HEATMAP_MAP_TYPE}/heatmapTiles/${zoom}/${coord.x}/${coord.y}`
+            `${AQI_HEATMAP_TILE_BASE}/${mapType}/heatmapTiles/${zoom}/${coord.x}/${coord.y}`
             + `?key=${encodeURIComponent( MAPS_KEY )}`,
         } );
         omt.push( imageMapType );
