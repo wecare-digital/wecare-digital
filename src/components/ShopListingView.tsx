@@ -192,10 +192,13 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
             scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
             scrollbar-width:thin;
           }
-          /* A visible but quiet scrollbar track, so a reader can tell the row scrolls. */
+          /* A visible but quiet scrollbar so a reader can tell the row scrolls. The HEIGHT is set
+             here (8px, a size, not a colour); the COLOUR is deliberately NOT declared locally -
+             the canonical block in src/styles/inner-ux.css colours every scroller from the
+             --scrollbar-* tokens, and ScrollbarDeclarations.test.ts forbids a second colour
+             declaration in a component because Gecko reads scrollbar-color while Blink reads
+             ::-webkit-scrollbar-thumb, so a local colour is invisible in one engine. */
           .shop-grid::-webkit-scrollbar{height:8px}
-          .shop-grid::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
-          .shop-grid::-webkit-scrollbar-track{background:transparent}
 
           /* :global() IS MANDATORY ON EVERY .shop-card RULE - styled-jsx attaches its scoping
              class only to the lowercase DOM tags it can see in this file, and <Link> is a

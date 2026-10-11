@@ -151,12 +151,16 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     // place-photo rail, the other VayuLok hider - was removed when the VayuLok left panel was
     // replaced by the floating Air card, so the count is back to eight. The floating card
     // scrolls with `scrollbar-width: thin` and no colour, so it adds no hider and no colour.
+    // A NINTH arrived with the Anew "Perspectives" swipe pager (.pbp-track in
+    // src/components/ProductBlogPanel.tsx): the pager is navigated by its prev/next arrows and
+    // the lime progress bar, so its horizontal scrollbar is hidden with ::-webkit-scrollbar{
+    // display:none} and sets no colour - a legitimate hider, so the count is nine.
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
     } );
-    expect( hiders.length ).toBe( 8 );
+    expect( hiders.length ).toBe( 9 );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {
