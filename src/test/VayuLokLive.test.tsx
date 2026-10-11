@@ -1305,7 +1305,10 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( mapRegion ).not.toBeNull();
     expect( mapMain ).not.toBeNull();
     expect( mapMain?.contains( searchSurface ) ).toBe( false );
-    expect( searchSurface?.compareDocumentPosition( mapMain as Node ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+    expect( searchSurface ).not.toBeNull();
+    expect( mapMain ).not.toBeNull();
+    if ( !searchSurface || !mapMain ) throw new Error( 'Expected search surface and map shell.' );
+    expect( searchSurface.compareDocumentPosition( mapMain ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
 
     // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
     // lime surface, deep-green icon, lighter-lime hover, circular shape.
