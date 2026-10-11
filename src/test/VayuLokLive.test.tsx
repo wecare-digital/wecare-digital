@@ -764,6 +764,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( pm10Tip?.textContent ).toMatch( /\d/ );
     expect( pm10Tip?.textContent ).not.toContain( 'Sources' );
     expect( pm10Tip?.textContent ).not.toContain( 'Effects' );
+    fireEvent.blur( pm10Info );
+
+    // The unit symbol carries a plain-language expansion as a title, so a reader who does not
+    // know the abbreviation can still understand it (µg/m³ -> micrograms per cubic metre).
+    const pm25Unit = firstRow.querySelector( '.vl-live-air-pollutant-value small' );
+    expect( pm25Unit?.getAttribute( 'title' ) ).toBe( 'micrograms per cubic metre' );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -782,6 +788,62 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherPanel?.textContent ).toMatch( /coming soon/i );
     // The Air panel is no longer shown while Weather is selected.
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
+  } );
+
+  it( 'renders pollutant concentrations honestly: exact 0 stays 0, a positive trace shows <1', async () => {
+    // Google returns precise concentrations. Rounding a real trace (0.4) to "0" would read as
+    // "no pollutant" and misrepresent the measurement, so a positive sub-0.5 value shows "<1"
+    // while an exact 0 stays "0".
+    const traceFetch = vi.fn( ( input: RequestInfo | URL ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 41, category: 'Good', dominantPollutant: 'co' } ],
+            pollutants: [
+              { code: 'no2', displayName: 'NO2', concentration: { value: 0, units: 'PARTS_PER_BILLION' } },
+              { code: 'so2', displayName: 'SO2', concentration: { value: 0.4, units: 'PARTS_PER_BILLION' } },
+              { code: 'pm25', displayName: 'PM2.5', concentration: { value: 32, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            ],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: true, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', traceFetch );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const rows = await waitFor( () => {
+      const found = container.querySelectorAll( '.vl-live-air-pollutant-row' );
+      expect( found.length ).toBeGreaterThan( 0 );
+      return found;
+    } );
+    const valueOf = ( label: string ) => Array.from( rows )
+      .find( r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( label ) )
+      ?.querySelector( '.vl-live-air-pollutant-value' )?.textContent?.trim() ?? '';
+    expect( valueOf( 'NO2' ) ).toMatch( /^0\s/ );        // exact zero stays 0
+    expect( valueOf( 'SO2' ) ).toContain( '<1' );          // positive trace is not rounded to 0
+    expect( valueOf( 'PM2.5' ) ).toMatch( /^32\s/ );
+  } );
+
+  it( 'links the search combobox to its active option via aria-activedescendant', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = await screen.findByRole( 'combobox' );
+    // No active option before any results, so no activedescendant is advertised.
+    expect( input.getAttribute( 'aria-activedescendant' ) ).toBeFalsy();
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    await waitFor( () =>
+      expect( input.getAttribute( 'aria-activedescendant' ) ).toBe( option.id ) );
+    expect( option.id ).toMatch( /^vl-live-search-option-\d+$/ );
   } );
 
   it( 'adds a heatmap toggle, Poor/Excellent legend, health persona tablist and an hourly-history chart to the Air panel', async () => {

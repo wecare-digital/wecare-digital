@@ -262,6 +262,30 @@ function aqiCategory( aqi: number ): { word: string; sev: Sev } {
   return { word: 'Severe', sev: 'worst' };
 }
 
+/* Map Google's returned category TEXT to our no-red severity band. Google drives the word
+   (airStateFromApiData prefers idx.category), but the colour/band used to always come from the
+   local CPCB threshold - so a reading Google calls e.g. "Good air quality" while the numeric AQI
+   sat in the local "Satisfactory" band would show a word and a colour that disagree. Deriving the
+   band from the same category text keeps word and colour in step. Returns null when the text is
+   not a recognised category, so the caller falls back to the numeric threshold. */
+function severityFromCategory( category?: string ): Sev | null {
+  if ( typeof category !== 'string' ) return null;
+  const c = category.toLowerCase();
+  if ( c.includes( 'excellent' ) || c.includes( 'good' ) ) return 'good';
+  if ( c.includes( 'satisfactory' ) || c.includes( 'moderate' ) ) {
+    // Google UAQI "Moderate" is a mid band; CPCB "Satisfactory" is better. Treat an explicit
+    // "moderate" as the mid band and "satisfactory" as the second band.
+    return c.includes( 'moderate' ) ? 'mod' : 'sat';
+  }
+  if ( c.includes( 'low' ) ) return 'sat';
+  if ( c.includes( 'unhealthy for sensitive' ) || c.includes( 'poor' ) ) {
+    return c.includes( 'very poor' ) ? 'worst' : 'poor';
+  }
+  if ( c.includes( 'unhealthy' ) ) return 'poor';
+  if ( c.includes( 'very poor' ) || c.includes( 'severe' ) || c.includes( 'hazardous' ) ) return 'worst';
+  return null;
+}
+
 /* The "Past air quality" history bar's AQI-ramp class. This reuses the SAME band logic as the
    live dot / pollutant tone (aqiCategory) so the history reads with the identical
    good -> sat -> mod -> poor -> worst ramp rather than a flat lime->green gradient. No new
@@ -540,6 +564,30 @@ function concUnitLabel( unit?: string ): string {
   }
 }
 
+// Plain-language expansion of the short unit symbol, surfaced as a title/tooltip so a reader who
+// does not know "ppb" or "µg/m³" can still understand the number. Keyed on the short symbol that
+// concUnitLabel produces.
+function unitTermLabel( unitSymbol: string ): string {
+  switch ( unitSymbol ) {
+    case '\u00B5g/m\u00B3': return 'micrograms per cubic metre';
+    case 'mg/m\u00B3': return 'milligrams per cubic metre';
+    case 'ng/m\u00B3': return 'nanograms per cubic metre';
+    case 'ppb': return 'parts per billion';
+    case 'ppm': return 'parts per million';
+    default: return unitSymbol;
+  }
+}
+
+// Honest display of a pollutant concentration. Google returns a precise number; rounding it to an
+// integer turns a real trace reading (e.g. 0.4 µg/m³) into "0", which reads as "no pollutant" and
+// misrepresents the measurement. Show "<1" for a positive value that rounds to zero, a true "0"
+// only for an exact zero, and the rounded integer otherwise.
+function formatPollutantValue( value: number ): string {
+  if ( value === 0 ) return '0';
+  if ( value > 0 && value < 0.5 ) return '<1';
+  return String( Math.round( value ) );
+}
+
 // Short display label for the wind-speed unit the Weather API returns on wind.speed.unit
 // (e.g. KILOMETERS_PER_HOUR, MILES_PER_HOUR). Fall back to km/h under unitsSystem=METRIC.
 function windUnitLabel( unit?: string ): string {
@@ -761,7 +809,9 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
   return {
     aqi,
     word: idx.category || cat.word,
-    sev: cat.sev,
+    // Prefer the band implied by Google's own category text so the colour matches the word;
+    // fall back to the numeric CPCB threshold when the category is absent/unrecognised.
+    sev: severityFromCategory( idx.category ) || cat.sev,
     ...( idx.displayName ? { indexName: idx.displayName } : {} ),
     indexCode: idx.code,
     ...( idx.aqiDisplay ? { aqiDisplay: idx.aqiDisplay } : {} ),
@@ -2163,6 +2213,7 @@ const VayuLokLive: React.FC = () => {
                 role="combobox"
                 aria-controls="vl-live-search-results"
                 aria-expanded={ open }
+                aria-activedescendant={ open && active >= 0 ? `vl-live-search-option-${active}` : undefined }
                 aria-autocomplete="list"
                 autoComplete="off"
                 autoCorrect="off"
@@ -2184,7 +2235,7 @@ const VayuLokLive: React.FC = () => {
             </div>
             <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
               { results.map( ( r, i ) => (
-                <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
+                <li key={ `${r.name}-${r.addr}-${i}` } id={ `vl-live-search-option-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
                   <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
                 </li>
               ) ) }
@@ -2294,7 +2345,7 @@ const VayuLokLive: React.FC = () => {
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
+                                <span className="vl-live-air-pollutant-value">{ formatPollutantValue( p.value ) } <small title={ unitTermLabel( p.unit ) }>{ p.unit }</small></span>
                                 <button
                                   type="button"
                                   className="vl-live-air-pollutant-info"
