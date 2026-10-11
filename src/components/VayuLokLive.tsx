@@ -2568,6 +2568,7 @@ const VayuLokLive: React.FC = () => {
                                         { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
                                       </button>
                                     ) ) }
+                                  </div>
 
                                   <span className="vl-live-air-history-stamp">{ stamp }</span>
                                   <div className="vl-live-air-history-nav" aria-label="Hourly history navigation">
