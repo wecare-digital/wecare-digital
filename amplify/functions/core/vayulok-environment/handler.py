@@ -350,11 +350,17 @@ def _air_current(lat: float, lng: float) -> Dict[str, Any]:
         method="POST",
         body={
             "location": {"latitude": lat, "longitude": lng},
+            # POLLUTANT_ADDITIONAL_INFO is included so this proxy response is feature-complete
+            # against the browser's direct currentConditions call: the frontend's pollutant
+            # info popovers render the per-pollutant sources/effects strings this computation
+            # returns. Without it, routing current conditions through this Lambda would silently
+            # drop those popovers - so it belongs here before any such wiring lands.
             "extraComputations": [
                 "POLLUTANT_CONCENTRATION",
                 "LOCAL_AQI",
                 "HEALTH_RECOMMENDATIONS",
                 "DOMINANT_POLLUTANT_CONCENTRATION",
+                "POLLUTANT_ADDITIONAL_INFO",
             ],
             "languageCode": "en",
             "universalAqi": True,
