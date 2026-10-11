@@ -149,9 +149,51 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
     else if ( e.key === 'ArrowLeft' ) { e.preventDefault(); goToPage( activePage - 1 ); }
   }, [ goToPage, activePage ] );
 
+  const showPager = filtered.length > 0 && pageCount > 1;
+
   return (
     <aside className="pbp" aria-label={ heading }>
-      <h2 className="pbp-h">{ heading }</h2>
+      {/* HEADER ROW: the heading on the left, the pager arrows pinned top-right (owner choice).
+          Paging lives at the top so it is reachable without scrolling past the cards; the slim
+          progress bar sits directly under this row as the position indicator. */}
+      <div className="pbp-head">
+        <h2 className="pbp-h">{ heading }</h2>
+        { showPager && (
+          <div className="pbp-arrows">
+            <button
+              type="button"
+              className="pbp-arrow"
+              aria-label="Previous page"
+              disabled={ activePage === 0 }
+              onClick={ () => goToPage( activePage - 1 ) }
+            >‹</button>
+            <button
+              type="button"
+              className="pbp-arrow"
+              aria-label="Next page"
+              disabled={ activePage >= pageCount - 1 }
+              onClick={ () => goToPage( activePage + 1 ) }
+            >›</button>
+          </div>
+        ) }
+      </div>
+
+      {/* POSITION BAR under the header - lime fill, tracks (activePage+1)/pageCount. */}
+      { showPager && (
+        <div
+          className="pbp-progress-track"
+          role="progressbar"
+          aria-label="Position through the pages"
+          aria-valuemin={ 1 }
+          aria-valuemax={ pageCount }
+          aria-valuenow={ activePage + 1 }
+        >
+          <div
+            className="pbp-progress-fill"
+            style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
+          />
+        </div>
+      ) }
 
       {/* Category switch - the two real categories, no "All". Lime when active, hairline when
           not; the site's pill language, no new colours. */}
@@ -187,7 +229,6 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
       { filtered.length === 0
         ? <p className="pbp-empty" aria-live="polite">No posts match that search.</p>
         : (
-          <>
             <div
               className="pbp-track"
               ref={ trackRef }
@@ -226,54 +267,23 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
                 </ul>
               ) ) }
             </div>
-
-            {/* PAGER CONTROLS: a previous/next arrow pair flanking a PROGRESS BAR. The dots were
-                replaced because the corpus runs to 20+ pages and that many dots is unreadable -
-                the bar scales to any page count. The fill tracks position through the pages
-                ((activePage+1)/pageCount); role=progressbar announces it with no on-screen number.
-                Shown only when there is more than one page. */}
-            { pageCount > 1 && (
-              <div className="pbp-nav">
-                <button
-                  type="button"
-                  className="pbp-arrow"
-                  aria-label="Previous page"
-                  disabled={ activePage === 0 }
-                  onClick={ () => goToPage( activePage - 1 ) }
-                >‹</button>
-
-                <div
-                  className="pbp-progress-track"
-                  role="progressbar"
-                  aria-label="Position through the pages"
-                  aria-valuemin={ 1 }
-                  aria-valuemax={ pageCount }
-                  aria-valuenow={ activePage + 1 }
-                >
-                  <div
-                    className="pbp-progress-fill"
-                    style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="pbp-arrow"
-                  aria-label="Next page"
-                  disabled={ activePage >= pageCount - 1 }
-                  onClick={ () => goToPage( activePage + 1 ) }
-                >›</button>
-              </div>
-            ) }
-          </>
         ) }
 
       <style jsx>{`
         .pbp{max-width:560px}
+
+        /* HEADER ROW: heading left, pager arrows pinned right. Baseline-aligned so the arrows sit
+           on the heading's line rather than floating. The progress bar follows directly below. */
+        .pbp-head{
+          display:flex;align-items:center;justify-content:space-between;gap:12px;
+          margin:0 0 12px;
+        }
         .pbp-h{
           font-size:clamp(22px,2.4vw,28px);font-weight:700;line-height:1.1;
-          letter-spacing:-.5px;color:rgba(0,0,0,.95);margin:0 0 18px;
+          letter-spacing:-.5px;color:rgba(0,0,0,.95);margin:0;
         }
+        /* The two arrows as a tight pair in the top-right corner. */
+        .pbp-arrows{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 
         /* PILLS - the site's pill geometry. Lime active, hairline inactive, no new colours. */
         .pbp-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
@@ -337,24 +347,26 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-card{margin:0}
 
         /* PAGER CONTROLS: arrows flanking the progress bar, which stretches to fill the row.
-           14px of air above. */
-        .pbp-nav{display:flex;align-items:center;gap:12px;margin:14px 0 0}
+        /* PAGER ARROWS - lime-themed, matching our pill language. Dark-green border and lime type
+           at rest (so they read as "ours" before you touch them), filling full lime on hover like
+           the CTA. 2px border because the house rule is 2px means hoverable. */
         .pbp-arrow{
           display:inline-flex;align-items:center;justify-content:center;
           width:34px;height:34px;flex:0 0 auto;
-          border:1px solid #e5e7eb;border-radius:50%;background:#fff;
+          border:2px solid #1a3a2a;border-radius:50%;background:#fff;
           color:#1a3a2a;font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s,opacity .2s;
         }
-        .pbp-arrow:hover:not(:disabled){border-color:#1a3a2a;background:#d1f470}
+        .pbp-arrow:hover:not(:disabled){background:#d1f470}
         .pbp-arrow:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
-        .pbp-arrow:disabled{opacity:.35;cursor:default}
+        .pbp-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
 
-        /* PAGER PROGRESS BAR. Grows to fill the space between the two arrows. The track is a
-           hairline on near-white; the fill is lime - the one place lime marks progress rather than
-           action, fine as a thin bar. No numbers. */
+        /* POSITION BAR under the header. Full width, hairline track, lime fill - our colour. The
+           one place lime marks progress rather than action, fine as a thin bar. No numbers. 16px
+           of air below it sits it off the pills that follow. */
         .pbp-progress-track{
-          flex:1 1 auto;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          margin:0 0 16px;
         }
         .pbp-progress-fill{
           height:100%;border-radius:50px;background:#d1f470;
