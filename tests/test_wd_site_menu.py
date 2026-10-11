@@ -558,7 +558,17 @@ class TestTheTriggerPathsOpenTheMenu:
 
 
 class TestShopIsExcluded:
-    """Owner decision. No Shop row anywhere, on WhatsApp or on the site nav."""
+    """Owner decisions, which now point in TWO directions and are pinned apart here.
+
+    WHATSAPP: Shop is still NOT a menu row or leaf. The WhatsApp list is the owner's curated
+    journey and Shop was deliberately kept off it; `test_typed_shop_still_answers` records that a
+    customer who types `shop` is still answered with a CTA button rather than a menu entry.
+
+    SITE NAV: Shop was WITHDRAWN from the site on 2026-10-04 and then RESTORED on 2026-10-10, the
+    same reversal pinned by src/test/ShopIndexRedirect.test.ts. Header.tsx now carries the Shop
+    nav link again, so the nav assertion below is INVERTED (invert, don't delete) to guard the
+    restored state: the link must be PRESENT, not absent.
+    """
 
     def test_no_list_row_mentions_shop(self, wa):
         for list_key, row in _all_rows(wa):
@@ -571,13 +581,16 @@ class TestShopIsExcluded:
             assert 'shop' not in name.lower()
             assert 'shop' not in path.lower()
 
-    def test_the_site_nav_has_no_shop_link_either(self):
-        """Asserted on the nav data, not on the whole file: Header.tsx legitimately
-        mentions the SHOPPING BAG (the cart icon), which is not a menu entry."""
+    def test_the_site_nav_has_the_restored_shop_link(self):
+        """RESTORED 2026-10-10. The site nav carries the Shop link again, pointing at the
+        browsable catalogue index at /shop/. Inverted from the withdrawal-era assertion that the
+        link was absent; the restoration is the same one ShopIndexRedirect.test.ts pins. Asserted
+        on the nav data, not the whole file: Header.tsx also mentions the SHOPPING BAG (the cart
+        icon), which is a different thing from the menu entry."""
         with open(HEADER_TSX, encoding='utf-8') as fh:
             source = fh.read()
-        assert "href: '/shop/'" not in source
-        assert "label: 'Shop'" not in source
+        assert "href: '/shop/'" in source
+        assert "label: 'Shop'" in source
 
     def test_typed_shop_still_answers(self, handler_source):
         """STORE_KEYWORDS keeps `shop` as a TYPED alias on purpose - it is a live
