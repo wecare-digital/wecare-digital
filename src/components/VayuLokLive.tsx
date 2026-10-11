@@ -2771,7 +2771,7 @@ const VayuLokLive: React.FC = () => {
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(372px,calc(100% - 32px));margin:16px 0 112px 16px;filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
+        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(372px,calc(100% - 32px));margin:108px 0 112px 16px;filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
         .vl-live-air-card-wrap::after{content:"";position:absolute;left:52%;bottom:-11px;width:22px;height:22px;background:#fff;border-right:1px solid rgba(26,58,42,.14);border-bottom:1px solid rgba(26,58,42,.14);transform:translateX(-50%) rotate(45deg);border-radius:0 0 4px 0}
         .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:22px 24px 22px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
 
@@ -2985,29 +2985,34 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
-        .vl-live-map-search{position:absolute;z-index:30;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px));padding:0 2px;background:#fcfdfb;box-shadow:none;border-radius:0}
+        /* MAP SEARCH uses the SAME SURFACE + FIELD language as Header.tsx's open navigation:
+           pale-white panel, 1px neutral border, 3px lime top edge, 14px radius, nav shadow,
+           then the exact site-wide borderless search input inside. It sits at the top of the
+           map section rather than floating as a detached mini-box in the centre of the map. */
+        .vl-live-map-search{position:relative;z-index:30;grid-area:1/1;align-self:start;justify-self:center;width:min(760px,calc(100% - 32px));margin:16px auto 0;padding:14px;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .vl-live-search{position:relative}
-        /* Byte-for-byte Header.tsx field treatment: no icon, no box/radius, 44px minimum row,
-           transparent fill, 16px/400 type, one bottom hairline, green + lime focus underline. */
+        /* Exact Header.tsx .nav-search field treatment: no icon, no input box/radius,
+           44px minimum row, transparent fill, 16px/400 type, one bottom hairline,
+           green + lime focus underline. */
         .vl-live-search-field{display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
         .vl-live-search-field input{width:100%;min-height:44px;box-sizing:border-box;border:0;border-bottom:1px solid #e5e7eb;border-radius:0;background:transparent;padding:0 2px;font-size:16px;font-weight:400;line-height:1.3;color:rgba(0,0,0,.898);font-family:inherit;outline:none;transition:border-color .2s,box-shadow .2s}
         .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input:focus-visible{border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470}
-        .vl-live-search-results{position:absolute;top:46px;left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:12px;background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
+        .vl-live-search-results{position:absolute;top:calc(100% + 8px);left:0;right:0;z-index:31;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 10px 24px rgba(26,58,42,.14)}
         .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
         .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
         .vl-live-search-results strong,.vl-live-search-results span{display:block}
         .vl-live-search-results strong{font-size:13px;color:var(--heading)}
         .vl-live-search-results span{margin-top:2px;font-size:11px;color:var(--muted)}
-        .vl-live-search-status{margin:6px 8px 0;font-size:11px;color:var(--muted)}
+        .vl-live-search-status{margin:8px 2px 0;font-size:11px;color:var(--muted)}
         @media(max-width:1050px){
           .vl-live-map-shell{height:auto;min-height:min(560px,66svh)}
         }
         @media(max-width:700px){
           .vl-live-shell{padding:10px max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
           .vl-live-map-shell{height:auto;min-height:min(460px,62svh);max-height:none}
-          .vl-live-map-search{top:max(10px,env(safe-area-inset-top));width:calc(100% - 20px)}
-          .vl-live-air-card-wrap{width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));margin:max(68px,calc(env(safe-area-inset-top) + 58px)) 0 112px max(10px,env(safe-area-inset-left))}
+          .vl-live-map-search{width:calc(100% - 20px);margin:max(10px,env(safe-area-inset-top)) auto 0;padding:12px}
+          .vl-live-air-card-wrap{width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));margin:max(102px,calc(env(safe-area-inset-top) + 92px)) 0 112px max(10px,env(safe-area-inset-left))}
           .vl-live-air-card{padding:19px 19px 17px}
           .vl-live-air-context{align-items:flex-start}
           .vl-live-air-context-item.is-location{max-width:56%}
@@ -3022,7 +3027,7 @@ const VayuLokLive: React.FC = () => {
         }
         @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
           .vl-live-air-card-wrap{width:min(330px,42%)}
-          .vl-live-map-search{width:min(390px,48%)}
+          .vl-live-map-search{width:min(760px,calc(100% - 32px))}
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
