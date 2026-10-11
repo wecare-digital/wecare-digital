@@ -863,6 +863,54 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( body.languageCode ).toBe( 'en' );
   } );
 
+  it( 'fires the place autocomplete on the fast 120ms debounce - not immediately, and not on the old 300ms lag', async () => {
+    // PINS "auto-complete should work very quickly". The component debounces the Autocomplete
+    // Data API request by SEARCH_DEBOUNCE_MS (120ms): one request per settled keystroke, but
+    // snappy. This test asserts the actual TIMING via fake timers so a regression back to the
+    // old 300ms value FAILS CI (the request would not have fired by ~120ms), and removing the
+    // debounce entirely ALSO fails (the request would fire before the sub-threshold advance).
+    //
+    // The initial map-ready phase relies on requestAnimationFrame (tilesloaded) + awaited
+    // importLibrary + waitFor, which are fragile under fake timers, so we drive map-ready on
+    // REAL timers and only switch to fake timers around the debounce window. runSearch is async
+    // (it awaits ensurePlacesLibrary -> importLibrary('places') before calling
+    // fetchAutocompleteSuggestions), so we advance with advanceTimersByTimeAsync to flush both
+    // the debounce timer AND the awaited autocomplete promise chain.
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    // Map-ready boundary on real timers: the combobox renders only after tilesloaded flips mapReady.
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const input = await screen.findByRole( 'combobox' );
+
+    // Fresh recorder slate, then switch to fake timers for the debounce window only.
+    rec.autocompleteCalls.length = 0;
+    vi.useFakeTimers();
+    try {
+      fireEvent.change( input, { target: { value: 'Mumbai' } } );
+
+      // Immediately after the keystroke the debounce timer is still pending: no request yet.
+      expect( rec.autocompleteCalls ).toHaveLength( 0 );
+
+      // Just UNDER the 120ms threshold the request must STILL not have fired. If the debounce
+      // were removed, a request would already be queued here; if it were present but 120ms,
+      // 100ms is not enough to cross it.
+      await vi.advanceTimersByTimeAsync( 100 );
+      expect( rec.autocompleteCalls ).toHaveLength( 0 );
+
+      // Shortly after crossing 120ms the request fires. The extra advance also flushes the
+      // awaited importLibrary('places') + fetchAutocompleteSuggestions microtasks so the call
+      // is recorded. A 300ms debounce would NOT have fired by this point, failing the test.
+      await vi.advanceTimersByTimeAsync( 40 );
+      expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 );
+      // And it is the India-scoped Autocomplete request, unchanged by the faster debounce.
+      expect( rec.autocompleteCalls.at( -1 )?.includedRegionCodes ).toEqual( [ 'in' ] );
+    } finally {
+      vi.useRealTimers();
+    }
+  } );
+
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
