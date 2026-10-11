@@ -808,6 +808,33 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 96 );
   } );
 
+  it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
+    // INDIA API PARITY FIX. The left-card currentConditions:lookup parser prefers the India
+    // CPCB index (indexes.find( i => i.code === 'ind_cpcb' )), so the request must actually ask
+    // for it via customLocalAqis - matching the forecast + history calls that already do. Before
+    // the fix this body was MISSING customLocalAqis, so ind_cpcb never came back and the parser
+    // silently fell to uaqi.
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const airLookupCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call =>
+        requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' )
+        && Boolean( ( call[ 1 ] as RequestInit | undefined )?.body ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const body = JSON.parse( String( ( airLookupCall[ 1 ] as RequestInit ).body ) );
+    expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
+    expect( body.universalAqi ).toBe( true );
+    expect( body.languageCode ).toBe( 'en' );
+  } );
+
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -973,9 +1000,60 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.textContent ).not.toContain( 'Health Recommendations' );
     expect( container.textContent ).not.toContain( 'Hourly History' );
 
+    // PAGE FURNITURE renders on EVERY path, including keyless: Subscribe, Contribute and Share
+    // are embedded INSIDE the floating Air card (they are furniture, not live data). They are
+    // SSR/keyless safe and must fire NO network call on mount, which is what the fetch assertion
+    // below proves now that they are mounted here.
+    const extras = container.querySelector( '.vl-live-air-card .vl-live-air-extras' );
+    expect( extras ).not.toBeNull();
+    // BlogSubscribe's section.
+    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).not.toBeNull();
+    expect( extras?.textContent ).toContain( 'Get new posts directly' );
+    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch).
+    expect( extras?.querySelector( 'section.bc.is-embedded' ) ).not.toBeNull();
+    expect( extras?.textContent ).toContain( 'Contribute' );
+    // ShareLinks' WhatsApp control, pointing at the absolute /vayulok/ page URL.
+    const shareWa = extras?.querySelector( 'a[aria-label="Share this page on WhatsApp"]' );
+    expect( shareWa ).not.toBeNull();
+    expect( shareWa?.getAttribute( 'href' ) ).toContain( 'wecare.digital%2Fvayulok%2F' );
+
     expect( fetchSpy ).not.toHaveBeenCalled();
     expect( container.textContent ).not.toContain( 'Live air quality and weather' );
     expect( container.textContent ).not.toContain( 'Selected place' );
     expect( container.textContent ).not.toContain( 'Search India to see live weather and air.' );
+  } );
+
+  it( 'renders the map full-bleed and the search field in the global borderless-hairline idiom', async () => {
+    // CSS assertions read the rendered <style> text: vitest renders styled-jsx as a plain,
+    // unscoped <style>, so the component's whole stylesheet is readable as text. Formatting is
+    // the component's single-line declaration style, so these match on the exact declarations.
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
+    vi.stubGlobal( 'fetch', vi.fn() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await act( async () => { await Promise.resolve(); } );
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
+
+    // FULL-BLEED MAP: the shell no longer carries the boxed border/border-radius, but keeps
+    // overflow:hidden + isolation + the height band.
+    const shellRule = css.match( /\.vl-live-map-shell\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( shellRule ).toContain( 'overflow:hidden' );
+    expect( shellRule ).toContain( 'isolation:isolate' );
+    expect( shellRule ).toContain( 'height:72dvh' );
+    expect( shellRule ).not.toContain( 'border-radius' );
+    expect( shellRule ).not.toMatch( /border:1px solid/ );
+
+    // GLOBAL SEARCH IDIOM: the search input is borderless with a single bottom hairline and the
+    // opaque #1a3a2a focus (var(--green)) plus the lime underline - the BlogSearch field standard.
+    const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( inputRule ).toContain( 'border-bottom:1px solid var(--hair)' );
+    expect( inputRule ).toContain( 'border:0' );
+    const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( inputFocus ).toContain( 'border-bottom-color:var(--green)' );
+    expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
+    // And the old pill treatment is gone from the field container.
+    const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( fieldRule ).not.toContain( 'border-radius:var(--pill-r)' );
   } );
 } );

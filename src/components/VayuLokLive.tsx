@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import BlogSubscribe from './BlogSubscribe';
+import BlogContribution from './BlogContribution';
+import ShareLinks from './ShareLinks';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -72,6 +75,17 @@ function pm25Severity( pm25: number ): Sev {
 // India bounds, so the map cannot be panned off the product's area. Verbatim from the
 // mock's map options.
 const INDIA_BOUNDS = { north: 37.6, south: 6.4, west: 68.1, east: 97.4 };
+
+// Place-autocomplete debounce. 120ms is a deliberately snappy value: it keeps ONE
+// Autocomplete Data API request per settled keystroke (so a fast typist does not spam the
+// SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
+// (autocompleteTokenRef) and India scoping are unchanged; only the settle delay is shorter.
+const SEARCH_DEBOUNCE_MS = 120;
+
+// The canonical, ABSOLUTE /vayulok/ page URL. ShareLinks requires an absolute URL (a share
+// target handed a relative path shares nothing), and this page's furniture points at it.
+const VAYULOK_PAGE_URL = 'https://wecare.digital/vayulok/';
+const VAYULOK_SHARE_TITLE = 'VayuLok - live air quality across India';
 
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
@@ -1292,6 +1306,11 @@ const VayuLokLive: React.FC = () => {
               ],
               languageCode: 'en',
               universalAqi: true,
+              // Request the India CPCB local AQI index so the parser below (which prefers
+              // indexes.find( i => i.code === 'ind_cpcb' )) can actually receive it instead of
+              // silently falling back to uaqi. Parity with loadAirForecast + the air-history
+              // call, which already send this.
+              customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
             } ),
           },
         );
@@ -1852,7 +1871,8 @@ const VayuLokLive: React.FC = () => {
       setSearchStatus( 'idle' );
       return;
     }
-    searchTimer.current = setTimeout( () => { void runSearch( v ); }, 300 );
+    // SEARCH_DEBOUNCE_MS (120ms) keeps one request per settled keystroke while feeling instant.
+    searchTimer.current = setTimeout( () => { void runSearch( v ); }, SEARCH_DEBOUNCE_MS );
   };
 
   const choose = useCallback( async ( r: SearchResult ) => {
@@ -2242,6 +2262,22 @@ const VayuLokLive: React.FC = () => {
                     <p className="vl-live-air-empty">Weather details are coming soon.</p>
                   </div>
                 ) }
+
+                {/* PAGE FURNITURE, NOT LIVE DATA. Subscribe / Contribute / Share are the same
+                    blocks every blog post carries, embedded here below the Air/Weather sections.
+                    They render on EVERY path including keyless - they are SSR/keyless safe and
+                    fire NO network call on mount (BlogSubscribe only fetches on user action,
+                    BlogContribution is a static WhatsApp anchor, ShareLinks only feature-detects
+                    in an effect and writes classes). A hairline separator sits above them, and
+                    BlogContribution runs embedded so it drops its own top rule inside the card.
+                    None of the three render a <main>, so the single main.vl-live-shell landmark
+                    is preserved. */}
+                <div className="vl-live-air-extras">
+                  <hr className="vl-live-air-card-rule" aria-hidden="true" />
+                  <BlogSubscribe />
+                  <BlogContribution postId="vayulok" slug="vayulok" embedded={ true } />
+                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ VAYULOK_SHARE_TITLE } label="Share" />
+                </div>
               </aside>
 
               { ( !mapActive || mapFailed ) ? (
@@ -2357,13 +2393,26 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-region{min-width:0}
 
         /* ── FLOATING AIR QUALITY CARD ───────────────────────────────────────────────
-           A white, rounded, home-system card overlaid on the map's top-left corner,
+           A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
         .vl-live-air-card{position:absolute;z-index:12;top:16px;left:16px;width:min(336px,calc(100% - 32px));max-height:calc(100% - 150px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:18px 18px 16px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.08);color:var(--body)}
         .vl-live-air-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-card-title{margin:0;color:var(--heading);font-size:16px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-card-rule{margin:12px 0 14px;border:0;border-top:1px solid var(--hair)}
+
+        /* EMBEDDED PAGE FURNITURE (Subscribe / Contribute / Share). These components self-style;
+           this wrapper only owns the rhythm between them inside the narrow (~336px) scrollable
+           card. The card already scrolls (overflow-y:auto + scrollbar-width:thin, no colour), so
+           added height just scrolls - we add NO scrollbar hider and NO thumb colour here. The two
+           :global reaches below are the minimum needed to keep the wide blog blocks from forcing
+           a horizontal scrollbar in this column: BlogSubscribe's own top margin is neutralised
+           (its separator is the hairline above), and each embedded block's top gap is normalised
+           so they stack evenly. We do NOT restyle the components' internals (colours, controls,
+           typography) - only outer spacing scoped tightly under .vl-live-air-extras. */
+        .vl-live-air-extras{margin-top:16px;display:flex;flex-direction:column;gap:20px}
+        .vl-live-air-extras :global(.blog-subscribe){margin-top:0}
+        .vl-live-air-extras :global(.bc){margin-top:0}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
@@ -2497,7 +2546,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-history-nav button:disabled{opacity:.4;cursor:not-allowed}
         .vl-live-air-history-nav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
-        .vl-live-map-shell{position:relative;height:72dvh;min-height:620px;max-height:860px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
+        /* FULL-BLEED MAP. The map reads edge-to-edge: no border, no rounded box. overflow:hidden
+           still clips the heatmap tiles + overlays, isolation:isolate keeps the overlay z-stack
+           contained, and the height band is unchanged. The floating .vl-live-air-card and the
+           on-map controls stay positioned over the now edge-to-edge map, and the card's bottom
+           inset still clears Google's bottom-left logo and bottom-right legal corners. */
+        .vl-live-map-shell{position:relative;height:72dvh;min-height:620px;max-height:860px;overflow:hidden;background:#eef1ed;isolation:isolate}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
@@ -2509,10 +2563,21 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
         .vl-live-search{position:relative}
-        .vl-live-search-field{height:50px;display:flex;align-items:center;gap:10px;padding:0 17px;border:1px solid rgba(26,58,42,.28);border-radius:var(--pill-r);background:#fff;box-shadow:0 5px 18px rgba(26,58,42,.08)}
-        .vl-live-search-field:focus-within{border-color:rgba(26,58,42,.48);box-shadow:0 0 0 3px rgba(26,58,42,.12),0 5px 18px rgba(26,58,42,.08)}
+        /* THE SITE-WIDE SEARCH LOOK, adopted from BlogSearch.tsx (the canonical global field):
+           a borderless input with a single 1px bottom hairline (var(--hair)), no pill rounding
+           and no heavy drop shadow. On focus the hairline darkens to the opaque brand green
+           (var(--green) #1a3a2a, 12.48:1 on white, which clears WCAG 1.4.11) with the small lime
+           underline box-shadow:0 1px 0 0 #d1f470 - the identical focus treatment the blog/menu
+           search uses. The combobox markup + a11y (role=combobox, aria-controls/expanded/
+           autocomplete, the listbox/option results, keyboard nav) and the India gating are
+           UNCHANGED - this is purely the field's VISUAL idiom. Because the field floats OVER the
+           map it keeps an opaque white backing on the container so it stays legible, but drops the
+           box so it reads as the site's borderless-with-hairline search rather than a pill. */
+        .vl-live-search-field{height:50px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#fff;border-radius:10px}
         .vl-live-search-field svg{width:19px;height:19px;stroke:var(--green);fill:none;stroke-width:2;flex:0 0 auto}
-        .vl-live-search-field input{width:100%;border:0;outline:0;background:transparent;color:var(--heading);font-size:14px}
+        .vl-live-search-field input{width:100%;height:100%;padding:0 2px;border:0;border-bottom:1px solid var(--hair);border-radius:0;outline:none;background:transparent;color:var(--heading);font-size:17px;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-field input::placeholder{color:rgba(0,0,0,.44)}
+        .vl-live-search-field input:focus-visible{border-bottom-color:var(--green);box-shadow:0 1px 0 0 #d1f470}
         .vl-live-search-results{position:absolute;top:56px;left:0;right:0;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
         .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
         .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
