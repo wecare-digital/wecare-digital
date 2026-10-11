@@ -4,6 +4,7 @@ import PageMeta from './PageMeta';
 import RotatingHero from './RotatingHero';
 import ProductBlogPanel from './ProductBlogPanel';
 import ShareLinks from './ShareLinks';
+import Breadcrumbs, { type Crumb } from './Breadcrumbs';
 import type { ProductDef } from '../content/products';
 import type { BlogCard } from '../lib/public-blog';
 
@@ -57,6 +58,19 @@ interface ProductPageProps {
    * post pages use is rendered under the left column.
    */
   shareUrl?: string;
+  /**
+   * OPT-IN BREADCRUMB above the product copy. Omit it and the page renders byte for byte what it
+   * rendered before, which is what keeps the nine non-shop routes that mount this component - the
+   * seven CUSTOMERSERVICE entries plus /shipments/ and /subscribe/ - and their pinned tests
+   * untouched.
+   *
+   * OPT-IN RATHER THAN ALWAYS-ON, AND THAT IS THE DECISION. Those nine are not shop members, so a
+   * Home / Shop / <Name> trail would be a false statement on them. The eight products pass one:
+   * /shop/<slug>/ has rendered Home / Shop / <Product> since 2026-10-10 while these pages rendered
+   * no breadcrumb at all, so going /shop/ to /anew/ dropped the trail entirely. That break is what
+   * this prop closes.
+   */
+  crumbs?: Crumb[];
 }
 
 // The SITE constant that used to live here is gone: PageMeta owns the origin now, so
@@ -68,6 +82,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
   price,
   priceUnit,
   shareUrl,
+  crumbs,
 } ) => {
   const hasAside = Array.isArray( blogCards ) && blogCards.length > 0;
   return (
@@ -89,6 +104,19 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       sub={ product.sub }
     >
       <div className={ hasAside ? 'pdp-wrap has-aside' : 'pdp-wrap' }>
+      {/* THE TRAIL SITS IN A WRAPPER DIV, NOT BARE, AND THAT IS NOT TIDYING.
+          .pdp-wrap is display:grid at >=768px when an aside is present, and /anew/ passes
+          blogCards. A bare <Breadcrumbs> as the first child would add a third item to a two-track
+          grid: the trail would take row 1 column 1, section.pdp would be pushed into the 300-380px
+          blog rail track, and .pdp-aside would drop to row 2. So the trail goes in a lowercase div
+          this component owns and the rule below spans it.
+          The wrapper is also what makes the rule reachable: Breadcrumbs emits nav.bc carrying ITS
+          OWN styled-jsx hash, so a rule written here as .pdp-wrap .bc would match nothing.
+          .pdp-crumbs is a div in this return tree, so it carries this component's hash and needs
+          no :global(). Breadcrumbs keeps its own margin:0 0 22px and this declares nothing else. */}
+      { crumbs && crumbs.length > 0 && (
+        <div className="pdp-crumbs"><Breadcrumbs items={ crumbs } /></div>
+      ) }
       <section className="pdp" aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
         <p className="pdp-lead">{ product.lead }</p>
@@ -290,6 +318,12 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              component not by element, so one block styles the whole return tree. */
           .pdp-wrap{display:block}
           .pdp-aside{margin:48px 0 0}
+          /* SPANNING BOTH TRACKS IS WHAT KEEPS /anew/ INTACT. With an aside, .pdp-wrap is a
+             two-track grid at >=768px, so an unspanned trail would take the product column and
+             push the copy into the blog rail. Unscoped (no .has-aside) this would be a no-op on
+             the other seven product pages, where .pdp-wrap is a block - but scoping it says which
+             layout it is for. */
+          .pdp-wrap.has-aside .pdp-crumbs{grid-column:1 / -1}
 
           @media(max-width:767px){
             .pdp-lead{font-size:18px}
@@ -298,8 +332,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           }
           @media(min-width:768px){
             .pdp-wrap.has-aside{
-              display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);
-              column-gap:40px;align-items:start;
+              display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);
+              column-gap:32px;align-items:start;
             }
             /* The product column keeps its own 700px cap inside the flexible track so the copy
                measure is unchanged; the grid track just stops it stretching under the panel. */
