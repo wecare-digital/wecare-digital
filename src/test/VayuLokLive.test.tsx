@@ -612,56 +612,54 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( dominantChip?.textContent ).toContain( 'PM2.5' );
     expect( dominantChip?.textContent ).not.toContain( 'pm25' );
 
-    // At least one pollutant row with value + unit + label + info icon.
+    // Pollutant rows keep value + unit + label, and the info control uses the supplied
+    // Google Material Symbols icon rather than a hand-drawn circle/i glyph.
     const rows = panel.querySelectorAll( '.vl-live-air-pollutant-row' );
     expect( rows.length ).toBeGreaterThan( 0 );
-    const firstRow = rows[ 0 ];
+    const firstRow = rows[ 0 ] as HTMLElement;
     expect( firstRow.querySelector( '.vl-live-air-pollutant-value' )?.textContent ).toMatch( /\d/ );
     expect( firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent?.length ).toBeGreaterThan( 0 );
-    const info = firstRow.querySelector( '.vl-live-air-pollutant-info' );
+    const info = firstRow.querySelector( '.vl-live-air-pollutant-info' ) as HTMLButtonElement;
     expect( info ).not.toBeNull();
+    expect( info.tagName ).toBe( 'BUTTON' );
+    expect( info.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    expect( info.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 100 );
 
-    // The pollutant info exposes its text via a CUSTOM tooltip wired with aria-describedby
-    // (keyboard reachable), NOT the native title= attribute.
-    expect( info?.hasAttribute( 'title' ) ).toBe( false );
-    expect( info?.getAttribute( 'tabindex' ) ).toBe( '0' );
-    const describedBy = info?.getAttribute( 'aria-describedby' );
-    expect( describedBy ).toBeTruthy();
-    const tip = firstRow.querySelector( `#${describedBy}` );
+    // Tooltip is created only while active, and is OUTSIDE the scrollable Air card.
+    fireEvent.focus( info );
+    const describedBy = await waitFor( () => {
+      const id = info.getAttribute( 'aria-describedby' );
+      expect( id ).toBeTruthy();
+      return id as string;
+    } );
+    const tip = document.getElementById( describedBy );
     expect( tip ).not.toBeNull();
     expect( tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
+    expect( tip?.closest( '.vl-live-air-card' ) ).toBeNull();
+    expect( tip?.textContent ).toContain( 'PM2.5' );
+    expect( tip?.textContent ).toContain( 'Sources' );
+    expect( tip?.textContent ).toContain( 'Combustion of fuels' );
+    expect( tip?.textContent ).toContain( 'Effects' );
+    expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
 
-    // RICH POPOVER: the pm25 row (dominant pollutant, first row) carries Google's
-    // per-pollutant sources + effects. The popover shows the pollutant NAME heading plus
-    // the 'Sources:' and 'Effects:' subheadings with the exact API-supplied text. The
-    // descriptions come ONLY from the mocked additionalInfo (never fabricated).
-    const pm25Row = Array.from( rows ).find(
-      r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( 'PM2.5' )
-    ) as HTMLElement;
-    expect( pm25Row ).toBeTruthy();
-    const pm25Describe = pm25Row.querySelector( '.vl-live-air-pollutant-info' )?.getAttribute( 'aria-describedby' );
-    const pm25Tip = pm25Row.querySelector( `#${pm25Describe}` );
-    expect( pm25Tip ).not.toBeNull();
-    expect( pm25Tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
-    expect( pm25Tip?.textContent ).toContain( 'PM2.5' );
-    expect( pm25Tip?.textContent ).toContain( 'Sources:' );
-    expect( pm25Tip?.textContent ).toContain( 'Combustion of fuels in vehicles, power plants and industry.' );
-    expect( pm25Tip?.textContent ).toContain( 'Effects:' );
-    expect( pm25Tip?.textContent ).toContain( 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' );
-
-    // The pm10 row has no additionalInfo in the mock, so it falls back to the value+unit
-    // line and renders NO 'Sources:'/'Effects:' heading (honest degradation per row).
+    // No additionalInfo -> honest value/unit fallback, never invented Sources/Effects.
+    fireEvent.blur( info );
     const pm10Row = Array.from( rows ).find(
       r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( 'PM10' )
     ) as HTMLElement;
     expect( pm10Row ).toBeTruthy();
-    const pm10Describe = pm10Row.querySelector( '.vl-live-air-pollutant-info' )?.getAttribute( 'aria-describedby' );
-    const pm10Tip = pm10Row.querySelector( `#${pm10Describe}` );
-    const pm10Label = pm10Row.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '';
-    expect( pm10Tip?.textContent ).toContain( pm10Label );
+    const pm10Info = pm10Row.querySelector( '.vl-live-air-pollutant-info' ) as HTMLButtonElement;
+    fireEvent.focus( pm10Info );
+    const pm10Id = await waitFor( () => {
+      const id = pm10Info.getAttribute( 'aria-describedby' );
+      expect( id ).toBeTruthy();
+      return id as string;
+    } );
+    const pm10Tip = document.getElementById( pm10Id );
+    expect( pm10Tip?.textContent ).toContain( 'PM10' );
     expect( pm10Tip?.textContent ).toMatch( /\d/ );
-    expect( pm10Tip?.textContent ).not.toContain( 'Sources:' );
-    expect( pm10Tip?.textContent ).not.toContain( 'Effects:' );
+    expect( pm10Tip?.textContent ).not.toContain( 'Sources' );
+    expect( pm10Tip?.textContent ).not.toContain( 'Effects' );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -697,14 +695,15 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el?.textContent ).toContain( 'Satisfactory' );
     } );
 
-    // (1) HEATMAP. An accessible on/off switch that is ON BY DEFAULT and drives the
-    //     continuous Google Air Quality TILE overlay path (default-on, FEAT-001), plus a
-    //     Poor/Excellent legend. There are now TWO role=switch controls in the Air panel
-    //     (Air quality heatmap + Weather storm overlay), so the heatmap switch is addressed
-    //     by its accessible name, not by position.
+    // (1) HEATMAP. This is the only map-visual switch now. It stays ON by default, drives
+    //     the continuous Google Air Quality tile layer and uses the requested Material
+    //     Symbols "switches" glyph.
     const heatSwitch = await screen.findByRole( 'switch', { name: 'Air quality heatmap' } );
     expect( heatSwitch ).toHaveAttribute( 'aria-checked', 'true' );
     expect( heatSwitch ).not.toBeDisabled();
+    expect( heatSwitch.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    expect( heatSwitch.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 100 );
+    expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
     // DEFAULT-ON: the AQI heatmap tile overlay is wired onto the map BY DEFAULT, with no
     // click required, as soon as the keyed map is ready.
     await waitFor( () => {
@@ -765,8 +764,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
     expect( selected[ 0 ].getAttribute( 'aria-label' ) ).toBe( 'Elderly' );
-    // Each persona tab carries an aria-hidden Material-Symbols-style glyph (role=tab + name).
-    expect( selected[ 0 ].querySelector( '.vl-live-air-health-icon' ) ).not.toBeNull();
+    // Each persona uses an exact local Material Symbols path with the canonical 960 viewBox.
+    const selectedHealthIcon = selected[ 0 ].querySelector( '.vl-live-air-health-icon' );
+    expect( selectedHealthIcon ).not.toBeNull();
+    expect( selectedHealthIcon?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    expect( selectedHealthIcon?.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 80 );
     const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
     // The Elderly copy is now short & crisp; assert a NON-EMPTY paragraph with a stable word.
     const elderlyText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
@@ -965,35 +967,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
   } );
 
-  it( 'toggles the independent SVG/CSS atmosphere with the Weather storm switch', async () => {
-    const fetchSpy = airConditionsFetch( 450, 180 );
-    vi.stubGlobal( 'fetch', fetchSpy );
+  it( 'keeps the SVG/CSS atmosphere on the live map without a separate Storm switch', async () => {
+    vi.stubGlobal( 'fetch', airConditionsFetch( 450, 180 ) );
     const VayuLokLive = await loadComponent();
 
     const { container } = render( <VayuLokLive /> );
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    await waitFor( () => {
-      expect( container.querySelector( '[aria-label="Air details"]' ) ).not.toBeNull();
-      expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull();
-    } );
-
-    const stormSwitch = await screen.findByRole( 'switch', { name: 'Weather storm overlay' } );
-    expect( stormSwitch ).toHaveAttribute( 'aria-checked', 'true' );
-    expect( stormSwitch ).not.toBeDisabled();
-
-    fireEvent.click( stormSwitch );
-    await waitFor( () => {
-      expect( stormSwitch ).toHaveAttribute( 'aria-checked', 'false' );
-      expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
-    } );
-
-    fireEvent.click( stormSwitch );
-    await waitFor( () => {
-      expect( stormSwitch ).toHaveAttribute( 'aria-checked', 'true' );
-      expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull();
-    } );
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+    expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
   } );
 
   it( 'does not render the removed map layer or selected-location pills', async () => {
@@ -1064,7 +1047,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // heatmap toggle, the Health Recommendations tablist and the Hourly History chart live
     // content are all absent - no fabricated chart, no fake persona panel, zero fetches.
     expect( screen.queryByRole( 'switch', { name: 'Air quality heatmap' } ) ).toBeNull();
-    // The new Weather storm switch is likewise absent on the keyless path.
+    // Storm is part of the map atmosphere now; there is intentionally no Storm switch.
     expect( screen.queryByRole( 'switch', { name: 'Weather storm overlay' } ) ).toBeNull();
     expect( screen.queryByRole( 'tablist', { name: 'Health recommendation profiles' } ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-history-chart' ) ).toBeNull();
@@ -1078,59 +1061,14 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.textContent ).not.toContain( 'Health Recommendations' );
     expect( container.textContent ).not.toContain( 'Hourly History' );
 
-    // PAGE FURNITURE renders on EVERY path, including keyless: Subscribe, Contribute and Share
-    // are embedded INSIDE the floating Air card (they are furniture, not live data). They are
-    // SSR/keyless safe and must fire NO network call on mount, which is what the fetch assertion
-    // below proves now that they are mounted here.
-    const extras = container.querySelector( '.vl-live-air-card .vl-live-air-extras' );
-    expect( extras ).not.toBeNull();
-    // SUBSCRIBE now matches the LIVE blog post: a compact lime WhatsApp pill, NOT the old
-    // in-page BlogSubscribe signup form. It is a static anchor at the shared Subscribe deep link
-    // with the 'Continue on WhatsApp' microcopy below it, the twin of the Contribute pill. The
-    // old form's section ([aria-labelledby="blog-subscribe-title"], 'Get new posts directly') is
-    // gone, so neither must appear here.
-    const subscribe = extras?.querySelector( 'a.vl-live-air-subscribe' );
-    expect( subscribe ).not.toBeNull();
-    expect( subscribe?.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
-    expect( subscribe?.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
-    expect( subscribe?.textContent ).toContain( 'Subscribe' );
-    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).toBeNull();
-    expect( extras?.textContent ).not.toContain( 'Get new posts directly' );
-    expect( extras?.textContent ).toContain( 'Continue on WhatsApp' );
-    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch), its Contribute pill
-    // pointing at the DISTINCT Contribute deep link.
-    expect( extras?.querySelector( 'section.bc.is-embedded' ) ).not.toBeNull();
-    expect( extras?.textContent ).toContain( 'Contribute' );
-    const contribute = extras?.querySelector( 'a.bc-cta' );
-    expect( contribute?.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    // ShareLinks' WhatsApp control, pointing at the absolute /vayulok/ page URL.
-    const shareWa = extras?.querySelector( 'a[aria-label="Share this page on WhatsApp"]' );
-    expect( shareWa ).not.toBeNull();
-    const shareHref = shareWa?.getAttribute( 'href' ) || '';
-    // The url is unchanged - the share link still resolves to the live /vayulok/ tool.
-    expect( shareHref ).toContain( 'wecare.digital%2Fvayulok%2F' );
-    // HONEST SHARE TITLE on the keyless path. air === null and weather === null here, so the
-    // composed title degrades to the selected place name (DEFAULT_PLACE 'Lumpyngngad') plus the
-    // neutral VayuLok tail - it fabricates NO AQI or weather numbers. The whole message
-    // (title + url) is URL-encoded into the WhatsApp href, so decode it and assert on the title.
-    const sharePrefix = 'https://api.whatsapp.com/send?text=';
-    expect( shareHref.startsWith( sharePrefix ) ).toBe( true );
-    const shareMessage = decodeURIComponent( shareHref.slice( sharePrefix.length ) );
-    expect( shareMessage ).toContain( 'Lumpyngngad' );
-    expect( shareMessage ).toContain( 'VayuLok' );
-    // No fabricated live data: no AQI value, no degree reading, no NaN/undefined leak.
-    expect( shareMessage ).not.toContain( 'AQI' );
-    expect( shareMessage ).not.toContain( '°C' );
-    expect( shareMessage ).not.toContain( 'NaN' );
-    expect( shareMessage ).not.toContain( 'undefined' );
+    // Subscribe, Contribute and Share were deliberately removed from the Air card.
+    expect( container.querySelector( '.vl-live-air-extras' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-air-subscribe' ) ).toBeNull();
+    expect( container.querySelector( 'section.bc.is-embedded' ) ).toBeNull();
+    expect( container.querySelector( '[aria-label="Share this page on WhatsApp"]' ) ).toBeNull();
 
-    // HONEST POLLUTANT DESCRIPTIONS. Sources/Effects text comes ONLY from Google's API
-    // additionalInfo; the keyless path fires no air call, so no pollutant popover and no
-    // fabricated descriptions may appear. Neither the rich Sources/Effects headings nor the
-    // keyed mock's description strings leak onto this path.
+    // No live pollutant tooltip can exist without live Air data.
     expect( container.querySelector( '.vl-live-air-pollutant-pop' ) ).toBeNull();
-    expect( container.innerHTML ).not.toContain( 'Combustion of fuels in vehicles, power plants and industry.' );
-    expect( container.innerHTML ).not.toContain( 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' );
 
     expect( fetchSpy ).not.toHaveBeenCalled();
     expect( container.textContent ).not.toContain( 'Live air quality and weather' );
@@ -1170,76 +1108,5 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // And the old pill treatment is gone from the field container.
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).not.toContain( 'border-radius:var(--pill-r)' );
-  } );
-} );
-
-describe( 'composeVayuLokShareTitle - honest, data-driven Share title', () => {
-  // Pure module-level helper. Loaded fresh so it is read after any env stubbing, matching the
-  // dynamic-import discipline the rest of this suite uses for the component module.
-  async function loadCompose() {
-    vi.resetModules();
-    const mod = await import( '../components/VayuLokLive' );
-    return mod.composeVayuLokShareTitle;
-  }
-
-  it( 'includes AQI, dominant pollutant and weather when all data is present', async () => {
-    const compose = await loadCompose();
-    const title = compose(
-      'Mumbai',
-      { aqi: 142.6, word: 'Unhealthy', sev: 4 as any, dominant: 'PM2.5', pollutants: [] },
-      { temp: 31, condition: 'Haze' },
-    );
-    expect( title ).toBe( 'Air quality in Mumbai: AQI 143 (Unhealthy), PM2.5 dominant - 31°C, Haze | VayuLok' );
-    expect( title ).not.toContain( 'NaN' );
-    expect( title ).not.toContain( 'undefined' );
-  } );
-
-  it( 'includes only the air clause when weather is null (air-only)', async () => {
-    const compose = await loadCompose();
-    const title = compose(
-      'Delhi',
-      { aqi: 205, word: 'Very Unhealthy', sev: 5 as any, pollutants: [] },
-      null,
-    );
-    expect( title ).toBe( 'Air quality in Delhi: AQI 205 (Very Unhealthy) | VayuLok' );
-    expect( title ).not.toContain( '°C' );
-  } );
-
-  it( 'includes only the weather clause when air is null (weather-only)', async () => {
-    const compose = await loadCompose();
-    const title = compose( 'Shillong', null, { temp: 18, condition: 'Light rain' } );
-    expect( title ).toBe( 'Shillong: 18°C, Light rain | VayuLok' );
-    expect( title ).not.toContain( 'AQI' );
-  } );
-
-  it( 'is the place name alone when air and weather are both null (place-only / keyless)', async () => {
-    const compose = await loadCompose();
-    const title = compose( 'Lumpyngngad', null, null );
-    expect( title ).toBe( 'Lumpyngngad | VayuLok' );
-    expect( title ).not.toContain( 'AQI' );
-    expect( title ).not.toContain( '°C' );
-    expect( title ).not.toContain( 'NaN' );
-    expect( title ).not.toContain( 'undefined' );
-  } );
-
-  it( 'falls back to the neutral VayuLok title when the place name is empty', async () => {
-    const compose = await loadCompose();
-    expect( compose( '', null, null ) ).toBe( 'VayuLok - live air quality across India' );
-    expect( compose( '   ', null, null ) ).toBe( 'VayuLok - live air quality across India' );
-    expect( compose( undefined, null, null ) ).toBe( 'VayuLok - live air quality across India' );
-  } );
-
-  it( 'never emits a fabricated number: drops a non-finite AQI or temp honestly', async () => {
-    const compose = await loadCompose();
-    // Non-finite aqi -> no air clause; absent temp but present condition -> condition only.
-    const title = compose(
-      'Pune',
-      { aqi: NaN, word: 'Good', sev: 1 as any, pollutants: [] },
-      { condition: 'Clear' },
-    );
-    expect( title ).toBe( 'Pune: Clear | VayuLok' );
-    expect( title ).not.toContain( 'AQI' );
-    expect( title ).not.toContain( 'NaN' );
-    expect( title ).not.toContain( 'undefined' );
   } );
 } );
