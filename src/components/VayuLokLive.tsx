@@ -639,6 +639,21 @@ function formatHistoryStamp( value: number, timeZoneId: string, zoneLabel: strin
   }
 }
 
+function formatHistoryPointLabel( value: number, timeZoneId: string, zoneLabel: string ): string {
+  try {
+    const label = new Intl.DateTimeFormat( 'en-IN', {
+      timeZone: timeZoneId,
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    } ).format( new Date( value ) );
+    return `${label} ${zoneLabel}`;
+  } catch {
+    return `${new Date( value ).toISOString().slice( 5, 16 ).replace( 'T', ' ' )} UTC`;
+  }
+}
+
 /* Parse a currentConditions:lookup payload into the LEFT-card AirState (AQI value +
    category word + severity + pollutant rows + advisory). Returns null when no finite AQI
    arrived, so a point that fails to parse is DROPPED, never fabricated. Shared by the
@@ -831,6 +846,7 @@ const VayuLokLive: React.FC = () => {
   // Hourly History: window offset for the prev/next chart navigation. 0 = latest week; a
   // positive value scrolls further back through the loaded airHistory points. Pure UI state.
   const [ historyOffset, setHistoryOffset ] = useState( 0 );
+  const [ historyInspectIdx, setHistoryInspectIdx ] = useState<number | null>( null );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
@@ -870,6 +886,10 @@ const VayuLokLive: React.FC = () => {
     const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
     return () => window.clearInterval( timer );
   }, [] );
+
+  useEffect( () => {
+    setHistoryInspectIdx( null );
+  }, [ airHistory ] );
 
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) {
@@ -2398,8 +2418,8 @@ const VayuLokLive: React.FC = () => {
                           <ul className="vl-live-air-pollutant-list">
                             { air.pollutants.map( p => (
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
-                                <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
+                                <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
                                 <button
                                   type="button"
                                   className="vl-live-air-pollutant-info"
@@ -2529,8 +2549,8 @@ const VayuLokLive: React.FC = () => {
                       {/* SECTION 3 - HOURLY HISTORY. Reuses the existing airHistory state and
                           historyRange/aqiCategory helpers. An inline-SVG AQI line chart over the
                           loaded points, weekday gridlines, a pinned current-value bubble and
-                          prev/next navigation. The UTC timestamp is derived from the latest real
-                          point - never fabricated. When airHistory is empty (every keyless run)
+                          prev/next navigation. The timestamp is rendered in the selected
+                          destination's local timezone. When airHistory is empty (every keyless run)
                           an honest shell renders with no fake chart and no spinner. */}
                       <div className="vl-live-air-history">
                         { ( () => {
@@ -2567,6 +2587,17 @@ const VayuLokLive: React.FC = () => {
                           const areaPts = `${padX},${( H - padBottom ).toFixed( 1 )} ${linePts} ${( W - padX ).toFixed( 1 )},${( H - padBottom ).toFixed( 1 )}`;
                           const cx = xAt( currentIdx );
                           const cy = yAt( current.aqi );
+                          const inspectedIdx = historyInspectIdx == null
+                            ? null
+                            : Math.max( 0, Math.min( historyInspectIdx, points.length - 1 ) );
+                          const inspected = inspectedIdx == null ? null : points[ inspectedIdx ];
+                          const inspectX = inspectedIdx == null ? 0 : xAt( inspectedIdx );
+                          const inspectY = inspected ? yAt( inspected.aqi ) : 0;
+                          const inspectPoint = ( clientX: number, target: HTMLElement ) => {
+                            const rect = target.getBoundingClientRect();
+                            const ratio = rect.width > 0 ? clamp( ( clientX - rect.left ) / rect.width, 0, 1 ) : 0;
+                            setHistoryInspectIdx( Math.round( ratio * ( points.length - 1 ) ) );
+                          };
 
                           // Weekday gridlines follow the selected destination's local timezone,
                           // matching the timestamp above instead of mixing local context with UTC.
@@ -2594,7 +2625,7 @@ const VayuLokLive: React.FC = () => {
                                       type="button"
                                       aria-label="Earlier hour"
                                       disabled={ offset >= maxOffset }
-                                      onClick={ () => setHistoryOffset( o => Math.min( maxOffset, o + 1 ) ) }
+                                      onClick={ () => { setHistoryInspectIdx( null ); setHistoryOffset( o => Math.min( maxOffset, o + 1 ) ); } }
                                     >
                                       <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
                                     </button>
@@ -2602,7 +2633,7 @@ const VayuLokLive: React.FC = () => {
                                       type="button"
                                       aria-label="Later hour"
                                       disabled={ offset <= 0 }
-                                      onClick={ () => setHistoryOffset( o => Math.max( 0, o - 1 ) ) }
+                                      onClick={ () => { setHistoryInspectIdx( null ); setHistoryOffset( o => Math.max( 0, o - 1 ) ); } }
                                     >
                                       <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
                                     </button>
@@ -2612,7 +2643,14 @@ const VayuLokLive: React.FC = () => {
                               <div
                                 className={ `vl-live-air-history-chart vl-live-air-sev-${aqiCategory( current.aqi ).sev}` }
                                 role="img"
-                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}, current ${Math.round( current.aqi )}` }
+                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}, current ${Math.round( current.aqi )}. Hover or tap the chart to inspect an hour.` }
+                                onPointerMove={ e => {
+                                  if ( e.pointerType === 'mouse' || e.pointerType === 'pen' ) inspectPoint( e.clientX, e.currentTarget );
+                                } }
+                                onPointerDown={ e => inspectPoint( e.clientX, e.currentTarget ) }
+                                onPointerLeave={ e => {
+                                  if ( e.pointerType === 'mouse' ) setHistoryInspectIdx( null );
+                                } }
                               >
                                 <svg viewBox={ `0 0 ${W} ${H}` } className="vl-live-air-history-svg" preserveAspectRatio="none">
                                   { ticks.map( ( t, i ) => (
@@ -2625,8 +2663,28 @@ const VayuLokLive: React.FC = () => {
                                   <polyline className="vl-live-air-history-line" points={ linePts } />
                                   <line className="vl-live-air-history-leader" x1={ cx } y1={ padTop } x2={ cx } y2={ cy } />
                                   <circle className="vl-live-air-history-dot" cx={ cx } cy={ cy } r="4" />
+                                  { inspected && (
+                                    <>
+                                      <line className="vl-live-air-history-inspect-line" x1={ inspectX } y1={ padTop } x2={ inspectX } y2={ inspectY } />
+                                      <circle className="vl-live-air-history-inspect-dot" cx={ inspectX } cy={ inspectY } r="5" />
+                                    </>
+                                  ) }
                                 </svg>
                                 <span className="vl-live-air-history-bubble" style={ { left: `${( cx / W ) * 100}%` } }>{ Math.round( current.aqi ) }</span>
+                                { inspected && (
+                                  <span
+                                    className="vl-live-air-history-inspect"
+                                    role="status"
+                                    aria-live="polite"
+                                    style={ {
+                                      left: `${( inspectX / W ) * 100}%`,
+                                      top: `${Math.max( 10, ( inspectY / H ) * 100 )}%`,
+                                    } }
+                                  >
+                                    <strong>AQI { Math.round( inspected.aqi ) }</strong>
+                                    <span>{ formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
+                                  </span>
+                                ) }
                               </div>
                               <span className="vl-live-sr-only">Latest reading { Math.round( latest.aqi ) }, { latest.word }.</span>
                             </>
@@ -2848,13 +2906,13 @@ const VayuLokLive: React.FC = () => {
            follow the frame now that the list no longer clips them. No scrollbar colour and
            no scrollbar hider are introduced here (the card keeps only scrollbar-width:thin). */
         .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:visible}
-        .vl-live-air-pollutant-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:var(--vl-content-gap);padding:14px 14px;background:#fff;border-left:2px solid transparent;transition:background .15s ease,border-color .15s ease}
+        .vl-live-air-pollutant-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size);align-items:center;gap:var(--vl-content-gap);padding:14px 14px;background:#fff;border-left:2px solid transparent;transition:background .15s ease,border-color .15s ease}
         .vl-live-air-pollutant-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
         .vl-live-air-pollutant-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
         .vl-live-air-pollutant-row+.vl-live-air-pollutant-row{border-top:1px solid var(--hair)}
-        .vl-live-air-pollutant-value{color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px}
+        .vl-live-air-pollutant-value{justify-self:end;min-width:118px;color:#000;font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.2px;text-align:right;font-variant-numeric:tabular-nums}
         .vl-live-air-pollutant-value small{margin-left:4px;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:0}
-        .vl-live-air-pollutant-label{color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
+        .vl-live-air-pollutant-label{min-width:0;color:var(--body);font-size:17px;font-weight:700;line-height:1.25;letter-spacing:-.18px}
         /* ONE ACTION-ICON SYSTEM for the Air card. Every clickable icon uses the same
            36px circle, lime surface, deep-green glyph, lighter-lime hover and focus ring.
            No hover border, no dark-green hover fill, no inversion, no section-specific skin. */
@@ -2939,8 +2997,8 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-health-persona{display:block;margin:0 0 6px;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
         .vl-live-air-health-text{margin:0;color:var(--body);font-size:var(--vl-body-size);font-weight:var(--vl-body-weight);line-height:var(--vl-body-lh);letter-spacing:var(--vl-body-track)}
         .vl-live-air-health-text.is-clamped{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
-        .vl-live-air-health-more{margin-top:8px;padding:0;border:0;background:transparent;color:var(--green);font-size:14px;font-weight:700;line-height:1.3;text-decoration:underline;text-underline-offset:3px}
-        .vl-live-air-health-more:hover{color:#000}
+        .vl-live-air-health-more{margin-top:8px;padding:0;border:0;background:transparent;color:var(--green);font-size:14px;font-weight:700;line-height:1.3;text-decoration:none;text-underline-offset:3px}
+        .vl-live-air-health-more:hover{color:#000;text-decoration:underline}
 
         /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
            Line + area stroked from the no-red ramp via the sev-mapped class; the pinned
@@ -2949,7 +3007,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-history-head-meta{display:flex;align-items:center;gap:8px}
         .vl-live-air-history-stamp{color:var(--muted);font-size:11.5px;font-weight:600;letter-spacing:0;white-space:nowrap}
         .vl-live-air-history-empty{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
-        .vl-live-air-history-chart{position:relative;margin-top:0}
+        .vl-live-air-history-chart{position:relative;margin-top:0;touch-action:pan-y;cursor:crosshair}
         .vl-live-air-history-svg{display:block;width:100%;height:120px}
         .vl-live-air-history-grid{stroke:var(--hair);stroke-width:1;stroke-dasharray:2 3}
         .vl-live-air-history-day{fill:var(--muted);font-size:8px;font-weight:600}
@@ -2957,6 +3015,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-history-line{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
         .vl-live-air-history-area{fill:currentColor;opacity:.12;stroke:none}
         .vl-live-air-history-dot{stroke:#fff;stroke-width:2}
+        .vl-live-air-history-inspect-line{stroke:rgba(26,58,42,.42);stroke-width:1;stroke-dasharray:2 2}
+        .vl-live-air-history-inspect-dot{fill:var(--lime);stroke:var(--green);stroke-width:2}
+        .vl-live-air-history-inspect{position:absolute;z-index:2;display:flex;flex-direction:column;gap:2px;max-width:150px;transform:translate(-50%,-112%);padding:6px 8px;border:1px solid var(--hair);border-radius:8px;background:#fff;color:var(--green);box-shadow:0 6px 16px rgba(26,58,42,.12);pointer-events:none;white-space:nowrap}
+        .vl-live-air-history-inspect strong{font-size:11.5px;font-weight:700;line-height:1.2}
+        .vl-live-air-history-inspect span{color:var(--muted);font-size:10.5px;font-weight:600;line-height:1.2}
         /* The chart colour walks the no-red ramp from the current point's severity. */
         .vl-live-air-sev-good .vl-live-air-history-line,.vl-live-air-sev-good .vl-live-air-history-dot{stroke:#1a3a2a}
         .vl-live-air-sev-good .vl-live-air-history-area{color:#1a3a2a}
@@ -3011,7 +3074,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
         /* DESTINATION SEARCH is a separate page section ABOVE the map shell. It is not
            a child of the map main/workspace/region and cannot visually overlap the map. */
-        .vl-live-map-search{position:relative;z-index:30;width:min(760px,calc(100% - 48px));margin:14px auto 20px;padding:8px 14px 10px;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.08)}
+        .vl-live-map-search{position:relative;z-index:30;width:min(760px,calc(100% - 48px));margin:14px auto 20px;padding:8px 14px 10px;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;box-shadow:none}
         .vl-live-search{position:relative}
         /* Exact Header.tsx .nav-search field treatment: no icon, no input box/radius,
            44px minimum row, transparent fill, 16px/400 type, one bottom hairline,
@@ -3039,6 +3102,8 @@ const VayuLokLive: React.FC = () => {
           .vl-live-air-context{align-items:flex-start}
           .vl-live-air-context-item.is-location{max-width:56%}
           .vl-live-air-context-item.is-time{margin-left:auto}
+          .vl-live-air-health-tabs{scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scroll-padding-inline:2px}
+          .vl-live-air-health-tab{scroll-snap-align:start}
           .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
           .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
