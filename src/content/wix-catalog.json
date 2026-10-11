@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-11T10:32:36.760Z",
+  "fetchedAt": "2026-10-11T10:32:51.182Z",
   "productCount": 10,
   "products": [
     {
@@ -469,7 +469,7 @@
           "sku": "SERVICE-REQUEST-AMENDMENT",
           "choiceId": "7111e864-e789-4641-8f28-74240af61561",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 35000
         },
         {
@@ -479,7 +479,7 @@
           "sku": "SERVICE-REQUEST-PICKUP",
           "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 35000
         },
         {
@@ -489,7 +489,7 @@
           "sku": "SERVICE-DROP-DOCS",
           "choiceId": "f981b729-748a-48ee-93b9-54ecc543b617",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 35000
         },
         {
@@ -499,7 +499,7 @@
           "sku": "SERVICE-VAULT",
           "choiceId": "bdaafdcf-7998-4d43-b7dd-1ab40cc6566c",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 4900
         },
         {
@@ -509,11 +509,11 @@
           "sku": "SERVICE-SUBMIT-REQUEST",
           "choiceId": "2af81a87-24a8-4729-80bf-1d967a637bc2",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 9900
         }
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-11T10:32:36.751Z"
+  "variantVerifiedAt": "2026-10-11T10:32:51.173Z"
 }
