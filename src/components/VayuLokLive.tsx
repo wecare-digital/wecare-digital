@@ -1,7 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import BlogContribution from './BlogContribution';
-import ShareLinks from './ShareLinks';
-import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -85,11 +82,6 @@ function pm25Severity( pm25: number ): Sev {
 // SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
 // (autocompleteTokenRef) behavior is unchanged; only the settle delay is shorter.
 const SEARCH_DEBOUNCE_MS = 120;
-
-// The canonical, ABSOLUTE /vayulok/ page URL. ShareLinks requires an absolute URL (a share
-// target handed a relative path shares nothing), and this page's furniture points at it.
-const VAYULOK_PAGE_URL = 'https://wecare.digital/vayulok/';
-const VAYULOK_SHARE_TITLE = 'VayuLok - live air quality across India';
 
 // Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
 // reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
@@ -292,12 +284,10 @@ function statusWord( sev: Sev ): string {
 }
 
 /* ---- Health recommendation personas -------------------------------------------------
-   Static, honest health guidance shown under the Air panel. These are generic air-quality
-   advisories (NOT a live Google field), rendered only when `air` is present. Each line is
-   kept short and crisp (one or two tight sentences) while staying honest. Each persona
-   carries an id, an accessible label, a short recommendation, and an aria-hidden inline-SVG
-   icon marker (Material-Symbols-equivalent paths, lime-tinted when active). Severity is
-   never implied by colour here - the selected highlight is brand green/lime UI chrome. */
+   Static, honest health guidance shown under the Air panel. The glyphs below are local SVG
+   paths from Google's Material Symbols Outlined family: groups, elderly, pulmonology,
+   cardiology, info, switches and chevron_right. Local paths keep the product crisp without
+   introducing a font/network dependency. */
 type HealthPersonaIcon = 'general' | 'elderly' | 'respiratory' | 'heart';
 interface HealthPersona {
   id: string;
@@ -305,32 +295,33 @@ interface HealthPersona {
   recommendation: string;
   icon: HealthPersonaIcon;
 }
+
+const MATERIAL_SYMBOL_PATHS: Record<HealthPersonaIcon | 'info' | 'switches' | 'next', string> = {
+  info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
+  switches: 'M270-289q-80 0-135-54.5T80-479q0-81 54.5-135.5T270-669q51 0 90 22t65 63h350q44 0 74.5 30.5T880-479q0 44-30.5 74.5T775-374H425q-26 41-65 63t-90 22Zm3-190Zm180 45h322q20 0 32.5-12.5T820-479q0-20-12.5-32.5T775-524H453q4 10 5.5 22t1.5 23q0 11-1.5 23t-5.5 22Zm-90.5 47.5Q400-424 400-479t-37.5-92.5Q325-609 270-609t-92.5 37.5Q140-534 140-479t37.5 92.5Q215-349 270-349t92.5-37.5Z',
+  general: 'M0-240v-53q0-38.57 41.5-62.78Q83-380 150.38-380q12.16 0 23.39.5t22.23 2.15q-8 17.35-12 35.17-4 17.81-4 37.18v65H0Zm240 0v-65q0-32 17.5-58.5T307-410q32-20 76.5-30t96.5-10q53 0 97.5 10t76.5 30q32 20 49 46.5t17 58.5v65H240Zm540 0v-65q0-19.86-3.5-37.43T765-377.27q11-1.73 22.17-2.23 11.17-.5 22.83-.5 67.5 0 108.75 23.77T960-293v53H780Zm-480-60h360v-6q0-37-50.5-60.5T480-390q-79 0-129.5 23.5T300-305v5ZM149.57-410q-28.57 0-49.07-20.56Q80-451.13 80-480q0-29 20.56-49.5Q121.13-550 150-550q29 0 49.5 20.5t20.5 49.93q0 28.57-20.5 49.07T149.57-410Zm660 0q-28.57 0-49.07-20.56Q740-451.13 740-480q0-29 20.56-49.5Q781.13-550 810-550q29 0 49.5 20.5t20.5 49.93q0 28.57-20.5 49.07T809.57-410ZM480-480q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T600-600q0 50-34.5 85T480-480Zm.35-60Q506-540 523-557.35t17-43Q540-626 522.85-643t-42.5-17q-25.35 0-42.85 17.15t-17.5 42.5q0 25.35 17.35 42.85t43 17.5ZM480-300Zm0-300Z',
+  elderly: 'm320-40-48-36 104-139-8-191q-2-52 5.5-109.5T397-617l-97 56v111h-60v-146l167-96q17-10 32.5-15t29.5-5q27 0 48.5 21t41.5 66q20 46 59 75.5t94 46.5q7-4 13.5-5.5T739-510q23 0 42 18.5t19 41.5v410h-30v-410q0-12-9-21t-21-9q-12 0-21 9t-9 21v30h-30v-33q-42-11-87.5-42T521-568q-12 34-18.5 75t-4.5 73l97 137v243h-60v-219l-85-95-10 154L320-40Zm218-714q-30 0-51.5-21.5T465-827q0-30 21.5-51.5T538-900q30 0 51.5 21.5T611-827q0 30-21.5 51.5T538-754Z',
+  respiratory: 'M190-120q-46 0-78-32t-32-78v-185l108-279q12-31 40.07-48.5t60.82-17.5q42.11 0 71.61 29.57T390-659v39h-60v-39q0-17.19-12.83-29.1-12.82-11.9-29.92-11.9-14.25 0-26.25 6.5T244-674L140-405v175q0 21.25 14.38 35.62Q168.75-180 190-180h140q21.25 0 35.63-14.38Q380-208.75 380-230v-70h60v70q0 46-32.08 78-32.09 32-77.92 32H190Zm580 0H630q-45.83 0-77.92-32Q520-184 520-230v-70h60v70q0 21.25 14.38 35.62Q608.75-180 630-180h140q21.25 0 35.63-14.38Q820-208.75 820-230v-175L716-674q-5-13-17-19.5t-26-6.5q-17 0-30 11.9-13 11.91-13 29.1v39h-60v-39q0-41.86 29.52-71.43Q629.03-760 671.2-760q32.8 0 60.8 17.5t40 48.5l108 279v185q0 46-32.08 78-32.09 32-77.92 32ZM334-456Zm292 0Zm-146-62L376-414l-42-42 116-116v-308h60v308l116 116-42 42-104-104Z',
+  heart: 'M290-840q57 0 105.5 27t84.5 78q42-54 89-79.5T670-840q89 0 149.5 60.5T880-629q0 15-1.5 29.5T873-570h-62q5-15 7-29.5t2-29.5q0-66-42-108.5T670-780q-51 0-95 31.5T504-660h-49q-26-56-70-88t-95-32q-66 0-108 42.5T140-629q0 15 2 29.5t7 29.5H87q-4-15-5.5-29.5T80-629q0-90 60.5-150.5T290-840Zm-98 450h78q38 42 89.5 91.5T480-186q69-63 120-112.5t89-91.5h79q-42 49-102 108.5T521-144l-41 37-41-37q-85-78-145-137.5T192-390Zm250 60q9 0 16-5.5t10-14.5l61-181 46 68q5 6 11 9.5t14 3.5h310v-60H617l-72-106q-5-7-12-10t-15-3q-9 0-16.5 5.5T491-609l-60 181-47-69q-5-6-10.5-9.5T360-510H50v60h292l72 107q5 7 12.5 10t15.5 3Zm38-153Z',
+  next: 'M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z',
+};
+
 const HEALTH_PERSONAS: HealthPersona[] = [
-  {
-    id: 'general',
-    label: 'General population',
-    recommendation: 'Air is fine for most people. Ease off outdoors if you feel unwell.',
-    icon: 'general',
-  },
-  {
-    id: 'elderly',
-    label: 'Elderly',
-    recommendation: 'Cut back on hard outdoor effort if you cough or feel short of breath. Keep away from traffic, smoke and dust.',
-    icon: 'elderly',
-  },
-  {
-    id: 'respiratory',
-    label: 'Respiratory',
-    recommendation: 'Keep your reliever inhaler handy and go easy outdoors. Head inside if you wheeze or feel tight-chested.',
-    icon: 'respiratory',
-  },
-  {
-    id: 'heart',
-    label: 'Heart',
-    recommendation: 'Pace yourself outdoors and rest if you feel chest discomfort or palpitations. Favour quieter routes away from traffic.',
-    icon: 'heart',
-  },
+  { id: 'general', label: 'General population', recommendation: 'Air is fine for most people. Ease off outdoors if you feel unwell.', icon: 'general' },
+  { id: 'elderly', label: 'Elderly', recommendation: 'Cut back on hard outdoor effort if you cough or feel short of breath. Keep away from traffic, smoke and dust.', icon: 'elderly' },
+  { id: 'respiratory', label: 'Respiratory', recommendation: 'Keep your reliever inhaler handy and go easy outdoors. Head inside if you wheeze or feel tight-chested.', icon: 'respiratory' },
+  { id: 'heart', label: 'Heart', recommendation: 'Pace yourself outdoors and rest if you feel chest discomfort or palpitations. Favour quieter routes away from traffic.', icon: 'heart' },
 ];
+
+function compactAirInfo( value?: string, maxChars = 118 ): string | undefined {
+  if ( typeof value !== 'string' ) return undefined;
+  const clean = value.replace( /\s+/g, ' ' ).trim();
+  if ( !clean ) return undefined;
+  if ( clean.length <= maxChars ) return clean;
+  const cut = clean.slice( 0, maxChars + 1 );
+  const wordBoundary = cut.lastIndexOf( ' ' );
+  return `${cut.slice( 0, wordBoundary > 72 ? wordBoundary : maxChars ).replace( /[,:;\s]+$/, '' )}…`;
+}
 
 // Pollen category 0-5 UPI -> word (Google's universal pollen index).
 function pollenCategory( idx: number ): string {
@@ -467,50 +458,6 @@ function windUnitLabel( unit?: string ): string {
 function n( value: unknown ): number {
   const out = Number( value );
   return Number.isFinite( out ) ? out : NaN;
-}
-
-// HONEST SHARE TITLE. Composes the single string ShareLinks carries into the WhatsApp message
-// first line and navigator.share { title, text }. It summarises the SELECTED PLACE's live air +
-// weather for previewPlace, and degrades honestly: a clause only appears when its source data is
-// actually in state. On the keyless/sandbox path air === null and weather === null, so this
-// returns the place name alone (never a fabricated AQI/weather number); when even the place name
-// is blank it falls back to the neutral VAYULOK_SHARE_TITLE. Every emitted number is read straight
-// from state - no 'NaN', no 'undefined', no invented units.
-export function composeVayuLokShareTitle(
-  placeName: string | undefined | null,
-  air: AirState | null,
-  weather: WeatherState | null,
-): string {
-  const name = ( placeName || '' ).trim();
-  if ( !name ) return VAYULOK_SHARE_TITLE;
-
-  // Air clause: AQI <n> (<word>) with the dominant pollutant appended when present. aqi is a
-  // finite number by the time AirState exists, but guard anyway so a malformed value is dropped
-  // rather than rendered as 'AQI NaN'.
-  let airClause = '';
-  if ( air && Number.isFinite( air.aqi ) && air.word ) {
-    airClause = `AQI ${ Math.round( air.aqi ) } (${ air.word })`;
-    if ( air.dominant ) airClause += `, ${ air.dominant } dominant`;
-  }
-
-  // Weather clause: <temp>°C with the condition appended when present. temp is already rounded at
-  // ingest; still guard for finiteness so an absent temp never prints 'undefined°C'.
-  let weatherClause = '';
-  if ( weather ) {
-    const parts: string[] = [];
-    if ( Number.isFinite( weather.temp ) ) parts.push( `${ Math.round( weather.temp as number ) }°C` );
-    if ( weather.condition ) parts.push( weather.condition );
-    weatherClause = parts.join( ', ' );
-  }
-
-  // Grammatical for every combination: place-only, place+air, place+weather, full.
-  let summary: string;
-  if ( airClause && weatherClause ) summary = `Air quality in ${ name }: ${ airClause } - ${ weatherClause }`;
-  else if ( airClause ) summary = `Air quality in ${ name }: ${ airClause }`;
-  else if ( weatherClause ) summary = `${ name }: ${ weatherClause }`;
-  else summary = name;
-
-  return `${ summary } | VayuLok`;
 }
 
 function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
@@ -748,13 +695,10 @@ const VayuLokLive: React.FC = () => {
   // the environmental RESULT content shown in the LEFT card (AQI result vs PM2.5-focused).
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( 'AQI' );
 
-  // Atmospheric weather layer on/off, independent of AQI/PM2.5. Defaults ON. It is rendered
-  // as SVG/CSS over the live map and is driven by the selected place's Google Weather values.
-  const [ stormOn, setStormOn ] = useState( true );
-
   // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
   // to the Elderly persona (index 1) per the reference design. Pure UI state - no fetch.
   const [ healthPersona, setHealthPersona ] = useState( 1 );
+  const [ pollutantTip, setPollutantTip ] = useState<{ code: string; top: number; left: number } | null>( null );
   // Hourly History: window offset for the prev/next chart navigation. 0 = latest week; a
   // positive value scrolls further back through the loaded airHistory points. Pure UI state.
   const [ historyOffset, setHistoryOffset ] = useState( 0 );
@@ -791,6 +735,16 @@ const VayuLokLive: React.FC = () => {
   const heatmapOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
+
+  const openPollutantTip = useCallback( ( code: string, el: HTMLElement ) => {
+    if ( typeof window === 'undefined' ) return;
+    const rect = el.getBoundingClientRect();
+    const width = Math.min( 292, Math.max( 220, window.innerWidth - 24 ) );
+    const canOpenRight = rect.right + 14 + width <= window.innerWidth - 12;
+    const left = canOpenRight ? rect.right + 14 : Math.max( 12, rect.left - width - 14 );
+    const top = clamp( rect.top - 18, 12, Math.max( 12, window.innerHeight - 224 ) );
+    setPollutantTip( { code, top, left } );
+  }, [] );
 
   useEffect( () => {
     setMapCandidate( null );
@@ -1059,11 +1013,10 @@ const VayuLokLive: React.FC = () => {
      FEAT-001: the AQI layer no longer uses the deck.gl dot grid. When layer === 'AQI' it
      paints a CONTINUOUS Google Air Quality heatmap TILE overlay (a google.maps.ImageMapType
      pushed onto map.overlayMapTypes) instead, and that layer defaults ON so the heatmap
-     paints by DEFAULT once the keyed map is ready. The weather/storm TILE overlay is driven
-     by the INDEPENDENT `stormOn` state (default ON) in a sibling effect below. The PM2.5
-     layer keeps its no-red deck.gl dots unchanged. Only one AQI-vs-PM2.5 overlay is attached
-     at a time; the weather overlay coexists with whichever is active. Every attachment stays
-     behind the keyed + map-ready guard, so the keyless path constructs NOTHING. */
+     paints by DEFAULT once the keyed map is ready. The atmospheric weather layer is rendered
+     independently as SVG/CSS and no longer has a separate on/off control. The PM2.5 layer keeps
+     its no-red deck.gl dots unchanged. Only one AQI-vs-PM2.5 data overlay is attached at a time,
+     behind the keyed + map-ready guard. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
 
@@ -2037,14 +1990,10 @@ const VayuLokLive: React.FC = () => {
   // weather/air history + forecast state is still fetched and kept intact for the
   // Weather phase and the map layers.
   const previewPlace = mapCandidate || place;
-  // Honest, data-driven Share title for the selected place. On the keyless path (air/weather
-  // null) this is just the place name (or the neutral VayuLok fallback) with no fabricated
-  // numbers; it becomes the WhatsApp message first line and the navigator.share text.
-  const shareTitle = useMemo(
-    () => composeVayuLokShareTitle( previewPlace.name, air, weather ),
-    [ previewPlace.name, air, weather ],
-  );
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
+  const activePollutant = pollutantTip
+    ? air?.pollutants.find( p => p.code === pollutantTip.code ) || null
+    : null;
   const mapActive = Boolean( MAPS_KEY );
 
   const atmosphereStyle = useMemo( () => {
