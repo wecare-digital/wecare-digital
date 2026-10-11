@@ -1,4 +1,22 @@
 import React from 'react';
+import { CONTRIBUTION_CHOICES, CONTRIBUTION_CURRENCY } from '../config/contribution';
+
+/**
+ * THE AMOUNT ON THE BUTTON FACE, read from the central config so the figure is never re-typed.
+ *
+ * Owner instruction, 2026-10-11: the Contribute pill names the suggested amount again - "Contribute
+ * ₹250" - so the reader knows what the conversation is about before leaving the page. The rupee
+ * figure is `CONTRIBUTION_CHOICES[0].rupees` from src/config/contribution.ts (the same source the
+ * cart row and the server mirror read), and the ₹ glyph is the display symbol for
+ * CONTRIBUTION_CURRENCY ('INR'). Nothing about the amount is sent from the browser - this is a
+ * label only; cart_v2.calculate remains the sole price authority (see the config header).
+ */
+const [ SUGGESTED ] = CONTRIBUTION_CHOICES;
+/** The display glyph for the single currency contributions are taken in. INR -> ₹. */
+const CURRENCY_GLYPH: Record<string, string> = { INR: '\u20B9' };
+/** e.g. "₹250" - the suggested amount shown on the pill and in the accessible name. */
+export const CONTRIBUTE_AMOUNT_LABEL =
+  `${ CURRENCY_GLYPH[ CONTRIBUTION_CURRENCY ] || '' }${ SUGGESTED.rupees }`;
 
 /**
  * "CONTRIBUTE" - the voluntary-contribution block that sits on every blog post, after the Tags
@@ -9,10 +27,20 @@ import React from 'react';
  * WHAT THIS COMPONENT IS NOW: ONE LINK, AND NOTHING ELSE.
  * ------------------------------------------------------
  * Owner instruction, 2026-10-10: remove BOTH button-looking things from this block - the ₹250
- * amount pill AND the "Contribute ₹250" submit - and hand the reader to WhatsApp the way the rest
+ * amount PILL (the radio group) AND the submit - and hand the reader to WhatsApp the way the rest
  * of the site does. So this is a plain anchor at the owner's Contribute message link. There is no
  * form, no field, no radio group, no cart write and no navigation to /cart/: a contribution is now
  * a CONVERSATION, started by the reader in WhatsApp.
+ *
+ * THE PILL NAMES THE SUGGESTED AMOUNT AGAIN, 2026-10-11. Owner instruction: the button face reads
+ * "Contribute ₹250" rather than the bare word, so the reader knows the size of the ask before the
+ * conversation opens. This is NOT the return of the old amount pill - there is still no radio
+ * group, no field and no choice to make. The figure is a static LABEL read from the central
+ * src/config/contribution.ts (CONTRIBUTION_CHOICES[0].rupees, the same source the cart row and the
+ * server's mirror read) with the ₹ glyph for CONTRIBUTION_CURRENCY, so the number cannot drift from
+ * the one the cart would price. No amount, price or currency is sent from the browser; the figure
+ * is here to say what the conversation is about, exactly as the config header describes for the
+ * cart row's own label.
  *
  * WHY A WHATSAPP LINK RATHER THAN A CART LINE. Every other "ask us for something" surface on this
  * site is already a wa.me message link - /subscribe/ (src/content/subscribe.ts), /shipments/
@@ -99,9 +127,9 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
       href={ CONTRIBUTE_CTA_HREF }
       target="_blank"
       rel="noopener noreferrer"
-      aria-label="Contribute on WhatsApp"
+      aria-label={ `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` }
     >
-      <span>Contribute</span>
+      <span>{ `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` }</span>
     </a>
     {/* MICROCOPY, not a sentence: it names where the button goes in three words and a trailing
         arrow that says "leaves here". The accessible name on the anchor already carries

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
 import BlogPostPage from '../pages/post/[slug]';
+import { CONTRIBUTE_AMOUNT_LABEL } from '../components/BlogContribution';
 import { toBlogCard, blogPageCount, POSTS_PER_PAGE, type BlogCard, type PublicBlogPost } from '../lib/public-blog';
 import type { BlogIndexPageProps } from '../lib/blog-index-props';
 /* CONTRIBUTION_CHOICES was imported here to hold the rendered amount pills equal to the central
@@ -865,8 +866,10 @@ describe( 'Blog post page', () => {
     const links = Array.from( block.querySelectorAll( 'a' ) );
     expect( links ).toHaveLength( 1 );
     expect( links[ 0 ] ).toHaveAttribute( 'href', 'https://wa.me/message/BYFLCAAMSZBXD1' );
-    expect( links[ 0 ].textContent ).toBe( 'Contribute' );
-    expect( links[ 0 ] ).toHaveAttribute( 'aria-label', 'Contribute on WhatsApp' );
+    // The pill names the suggested amount (owner instruction 2026-10-11): "Contribute ₹250",
+    // read from the central config so the figure cannot drift.
+    expect( links[ 0 ].textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
+    expect( links[ 0 ] ).toHaveAttribute( 'aria-label', `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
     // TEXT-ONLY pill (no glyph), with the destination in a short microcopy line below it.
     // Recorded at .agents/tasks/contribute-whatsapp-cta/owner-decision.md: the glyph was dropped
     // as too busy inside the filled pill, and the quiet line carries the destination instead.
@@ -885,7 +888,9 @@ describe( 'Blog post page', () => {
     expect( block.querySelectorAll( 'form, input, button, fieldset' ) ).toHaveLength( 0 );
     expect( block.querySelector( '[role="radiogroup"]' ) ).toBeNull();
     expect( block.querySelector( '.bc-choice-face' ) ).toBeNull();
-    expect( block.textContent || '' ).not.toContain( '\u20B9' );
+    // The amount is NAMED on the pill, but it is a static label, not a chooseable control: the one
+    // rupee figure in the block sits on the single anchor.
+    expect( block.textContent || '' ).toContain( '\u20B9250' );
   } );
 
   /**
@@ -914,9 +919,12 @@ describe( 'Blog post page', () => {
 
     // One word each, and the full WhatsApp context in the accessible name (WCAG 2.5.3).
     expect( subscribe.querySelector( 'span' )?.textContent ).toBe( 'Subscribe' );
-    expect( contribute.querySelector( 'span' )?.textContent ).toBe( 'Contribute' );
+    // Contribute names the suggested amount on its face (owner instruction 2026-10-11); Subscribe
+    // stays a single word. The pair is still a twin in shape - lime pill, text only, twin
+    // microcopy - the only difference is the amount Contribute now quotes.
+    expect( contribute.querySelector( 'span' )?.textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
     expect( subscribe.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
-    expect( contribute.getAttribute( 'aria-label' ) ).toBe( 'Contribute on WhatsApp' );
+    expect( contribute.getAttribute( 'aria-label' ) ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
 
     // NEITHER carries a glyph any more.
     expect( subscribe.querySelector( 'svg' ) ).toBeNull();
