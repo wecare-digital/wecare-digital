@@ -211,8 +211,8 @@ interface SearchResult {
 
 const DEFAULT_PLACE: PlaceState = {
   // Default local view: Lumpyngngad, Shillong. This is the Meghalaya PCB monitoring
-  // area the owner selected as the initial VayuLok destination. Search/map clicks can
-  // still replace it immediately; live Weather/Air requests use these coordinates.
+  // area the owner selected as the initial VayuLok destination. Search/recent-place
+  // selection can replace it; live Weather/Air requests use these coordinates.
   name: 'Lumpyngngad',
   addr: 'Shillong, Meghalaya',
   lat: 25.5586,
@@ -692,7 +692,7 @@ function rememberPlace( place: PlaceState ) {
 
 const VayuLokLive: React.FC = () => {
   // Load the owner-selected local destination immediately so the map and live panels
-  // are useful on first paint; search and map clicks continue to replace this selection.
+  // are useful on first paint; search/recent-place selection replaces this destination.
   const [ place, setPlace ] = useState<PlaceState>( DEFAULT_PLACE );
   const [ hasSelection, setHasSelection ] = useState( true );
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
@@ -886,7 +886,12 @@ const VayuLokLive: React.FC = () => {
         center: { lat: 25, lng: 86 },
         zoom: 4,
         mapTypeId: 'hybrid',
-        gestureHandling: 'greedy',
+        // Selection-driven camera: visitors choose a place from search; the map itself does
+        // not pan/drag/scroll/pinch underneath the screen-space weather atmosphere.
+        gestureHandling: 'none',
+        draggable: false,
+        scrollwheel: false,
+        disableDoubleClickZoom: true,
         disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: false,
@@ -908,64 +913,8 @@ const VayuLokLive: React.FC = () => {
       if ( maps.Geocoder ) geocoder.current = new maps.Geocoder();
       placesLibRef.current = placesLib || maps.places || null;
 
-      const interactiveMap = map as {
-        addListener?: ( eventName: string, handler: ( event?: any ) => void ) => { remove?: () => void };
-      };
-      interactiveMap.addListener?.( 'click', ( event?: any ) => {
-        const lat = event?.latLng?.lat?.();
-        const lng = event?.latLng?.lng?.();
-        if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return;
-        const gc = geocoder.current as {
-          geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
-        } | null;
-        gc?.geocode?.( { location: { lat, lng }, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }, async ( rows, status ) => {
-          if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const first = rows[ 0 ] as { formatted_address?: string; place_id?: string } | undefined;
-          if ( !first ) return;
-          const next: PlaceState = {
-            name: first.formatted_address?.split( ',' )[ 0 ] || 'Selected location',
-            addr: first.formatted_address || '',
-            lat,
-            lng,
-            placeId: first.place_id,
-          };
-          setHasSelection( true );
-          setSearchStatus( 'idle' );
-          // 03C - selecting an area (here via a map click) recenters the map on that
-          // area's geocoded lat/lng and loads its live data, exactly like choosing a
-          // search result. The recenter effect (center + zoom 14 + marker move) fires on
-          // the place change, so only the selected area's geocoding is shown. mapCandidate
-          // continues to drive the on-map metadata enrichment below.
-          setMapCandidate( next );
-          setPlace( next );
-
-          // If reverse geocoding produced a Place ID, enrich the preview with the honest
-          // Google Place metadata the on-map selected label can show (primary type,
-          // viewport, rating, etc.). We do NOT request Places photos: the floating card
-          // renders no photo rail, so fetching them would be a wasted Places request.
-          if ( first.place_id ) {
-            const lib = placesLibRef.current as {
-              Place?: new ( opts: { id: string } ) => GooglePlaceLike;
-            } | null;
-            const PlaceCtor = lib?.Place;
-            if ( PlaceCtor ) {
-              try {
-                const googlePlace = new PlaceCtor( { id: first.place_id } );
-                await googlePlace.fetchFields?.( { fields: [ ...PLACE_META_FIELDS ] } );
-                const meta = metaFromGooglePlace( googlePlace );
-                if ( Object.keys( meta ).length ) {
-                  setMapCandidate( current => current && current.lat === lat && current.lng === lng
-                    ? { ...current, ...meta }
-                    : current );
-                  setPlace( current => current.lat === lat && current.lng === lng
-                    ? { ...current, ...meta }
-                    : current );
-                }
-              } catch { /* metadata enrichment is optional */ }
-            }
-          }
-        } );
-      } );
+      // Intentionally no map click handler. Location changes are owned by the search/recent
+      // place selector only, which keeps the map, AQI tiles and atmosphere visually aligned.
 
       // A constructed Map is not the same thing as a painted map. With an invalid or
       // refused browser key Google can still create the map object while its tiles never
@@ -1979,9 +1928,8 @@ const VayuLokLive: React.FC = () => {
     rememberPlace( next );
     setPlace( next );
     setHasSelection( true );
-    // 03C - a fresh search selection owns the view: clear any lingering map-click
-    // candidate so previewPlace (mapCandidate || place) and the on-map label follow the
-    // newly chosen area, never a stale clicked location.
+    // A fresh search selection owns the view. Clear transient preview metadata so the
+    // on-map label and camera follow only the newly chosen location.
     setMapCandidate( null );
     setQuery( next.name );
     setOpen( false );
