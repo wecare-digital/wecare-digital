@@ -143,18 +143,20 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     }
   } );
 
-  it( 'leaves the ten display:none and height:6px hiders alone', () => {
+  it( 'leaves the eight display:none and height:6px hiders alone', () => {
     // They set no colour, so they do not compete, and deleting one would bring back a visible
     // scrollbar on a tab strip or a carousel. Counted so a silent cull is caught here.
-    // Nine when this gate was written; the tenth is `.vl-live-forecast-track`, which arrived
-    // with the VayuLok forecast carousel and is a hider rather than a colour - so it is
-    // counted here and still absent from the colour allow-list above.
+    // Nine when this gate was written; a tenth (`.vl-live-forecast-track`) arrived with the
+    // VayuLok forecast carousel. That carousel - together with the `.vl-live-photo-rail`
+    // place-photo rail, the other VayuLok hider - was removed when the VayuLok left panel was
+    // replaced by the floating Air card, so the count is back to eight. The floating card
+    // scrolls with `scrollbar-width: thin` and no colour, so it adds no hider and no colour.
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
     } );
-    expect( hiders.length ).toBe( 10 );
+    expect( hiders.length ).toBe( 8 );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {

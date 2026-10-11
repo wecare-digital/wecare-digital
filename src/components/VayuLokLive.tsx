@@ -74,14 +74,6 @@ function pm25Severity( pm25: number ): Sev {
 const INDIA_BOUNDS = { north: 37.6, south: 6.4, west: 68.1, east: 97.4 };
 
 // Neutral map camera; no place is selected until the visitor acts.
-interface PlacePhotoAttribution {
-  name: string;
-  uri?: string;
-}
-interface PlacePhoto {
-  url: string;
-  attributions: PlacePhotoAttribution[];
-}
 interface PlaceState {
   name: string;
   addr: string;
@@ -90,7 +82,6 @@ interface PlaceState {
   // Retain the resolved Google Place ID so a future server-side Geocoding v4
   // SearchDestinations relay can enrich discrete destinations without re-searching.
   placeId?: string;
-  photos?: PlacePhoto[];
   // Honest, optional Google Place metadata surfaced in the left card. Each is written to
   // state ONLY when the Places API actually returned it, so the card never shows an
   // invented fact or a placeholder (see metaFromGooglePlace / the left-card guards).
@@ -126,10 +117,6 @@ interface GooglePlaceLike {
   formattedAddress?: string;
   location?: { lat?: () => number; lng?: () => number };
   addressComponents?: { types?: string[]; shortText?: string }[];
-  photos?: {
-    getURI?: ( opts: { maxWidth?: number; maxHeight?: number } ) => string;
-    authorAttributions?: { displayName?: string; uri?: string }[];
-  }[];
   types?: string[];
   primaryTypeDisplayName?: string;
   rating?: number;
@@ -208,7 +195,6 @@ const DEFAULT_PLACE: PlaceState = {
   addr: 'Shillong, Meghalaya',
   lat: 25.5586,
   lng: 91.8985,
-  photos: [],
 };
 
 // OWNER OVERRIDE (reference screenshot, 2026-10-06): the selected place now uses the STANDARD
@@ -450,6 +436,20 @@ function hourLabel( ms: number ): string {
   return new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric' } ).format( new Date( ms ) );
 }
 
+/* Friendly labels for the Google pollutant codes, shared by the pollutant rows and the
+   dominant-pollutant chip so both read consistently (e.g. "pm25" -> "PM2.5"). */
+const POLLUTANT_LABELS: Record<string, string> = {
+  pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
+};
+
+/* Resolve a dominant pollutant code to the same friendly label the rows use. Prefer a
+   label already carried on a matching pollutant row, then the shared map, then fall back
+   to the raw code so an unknown dominant pollutant is still surfaced rather than hidden. */
+function dominantPollutantLabel( code: string, pollutants: AirState['pollutants'] ): string {
+  const fromRow = pollutants.find( p => p.code === code )?.label;
+  return fromRow || POLLUTANT_LABELS[ code ] || code;
+}
+
 /* Parse a currentConditions:lookup payload into the LEFT-card AirState (AQI value +
    category word + severity + pollutant rows + advisory). Returns null when no finite AQI
    arrived, so a point that fails to parse is DROPPED, never fabricated. Shared by the
@@ -461,11 +461,8 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
   const aqi = idx.aqi as number;
   const cat = aqiCategory( aqi );
   const pollutants: AirState['pollutants'] = [];
-  const WANT: Record<string, string> = {
-    pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
-  };
   ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
-    const label = p.code ? WANT[ p.code ] : undefined;
+    const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
     const v = p.concentration?.value;
     if ( label && Number.isFinite( v ) ) {
       pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
@@ -565,10 +562,7 @@ function rememberPlace( place: PlaceState ) {
   try {
     const key = `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}`;
     const rows = recentPlaces().filter( p => `${p.lat.toFixed( 4 )},${p.lng.toFixed( 4 )}` !== key );
-    // Do not persist Google photo URIs. Maps Platform photo URLs must be obtained
-    // from a fresh Place object, and any supplied author attribution must travel
-    // with the displayed photo.
-    rows.unshift( { name: place.name, addr: place.addr, lat: place.lat, lng: place.lng, photos: [] } );
+    rows.unshift( { name: place.name, addr: place.addr, lat: place.lat, lng: place.lng } );
     window.localStorage.setItem( RECENT_PLACES_KEY, JSON.stringify( rows.slice( 0, 5 ) ) );
   } catch { /* storage can be unavailable */ }
 }
@@ -581,7 +575,6 @@ const VayuLokLive: React.FC = () => {
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
-  const [ photoIndex, setPhotoIndex ] = useState( 0 );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
 
   const [ air, setAir ] = useState<AirState | null>( null );
@@ -600,9 +593,7 @@ const VayuLokLive: React.FC = () => {
   const [ refreshNonce, setRefreshNonce ] = useState( 0 );
   const [ coreFetchedAt, setCoreFetchedAt ] = useState<number | null>( null );
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
-  const [ nearbyPhotos, setNearbyPhotos ] = useState<PlacePhoto[]>( [] );
   const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
-  const [ elevationM, setElevationM ] = useState<number | null>( null );
 
   // Search combobox state.
   const [ query, setQuery ] = useState( '' );
@@ -616,8 +607,6 @@ const VayuLokLive: React.FC = () => {
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
-  const photoRailRef = useRef<HTMLDivElement | null>( null );
-  const placeCardRef = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
@@ -643,11 +632,8 @@ const VayuLokLive: React.FC = () => {
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
   useEffect( () => {
-    setPhotoIndex( 0 );
     setMapCandidate( null );
-    setNearbyPhotos( [] );
     setAddressDescriptor( '' );
-    setElevationM( null );
   }, [ place.lat, place.lng ] );
 
   useEffect( () => {
@@ -800,7 +786,6 @@ const VayuLokLive: React.FC = () => {
             lat,
             lng,
             placeId: first.place_id,
-            photos: [],
           };
           setHasSelection( true );
           setSearchStatus( 'idle' );
@@ -808,13 +793,14 @@ const VayuLokLive: React.FC = () => {
           // area's geocoded lat/lng and loads its live data, exactly like choosing a
           // search result. The recenter effect (center + zoom 14 + marker move) fires on
           // the place change, so only the selected area's geocoding is shown. mapCandidate
-          // continues to drive the photo overlay / nearby-media enrichment below.
+          // continues to drive the on-map metadata enrichment below.
           setMapCandidate( next );
           setPlace( next );
 
-          // If reverse geocoding produced a Place ID, enrich the preview with Google
-          // Places photos AND the honest metadata the left card can show. Any author
-          // attribution supplied by Google is preserved and rendered with the photo below.
+          // If reverse geocoding produced a Place ID, enrich the preview with the honest
+          // Google Place metadata the on-map selected label can show (primary type,
+          // viewport, rating, etc.). We do NOT request Places photos: the floating card
+          // renders no photo rail, so fetching them would be a wasted Places request.
           if ( first.place_id ) {
             const lib = placesLibRef.current as {
               Place?: new ( opts: { id: string } ) => GooglePlaceLike;
@@ -823,26 +809,17 @@ const VayuLokLive: React.FC = () => {
             if ( PlaceCtor ) {
               try {
                 const googlePlace = new PlaceCtor( { id: first.place_id } );
-                await googlePlace.fetchFields?.( { fields: [ 'photos', ...PLACE_META_FIELDS ] } );
-                const photos: PlacePhoto[] = ( Array.isArray( googlePlace.photos ) ? googlePlace.photos : [] )
-                  .slice( 0, 8 )
-                  .map( photo => ( {
-                    url: photo.getURI?.( { maxWidth: 900, maxHeight: 600 } ) || '',
-                    attributions: ( Array.isArray( photo.authorAttributions ) ? photo.authorAttributions : [] )
-                      .map( a => ( { name: String( a.displayName || 'Photo contributor' ), uri: a.uri } ) ),
-                  } ) )
-                  .filter( photo => Boolean( photo.url ) );
+                await googlePlace.fetchFields?.( { fields: [ ...PLACE_META_FIELDS ] } );
                 const meta = metaFromGooglePlace( googlePlace );
-                if ( photos.length || Object.keys( meta ).length ) {
-                  const enrich = { ...meta, ...( photos.length ? { photos } : {} ) };
+                if ( Object.keys( meta ).length ) {
                   setMapCandidate( current => current && current.lat === lat && current.lng === lng
-                    ? { ...current, ...enrich }
+                    ? { ...current, ...meta }
                     : current );
                   setPlace( current => current.lat === lat && current.lng === lng
-                    ? { ...current, ...enrich }
+                    ? { ...current, ...meta }
                     : current );
                 }
-              } catch { /* photo + metadata enrichment is optional */ }
+              } catch { /* metadata enrichment is optional */ }
             }
           }
         } );
@@ -898,66 +875,6 @@ const VayuLokLive: React.FC = () => {
     runInit();
     return () => { cancelled = true; };
   }, [] );
-
-  /* ---------------------------------------------------------------------------------
-     PLACE CARD MEDIA FALLBACK. Exact-place photos are preferred. If none are available,
-     look for nearby photographed Places. Only then use a tightly-contained Street View
-     panorama inside the place card; the main map remains a normal roadmap. */
-  useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' || !mapReady ) return;
-    const target = mapCandidate || place;
-    const hasExactPhoto = ( target.photos || [] ).some( photo => Boolean( photo.url ) );
-    if ( hasExactPhoto ) {
-      setNearbyPhotos( [] );
-      return;
-    }
-
-    let cancelled = false;
-    setNearbyPhotos( [] );
-
-    const loadMedia = async () => {
-      const lib = placesLibRef.current as {
-        Place?: {
-          searchNearby?: ( req: Record<string, unknown> ) => Promise<{ places?: any[] }>;
-        };
-      } | null;
-
-      try {
-        const searchNearby = lib?.Place?.searchNearby;
-        if ( typeof searchNearby === 'function' ) {
-          const out = await searchNearby( {
-            fields: [ 'displayName', 'location', 'photos' ],
-            locationRestriction: { center: { lat: target.lat, lng: target.lng }, radius: 2500 },
-            maxResultCount: 8,
-            rankPreference: 'DISTANCE',
-          } );
-          const photos: PlacePhoto[] = [];
-          ( Array.isArray( out?.places ) ? out.places : [] ).forEach( p => {
-            ( Array.isArray( p?.photos ) ? p.photos : [] ).slice( 0, 2 ).forEach( ( photo: any ) => {
-              const url = photo?.getURI?.( { maxWidth: 1200, maxHeight: 760 } ) || '';
-              if ( !url ) return;
-              const attributions = ( Array.isArray( photo?.authorAttributions ) ? photo.authorAttributions : [] )
-                .map( ( a: any ) => ( { name: String( a?.displayName || 'Photo contributor' ), uri: a?.uri } ) );
-              photos.push( { url, attributions } );
-            } );
-          } );
-          if ( !cancelled && photos.length ) {
-            setNearbyPhotos( photos.slice( 0, 8 ) );
-            return;
-          }
-        }
-      } catch { /* nearby photo enrichment is optional */ }
-
-      // No Street View fallback here. A native panorama brings its own chrome and
-      // visual language into the card; the neutral fallback below keeps the VayuLok card stable.
-    };
-
-    const id = window.setTimeout( () => { void loadMedia(); }, 0 );
-    return () => {
-      cancelled = true;
-      window.clearTimeout( id );
-    };
-  }, [ mapReady, mapCandidate, place, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      LAYER-ACTIVATION DATA (FEAT-002). Selecting a place restores the compact weather/forecast experience on the LEFT.
@@ -1236,11 +1153,8 @@ const VayuLokLive: React.FC = () => {
         const aqi = idx.aqi as number;
         const cat = aqiCategory( aqi );
         const pollutants: AirState['pollutants'] = [];
-        const WANT: Record<string, string> = {
-          pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
-        };
         ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
-          const label = p.code ? WANT[ p.code ] : undefined;
+          const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
           const v = p.concentration?.value;
           if ( label && Number.isFinite( v ) ) {
             pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
@@ -1628,8 +1542,9 @@ const VayuLokLive: React.FC = () => {
   }, [] );
 
   /* ---------------------------------------------------------------------------------
-     Place enrichment used by the approved v8 card. Both calls are optional and disappear
-     cleanly when a project has not enabled the corresponding service. */
+     Place enrichment: the on-map selected label shows a human address descriptor
+     (landmark/area) when the Geocoder exposes one. Optional and degrades cleanly when
+     a project has not enabled the service. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
     let cancelled = false;
@@ -1661,21 +1576,7 @@ const VayuLokLive: React.FC = () => {
       } catch { /* descriptor enrichment is optional */ }
     };
 
-    const elevate = async () => {
-      try {
-        const maps = ( window as any )?.google?.maps;
-        const lib = maps?.importLibrary ? await maps.importLibrary( 'elevation' ) : null;
-        const ElevationService = lib?.ElevationService || maps?.ElevationService;
-        if ( cancelled || !ElevationService ) return;
-        const service = new ElevationService();
-        const response = await service.getElevationForLocations( { locations: [ { lat: place.lat, lng: place.lng } ] } );
-        const value = response?.results?.[ 0 ]?.elevation;
-        if ( !cancelled && Number.isFinite( value ) ) setElevationM( Math.round( value ) );
-      } catch { /* elevation is optional */ }
-    };
-
     void describe();
-    void elevate();
     return () => { cancelled = true; };
   }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
@@ -1765,7 +1666,6 @@ const VayuLokLive: React.FC = () => {
               addr: pr.formatted_address || '',
               lat: lat as number,
               lng: lng as number,
-              photos: [],
             };
             return { name: place.name, addr: place.addr, place };
           } )
@@ -1806,7 +1706,7 @@ const VayuLokLive: React.FC = () => {
     if ( !next && r.prediction?.toPlace ) {
       try {
         const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'photos', ...PLACE_META_FIELDS ] } );
+        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', ...PLACE_META_FIELDS ] } );
         if ( !isIndiaResult( googlePlace ) ) {
           setSearchStatus( 'outside-india' );
           return;
@@ -1814,23 +1714,14 @@ const VayuLokLive: React.FC = () => {
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
-          const photos: PlacePhoto[] = ( Array.isArray( googlePlace.photos ) ? googlePlace.photos : [] )
-            .slice( 0, 8 )
-            .map( photo => ( {
-              url: photo.getURI?.( { maxWidth: 900, maxHeight: 600 } ) || '',
-              attributions: ( Array.isArray( photo.authorAttributions ) ? photo.authorAttributions : [] )
-                .map( a => ( { name: String( a.displayName || 'Photo contributor' ), uri: a.uri } ) ),
-            } ) )
-            .filter( p => Boolean( p.url ) );
           next = {
             name: googlePlace.displayName || r.name,
             addr: googlePlace.formattedAddress || r.addr,
             lat: lat as number,
             lng: lng as number,
             placeId: googlePlace.id,
-            photos,
             // Surface only the metadata Google actually returned; absent fields stay
-            // undefined so the left card renders no placeholder for them.
+            // undefined so the on-map label renders no placeholder for them.
             ...metaFromGooglePlace( googlePlace ),
           };
         }
@@ -1846,7 +1737,7 @@ const VayuLokLive: React.FC = () => {
     setPlace( next );
     setHasSelection( true );
     // 03C - a fresh search selection owns the view: clear any lingering map-click
-    // candidate so previewPlace (mapCandidate || place) and the photo overlay follow the
+    // candidate so previewPlace (mapCandidate || place) and the on-map label follow the
     // newly chosen area, never a stale clicked location.
     setMapCandidate( null );
     setQuery( next.name );
@@ -1870,283 +1761,131 @@ const VayuLokLive: React.FC = () => {
 
   useEffect( () => () => { if ( searchTimer.current ) clearTimeout( searchTimer.current ); }, [] );
 
-  const weatherFreshness = relativeAgeLabel( weather?.currentTime || coreFetchedAt || undefined );
-  const airFreshness = relativeAgeLabel( air?.updatedAt || coreFetchedAt || undefined );
+  // The floating Air card and the on-map label read these. The former LEFT-panel
+  // derivations (photo rail, 24h forecast rail, best-outside / rain signals, 4-day
+  // outlook, weather-context) were removed with the panel they fed; the underlying
+  // weather/air history + forecast state is still fetched and kept intact for the
+  // Weather phase and the map layers.
   const previewPlace = mapCandidate || place;
-  const exactPhotos = hasSelection ? ( previewPlace.photos || [] ) : [];
-  const displayPhotos = Array.from(
-    new Map( [ ...exactPhotos, ...nearbyPhotos ].map( photo => [ photo.url, photo ] ) ).values(),
-  ).slice( 0, 8 );
-
-  const dotClass = ( sev: Sev ) => `vl-live-dot vl-live-dot-${sev}`;
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
-  const currentPm25Sev = currentPm25 && Number.isFinite( currentPm25.value )
-    ? pm25Severity( currentPm25.value )
-    : null;
   const mapActive = Boolean( MAPS_KEY );
   const liveActive = Boolean( MAPS_KEY && hasSelection );
-  const bestOutside = bestOutsideWindow( weatherHourly, airForecast );
-  const combinedHours = weatherHourly.slice( 0, 24 ).map( ( w, i ) => ( {
-    ...w,
-    air: airForecast.find( a => Math.abs( a.time - w.time ) < 45 * 60 * 1000 ) || airForecast[ i ],
-  } ) );
-  const pastRailHours = weatherHistory.slice( -2 ).map( h => ( {
-    ...h,
-    air: airHistory.find( a => Math.abs( a.time - h.time ) < 45 * 60 * 1000 ),
-    railPhase: 'past' as const,
-  } ) );
-  const futureRailHours = combinedHours.slice( 0, 3 ).map( ( h, i ) => ( {
-    ...h,
-    railPhase: i === 0 ? 'now' as const : 'future' as const,
-  } ) );
-  const displayRailHours = [ ...pastRailHours, ...futureRailHours ];
-
-  const historyTemps = weatherHistory.map( h => h.temp ).filter( ( v ): v is number => Number.isFinite( v ) );
-  const historyRain = weatherHistory.reduce( ( sum, h ) => sum + ( Number.isFinite( h.rainMm ) ? ( h.rainMm as number ) : 0 ), 0 );
-  const oldestTemp = weatherHistory[ 0 ]?.temp;
-  const tempDelta = Number.isFinite( weather?.temp ) && Number.isFinite( oldestTemp )
-    ? Math.round( ( weather!.temp as number ) - ( oldestTemp as number ) )
-    : null;
-  const weatherContextParts: string[] = [];
-  if ( Number.isFinite( tempDelta ) ) weatherContextParts.push( `${( tempDelta as number ) >= 0 ? '+' : ''}${tempDelta}° vs 24h ago` );
-  if ( historyTemps.length ) weatherContextParts.push( `24h range ${Math.min( ...historyTemps )}–${Math.max( ...historyTemps )}°` );
-  if ( historyRain > 0 ) weatherContextParts.push( `Rain last 24h ${historyRain.toFixed( 1 )} mm` );
-  const weatherContext = weatherContextParts.join( ' · ' );
-  const rainSignal = combinedHours.find( h => Number.isFinite( h.rainProb ) && ( h.rainProb as number ) >= 30 ) || null;
-  const airDayGroups = new Map<string, AirPoint[]>();
-  airForecast.slice( 0, 96 ).forEach( point => {
-    const key = new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' } ).format( new Date( point.time ) );
-    const rows = airDayGroups.get( key ) || [];
-    rows.push( point );
-    airDayGroups.set( key, rows );
-  } );
-  const airDayOutlook = Array.from( airDayGroups.values() ).slice( 0, 4 ).map( ( rows, i ) => {
-    const aqi = Math.round( rows.reduce( ( sum, row ) => sum + row.aqi, 0 ) / Math.max( 1, rows.length ) );
-    return {
-      label: i === 0 ? 'Today' : new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short' } ).format( new Date( rows[ 0 ].time ) ),
-      aqi,
-      word: aqiCategory( aqi ).word,
-    };
-  } );
 
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
       <main className="vl-live-shell">
         <div className="vl-live-workspace">
-          <section className="vl-live-left" aria-label="Place and environmental details">
-            { hasSelection ? (
-              <div className="vl-live-place-card" ref={ placeCardRef } tabIndex={ -1 }>
-                <div className="vl-live-place-visual">
-                  { displayPhotos.length > 0 ? (
-                    <>
-                      <div
-                        className="vl-live-photo-rail"
-                        ref={ photoRailRef }
-                        aria-label="Place photos"
-                        onScroll={ e => {
-                          const width = e.currentTarget.clientWidth;
-                          if ( width > 0 ) setPhotoIndex( Math.round( e.currentTarget.scrollLeft / width ) );
-                        } }
-                      >
-                        { displayPhotos.map( ( photo, i ) => (
-                          <figure className="vl-live-photo-slide" key={ photo.url }>
-                            <img
-                              className="vl-live-place-image"
-                              src={ photo.url }
-                              alt={ `${previewPlace.name} photo ${i + 1}` }
-                              loading={ i === 0 ? 'eager' : 'lazy' }
-                            />
-                            { photo.attributions.length > 0 && (
-                              <figcaption className="vl-live-photo-credit">
-                                { photo.attributions.slice( 0, 2 ).map( ( credit, j ) => (
-                                  <React.Fragment key={ `${credit.name}-${j}` }>
-                                    { j > 0 ? ' · ' : '' }
-                                    { credit.uri ? <a href={ credit.uri } target="_blank" rel="noreferrer">{ credit.name }</a> : credit.name }
-                                  </React.Fragment>
-                                ) ) }
-                              </figcaption>
-                            ) }
-                          </figure>
-                        ) ) }
-                      </div>
-                      { displayPhotos.length > 1 && (
-                        <div className="vl-live-photo-progress" aria-hidden="true">
-                          { displayPhotos.map( ( photo, i ) => (
-                            <span className={ i === photoIndex ? 'is-active' : '' } key={ photo.url } />
-                          ) ) }
-                        </div>
-                      ) }
-                    </>
-                  ) : (
-                    <div className="vl-live-place-art" aria-hidden="true">
-                      <div className="vl-live-art-block vl-live-art-one" />
-                      <div className="vl-live-art-block vl-live-art-two" />
-                    </div>
-                  ) }
-                </div>
-
-                <div className="vl-live-place-copy">
-                  <h3 className="vl-live-place-name">{ previewPlace.name }</h3>
-                  { previewPlace.addr && <p className="vl-live-place-address">{ previewPlace.addr }</p> }
-                  { addressDescriptor && <p className="vl-live-descriptor-line">{ addressDescriptor }</p> }
-                  { ( previewPlace.primaryType || Number.isFinite( elevationM ) ) && (
-                    <>
-                      { previewPlace.primaryType && (
-                        <div className="vl-live-place-meta">
-                          <span className="vl-live-meta-chip">{ previewPlace.primaryType }</span>
-                        </div>
-                      ) }
-                      { Number.isFinite( elevationM ) && (
-                        <div className="vl-live-place-facts"><span>Elevation { elevationM } m</span></div>
-                      ) }
-                    </>
-                  ) }
-                </div>
-              </div>
-            ) : null }
-
-            { hasSelection && ( weather || air ) && (
-              <section className="vl-live-section">
-                <div className="vl-live-section-head">
-                  <h3>Now</h3>
-                  <span className="vl-live-fresh">{ weatherFreshness.label !== 'Current' ? weatherFreshness.label : airFreshness.label }</span>
-                </div>
-
-                <div className="vl-live-now-grid">
-                  { weather && (
-                    <div className="vl-live-now-cell">
-                      <div className="vl-live-now-label">Weather</div>
-                      <div className="vl-live-now-main">
-                        <strong>{ Number.isFinite( weather.temp ) ? weather.temp : '—' }°</strong>
-                        <span>C</span>
-                      </div>
-                      { weather.condition && <div className="vl-live-now-title">{ weather.condition }</div> }
-                      { Number.isFinite( weather.feelsLike ) && <div className="vl-live-now-sub">Feels like { weather.feelsLike }° · current conditions</div> }
-                    </div>
-                  ) }
-                  { air && (
-                    <div className="vl-live-now-cell">
-                      <div className="vl-live-now-label">Air quality</div>
-                      <div className="vl-live-now-main"><strong>{ Math.round( air.aqi ) }</strong><span>AQI</span></div>
-                      <div className="vl-live-now-title">{ air.word }</div>
-                      { currentPm25 && <div className="vl-live-now-sub">PM2.5 { Math.round( currentPm25.value ) } { currentPm25.unit }</div> }
-                    </div>
-                  ) }
-                </div>
-
-                { weatherContext && <p className="vl-live-now-context">{ weatherContext }</p> }
-
-                { weather && (
-                  <div className="vl-live-facts" aria-label="Current conditions">
-                    { Number.isFinite( weather.humidity ) && <div className="vl-live-fact"><span>Humidity</span><strong>{ weather.humidity }%</strong></div> }
-                    { Number.isFinite( weather.windSpeed ) && <div className="vl-live-fact"><span>Wind</span><strong>{ weather.windSpeed } { weather.windUnit || 'km/h' }</strong></div> }
-                    { Number.isFinite( weather.rainProb ) && <div className="vl-live-fact"><span>Rain</span><strong>{ weather.rainProb }%</strong></div> }
-                    { Number.isFinite( weather.uv ) && <div className="vl-live-fact"><span>UV</span><strong>{ weather.uv }</strong></div> }
-                  </div>
-                ) }
-
-                { ( bestOutside || rainSignal ) && (
-                  <div className="vl-live-signals">
-                    { bestOutside && (
-                      <div className="vl-live-signal">
-                        <span>Best outside</span>
-                        <strong>{ bestOutside.label }</strong>
-                        <p>{ bestOutside.note }</p>
-                      </div>
-                    ) }
-                    { rainSignal && (
-                      <div className="vl-live-signal vl-live-signal-secondary">
-                        <span>Rain likely</span>
-                        <strong>{ hourLabel( rainSignal.time ) }</strong>
-                        <p>{ rainSignal.rainProb }% chance</p>
-                      </div>
-                    ) }
-                  </div>
-                ) }
-
-                { currentPm25 && (
-                  <div className="vl-live-air-source-strip" aria-label="Air source comparison">
-                    <div>
-                      <span>Google model</span>
-                      <strong>{ Math.round( currentPm25.value ) } <small>{ currentPm25.unit } PM2.5</small></strong>
-                      <small>{ airFreshness.label }</small>
-                    </div>
-                    <div>
-                      <span>Observed</span>
-                      <strong>—</strong>
-                      <small>No nearby monitor reading</small>
-                    </div>
-                  </div>
-                ) }
-              </section>
-            ) }
-
-            { displayRailHours.length > 0 && (
-              <section className="vl-live-section">
-                <div className="vl-live-section-head"><h3>Next 24 hours</h3><span className="vl-live-fresh">Weather + air</span></div>
-                <div className="vl-live-forecast-weather" aria-label="Past two hours, now and next two hours">
-                  <div className="vl-live-forecast-track">
-                    { displayRailHours.map( h => (
-                      <article className={ `vl-live-forecast-hour is-${h.railPhase}` } key={ `${h.railPhase}-${h.time}` }>
-                        <time>{ h.railPhase === 'now' ? 'Now' : hourLabel( h.time ) }</time>
-                        <div className="vl-live-forecast-temp"><strong>{ Number.isFinite( h.temp ) ? h.temp : '—' }°</strong><span>{ Number.isFinite( h.feelsLike ) ? h.feelsLike : '—' }°</span></div>
-                        <div className="vl-live-forecast-icon" aria-hidden="true">
-                          { h.icon ? <img src={ h.icon + '.svg' } alt="" /> : <span>◐</span> }
-                        </div>
-                        <div className="vl-live-forecast-wind">
-                          <strong>{ Number.isFinite( h.windSpeed ) ? h.windSpeed : '—' }</strong>
-                          <span>{ h.windUnit || 'km/h' }</span>
-                          <b aria-hidden="true">{ h.windDir || '→' }</b>
-                        </div>
-                        { h.air && h.railPhase === 'now' && <div className="vl-live-forecast-air">AQI { h.air.aqi }</div> }
-                        <div className="vl-live-forecast-rain">{ Number.isFinite( h.rainProb ) ? h.rainProb : 0 }%</div>
-                        <div className="vl-live-forecast-node" aria-hidden="true" />
-                      </article>
-                    ) ) }
-                  </div>
-                  <div className="vl-live-forecast-baseline" aria-hidden="true"><span className="vl-live-past-line" /><span className="vl-live-future-line" /></div>
-                </div>
-              </section>
-            ) }
-
-            { hasSelection && ( air || weather ) && (
-              <section className="vl-live-section">
-                <div className="vl-live-tabs" role="tablist" aria-label="Details">
-                  <button type="button" role="tab" aria-selected={ detailTab === 'air' } onClick={ () => setDetailTab( 'air' ) }>Air</button>
-                  <button type="button" role="tab" aria-selected={ detailTab === 'weather' } onClick={ () => setDetailTab( 'weather' ) }>Weather</button>
-                </div>
-
-                { detailTab === 'air' && air && (
-                  <>
-                    <div className="vl-live-detail-grid" role="tabpanel" aria-label="Air details">
-                      { air.pollutants.slice( 0, 4 ).map( p => (
-                        <div className="vl-live-metric" key={ p.code }><span>{ p.label }</span><strong>{ Math.round( p.value ) } { p.unit }</strong></div>
-                      ) ) }
-                    </div>
-                    { airDayOutlook.length > 0 && (
-                      <div className="vl-live-air-4day" aria-label="Four day air outlook">
-                        { airDayOutlook.map( day => (
-                          <article className="vl-live-air-day" key={ day.label }><span>{ day.label }</span><strong>AQI { day.aqi }</strong><small>{ day.word }</small></article>
-                        ) ) }
-                      </div>
-                    ) }
-                  </>
-                ) }
-
-                { detailTab === 'weather' && weather && (
-                  <div className="vl-live-detail-grid" role="tabpanel" aria-label="Weather details">
-                    { Number.isFinite( weather.feelsLike ) && <div className="vl-live-metric"><span>Feels like</span><strong>{ weather.feelsLike }°C</strong></div> }
-                    { Number.isFinite( weather.humidity ) && <div className="vl-live-metric"><span>Humidity</span><strong>{ weather.humidity }%</strong></div> }
-                    { Number.isFinite( weather.visibilityKm ) && <div className="vl-live-metric"><span>Visibility</span><strong>{ weather.visibilityKm } km</strong></div> }
-                    { Number.isFinite( weather.pressureHpa ) && <div className="vl-live-metric"><span>Pressure</span><strong>{ weather.pressureHpa } hPa</strong></div> }
-                  </div>
-                ) }
-              </section>
-            ) }
-          </section>
-
-          <section className="vl-live-right" aria-label="Map">
+          <section className="vl-live-map-region" aria-label="Map">
             <div className="vl-live-map-shell">
+
+              {/* FLOATING AIR QUALITY CARD. Overlays the map in the top-left corner, inset so
+                  it never reaches Google's bottom-left logo or bottom-right legal notices. The
+                  markup stays INLINE here (styled-jsx scopes only statically-visible elements),
+                  every class is vl-live- prefixed, and it renders live Air content only when
+                  `air` is present - on the keyless path (air === null) only the static shell
+                  (header + toggle + honest empty state) shows, firing no fetch of its own. */}
+              <aside className="vl-live-air-card" aria-label="Air quality details">
+                <div className="vl-live-air-card-head">
+                  <h3 className="vl-live-air-card-title">Air Quality Details</h3>
+                </div>
+                <hr className="vl-live-air-card-rule" aria-hidden="true" />
+
+                {/* Air/Weather toggle - the same tint + saturated dot idiom as the hero's
+                    rotating pill (Air #e0f7c8/#3da35a, Weather #dbeafe/#2563eb). Drives the
+                    existing detailTab state; clicking it triggers no network call. */}
+                <div className="vl-live-air-toggle" role="tablist" aria-label="Air or weather details">
+                  <button
+                    type="button"
+                    role="tab"
+                    id="vl-live-air-tab"
+                    aria-controls="vl-live-air-panel"
+                    aria-selected={ detailTab === 'air' }
+                    className={ `vl-live-air-toggle-btn is-air ${detailTab === 'air' ? 'is-active' : ''}`.trim() }
+                    onClick={ () => setDetailTab( 'air' ) }
+                  >
+                    <i className="vl-live-air-toggle-dot" aria-hidden="true" />Air
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    id="vl-live-weather-tab"
+                    aria-controls="vl-live-weather-panel"
+                    aria-selected={ detailTab === 'weather' }
+                    className={ `vl-live-air-toggle-btn is-weather ${detailTab === 'weather' ? 'is-active' : ''}`.trim() }
+                    onClick={ () => setDetailTab( 'weather' ) }
+                  >
+                    <i className="vl-live-air-toggle-dot" aria-hidden="true" />Weather
+                  </button>
+                </div>
+
+                { detailTab === 'air' && (
+                  air ? (
+                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
+                      <p className="vl-live-air-gauge-label">Universal AQI</p>
+                      <div className="vl-live-air-gauge-row">
+                        <div className={ `vl-live-air-gauge vl-live-air-sev-${air.sev}` }>
+                          { ( () => {
+                            // SVG ring gauge. The sweep encodes the AQI within the no-red ramp
+                            // (dark green -> lime -> amber -> terracotta) mapped from air.sev;
+                            // the number + category WORD carry severity so it never relies on
+                            // colour alone (WCAG 1.4.1). AQI is clamped to a 0-500 scale sweep.
+                            const r = 52;
+                            const c = 2 * Math.PI * r;
+                            const frac = Math.max( 0, Math.min( 1, air.aqi / 500 ) );
+                            const dash = `${( frac * c ).toFixed( 1 )} ${c.toFixed( 1 )}`;
+                            return (
+                              <svg viewBox="0 0 120 120" className="vl-live-air-gauge-svg" role="img" aria-label={ `Universal AQI ${Math.round( air.aqi )}, ${air.word}` }>
+                                <circle className="vl-live-air-gauge-track" cx="60" cy="60" r={ r } />
+                                <circle
+                                  className="vl-live-air-gauge-arc"
+                                  cx="60" cy="60" r={ r }
+                                  strokeDasharray={ dash }
+                                  transform="rotate(-90 60 60)"
+                                />
+                              </svg>
+                            );
+                          } )() }
+                          <span className="vl-live-air-gauge-value" aria-hidden="true">{ Math.round( air.aqi ) }</span>
+                        </div>
+                        <div className="vl-live-air-gauge-meta">
+                          <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
+                          { air.dominant && (
+                            <span className="vl-live-air-dominant">Dominant pollutant: { dominantPollutantLabel( air.dominant, air.pollutants ) }</span>
+                          ) }
+                        </div>
+                      </div>
+
+                      { air.pollutants.length > 0 && (
+                        <div className="vl-live-air-pollutants">
+                          <h4 className="vl-live-air-pollutants-title">Air Quality Details</h4>
+                          <ul className="vl-live-air-pollutant-list">
+                            { air.pollutants.map( p => (
+                              <li className="vl-live-air-pollutant-row" key={ p.code }>
+                                <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
+                                <span className="vl-live-air-pollutant-label">{ p.label }</span>
+                                <span className="vl-live-air-pollutant-info" aria-label={ `About ${p.label}` } title={ `About ${p.label}` } role="img">
+                                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><line x1="10" y1="9" x2="10" y2="14" /><circle cx="10" cy="6" r=".9" /></svg>
+                                </span>
+                              </li>
+                            ) ) }
+                          </ul>
+                        </div>
+                      ) }
+                    </div>
+                  ) : (
+                    <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
+                      <p className="vl-live-air-empty">Live air quality appears here once a place is selected.</p>
+                    </div>
+                  )
+                ) }
+
+                { detailTab === 'weather' && (
+                  <div className="vl-live-air-panel" role="tabpanel" id="vl-live-weather-panel" aria-labelledby="vl-live-weather-tab" aria-label="Weather details">
+                    <p className="vl-live-air-empty">Weather details are coming soon.</p>
+                  </div>
+                ) }
+              </aside>
+
               { ( !mapActive || mapFailed ) ? (
                 /* MAP-FREE FALLBACK. This branch used to render an eager
                    maps.google.com/maps?...&output=embed iframe. On a public page that is an
@@ -2247,108 +1986,61 @@ const VayuLokLive: React.FC = () => {
         .vl-live input:focus-visible{outline:none}
         .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
         .vl-live-shell{max-width:1320px;margin:0 auto;padding:22px 24px 72px}
-        .vl-live-workspace{display:grid;grid-template-columns:minmax(0,.86fr) minmax(0,1.14fr);gap:32px;align-items:stretch}
-        .vl-live-left,.vl-live-right{min-width:0}\n        .vl-live-right{display:flex;flex-direction:column}
+        /* The map is now the full-width backdrop; the former two-column workspace
+           collapses to a single region that the map shell fills edge to edge. */
+        .vl-live-workspace{display:block}
+        .vl-live-map-region{min-width:0}
 
-        .vl-live-place-card{border:1px solid var(--hair);border-radius:14px;background:#fff;overflow:hidden}
-        .vl-live-place-visual{position:relative;height:238px;background:var(--alt);overflow:hidden}
-        .vl-live-photo-rail{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior-inline:contain;touch-action:pan-x pinch-zoom}
-        .vl-live-photo-rail::-webkit-scrollbar{display:none}
-        .vl-live-photo-slide{position:relative;flex:0 0 100%;height:100%;margin:0;scroll-snap-align:start;scroll-snap-stop:always;overflow:hidden;background:var(--alt)}
-        .vl-live-place-image{display:block;width:100%;height:100%;object-fit:cover;user-select:none}
-        .vl-live-photo-progress{position:absolute;z-index:4;left:10px;right:10px;top:10px;display:flex;gap:4px;pointer-events:none}
-        .vl-live-photo-progress span{height:3px;flex:1 1 0;border-radius:999px;background:rgba(209,244,112,.42);box-shadow:0 1px 2px rgba(26,58,42,.08)}
-        .vl-live-photo-progress span.is-active{background:var(--lime)}
-        .vl-live-place-art{position:absolute;inset:28px;display:grid;grid-template-columns:1.1fr .9fr;gap:16px}
-        .vl-live-art-block{border:1px solid rgba(26,58,42,.11);border-radius:14px;background:rgba(255,255,255,.78)}
-        .vl-live-art-one{transform:translateY(12px)}
-        .vl-live-art-two{transform:translateY(-7px);background:rgba(209,244,112,.26)}
-        .vl-live-photo-credit{position:absolute;left:9px;right:9px;bottom:8px;z-index:3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;padding:0;background:transparent;text-shadow:0 1px 3px rgba(0,0,0,.82);font-size:8.5px;color:rgba(255,255,255,.94)}
-        .vl-live-photo-credit a{color:inherit}
-        .vl-live-place-copy{padding:22px 22px 21px}
-        .vl-live-place-name{margin:7px 0 0;color:var(--heading);font-size:32px;line-height:1.05;letter-spacing:-1.1px;font-weight:700}
-        .vl-live-place-address{margin:8px 0 0;font-size:14px;line-height:1.5;color:var(--muted)}
-        .vl-live-descriptor-line{margin:8px 0 0;color:var(--green);font-size:12.5px;line-height:1.45;font-weight:700}
-        .vl-live-place-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
-        .vl-live-meta-chip{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:11px;font-weight:700}
-        .vl-live-place-facts{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
-        .vl-live-place-facts span{display:inline-flex;align-items:center;min-height:30px;padding:0 10px;border-radius:999px;background:var(--alt);color:var(--muted);font-size:10.5px;font-weight:700}
-        .vl-live-empty{padding:22px;border:1px solid var(--hair);border-radius:14px;background:#fff}
-        .vl-live-empty span{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--green)}
-        .vl-live-empty strong{display:block;margin-top:8px;font-size:22px;color:var(--heading)}
+        /* ── FLOATING AIR QUALITY CARD ───────────────────────────────────────────────
+           A white, rounded, home-system card overlaid on the map's top-left corner,
+           inset so it clears Google's bottom-left logo and bottom-right legal notices.
+           Scrollable so a long pollutant list never spills past the map. NO red. */
+        .vl-live-air-card{position:absolute;z-index:12;top:16px;left:16px;width:min(336px,calc(100% - 32px));max-height:calc(100% - 150px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:18px 18px 16px;border:1px solid var(--hair);border-radius:var(--panel-r);background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.08);color:var(--body)}
+        .vl-live-air-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .vl-live-air-card-title{margin:0;color:var(--heading);font-size:16px;font-weight:700;letter-spacing:-.2px}
+        .vl-live-air-card-rule{margin:12px 0 14px;border:0;border-top:1px solid var(--hair)}
 
-        .vl-live-section{margin-top:28px;border-top:1px solid var(--hair);padding-top:26px}
-        .vl-live-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:12px}
-        .vl-live-section-head h3{margin:0;color:var(--heading);font-size:21px;line-height:1.27;letter-spacing:-.45px}
-        .vl-live-fresh{font-size:11px;color:var(--muted)}
-        .vl-live-now-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
-        .vl-live-now-cell{padding:18px 19px 17px}
-        .vl-live-now-cell+.vl-live-now-cell{border-left:1px solid var(--hair)}
-        .vl-live-now-label{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--green)}
-        .vl-live-now-main{display:flex;align-items:flex-end;gap:10px;margin-top:12px}
-        .vl-live-now-main strong{color:var(--heading);font-size:40px;line-height:.9;letter-spacing:-1.4px}
-        .vl-live-now-main span{padding-bottom:3px;font-size:14px;font-weight:700;color:var(--muted)}
-        .vl-live-now-title{margin-top:10px;font-size:14.5px;font-weight:700;color:var(--heading)}
-        .vl-live-now-sub{margin-top:5px;font-size:12px;color:var(--muted);line-height:1.4}
-        .vl-live-now-context{margin:10px 2px 0;color:var(--muted);font-size:11.5px;line-height:1.45}
-        .vl-live-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:12px;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
-        .vl-live-fact{padding:12px 8px;text-align:center;background:#fff}
-        .vl-live-fact+.vl-live-fact{border-left:1px solid var(--hair)}
-        .vl-live-fact span{display:block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-        .vl-live-fact strong{display:block;margin-top:6px;font-size:12.5px;color:var(--heading)}
-        .vl-live-signals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:12px}
-        .vl-live-signal{padding:12px 13px;border:1px solid rgba(209,244,112,.95);border-radius:14px;background:var(--lime-tint)}
-        .vl-live-signal-secondary{background:#fff;border-color:var(--hair)}
-        .vl-live-signal span{display:block;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--green)}
-        .vl-live-signal strong{display:block;margin-top:5px;font-size:15px;color:var(--heading)}
-        .vl-live-signal p{margin:5px 0 0;font-size:11.5px;line-height:1.45;color:var(--status)}
-        .vl-live-air-source-strip{display:grid;grid-template-columns:1fr 1fr;margin-top:12px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#fff}
-        .vl-live-air-source-strip>div{padding:12px 13px}
-        .vl-live-air-source-strip>div+div{border-left:1px solid var(--hair)}
-        .vl-live-air-source-strip span{display:block;color:var(--muted);font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.055em}
-        .vl-live-air-source-strip strong{display:block;margin-top:6px;color:var(--heading);font-size:18px;letter-spacing:-.025em}
-        .vl-live-air-source-strip strong small{font-size:10px;color:var(--muted);font-weight:650;letter-spacing:0}
-        .vl-live-air-source-strip>div>small{display:block;margin-top:4px;color:var(--muted);font-size:10px;line-height:1.35}
+        /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
+        .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
+        .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:12.5px;font-weight:700}
+        .vl-live-air-toggle-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:rgba(26,58,42,.3)}
+        .vl-live-air-toggle-btn.is-air.is-active{background:#e0f7c8}
+        .vl-live-air-toggle-btn.is-air.is-active .vl-live-air-toggle-dot{background:#3da35a}
+        .vl-live-air-toggle-btn.is-weather.is-active{background:#dbeafe;color:#1e3a5f}
+        .vl-live-air-toggle-btn.is-weather.is-active .vl-live-air-toggle-dot{background:#2563eb}
 
-        .vl-live-forecast-weather{--fw-surface:#f8faef;position:relative;overflow:hidden;border-radius:20px;background:var(--fw-surface);color:var(--green);padding:10px 10px 20px;border:1px solid rgba(26,58,42,.12)}
-        .vl-live-forecast-track{display:grid;grid-template-columns:repeat(5,minmax(108px,1fr));overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity}
-        .vl-live-forecast-track::-webkit-scrollbar{display:none}
-        .vl-live-forecast-hour{position:relative;min-height:310px;padding:15px 10px 44px;display:flex;flex-direction:column;align-items:center;gap:14px;border-radius:16px;color:rgba(26,58,42,.66);scroll-snap-align:start}
-        .vl-live-forecast-hour.is-now{background:rgba(209,244,112,.58);color:var(--green)}
-        .vl-live-forecast-hour time{font-size:13px;font-weight:700}
-        .vl-live-forecast-temp{display:flex;align-items:baseline;gap:5px}
-        .vl-live-forecast-temp strong{font-size:29px;line-height:1;letter-spacing:-.035em;color:var(--green)}
-        .vl-live-forecast-temp span{font-size:14px;color:rgba(26,58,42,.52)}
-        .vl-live-forecast-icon{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:var(--green);font-size:28px;color:var(--lime);overflow:hidden}
-        .vl-live-forecast-icon img{width:44px;height:44px;filter:saturate(.7)}
-        .vl-live-forecast-wind{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:4px;font-size:11px}
-        .vl-live-forecast-wind strong{font-size:14px;color:var(--green)}
-        .vl-live-forecast-wind span{color:rgba(26,58,42,.56)}
-        .vl-live-forecast-wind b{font-size:13px;color:rgba(26,58,42,.46)}
-        .vl-live-forecast-air{min-height:22px;padding:4px 7px;border:1px solid rgba(26,58,42,.12);border-radius:999px;background:rgba(255,255,255,.68);font-size:9.5px;font-weight:750;color:var(--green)}
-        .vl-live-forecast-rain{margin-top:auto;font-size:15px;font-weight:750;color:var(--green)}
-        .vl-live-forecast-node{position:absolute;left:50%;bottom:15px;width:10px;height:10px;transform:translateX(-50%);border-radius:50%;background:var(--fw-surface);border:3px solid rgba(26,58,42,.58);z-index:2}
-        .vl-live-forecast-hour.is-now .vl-live-forecast-node{background:var(--green);border-color:var(--green)}
-        .vl-live-forecast-baseline{pointer-events:none;position:absolute;left:7%;right:7%;bottom:28px;height:1px}
-        .vl-live-past-line{position:absolute;left:0;width:50%;top:0;border-top:2px dashed rgba(26,58,42,.30)}
-        .vl-live-future-line{position:absolute;left:50%;right:0;top:0;border-top:2px solid rgba(26,58,42,.42)}
+        .vl-live-air-panel{margin-top:16px}
+        .vl-live-air-empty{margin:0;padding:14px 0;color:var(--muted);font-size:12.5px;line-height:1.5}
+        .vl-live-air-gauge-label{margin:0 0 10px;color:var(--green);font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+        .vl-live-air-gauge-row{display:flex;align-items:center;gap:16px}
+        .vl-live-air-gauge{position:relative;flex:0 0 auto;width:96px;height:96px}
+        .vl-live-air-gauge-svg{width:96px;height:96px;display:block}
+        .vl-live-air-gauge-track{fill:none;stroke:var(--hair);stroke-width:10}
+        /* The arc colour walks the no-red ramp mapped from air.sev. Severity is also
+           carried by the number + category word, never by colour alone (WCAG 1.4.1). */
+        .vl-live-air-gauge-arc{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dasharray .4s ease}
+        .vl-live-air-sev-good .vl-live-air-gauge-arc{stroke:#1a3a2a}
+        .vl-live-air-sev-sat .vl-live-air-gauge-arc{stroke:#3da35a}
+        .vl-live-air-sev-mod .vl-live-air-gauge-arc{stroke:#d1f470}
+        .vl-live-air-sev-poor .vl-live-air-gauge-arc{stroke:#e8c547}
+        .vl-live-air-sev-worst .vl-live-air-gauge-arc{stroke:#c98a2e}
+        .vl-live-air-gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--heading);font-size:28px;font-weight:700;letter-spacing:-.5px}
+        .vl-live-air-gauge-meta{min-width:0}
+        .vl-live-air-gauge-word{display:block;color:var(--heading);font-size:14.5px;font-weight:700;line-height:1.25}
+        .vl-live-air-dominant{display:inline-flex;align-items:center;margin-top:8px;min-height:26px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:10.5px;font-weight:700}
 
-        .vl-live-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;max-width:330px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
-        .vl-live-tabs button{min-height:38px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:12px;font-weight:700}
-        .vl-live-tabs button[aria-selected="true"]{background:rgba(209,244,112,.60)}
-        .vl-live-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:14px;border:1px solid var(--hair);border-radius:14px;overflow:hidden}
-        .vl-live-metric{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 14px;background:#fff;border-bottom:1px solid var(--hair)}
-        .vl-live-metric:nth-child(odd){border-right:1px solid var(--hair)}
-        .vl-live-metric:nth-last-child(-n+2){border-bottom:0}
-        .vl-live-metric span{font-size:12px;color:var(--muted)}
-        .vl-live-metric strong{font-size:13px;color:var(--heading);text-align:right}
-        .vl-live-air-4day{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:13px}
-        .vl-live-air-day{border:1px solid var(--hair);border-radius:12px;padding:9px;background:#fff}
-        .vl-live-air-day span{display:block;color:var(--muted);font-size:10px;font-weight:700}
-        .vl-live-air-day strong{display:block;margin-top:5px;color:var(--heading);font-size:13px}
-        .vl-live-air-day small{display:block;margin-top:3px;color:var(--green);font-size:10px;font-weight:700}
+        .vl-live-air-pollutants{margin-top:18px}
+        .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:hidden}
+        .vl-live-air-pollutant-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:11px 13px;background:#fff}
+        .vl-live-air-pollutant-row+.vl-live-air-pollutant-row{border-top:1px solid var(--hair)}
+        .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
+        .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
+        .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center}
+        .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--muted);fill:none;stroke-width:1.6;stroke-linecap:round}
 
-        .vl-live-map-shell{position:relative;height:100%;min-height:748px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
+        .vl-live-map-shell{position:relative;height:72dvh;min-height:620px;max-height:860px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
@@ -2383,41 +2075,25 @@ const VayuLokLive: React.FC = () => {
         .vl-live-selected-label span::before{content:'·';margin-right:8px;color:rgba(26,58,42,.45)}
 
         @media(max-width:1050px){
-          .vl-live-workspace{grid-template-columns:1fr}
-          .vl-live-right{order:-1}
-          .vl-live-map-shell{height:620px}
+          .vl-live-map-shell{height:66dvh;min-height:560px}
         }
         @media(max-width:700px){
           .vl-live-shell{padding:10px 10px 44px}
-          .vl-live-map-shell{height:46dvh;min-height:430px;max-height:560px}
+          .vl-live-map-shell{height:62dvh;min-height:460px;max-height:640px}
           .vl-live-map-search{top:10px;width:calc(100% - 20px)}
           .vl-live-layers{top:70px;right:10px}
           .vl-live-selected-label{bottom:22px;width:calc(100% - 20px);max-width:none}
-          .vl-live-place-visual{height:188px}
-          .vl-live-place-copy{padding:18px}
-          .vl-live-place-name{font-size:27px}
-          .vl-live-now-grid{grid-template-columns:1fr}
-          .vl-live-now-cell+.vl-live-now-cell{border-left:0;border-top:1px solid var(--hair)}
-          .vl-live-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
-          .vl-live-fact:nth-child(3){border-left:0;border-top:1px solid var(--hair)}
-          .vl-live-fact:nth-child(4){border-top:1px solid var(--hair)}
-          .vl-live-signals{grid-template-columns:1fr}
-          .vl-live-air-source-strip{grid-template-columns:1fr}
-          .vl-live-air-source-strip>div+div{border-left:0;border-top:1px solid var(--hair)}
-          .vl-live-forecast-weather{border-radius:17px;padding-inline:8px}
-          .vl-live-forecast-track{grid-template-columns:repeat(5,126px)}
-          .vl-live-forecast-hour{min-height:288px}
-          .vl-live-detail-grid{grid-template-columns:1fr}
-          .vl-live-metric:nth-child(odd){border-right:0}
-          .vl-live-metric:nth-last-child(-n+2){border-bottom:1px solid var(--hair)}
-          .vl-live-metric:last-child{border-bottom:0}
-          .vl-live-air-4day{grid-template-columns:repeat(2,minmax(0,1fr))}
+          /* The floating card narrows and stays inset so it keeps the map and the
+             bottom attribution corners usable on small screens. */
+          .vl-live-air-card{top:10px;left:10px;width:calc(100% - 20px);max-width:300px;max-height:calc(100% - 170px);padding:14px 14px 12px}
+          .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
         }
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-shell{padding-top:8px}
           .vl-live-map-shell{height:calc(100dvh - 24px);min-height:250px}
           .vl-live-search-field{height:44px}
           .vl-live-layers{top:64px}
+          .vl-live-air-card{max-height:calc(100% - 20px)}
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
