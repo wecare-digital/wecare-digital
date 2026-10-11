@@ -2453,9 +2453,6 @@ const VayuLokLive: React.FC = () => {
                               >
                                 <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
                               </button>
-                              <span className="vl-live-air-health-page-count" aria-live="polite">
-                                { healthPersona + 1 } / { liveHealthPersonas.length }
-                              </span>
                               <button
                                 type="button"
                                 className="vl-live-air-health-page-btn"
@@ -2895,13 +2892,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
         .vl-live-air-health-title{margin:0;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-health-pager{display:flex;align-items:center;gap:5px}
-        .vl-live-air-health-page-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;transition:transform .16s ease,background .16s ease,color .16s ease}
+        .vl-live-air-health-pager{display:flex;align-items:center;gap:6px}
+        .vl-live-air-health-page-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s,transform .16s ease}
         .vl-live-air-health-page-btn svg{width:18px;height:18px;fill:currentColor}
-        .vl-live-air-health-page-btn:hover:not(:disabled){transform:translateY(-1px);background:var(--green);color:var(--lime)}
+        .vl-live-air-health-page-btn:hover:not(:disabled){transform:translateY(-1px);background:var(--lime-hover);color:var(--green)}
         .vl-live-air-health-page-btn:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-health-page-btn:disabled{opacity:.4;cursor:not-allowed}
-        .vl-live-air-health-page-count{min-width:34px;color:var(--muted);font-size:10.5px;font-weight:700;text-align:center}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:1px 0 4px;scrollbar-width:none;white-space:nowrap}
         .vl-live-air-health-tabs::-webkit-scrollbar{display:none}
         .vl-live-air-health-tab{display:inline-flex;flex:0 0 38px;width:38px;height:38px;align-items:center;justify-content:center;padding:0;border:0;border-radius:9px;background:var(--lime);color:#111;transition:transform .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease}
