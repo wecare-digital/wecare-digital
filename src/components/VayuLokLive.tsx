@@ -316,12 +316,14 @@ interface HealthPersonaDefinition {
 /* Local paths from Google's Material Symbols Outlined set. Keeping the SVG paths local avoids
    a runtime icon-font dependency while preserving Google's icon language across the Air card. */
 const MATERIAL_SYMBOL_PATHS: Record<
-  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'schedule' | 'location',
+  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
   string
 > = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
   switches: 'M270-289q-80 0-135-54.5T80-479q0-81 54.5-135.5T270-669q51 0 90 22t65 63h350q44 0 74.5 30.5T880-479q0 44-30.5 74.5T775-374H425q-26 41-65 63t-90 22Zm3-190Zm180 45h322q20 0 32.5-12.5T820-479q0-20-12.5-32.5T775-524H453q4 10 5.5 22t1.5 23q0 11-1.5 23t-5.5 22Zm-90.5 47.5Q400-424 400-479t-37.5-92.5Q325-609 270-609t-92.5 37.5Q140-534 140-479t37.5 92.5Q215-349 270-349t92.5-37.5Z',
   close: 'M256-214 214-256l224-224-224-224 42-42 224 224 224-224 42 42-224 224 224 224-42 42-224-224-224 224Z',
+  chevronLeft: 'M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z',
+  chevronRight: 'M504-480 320-664l56-56 240 240-240 240-56-56 184-184Z',
   air: 'M460-160q-50 0-85-35t-35-85h80q0 17 11.5 28.5T460-240q17 0 28.5-11.5T500-280q0-17-11.5-28.5T460-320H80v-80h380q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-80h540q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43h-80q0-59 40.5-99.5T620-840q59 0 99.5 40.5T760-700q0 59-40.5 99.5T620-560H80Zm660 320v-80q26 0 43-17t17-43q0-26-17-43t-43-17H80v-80h660q59 0 99.5 40.5T880-380q0 59-40.5 99.5T740-240Z',
   schedule: 'm612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-400Zm0 320q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z',
   location: 'M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z',
@@ -2395,7 +2397,32 @@ const VayuLokLive: React.FC = () => {
                           receiving static/fabricated advice. */}
                       { activeHealthPersona && (
                         <div className="vl-live-air-health">
-                          <h4 className="vl-live-air-health-title">Health Recommendations</h4>
+                          <div className="vl-live-air-health-head">
+                            <h4 className="vl-live-air-health-title">Health Recommendations</h4>
+                            <div className="vl-live-air-health-pager" aria-label="Health recommendation navigation">
+                              <button
+                                type="button"
+                                className="vl-live-air-health-page-btn"
+                                aria-label="Previous health recommendation"
+                                onClick={ () => setHealthPersona( i => ( i - 1 + liveHealthPersonas.length ) % liveHealthPersonas.length ) }
+                                disabled={ liveHealthPersonas.length <= 1 }
+                              >
+                                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
+                              </button>
+                              <span className="vl-live-air-health-page-count" aria-live="polite">
+                                { healthPersona + 1 } / { liveHealthPersonas.length }
+                              </span>
+                              <button
+                                type="button"
+                                className="vl-live-air-health-page-btn"
+                                aria-label="Next health recommendation"
+                                onClick={ () => setHealthPersona( i => ( i + 1 ) % liveHealthPersonas.length ) }
+                                disabled={ liveHealthPersonas.length <= 1 }
+                              >
+                                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
+                              </button>
+                            </div>
+                          </div>
                           <div className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
                             { liveHealthPersonas.map( ( persona, idx ) => (
                               <button
@@ -2406,6 +2433,7 @@ const VayuLokLive: React.FC = () => {
                                 aria-controls="vl-live-air-health-panel"
                                 aria-selected={ healthPersona === idx }
                                 aria-label={ persona.label }
+                                title={ persona.label }
                                 className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
                                 onClick={ () => setHealthPersona( idx ) }
                               >
@@ -2414,11 +2442,9 @@ const VayuLokLive: React.FC = () => {
                                     <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
                                   </svg>
                                 </span>
-                                <span className="vl-live-air-health-tab-label">{ persona.label }</span>
                               </button>
                             ) ) }
                           </div>
-                          <hr className="vl-live-air-health-rule" aria-hidden="true" />
                           <div
                             className="vl-live-air-health-panel"
                             role="tabpanel"
@@ -2751,7 +2777,7 @@ const VayuLokLive: React.FC = () => {
 
         .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-2px 0 16px;padding:0 0 12px;border-bottom:1px solid var(--hair)}
         .vl-live-air-context-item{display:inline-flex;min-width:0;align-items:center;gap:6px;color:var(--status);font-size:12px;line-height:1.2}
-        .vl-live-air-context-item svg{flex:0 0 auto;width:18px;height:18px;fill:var(--lime)}
+        .vl-live-air-context-item svg{flex:0 0 auto;width:22px;height:22px;padding:3px;border-radius:6px;background:var(--lime);fill:#111}
         .vl-live-air-context-item strong{min-width:0;overflow:hidden;color:var(--heading);font-weight:700;text-overflow:ellipsis;white-space:nowrap}
         .vl-live-air-context-item.is-time{justify-content:flex-end;white-space:nowrap}
         .vl-live-air-context-item time{color:var(--heading);font-weight:700}
@@ -2787,7 +2813,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-index-name{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:600}
         .vl-live-air-facts{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:9px}
         .vl-live-air-fact{display:inline-flex;align-items:center;gap:6px;color:var(--status);font-size:11px;line-height:1.25}
-        .vl-live-air-fact svg{width:17px;height:17px;fill:var(--lime)}
+        .vl-live-air-fact svg{width:20px;height:20px;padding:3px;border-radius:6px;background:var(--lime);fill:#111}
         .vl-live-air-fact strong{color:var(--heading);font-weight:700}
         .vl-live-air-fact.is-dominant{padding:0;border:0;border-radius:0;background:transparent}
 
@@ -2815,12 +2841,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:13px;font-weight:600}
-        /* Shared Air-card action language: Material glyph, lime at rest, no dark disk/border;
-           hover earns only a light lime wash + small lift. */
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--lime);cursor:help;box-shadow:none;transition:transform .16s ease,background .16s ease,color .16s ease}
+        /* Shared Air-card action language: black Material glyph on solid lime.
+           Hover inverts to dark green + lime so every icon behaves the same way. */
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;cursor:help;box-shadow:none;transition:transform .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease}
         .vl-live-air-pollutant-info svg{width:21px;height:21px;fill:currentColor}
-        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);background:var(--lime-tint);color:var(--green)}
-        .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);background:var(--green);color:var(--lime);box-shadow:0 5px 12px rgba(26,58,42,.18)}
+        .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--green);outline-offset:2px}
 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
@@ -2835,9 +2861,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
         .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.3}
-        .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--green)}
-        .vl-live-air-pollutant-pop-close:hover{background:#f5f6f3}
-        .vl-live-air-pollutant-pop-close:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+        .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111}
+        .vl-live-air-pollutant-pop-close:hover{background:var(--green);color:var(--lime)}
+        .vl-live-air-pollutant-pop-close:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-pollutant-pop-close svg{width:20px;height:20px;fill:currentColor}
         .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:start}
         .vl-live-air-pollutant-pop-line strong{font-size:12.5px;font-weight:700;letter-spacing:.01em}
@@ -2852,11 +2878,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap{margin-top:20px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-heatmap-label{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:36px;height:36px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--lime);box-shadow:none;transition:background .18s ease,color .18s ease,transform .18s ease}
+        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:36px;height:36px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;box-shadow:none;transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}
         .vl-live-air-heatmap-switch svg{width:23px;height:23px;fill:currentColor}
-        .vl-live-air-heatmap-switch.is-on{background:var(--lime-tint);color:var(--lime)}
-        .vl-live-air-heatmap-switch:hover:not(:disabled){transform:translateY(-1px);background:rgba(209,244,112,.34);color:var(--green)}
-        .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+        .vl-live-air-heatmap-switch.is-on{background:var(--lime);color:#111}
+        .vl-live-air-heatmap-switch:hover:not(:disabled){transform:translateY(-1px);background:var(--green);color:var(--lime);box-shadow:0 5px 12px rgba(26,58,42,.18)}
+        .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--green);outline-offset:2px}
         .vl-live-air-heatmap-switch:disabled{opacity:.46;cursor:not-allowed}
         .vl-live-air-heatmap-legend{margin-top:12px}
         .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
@@ -2864,19 +2890,27 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
-           Exact Google Material Symbols with the home page's multi-hue accent family. */
+           One horizontal Material-icon row. Black glyphs sit on lime tiles; the active
+           profile gets a strong black ring. Pager arrows cycle the Google API profiles. */
         .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
-        .vl-live-air-health-title{margin:0 0 14px;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-health-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 6px}
-        .vl-live-air-health-tab{display:flex;min-width:0;min-height:74px;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;padding:3px 1px;border:0;border-radius:10px;background:transparent;color:var(--lime);transition:transform .16s ease,background .16s ease}
-        .vl-live-air-health-tab:hover{transform:translateY(-1px);background:var(--lime-tint)}
-        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
-        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:var(--lime);transition:background .16s ease,color .16s ease}
-        .vl-live-air-health-tab.is-active{background:rgba(209,244,112,.16)}
-        .vl-live-air-health-tab.is-active .vl-live-air-health-icon-wrap{background:var(--lime-tint);color:var(--green)}
-        .vl-live-air-health-icon{width:27px;height:27px;fill:currentColor}
-        .vl-live-air-health-tab-label{display:block;max-width:100%;color:var(--status);font-size:10px;font-weight:600;line-height:1.15;text-align:center;white-space:normal}
-        .vl-live-air-health-rule{margin:14px 0 12px;border:0;border-top:1px solid var(--hair)}
+        .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+        .vl-live-air-health-title{margin:0;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
+        .vl-live-air-health-pager{display:flex;align-items:center;gap:5px}
+        .vl-live-air-health-page-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:8px;background:var(--lime);color:#111;transition:transform .16s ease,background .16s ease,color .16s ease}
+        .vl-live-air-health-page-btn svg{width:18px;height:18px;fill:currentColor}
+        .vl-live-air-health-page-btn:hover:not(:disabled){transform:translateY(-1px);background:var(--green);color:var(--lime)}
+        .vl-live-air-health-page-btn:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+        .vl-live-air-health-page-btn:disabled{opacity:.4;cursor:not-allowed}
+        .vl-live-air-health-page-count{min-width:34px;color:var(--muted);font-size:10.5px;font-weight:700;text-align:center}
+        .vl-live-air-health-tabs{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:1px 0 4px;scrollbar-width:none;white-space:nowrap}
+        .vl-live-air-health-tabs::-webkit-scrollbar{display:none}
+        .vl-live-air-health-tab{display:inline-flex;flex:0 0 38px;width:38px;height:38px;align-items:center;justify-content:center;padding:0;border:0;border-radius:9px;background:var(--lime);color:#111;transition:transform .16s ease,background .16s ease,color .16s ease,box-shadow .16s ease}
+        .vl-live-air-health-tab:hover{transform:translateY(-1px);background:var(--green);color:var(--lime)}
+        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+        .vl-live-air-health-tab.is-active{background:var(--lime);color:#111;box-shadow:0 0 0 2px #111 inset,0 5px 12px rgba(26,58,42,.12)}
+        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border:0;border-radius:inherit;background:transparent;color:inherit}
+        .vl-live-air-health-icon{width:24px;height:24px;fill:currentColor}
+        .vl-live-air-health-panel{margin-top:12px;padding-top:12px;border-top:1px solid var(--hair)}
         .vl-live-air-health-persona{display:block;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.15px}
         .vl-live-air-health-text{margin:7px 0 0;color:var(--body);font-size:13.5px;font-weight:400;line-height:1.5}
 
