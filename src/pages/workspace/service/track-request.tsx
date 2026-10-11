@@ -8,6 +8,7 @@ import MaybeLayout from '../../../components/MaybeLayout';
 import SEO, { PAGE_SEO } from '../../../components/SEO';
 import Button from '../../../components/ui/Button';
 import EmptyState from '../../../components/ui/EmptyState';
+import ErrorState from '../../../components/ErrorState';
 import { useToastContext } from '../../../contexts/ToastContext';
 import * as api from '../../../api/client';
 
@@ -53,22 +54,28 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
   const toast = useToastContext();
   const [ orders, setOrders ] = useState<api.Order[]>( [] );
   const [ loadingOrders, setLoadingOrders ] = useState( true );
+  const [ ordersFailed, setOrdersFailed ] = useState( false );
   const [ selectedOrder, setSelectedOrder ] = useState<api.Order | null>( null );
   const [ tracking, setTracking ] = useState<api.TrackingData | null>( null );
   const [ loadingTracking, setLoadingTracking ] = useState( false );
   const [ orderSearch, setOrderSearch ] = useState( '' );
 
-  useEffect( () => {
-    ( async () => {
-      setLoadingOrders( true );
-      try
-      {
-        const data = await api.listOrders( { limit: 200 } );
-        setOrders( data.orders || [] );
-      } catch { toast.error( 'Failed to load orders' ); }
-      setLoadingOrders( false );
-    } )();
+  const loadOrders = useCallback( async () => {
+    setLoadingOrders( true );
+    setOrdersFailed( false );
+    try
+    {
+      const data = await api.listOrders( { limit: 200 } );
+      setOrders( data.orders || [] );
+    } catch
+    {
+      setOrdersFailed( true );
+      toast.error( 'Failed to load orders' );
+    }
+    setLoadingOrders( false );
   }, [ toast ] );
+
+  useEffect( () => { loadOrders(); }, [ loadOrders ] );
 
   const loadTracking = useCallback( async ( order: api.Order ) => {
     setSelectedOrder( order );
@@ -107,6 +114,8 @@ const TrackRequestPage: React.FC<PageProps> = ( { signOut, user, embedded = fals
             <div style={ { maxHeight: selectedOrder ? 'calc(100vh - 280px)' : 500, overflowY: 'auto' } }>
               { loadingOrders ? (
                 <div style={ { textAlign: 'center', padding: 24, color: '#6b7280' } }>Loading...</div>
+              ) : ordersFailed ? (
+                <div role="alert"><ErrorState message="Could not load orders" onRetry={ loadOrders } /></div>
               ) : filteredOrders.length === 0 ? (
                 <EmptyState icon="default" title="No orders" description="No orders found" />
               ) : (
