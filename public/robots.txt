@@ -99,6 +99,13 @@ Disallow: /api/
 Disallow: /workspace/
 
 Sitemap: https://wecare.digital/sitemap.xml
+# The blog RSS feed. There is no standard robots.txt directive for a feed (Sitemap: is the only
+# registered one), so this is a comment rather than an invented field a parser would have to skip.
+# The feed is also advertised to browsers and readers via <link rel="alternate"> on every blog and
+# post page, which is the discovery path that actually matters. Generated at build time by
+# scripts/generate-blog-rss.js.
+#
+#   https://wecare.digital/blog/rss.xml    RSS 2.0, the 50 most recent posts, newest first
 
 # Not a standard directive, so a comment: there is no registered robots.txt field for
 # llms.txt and inventing one would be noise a parser has to skip. Both files are generated
