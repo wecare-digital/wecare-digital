@@ -361,14 +361,24 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           transition:width .2s ease;
         }
 
-        /* The whole card is the link. Hairline quiet card, lifts and borders dark on hover. */
+        /* The whole card is the link. Hairline quiet card at rest; on hover it lifts, borders dark
+           green and the surface warms to the site's quiet lime tint - the same brand lime hover
+           the rest of the page uses (the CTA's full #d1f470, the number markers' .22 tint). A soft
+           rgba(209,244,112,.18) is used rather than full-strength lime so a whole card hovering
+           does not read as a second CTA; the dark-green border is what says "actionable". */
         .pbp-link{
           display:flex;flex-direction:column;gap:6px;
           padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#fcfdfb;
           text-decoration:none;color:inherit;
-          transition:border-color .2s,transform .2s,box-shadow .2s;
+          transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
         }
-        .pbp-link:hover{border-color:#1a3a2a;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        .pbp-link:hover{
+          border-color:#1a3a2a;background:rgba(209,244,112,.18);
+          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+        }
+        /* The tag chips sit on the card, so when the card warms to lime the chip borders darken to
+           match rather than staying grey islands on the tint. */
+        .pbp-link:hover .pbp-chip{border-color:#1a3a2a}
         .pbp-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
         /* TAG ROW at the foot of a card: the post's own tags as quiet chips, replacing the old
