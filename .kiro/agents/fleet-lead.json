@@ -37,7 +37,12 @@
   },
   "resources": [
     "file://README.md",
-    "file://tools/browser/README.md"
+    "file://tools/browser/README.md",
+    "file://.kiro/steering/00-autonomy.md",
+    "file://.kiro/steering/10-project.md",
+    "file://.kiro/steering/20-device-compat.md",
+    "file://.kiro/steering/30-seo.md",
+    "file://.kiro/steering/40-permissions.md"
   ],
   "permissions": {
     "rules": [
