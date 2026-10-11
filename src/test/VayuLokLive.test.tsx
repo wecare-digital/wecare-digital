@@ -387,12 +387,32 @@ function environmentFetch() {
         ok: true,
         json: async () => ( {
           dateTime: now.toISOString(),
-          indexes: [ { code: 'ind_cpcb', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
+          indexes: [ { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
           pollutants: [
-            { code: 'pm25', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' }, additionalInfo: { sources: 'Combustion of fuels in vehicles, power plants and industry.', effects: 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' } },
-            { code: 'pm10', concentration: { value: 44, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            { code: 'pm25', displayName: 'PM2.5', fullName: 'Fine particulate matter', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' }, additionalInfo: { sources: 'Combustion of fuels in vehicles, power plants and industry.', effects: 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' } },
+            { code: 'pm10', displayName: 'PM10', fullName: 'Inhalable particulate matter', concentration: { value: 44, units: 'MICROGRAMS_PER_CUBIC_METER' } },
           ],
-          healthRecommendations: { generalPopulation: 'Normal outdoor activity is suitable for most people.' },
+          healthRecommendations: {
+            generalPopulation: 'Google general guidance.',
+            elderly: 'Google elderly guidance.',
+            lungDiseasePopulation: 'Google lung guidance.',
+            heartDiseasePopulation: 'Google heart guidance.',
+            athletes: 'Google athlete guidance.',
+            pregnantWomen: 'Google pregnancy guidance.',
+            children: 'Google child guidance.',
+          },
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'maps.googleapis.com', '/maps/api/timezone/json' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          status: 'OK',
+          timeZoneId: 'Asia/Kolkata',
+          timeZoneName: 'India Standard Time',
+          rawOffset: 19800,
+          dstOffset: 0,
         } ),
       } as Response );
     }
@@ -568,7 +588,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( card.querySelector( '.vl-live-air-card-title' )?.textContent ).toBe( 'Air Quality Details' );
+    expect( card.querySelector( '.vl-live-air-card-title' ) ).toBeNull();
+    const context = card.querySelector( '.vl-live-air-context' );
+    expect( context ).not.toBeNull();
+    expect( context?.textContent ).toContain( 'Mumbai' );
+    expect( context?.textContent ).toContain( 'IST' );
 
     // The whole former left panel is gone.
     expect( container.querySelector( '.vl-live-left' ) ).toBeNull();
@@ -584,7 +608,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherTab ).toHaveAttribute( 'aria-selected', 'false' );
   } );
 
-  it( 'shows the circular AQI gauge, category word, dominant chip and pollutant rows in the floating card, and a Weather placeholder on toggle', async () => {
+  it( 'shows AQI context, inline dominant metadata and pollutant details with one Material icon language', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -607,11 +631,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
     const arc = panel.querySelector( '.vl-live-air-sev-sat .vl-live-air-gauge-arc' );
     expect( arc ).not.toBeNull();
-    // The dominant-pollutant chip reads the friendly label (PM2.5), matching the
-    // pollutant rows, rather than the raw Google code (pm25).
-    const dominantChip = panel.querySelector( '.vl-live-air-dominant' );
-    expect( dominantChip?.textContent ).toContain( 'PM2.5' );
-    expect( dominantChip?.textContent ).not.toContain( 'pm25' );
+    // Dominant pollutant is inline metadata, not a pill. It uses the local Google Material
+    // air glyph and keeps the friendly pollutant label.
+    const dominantFact = panel.querySelector( '.vl-live-air-fact.is-dominant' );
+    expect( dominantFact?.textContent ).toContain( 'Dominant' );
+    expect( dominantFact?.textContent ).toContain( 'PM2.5' );
+    expect( dominantFact?.textContent ).not.toContain( 'pm25' );
+    expect( dominantFact?.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
+    expect( panel.querySelector( '.vl-live-air-index-name' )?.textContent ).toContain( 'India CPCB AQI' );
+    expect( panel.querySelector( '.vl-live-air-fact.is-updated' )?.textContent ).toMatch( /Updated/ );
 
     // Pollutant rows keep value + unit + label, and the info control uses the supplied
     // Google Material Symbols icon rather than a hand-drawn circle/i glyph.
@@ -639,6 +668,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( tip?.querySelector( '[aria-label="Close pollutant details"]' ) ).not.toBeNull();
     expect( tip?.closest( '.vl-live-air-card' ) ).toBeNull();
     expect( tip?.textContent ).toContain( 'PM2.5' );
+    expect( tip?.textContent ).toContain( 'Fine particulate matter' );
     expect( tip?.textContent ).toContain( 'Sources' );
     expect( tip?.textContent ).toContain( 'Combustion of fuels' );
     expect( tip?.textContent ).toContain( 'Effects' );
@@ -774,34 +804,36 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( legend?.textContent ).toContain( 'Poor' );
     expect( legend?.textContent ).toContain( 'Excellent' );
 
-    // (2) HEALTH RECOMMENDATIONS. A persona tablist with exactly one default-selected
-    //     persona (Elderly) whose recommendation paragraph is shown; selecting another
-    //     persona swaps the paragraph.
+    // (2) HEALTH RECOMMENDATIONS. All seven groups come from Google's live
+    // healthRecommendations payload. There is no static WECARE recommendation fallback.
     const healthTablist = screen.getByRole( 'tablist', { name: 'Health recommendation profiles' } );
     const personaTabs = healthTablist.querySelectorAll( '[role="tab"]' );
-    expect( personaTabs.length ).toBeGreaterThanOrEqual( 4 );
+    expect( personaTabs ).toHaveLength( 7 );
+    expect( screen.getByRole( 'tab', { name: 'General population' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Elderly' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Lung disease' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Heart disease' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Athletes' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Pregnant women' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Children' } ) ).toBeTruthy();
+
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
-    expect( selected[ 0 ].getAttribute( 'aria-label' ) ).toBe( 'Elderly' );
-    // Each persona uses an exact local Material Symbols path with the canonical 960 viewBox.
-    const selectedHealthIcon = selected[ 0 ].querySelector( '.vl-live-air-health-icon' );
-    expect( selectedHealthIcon ).not.toBeNull();
-    expect( selectedHealthIcon?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
-    expect( selectedHealthIcon?.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 80 );
-    const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
-    // The Elderly copy is now short & crisp; assert a NON-EMPTY paragraph with a stable word.
-    const elderlyText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
-    expect( elderlyText.length ).toBeGreaterThan( 0 );
-    expect( elderlyText ).toContain( 'short of breath' );
+    expect( selected[ 0 ].querySelector( '.vl-live-air-health-icon' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
 
-    const generalTab = screen.getByRole( 'tab', { name: 'General population' } );
-    fireEvent.click( generalTab );
-    await waitFor( () => expect( generalTab ).toHaveAttribute( 'aria-selected', 'true' ) );
-    // Selecting General swaps the paragraph to a DIFFERENT non-empty short copy.
-    const generalText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
-    expect( generalText.length ).toBeGreaterThan( 0 );
-    expect( generalText ).not.toBe( elderlyText );
-    expect( generalText ).toContain( 'fine for most people' );
+    const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
+    const firstLiveText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
+    expect( firstLiveText ).toMatch( /Google .* guidance/ );
+
+    const athleteTab = screen.getByRole( 'tab', { name: 'Athletes' } );
+    fireEvent.click( athleteTab );
+    await waitFor( () => expect( athleteTab ).toHaveAttribute( 'aria-selected', 'true' ) );
+    expect( healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ).toBe( 'Google athlete guidance.' );
+
+    const pregnantTab = screen.getByRole( 'tab', { name: 'Pregnant women' } );
+    fireEvent.click( pregnantTab );
+    await waitFor( () => expect( pregnantTab ).toHaveAttribute( 'aria-selected', 'true' ) );
+    expect( healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ).toBe( 'Google pregnancy guidance.' );
 
     // (3) HOURLY HISTORY. Title + a UTC timestamp derived from real data + a role=img chart
     //     with an aria-label mentioning the current value and a visible current-value marker.
@@ -819,6 +851,42 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'shows IST by default and resolves selected-place local time through Google Time Zone API', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const context = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-air-context' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // Before/while resolution, the product contract is an explicit IST default.
+    expect( context.textContent ).toMatch( /IST/ );
+
+    await selectMumbai();
+
+    const tzCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call =>
+        requestIs( call[ 0 ] as RequestInfo | URL, 'maps.googleapis.com', '/maps/api/timezone/json' ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const tzUrl = new URL( String( tzCall[ 0 ] ) );
+    expect( tzUrl.searchParams.get( 'location' ) ).toBe( '19.076,72.8777' );
+    expect( Number( tzUrl.searchParams.get( 'timestamp' ) ) ).toBeGreaterThan( 0 );
+    expect( tzUrl.searchParams.get( 'key' ) ).toBeTruthy();
+
+    await waitFor( () => {
+      const time = context.querySelector( '.vl-live-air-context-item.is-time' );
+      expect( time?.textContent ).toContain( 'IST' );
+      expect( time?.getAttribute( 'title' ) ).toContain( 'Google Time Zone API' );
+    } );
   } );
 
   it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
@@ -1156,13 +1224,18 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( searchWrapRule ).toContain( 'box-shadow:none' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
 
-    // Pollutant info control is lime on white/neutral, never a dark-green filled disk.
+    // Pollutant info control is the shared lime Material action: transparent at rest,
+    // light-lime hover, never a dark-green or white filled circle.
     const infoRule = css.match( /\.vl-live-air-pollutant-info\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( infoRule ).toContain( 'background:#fff' );
+    expect( infoRule ).toContain( 'background:transparent' );
     expect( infoRule ).toContain( 'color:var(--lime)' );
+    expect( infoRule ).toContain( 'border-radius:8px' );
     expect( infoRule ).not.toContain( 'background:var(--green)' );
+    const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( infoHoverRule ).toContain( 'background:var(--lime-tint)' );
 
-    // The duplicate top Air Quality Details heading is gone; the inner section is now Pollutants.
+    // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );
+    expect( container.textContent ).toContain( 'Pollutants' );
   } );
 } );
