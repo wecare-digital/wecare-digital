@@ -2227,6 +2227,50 @@ const VayuLokLive: React.FC = () => {
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
       <main className="vl-live-shell">
+        { mapReady && (
+          <div className="vl-live-map-search">
+            <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
+            <div className="vl-live-search">
+              <div className="vl-live-search-field">
+                <input
+                  id="vl-live-search"
+                  type="search"
+                  role="combobox"
+                  aria-controls="vl-live-search-results"
+                  aria-expanded={ open }
+                  aria-autocomplete="list"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={ false }
+                  placeholder="Search a city or place"
+                  value={ query }
+                  onChange={ onQueryChange }
+                  onFocus={ () => {
+                    if ( query.trim() ) {
+                      if ( results.length ) setOpen( true );
+                      else void runSearch( query );
+                      return;
+                    }
+                    const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
+                    setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
+                  } }
+                  onKeyDown={ onKeyDown }
+                />
+              </div>
+              <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
+                { results.map( ( r, i ) => (
+                  <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
+                    <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
+                  </li>
+                ) ) }
+              </ul>
+              { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
+              { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
+              { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
+            </div>
+          </div>
+        ) }
+
         <div className="vl-live-workspace">
           <section className="vl-live-map-region" aria-label="Map">
             <div className="vl-live-map-shell">
@@ -2645,49 +2689,7 @@ const VayuLokLive: React.FC = () => {
                 </>
               ) }
 
-              { mapReady && (
-                <div className="vl-live-map-search">
-                  <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
-                  <div className="vl-live-search">
-                    <div className="vl-live-search-field">
-                      <input
-                        id="vl-live-search"
-                        type="search"
-                        role="combobox"
-                        aria-controls="vl-live-search-results"
-                        aria-expanded={ open }
-                        aria-autocomplete="list"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        spellCheck={ false }
-                        placeholder="Search a city or place"
-                        value={ query }
-                        onChange={ onQueryChange }
-                        onFocus={ () => {
-                          if ( query.trim() ) {
-                            if ( results.length ) setOpen( true );
-                            else void runSearch( query );
-                            return;
-                          }
-                          const recent = recentPlaces().map( place => ( { name: place.name, addr: place.addr, place } ) );
-                          setResults( recent ); setActive( recent.length ? 0 : -1 ); setOpen( recent.length > 0 ); setSearchStatus( 'idle' );
-                        } }
-                        onKeyDown={ onKeyDown }
-                      />
-                    </div>
-                    <ul className="vl-live-search-results" id="vl-live-search-results" role="listbox" aria-label="Matching places" hidden={ !open || !results.length }>
-                      { results.map( ( r, i ) => (
-                        <li key={ `${r.name}-${r.addr}-${i}` } role="option" aria-selected={ i === active } onPointerDown={ e => { e.preventDefault(); void choose( r ); } }>
-                          <strong>{ r.name }</strong>{ r.addr && <span>{ r.addr }</span> }
-                        </li>
-                      ) ) }
-                    </ul>
-                    { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
-                    { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
-                    { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
-                  </div>
-                </div>
-              ) }
+
 
             </div>
           </section>
@@ -2768,7 +2770,7 @@ const VayuLokLive: React.FC = () => {
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(372px,calc(100% - 32px));margin:108px 0 112px 16px;filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
+        .vl-live-air-card-wrap{position:relative;z-index:12;grid-area:1/1;align-self:start;justify-self:start;width:min(372px,calc(100% - 32px));margin:16px 0 112px 16px;filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
         .vl-live-air-card-wrap::after{content:"";position:absolute;left:52%;bottom:-11px;width:22px;height:22px;background:#fff;border-right:1px solid rgba(26,58,42,.14);border-bottom:1px solid rgba(26,58,42,.14);transform:translateX(-50%) rotate(45deg);border-radius:0 0 4px 0}
         .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:22px 24px 22px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
 
@@ -2988,7 +2990,7 @@ const VayuLokLive: React.FC = () => {
            pale-white panel, 1px neutral border, 3px lime top edge, 14px radius, nav shadow,
            then the exact site-wide borderless search input inside. It sits at the top of the
            map section rather than floating as a detached mini-box in the centre of the map. */
-        .vl-live-map-search{position:relative;z-index:30;grid-area:1/1;align-self:start;justify-self:center;width:min(760px,calc(100% - 32px));margin:16px auto 0;padding:14px;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+        .vl-live-map-search{position:relative;z-index:30;width:min(760px,100%);margin:0 auto 18px;padding:14px;background:#fcfdfb;border:1px solid #e5e7eb;border-top:3px solid #d1f470;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.10)}
         .vl-live-search{position:relative}
         /* Exact Header.tsx .nav-search field treatment: no icon, no input box/radius,
            44px minimum row, transparent fill, 16px/400 type, one bottom hairline,
@@ -3010,8 +3012,8 @@ const VayuLokLive: React.FC = () => {
         @media(max-width:700px){
           .vl-live-shell{padding:10px max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
           .vl-live-map-shell{height:auto;min-height:min(460px,62svh);max-height:none}
-          .vl-live-map-search{width:calc(100% - 20px);margin:max(10px,env(safe-area-inset-top)) auto 0;padding:12px}
-          .vl-live-air-card-wrap{width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));margin:max(102px,calc(env(safe-area-inset-top) + 92px)) 0 112px max(10px,env(safe-area-inset-left))}
+          .vl-live-map-search{width:100%;margin:0 auto 12px;padding:12px}
+          .vl-live-air-card-wrap{width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));margin:10px 0 112px max(10px,env(safe-area-inset-left))}
           .vl-live-air-card{padding:19px 19px 17px}
           .vl-live-air-context{align-items:flex-start}
           .vl-live-air-context-item.is-location{max-width:56%}
@@ -3026,7 +3028,7 @@ const VayuLokLive: React.FC = () => {
         }
         @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
           .vl-live-air-card-wrap{width:min(330px,42%)}
-          .vl-live-map-search{width:min(760px,calc(100% - 32px))}
+          .vl-live-map-search{width:min(760px,100%)}
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
