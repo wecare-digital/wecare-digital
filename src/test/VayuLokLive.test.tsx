@@ -826,6 +826,36 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( nextHealth ).toBeTruthy();
     expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
 
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
+    const healthBtnRule = css.match( /\.vl-live-air-health-page-btn\{[^}]*\}/ )?.[ 0 ] || '';
+    const healthTabRule = css.match( /\.vl-live-air-health-tab\{[^}]*\}/ )?.[ 0 ] || '';
+    const historyBtnRule = css.match( /\.vl-live-air-history-nav button\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( healthBtnRule ).toContain( 'width:36px' );
+    expect( healthBtnRule ).toContain( 'height:36px' );
+    expect( healthBtnRule ).toContain( 'border-radius:50%' );
+    expect( healthBtnRule ).toContain( 'background:var(--lime)' );
+    expect( healthBtnRule ).toContain( 'color:var(--green)' );
+    expect( healthTabRule ).toContain( 'width:36px' );
+    expect( healthTabRule ).toContain( 'border-radius:50%' );
+    expect( historyBtnRule ).toContain( 'width:36px' );
+    expect( historyBtnRule ).toContain( 'border-radius:50%' );
+
+    const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( hoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( hoverRule ).toContain( 'border:0' );
+    expect( hoverRule ).toContain( 'box-shadow:none' );
+    expect( hoverRule ).not.toContain( 'background:var(--green)' );
+
+    const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( personaRule ).toContain( 'font-size:22px' );
+    expect( personaRule ).toContain( 'font-weight:700' );
+    expect( personaRule ).toContain( 'letter-spacing:-.25px' );
+    const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( healthTextRule ).toContain( 'font-size:20px' );
+    expect( healthTextRule ).toContain( 'font-weight:400' );
+    expect( healthTextRule ).toContain( 'line-height:1.4' );
+    expect( healthTextRule ).toContain( 'letter-spacing:-.125px' );
+
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
     expect( selected[ 0 ].querySelector( '.vl-live-air-health-icon' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
@@ -864,6 +894,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
     expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /UTC/ );
     expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+    const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
+    expect( historyNav ).not.toBeNull();
+    expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
+    historyNav?.querySelectorAll( 'svg' ).forEach( svg => {
+      expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    } );
 
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );

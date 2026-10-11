@@ -2559,7 +2559,27 @@ const VayuLokLive: React.FC = () => {
                             <>
                               <div className="vl-live-air-history-head">
                                 <h4 className="vl-live-air-history-title">Hourly History</h4>
-                                <span className="vl-live-air-history-stamp">{ stamp }</span>
+                                <div className="vl-live-air-history-head-meta">
+                                  <span className="vl-live-air-history-stamp">{ stamp }</span>
+                                  <div className="vl-live-air-history-nav" aria-label="Hourly history navigation">
+                                    <button
+                                      type="button"
+                                      aria-label="Earlier hour"
+                                      disabled={ offset >= maxOffset }
+                                      onClick={ () => setHistoryOffset( o => Math.min( maxOffset, o + 1 ) ) }
+                                    >
+                                      <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronLeft } /></svg>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      aria-label="Later hour"
+                                      disabled={ offset <= 0 }
+                                      onClick={ () => setHistoryOffset( o => Math.max( 0, o - 1 ) ) }
+                                    >
+                                      <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.chevronRight } /></svg>
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                               <div
                                 className={ `vl-live-air-history-chart vl-live-air-sev-${aqiCategory( current.aqi ).sev}` }
@@ -2579,24 +2599,6 @@ const VayuLokLive: React.FC = () => {
                                   <circle className="vl-live-air-history-dot" cx={ cx } cy={ cy } r="4" />
                                 </svg>
                                 <span className="vl-live-air-history-bubble" style={ { left: `${( cx / W ) * 100}%` } }>{ Math.round( current.aqi ) }</span>
-                              </div>
-                              <div className="vl-live-air-history-nav">
-                                <button
-                                  type="button"
-                                  aria-label="Earlier hour"
-                                  disabled={ offset >= maxOffset }
-                                  onClick={ () => setHistoryOffset( o => Math.min( maxOffset, o + 1 ) ) }
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
-                                </button>
-                                <button
-                                  type="button"
-                                  aria-label="Later hour"
-                                  disabled={ offset <= 0 }
-                                  onClick={ () => setHistoryOffset( o => Math.max( 0, o - 1 ) ) }
-                                >
-                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-                                </button>
                               </div>
                               <span className="vl-live-sr-only">Latest reading { Math.round( latest.aqi ) }, { latest.word }.</span>
                             </>
@@ -2812,7 +2814,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-index-name{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:600}
         .vl-live-air-facts{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:9px}
         .vl-live-air-fact{display:inline-flex;align-items:center;gap:6px;color:var(--status);font-size:11px;line-height:1.25}
-        .vl-live-air-fact svg{width:20px;height:20px;padding:3px;border-radius:50%;background:var(--lime);fill:var(--green)}
+        .vl-live-air-fact svg{width:22px;height:22px;padding:3px;border-radius:50%;background:var(--lime);fill:var(--green)}
         .vl-live-air-fact strong{color:var(--heading);font-weight:700}
         .vl-live-air-fact.is-dominant{padding:0;border:0;border-radius:0;background:transparent}
 
@@ -2840,12 +2842,37 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:13px;font-weight:600}
-        /* Exact SupportWidget WhatsApp icon language: lime surface, #1a3a2a glyph,
-           #c5e866 hover, dark-green focus ring. No inversion and no extra icon palette. */
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);cursor:help;box-shadow:none;transition:background-color .2s}
-        .vl-live-air-pollutant-info svg{width:21px;height:21px;fill:currentColor}
-        .vl-live-air-pollutant-info:hover{background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+        /* ONE ACTION-ICON SYSTEM for the Air card. Every clickable icon uses the same
+           36px circle, lime surface, deep-green glyph, lighter-lime hover and focus ring.
+           No hover border, no dark-green hover fill, no inversion, no section-specific skin. */
+        .vl-live-air-pollutant-info,
+        .vl-live-air-heatmap-switch,
+        .vl-live-air-pollutant-pop-close,
+        .vl-live-air-health-page-btn,
+        .vl-live-air-health-tab,
+        .vl-live-air-history-nav button{display:inline-flex;align-items:center;justify-content:center;flex:0 0 36px;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);box-shadow:none;transition:background-color .2s;color-scheme:light}
+        .vl-live-air-pollutant-info{cursor:help}
+        .vl-live-air-pollutant-info:hover,
+        .vl-live-air-heatmap-switch:hover:not(:disabled),
+        .vl-live-air-pollutant-pop-close:hover,
+        .vl-live-air-health-page-btn:hover:not(:disabled),
+        .vl-live-air-health-tab:hover,
+        .vl-live-air-history-nav button:hover:not(:disabled){background:var(--lime-hover);color:var(--green);border:0;box-shadow:none;transform:none}
+        .vl-live-air-pollutant-info:focus-visible,
+        .vl-live-air-heatmap-switch:focus-visible,
+        .vl-live-air-pollutant-pop-close:focus-visible,
+        .vl-live-air-health-page-btn:focus-visible,
+        .vl-live-air-health-tab:focus-visible,
+        .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+        .vl-live-air-pollutant-info svg,
+        .vl-live-air-heatmap-switch svg,
+        .vl-live-air-pollutant-pop-close svg,
+        .vl-live-air-health-page-btn svg,
+        .vl-live-air-health-tab svg,
+        .vl-live-air-history-nav button svg{width:21px;height:21px;fill:currentColor}
+        .vl-live-air-heatmap-switch:disabled,
+        .vl-live-air-health-page-btn:disabled,
+        .vl-live-air-history-nav button:disabled{opacity:.4;cursor:not-allowed}
 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
@@ -2860,10 +2887,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
         .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.3}
-        .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s}
-        .vl-live-air-pollutant-pop-close:hover{background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-pollutant-pop-close:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-air-pollutant-pop-close svg{width:20px;height:20px;fill:currentColor}
         .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:start}
         .vl-live-air-pollutant-pop-line strong{font-size:12.5px;font-weight:700;letter-spacing:.01em}
         .vl-live-air-pollutant-pop-line span{color:var(--status);font-size:13px;font-weight:400;line-height:1.42}
@@ -2877,49 +2900,37 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap{margin-top:20px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-heatmap-label{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);box-shadow:none;transition:background-color .2s}
-        .vl-live-air-heatmap-switch svg{width:23px;height:23px;fill:currentColor}
         .vl-live-air-heatmap-switch.is-on{background:var(--lime);color:var(--green)}
-        .vl-live-air-heatmap-switch:hover:not(:disabled){background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-air-heatmap-switch:disabled{opacity:.46;cursor:not-allowed}
         .vl-live-air-heatmap-legend{margin-top:12px}
         .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
         .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:6px}
         .vl-live-air-heatmap-end{color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
 
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
-           One horizontal Material-icon row. Every icon uses the exact public WhatsApp
-           widget palette: lime #d1f470, deep green #1a3a2a, hover #c5e866.
-           The selected profile is a dark-green ring; arrows page without numeric copy. */
-        .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
-        .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+           Icons and arrows inherit the ONE action-icon system above. The row stays horizontal;
+           selection uses the lighter-lime surface, never a border/ring. Recommendation type
+           follows the home-page heading/body ladder exactly. */
+        .vl-live-air-health{margin-top:24px;padding-top:20px;border-top:1px solid var(--hair)}
+        .vl-live-air-health-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
         .vl-live-air-health-title{margin:0;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
         .vl-live-air-health-pager{display:flex;align-items:center;gap:6px}
-        .vl-live-air-health-page-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s}
-        .vl-live-air-health-page-btn svg{width:18px;height:18px;fill:currentColor}
-        .vl-live-air-health-page-btn:hover:not(:disabled){background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-health-page-btn:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-air-health-page-btn:disabled{opacity:.4;cursor:not-allowed}
-        .vl-live-air-health-tabs{display:flex;align-items:center;gap:6px;overflow-x:auto;padding:1px 0 4px;scrollbar-width:none;white-space:nowrap}
+        .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;overflow-x:auto;padding:0 0 4px;scrollbar-width:none;white-space:nowrap}
         .vl-live-air-health-tabs::-webkit-scrollbar{display:none}
-        .vl-live-air-health-tab{display:inline-flex;flex:0 0 38px;width:38px;height:38px;align-items:center;justify-content:center;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s,box-shadow .16s ease}
-        .vl-live-air-health-tab:hover{background:var(--lime-hover);color:var(--green)}
-        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-air-health-tab.is-active{background:var(--lime);color:var(--green);box-shadow:0 0 0 2px var(--green) inset}
+        .vl-live-air-health-tab.is-active{background:var(--lime-hover);color:var(--green);box-shadow:none;transform:none}
         .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:100%;height:100%;border:0;border-radius:inherit;background:transparent;color:inherit}
-        .vl-live-air-health-icon{width:24px;height:24px;fill:currentColor}
-        .vl-live-air-health-panel{margin-top:12px;padding-top:12px;border-top:1px solid var(--hair)}
-        .vl-live-air-health-persona{display:block;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.15px}
-        .vl-live-air-health-text{margin:7px 0 0;color:var(--body);font-size:13.5px;font-weight:400;line-height:1.5}
+        .vl-live-air-health-icon{width:21px;height:21px;fill:currentColor}
+        .vl-live-air-health-panel{margin-top:14px;padding-top:16px;border-top:1px solid var(--hair)}
+        .vl-live-air-health-persona{display:block;margin:0 0 6px;color:#000;font-size:22px;font-weight:700;line-height:1.27;letter-spacing:-.25px}
+        .vl-live-air-health-text{margin:0;color:rgba(0,0,0,.898);font-size:20px;font-weight:400;line-height:1.4;letter-spacing:-.125px}
 
         /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
            Line + area stroked from the no-red ramp via the sev-mapped class; the pinned
            bubble shows the current AQI number so meaning never rests on colour alone. */
         .vl-live-air-history{margin-top:20px}
-        .vl-live-air-history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+        .vl-live-air-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-history-title{margin:0;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-history-stamp{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em}
+        .vl-live-air-history-head-meta{display:flex;align-items:center;gap:8px}
+        .vl-live-air-history-stamp{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em;white-space:nowrap}
         .vl-live-air-history-empty{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
         .vl-live-air-history-chart{position:relative;margin-top:12px}
         .vl-live-air-history-svg{display:block;width:100%;height:120px}
@@ -2941,12 +2952,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-sev-worst .vl-live-air-history-line,.vl-live-air-sev-worst .vl-live-air-history-dot{stroke:#c98a2e}
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
         .vl-live-air-history-bubble{position:absolute;top:0;transform:translateX(-50%);min-width:28px;padding:2px 7px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font-size:11px;font-weight:700;text-align:center}
-        .vl-live-air-history-nav{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
-        .vl-live-air-history-nav button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--lime);color:var(--green);transition:background-color .2s}
-        .vl-live-air-history-nav button:hover:not(:disabled){background:var(--lime-hover)}
-        .vl-live-air-history-nav button:focus-visible{outline:3px solid var(--green);outline-offset:2px}
-        .vl-live-air-history-nav button:disabled{opacity:.4;cursor:not-allowed}
-        .vl-live-air-history-nav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .vl-live-air-history-nav{display:flex;align-items:center;gap:6px}
 
         /* FULL-BLEED MAP. The map reads edge-to-edge: no border, no rounded box. overflow:hidden
            still clips the heatmap tiles + overlays, isolation:isolate keeps the overlay z-stack
