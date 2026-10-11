@@ -27,7 +27,7 @@ for why removing them would be the wrong lesson to draw.
 WHAT ELSE THAT REFRESH MOVED, because several numbers below are measurements rather than choices:
 the services product was RENAMED in Wix from `WECARE.DIGITAL Services` to `Request`, gained a
 fifth variant (`Request Pickup`), went from out of stock to in stock on every row, had its stale
-`Request Amendment` price corrected from 99 to 350, and went from 4 media items to 6.
+`Request Amendment` price corrected from 99 to 350, and now carries one linked image for each of its five service variants.
 """
 
 from __future__ import annotations
@@ -505,68 +505,44 @@ def test_the_plan_fingerprint_is_stable_under_reordering(desired):
 # ── 6. the blockers ──────────────────────────────────────────────────────────
 
 
-#: MEASURED from the snapshot: all ten real products carry `mediaCount: 0`, so every one is
-#: blocked. The services product (whose catalogue name is "Request") lost its per-choice artwork
-#: when the owner's 2026-10-10 "pure Wix read" decision landed in scripts/fetch-wix-catalog.js:
-#: the snapshot now mirrors Wix exactly, and Wix no longer returns any linked media for the
-#: service choices to an anonymous visitor token. The artwork is re-linked in the Wix dashboard,
-#: not re-typed into this file, so until that re-linking lands in a live read every item here is
-#: imageless and blocked. Sorted, so "Request" sits before "\u20b91 test product".
+#: MEASURED from the 2026-10-11 snapshot: nine of the ten syncable products carry
+#: Wix media. Only the ₹1 test product is still imageless, so it is the sole Meta blocker.
 EXPECTED_BLOCKED = [
-    "Anew",
-    "Contribute",
-    "File Assist",
-    "Guided Resolution",
-    "Kiosk",
-    "Merchandise",
-    "Paperwork",
-    "Referral Partner",
-    "Request",
-    "\u20b91 test product",
+    "₹1 test product",
 ]
 
 
-def test_remaining_imageless_products_are_blocked_and_every_service_item_has_a_picture(
+def test_remaining_imageless_product_is_blocked_and_every_service_item_has_a_picture(
         desired, products):
-    """Meta commerce review rejects an imageless item, so this is the state of the catalogue
-    rather than a defect in the plan. Reported in full; no placeholder is invented.
+    """Pin the catalogue review gate to the committed Wix snapshot.
 
-    EVERY ITEM IS IMAGELESS TODAY, INCLUDING THE SERVICES PRODUCT. Until 2026-10-10 the snapshot
-    held distinct service pictures that had been written into the file by hand - values
-    `scripts/fetch-wix-catalog.js` never produced and therefore deleted on every refresh. The
-    owner's 2026-10-10 decision (recorded in that script's header) is that the snapshot is a PURE
-    READ of Wix: no image is derived, inferred or carried forward, and the per-choice artwork is
-    re-linked in the Wix dashboard rather than re-typed here. Wix no longer returns any linked
-    media for the service choices to an anonymous visitor token - every
-    `choicesSettings.choices[].linkedMedia` comes back empty - so a live refresh now writes an
-    empty image for the product and all five variants, and the services product is blocked for the
-    same imageless reason as the other nine.
-
-    This asserts the ACCEPTED CONSEQUENCE of that decision, not a defect: the fix belongs in Wix.
-    When the owner re-links the per-choice artwork and a live read carries it, this test is the one
-    to update - move "Request" back out of EXPECTED_BLOCKED and restore the per-service image
-    assertion below.
+    Meta rejects imageless items. The 2026-10-11 refresh carries media for every syncable
+    product except the ₹1 test product, including distinct linked artwork for all five Request
+    service variants. The test names that one remaining blocker explicitly so a future Wix media
+    change is reviewed rather than silently changing publish eligibility.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
-    assert len(EXPECTED_BLOCKED) == 10
+    assert len(EXPECTED_BLOCKED) == 1
 
     syncable = [p for p in products if sync.is_syncable(p)]
     assert len(syncable) == 10
-    # NO PRODUCT CARRIES MEDIA, which is what `EXPECTED_BLOCKED` is built from. A single product
-    # gaining a picture in Wix would silently unblock it, so every syncable product is pinned to
-    # mediaCount 0 - the day one gains media, EXPECTED_BLOCKED is updated rather than this loosened.
-    for product in syncable:
-        assert product.get("mediaCount") == 0, (
-            "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening this")
 
-    # All five service variants are present as desired items; none carries an image_url today,
-    # because Wix returns no linked media for the choices. (When the artwork is re-linked in Wix
-    # this flips to `all(... image_url ...)` - see the docstring.)
+    imageless = sorted(
+        p["name"] for p in syncable
+        if int(p.get("mediaCount") or 0) == 0
+    )
+    assert imageless == EXPECTED_BLOCKED
+
+    pictured = [p for p in syncable if p["name"] not in EXPECTED_BLOCKED]
+    assert len(pictured) == 9
+    for product in pictured:
+        assert int(product.get("mediaCount") or 0) > 0
+        assert product.get("image"), f"{product['name']} has mediaCount but no image"
+
     services = [i for i in desired
                 if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]
     assert len(services) == 5
-    assert not any(i.get("image_url") for i in services)
-
+    assert all(i.get("image_url") for i in services)
 
 def test_an_item_with_an_image_is_not_blocked():
     items = sync.desired_items([{

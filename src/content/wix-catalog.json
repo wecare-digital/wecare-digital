@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-11T09:34:52.787Z",
+  "fetchedAt": "2026-10-11T11:12:33.114Z",
   "productCount": 10,
   "products": [
     {
@@ -63,10 +63,10 @@
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 5,
       "productUrl": "https://wecare.digital/shop/anew/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_8c3222208f35439a8895fa10e928edb7~mv2.png",
       "variants": [
         {
           "id": "750a2d69-198d-42fa-ad80-f13a19ec6603",
@@ -75,7 +75,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_8c3222208f35439a8895fa10e928edb7~mv2.png",
           "pricePaise": 59900
         }
       ]
@@ -101,10 +101,10 @@
       "optionCount": 1,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/contribute/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_2cd9cf9b4d864198b928c57a020cef1c~mv2.png",
       "variants": [
         {
           "id": "8ad6f376-a526-4631-b510-0e047b33a5b9",
@@ -113,7 +113,7 @@
           "sku": "",
           "choiceId": "616cbd34-a1ad-4fe7-82b5-1d28e901aebc",
           "optionId": "c0c2d393-d62c-4e23-b632-6e64c01564a1",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_2cd9cf9b4d864198b928c57a020cef1c~mv2.png",
           "pricePaise": 25000
         }
       ]
@@ -139,10 +139,10 @@
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 10,
       "productUrl": "https://wecare.digital/shop/file-assist/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_4200c3df23494a798aaa2998878af240~mv2.png",
       "variants": [
         {
           "id": "1960aa09-7585-4813-91b5-13b30e64d342",
@@ -151,7 +151,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_4200c3df23494a798aaa2998878af240~mv2.png",
           "pricePaise": 699900
         }
       ]
@@ -177,10 +177,10 @@
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 11,
       "productUrl": "https://wecare.digital/shop/guided-resolution/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_907442afff3f45e3a7d2dfec7726c07b~mv2.png",
       "variants": [
         {
           "id": "9a108efe-e3b9-42f2-b465-0e8470a293e4",
@@ -189,7 +189,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_907442afff3f45e3a7d2dfec7726c07b~mv2.png",
           "pricePaise": 1399900
         }
       ]
@@ -215,10 +215,10 @@
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 10,
       "productUrl": "https://wecare.digital/shop/kiosk/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_30c2b36f1fad43ad95f29302286fdf33~mv2.png",
       "variants": [
         {
           "id": "4d3e2b31-7888-4250-8f5a-0587344431db",
@@ -227,7 +227,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_30c2b36f1fad43ad95f29302286fdf33~mv2.png",
           "pricePaise": 2499900
         }
       ]
@@ -253,10 +253,10 @@
       "optionCount": 2,
       "modifierCount": 0,
       "variantCount": 10,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 8,
       "productUrl": "https://wecare.digital/shop/merchandise/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
       "variants": [
         {
           "id": "3788a657-9af2-4ecf-8c9b-f218669d753c",
@@ -265,7 +265,7 @@
           "sku": "",
           "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -275,7 +275,7 @@
           "sku": "",
           "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -285,7 +285,7 @@
           "sku": "",
           "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -295,7 +295,7 @@
           "sku": "",
           "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -305,7 +305,7 @@
           "sku": "",
           "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -315,7 +315,7 @@
           "sku": "",
           "choiceId": "cfc5999a-55b4-40db-a1c6-79130b8af04c",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -325,7 +325,7 @@
           "sku": "",
           "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -335,7 +335,7 @@
           "sku": "",
           "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -345,7 +345,7 @@
           "sku": "",
           "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         },
         {
@@ -355,7 +355,7 @@
           "sku": "",
           "choiceId": "aa2a25b2-c5d2-427b-9d20-8b80bef09a94",
           "optionId": "244ac305-d630-48ac-9302-79a7cfeea1cc",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_72706e7bee784f898f4de15b87dc5850~mv2.png",
           "pricePaise": 119900
         }
       ]
@@ -381,10 +381,10 @@
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 9,
       "productUrl": "https://wecare.digital/shop/paperwork/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_51d20f04d7db4c0b83a0188373400b1e~mv2.png",
       "variants": [
         {
           "id": "ac5cee5d-0dd1-4a1e-ac13-c3767d3fd8dd",
@@ -393,7 +393,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_51d20f04d7db4c0b83a0188373400b1e~mv2.png",
           "pricePaise": 349900
         }
       ]
@@ -419,10 +419,10 @@
       "optionCount": 0,
       "modifierCount": 0,
       "variantCount": 1,
-      "mediaCount": 0,
+      "mediaCount": 1,
       "infoSectionCount": 7,
       "productUrl": "https://wecare.digital/shop/referral-partner/",
-      "image": "",
+      "image": "https://static.wixstatic.com/media/478bf9_7cb916e01cfc48c19f76c90f890d6bb3~mv2.png",
       "variants": [
         {
           "id": "081aa95d-82e4-451c-80f2-bc076d1cdb4d",
@@ -431,7 +431,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_7cb916e01cfc48c19f76c90f890d6bb3~mv2.png",
           "pricePaise": 99900
         }
       ]
@@ -444,7 +444,7 @@
       "visible": true,
       "ribbon": "",
       "price": "49.00",
-      "priceMax": "350.00",
+      "priceMax": "550.00",
       "currency": "INR",
       "formattedPrice": "₹49.00",
       "compareAtPrice": null,
@@ -457,10 +457,10 @@
       "optionCount": 1,
       "modifierCount": 0,
       "variantCount": 5,
-      "mediaCount": 1,
+      "mediaCount": 5,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/wecaredigital-services/",
-      "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+      "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
       "variants": [
         {
           "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
@@ -469,7 +469,7 @@
           "sku": "SERVICE-REQUEST-AMENDMENT",
           "choiceId": "7111e864-e789-4641-8f28-74240af61561",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 35000
         },
         {
@@ -479,8 +479,8 @@
           "sku": "SERVICE-REQUEST-PICKUP",
           "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
-          "pricePaise": 35000
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
+          "pricePaise": 55000
         },
         {
           "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
@@ -489,7 +489,7 @@
           "sku": "SERVICE-DROP-DOCS",
           "choiceId": "f981b729-748a-48ee-93b9-54ecc543b617",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 35000
         },
         {
@@ -499,7 +499,7 @@
           "sku": "SERVICE-VAULT",
           "choiceId": "bdaafdcf-7998-4d43-b7dd-1ab40cc6566c",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 4900
         },
         {
@@ -509,11 +509,11 @@
           "sku": "SERVICE-SUBMIT-REQUEST",
           "choiceId": "2af81a87-24a8-4729-80bf-1d967a637bc2",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
-          "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+          "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
           "pricePaise": 9900
         }
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-11T09:34:52.780Z"
+  "variantVerifiedAt": "2026-10-11T11:12:33.106Z"
 }

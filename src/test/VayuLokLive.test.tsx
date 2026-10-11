@@ -387,12 +387,32 @@ function environmentFetch() {
         ok: true,
         json: async () => ( {
           dateTime: now.toISOString(),
-          indexes: [ { code: 'ind_cpcb', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
+          indexes: [ { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 74, category: 'Satisfactory', dominantPollutant: 'pm25' } ],
           pollutants: [
-            { code: 'pm25', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' }, additionalInfo: { sources: 'Combustion of fuels in vehicles, power plants and industry.', effects: 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' } },
-            { code: 'pm10', concentration: { value: 44, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            { code: 'pm25', displayName: 'PM2.5', fullName: 'Fine particulate matter', concentration: { value: 28, units: 'MICROGRAMS_PER_CUBIC_METER' }, additionalInfo: { sources: 'Combustion of fuels in vehicles, power plants and industry.', effects: 'Penetrates deep into lungs and can trigger respiratory and cardiovascular problems.' } },
+            { code: 'pm10', displayName: 'PM10', fullName: 'Inhalable particulate matter', concentration: { value: 44, units: 'MICROGRAMS_PER_CUBIC_METER' } },
           ],
-          healthRecommendations: { generalPopulation: 'Normal outdoor activity is suitable for most people.' },
+          healthRecommendations: {
+            generalPopulation: 'Google general guidance.',
+            elderly: 'Google elderly guidance.',
+            lungDiseasePopulation: 'Google lung guidance.',
+            heartDiseasePopulation: 'Google heart guidance.',
+            athletes: 'Google athlete guidance.',
+            pregnantWomen: 'Google pregnancy guidance.',
+            children: 'Google child guidance.',
+          },
+        } ),
+      } as Response );
+    }
+    if ( requestIs( input, 'maps.googleapis.com', '/maps/api/timezone/json' ) ) {
+      return Promise.resolve( {
+        ok: true,
+        json: async () => ( {
+          status: 'OK',
+          timeZoneId: 'Asia/Kolkata',
+          timeZoneName: 'India Standard Time',
+          rawOffset: 19800,
+          dstOffset: 0,
         } ),
       } as Response );
     }
@@ -505,7 +525,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec = installGoogleMaps();
   } );
 
-  it( 'loads a draggable global hybrid map and omits the removed map pills', async () => {
+  it( 'loads a destination-only global hybrid map and omits the removed map pills', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -516,10 +536,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
-    expect( rec.mapOpts?.gestureHandling ).toBe( 'greedy' );
-    expect( rec.mapOpts?.draggable ).toBe( true );
-    expect( rec.mapOpts?.scrollwheel ).toBe( true );
-    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( false );
+    expect( rec.mapOpts?.gestureHandling ).toBe( 'none' );
+    expect( rec.mapOpts?.draggable ).toBe( false );
+    expect( rec.mapOpts?.scrollwheel ).toBe( false );
+    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( true );
     expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( rec.mapClickHandler ).toBeUndefined();
 
@@ -549,8 +569,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.markerOpts.length ).toBeGreaterThan( 0 ) );
     const icon = rec.markerOpts[ 0 ].icon;
     expect( typeof icon ).toBe( 'string' );
-    expect( decodeURIComponent( String( icon ) ) ).toContain( '#1a3a2a' );
-    expect( decodeURIComponent( String( icon ) ) ).toContain( '#d1f470' );
+    const decodedIcon = decodeURIComponent( String( icon ) );
+    expect( decodedIcon ).toContain( '#1a3a2a' );
+    expect( decodedIcon ).toContain( '#d1f470' );
+    expect( decodedIcon ).toContain( 'M480-480q33 0 56.5-23.5' );
+    expect( decodedIcon ).toContain( 'width="36" height="36"' );
+    expect( decodedIcon ).not.toContain( 'M19 0C8.5 0 0 8.5' );
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
   } );
 
@@ -568,7 +592,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( card.querySelector( '.vl-live-air-card-title' )?.textContent ).toBe( 'Air Quality Details' );
+    expect( card.querySelector( '.vl-live-air-card-title' ) ).toBeNull();
+    const context = card.querySelector( '.vl-live-air-context' );
+    expect( context ).not.toBeNull();
+    expect( context?.textContent ).toContain( 'Mumbai' );
+    expect( context?.textContent ).toContain( 'IST' );
 
     // The whole former left panel is gone.
     expect( container.querySelector( '.vl-live-left' ) ).toBeNull();
@@ -584,7 +612,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherTab ).toHaveAttribute( 'aria-selected', 'false' );
   } );
 
-  it( 'shows the circular AQI gauge, category word, dominant chip and pollutant rows in the floating card, and a Weather placeholder on toggle', async () => {
+  it( 'shows AQI context, inline dominant metadata and pollutant details with one Material icon language', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -607,11 +635,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
     const arc = panel.querySelector( '.vl-live-air-sev-sat .vl-live-air-gauge-arc' );
     expect( arc ).not.toBeNull();
-    // The dominant-pollutant chip reads the friendly label (PM2.5), matching the
-    // pollutant rows, rather than the raw Google code (pm25).
-    const dominantChip = panel.querySelector( '.vl-live-air-dominant' );
-    expect( dominantChip?.textContent ).toContain( 'PM2.5' );
-    expect( dominantChip?.textContent ).not.toContain( 'pm25' );
+    // AQI metadata is one quiet row under the homepage-scale category heading:
+    // index name + dominant pollutant + update age, with no pills or competing glyphs.
+    const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
+    expect( summaryMeta?.textContent ).toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).toContain( 'Dominant' );
+    expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
+    expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
+    expect( summaryMeta?.textContent ).toMatch( /Updated/ );
+    expect( summaryMeta?.querySelector( 'svg' ) ).toBeNull();
+    expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
+    expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
+    expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
 
     // Pollutant rows keep value + unit + label, and the info control uses the supplied
     // Google Material Symbols icon rather than a hand-drawn circle/i glyph.
@@ -635,13 +670,32 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
     const tip = document.getElementById( describedBy );
     expect( tip ).not.toBeNull();
-    expect( tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
+    expect( tip?.getAttribute( 'role' ) ).toBe( 'dialog' );
+    expect( tip?.querySelector( '[aria-label="Close pollutant details"]' ) ).not.toBeNull();
     expect( tip?.closest( '.vl-live-air-card' ) ).toBeNull();
     expect( tip?.textContent ).toContain( 'PM2.5' );
+    expect( tip?.textContent ).toContain( 'Fine particulate matter' );
     expect( tip?.textContent ).toContain( 'Sources' );
     expect( tip?.textContent ).toContain( 'Combustion of fuels' );
     expect( tip?.textContent ).toContain( 'Effects' );
     expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
+
+    // Explicit close button removes the viewport-level popup without relying on hover/blur.
+    const closeButton = tip?.querySelector( '[aria-label="Close pollutant details"]' ) as HTMLButtonElement;
+    fireEvent.click( closeButton );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // Re-open and Escape closes it too.
+    fireEvent.focus( info );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
+    fireEvent.keyDown( document, { key: 'Escape' } );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // Re-open and an outside pointer closes it.
+    fireEvent.focus( info );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
+    fireEvent.pointerDown( document.body );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
 
     // No additionalInfo -> honest value/unit fallback, never invented Sources/Effects.
     fireEvent.blur( info );
@@ -756,37 +810,88 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( legend?.textContent ).toContain( 'Poor' );
     expect( legend?.textContent ).toContain( 'Excellent' );
 
-    // (2) HEALTH RECOMMENDATIONS. A persona tablist with exactly one default-selected
-    //     persona (Elderly) whose recommendation paragraph is shown; selecting another
-    //     persona swaps the paragraph.
+    // (2) HEALTH RECOMMENDATIONS. All seven groups come from Google's live
+    // healthRecommendations payload. There is no static WECARE recommendation fallback.
     const healthTablist = screen.getByRole( 'tablist', { name: 'Health recommendation profiles' } );
     const personaTabs = healthTablist.querySelectorAll( '[role="tab"]' );
-    expect( personaTabs.length ).toBeGreaterThanOrEqual( 4 );
+    expect( personaTabs ).toHaveLength( 7 );
+    expect( screen.getByRole( 'tab', { name: 'General population' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Elderly' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Lung disease' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Heart disease' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Athletes' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Pregnant women' } ) ).toBeTruthy();
+    expect( screen.getByRole( 'tab', { name: 'Children' } ) ).toBeTruthy();
+
+    // Health icons stay in one horizontal row; text labels are tooltip/ARIA only, not stacked
+    // under each icon. Pager arrows cycle the active profile.
+    expect( healthTablist.querySelectorAll( '.vl-live-air-health-tab-label' ) ).toHaveLength( 0 );
+    const prevHealth = screen.getByRole( 'button', { name: 'Previous health recommendation' } );
+    const nextHealth = screen.getByRole( 'button', { name: 'Next health recommendation' } );
+    expect( prevHealth ).toBeTruthy();
+    expect( nextHealth ).toBeTruthy();
+    expect( container.querySelector( '.vl-live-air-health-page-count' ) ).toBeNull();
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
+    const healthBtnRule = css.match( /\.vl-live-air-health-page-btn\{[^}]*\}/ )?.[ 0 ] || '';
+    const healthTabRule = css.match( /\.vl-live-air-health-tab\{[^}]*\}/ )?.[ 0 ] || '';
+    const historyBtnRule = css.match( /\.vl-live-air-history-nav button\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
+    expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
+    expect( healthBtnRule ).toContain( 'border-radius:50%' );
+    expect( healthBtnRule ).toContain( 'background:var(--lime)' );
+    expect( healthBtnRule ).toContain( 'color:var(--green)' );
+    expect( healthTabRule ).toContain( 'width:var(--vl-action-size)' );
+    expect( healthTabRule ).toContain( 'border-radius:50%' );
+    expect( historyBtnRule ).toContain( 'width:var(--vl-action-size)' );
+    expect( historyBtnRule ).toContain( 'border-radius:50%' );
+
+    const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( hoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( hoverRule ).toContain( 'border:0' );
+    expect( hoverRule ).toContain( 'box-shadow:0 6px 14px rgba(26,58,42,.16)' );
+    expect( hoverRule ).toContain( 'transform:translateY(-2px) scale(1.04)' );
+    expect( hoverRule ).not.toContain( 'background:var(--green)' );
+
+    const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( personaRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
+    expect( personaRule ).toContain( 'font-weight:var(--vl-card-heading-weight)' );
+    expect( personaRule ).toContain( 'letter-spacing:var(--vl-card-heading-track)' );
+    const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( healthTextRule ).toContain( 'font-size:var(--vl-body-size)' );
+    expect( healthTextRule ).toContain( 'font-weight:var(--vl-body-weight)' );
+    expect( healthTextRule ).toContain( 'line-height:var(--vl-body-lh)' );
+    expect( healthTextRule ).toContain( 'letter-spacing:var(--vl-body-track)' );
+    expect( css ).toContain( '--vl-card-heading-size:22px' );
+    expect( css ).toContain( '--vl-body-size:20px' );
+
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
-    expect( selected[ 0 ].getAttribute( 'aria-label' ) ).toBe( 'Elderly' );
-    // Each persona uses an exact local Material Symbols path with the canonical 960 viewBox.
-    const selectedHealthIcon = selected[ 0 ].querySelector( '.vl-live-air-health-icon' );
-    expect( selectedHealthIcon ).not.toBeNull();
-    expect( selectedHealthIcon?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
-    expect( selectedHealthIcon?.querySelector( 'path' )?.getAttribute( 'd' )?.length ).toBeGreaterThan( 80 );
+    expect( selected[ 0 ].querySelector( '.vl-live-air-health-icon' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+
     const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
-    // The Elderly copy is now short & crisp; assert a NON-EMPTY paragraph with a stable word.
-    const elderlyText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
-    expect( elderlyText.length ).toBeGreaterThan( 0 );
-    expect( elderlyText ).toContain( 'short of breath' );
+    const firstLiveText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
+    expect( firstLiveText ).toMatch( /Google .* guidance/ );
 
-    const generalTab = screen.getByRole( 'tab', { name: 'General population' } );
-    fireEvent.click( generalTab );
-    await waitFor( () => expect( generalTab ).toHaveAttribute( 'aria-selected', 'true' ) );
-    // Selecting General swaps the paragraph to a DIFFERENT non-empty short copy.
-    const generalText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
-    expect( generalText.length ).toBeGreaterThan( 0 );
-    expect( generalText ).not.toBe( elderlyText );
-    expect( generalText ).toContain( 'fine for most people' );
+    const selectedBeforePager = Array.from( personaTabs ).findIndex( t => t.getAttribute( 'aria-selected' ) === 'true' );
+    fireEvent.click( nextHealth );
+    await waitFor( () => {
+      const selectedAfterPager = Array.from( personaTabs ).findIndex( t => t.getAttribute( 'aria-selected' ) === 'true' );
+      expect( selectedAfterPager ).toBe( ( selectedBeforePager + 1 ) % 7 );
+    } );
 
-    // (3) HOURLY HISTORY. Title + a UTC timestamp derived from real data + a role=img chart
-    //     with an aria-label mentioning the current value and a visible current-value marker.
+    const athleteTab = screen.getByRole( 'tab', { name: 'Athletes' } );
+    fireEvent.click( athleteTab );
+    await waitFor( () => expect( athleteTab ).toHaveAttribute( 'aria-selected', 'true' ) );
+    expect( healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ).toBe( 'Google athlete guidance.' );
+
+    const pregnantTab = screen.getByRole( 'tab', { name: 'Pregnant women' } );
+    fireEvent.click( pregnantTab );
+    await waitFor( () => expect( pregnantTab ).toHaveAttribute( 'aria-selected', 'true' ) );
+    expect( healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ).toBe( 'Google pregnancy guidance.' );
+
+    // (3) HOURLY HISTORY. Title + destination-local timestamp derived from real data +
+    //     a role=img chart with current value and a visible current-value marker.
     expect( screen.getByText( 'Hourly History' ) ).toBeTruthy();
     const chart = await waitFor( () => {
       const el = container.querySelector( '.vl-live-air-history-chart' );
@@ -796,11 +901,67 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
-    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /UTC/ );
+    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /IST/ );
+    const historyBubble = container.querySelector( '.vl-live-air-history-bubble' );
+    expect( historyBubble?.textContent ).toBe( '72' );
+    const bubbleRule = css.match( /\.vl-live-air-history-bubble\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( bubbleRule ).toContain( 'background:var(--lime)' );
+    expect( bubbleRule ).toContain( 'border:0' );
+    expect( bubbleRule ).toContain( 'border-radius:999px' );
+    const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
+    expect( historyNav ).not.toBeNull();
+    expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
+    historyNav?.querySelectorAll( 'svg' ).forEach( svg => {
+      expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    } );
+
+    // Hover/tap inspection exposes a specific hour + AQI while the current lime marker stays.
+    expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Hover or tap the chart to inspect an hour.' );
+    fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
+    await waitFor( () => expect( container.querySelector( '.vl-live-air-history-inspect' ) ).not.toBeNull() );
+    const inspect = container.querySelector( '.vl-live-air-history-inspect' );
+    expect( inspect?.textContent ).toMatch( /AQI \d+/ );
+    expect( inspect?.textContent ).toMatch( /IST/ );
     expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
 
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'shows IST by default and resolves selected-place local time through Google Time Zone API', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const context = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-air-context' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+
+    // Before/while resolution, the product contract is an explicit IST default.
+    expect( context.textContent ).toMatch( /IST/ );
+
+    await selectMumbai();
+
+    const tzCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call =>
+        requestIs( call[ 0 ] as RequestInfo | URL, 'maps.googleapis.com', '/maps/api/timezone/json' ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const tzUrl = new URL( String( tzCall[ 0 ] ) );
+    expect( tzUrl.searchParams.get( 'location' ) ).toBe( '19.076,72.8777' );
+    expect( Number( tzUrl.searchParams.get( 'timestamp' ) ) ).toBeGreaterThan( 0 );
+    expect( tzUrl.searchParams.get( 'key' ) ).toBeTruthy();
+
+    await waitFor( () => {
+      const time = context.querySelector( '.vl-live-air-context-item.is-time' );
+      expect( time?.textContent ).toContain( 'IST' );
+      expect( time?.getAttribute( 'title' ) ).toContain( 'Google Time Zone API' );
+    } );
   } );
 
   it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
@@ -919,6 +1080,28 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } finally {
       vi.useRealTimers();
     }
+  } );
+
+
+  it( 'reopens typed autocomplete on focus and selects suggestions with pointer input', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const input = await screen.findByRole( 'combobox' );
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    expect( option ).toBeTruthy();
+
+    // Close results, then refocus while the query remains. Focus should re-open/re-run search.
+    fireEvent.keyDown( input, { key: 'Escape' } );
+    expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'false' );
+    fireEvent.focus( input );
+    await waitFor( () => expect( input.getAttribute( 'aria-expanded' ) ).toBe( 'true' ) );
+
+    fireEvent.pointerDown( await screen.findByRole( 'option', { name: /Mumbai/i } ) );
+    await waitFor( () => expect( rec.fitBoundsCalls.length ).toBeGreaterThan( 0 ) );
   } );
 
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
@@ -1077,7 +1260,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.textContent ).not.toContain( 'Search India to see live weather and air.' );
   } );
 
-  it( 'renders the map full-bleed and the search field in the global borderless-hairline idiom', async () => {
+  it( 'renders the callout card shape and the exact Header search-field idiom', async () => {
     // CSS assertions read the rendered <style> text: vitest renders styled-jsx as a plain,
     // unscoped <style>, so the component's whole stylesheet is readable as text. Formatting is
     // the component's single-line declaration style, so these match on the exact declarations.
@@ -1089,25 +1272,90 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
 
-    // FULL-BLEED MAP: the shell no longer carries the boxed border/border-radius, but keeps
-    // overflow:hidden + isolation + the height band.
+    // MAP SHELL stays full-bleed. The Air card is a wider, lighter inspector with no
+    // decorative callout tail/modal pointer.
     const shellRule = css.match( /\.vl-live-map-shell\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( shellRule ).toContain( 'overflow:hidden' );
+    expect( shellRule ).toContain( 'overflow:visible' );
     expect( shellRule ).toContain( 'isolation:isolate' );
-    expect( shellRule ).toContain( 'height:72dvh' );
-    expect( shellRule ).not.toContain( 'border-radius' );
-    expect( shellRule ).not.toMatch( /border:1px solid/ );
+    expect( shellRule ).toContain( 'height:auto' );
+    const cardWrapRule = css.match( /\.vl-live-air-card-wrap\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( cardWrapRule ).toContain( 'width:min(416px,calc(100% - 32px))' );
+    expect( cardWrapRule ).toContain( 'drop-shadow(0 8px 18px rgba(26,58,42,.10))' );
+    expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
-    // GLOBAL SEARCH IDIOM: the search input is borderless with a single bottom hairline and the
-    // opaque #1a3a2a focus (var(--green)) plus the lime underline - the BlogSearch field standard.
+    // GLOBAL SEARCH SURFACE: the map search is no longer a detached mini-box. It reuses
+    // Header.tsx's open-menu surface plus the exact Header .nav-search input treatment.
+    expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( inputRule ).toContain( 'border-bottom:1px solid var(--hair)' );
+    expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
     expect( inputRule ).toContain( 'border:0' );
+    expect( inputRule ).toContain( 'font-size:16px' );
+    expect( inputRule ).toContain( 'font-weight:400' );
+    expect( inputRule ).toContain( 'background:transparent' );
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( inputFocus ).toContain( 'border-bottom-color:var(--green)' );
+    expect( inputFocus ).toContain( 'border-bottom-color:#1a3a2a' );
     expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
-    // And the old pill treatment is gone from the field container.
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( fieldRule ).not.toContain( 'border-radius:var(--pill-r)' );
+    expect( fieldRule ).toContain( 'border-radius:0' );
+    const searchWrapRule = css.match( /\.vl-live-map-search\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( searchWrapRule ).toContain( 'width:min(760px,calc(100% - 48px))' );
+    expect( searchWrapRule ).toContain( 'margin:14px auto 20px' );
+    expect( searchWrapRule ).toContain( 'border:1px solid #e5e7eb' );
+    expect( searchWrapRule ).toContain( 'border-top:3px solid #d1f470' );
+    expect( searchWrapRule ).toContain( 'border-radius:14px' );
+    expect( searchWrapRule ).toContain( 'box-shadow:none' );
+    expect( searchWrapRule ).toContain( 'z-index:30' );
+    expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
+
+    const searchSurface = container.querySelector( '.vl-live-map-search' );
+    const mapRegion = container.querySelector( '.vl-live-map-region' );
+    const mapMain = container.querySelector( '.vl-live-shell' );
+    expect( searchSurface ).not.toBeNull();
+    expect( mapRegion ).not.toBeNull();
+    expect( mapMain ).not.toBeNull();
+    expect( mapMain?.contains( searchSurface ) ).toBe( false );
+    expect( searchSurface ).not.toBeNull();
+    expect( mapMain ).not.toBeNull();
+    if ( !searchSurface || !mapMain ) throw new Error( 'Expected search surface and map shell.' );
+    expect( searchSurface.compareDocumentPosition( mapMain ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+
+    // Pollutant info control follows the SupportWidget WhatsApp skin exactly:
+    // lime surface, deep-green icon, lighter-lime hover, circular shape.
+    const infoRule = css.match( /\.vl-live-air-pollutant-info\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( infoRule ).toContain( 'background:var(--lime)' );
+    expect( infoRule ).toContain( 'color:var(--green)' );
+    expect( infoRule ).toContain( 'border-radius:50%' );
+    const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
+    expect( infoHoverRule ).toContain( 'color:var(--green)' );
+    expect( css ).toContain( '.vl-live-air-health-tabs{scroll-snap-type:x mandatory' );
+    expect( css ).toContain( '.vl-live-air-health-tab{scroll-snap-align:start}' );
+    const moreRule = css.match( /\.vl-live-air-health-more\{[^}]*\}/ )?.[ 0 ] || '';
+    const moreHoverRule = css.match( /\.vl-live-air-health-more:hover\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( moreRule ).toContain( 'text-decoration:none' );
+    expect( moreHoverRule ).toContain( 'text-decoration:underline' );
+
+    // One UI-system pass: section headings share the homepage card-heading token and one
+    // lime accent; pollutant names are real content (17px), not metadata-sized copy.
+    const sectionTitleRule = css.match( /\.vl-live-air-pollutants-title,\.vl-live-air-heatmap-label,\.vl-live-air-health-title,\.vl-live-air-history-title\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( sectionTitleRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
+    expect( sectionTitleRule ).toContain( 'border-left:3px solid var(--lime)' );
+    const sectionRule = css.match( /\.vl-live-air-pollutants,\.vl-live-air-heatmap,\.vl-live-air-health,\.vl-live-air-history\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( sectionRule ).toContain( 'margin-top:var(--vl-section-gap)' );
+    expect( sectionRule ).toContain( 'padding-top:var(--vl-section-pad)' );
+    expect( css ).not.toContain( '.vl-live-air-pollutants-title::before' );
+    const pollutantLabelRule = css.match( /\.vl-live-air-pollutant-label\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantLabelRule ).toContain( 'font-size:17px' );
+    const pollutantRowRule = css.match( /\.vl-live-air-pollutant-row\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantRowRule ).toContain( 'grid-template-columns:minmax(0,1fr) minmax(118px,auto) var(--vl-action-size)' );
+    const pollutantValueRule = css.match( /\.vl-live-air-pollutant-value\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantValueRule ).toContain( 'min-width:118px' );
+    expect( pollutantValueRule ).toContain( 'text-align:right' );
+    expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
+    expect( container.querySelector( '.vl-live-air-heatmap-state' )?.textContent ).toMatch( /On|Off/ );
+
+    // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
+    expect( container.textContent ).not.toContain( 'Air Quality Details' );
+    expect( container.textContent ).toContain( 'Pollutants' );
   } );
 } );

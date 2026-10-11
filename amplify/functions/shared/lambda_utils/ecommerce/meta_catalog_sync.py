@@ -463,15 +463,10 @@ def desired_items(products: Iterable[Mapping[str, Any]], *,
                 # reach Meta because `meta_payload` projects through `META_ITEM_FIELDS`.
                 "product_name": product_name,
             }
-            # The variant's own image first, the product's as the fallback. The preference is kept
-            # because it is the right order, NOT because it currently changes anything: as of
-            # 2026-10-10 Wix returns no per-choice media to a storefront read - every
-            # `choicesSettings.choices[].linkedMedia` comes back empty - so all five service
-            # variants carry the product's main image and the five Meta items share one picture.
-            # Owner decision, recorded in scripts/fetch-wix-catalog.js: the snapshot mirrors Wix
-            # rather than keeping the four distinct pictures that were hand-written into it, and
-            # the artwork is to be re-linked in the Wix dashboard. When it is, this line starts
-            # distinguishing them again with no code change.
+            # Prefer the variant's linked Wix image and fall back to the product image. The
+            # 2026-10-11 snapshot carries linked artwork for all five Request variants, so this
+            # preserves their distinct catalogue images while still handling ordinary one-image
+            # products without inventing a placeholder.
             image = _image_url(variant) or _image_url(product)
             if image:
                 item["image_url"] = image
@@ -500,14 +495,12 @@ def blockers(desired: Sequence[Mapping[str, Any]]) -> List[str]:
     """The products that cannot pass Meta commerce review, because they have no image.
 
     Meta rejects an imageless item, so publishing one is a review failure rather than a listing.
-    MEASURED against the committed snapshot: all ten real products carry `mediaCount: 0` and are
-    blocked today - the services product lost its per-choice artwork when the snapshot became a
-    pure read of Wix, and Wix currently returns none. That is the honest state of the catalogue
-    and it is reported rather than worked around - nothing here invents a placeholder image.
+    MEASURED against the committed 2026-10-11 snapshot: nine of the ten syncable Wix products
+    carry media and only the ₹1 test product remains imageless. That state is reported rather
+    than worked around - nothing here invents a placeholder image.
 
-    REPORTED PER PRODUCT, NOT PER ITEM, and deduplicated on `item_group_id`: media belongs to the
-    Wix product and all its variants share it, so ten lines name the ten things the owner has to
-    fix while twenty-five would name the same ten several times over.
+    REPORTED PER PRODUCT, NOT PER ITEM, and deduplicated on `item_group_id`, so a multi-variant
+    product with a missing image is named once rather than once per Meta item.
     """
     names: Dict[str, str] = {}
     for item in desired or []:
