@@ -1,5 +1,5 @@
 import React from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import BlogIndex from '../pages/blog/index';
 import BlogIndexPage from '../pages/blog/page/[page]';
@@ -107,7 +107,7 @@ const propsFor = ( overrides: Partial<BlogIndexPageProps> = {} ): BlogIndexPageP
   ...overrides,
 } );
 
-/** Stand in for the lazily-fetched /blog/search-index.json. */
+/** Stand in for the full post list at /blog/search-index.json, fetched by the index on mount. */
 function mockSearchIndex ( posts: BlogCard[] ) {
   const fetchMock = vi.fn().mockResolvedValue( {
     ok: true,
@@ -116,6 +116,20 @@ function mockSearchIndex ( posts: BlogCard[] ) {
   vi.stubGlobal( 'fetch', fetchMock );
   return fetchMock;
 }
+
+/**
+ * BlogIndexView fetches /blog/search-index.json ON MOUNT now (it was lazy, on the first
+ * keystroke, while the search box existed). Every render of the index therefore touches fetch,
+ * so the suite installs a harmless default - an empty list that leaves the prerendered slice in
+ * place - and the cases that care about the full list override it with mockSearchIndex. Without
+ * this, a plain render would call an undefined global and reject unhandled.
+ */
+beforeEach( () => {
+  vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( {
+    ok: true,
+    json: async () => ( { ok: true, count: 0, posts: [] } ),
+  } ) );
+} );
 
 afterEach( () => {
   vi.unstubAllGlobals();
@@ -160,9 +174,20 @@ describe( 'Blog design alignment', () => {
     // Exactly one h1, and it is the hero's - the page has no competing headline.
     expect( container.querySelectorAll( 'h1' ) ).toHaveLength( 1 );
 
-    // The breadcrumb and the blog-scoped search box are both present.
+    // The breadcrumb is present. The search box is GONE (owner instruction, 2026-10-11):
+    // the blog shows every post rather than offering a box to find one, so there is no
+    // form[role="search"] on the index any more.
     expect( container.querySelector( 'nav[aria-label="Breadcrumb"]' ) ).not.toBeNull();
-    expect( container.querySelector( 'form[role="search"]' ) ).not.toBeNull();
+    expect( container.querySelector( 'form[role="search"]' ) ).toBeNull();
+
+    // In its place, the RSS subscribe link: a plain <a> to the feed /blog/rss.xml, which is an
+    // XML file a build script writes to out/ rather than a Next route. The icon is decorative.
+    const rss = container.querySelector( 'a.blog-rss' );
+    expect( rss ).not.toBeNull();
+    expect( rss!.getAttribute( 'href' ) ).toBe( '/blog/rss.xml' );
+    expect( rss!.getAttribute( 'type' ) ).toBe( 'application/rss+xml' );
+    expect( rss!.querySelector( 'svg[aria-hidden="true"]' ) ).not.toBeNull();
+    expect( rss!.textContent ).toContain( 'Subscribe via RSS' );
   } );
 
   /**
@@ -197,7 +222,7 @@ describe( 'Blog design alignment', () => {
     expect( String( other.getAttribute( 'href' ) ).replace( /\/$/, '' ) ).toBe( '/blog/topic/guides' );
   } );
 
-  it( 'keeps the post count OFF the category pills, and on the line that reports it', () => {
+  it( 'keeps the post count OFF the category pills, and on the toolbar line that reports it', () => {
     /*
      * REVERSED ON OWNER INSTRUCTION. This test used to assert the opposite - that each pill
      * showed its own size, "Conversations 824" - so it is inverted rather than deleted: the
@@ -206,13 +231,13 @@ describe( 'Blog design alignment', () => {
      * It is asserted as "no digits in the nav" rather than "no <i> element", because the element
      * is an implementation detail and a future pill could reintroduce the number some other way.
      *
-     * The second half matters as much as the first: `categoryCounts` is still a live prop, feeding
-     * the search box's "N of M posts" denominator, so the count was moved off the pills rather
-     * than deleted from the page. Without that assertion this test would pass just as well if the
-     * counts had been ripped out altogether, which is not what was asked for. That line only
-     * renders while a query is active - BlogSearch omits it when there is nothing to count - so
-     * the search has to be driven to see it.
+     * The second half matters as much as the first: `categoryCounts` is still a live prop,
+     * feeding the toolbar's "N posts" count, so the count was moved off the pills rather than
+     * deleted from the page. With the search box gone the count no longer waits on a query - it
+     * is a plain label on the full list the reader can now see - so it is read straight off
+     * .blog-count on a plain render, with no interaction to drive.
      */
+    mockSearchIndex( [ firstCard, secondCard ] );
     render( <BlogIndex { ...propsFor( { categoryCounts: { Conversations: 824, Guides: 40 } } ) } /> );
 
     const nav = document.querySelector( '.category-switch' );
@@ -221,48 +246,59 @@ describe( 'Blog design alignment', () => {
     expect( nav?.textContent ).not.toMatch( /\d/ );
     expect( nav?.querySelector( 'i' ) ).toBeNull();
 
-    // The denominator still comes from categoryCounts, on the line that is meant to report it.
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'a' } } );
-    expect( document.querySelector( '.bs-count' )?.textContent ).toContain( 'of 824 posts' );
+    // The count still comes from categoryCounts, on the toolbar line that reports it: the active
+    // category's whole-corpus size, "824 posts", not this page's two cards.
+    expect( document.querySelector( '.blog-count' )?.textContent ).toContain( '824 posts' );
   } );
 
-  it( 'needs no fetch to render a category stream, because the page IS the category', () => {
+  it( 'fetches the full list on mount and shows every post in the category', async () => {
     /*
-     * The payload win survives the change: a plain page view fetches nothing, because the
-     * server already sliced this page to one category.
+     * THE "SHOW EVERY POST" BEHAVIOUR (owner instruction, 2026-10-11). The page is prerendered
+     * with its slice, then the whole corpus arrives from /blog/search-index.json on mount and
+     * replaces it - scoped to the active category, so /blog/ grows to the default category's
+     * full list and never pulls in another stream's posts.
      */
-    const fetchMock = mockSearchIndex( [ firstCard, secondCard ] );
-    render( <BlogIndex { ...propsFor() } /> );
-    expect( fetchMock ).not.toHaveBeenCalled();
+    // Both posts are in the active category, so the fetched list expands the one-card slice.
+    const secondConversations = { ...secondCard, category: 'Conversations' };
+    const fetchMock = mockSearchIndex( [ firstCard, secondConversations ] );
+    render( <BlogIndex { ...propsFor( {
+      posts: [ firstCard ], totalPosts: 2,
+      categories: [ 'Conversations' ], categoryCounts: { Conversations: 2 },
+      activeCategory: 'Conversations', defaultCategory: 'Conversations',
+    } ) } /> );
+
+    // The slice is painted immediately.
     expect( screen.getByRole( 'heading', { name: samplePost.title } ) ).toBeInTheDocument();
+    // The full list is fetched once, on mount, with no interaction.
+    await waitFor( () => {
+      expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
+    } );
+    // And the second Conversations post, absent from the one-card slice, appears once it lands.
+    await waitFor( () => {
+      expect( screen.getByRole( 'heading', { name: secondPost.title } ) ).toBeInTheDocument();
+    } );
   } );
 
-  it( 'scopes a search to the category the reader is in', async () => {
+  it( 'does not pull another category into the stream when the full list lands', async () => {
     /*
-     * The index covers all 864 posts, so it has to be narrowed: someone reading Conversations
-     * who searches "paneer" should get nothing, not a Gastronomy post from a stream they are
-     * not in.
+     * The index covers every category, so it must be narrowed: a reader on Conversations should
+     * never see a Gastronomy post appended once the on-mount fetch resolves.
      */
-    mockSearchIndex( [ firstCard, secondCard ] );
-    render( <BlogIndex { ...propsFor() } /> );
-    const box = screen.getByLabelText( 'Search the blog' );
+    const conversations = { ...firstCard, category: 'Conversations' };
+    const gastronomy = { ...secondCard, category: 'Gastronomy', title: 'A Gastronomy Post' };
+    mockSearchIndex( [ conversations, gastronomy ] );
+    render( <BlogIndex { ...propsFor( {
+      posts: [ conversations ], totalPosts: 1,
+      categories: [ 'Conversations', 'Gastronomy' ],
+      categoryCounts: { Conversations: 1, Gastronomy: 1 },
+      activeCategory: 'Conversations', defaultCategory: 'Conversations',
+    } ) } /> );
 
-    fireEvent.change( box, { target: { value: 'Better Decisions' } } );
     await waitFor( () => {
-      expect( screen.queryByRole( 'heading', { name: samplePost.title } ) ).toBeNull();
+      expect( screen.getByRole( 'heading', { name: conversations.title } ) ).toBeInTheDocument();
     } );
-    // The Guides post matches the text but is in another stream, so it stays out.
-    expect( screen.queryByRole( 'heading', { name: secondPost.title } ) ).toBeNull();
-
-    fireEvent.change( box, { target: { value: 'Clear Question' } } );
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: samplePost.title } ) ).toBeInTheDocument();
-    } );
-
-    fireEvent.change( box, { target: { value: '   ' } } );
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: samplePost.title } ) ).toBeInTheDocument();
-    } );
+    // The Gastronomy post is in the fetched index but in another stream, so it stays out.
+    expect( screen.queryByRole( 'heading', { name: 'A Gastronomy Post' } ) ).toBeNull();
   } );
 
   /**
@@ -407,219 +443,67 @@ describe( 'Blog pagination', () => {
     expect( last.querySelector( '.pager-progress-track' )!.getAttribute( 'aria-valuetext' ) ).toBe( 'Page 3 of 3' );
   } );
 
-  it( 'hides the paginator while a search or a category is narrowing the list', async () => {
-    mockSearchIndex( manyCards );
-    const { container } = render( <BlogIndex { ...propsFor( { posts: manyCards, page: 1, totalPages: 3, totalPosts: 60 } ) } /> );
+  it( 'paginates the prerendered slice until the full list arrives, then drops the pager', async () => {
+    // A fetch that resolves with the whole corpus.
+    const fetchMock = mockSearchIndex( manyCards );
+    const { container } = render( <BlogIndex { ...propsFor( {
+      posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
+      categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
+    } ) } /> );
 
-    expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
-
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'number 3' } } );
+    // Once the full list is in, the pager is gone and every post is listed.
     await waitFor( () => {
       expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).toBeNull();
     } );
-    // The grid relabels itself, so a screen reader is told these are matches and not the page.
-    expect( container.querySelector( 'section[aria-label="Matching posts"]' ) ).not.toBeNull();
-
-    // Clearing the query brings the paginator back.
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: '' } } );
-    await waitFor( () => {
-      expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
-    } );
+    expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
+    expect( screen.getByRole( 'heading', { name: 'Post number 5' } ) ).toBeInTheDocument();
+    // Fetched exactly once, on mount.
+    expect( fetchMock ).toHaveBeenCalledTimes( 1 );
   } );
 
-  it( 'searches every published post, not just the page in front of the reader', async () => {
+  it( 'shows every published post, not just the page in front of the reader', async () => {
     /**
-     * THE CASE THIS EXISTS FOR. The page carries 2 cards; the corpus has 5. A search for a
-     * post that is NOT on this page must find it, which is only possible via the lazily
-     * fetched index - and the announced count must be against the corpus. Before pagination
-     * this was free because every post was in the page; it is now the thing most likely to
-     * regress, and it would regress silently.
+     * THE CASE "SHOW EVERY POST" EXISTS FOR. The page carries 2 cards; the corpus has 5. The
+     * three posts that are NOT on this prerendered page must appear once the on-mount fetch of
+     * /blog/search-index.json lands. Before this the reader had to turn pages or search; now the
+     * whole category is on one scroll.
      */
     const fetchMock = mockSearchIndex( manyCards );
     render( <BlogIndex { ...propsFor( {
       posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
-      // The announced denominator is the ACTIVE CATEGORY's corpus count, not the whole corpus:
-      // with "All" gone, "3 of 834" would be counting a list the reader is not looking at.
       categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
     } ) } /> );
 
-    // Nothing is fetched for a plain page view.
-    expect( fetchMock ).not.toHaveBeenCalled();
+    // The two prerendered cards are there from the first paint.
+    expect( screen.getByRole( 'heading', { name: 'Post number 1' } ) ).toBeInTheDocument();
 
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'number 5' } } );
-
+    // The off-page posts arrive from the on-mount fetch.
     await waitFor( () => {
       expect( screen.getByRole( 'heading', { name: 'Post number 5' } ) ).toBeInTheDocument();
     } );
+    expect( screen.getByRole( 'heading', { name: 'Post number 4' } ) ).toBeInTheDocument();
     expect( fetchMock ).toHaveBeenCalledWith( '/blog/search-index.json', expect.anything() );
-    // Counted against all 5, not against the 2 on this page.
-    expect( screen.getByText( '1 of 5 posts' ) ).toBeInTheDocument();
-
-    // And it is fetched ONCE however much more is typed.
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'number' } } );
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: 'Post number 4' } ) ).toBeInTheDocument();
-    } );
-    expect( fetchMock ).toHaveBeenCalledTimes( 1 );
   } );
 
-  it( 'says so when the search index cannot be loaded instead of silently searching one page', async () => {
+  it( 'falls back to the paginated slice when the full list cannot be loaded', async () => {
+    /*
+     * The full-list fetch is a progressive enhancement over a prerendered, paginated page. If it
+     * fails, the reader keeps exactly what shipped: the slice and its pager, with no error state
+     * - nothing was lost, the page is simply not expanded.
+     */
     vi.stubGlobal( 'fetch', vi.fn().mockResolvedValue( { ok: false, status: 502, json: async () => ( {} ) } ) );
-    render( <BlogIndex { ...propsFor( { posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5 } ) } /> );
+    const { container } = render( <BlogIndex { ...propsFor( {
+      posts: manyCards.slice( 0, 2 ), page: 1, totalPages: 3, totalPosts: 5,
+      categories: [ 'Conversations' ], categoryCounts: { Conversations: 5 },
+    } ) } /> );
 
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'number' } } );
-
+    // The prerendered slice stays, and the pager with it.
     await waitFor( () => {
-      expect( screen.getByRole( 'status' ).textContent ).toContain( 'could not be loaded' );
+      expect( container.querySelector( 'nav[aria-label="Blog pages"]' ) ).not.toBeNull();
     } );
-    // It still filters what it has rather than showing nothing.
     expect( screen.getByRole( 'heading', { name: 'Post number 1' } ) ).toBeInTheDocument();
-  } );
-
-  /**
-   * SEARCH MATCHES TAGS, AND THIS IS THE CASE IT EXISTS FOR.
-   *
-   * The fixture is built so the query appears in NEITHER the title NOR the excerpt - only in the
-   * tags. Before tags were matched, every one of these searches returned "No posts match that
-   * search" against a corpus full of them, which reads as a broken box rather than an honest miss.
-   * Tagging is universal on this corpus, and the tags hold exactly the words a reader types.
-   */
-  it( 'finds a post by a tag that appears nowhere in its title or excerpt', async () => {
-    const tagged: BlogCard[] = [
-      {
-        slug: 'daikon-tea', title: 'Daikon Tea', excerpt: 'A quiet cup at the end of a long day.',
-        category: 'Conversations', tags: [ 'Herbal Tea', 'Beverages' ],
-      },
-      {
-        slug: 'a-clear-question', title: 'A Clear Question', excerpt: 'On asking better.',
-        category: 'Conversations', tags: [ 'Practice' ],
-      },
-    ];
-    mockSearchIndex( tagged );
-    render( <BlogIndex { ...propsFor( {
-      posts: tagged, totalPosts: 2, categories: [ 'Conversations' ], categoryCounts: { Conversations: 2 },
-    } ) } /> );
-
-    // "beverages" is a tag on the first post and appears in no visible text on either.
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'beverages' } } );
-
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: 'Daikon Tea' } ) ).toBeInTheDocument();
-    } );
-    // And it is a filter, not a pass-through: the untagged-for-this-term post is gone.
-    expect( screen.queryByRole( 'heading', { name: 'A Clear Question' } ) ).toBeNull();
-  } );
-
-  /**
-   * TAG SEARCH ON A TOPIC STREAM, WHICH IS THE OTHER HALF OF THE CORPUS.
-   *
-   * The cases above all run with activeCategory at the default, which is what /blog/ serves. The
-   * non-default categories are their own prerendered routes - /blog/topic/<slug>/ - and they pass a
-   * different activeCategory through the same component. Both halves matter and they are not the
-   * same size: measured on the built index, Conversations is 824 posts with 323 unique tags and
-   * Gastronomy is 240 with 278, and each had 50 tag terms that previously matched nothing. The
-   * Gastronomy ones are the more obviously broken - desserts, salads, beverages, condiments.
-   */
-  it( 'matches tags on a non-default topic stream too', async () => {
-    const gastronomy: BlogCard[] = [
-      {
-        slug: 'daikon-tea', title: 'Daikon Tea', excerpt: 'A quiet cup.',
-        category: 'Gastronomy', tags: [ 'Herbal Tea', 'Beverages' ],
-      },
-      {
-        slug: 'milky-masala-chai', title: 'Milky Masala Chai', excerpt: 'Boiled long.',
-        category: 'Gastronomy', tags: [ 'Chai', 'Beverages' ],
-      },
-    ];
-    mockSearchIndex( gastronomy );
-    render( <BlogIndex { ...propsFor( {
-      posts: gastronomy, totalPosts: 2,
-      categories: [ 'Conversations', 'Gastronomy' ],
-      categoryCounts: { Conversations: 0, Gastronomy: 2 },
-      // What /blog/topic/gastronomy/ passes: a non-default active category.
-      activeCategory: 'Gastronomy', defaultCategory: 'Conversations',
-    } ) } /> );
-
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'beverages' } } );
-
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: 'Daikon Tea' } ) ).toBeInTheDocument();
-    } );
-    expect( screen.getByRole( 'heading', { name: 'Milky Masala Chai' } ) ).toBeInTheDocument();
-  } );
-
-  /**
-   * A TAG MATCH MUST NOT LEAK ACROSS CATEGORIES. Search is scoped to the active stream - the rule
-   * the code states as "a reader on Conversations searching paneer should get nothing, not a
-   * Gastronomy post from a stream they are not in" - and matching tags gives that rule a new way to
-   * be broken, because the index is the whole corpus and a tag is a much broader net than a title.
-   * Without the category filter, searching "beverages" from Conversations would surface Gastronomy
-   * posts, which is a reader being shown a stream they did not choose.
-   */
-  it( 'keeps a tag match inside the active category rather than leaking the whole corpus', async () => {
-    const corpus: BlogCard[] = [
-      {
-        slug: 'daikon-tea', title: 'Daikon Tea', excerpt: 'A quiet cup.',
-        category: 'Gastronomy', tags: [ 'Beverages' ],
-      },
-      {
-        slug: 'a-clear-question', title: 'A Clear Question', excerpt: 'On asking better.',
-        category: 'Conversations', tags: [ 'Practice' ],
-      },
-    ];
-    mockSearchIndex( corpus );
-    render( <BlogIndex { ...propsFor( {
-      posts: [ corpus[ 1 ] ], totalPosts: 1,
-      categories: [ 'Conversations', 'Gastronomy' ],
-      categoryCounts: { Conversations: 1, Gastronomy: 1 },
-      activeCategory: 'Conversations', defaultCategory: 'Conversations',
-    } ) } /> );
-
-    // "beverages" is a real tag in the corpus, but only on a Gastronomy post.
-    fireEvent.change( screen.getByLabelText( 'Search the blog' ), { target: { value: 'beverages' } } );
-
-    await waitFor( () => {
-      expect( screen.getByText( 'No posts match that search.' ) ).toBeInTheDocument();
-    } );
-    expect( screen.queryByRole( 'heading', { name: 'Daikon Tea' } ) ).toBeNull();
-  } );
-
-  /**
-   * A QUERY MUST NOT MATCH ACROSS THE GAP BETWEEN TWO FIELDS, and this test earned its place by
-   * failing.
-   *
-   * The fields were first joined with a space, on the assumption that a match would still have to
-   * fall inside one of them. That is not what a space does: "Herbal Tea" and "Spices" joined by one
-   * become "Herbal Tea Spices", which contains "tea spices" - a phrase no post has, composed of the
-   * end of one tag and the start of the next. This case caught it, and the join is a newline now,
-   * which a typed query cannot contain.
-   *
-   * The same false positive existed between title and excerpt long before tags did, so fixing the
-   * separator fixed both.
-   */
-  it( 'does not let a query match across the gap between two tags', async () => {
-    const tagged: BlogCard[] = [ {
-      slug: 'yogi-tea', title: 'Tea Fit for a Yogi', excerpt: 'Warmth without weight.',
-      category: 'Conversations', tags: [ 'Herbal Tea', 'Spices' ],
-    } ];
-    mockSearchIndex( tagged );
-    render( <BlogIndex { ...propsFor( {
-      posts: tagged, totalPosts: 1, categories: [ 'Conversations' ], categoryCounts: { Conversations: 1 },
-    } ) } /> );
-
-    const box = screen.getByLabelText( 'Search the blog' );
-
-    // Each tag on its own is found.
-    fireEvent.change( box, { target: { value: 'spices' } } );
-    await waitFor( () => {
-      expect( screen.getByRole( 'heading', { name: 'Tea Fit for a Yogi' } ) ).toBeInTheDocument();
-    } );
-
-    // The seam between them is not.
-    fireEvent.change( box, { target: { value: 'tea spices' } } );
-    await waitFor( () => {
-      expect( screen.queryByRole( 'heading', { name: 'Tea Fit for a Yogi' } ) ).toBeNull();
-    } );
+    // The off-page post never appears, because the fetch that would bring it failed.
+    expect( screen.queryByRole( 'heading', { name: 'Post number 5' } ) ).toBeNull();
   } );
 
   it( 'projects a post down to what a card renders or search matches, and drops the rest', () => {
