@@ -541,6 +541,7 @@
   "countingRule": "one rule set = one {...} block, counted once regardless of how many compounds its selector list holds or how many at-rules it is nested inside; a block counts when its selector names `select` as a whole token, or names a class that appears as a className literal on one, AND its body sets at least one box property. Geometry is the subset whose body sets border, border-width, border-radius, padding, height, min-height, appearance or -webkit-appearance.",
   "files": [
     "src/components/AddressFields.tsx",
+    "src/components/ServiceBuyBox.tsx",
     "src/components/dashboard/tabs/AppBuilderTab.tsx",
     "src/pages/cart.tsx",
     "src/pages/workspace/engage/logs/index.tsx",
@@ -627,6 +628,54 @@
         0,
         1,
         1
+      ]
+    },
+    {
+      "classes": [
+        "sbb-select"
+      ],
+      "decls": "min-height:48px;padding:0 14px;border:1px solid #d1d5db;border-radius:10px; background:#fff;font-size:15px;color:#1a1a1a;min-width:min(100%,420px);",
+      "file": "src/components/ServiceBuyBox.tsx",
+      "geometry": true,
+      "line": 270,
+      "mech": "B-styledjsx",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "background": false,
+        "border": false,
+        "border-radius": false,
+        "font-size": false,
+        "min-height": false,
+        "padding": false
+      },
+      "sel": ".sbb-select",
+      "spec": [
+        0,
+        1,
+        0
+      ]
+    },
+    {
+      "classes": [
+        "sbb-select"
+      ],
+      "decls": "outline:3px solid #1a3a2a;outline-offset:2px",
+      "file": "src/components/ServiceBuyBox.tsx",
+      "geometry": false,
+      "line": 274,
+      "mech": "B-styledjsx",
+      "mode": "class",
+      "pairing": false,
+      "props": {
+        "outline": false,
+        "outline-offset": false
+      },
+      "sel": ".sbb-select:focus-visible",
+      "spec": [
+        0,
+        2,
+        0
       ]
     },
     {
@@ -1895,11 +1944,11 @@
     "sample": ".ui-planted{border:1px solid ${colors.border};border-radius:9px;padding:4px 8px} .ui-planted:focus{box-shadow:${shadow.focus}} .ui-untouched{color:#333}"
   },
   "summary": {
-    "files": 20,
-    "geometryFiles": 19,
-    "geometryRuleSets": 27,
+    "files": 21,
+    "geometryFiles": 20,
+    "geometryRuleSets": 28,
     "matchModes": {
-      "class": 2,
+      "class": 4,
       "element": 60
     },
     "mechanisms": {
@@ -1916,10 +1965,10 @@
         "ruleSets": 0
       },
       "B-styledjsx": {
-        "files": 10,
-        "geometryFiles": 9,
-        "geometryRuleSets": 9,
-        "ruleSets": 19
+        "files": 11,
+        "geometryFiles": 10,
+        "geometryRuleSets": 10,
+        "ruleSets": 21
       },
       "C-injected": {
         "files": 2,
@@ -1929,6 +1978,6 @@
       }
     },
     "pairings": 19,
-    "ruleSets": 62
+    "ruleSets": 64
   }
 }

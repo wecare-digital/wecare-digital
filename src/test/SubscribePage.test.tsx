@@ -46,13 +46,16 @@ describe( 'Subscribe page', () => {
 
   it( 'sends the primary CTA into WhatsApp via the placeholder deep link', () => {
     render( <SubscribePage /> );
+    // SUBSCRIBE_CTA_LABEL ('Open WhatsApp') is still the content's label, but Option A renders the
+    // primary pill as the channel-naming "Continue on WhatsApp ->" (ProductPage no longer prints
+    // ctaLabel on the pill face). So the link is found by that visible name now.
     expect( SUBSCRIBE_CTA_LABEL ).toBe( 'Open WhatsApp' );
     // DUMMY / PLACEHOLDER for the time being (owner instruction): the keyword deep link to the
     // business number stands in until the dedicated Subscribe short link is ready. When it is,
-    // update this literal, SUBSCRIBE_CTA_HREF, the whatsappServiceEntries 'subscribe' row and the
-    // copy lines together — the pin is deliberate so the four cannot drift.
+    // update SUBSCRIBE_CTA_HREF, the whatsappServiceEntries 'subscribe' row and the copy lines
+    // together — the pin is deliberate so they cannot drift.
     expect( SUBSCRIBE_CTA_HREF ).toBe( 'https://wa.me/919330994400?text=Subscribe' );
-    expect( screen.getByRole( 'link', { name: SUBSCRIBE_CTA_LABEL } ) )
+    expect( screen.getByRole( 'link', { name: /Continue on WhatsApp/ } ) )
       .toHaveAttribute( 'href', SUBSCRIBE_CTA_HREF );
   } );
 
