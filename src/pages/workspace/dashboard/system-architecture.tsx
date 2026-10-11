@@ -1,4 +1,5 @@
 import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../lib/canonicalFlows';
 /**
  * System Architecture — Project Control Center
  * Complete end-to-end dashboard for the entire WECARE.DIGITAL platform.
@@ -564,12 +565,13 @@ const CODE_ASSETS: CodeAsset[] = [
   { id: 'flow-sr', category: 'WhatsApp Flows', name: 'WD_SR_PAY — Submit Request', description: 'Multi-screen flow for order service requests with ₹49 payment.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/submit-request-flow.json', type: 'Flow JSON', status: 'Published' },
   { id: 'flow-sub', category: 'WhatsApp Flows', name: 'WD Subscribe', description: 'Subscription flow collecting name, phone, email, company, shipping + billing address.', path: 'amplify/functions/messaging/whatsapp-business-api/flows/subscribe-flow.json', type: 'Flow JSON', status: 'Published' },
   // Customer Service Flows (9 WhatsApp Flows triggered from interactive list)
-  { id: 'ss-submit', category: 'Customer Service Flows', name: '📋 Submit Request', description: 'Start a new support request with optional ₹49 payment.', path: 'Flow ID: 931522532810297', type: 'WA Flow', status: 'Published' },
-  { id: 'ss-track', category: 'Customer Service Flows', name: '🔍 Track Request', description: 'Check the status of an existing request by order ID.', path: 'Flow ID: 973888792200167', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-amend', category: 'Customer Service Flows', name: '✏️ Amend Request', description: 'Edit or correct a previously submitted request.', path: 'Flow ID: 1533536534833353', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-submit', category: 'Customer Service Flows', name: '📋 Submit Request', description: 'Start a new support request with optional ₹49 payment.', path: `Flow ID: ${canonicalFlowId('submit_request')}`, type: 'WA Flow', status: 'Published' },
+  // Track has no canonical Flow — served by the order tracking API + /orders/.
+  { id: 'ss-track', category: 'Customer Service Flows', name: '🔍 Track Request', description: 'Check the status of an existing request by order ID.', path: 'Served by /wa-business/service/track + /orders/ (no Flow)', type: 'API + Page', status: 'Active' },
+  { id: 'ss-amend', category: 'Customer Service Flows', name: '✏️ Amend Request', description: 'Edit or correct a previously submitted request.', path: `Flow ID: ${canonicalFlowId('amend_request')}`, type: 'WA Flow', status: 'Draft' },
   { id: 'ss-appt', category: 'Customer Service Flows', name: '📅 Appointment', description: 'Schedule a consultation or service visit.', path: 'Flow ID: 1475722977488573', type: 'WA Flow', status: 'Draft' },
   { id: 'ss-rx', category: 'Customer Service Flows', name: '💊 RX Slot', description: 'Schedule a medical tourism or prescription-related visit.', path: 'Flow ID: 1892784521355352', type: 'WA Flow', status: 'Draft' },
-  { id: 'ss-docs', category: 'Customer Service Flows', name: '📄 Drop Docs', description: 'Send supporting documents for a request.', path: 'Flow ID: 1737801600902350', type: 'WA Flow', status: 'Draft' },
+  { id: 'ss-docs', category: 'Customer Service Flows', name: '📄 Drop Docs', description: 'Send supporting documents for a request.', path: `Flow ID: ${canonicalFlowId('drop_docs')}`, type: 'WA Flow', status: 'Draft' },
   { id: 'ss-enterprise', category: 'Customer Service Flows', name: '🏢 Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries.', path: 'Flow ID: 2132515287534606', type: 'WA Flow', status: 'Draft' },
   // REVIEW_FLOW_ID = WD_Leave_Review_v2, PUBLISHED on WABA 1 (verified live 2026-10-08).
   // The id this replaced was not present on the WABA at all, so the 'Draft' status was
@@ -665,12 +667,12 @@ const BOT_MENU: BotMenuItem[] = [
 // ─── Data: Customer Service Sub-Menu (WhatsApp Flow Interactive List) ───
 interface CustomerServiceItem { row: number; section: string; icon: string; title: string; description: string; flowId: string; keywords: string; }
 const CUSTOMERSERVICE_MENU: CustomerServiceItem[] = [
-  { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: '931522532810297', keywords: 'submit request, sr, raise request' },
-  { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
-  { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: '1533536534833353', keywords: 'amend request, amend, change' },
+  { row: 1, section: 'New Request', icon: '📋', title: 'Submit Request', description: 'Start a new support request', flowId: canonicalFlowId('submit_request')!, keywords: 'submit request, sr, raise request' },
+  { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: canonicalFlowId('track_request') ?? '-', keywords: 'track request, track, status' },
+  { row: 3, section: 'Existing Request', icon: '✏️', title: 'Amend Request', description: 'Edit or correct a submitted request', flowId: canonicalFlowId('amend_request')!, keywords: 'amend request, amend, change' },
   { row: 4, section: 'Schedule', icon: '📅', title: 'Appointment', description: 'Schedule a consultation or service visit', flowId: '1475722977488573', keywords: 'appointment, schedule, meeting' },
   { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '1892784521355352', keywords: 'rx slot, rx, prescription' },
-  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents for your request', flowId: '1737801600902350', keywords: 'drop docs, documents, upload' },
+  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents for your request', flowId: canonicalFlowId('drop_docs')!, keywords: 'drop docs, documents, upload' },
   { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '2132515287534606', keywords: 'enterprise, b2b, corporate' },
   // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound handler,
   // same order, via src/lib/reviewEntry.ts. Guarded by tests/test_leave_review_wiring.py.

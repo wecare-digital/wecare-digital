@@ -1024,7 +1024,10 @@ export default function App ( { Component, pageProps }: AppProps ) {
               valid. Do not invest in tuning it. */}
           <meta name="description" content={ COMPANY_DESCRIPTION } />
           <meta name="keywords" content="WECARE.DIGITAL, everyday AI, AI services India, transparent pricing, consumer services, enterprise services, climate tech, frontier tech" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          {/* viewport-fit=cover opts the page into the full display on notched/cutout phones and
+              foldables, so env(safe-area-inset-*) resolves to real values. Without it those insets
+              are 0 and content can sit under a notch or the home indicator. */}
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
           {/* THE ICON PAIR THAT USED TO BE HERE IS NOW ABOVE, OUTSIDE THE GATE. Moving it is
               the whole of the blog/post favicon fix - see the note at the top of this branch. */}
           {/* CANONICAL AND og:url ARE COMPUTED, and carry a key.
@@ -1229,7 +1232,7 @@ export default function App ( { Component, pageProps }: AppProps ) {
             public branch above: declaring it here too put the stylesheet in the built head
             twice, render-blocking both times. */}
         <meta name="description" content="Stack CRM Dashboard - Multi-channel messaging platform" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="icon" href={ FAVICON_URL } />
         <link rel="apple-touch-icon" href={ LOGO_URL } />
         <meta name="robots" content="noindex, nofollow" />

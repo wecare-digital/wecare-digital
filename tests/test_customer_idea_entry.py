@@ -23,7 +23,14 @@ def load_entry(source=None):
     def invoke(**kwargs):
         calls.append(json.loads(kwargs['Payload']))
         return {'Payload': io.BytesIO(b'{"statusCode":200}')}
+    # The handler resolves flow ids through the canonical module at dict-definition time.
+    # load_entry execs only selected nodes (not the import), so provide the real resolver so
+    # tests exercise the true capability -> id mapping rather than a stub.
+    _canon_ns: dict = {}
+    exec((ROOT / 'amplify/functions/shared/lambda_utils/canonical_flows.py').read_text(encoding='utf-8'),
+         _canon_ns)
     ns = {'Dict': dict, 'json': json, 're': re, 'uuid': uuid, 'logger': logging.getLogger('test'),
+          'canonical_flow_id': _canon_ns['canonical_flow_id'],
           'PHONE_NUMBER_ID_1': 'phone1', 'PHONE_NUMBER_ID_2': 'phone2',
           'OUTBOUND_WHATSAPP_FUNCTION': 'fixture-outbound',
           'lambda_client': SimpleNamespace(invoke=invoke),

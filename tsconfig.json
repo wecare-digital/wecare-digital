@@ -37,8 +37,15 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    // Next.js 16 generates TWO page/layout validators that each declare a top-level
+    // `PagesPageConfig`: `.next/types/validator.ts` for `next build` and
+    // `.next/dev/types/validator.ts` for `next dev`. Including BOTH globs made tsc see two
+    // declarations of that identifier whenever a dev run and a build had both left artifacts
+    // behind — a hard `TS2300: Duplicate identifier` that failed `next build`'s own type check.
+    // Only the build validator belongs in the production type pass; `next dev`'s IDE integration
+    // resolves its own dev types and does not need this glob. See the stale-artifact fix in
+    // commit 57e4ba28, which added the dev glob and introduced the clash.
+    ".next/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

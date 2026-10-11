@@ -1,5 +1,6 @@
 import WhatsAppServiceDirectory from '../../../../components/WhatsAppServiceDirectory';
 import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../../lib/canonicalFlows';
 /**
  * WhatsApp Settings — All WhatsApp features except Inbox
  * Uses PageShell for section header + scrollable tab bar
@@ -74,12 +75,14 @@ const BOT_MENU = [
 ];
 
 const CUSTOMERSERVICE_MENU = [
-  { row: 1, section: 'Existing Order', icon: '📋', title: 'Submit Request', description: 'Raise a request for an existing order after verified payment', flowId: '1107164111921876', keywords: 'Submit Request' },
-  { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: '973888792200167', keywords: 'track request, track, status' },
-  { row: 3, section: 'Existing Request', icon: '✏️', title: 'Request Amendment', description: 'Edit or correct a submitted request; Flow remains a draft', flowId: '959792226650003', keywords: 'Request Amendment' },
+  { row: 1, section: 'Existing Order', icon: '📋', title: 'Submit Request', description: 'Raise a request for an existing order after verified payment', flowId: canonicalFlowId('submit_request')!, keywords: 'Submit Request' },
+  // Track has no canonical Flow (served by the order tracking API + /orders/); the old staff
+  // id was a DEPRECATED flow. Show a dash rather than a dead id.
+  { row: 2, section: 'Request Status', icon: '🔍', title: 'Track Request', description: 'Check the status of your request', flowId: canonicalFlowId('track_request') ?? '-', keywords: 'track request, track, status' },
+  { row: 3, section: 'Existing Request', icon: '✏️', title: 'Request Amendment', description: 'Edit or correct a submitted request; Flow remains a draft', flowId: canonicalFlowId('amend_request')!, keywords: 'Request Amendment' },
   { row: 4, section: 'Schedule', icon: '📅', title: 'Appointment', description: 'Schedule a consultation or service visit', flowId: '1475722977488573', keywords: 'appointment, schedule, meeting' },
   { row: 5, section: 'Medical Tourism', icon: '💊', title: 'RX Slot', description: 'Schedule a medical tourism or prescription-related visit', flowId: '1892784521355352', keywords: 'rx slot, rx, prescription' },
-  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents securely; Flow remains a draft', flowId: '1605008471323578', keywords: 'Drop Docs' },
+  { row: 6, section: 'Documents', icon: '📄', title: 'Drop Docs', description: 'Send supporting documents securely; Flow remains a draft', flowId: canonicalFlowId('drop_docs')!, keywords: 'Drop Docs' },
   { row: 7, section: 'Business Support', icon: '🏢', title: 'Enterprise Assist', description: 'Corporate, B2B, and bulk enquiries', flowId: '2132515287534606', keywords: 'enterprise, b2b, corporate' },
   // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound handler,
   // same order, via src/lib/reviewEntry.ts — REVIEW_FLOW_ID is WD_Leave_Review_v2, PUBLISHED

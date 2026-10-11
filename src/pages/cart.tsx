@@ -2277,12 +2277,16 @@ export default function Cart (): React.ReactElement {
           }
           .cart-remove:hover{background:rgba(209,244,112,.22);border-radius:8px}
           .cart-remove:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px;border-radius:2px}
-          /* The terms box takes the catalogue's own notice treatment - 1px #e5e7eb hairline,
-             12px radius, the dim rung at rgba(0,0,0,.54) - so it reads as the same kind of aside
-             .shopd-note and .shop-asof are. */
+          /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note (and now to .shopd-note / .brx-note,
+             which were migrated with it) so every boundary note on the public site reads the same:
+             near-white #fcfdfb surface, 1px hairline, 14px radius, 22px padding, legal-copy type
+             17px/400/1.55/-.05px on rgba(0,0,0,.898). Was a transparent 16px/faded aside copying
+             the old .shopd-note. 1px static, per the rule: 1px static, 2px hoverable. */
           .cart-note{
-            margin:28px 0 0;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;
-            font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
+            margin:28px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
+            background:#fcfdfb;
+            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
+            color:rgba(0,0,0,.898);
           }
 
           /* NO RED, ON OWNER INSTRUCTION, AND THE PALETTE HAS A BETTER ANSWER ANYWAY.

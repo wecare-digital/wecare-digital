@@ -246,32 +246,32 @@ export const PRODUCTS: ProductDef[] = [
     // page recast as a written-reflection service the lead now opens on what Anew does.
     slug: 'anew',
     name: 'Anew',
-    blurb: 'A considered written reflection on a decision that matters.',
-    title: 'Anew — a considered written reflection | WECARE.DIGITAL',
+    blurb: 'A second look at a decision that matters.',
+    title: 'Anew — a second look at a decision | WECARE.DIGITAL',
     description:
-      'A considered written reflection on a decision that matters — read in your own time, no calls.',
+      'Share a decision you’re weighing and receive a written reflection — what matters most, what’s driving it, what deserves another look. No calls; read in your own time.',
     frame: 'Reflection into',
     words: cycle( 'clarity', 'action', 'direction', 'focus' ),
-    sub: 'A considered written reflection on a decision that matters — read in your own time, no calls.',
-    sectionHeading: 'What Anew does',
+    sub: 'Share what you’re considering. Receive a written reflection on your situation that you can read and revisit in your own time — no calls.',
+    sectionHeading: 'A second look at a decision that matters.',
     lead:
-      'Tell us about a decision in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension is, and what could deserve another look before you act.',
+      'Some decisions stay difficult even when you already know the facts.\n\nTell us about yours in your own words. We read it carefully and reflect back what matters most, what may be driving the decision, which priorities are pulling in different directions, and what may deserve another look before you act.',
     points: [
       {
         heading: 'Written, not a meeting',
-        body: 'No calls, no scheduling, no questionnaire. You write naturally; we respond in writing you can save and return to whenever you need another look.',
+        body: 'No calls, no scheduling, no questionnaire. You write naturally, in your own words, and we respond in writing so you can read it in your own time, return to it later, and consider it without having to respond in the moment.',
       },
       {
         heading: 'A reflection, not a verdict',
-        body: 'We weigh the assumptions, priorities, tensions and trade-offs in your situation — not a generic pros-and-cons list, and not a decision made for you.',
+        body: 'We look at the assumptions, priorities and trade-offs within the situation you describe. The aim is not to produce a generic pros-and-cons list or decide what you should do, but to help you see the decision from a clearer angle.',
       },
       {
         heading: 'Usually within 2–3 business days',
-        body: 'Once we have what we need to review, you receive your personalised reflection. One short written clarification is included if something needs it.',
+        body: 'Once we have what we need to review your situation, you receive your written reflection, usually within 2–3 business days. One short written clarification is included if something needs another look.',
       },
     ],
     note:
-      'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. The conclusions you draw and any action you take remain yours. If you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
+      'Anew is a guided written reflection, not therapy, counselling, or medical, legal, financial or tax advice. It does not make decisions on your behalf. The conclusions you draw and any action you take remain yours.\n\nIf you need mental-health support, please speak to a qualified professional; in an emergency, contact local emergency services.',
     ctaLabel: 'Start a conversation',
     ctaHref: 'https://wa.me/message/F2D7PVR5Q45MP1',
     // Text-only pill plus the quiet "Continue on WhatsApp →" microcopy, matching the blog post

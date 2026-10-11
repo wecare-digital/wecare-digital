@@ -10,6 +10,7 @@ import { useToastContext } from '../../../../contexts/ToastContext';
 import * as api from '../../../../api/client';
 import MaybeLayout from '../../../../components/MaybeLayout';
 import { REVIEW_FLOW_ID, REVIEW_ENTRY_KEYWORDS } from '../../../../lib/reviewEntry';
+import { canonicalFlowId } from '../../../../lib/canonicalFlows';
 
 interface Props { signOut?: () => void; user?: any; embedded?: boolean; }
 
@@ -90,19 +91,19 @@ const ScriptsPageBody: React.FC<Props> = () => {
 
     // Flow trigger messages — load from SystemConfig with fallback defaults
     const defaultFlowTriggers: Record<string, { keywords: string[]; message: { body: string; flowCta: string }; flowId: string }> = {
-      submit_request: { keywords: ['submit request', 'sr'], message: { body: '📋 Start a new support request. Share the details and our team will follow up with you.', flowCta: 'Submit Request' }, flowId: '931522532810297' },
-      track_request: { keywords: ['track request', 'track', 'status'], message: { body: '🔍 Check the status of your request anytime. Enter your reference ID below.', flowCta: 'Track Request' }, flowId: '973888792200167' },
-      amend_request: { keywords: ['amend request', 'update request'], message: { body: '✏️ Need to make a change? Update your submitted request with the correct details.', flowCta: 'Update Request' }, flowId: '1533536534833353' },
+      submit_request: { keywords: ['submit request', 'sr'], message: { body: '📋 Start a new support request. Share the details and our team will follow up with you.', flowCta: 'Submit Request' }, flowId: canonicalFlowId('submit_request')! },
+      track_request: { keywords: ['track request', 'track', 'status'], message: { body: '🔍 Check the status of your request anytime. Enter your reference ID below.', flowCta: 'Track Request' }, flowId: canonicalFlowId('track_request') ?? '-' },
+      amend_request: { keywords: ['amend request', 'update request'], message: { body: '✏️ Need to make a change? Update your submitted request with the correct details.', flowCta: 'Update Request' }, flowId: canonicalFlowId('amend_request')! },
       schedule_appointment: { keywords: ['appointment', 'book appointment'], message: { body: '📅 Schedule a consultation or service visit at a time that works best for you.', flowCta: 'Book Appointment' }, flowId: '1475722977488573' },
       rx_slot: { keywords: ['rx slot', 'medical visit'], message: { body: '🩺 Arrange a medical tourism or prescription-related visit quickly and easily.', flowCta: 'Book Medical Visit' }, flowId: '1892784521355352' },
-      drop_docs: { keywords: ['drop docs', 'upload documents'], message: { body: '🖇️ Send your supporting documents securely to help us process your request.', flowCta: 'Upload Documents' }, flowId: '1737801600902350' },
+      drop_docs: { keywords: ['drop docs', 'upload documents'], message: { body: '🖇️ Send your supporting documents securely to help us process your request.', flowCta: 'Upload Documents' }, flowId: canonicalFlowId('drop_docs')! },
       enterprise_assist: { keywords: ['enterprise', 'b2b'], message: { body: '💼 Corporate, B2B, and bulk inquiries. Tell us what you need and our team will assist you.', flowCta: 'Enterprise Support' }, flowId: '2132515287534606' },
       // flowId and keywords mirror DEFAULT_FLOW_TRIGGERS['leave_review'] in the inbound
       // handler, as the same ordered list, via src/lib/reviewEntry.ts — REVIEW_FLOW_ID is
       // WD_Leave_Review_v2, PUBLISHED on WABA 1. Guarded by
       // tests/test_leave_review_wiring.py.
       leave_review: { keywords: REVIEW_ENTRY_KEYWORDS, message: { body: '⭐ Share your experience with us and help us improve our service.', flowCta: 'Leave Feedback' }, flowId: REVIEW_FLOW_ID },
-      subscribe: { keywords: ['subscribe', 'register'], message: { body: '🔔 Get updates, offers, and service news. Fill in your details to stay connected.', flowCta: 'Subscribe for Updates' }, flowId: '1557815099200456' },
+      subscribe: { keywords: ['subscribe', 'register'], message: { body: '🔔 Get updates, offers, and service news. Fill in your details to stay connected.', flowCta: 'Subscribe for Updates' }, flowId: canonicalFlowId('subscribe') ?? '-' },
     };
 
     // Load overrides from SystemConfig

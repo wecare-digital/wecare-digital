@@ -8,9 +8,14 @@ import type { BlogCard } from '../lib/public-blog';
  * A product page is one centred column at most 700px wide inside RotatingHero's 1300px measure,
  * so on a wide screen there is ~500px of unused space to its right. This fills it with a reader of
  * the blog: a two-category switch, a live borderless search, and the FULL list of cards (no cap)
- * in a scrollable rail, with a progress bar at the foot that tracks how far the reader has
- * scrolled through the list. On a narrow screen the two-column grid in ProductPage collapses and
- * this drops below the product copy.
+ * laid out as a SWIPEABLE PAGER - the cards are grouped into pages, and the reader moves between
+ * pages by swiping left/right (touch), dragging, pressing the arrow buttons, or the arrow keys.
+ * Each page scrolls vertically on its own if its cards overflow, so swipe (horizontal) and scroll
+ * (vertical) never fight. On a narrow screen the two-column grid in ProductPage collapses and this
+ * drops below the product copy.
+ *
+ * DATES ARE NOT SHOWN. Owner instruction: the per-card published date was removed. The "New"
+ * badge stays - it reads a date internally to decide recency but prints no date.
  *
  * SELF-STYLING, pbp- prefixed, for the same reason as RotatingHero and BlogSearch: styled-jsx does
  * not scope a composite component from its parent, so this owns every rule it needs.
@@ -26,9 +31,9 @@ import type { BlogCard } from '../lib/public-blog';
  * (Conversations, Gastronomy today), with no "All" option. It defaults to the first category.
  * The set is derived from the cards handed in, so a third category added later appears on its own.
  *
- * THE PROGRESS BAR TRACKS SCROLL, NOT COUNT. It fills as the reader scrolls down the (unlimited)
- * list - 0% at the top, 100% at the bottom - rather than reporting shown-of-total. No numbers are
- * shown, per owner instruction: it is a pure visual scroll indicator.
+ * THE PAGE DOTS SHOW POSITION, NOT COUNT-OF-TOTAL. A row of dots marks how many pages the current
+ * result set has and which one is in view, so the reader knows there is more to swipe to. No
+ * numbers, per owner instruction - a pure visual indicator, matched by the two arrow buttons.
  */
 
 export interface ProductBlogPanelProps {
@@ -37,22 +42,27 @@ export interface ProductBlogPanelProps {
   heading?: string;
 }
 
-const NEW_WINDOW_DAYS = 30;
+/**
+ * HOW MANY CARDS PER PAGE. Four reads as a comfortable page in the rail: enough to feel like a
+ * spread, few enough that a page rarely needs to scroll. The last page simply holds the remainder.
+ */
+const CARDS_PER_PAGE = 4;
 
-/** Published within the last NEW_WINDOW_DAYS. Missing/!parseable date is never "new". */
-function isNew ( publishedDate?: string ): boolean {
-  if ( !publishedDate ) return false;
-  const t = Date.parse( publishedDate );
-  if ( Number.isNaN( t ) ) return false;
-  return Date.now() - t <= NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+/** How many tag chips a card shows at most, so a heavily-tagged post does not run its card long. */
+const CARD_TAGS = 3;
+
+/** True when the OS asks for reduced motion, so page changes jump instead of sliding. SSR-safe. */
+function prefersReducedMotion (): boolean {
+  if ( typeof window === 'undefined' || !window.matchMedia ) return false;
+  return window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
 }
 
-/** "12 Oct 2026", UTC-fixed so server and client agree during static export. */
-function cardDate ( publishedDate?: string ): string {
-  if ( !publishedDate ) return '';
-  const d = new Date( publishedDate );
-  if ( Number.isNaN( d.getTime() ) ) return '';
-  return d.toLocaleDateString( 'en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' } );
+/** The first CARD_TAGS non-empty tags of a card, trimmed. Empty when the post carries none. */
+function cardTags ( card: BlogCard ): string[] {
+  return ( card.tags || [] )
+    .map( t => t.trim() )
+    .filter( Boolean )
+    .slice( 0, CARD_TAGS );
 }
 
 const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = 'From the blog' } ) => {
@@ -65,8 +75,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
 
   const [ category, setCategory ] = useState<string>( () => categories[ 0 ] || '' );
   const [ query, setQuery ] = useState<string>( '' );
-  const [ scrolled, setScrolled ] = useState<number>( 0 );
-  const listRef = useRef<HTMLUListElement | null>( null );
+  const [ page, setPage ] = useState<number>( 0 );
+  const trackRef = useRef<HTMLDivElement | null>( null );
 
   // Filter by active category, then by the typed query across title + excerpt + category + tags.
   const filtered = useMemo<BlogCard[]>( () => {
@@ -84,26 +94,106 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
     } );
   }, [ cards, category, query ] );
 
-  // Scroll progress: 0 at the top of the list, 1 at the bottom. When the content fits (nothing to
-  // scroll) it reads full, so the bar is never stuck empty on a short list.
-  const onScroll = useCallback( (): void => {
-    const el = listRef.current;
-    if ( !el ) return;
-    const max = el.scrollHeight - el.clientHeight;
-    setScrolled( max <= 0 ? 1 : Math.min( 1, Math.max( 0, el.scrollTop / max ) ) );
+  // Group the filtered cards into fixed-size pages. The pager scrolls between these horizontally;
+  // each page scrolls vertically on its own if its four cards overflow the rail.
+  const pages = useMemo<BlogCard[][]>( () => {
+    const out: BlogCard[][] = [];
+    for ( let i = 0; i < filtered.length; i += CARDS_PER_PAGE ) {
+      out.push( filtered.slice( i, i + CARDS_PER_PAGE ) );
+    }
+    return out;
+  }, [ filtered ] );
+
+  const pageCount = pages.length;
+
+  // Keep the active page in range and snap the track to it. The track is a horizontal
+  // scroll-snap container, so moving pages is a scrollTo on the track - which also drives the
+  // native touch swipe: the browser snaps to the nearest page and we read that back on scroll.
+  const goToPage = useCallback( ( next: number ): void => {
+    const clamped = Math.min( Math.max( 0, next ), Math.max( 0, pageCount - 1 ) );
+    setPage( clamped );
+    const el = trackRef.current;
+    if ( el ) el.scrollTo( { left: clamped * el.clientWidth, behavior: prefersReducedMotion() ? 'auto' : 'smooth' } );
+  }, [ pageCount ] );
+
+  // Read the page back from a native swipe/drag: snap settles on a page boundary, so round the
+  // track's scrollLeft to the nearest page width.
+  const onTrackScroll = useCallback( (): void => {
+    const el = trackRef.current;
+    if ( !el || el.clientWidth === 0 ) return;
+    const nearest = Math.round( el.scrollLeft / el.clientWidth );
+    setPage( p => ( p === nearest ? p : Math.min( Math.max( 0, nearest ), Math.max( 0, pageCount - 1 ) ) ) );
+  }, [ pageCount ] );
+
+  // When the result set changes (new category or query), jump back to the first page.
+  const resetToFirstPage = useCallback( (): void => {
+    setPage( 0 );
+    const el = trackRef.current;
+    if ( el ) el.scrollTo( { left: 0, behavior: 'auto' } );
   }, [] );
 
-  // Reset scroll to the top when the result set changes, so the bar is not left mid-way over a
-  // list that is now shorter.
   const selectCategory = useCallback( ( c: string ): void => {
     setCategory( c );
-    const el = listRef.current;
-    if ( el ) { el.scrollTop = 0; setScrolled( 0 ); }
-  }, [] );
+    resetToFirstPage();
+  }, [ resetToFirstPage ] );
+
+  // No clamp-in-effect is needed: every path that shrinks the result set (category switch, search
+  // typing) routes through resetToFirstPage(), which puts the pager back on page 0 - a page that
+  // always exists while there are any results. So `page` can never be left pointing past the end.
+  // The active page used for ARIA/dots is still bounded defensively below.
+  const activePage = Math.min( page, Math.max( 0, pageCount - 1 ) );
+
+  // Arrow-key paging when focus is within the pager, so it is reachable without a pointer.
+  const onTrackKeyDown = useCallback( ( e: React.KeyboardEvent<HTMLDivElement> ): void => {
+    if ( e.key === 'ArrowRight' ) { e.preventDefault(); goToPage( activePage + 1 ); }
+    else if ( e.key === 'ArrowLeft' ) { e.preventDefault(); goToPage( activePage - 1 ); }
+  }, [ goToPage, activePage ] );
+
+  const showPager = filtered.length > 0 && pageCount > 1;
 
   return (
     <aside className="pbp" aria-label={ heading }>
-      <h2 className="pbp-h">{ heading }</h2>
+      {/* HEADER ROW: the heading on the left, the pager arrows pinned top-right (owner choice).
+          Paging lives at the top so it is reachable without scrolling past the cards; the slim
+          progress bar sits directly under this row as the position indicator. */}
+      <div className="pbp-head">
+        <h2 className="pbp-h">{ heading }</h2>
+        { showPager && (
+          <div className="pbp-arrows">
+            <button
+              type="button"
+              className="pbp-arrow"
+              aria-label="Previous page"
+              disabled={ activePage === 0 }
+              onClick={ () => goToPage( activePage - 1 ) }
+            >‹</button>
+            <button
+              type="button"
+              className="pbp-arrow"
+              aria-label="Next page"
+              disabled={ activePage >= pageCount - 1 }
+              onClick={ () => goToPage( activePage + 1 ) }
+            >›</button>
+          </div>
+        ) }
+      </div>
+
+      {/* POSITION BAR under the header - lime fill, tracks (activePage+1)/pageCount. */}
+      { showPager && (
+        <div
+          className="pbp-progress-track"
+          role="progressbar"
+          aria-label="Position through the pages"
+          aria-valuemin={ 1 }
+          aria-valuemax={ pageCount }
+          aria-valuenow={ activePage + 1 }
+        >
+          <div
+            className="pbp-progress-fill"
+            style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
+          />
+        </div>
+      ) }
 
       {/* Category switch - the two real categories, no "All". Lime when active, hairline when
           not; the site's pill language, no new colours. */}
@@ -128,63 +218,79 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           autoComplete="off"
           placeholder="Search posts"
           value={ query }
-          onChange={ e => { setQuery( e.target.value ); const el = listRef.current; if ( el ) { el.scrollTop = 0; setScrolled( 0 ); } } }
+          onChange={ e => { setQuery( e.target.value ); resetToFirstPage(); } }
         />
       </div>
 
-      {/* The FULL list - no cap - in a scrollable rail. */}
+      {/* THE SWIPEABLE PAGER. The track is a horizontal scroll-snap container: each child .pbp-page
+          is one viewport wide, so a touch swipe snaps page to page natively, and the arrow buttons
+          / arrow keys drive the same scrollTo. Each page is its own vertical scroller, so swiping
+          sideways and scrolling a long page down never fight. */}
       { filtered.length === 0
         ? <p className="pbp-empty" aria-live="polite">No posts match that search.</p>
         : (
-          <ul className="pbp-list" ref={ listRef } onScroll={ onScroll }>
-            { filtered.map( card => (
-              <li key={ card.slug } className="pbp-card">
-                <Link className="pbp-link" href={ `/post/${card.slug}/` }>
-                  <span className="pbp-meta">
-                    { isNew( card.publishedDate ) && <span className="pbp-badge">New</span> }
-                    { card.category && <span className="pbp-chip">{ card.category }</span> }
-                    { cardDate( card.publishedDate ) && <span className="pbp-date">{ cardDate( card.publishedDate ) }</span> }
-                  </span>
-                  <span className="pbp-title">{ card.title }</span>
-                  { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
-                </Link>
-              </li>
-            ) ) }
-          </ul>
+            <div
+              className="pbp-track"
+              ref={ trackRef }
+              onScroll={ onTrackScroll }
+              onKeyDown={ onTrackKeyDown }
+              tabIndex={ 0 }
+              role="group"
+              aria-label={ `${heading}, page ${activePage + 1} of ${pageCount}` }
+            >
+              { pages.map( ( pageCards, pageIndex ) => (
+                <ul
+                  className="pbp-page"
+                  key={ pageIndex }
+                  aria-hidden={ pageIndex === activePage ? undefined : true }
+                >
+                  { pageCards.map( card => (
+                    <li key={ card.slug } className="pbp-card">
+                      <Link className="pbp-link" href={ `/post/${card.slug}/` } tabIndex={ pageIndex === activePage ? undefined : -1 }>
+                        <span className="pbp-title">{ card.title }</span>
+                        { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
+                        {/* REAL TAGS, not a "New" badge. The owner asked to drop the recency
+                            badge and show the post's own tags. We print up to CARD_TAGS of them as
+                            quiet chips; the category is NOT repeated here because the active
+                            category pill at the top already says which stream this is. Guarded so
+                            a tagless post simply shows none. */}
+                        { cardTags( card ).length > 0 && (
+                          <span className="pbp-tags">
+                            { cardTags( card ).map( tag => (
+                              <span className="pbp-chip" key={ tag }>{ tag }</span>
+                            ) ) }
+                          </span>
+                        ) }
+                      </Link>
+                    </li>
+                  ) ) }
+                </ul>
+              ) ) }
+            </div>
         ) }
 
-      {/* SCROLL PROGRESS BAR at the foot of the panel. Pure visual - no numbers. The fill tracks
-          how far the reader has scrolled through the list (0% top, 100% bottom). role=progressbar
-          with a 0-100 range and a percentage valuenow so it is announced, with no on-screen text.
-          Hidden when there is nothing to show. */}
-      { filtered.length > 0 && (
-        <div className="pbp-progress">
-          <div
-            className="pbp-progress-track"
-            role="progressbar"
-            aria-label="Reading progress through the list"
-            aria-valuemin={ 0 }
-            aria-valuemax={ 100 }
-            aria-valuenow={ Math.round( scrolled * 100 ) }
-          >
-            <div className="pbp-progress-fill" style={ { width: `${Math.round( scrolled * 100 )}%` } } />
-          </div>
-        </div>
-      ) }
-
       <style jsx>{`
-        .pbp{max-width:460px}
+        .pbp{max-width:560px}
+
+        /* HEADER ROW: heading left, pager arrows pinned right. Baseline-aligned so the arrows sit
+           on the heading's line rather than floating. The progress bar follows directly below. */
+        .pbp-head{
+          display:flex;align-items:center;justify-content:space-between;gap:12px;
+          margin:0 0 12px;
+        }
         .pbp-h{
           font-size:clamp(22px,2.4vw,28px);font-weight:700;line-height:1.1;
-          letter-spacing:-.5px;color:rgba(0,0,0,.95);margin:0 0 18px;
+          letter-spacing:-.5px;color:rgba(0,0,0,.95);margin:0;
         }
+        /* The two arrows as a tight pair in the top-right corner. */
+        .pbp-arrows{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 
         /* PILLS - the site's pill geometry. Lime active, hairline inactive, no new colours. */
         .pbp-pills{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
         .pbp-pill{
-          display:inline-flex;align-items:center;min-height:36px;padding:0 16px;
+          display:inline-flex;align-items:center;min-height:44px;padding:0 18px;
           border:1px solid #e5e7eb;border-radius:50px;background:#fff;
-          color:#1a3a2a;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
+          color:#1a3a2a;font-size:16px;font-weight:600;font-family:inherit;cursor:pointer;
           transition:background-color .2s,border-color .2s;
         }
         .pbp-pill:hover{border-color:#1a3a2a}
@@ -200,7 +306,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
         .pbp-search input{
           width:100%;box-sizing:border-box;height:48px;padding:0 2px;
-          font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
+          font-size:18px;font-family:inherit;color:#1a1a1a;background:transparent;
           border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
           transition:border-color .2s,box-shadow .2s;
         }
@@ -209,72 +315,123 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
 
-        .pbp-empty{margin:0;font-size:14px;line-height:1.4;color:rgba(0,0,0,.54)}
+        .pbp-empty{margin:0;font-size:16px;line-height:1.4;color:rgba(0,0,0,.54)}
 
-        /* THE LIST IS A SCROLL RAIL. Unlimited cards, capped by HEIGHT not count: it scrolls
-           within the panel so the whole corpus is reachable without the panel running taller than
-           the page. The progress bar below tracks this element's scroll. max-height leaves room
-           for the heading, pills, search and the bar. Thin scrollbar, lime thumb, to match. */
-        /* The scroll rail. The scrollbar colour is NOT set here on purpose: the canonical global
-           block in src/styles/inner-ux.css styles every scroller (the universal selector) from
-           the --scrollbar-* tokens, and ScrollbarDeclarations.test.ts forbids a second colour
-           declaration in a component (Gecko and Blink read different properties, so a local copy
-           shows as a browser bug). overscroll-behavior:contain keeps a wheel at the list's end
-           from scrolling the page. */
-        .pbp-list{
-          list-style:none;margin:0;padding:0 2px 0 0;
+        /* THE PAGER TRACK. A horizontal scroll-snap container, one page wide, that holds the pages
+           side by side. scroll-snap-type:x mandatory makes a touch swipe settle cleanly on a page;
+           overflow-x is the swipe axis; overscroll-behavior:contain stops a swipe past the last
+           page from scrolling the browser. The scrollbar colour is NOT set here on purpose: the
+           canonical global block in src/styles/inner-ux.css styles every scroller from the
+           --scrollbar-* tokens, and ScrollbarDeclarations.test.ts forbids a second colour
+           declaration in a component. scrollbar-width:none hides the horizontal bar because the
+           dots and arrows are the page affordance; the per-page vertical scrollbar still shows. */
+        .pbp-track{
+          display:flex;flex-direction:row;
+          overflow-x:auto;overflow-y:hidden;
+          scroll-snap-type:x mandatory;overscroll-behavior:contain;
+          /* Momentum scrolling for the horizontal swipe on older iOS Safari / iOS WebView, where
+             it is off by default and a swipe otherwise feels dead. Harmless elsewhere. */
+          -webkit-overflow-scrolling:touch;
+          scrollbar-width:none;outline:none;
+        }
+        .pbp-track::-webkit-scrollbar{display:none}
+        .pbp-track:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px;border-radius:14px}
+
+        /* ONE PAGE. Exactly the track's width so one page shows at a time and the next sits just
+           off-screen to swipe to. Its own vertical scroller: four cards usually fit, but a page
+           that overflows scrolls down on its own without disturbing the horizontal swipe. */
+        .pbp-page{
+          list-style:none;margin:0;padding:2px;
+          flex:0 0 100%;width:100%;box-sizing:border-box;
+          scroll-snap-align:start;scroll-snap-stop:always;
           display:flex;flex-direction:column;gap:10px;
-          max-height:min(70vh,620px);overflow-y:auto;overscroll-behavior:contain;
+          /* dvh over vh so collapsing mobile browser chrome (address bar) does not clip the page;
+             the vh line is the fallback for engines without dynamic viewport units. */
+          max-height:min(70vh,620px);
+          max-height:min(70dvh,620px);
+          overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
         }
         .pbp-card{margin:0}
 
-        /* SCROLL PROGRESS BAR. The track is a hairline on near-white; the fill is lime - the one
-           place lime labels progress rather than action, fine as a thin bar. No numbers. 14px of
-           air above it. */
-        .pbp-progress{margin:14px 0 0}
+        /* PAGER CONTROLS: arrows flanking the progress bar, which stretches to fill the row.
+        /* PAGER ARROWS - lime-themed, matching our pill language. Dark-green border and lime type
+           at rest (so they read as "ours" before you touch them), filling full lime on hover like
+           the CTA. 2px border because the house rule is 2px means hoverable. */
+        .pbp-arrow{
+          display:inline-flex;align-items:center;justify-content:center;
+          /* 44x44 is the WCAG 2.5.8 / platform minimum touch target, so the arrows are reliably
+             tappable on phones, foldables and in-app browsers, not just clickable with a mouse. */
+          width:44px;height:44px;flex:0 0 auto;
+          border:2px solid #1a3a2a;border-radius:50%;background:#fff;
+          color:#1a3a2a;font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
+          transition:background-color .2s,border-color .2s,opacity .2s;
+        }
+        .pbp-arrow:hover:not(:disabled){background:#d1f470}
+        .pbp-arrow:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .pbp-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
+
+        /* POSITION BAR under the header. Full width, hairline track, lime fill - our colour. The
+           one place lime marks progress rather than action, fine as a thin bar. No numbers. 16px
+           of air below it sits it off the pills that follow. */
         .pbp-progress-track{
           width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          margin:0 0 16px;
         }
         .pbp-progress-fill{
           height:100%;border-radius:50px;background:#d1f470;
-          transition:width .12s linear;
+          transition:width .2s ease;
         }
 
-        /* The whole card is the link. Hairline quiet card, lifts and borders dark on hover. */
+        /* The whole card is the link. Hairline quiet card at rest; on hover it lifts, borders dark
+           green and the surface warms to the site's quiet lime tint - the same brand lime hover
+           the rest of the page uses (the CTA's full #d1f470, the number markers' .22 tint). A soft
+           rgba(209,244,112,.18) is used rather than full-strength lime so a whole card hovering
+           does not read as a second CTA; the dark-green border is what says "actionable". */
         .pbp-link{
           display:flex;flex-direction:column;gap:6px;
           padding:16px;border:1px solid #e5e7eb;border-radius:14px;background:#fcfdfb;
           text-decoration:none;color:inherit;
-          transition:border-color .2s,transform .2s,box-shadow .2s;
+          transition:border-color .2s,background-color .2s,transform .2s,box-shadow .2s;
         }
-        .pbp-link:hover{border-color:#1a3a2a;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        .pbp-link:hover{
+          border-color:#1a3a2a;background:rgba(209,244,112,.18);
+          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+        }
+        /* The tag chips pick up lime on card hover: full #d1f470 fill, dark-green border and ink,
+           so they read as "ours" rather than staying grey islands on the warmed card. This is the
+           same lime the pills and CTA use; on a 22px chip it is an accent, not a second CTA. */
+        .pbp-link:hover .pbp-chip{background:#d1f470;border-color:#1a3a2a;color:#1a3a2a}
         .pbp-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
-        .pbp-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-        /* STATUS: a lime "New" badge for recent posts. */
-        .pbp-badge{
-          display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:11px;font-weight:700;letter-spacing:.02em;
-          text-transform:uppercase;
-        }
-        /* STATUS: the category as a quiet chip. */
+        /* TAG ROW at the foot of a card: the post's own tags as quiet chips, replacing the old
+           "New" badge. Wraps rather than overflowing, sits a touch under the excerpt. */
+        .pbp-tags{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 0}
+        /* A quiet hairline chip. Not uppercase - a tag is a word a reader typed, shown as written,
+           not a status label like the old badge. */
+        /* LIME AT REST, on owner instruction - a tag reads as "ours" without needing a hover, and
+           it shows on touch where :hover never fires. A soft rgba(209,244,112,.35) fill with a
+           dark-green border and ink; strong enough to register as lime, light enough that a row of
+           them is not a wall of CTA colour. On card hover they deepen to full #d1f470 for the
+           desktop affordance. */
         .pbp-chip{
-          display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:50px;
-          border:1px solid #e5e7eb;color:rgba(0,0,0,.62);font-size:11px;font-weight:600;
-          letter-spacing:.02em;text-transform:uppercase;
+          display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:50px;
+          border:1px solid #1a3a2a;color:#1a3a2a;font-size:13px;font-weight:600;
+          line-height:1;background:rgba(209,244,112,.35);
+          transition:background-color .2s,border-color .2s,color .2s;
         }
-        .pbp-date{font-size:12px;color:rgba(0,0,0,.44)}
-
-        .pbp-title{font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
+        .pbp-title{font-size:20px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
         /* The short review: the post excerpt, clamped to two lines so no card runs long. */
         .pbp-excerpt{
-          font-size:14px;line-height:1.45;color:rgba(0,0,0,.62);
+          font-size:16px;line-height:1.45;color:rgba(0,0,0,.62);
           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-search input,.pbp-progress-fill{transition:none}
+          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill,.pbp-chip{transition:none}
           .pbp-link:hover{transform:none;box-shadow:none}
+          /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
+             track still snaps, it just does not animate the slide. */
+          .pbp-track{scroll-behavior:auto}
         }
       `}</style>
     </aside>

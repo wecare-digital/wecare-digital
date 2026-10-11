@@ -46,6 +46,8 @@ interface ProductPageProps {
    * scoped to .pdp-wrap.has-aside.
    */
   blogCards?: BlogCard[];
+  /** Heading for the optional blog panel. Defaults to the panel's own default when omitted. */
+  blogHeading?: string;
   /**
    * OPTIONAL PRICE LINE under the CTA, so a reader sees what they will pay before they open the
    * chat. A short string like "₹599" plus an optional unit. Omitted on pages that do not sell a
@@ -79,6 +81,7 @@ interface ProductPageProps {
 const ProductPage: React.FC<ProductPageProps> = ( {
   product,
   blogCards,
+  blogHeading,
   price,
   priceUnit,
   shareUrl,
@@ -119,7 +122,13 @@ const ProductPage: React.FC<ProductPageProps> = ( {
       ) }
       <section className="pdp" aria-label={ `About ${product.name}` }>
         <h2 className="pdp-h2">{ product.sectionHeading }</h2>
-        <p className="pdp-lead">{ product.lead }</p>
+        {/* The lead may hold more than one paragraph, split on a blank line (\n\n) in the source,
+            the same way the boundary note does - so an opener line can sit above the main
+            paragraph. A single-paragraph lead - every product but /anew/ - renders exactly one
+            <p className="pdp-lead">, byte-for-byte what it was before. */}
+        { product.lead.split( /\n{2,}/ ).map( ( para, i ) => (
+          <p className="pdp-lead" key={ i }>{ para.trim() }</p>
+        ) ) }
 
         <ul className="pdp-points">
           { product.points.map( ( point, i ) => (
@@ -188,7 +197,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           </p>
         ) }
 
-        { product.note && <p className="pdp-note">{ product.note }</p> }
+        {/* The boundary note. A note may hold more than one paragraph, separated by a blank line
+            (\n\n) in the source string; each becomes its own <p> so the break is visible rather
+            than collapsing to a space in HTML. A single-paragraph note - every product but /anew/
+            - renders exactly one <p>, byte-for-byte what it did before. */}
+        { product.note && (
+          <div className="pdp-note">
+            { product.note.split( /\n{2,}/ ).map( ( para, i ) => (
+              <p className="pdp-note-p" key={ i }>{ para.trim() }</p>
+            ) ) }
+          </div>
+        ) }
 
         {/* SHARE - the same component the blog and post pages use, so the Anew page can be sent
             on in one tap. Rendered only when an absolute URL is supplied. */}
@@ -207,6 +226,10 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           /* The lead runs at the body level but slightly tighter, because it is a paragraph
              of context rather than a point being made. */
           .pdp-lead{font-size:20px;font-weight:400;line-height:1.45;letter-spacing:-.125px;color:rgba(0,0,0,.898);margin:0 0 34px}
+          /* When a lead is split into an opener + a main paragraph (today only /anew/), the
+             paragraphs sit 16px apart; the 34px below the LAST lead stays as the gap before the
+             points. A single-paragraph lead is always :last-of-type, so it keeps 34px untouched. */
+          .pdp-lead:not(:last-of-type){margin-bottom:16px}
 
           .pdp-points{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:20px}
           .pdp-point{display:flex;gap:16px;align-items:flex-start}
@@ -255,15 +278,32 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              and both stops are measured on white (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the
              band only darkens the text, never erases it. At rest background-position sits off to
              one side so no band shows; :hover plays it across once. */
+          /* SOLID GREY AT REST, ONE-SHOT LIME SWEEP ON HOVER - like the footer tagline, which runs
+             its sweep ONCE and then stops. The clip/gradient/transparent-fill now live ONLY under
+             :hover (inside the animation), so the resting line is a plain solid grey with a real
+             color, never a transparent-filled gradient that could read as "moving" or faint. On
+             hover the lime band passes through the glyphs a single time (1 iteration, forwards)
+             and settles; it does not loop. Both gradient stops are measured on white
+             (rgba(0,0,0,.54) 4.61:1, #1a3a2a 12.48:1) so the band only darkens the text. */
           .pdp-cta-note{
             font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
-            background-image:linear-gradient(100deg,
-              rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-            background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
-            -webkit-background-clip:text;background-clip:text;
-            -webkit-text-fill-color:transparent;
           }
-          .pdp-cta-note:hover{animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1}
+          /* The lime sweep on hover. GUARDED BY @supports: the transparent text fill is only safe
+             where background-clip:text actually works. A browser/WebView that supports the
+             gradient but NOT clip-to-text would otherwise paint the glyphs transparent on hover -
+             i.e. invisible text. Inside @supports the glyphs are clipped and the band shows; the
+             rest - gradient, size, one-shot animation - is harmless without it, so it stays
+             outside. On an unsupported engine the line simply stays solid grey on hover. */
+          @supports ((-webkit-background-clip:text) or (background-clip:text)){
+            .pdp-cta-note:hover{
+              background-image:linear-gradient(100deg,
+                rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
+              background-size:300% 100%;background-repeat:no-repeat;
+              -webkit-background-clip:text;background-clip:text;
+              -webkit-text-fill-color:transparent;
+              animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+            }
+          }
           @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
           /* Motion-sensitive readers get the line static and solid grey: no sweep, no transparent
              fill, no gradient - the WCAG carve-out for motion on interaction. */
@@ -296,9 +336,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             margin:34px 0 0;padding:22px;
             border:1px solid #e5e7eb;border-radius:14px;
             background:#fcfdfb;
+          }
+          /* The paragraphs inside the note carry the legal-copy type. The box owns the outer
+             spacing (its 22px padding), so a paragraph has no outer margin except the gap between
+             paragraphs: 12px between, nothing before the first or after the last, so a single-
+             paragraph note sits exactly as it did when .pdp-note was itself the <p>. */
+          .pdp-note-p{
+            margin:0;
             font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
             color:rgba(0,0,0,.898);
           }
+          .pdp-note-p + .pdp-note-p{margin-top:12px}
 
           /* PRICE line. The price is the card rung in dark green (lime means actionable and the
              pill owns lime). 22px of air above it, matching the CTA row's own top gap. */
@@ -316,14 +364,22 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              sits on the RIGHT on tablets and every desktop width, only stacking below the copy
              on phones. These classes live on nodes OUTSIDE .pdp, but styled-jsx scopes by
              component not by element, so one block styles the whole return tree. */
-          .pdp-wrap{display:block}
-          .pdp-aside{margin:48px 0 0}
+          /* THESE THREE NODES LIVE OUTSIDE section.pdp, so they do NOT carry this component's
+             styled-jsx hash (the hash is only injected onto JSX inside the subtree the <style jsx>
+             sits in - here, .pdp and its children). Without :global(), styled-jsx compiles the
+             selectors to require the hash on .pdp-wrap/.pdp-aside, which those elements never get,
+             so the whole two-column grid silently never applies and the blog panel drops below the
+             copy. :global() opts them out of hashing so the rules match the real elements. The
+             selectors stay specific enough (.pdp-wrap.has-aside, .pdp-crumbs, .pdp-aside) that
+             they cannot leak to other components. */
+          :global(.pdp-wrap){display:block}
+          :global(.pdp-aside){margin:48px 0 0}
           /* SPANNING BOTH TRACKS IS WHAT KEEPS /anew/ INTACT. With an aside, .pdp-wrap is a
              two-track grid at >=768px, so an unspanned trail would take the product column and
              push the copy into the blog rail. Unscoped (no .has-aside) this would be a no-op on
              the other seven product pages, where .pdp-wrap is a block - but scoping it says which
              layout it is for. */
-          .pdp-wrap.has-aside .pdp-crumbs{grid-column:1 / -1}
+          :global(.pdp-wrap.has-aside .pdp-crumbs){grid-column:1 / -1}
 
           @media(max-width:767px){
             .pdp-lead{font-size:18px}
@@ -331,24 +387,24 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             .pdp-point-t{font-size:20px}
           }
           @media(min-width:768px){
-            .pdp-wrap.has-aside{
-              display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);
-              column-gap:32px;align-items:start;
+            :global(.pdp-wrap.has-aside){
+              display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,480px);
+              column-gap:40px;align-items:start;
             }
             /* The product column keeps its own 700px cap inside the flexible track so the copy
                measure is unchanged; the grid track just stops it stretching under the panel. */
-            .pdp-wrap.has-aside .pdp{max-width:700px}
+            :global(.pdp-wrap.has-aside .pdp){max-width:700px}
             /* The panel sits at the TOP of the content row (align-items:start) and sticks there
                as the product column scrolls past, so it reads as "beside the section, after the
                header" rather than drifting down. 24px clears the fixed site header. */
-            .pdp-wrap.has-aside .pdp-aside{margin:0;position:sticky;top:24px;align-self:start}
+            :global(.pdp-wrap.has-aside .pdp-aside){margin:0;position:sticky;top:24px;align-self:start}
           }
         `}</style>
       </section>
 
       { hasAside && (
         <div className="pdp-aside">
-          <ProductBlogPanel cards={ blogCards! } />
+          <ProductBlogPanel cards={ blogCards! } heading={ blogHeading } />
         </div>
       ) }
       </div>

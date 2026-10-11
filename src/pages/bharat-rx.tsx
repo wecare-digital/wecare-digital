@@ -155,10 +155,17 @@ const BharatRxPage: React.FC = () => (
           }
           .brx-cta:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
           .brx-cta:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-          /* Static 1px hairline, per the rule: 1px static, 2px hoverable. */
+          /* THE CANONICAL BOUNDARY CARD, matched to .pdp-note on the product pages so every
+             boundary note on the public site reads the same: near-white #fcfdfb surface, 1px
+             hairline, 14px radius, 22px padding, and the legal-copy type rung 17px/400/1.55/-.05px
+             on the single public body ink rgba(0,0,0,.898). It was a transparent 16px/faded aside;
+             the quiet now comes from size and surface, not faded ink, so a statement that has to
+             be read is legible. 1px static, per the rule: 1px static, 2px hoverable. */
           .brx-note{
-            margin:34px 0 0;padding:16px 18px;border:1px solid #e5e7eb;border-radius:12px;
-            font-size:16px;line-height:1.55;color:rgba(0,0,0,.54);
+            margin:34px 0 0;padding:22px;border:1px solid #e5e7eb;border-radius:14px;
+            background:#fcfdfb;
+            font-size:17px;font-weight:400;line-height:1.55;letter-spacing:-.05px;
+            color:rgba(0,0,0,.898);
           }
           @media(max-width:767px){
             .brx-p{font-size:18px}
