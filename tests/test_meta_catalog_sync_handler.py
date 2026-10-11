@@ -87,6 +87,23 @@ def snapshot_products():
     return json.loads(SNAPSHOT.read_text(encoding="utf-8"))["products"]
 
 
+def with_service_images(products):
+    """Return a detached snapshot copy with publishable artwork on the five Request variants.
+
+    The committed Wix snapshot currently has no media, so real catalogue plans must stay blocked.
+    Tests of approval/apply semantics need a publishable fixture; adding synthetic artwork here
+    isolates those control-flow assertions from the independent media-safety gate.
+    """
+    cloned = json.loads(json.dumps(products))
+    service = next(p for p in cloned if p["slug"] == "wecaredigital-services")
+    service["image"] = "https://static.wixstatic.com/media/request-default.png"
+    service["mediaCount"] = len(service.get("variants") or [])
+    for variant in service.get("variants") or []:
+        variant["image"] = (
+            f"https://static.wixstatic.com/media/request-{variant['id']}.png")
+    return cloned
+
+
 class FakeWix:
     """Serves the committed snapshot through the two live V3 endpoints, with their own envelopes.
 
@@ -311,26 +328,27 @@ def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeyp
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
         "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
+    publishable = with_service_images(snapshot_products)
     store = FakeApprovalStore()
     graph = FakeGraph()
 
-    proposal = run(FakeWix(snapshot_products), graph,
+    proposal = run(FakeWix(publishable), graph,
         event={"catalogAction": "propose", "proposedBy": "admin"}, approval_store=store)
     assert proposal["counts"]["create"] == 5 and proposal["blocked"] == []
     assert proposal["approval"]["status"] == "PROPOSED"
     plan_hash = proposal["planHash"]
 
     # The schedule/webhook may observe the approval later, but it may not spend it.
-    background = run(FakeWix(snapshot_products), graph, approval_store=store)
+    background = run(FakeWix(publishable), graph, approval_store=store)
     assert background["reason"] == "explicit_apply_required"
     assert graph.writes == []
 
-    approved = run(FakeWix(snapshot_products), graph,
+    approved = run(FakeWix(publishable), graph,
         event={"catalogAction": "approve", "planHash": plan_hash, "approvedBy": "owner-admin"},
         approval_store=store)
     assert approved["approval"]["status"] == "APPROVED"
 
-    answer = run(FakeWix(snapshot_products), graph,
+    answer = run(FakeWix(publishable), graph,
         event={"catalogAction": "apply", "planHash": plan_hash}, approval_store=store)
     assert answer["dryRun"] is False
     assert answer["approved"] is True
@@ -351,8 +369,9 @@ def test_wrong_or_stale_approval_refuses_without_constructing_a_write(snapshot_p
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
         "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
+    publishable = with_service_images(snapshot_products)
     graph, store = FakeGraph(), FakeApprovalStore()
-    answer = run(FakeWix(snapshot_products), graph,
+    answer = run(FakeWix(publishable), graph,
         event={"catalogAction": "apply", "planHash": "0"*64}, approval_store=store)
     assert answer["reason"] == "plan_changed"
     assert answer["applied"] == 0
@@ -436,7 +455,8 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
         "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
-    wix = FakeWix(snapshot_products)
+    publishable = with_service_images(snapshot_products)
+    wix = FakeWix(publishable)
     graph = FakeGraph(items=[
         {"id": "meta-hand-made", "retailer_id": "WD-PARTNER-UP", "name": "Partner upgrade",
          "availability": "in stock"},
@@ -444,9 +464,9 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
          "availability": "in stock"},
     ])
     store = FakeApprovalStore()
-    proposal = run(FakeWix(snapshot_products), graph,
+    proposal = run(FakeWix(publishable), graph,
         event={"catalogAction": "propose"}, approval_store=store)
-    run(FakeWix(snapshot_products), graph,
+    run(FakeWix(publishable), graph,
         event={"catalogAction": "approve", "planHash": proposal["planHash"], "approvedBy": "admin"},
         approval_store=store)
     answer = run(wix, graph,
@@ -620,10 +640,9 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 23
-    # Nine of the ten real products carry no media in Wix. The services product is the only one
-    # that does, so it is the only one absent from the blocked list.
-    assert planned["blocked"] == 9
-    assert "Request" not in planned["blockedProducts"]
+    # The current committed Wix snapshot has no media for any of the ten real products.
+    assert planned["blocked"] == 10
+    assert "Request" in planned["blockedProducts"]
     assert planned["enabled"] is False
     assert planned["dryRun"] is True
     assert planned["planHash"]
@@ -784,21 +803,22 @@ def test_choice_artwork_overrides_stale_variant_index_media():
 
 
 def test_scoped_rollout_never_retires_unselected_variants(snapshot_products, monkeypatch):
-    all_items = sync.desired_items(snapshot_products)
     wanted = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS", wanted)
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
+    publishable = with_service_images(snapshot_products)
+    all_items = sync.desired_items(publishable)
     graph = FakeGraph(items=[item for item in all_items if wanted not in item["retailer_id"]])
     store = FakeApprovalStore()
-    proposal = run(FakeWix(snapshot_products), graph,
+    proposal = run(FakeWix(publishable), graph,
         event={"catalogAction": "propose"}, approval_store=store)
     assert proposal["blocked"] == [] and proposal["counts"]["create"] == 1
-    run(FakeWix(snapshot_products), graph,
+    run(FakeWix(publishable), graph,
         event={"catalogAction": "approve", "planHash": proposal["planHash"], "approvedBy": "admin"},
         approval_store=store)
-    answer = run(FakeWix(snapshot_products), graph,
+    answer = run(FakeWix(publishable), graph,
         event={"catalogAction": "apply", "planHash": proposal["planHash"]}, approval_store=store)
     assert answer["counts"]["create"] == 1
     assert answer["counts"]["retire"] == 0
