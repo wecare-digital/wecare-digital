@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-11T11:07:55.661Z",
+  "fetchedAt": "2026-10-11T11:08:10.469Z",
   "productCount": 10,
   "products": [
     {
@@ -75,7 +75,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_8c3222208f35439a8895fa10e928edb7~mv2.png",
           "pricePaise": 59900
         }
       ]
@@ -113,7 +113,7 @@
           "sku": "",
           "choiceId": "616cbd34-a1ad-4fe7-82b5-1d28e901aebc",
           "optionId": "c0c2d393-d62c-4e23-b632-6e64c01564a1",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_2cd9cf9b4d864198b928c57a020cef1c~mv2.png",
           "pricePaise": 25000
         }
       ]
@@ -151,7 +151,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_4200c3df23494a798aaa2998878af240~mv2.png",
           "pricePaise": 699900
         }
       ]
@@ -189,7 +189,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_907442afff3f45e3a7d2dfec7726c07b~mv2.png",
           "pricePaise": 1399900
         }
       ]
@@ -393,7 +393,7 @@
           "sku": "",
           "choiceId": "",
           "optionId": "",
-          "image": "",
+          "image": "https://static.wixstatic.com/media/478bf9_51d20f04d7db4c0b83a0188373400b1e~mv2.png",
           "pricePaise": 349900
         }
       ]
@@ -515,5 +515,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-11T11:07:55.655Z"
+  "variantVerifiedAt": "2026-10-11T11:08:10.462Z"
 }
