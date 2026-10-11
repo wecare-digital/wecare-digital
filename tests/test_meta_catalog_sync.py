@@ -505,8 +505,13 @@ def test_the_plan_fingerprint_is_stable_under_reordering(desired):
 # ── 6. the blockers ──────────────────────────────────────────────────────────
 
 
-#: MEASURED from the current snapshot: all ten real products carry `mediaCount: 0`.
-#: Until Wix artwork is present again, every product is a publication blocker.
+#: MEASURED from the snapshot: all ten real products carry `mediaCount: 0`, so every one is
+#: blocked. The services product (whose catalogue name is "Request") lost its per-choice artwork
+#: when the owner's 2026-10-10 "pure Wix read" decision landed in scripts/fetch-wix-catalog.js:
+#: the snapshot now mirrors Wix exactly, and Wix no longer returns any linked media for the
+#: service choices to an anonymous visitor token. The artwork is re-linked in the Wix dashboard,
+#: not re-typed into this file, so until that re-linking lands in a live read every item here is
+#: imageless and blocked. Sorted, so "Request" sits before "\u20b91 test product".
 EXPECTED_BLOCKED = [
     "Anew",
     "Contribute",
@@ -521,29 +526,46 @@ EXPECTED_BLOCKED = [
 ]
 
 
-def test_current_imageless_products_are_all_blocked(desired, products):
-    """Meta commerce review rejects imageless items, so the current Wix snapshot must fail closed.
+def test_remaining_imageless_products_are_blocked_and_every_service_item_has_a_picture(
+        desired, products):
+    """Meta commerce review rejects an imageless item, so this is the state of the catalogue
+    rather than a defect in the plan. Reported in full; no placeholder is invented.
 
-    No placeholder is invented and no old hand-maintained artwork is preserved in this mirror.
-    When Wix media returns, this test should be updated deliberately to reflect the newly
-    publishable products.
+    EVERY ITEM IS IMAGELESS TODAY, INCLUDING THE SERVICES PRODUCT. Until 2026-10-10 the snapshot
+    held distinct service pictures that had been written into the file by hand - values
+    `scripts/fetch-wix-catalog.js` never produced and therefore deleted on every refresh. The
+    owner's 2026-10-10 decision (recorded in that script's header) is that the snapshot is a PURE
+    READ of Wix: no image is derived, inferred or carried forward, and the per-choice artwork is
+    re-linked in the Wix dashboard rather than re-typed here. Wix no longer returns any linked
+    media for the service choices to an anonymous visitor token - every
+    `choicesSettings.choices[].linkedMedia` comes back empty - so a live refresh now writes an
+    empty image for the product and all five variants, and the services product is blocked for the
+    same imageless reason as the other nine.
+
+    This asserts the ACCEPTED CONSEQUENCE of that decision, not a defect: the fix belongs in Wix.
+    When the owner re-links the per-choice artwork and a live read carries it, this test is the one
+    to update - move "Request" back out of EXPECTED_BLOCKED and restore the per-service image
+    assertion below.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
     assert len(EXPECTED_BLOCKED) == 10
 
     syncable = [p for p in products if sync.is_syncable(p)]
     assert len(syncable) == 10
-    # The committed snapshot currently has no media for any product, including Request.
-    # Keep this pinned so a catalogue refresh that adds artwork forces an explicit review of
-    # the blocker set instead of silently changing which items become publishable.
+    # NO PRODUCT CARRIES MEDIA, which is what `EXPECTED_BLOCKED` is built from. A single product
+    # gaining a picture in Wix would silently unblock it, so every syncable product is pinned to
+    # mediaCount 0 - the day one gains media, EXPECTED_BLOCKED is updated rather than this loosened.
     for product in syncable:
         assert product.get("mediaCount") == 0, (
             "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening this")
 
+    # All five service variants are present as desired items; none carries an image_url today,
+    # because Wix returns no linked media for the choices. (When the artwork is re-linked in Wix
+    # this flips to `all(... image_url ...)` - see the docstring.)
     services = [i for i in desired
                 if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]
     assert len(services) == 5
-    assert all(not i.get("image_url") for i in services)
+    assert not any(i.get("image_url") for i in services)
 
 
 def test_an_item_with_an_image_is_not_blocked():

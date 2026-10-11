@@ -21,6 +21,7 @@ the live one from Secrets Manager instead and report success.
 from __future__ import annotations
 
 import ast
+import copy
 from decimal import Decimal
 import importlib.util
 import json
@@ -87,21 +88,47 @@ def snapshot_products():
     return json.loads(SNAPSHOT.read_text(encoding="utf-8"))["products"]
 
 
-def with_service_images(products):
-    """Return a detached snapshot copy with publishable artwork on the five Request variants.
+# The services product's per-choice artwork as it was last re-linked in Wix. The committed
+# snapshot mirrors Wix exactly (owner's 2026-10-10 "pure Wix read" decision in
+# scripts/fetch-wix-catalog.js), and Wix currently returns NO linked media for the service
+# choices, so the shipped snapshot has an imageless services product and every item is blocked.
+# These are the real URLs a prior live read carried; a few tests patch them back in to exercise
+# the WRITE path - "when a product has an image, the apply path sends it" - which the imageless
+# shipped state cannot. Nothing is invented: when the owner re-links the artwork in Wix a live
+# refresh restores exactly this, and the imageless-count tests flip back on their own terms.
+SERVICE_ARTWORK = {
+    "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b":
+        "https://static.wixstatic.com/media/478bf9_b2872b90be0a4436a5f3d2f38e9f2e62~mv2.png",
+    "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b":
+        "https://static.wixstatic.com/media/478bf9_896d5b0e4c25456182d1ddbec01f936f~mv2.png",
+    "db166bc8-a763-41ec-9f65-0f718f18155a":
+        "https://static.wixstatic.com/media/478bf9_4daebc4f975042779167334d739c718c~mv2.png",
+    "dcff995e-448c-493a-9259-f6a82ccdc2b4":
+        "https://static.wixstatic.com/media/478bf9_1d3cf70a8a5442b7aadd49e05bd7bd4d~mv2.png",
+    "8ee7e325-d772-4452-a993-5c79e927d42b":
+        "https://static.wixstatic.com/media/478bf9_522a6f2573d54b9390683ed126f04d52~mv2.png",
+}
 
-    The committed Wix snapshot currently has no media, so real catalogue plans must stay blocked.
-    Tests of approval/apply semantics need a publishable fixture; adding synthetic artwork here
-    isolates those control-flow assertions from the independent media-safety gate.
-    """
-    cloned = json.loads(json.dumps(products))
-    service = next(p for p in cloned if p["slug"] == "wecaredigital-services")
-    service["image"] = "https://static.wixstatic.com/media/request-default.png"
-    service["mediaCount"] = len(service.get("variants") or [])
-    for variant in service.get("variants") or []:
-        variant["image"] = (
-            f"https://static.wixstatic.com/media/request-{variant['id']}.png")
-    return cloned
+
+def _with_service_artwork(products):
+    """A deep copy of the snapshot with the services product's artwork re-linked, for the write-
+    path tests. Leaves every other product (and the shared fixture) untouched and imageless."""
+    out = copy.deepcopy(products)
+    for product in out:
+        if product.get("slug") != "wecaredigital-services":
+            continue
+        main = SERVICE_ARTWORK["e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"]
+        product["image"] = main
+        product["mediaCount"] = len(SERVICE_ARTWORK)
+        for variant in product.get("variants") or []:
+            if variant["id"] in SERVICE_ARTWORK:
+                variant["image"] = SERVICE_ARTWORK[variant["id"]]
+    return out
+
+
+@pytest.fixture
+def serviced_products(snapshot_products):
+    return _with_service_artwork(snapshot_products)
 
 
 class FakeWix:
@@ -319,8 +346,12 @@ def test_dry_run_switches_off_only_on_an_explicit_false(snapshot_products, monke
         assert answer["reason"] in ("blocked", "explicit_apply_required")
 
 
-def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeypatch):
-    """Proposal -> exact admin approval -> explicit apply; background triggers can never spend it."""
+def test_durable_proposal_approval_and_explicit_apply(serviced_products, monkeypatch):
+    """Proposal -> exact admin approval -> explicit apply; background triggers can never spend it.
+
+    Uses `serviced_products` so the five service variants carry images and the write path runs:
+    the shipped snapshot is imageless (every item blocked), which `test_blockers_refuse_before_
+    proposal_or_apply` covers. Here the subject is the approval mechanics, not the image gate."""
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
@@ -328,27 +359,26 @@ def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeyp
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
         "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
-    publishable = with_service_images(snapshot_products)
     store = FakeApprovalStore()
     graph = FakeGraph()
 
-    proposal = run(FakeWix(publishable), graph,
+    proposal = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "propose", "proposedBy": "admin"}, approval_store=store)
     assert proposal["counts"]["create"] == 5 and proposal["blocked"] == []
     assert proposal["approval"]["status"] == "PROPOSED"
     plan_hash = proposal["planHash"]
 
     # The schedule/webhook may observe the approval later, but it may not spend it.
-    background = run(FakeWix(publishable), graph, approval_store=store)
+    background = run(FakeWix(serviced_products), graph, approval_store=store)
     assert background["reason"] == "explicit_apply_required"
     assert graph.writes == []
 
-    approved = run(FakeWix(publishable), graph,
+    approved = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "approve", "planHash": plan_hash, "approvedBy": "owner-admin"},
         approval_store=store)
     assert approved["approval"]["status"] == "APPROVED"
 
-    answer = run(FakeWix(publishable), graph,
+    answer = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "apply", "planHash": plan_hash}, approval_store=store)
     assert answer["dryRun"] is False
     assert answer["approved"] is True
@@ -361,7 +391,9 @@ def test_durable_proposal_approval_and_explicit_apply(snapshot_products, monkeyp
     assert {request["method"] for request in write["payload"]["requests"]} == {"UPDATE"}
 
 
-def test_wrong_or_stale_approval_refuses_without_constructing_a_write(snapshot_products, monkeypatch):
+def test_wrong_or_stale_approval_refuses_without_constructing_a_write(serviced_products, monkeypatch):
+    # serviced_products so the plan is non-empty and unblocked; the subject here is that a stale
+    # plan hash is refused BEFORE any write, not the image gate.
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS",
@@ -369,9 +401,8 @@ def test_wrong_or_stale_approval_refuses_without_constructing_a_write(snapshot_p
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
         "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
-    publishable = with_service_images(snapshot_products)
     graph, store = FakeGraph(), FakeApprovalStore()
-    answer = run(FakeWix(publishable), graph,
+    answer = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "apply", "planHash": "0"*64}, approval_store=store)
     assert answer["reason"] == "plan_changed"
     assert answer["applied"] == 0
@@ -442,11 +473,14 @@ def test_an_empty_plan_writes_nothing_even_with_both_gates_open(
 
 
 def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
-        snapshot_products, monkeypatch):
+        serviced_products, monkeypatch):
     """The Meta catalogue is also edited by hand through `catalog-builder.tsx` - the live SKU
     `htlu35lrs1` is cited in `inbound-whatsapp-handler`. A sync that tidied up what it did not
     recognise would delete someone's work, so a foreign id appears in the report and in no
     request, with both gates open.
+
+    Uses `serviced_products` so the five service items carry images and are written; the subject
+    is foreign-id exclusion, not the image gate (which `test_blockers_refuse...` owns).
     """
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
@@ -455,8 +489,7 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
         "db166bc8-a763-41ec-9f65-0f718f18155a,dcff995e-448c-493a-9259-f6a82ccdc2b4,"
         "8ee7e325-d772-4452-a993-5c79e927d42b")
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
-    publishable = with_service_images(snapshot_products)
-    wix = FakeWix(publishable)
+    wix = FakeWix(serviced_products)
     graph = FakeGraph(items=[
         {"id": "meta-hand-made", "retailer_id": "WD-PARTNER-UP", "name": "Partner upgrade",
          "availability": "in stock"},
@@ -464,9 +497,9 @@ def test_a_foreign_retailer_id_is_reported_and_never_included_in_any_request(
          "availability": "in stock"},
     ])
     store = FakeApprovalStore()
-    proposal = run(FakeWix(publishable), graph,
+    proposal = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "propose"}, approval_store=store)
-    run(FakeWix(publishable), graph,
+    run(FakeWix(serviced_products), graph,
         event={"catalogAction": "approve", "planHash": proposal["planHash"], "approvedBy": "admin"},
         approval_store=store)
     answer = run(wix, graph,
@@ -640,7 +673,10 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 23
-    # The current committed Wix snapshot has no media for any of the ten real products.
+    # All ten real products carry no media in Wix today (owner's 2026-10-10 "pure Wix read"
+    # decision; the services product's per-choice artwork is re-linked in the Wix dashboard, not
+    # carried forward here, and Wix currently returns none), so every one is blocked - including
+    # the services product, whose catalogue name is "Request".
     assert planned["blocked"] == 10
     assert "Request" in planned["blockedProducts"]
     assert planned["enabled"] is False
@@ -802,23 +838,24 @@ def test_choice_artwork_overrides_stale_variant_index_media():
     assert item["image_url"] == "https://static.wixstatic.com/media/vault.png"
 
 
-def test_scoped_rollout_never_retires_unselected_variants(snapshot_products, monkeypatch):
+def test_scoped_rollout_never_retires_unselected_variants(serviced_products, monkeypatch):
+    # serviced_products so the scoped variant carries an image and is not blocked; the subject is
+    # that scoping to one variant creates only it and retires none of the others.
+    all_items = sync.desired_items(serviced_products)
     wanted = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS", wanted)
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_ENABLED", "true")
     monkeypatch.setenv("META_CATALOG_SYNC_DRY_RUN", "false")
-    publishable = with_service_images(snapshot_products)
-    all_items = sync.desired_items(publishable)
     graph = FakeGraph(items=[item for item in all_items if wanted not in item["retailer_id"]])
     store = FakeApprovalStore()
-    proposal = run(FakeWix(publishable), graph,
+    proposal = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "propose"}, approval_store=store)
     assert proposal["blocked"] == [] and proposal["counts"]["create"] == 1
-    run(FakeWix(publishable), graph,
+    run(FakeWix(serviced_products), graph,
         event={"catalogAction": "approve", "planHash": proposal["planHash"], "approvedBy": "admin"},
         approval_store=store)
-    answer = run(FakeWix(publishable), graph,
+    answer = run(FakeWix(serviced_products), graph,
         event={"catalogAction": "apply", "planHash": proposal["planHash"]}, approval_store=store)
     assert answer["counts"]["create"] == 1
     assert answer["counts"]["retire"] == 0
