@@ -2688,6 +2688,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-extras .vl-live-air-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .vl-live-air-extras .vl-live-air-subscribe:active{transform:translateY(0)}
         .vl-live-air-extras .vl-live-air-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        /* REDUCED MOTION: drop the hover lift + shadow so this pill matches its Contribute twin,
+           which carries the same @media(prefers-reduced-motion:reduce){ .bc-cta:hover{transform:none;
+           box-shadow:none} } guard. The component's global .vl-live *{transition:none!important}
+           already kills the animated transition, but not the static hover transform/shadow - this
+           closes that asymmetry so the two matched pills behave identically. */
+        @media(prefers-reduced-motion:reduce){
+          .vl-live-air-extras .vl-live-air-subscribe:hover{transform:none;box-shadow:none}
+        }
 
         /* SIZE THE EMBEDDED CONTRIBUTE PILL TO THE CARD. The shared .bc-cta ships inline-flex at
            padding:0 28px, which overflows this narrow column - the owner's "too big / not sized
