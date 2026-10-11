@@ -33,15 +33,13 @@ import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
  * map area is a LOCAL .vl-live-map-placeholder - plain text over a muted panel, no src and
  * no remote asset - so this path contacts no third party at all, not even Google.
  *
- * DEFAULT-ON MAP TILE OVERLAYS. Two Google tile overlays paint by DEFAULT once the KEYED
- * map is initialized: (a) the continuous AQI air-quality heatmap (UAQI_RED_GREEN) and
- * (b) a weather/storm tile overlay. Each is INDEPENDENTLY toggleable from its own switch in
- * the Air panel, and each is attached only through the same keyed + map-ready guarded path
- * the rest of the map uses. On the KEYLESS path (no NEXT_PUBLIC_GOOGLE_MAPS_KEY, i.e. every
- * CI/sandbox run) NO ImageMapType is ever constructed and ZERO network calls fire - "default
- * on" strictly means "attached once a keyed map exists", never on the keyless placeholder.
- * The PM2.5 deck.gl dot overlay stays independent and is still only built when PM2.5 is
- * selected.
+ * DEFAULT-ON MAP VISUALS. The keyed map paints (a) Google's continuous AQI heatmap tiles
+ * (UAQI_RED_GREEN) and (b) a code-rendered atmospheric layer: soft cloud masses, wind
+ * streamlines and a storm vortex whose density/speed are driven by the selected place's LIVE
+ * Google Weather values (cloud cover, rain/storm probability and wind). The atmosphere is SVG/
+ * CSS, not a static image and not an invented Google tile endpoint. On the KEYLESS path no
+ * ImageMapType or atmosphere layer is mounted and zero third-party calls fire. The PM2.5
+ * deck.gl dot overlay stays independent and is still only built when PM2.5 is selected.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
  * class to markup it can statically see, so every element stays INLINE in this component's
@@ -114,23 +112,10 @@ const VAYULOK_SHARE_TITLE = 'VayuLok - live air quality across India';
 const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
 const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
 
-// Continuous WEATHER/STORM TILE overlay (the swirling cloud/radar "storm effect" from the
-// reference). Google's weather/radar imagery is served through the Map Tiles API on
-// tile.googleapis.com, whose tile GETs follow the {zoom}/{x}/{y} template shape:
-//   https://tile.googleapis.com/v1/2dtiles/{zoom}/{x}/{y}?key=...
-// IMPORTANT ENTITLEMENT CAVEAT: unlike the Air Quality heatmap (which is directly
-// URL-templatable with just ?key=), the Map Tiles weather product normally requires a
-// SESSION-TOKEN flow (POST createSession, then tiles with ?session=&key=) and is typically
-// NOT entitled on a referrer-restricted BROWSER key. We attach it as a real second
-// ImageMapType whose getTileUrl returns this documented tile shape (with the key, plus a
-// session query param when one is available). If the key is unentitled or no session exists,
-// the tile requests simply 403/404 and the ImageMapType paints NOTHING for those tiles - the
-// overlay degrades SILENTLY with no broken image and no error UI, exactly like the rest of
-// this component. We do NOT fabricate a synthetic storm layer. See the SCOPED RED EXCEPTION
-// above: any red in these server-rendered tiles is confined to the tile IMAGES only.
-const WEATHER_TILE_MAP_TYPE = 'weather';
-const WEATHER_TILE_BASE = 'https://tile.googleapis.com/v1/2dtiles';
-
+// The storm look is rendered locally as SVG/CSS over the live map and is driven by Google
+// Weather values already fetched for the selected place. Google Weather map tiles currently
+// cover only documented US/EU precipitation products, so there is intentionally no fabricated
+// global `tile.googleapis.com/.../weather` URL here.
 // Neutral map camera; no place is selected until the visitor acts.
 interface PlaceState {
   name: string;
@@ -436,6 +421,10 @@ interface PollenRow { label: string; index: number; word: string; day: string; }
 const COMPASS = [ 'N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW' ];
 function windDirection( deg: number ): string {
   return COMPASS[ Math.round( deg / 45 ) % 8 ];
+}
+function windDirectionDegrees( dir?: string ): number {
+  const i = COMPASS.indexOf( String( dir || '' ).toUpperCase() );
+  return i >= 0 ? i * 45 : 225;
 }
 // The Air Quality API returns concentration units as long SCREAMING_SNAKE enums
 // (MICROGRAMS_PER_CUBIC_METER, PARTS_PER_BILLION, ...). Rendered verbatim they blow
@@ -746,10 +735,8 @@ const VayuLokLive: React.FC = () => {
   // the environmental RESULT content shown in the LEFT card (AQI result vs PM2.5-focused).
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( 'AQI' );
 
-  // Weather/storm TILE overlay on/off, INDEPENDENT of `layer` so it coexists with AQI or
-  // PM2.5. Defaults ON so the storm effect paints by DEFAULT on the keyed map; the keyed +
-  // map-ready guard still gates attachment so the keyless path creates NOTHING. Its switch
-  // turns it OFF.
+  // Atmospheric weather layer on/off, independent of AQI/PM2.5. Defaults ON. It is rendered
+  // as SVG/CSS over the live map and is driven by the selected place's Google Weather values.
   const [ stormOn, setStormOn ] = useState( true );
 
   // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
@@ -787,12 +774,6 @@ const VayuLokLive: React.FC = () => {
   // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
   // switch-to-PM2.5 / unmount. On the keyless path it is NEVER constructed.
   const heatmapOverlayRef = useRef<unknown>( null );
-  // The google.maps.ImageMapType instance for the weather/storm tile overlay (FEAT-001).
-  // Attached by DEFAULT once the KEYED map is initialized (stormOn defaults to true), pushed
-  // onto map.overlayMapTypes alongside the AQI heatmap, and detached idempotently on
-  // toggle-off / unmount. On the keyless path it is NEVER constructed; unentitled tiles 403/404
-  // and paint nothing (silent degradation).
-  const weatherOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
@@ -900,8 +881,10 @@ const VayuLokLive: React.FC = () => {
       if ( cancelled ) return;
 
       const map = new maps.Map( host, {
-        center: { lat: 20, lng: 20 },
-        zoom: 2,
+        // Match the approved reference composition: India prominent, Himalaya/China above,
+        // Arabian Sea + Bay of Bengal below, while remaining completely pan/zoom worldwide.
+        center: { lat: 25, lng: 86 },
+        zoom: 4,
         mapTypeId: 'hybrid',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
@@ -1122,7 +1105,7 @@ const VayuLokLive: React.FC = () => {
           tileSize: new gmaps.Size( 256, 256 ),
           minZoom: 0,
           maxZoom: 16,
-          opacity: 0.9, // denser pollution cloud; base map/pin/attribution stay legible
+          opacity: 0.64, // reference balance: vivid AQI colour with satellite terrain still visible
           // SCOPED RED EXCEPTION (see AQI_HEATMAP_MAP_TYPE above): these server-rendered
           // tiles may contain red for high pollution and that is deliberately allowed for
           // the tile IMAGES only. No component CSS/markup introduces red.
@@ -1330,72 +1313,9 @@ const VayuLokLive: React.FC = () => {
   }, [ layer, place, refreshNonce, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
-     WEATHER/STORM TILE OVERLAY (FEAT-001). Driven by the INDEPENDENT `stormOn` state so it
-     coexists with whichever AQI/PM2.5 layer is active. Attached by DEFAULT (stormOn starts
-     true) once the KEYED map is ready, behind the SAME keyed + map-ready guard as every other
-     map effect, so the keyless path constructs NO ImageMapType and fires zero network calls.
-     Unentitled/sessionless weather tiles 403/404 and paint nothing (silent degradation). */
-  useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
-
-    const map = mapRef.current;
-
-    // Detach the weather ImageMapType from map.overlayMapTypes idempotently, mirroring
-    // detachHeatmap: remove this exact instance by index so the AQI heatmap and any other
-    // overlay are untouched, then null the ref so a later toggle-on re-pushes exactly one.
-    const detachWeather = () => {
-      const overlay = weatherOverlayRef.current;
-      if ( !overlay ) return;
-      const omt = ( map as { overlayMapTypes?: {
-        getLength?: () => number;
-        getAt?: ( i: number ) => unknown;
-        removeAt?: ( i: number ) => unknown;
-        clear?: () => void;
-      } } | null )?.overlayMapTypes;
-      if ( omt ) {
-        if ( typeof omt.getLength === 'function' && typeof omt.getAt === 'function' && typeof omt.removeAt === 'function' ) {
-          for ( let i = omt.getLength() - 1; i >= 0; i-- ) {
-            if ( omt.getAt( i ) === overlay ) omt.removeAt( i );
-          }
-        } else {
-          // Minimal test double exposes only clear(). We only reach here when a weather
-          // overlay was pushed, so clearing is acceptable in that stub environment.
-          omt.clear?.();
-        }
-      }
-      weatherOverlayRef.current = null;
-    };
-
-    if ( !stormOn ) { detachWeather(); return; }
-    if ( !map ) return;
-
-    const w = window as unknown as { google?: { maps?: {
-      ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
-      Size?: new ( w: number, h: number ) => unknown;
-    } } };
-    const gmaps = w.google?.maps;
-    const omt = ( map as { overlayMapTypes?: { push?: ( v: unknown ) => void } } ).overlayMapTypes;
-    // Idempotent: if one is already attached, leave it; never push a duplicate.
-    if ( gmaps?.ImageMapType && gmaps?.Size && omt?.push && !weatherOverlayRef.current ) {
-      const imageMapType = new gmaps.ImageMapType( {
-        name: 'vl-live-weather-storm',
-        tileSize: new gmaps.Size( 256, 256 ),
-        minZoom: 0,
-        maxZoom: 16,
-        opacity: 0.6, // translucent cloud/radar so the AQI heatmap + base map stay readable
-        // SCOPED RED EXCEPTION (see WEATHER_TILE_BASE above): these server-rendered weather
-        // tiles may contain red; that red lives ONLY inside the tile IMAGES. No component
-        // CSS/markup introduces red. An unentitled/sessionless tile 403/404s and paints
-        // nothing, so the overlay degrades silently.
-        getTileUrl: ( coord: { x: number; y: number }, zoom: number ): string =>
-          `${WEATHER_TILE_BASE}/${WEATHER_TILE_MAP_TYPE}/${zoom}/${coord.x}/${coord.y}`
-          + `?key=${encodeURIComponent( MAPS_KEY )}`,
-      } );
-      omt.push( imageMapType );
-      weatherOverlayRef.current = imageMapType;
-    }
-    return () => { detachWeather(); };
-  }, [ stormOn, place, refreshNonce, mapReady, hasSelection ] );
+     ATMOSPHERE VISUAL. No extra provider request is made here. The live Weather API payload
+     already stored in `weather` drives SVG/CSS variables below; the visual itself stays
+     screen-space so it remains smooth while Google handles pan/zoom underneath. */
 
   /* ---------------------------------------------------------------------------------
      LIVE DATA for the selected place. Air + Weather + Pollen fire together whenever
@@ -2101,6 +2021,28 @@ const VayuLokLive: React.FC = () => {
   const mapActive = Boolean( MAPS_KEY );
   const liveActive = Boolean( MAPS_KEY && hasSelection );
 
+  const atmosphereStyle = useMemo( () => {
+    const cloud = Number.isFinite( weather?.cloudCover ) ? weather?.cloudCover as number : 58;
+    const rain = Number.isFinite( weather?.rainProb ) ? weather?.rainProb as number : 24;
+    const storm = Number.isFinite( weather?.stormProb ) ? weather?.stormProb as number : 18;
+    const wind = Number.isFinite( weather?.windSpeed ) ? weather?.windSpeed as number : 16;
+    const cloudOpacity = Math.min( .72, Math.max( .28, .24 + cloud / 100 * .52 ) );
+    const stormOpacity = Math.min( .72, Math.max( .12, ( rain + storm ) / 180 ) );
+    const windOpacity = Math.min( .62, Math.max( .26, .24 + wind / 120 ) );
+    const windDuration = Math.max( 5.5, 17 - Math.min( 50, wind ) * .18 );
+    const cloudDuration = Math.max( 16, windDuration * 3.2 );
+    const vortexDuration = Math.max( 11, windDuration * 2.1 );
+    return {
+      '--vl-cloud-opacity': cloudOpacity.toFixed( 3 ),
+      '--vl-storm-opacity': stormOpacity.toFixed( 3 ),
+      '--vl-wind-opacity': windOpacity.toFixed( 3 ),
+      '--vl-wind-angle': `${windDirectionDegrees( weather?.windDir )}deg`,
+      '--vl-wind-duration': `${windDuration.toFixed( 1 )}s`,
+      '--vl-cloud-duration': `${cloudDuration.toFixed( 1 )}s`,
+      '--vl-vortex-duration': `${vortexDuration.toFixed( 1 )}s`,
+    } as React.CSSProperties;
+  }, [ weather ] );
+
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
       <main className="vl-live-shell">
@@ -2233,9 +2175,8 @@ const VayuLokLive: React.FC = () => {
                       {/* SECTION 1 - HEATMAP + STORM. Two label rows, each with an accessible
                           on/off switch. The Heatmap switch drives the `layer` state (the
                           continuous AQI heatmap TILE overlay, default ON); the Storm switch
-                          drives the independent `stormOn` state (the weather/storm TILE
-                          overlay, default ON). Neither issues a fetch here - the keyed +
-                          map-ready guarded effects attach/detach the overlays. Both are
+                          drives the independent `stormOn` state (the local SVG/CSS atmosphere,
+                          default ON). Neither issues a fetch here. Both are
                           disabled until a place is selected, mirroring the .vl-live-layers
                           buttons. Below, a Poor -> Excellent legend bar on the approved no-red
                           ramp; the words (not the colour) carry the meaning (WCAG 1.4.1). */}
@@ -2517,7 +2458,51 @@ const VayuLokLive: React.FC = () => {
                       <span>Loading map…</span>
                     </div>
                   ) }
-                  <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Map of India' } />
+                  <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
+                  { mapReady && stormOn && (
+                    <div className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
+                      <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+                        <defs>
+                          <filter id="vl-live-cloud-soft" x="-25%" y="-25%" width="150%" height="150%">
+                            <feGaussianBlur stdDeviation="34" />
+                          </filter>
+                          <filter id="vl-live-wind-soft" x="-10%" y="-10%" width="120%" height="120%">
+                            <feGaussianBlur stdDeviation=".55" />
+                          </filter>
+                        </defs>
+
+                        <g className="vl-live-cloud-field" filter="url(#vl-live-cloud-soft)">
+                          <ellipse cx="120" cy="170" rx="250" ry="82" />
+                          <ellipse cx="390" cy="130" rx="230" ry="76" />
+                          <ellipse cx="650" cy="118" rx="280" ry="88" />
+                          <ellipse cx="965" cy="155" rx="250" ry="82" />
+                          <ellipse cx="1260" cy="118" rx="300" ry="98" />
+                          <ellipse className="is-dim" cx="1450" cy="260" rx="210" ry="90" />
+                          <ellipse className="is-dim" cx="210" cy="640" rx="245" ry="110" />
+                          <ellipse cx="505" cy="690" rx="270" ry="94" />
+                          <ellipse className="is-dim" cx="930" cy="720" rx="285" ry="102" />
+                          <ellipse cx="1320" cy="650" rx="310" ry="118" />
+                        </g>
+
+                        <g className="vl-live-wind-field" filter="url(#vl-live-wind-soft)">
+                          <path className="vl-live-wind-path p1" d="M-120 610 C120 520 300 535 500 625 S860 760 1120 640 S1450 520 1720 610" />
+                          <path className="vl-live-wind-path p2" d="M-80 690 C150 610 350 630 535 715 S900 815 1160 710 S1450 625 1680 690" />
+                          <path className="vl-live-wind-path p3" d="M-60 520 C160 445 360 455 565 535 S930 655 1200 540 S1470 460 1690 525" />
+                          <path className="vl-live-wind-path p4" d="M-90 400 C130 330 330 340 520 420 S860 520 1090 430 S1410 330 1700 405" />
+                          <path className="vl-live-wind-path p5" d="M-60 300 C190 235 385 250 590 320 S950 405 1190 320 S1450 245 1690 300" />
+                          <path className="vl-live-wind-path p6" d="M-40 785 C210 720 410 735 610 805 S980 860 1210 800 S1455 730 1660 775" />
+                          <path className="vl-live-wind-path p7" d="M20 210 C250 150 480 175 665 240 S1010 315 1250 235 S1470 165 1620 205" />
+                        </g>
+
+                        <g className="vl-live-vortex">
+                          <ellipse cx="295" cy="680" rx="156" ry="92" />
+                          <ellipse cx="295" cy="680" rx="112" ry="66" />
+                          <ellipse cx="295" cy="680" rx="70" ry="40" />
+                          <path d="M122 680 C172 555 355 535 444 635 C520 720 412 819 294 786 C215 764 214 694 288 670 C341 654 372 701 340 731" />
+                        </g>
+                      </svg>
+                    </div>
+                  ) }
                 </>
               ) }
 
@@ -2844,6 +2829,29 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
+
+        /* REFERENCE-MATCHED ATMOSPHERE. This is code-rendered, not a background image.
+           Clouds are soft translucent SVG masses; wind is a field of animated dashed
+           streamlines; the lower-left vortex gives the storm/cyclone read from the approved
+           reference. Live Google Weather values drive opacity, direction and speed. */
+        .vl-live-atmosphere{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen}
+        .vl-live-atmosphere svg{display:block;width:100%;height:100%;overflow:visible}
+        .vl-live-cloud-field{opacity:var(--vl-cloud-opacity);animation:vl-live-cloud-drift var(--vl-cloud-duration) ease-in-out infinite alternate}
+        .vl-live-cloud-field ellipse{fill:rgba(255,255,255,.88)}
+        .vl-live-cloud-field ellipse.is-dim{fill:rgba(214,229,239,.66)}
+        .vl-live-wind-field{opacity:var(--vl-wind-opacity);transform-origin:800px 450px;transform:rotate(var(--vl-wind-angle))}
+        .vl-live-wind-path{fill:none;stroke:rgba(255,255,255,.86);stroke-width:1.5;stroke-linecap:round;stroke-dasharray:5 17;animation:vl-live-wind-flow var(--vl-wind-duration) linear infinite}
+        .vl-live-wind-path.p2{animation-delay:-1.8s;opacity:.82}
+        .vl-live-wind-path.p3{animation-delay:-3.1s;opacity:.72}
+        .vl-live-wind-path.p4{animation-delay:-4.4s;opacity:.66}
+        .vl-live-wind-path.p5{animation-delay:-5.7s;opacity:.58}
+        .vl-live-wind-path.p6{animation-delay:-2.6s;opacity:.76}
+        .vl-live-wind-path.p7{animation-delay:-4.9s;opacity:.54}
+        .vl-live-vortex{opacity:var(--vl-storm-opacity);transform-origin:295px 680px;animation:vl-live-vortex-spin var(--vl-vortex-duration) linear infinite}
+        .vl-live-vortex ellipse,.vl-live-vortex path{fill:none;stroke:rgba(255,255,255,.86);stroke-width:2;stroke-linecap:round;stroke-dasharray:8 14}
+        @keyframes vl-live-wind-flow{to{stroke-dashoffset:-88}}
+        @keyframes vl-live-cloud-drift{from{transform:translate3d(-2.2%,0,0) scale(1.02)}to{transform:translate3d(2.8%,1.2%,0) scale(1.06)}}
+        @keyframes vl-live-vortex-spin{to{transform:rotate(360deg)}}
         .vl-live-map-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:24px;text-align:center;z-index:0;background:#eef1ed;color:var(--green)}
         .vl-live-map-placeholder strong{font-size:15px;letter-spacing:-.01em}
         .vl-live-map-placeholder span{font-size:12.5px;color:var(--muted)}
@@ -2908,6 +2916,7 @@ const VayuLokLive: React.FC = () => {
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
+          .vl-live-cloud-field,.vl-live-wind-path,.vl-live-vortex{animation:none!important}
         }
       `}</style>
     </section>
