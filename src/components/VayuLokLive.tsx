@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BlogSubscribe from './BlogSubscribe';
 import BlogContribution from './BlogContribution';
 import ShareLinks from './ShareLinks';
@@ -487,6 +487,50 @@ function windUnitLabel( unit?: string ): string {
 function n( value: unknown ): number {
   const out = Number( value );
   return Number.isFinite( out ) ? out : NaN;
+}
+
+// HONEST SHARE TITLE. Composes the single string ShareLinks carries into the WhatsApp message
+// first line and navigator.share { title, text }. It summarises the SELECTED PLACE's live air +
+// weather for previewPlace, and degrades honestly: a clause only appears when its source data is
+// actually in state. On the keyless/sandbox path air === null and weather === null, so this
+// returns the place name alone (never a fabricated AQI/weather number); when even the place name
+// is blank it falls back to the neutral VAYULOK_SHARE_TITLE. Every emitted number is read straight
+// from state - no 'NaN', no 'undefined', no invented units.
+export function composeVayuLokShareTitle(
+  placeName: string | undefined | null,
+  air: AirState | null,
+  weather: WeatherState | null,
+): string {
+  const name = ( placeName || '' ).trim();
+  if ( !name ) return VAYULOK_SHARE_TITLE;
+
+  // Air clause: AQI <n> (<word>) with the dominant pollutant appended when present. aqi is a
+  // finite number by the time AirState exists, but guard anyway so a malformed value is dropped
+  // rather than rendered as 'AQI NaN'.
+  let airClause = '';
+  if ( air && Number.isFinite( air.aqi ) && air.word ) {
+    airClause = `AQI ${ Math.round( air.aqi ) } (${ air.word })`;
+    if ( air.dominant ) airClause += `, ${ air.dominant } dominant`;
+  }
+
+  // Weather clause: <temp>°C with the condition appended when present. temp is already rounded at
+  // ingest; still guard for finiteness so an absent temp never prints 'undefined°C'.
+  let weatherClause = '';
+  if ( weather ) {
+    const parts: string[] = [];
+    if ( Number.isFinite( weather.temp ) ) parts.push( `${ Math.round( weather.temp as number ) }°C` );
+    if ( weather.condition ) parts.push( weather.condition );
+    weatherClause = parts.join( ', ' );
+  }
+
+  // Grammatical for every combination: place-only, place+air, place+weather, full.
+  let summary: string;
+  if ( airClause && weatherClause ) summary = `Air quality in ${ name }: ${ airClause } - ${ weatherClause }`;
+  else if ( airClause ) summary = `Air quality in ${ name }: ${ airClause }`;
+  else if ( weatherClause ) summary = `${ name }: ${ weatherClause }`;
+  else summary = name;
+
+  return `${ summary } | VayuLok`;
 }
 
 function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
@@ -2080,6 +2124,13 @@ const VayuLokLive: React.FC = () => {
   // weather/air history + forecast state is still fetched and kept intact for the
   // Weather phase and the map layers.
   const previewPlace = mapCandidate || place;
+  // Honest, data-driven Share title for the selected place. On the keyless path (air/weather
+  // null) this is just the place name (or the neutral VayuLok fallback) with no fabricated
+  // numbers; it becomes the WhatsApp message first line and the navigator.share text.
+  const shareTitle = useMemo(
+    () => composeVayuLokShareTitle( previewPlace.name, air, weather ),
+    [ previewPlace.name, air, weather ],
+  );
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
   const mapActive = Boolean( MAPS_KEY );
   const liveActive = Boolean( MAPS_KEY && hasSelection );
@@ -2454,7 +2505,7 @@ const VayuLokLive: React.FC = () => {
                   <hr className="vl-live-air-card-rule" aria-hidden="true" />
                   <BlogSubscribe />
                   <BlogContribution postId="vayulok" slug="vayulok" embedded={ true } />
-                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ VAYULOK_SHARE_TITLE } label="Share" />
+                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ shareTitle } label="Share" />
                 </div>
               </aside>
 
