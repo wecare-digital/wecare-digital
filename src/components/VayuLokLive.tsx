@@ -323,10 +323,11 @@ interface HealthPersonaDefinition {
 /* Local paths from Google's Material Symbols Outlined set. Keeping the SVG paths local avoids
    a runtime icon-font dependency while preserving Google's icon language across the Air card. */
 const MATERIAL_SYMBOL_PATHS: Record<
-  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
+  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'eco' | 'schedule' | 'location' | 'chevronLeft' | 'chevronRight',
   string
 > = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
+  eco: 'M200-120q-33 0-56.5-23.5T120-200q0-11 3-21.5t9-19.5q42-29 90-44.5t98-15.5q20 0 39.5 2.5T498-291q-7-29-24.5-52T430-382q-45-20-67.5-61T340-533q0-83 58.5-141.5T540-733q100 0 170 70t70 170q0 61-25 116.5T684-280q-20 20-46 30t-54 10q-11 0-21.5-1.5T541-247q-9 29-30.5 50.5T460-166q-29 11-60 11H200Zm340-280q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Z',
   switches: 'M270-289q-80 0-135-54.5T80-479q0-81 54.5-135.5T270-669q51 0 90 22t65 63h350q44 0 74.5 30.5T880-479q0 44-30.5 74.5T775-374H425q-26 41-65 63t-90 22Zm3-190Zm180 45h322q20 0 32.5-12.5T820-479q0-20-12.5-32.5T775-524H453q4 10 5.5 22t1.5 23q0 11-1.5 23t-5.5 22Zm-90.5 47.5Q400-424 400-479t-37.5-92.5Q325-609 270-609t-92.5 37.5Q140-534 140-479t37.5 92.5Q215-349 270-349t92.5-37.5Z',
   close: 'M256-214 214-256l224-224-224-224 42-42 224 224 224-224 42 42-224 224 224 224-42 42-224-224-224 224Z',
   chevronLeft: 'M560-240 320-480l240-240 56 56-184 184 184 184-56 56Z',
@@ -2271,12 +2272,15 @@ const VayuLokLive: React.FC = () => {
                         <div className="vl-live-air-gauge-meta">
                           <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
                           <div className="vl-live-air-summary-meta">
-                            { air.indexName && <span>{ air.indexName }</span> }
-                            { air.localIndex && air.universalIndex && air.localIndex.code !== air.universalIndex.code && (
-                              <span><strong>Universal AQI</strong> { air.universalIndex.aqiDisplay || Math.round( air.universalIndex.aqi ) }</span>
-                            ) }
+                            <span className="vl-live-air-summary-chip">
+                              <svg className="vl-live-air-summary-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.air } /></svg>
+                              <strong>AQI</strong> { air.aqiDisplay || Math.round( air.aqi ) }
+                            </span>
                             { air.dominant && (
-                              <span><strong>Dominant</strong> { dominantPollutantLabel( air.dominant, air.pollutants ) }</span>
+                              <span className="vl-live-air-summary-chip">
+                                <svg className="vl-live-air-summary-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.eco } /></svg>
+                                <strong>Dominant</strong> { dominantPollutantLabel( air.dominant, air.pollutants ) }
+                              </span>
                             ) }
                             { air.updatedAt && <span>{ relativeAgeLabel( air.updatedAt ).label }</span> }
                           </div>
@@ -2570,7 +2574,6 @@ const VayuLokLive: React.FC = () => {
                                     ) ) }
                                   </div>
 
-                                  <span className="vl-live-air-history-stamp">{ stamp }</span>
                                   <div className="vl-live-air-history-nav" aria-label="Hourly history navigation">
                                     <button
                                       type="button"
@@ -2621,7 +2624,6 @@ const VayuLokLive: React.FC = () => {
                                     </>
                                   ) }
                                 </svg>
-                                <span className="vl-live-air-history-bubble" style={ { left: `${( cx / W ) * 100}%` } }>{ Math.round( current.aqi ) }</span>
                                 { inspected && (
                                   <span
                                     className="vl-live-air-history-inspect"
@@ -2632,10 +2634,13 @@ const VayuLokLive: React.FC = () => {
                                       top: `${Math.max( 10, ( inspectY / H ) * 100 )}%`,
                                     } }
                                   >
-                                    <strong>AQI { Math.round( inspected.aqi ) }</strong>
                                     <span>{ formatHistoryPointLabel( inspected.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
                                   </span>
                                 ) }
+                              </div>
+                              <div className="vl-live-air-history-stamp" aria-label="Reading time">
+                                <svg className="vl-live-air-history-stamp-icon" viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                                <span>{ stamp }</span>
                               </div>
                               <span className="vl-live-sr-only">Latest reading { Math.round( latest.aqi ) }, { latest.word }.</span>
                             </>
@@ -2839,9 +2844,10 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-aqi-unit{display:block;margin-top:4px;color:var(--muted);font-size:10.5px;font-weight:700;line-height:1;letter-spacing:.08em;text-transform:uppercase}
         .vl-live-air-gauge-meta{min-width:0}
         .vl-live-air-gauge-word{display:block;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track)}
-        .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
-        .vl-live-air-summary-meta span+span::before{content:"·";margin-right:10px;color:rgba(0,0,0,.28)}
+        .vl-live-air-summary-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.35}
         .vl-live-air-summary-meta strong{color:var(--status);font-weight:700}
+        .vl-live-air-summary-chip{display:inline-flex;align-items:center;gap:5px}
+        .vl-live-air-summary-icon{flex:0 0 16px;width:16px;height:16px;padding:2px;border-radius:50%;background:var(--lime);fill:var(--green)}
 
         .vl-live-air-pollutants,.vl-live-air-heatmap,.vl-live-air-forecast,.vl-live-air-health,.vl-live-air-history{margin-top:var(--vl-section-gap);padding-top:var(--vl-section-pad);border-top:1px solid var(--hair)}
         .vl-live-air-pollutants-title,.vl-live-air-heatmap-label,.vl-live-air-forecast-title,.vl-live-air-health-title,.vl-live-air-history-title{display:block;margin:0;color:#000;font-size:var(--vl-card-heading-size);font-weight:var(--vl-card-heading-weight);line-height:var(--vl-card-heading-lh);letter-spacing:var(--vl-card-heading-track);padding-left:10px;border-left:3px solid var(--lime)}
@@ -2969,7 +2975,8 @@ const VayuLokLive: React.FC = () => {
            bubble shows the current AQI number so meaning never rests on colour alone. */
         .vl-live-air-history-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--vl-heading-gap)}
         .vl-live-air-history-head-meta{display:flex;align-items:center;gap:8px}
-        .vl-live-air-history-stamp{color:var(--muted);font-size:11.5px;font-weight:600;letter-spacing:0;white-space:nowrap}
+        .vl-live-air-history-stamp{display:flex;width:fit-content;align-items:center;gap:6px;margin:10px auto 0;padding:4px 12px;border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:11.5px;font-weight:700;letter-spacing:0;white-space:nowrap}
+        .vl-live-air-history-stamp-icon{flex:0 0 15px;width:15px;height:15px;fill:var(--green)}
         .vl-live-air-history-empty{margin:0;color:var(--muted);font-size:14px;line-height:1.5}
         .vl-live-air-history-chart{position:relative;margin-top:0;touch-action:pan-y;cursor:crosshair}
         .vl-live-air-history-svg{display:block;width:100%;height:120px}
@@ -2995,7 +3002,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-sev-poor .vl-live-air-history-area{color:#e8c547}
         .vl-live-air-sev-worst .vl-live-air-history-line,.vl-live-air-sev-worst .vl-live-air-history-dot{stroke:#c98a2e}
         .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
-        .vl-live-air-history-bubble{position:absolute;top:0;transform:translateX(-50%);min-width:30px;padding:3px 8px;border:0;border-radius:999px;background:var(--lime);color:var(--green);box-shadow:0 4px 10px rgba(26,58,42,.14);font-size:11px;font-weight:700;text-align:center}
         .vl-live-air-history-nav{display:flex;align-items:center;gap:6px}
 
         /* FULL-BLEED MAP. The map reads edge-to-edge: no border, no rounded box. overflow:hidden
