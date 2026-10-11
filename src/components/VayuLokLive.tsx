@@ -679,6 +679,45 @@ function rememberPlace( place: PlaceState ) {
   } catch { /* storage can be unavailable */ }
 }
 
+/**
+ * The share TITLE/TEXT for the selected place. Shares the live summary (place + AQI/category and
+ * a short weather line) rather than the bare page tagline, per the owner request. The share URL
+ * stays the canonical /vayulok/ page - a share target needs a resolvable link - so only this
+ * text carries the live reading.
+ *
+ * HONEST DEGRADATION. With no place name, or with neither a live air nor a live weather reading
+ * (the keyless path leaves both null), it returns the generic fallback title unchanged, so the
+ * keyless/SSR path shares exactly the honest page tagline and fires no extra work. Every segment
+ * is appended only when its source value is actually present; nothing is invented.
+ */
+function composeShareText(
+  placeName: string,
+  air: AirState | null,
+  weather: WeatherState | null,
+  fallback: string,
+): string {
+  const name = ( placeName || '' ).trim();
+  if ( !name || ( !air && !weather ) ) return fallback;
+
+  const parts: string[] = [];
+  if ( air && Number.isFinite( air.aqi ) ) {
+    const word = ( air.word || '' ).trim();
+    parts.push( word ? `AQI ${air.aqi} (${word})` : `AQI ${air.aqi}` );
+  }
+  if ( weather ) {
+    const bits: string[] = [];
+    if ( Number.isFinite( weather.temp ) ) bits.push( `${Math.round( weather.temp as number )}°C` );
+    const cond = ( weather.condition || '' ).trim();
+    if ( cond ) bits.push( cond );
+    if ( bits.length ) parts.push( bits.join( ' ' ) );
+  }
+
+  // If the two readings existed but carried no shareable field, fall back rather than share a
+  // bare place name that says nothing a reader could not get from the link itself.
+  if ( !parts.length ) return fallback;
+  return `${name} - ${parts.join( ' · ' )} | VayuLok`;
+}
+
 const VayuLokLive: React.FC = () => {
   // Load the owner-selected local destination immediately so the map and live panels
   // are useful on first paint; search and map clicks continue to replace this selection.
@@ -2084,6 +2123,13 @@ const VayuLokLive: React.FC = () => {
   const mapActive = Boolean( MAPS_KEY );
   const liveActive = Boolean( MAPS_KEY && hasSelection );
 
+  // Share the SELECTED PLACE's live air + weather, not the bare page tagline (owner request).
+  // The URL stays the canonical /vayulok/ page (a share target needs a resolvable link); only
+  // the TITLE/TEXT carries the live summary. composeShareText degrades to VAYULOK_SHARE_TITLE
+  // whenever there is no place or no live air/weather - so on the keyless path (air/weather
+  // both null) the share text is exactly the honest generic title, firing no extra work.
+  const shareTitle = composeShareText( previewPlace.name || '', air, weather, VAYULOK_SHARE_TITLE );
+
   return (
     <section className="vl-live" aria-label="VayuLok conditions">
       <main className="vl-live-shell">
@@ -2454,7 +2500,7 @@ const VayuLokLive: React.FC = () => {
                   <hr className="vl-live-air-card-rule" aria-hidden="true" />
                   <BlogSubscribe />
                   <BlogContribution postId="vayulok" slug="vayulok" embedded={ true } />
-                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ VAYULOK_SHARE_TITLE } label="Share" />
+                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ shareTitle } label="Share" />
                 </div>
               </aside>
 
@@ -2591,6 +2637,47 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-extras{margin-top:16px;display:flex;flex-direction:column;gap:20px}
         .vl-live-air-extras :global(.blog-subscribe){margin-top:0}
         .vl-live-air-extras :global(.bc){margin-top:0}
+
+        /* CARD-FIT SIZING for the embedded Subscribe / Contribute / Share blocks. These are the
+           SAME components a blog post renders, so they already carry the blog's design language
+           (lime pills, dark-green type, the hairline rhythm) - the owner's "looks like the OLD
+           style" was the pre-deploy site. The one real problem is SCALE: the blocks are authored
+           for a ~720px article column, so at the card's ~336px they overflow and the pills read
+           oversized. Everything below ONLY rescales to the narrow column; no colour, control, or
+           typographic identity is changed, so the blog pages that mount the same components are
+           untouched (these rules live solely under .vl-live-air-extras). All values stay on the
+           home palette (#1a3a2a / #d1f470 / #e5e7eb) - no invented colour, no red. */
+
+        /* SUBSCRIBE: drop the article-scale banner padding/heading so the card does not shout,
+           and let the field row wrap instead of scroll. The lime-tint band, border and controls
+           are the component's own and stay as-is. */
+        .vl-live-air-extras :global(.blog-subscribe){padding:16px;border-radius:12px}
+        .vl-live-air-extras :global(.blog-subscribe-head){display:block}
+        .vl-live-air-extras :global(.blog-subscribe-head)>:global(p){margin-top:8px;max-width:none}
+        .vl-live-air-extras :global(.blog-subscribe-head) :global(h2){font-size:19px;line-height:1.12;letter-spacing:-.3px}
+        .vl-live-air-extras :global(.blog-subscribe-fields){flex-wrap:wrap;overflow:visible}
+        .vl-live-air-extras :global(.blog-subscribe-cell),
+        .vl-live-air-extras :global(.phone-cell),
+        .vl-live-air-extras :global(.email-cell){min-width:0;flex:1 1 100%;width:auto}
+
+        /* CONTRIBUTE: the quiet appeal. The copy is article-sized (18px); bring it to the card's
+           body size so it does not dominate the panel. */
+        .vl-live-air-extras :global(.bc-copy){font-size:14px;line-height:1.5;margin-bottom:14px;max-width:none}
+
+        /* CONTRIBUTE BUTTON SIZED TO THE CARD (owner request: "too big / not sized to the card").
+           The blog pill is min-height:52px / padding:0 28px / font-size:17px, right for a wide
+           article but oversized floating in a 336px card. Here it becomes a card-width pill:
+           full-width, a touch shorter (46px, still >=44px WCAG 2.5.8), tighter type. The BORDER,
+           LIME FILL, RADIUS and the lime->white HOVER LIFT (translateY + the one allowed shadow)
+           are the component's own and are preserved verbatim - only the box metrics shrink. */
+        .vl-live-air-extras :global(.bc-cta){
+          display:flex;width:100%;min-height:46px;padding:0 18px;font-size:15px;
+        }
+
+        /* SHARE: the row already fits (44px round icon buttons that wrap), and its lime WhatsApp
+           lead + hover lift are the component's own. Only nudge the eyebrow label to the card's
+           rung so it sits flush with Subscribe/Contribute above it. */
+        .vl-live-air-extras :global(.share-row){gap:10px}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
