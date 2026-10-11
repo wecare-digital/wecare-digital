@@ -972,6 +972,33 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.innerHTML ).not.toContain( 'dc2626' );
   } );
 
+  it( 'offers "Use my location" and applies the reverse-geocoded place on success', async () => {
+    const geolocation = {
+      getCurrentPosition: vi.fn( ( success: ( p: { coords: { latitude: number; longitude: number } } ) => void ) => {
+        success( { coords: { latitude: 19.076, longitude: 72.8777 } } );
+      } ),
+    };
+    vi.stubGlobal( 'navigator', { ...navigator, geolocation } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const geoBtn = await screen.findByRole( 'button', { name: 'Use my location' } );
+    expect( geoBtn ).toBeTruthy();
+    fireEvent.click( geoBtn );
+
+    // The browser coords are reverse-geocoded (FakeGeocoder returns a Mumbai result) and applied
+    // like any selection: the air card header reflects the resolved place. The reverse-geocoded
+    // place has no viewport, so the camera recentres via setCenter + setZoom (not fitBounds).
+    await waitFor( () => {
+      const context = container.querySelector( '.vl-live-air-context' );
+      expect( context?.textContent ).toContain( 'Mumbai' );
+    } );
+    await waitFor( () => expect( rec.setZoomCalls.length ).toBeGreaterThan( 0 ) );
+    expect( geolocation.getCurrentPosition ).toHaveBeenCalled();
+  } );
+
   it( 'shows IST by default and resolves selected-place local time through Google Time Zone API', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
