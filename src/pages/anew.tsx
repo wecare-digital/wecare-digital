@@ -52,8 +52,9 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
     product={ productBySlug( 'anew' ) }
     crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Anew' } ] }
     blogCards={ blogCards }
+    blogHeading="Journal"
     price="₹599"
-    priceUnit="one written reflection"
+    priceUnit="· one decision · written reflection · usually 2–3 business days"
     shareUrl={ `${SITE_ORIGIN}/anew/` }
   />
 );

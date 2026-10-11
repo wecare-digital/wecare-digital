@@ -46,6 +46,8 @@ interface ProductPageProps {
    * scoped to .pdp-wrap.has-aside.
    */
   blogCards?: BlogCard[];
+  /** Heading for the optional blog panel. Defaults to the panel's own default when omitted. */
+  blogHeading?: string;
   /**
    * OPTIONAL PRICE LINE under the CTA, so a reader sees what they will pay before they open the
    * chat. A short string like "₹599" plus an optional unit. Omitted on pages that do not sell a
@@ -79,6 +81,7 @@ interface ProductPageProps {
 const ProductPage: React.FC<ProductPageProps> = ( {
   product,
   blogCards,
+  blogHeading,
   price,
   priceUnit,
   shareUrl,
@@ -356,7 +359,7 @@ const ProductPage: React.FC<ProductPageProps> = ( {
 
       { hasAside && (
         <div className="pdp-aside">
-          <ProductBlogPanel cards={ blogCards! } />
+          <ProductBlogPanel cards={ blogCards! } heading={ blogHeading } />
         </div>
       ) }
       </div>
