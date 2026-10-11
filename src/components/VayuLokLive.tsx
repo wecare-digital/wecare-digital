@@ -2450,15 +2450,18 @@ const VayuLokLive: React.FC = () => {
                         <div
                           className="vl-live-air-aqi-score"
                           role="img"
-                          aria-label={ `Universal AQI ${Math.round( air.aqi )}, ${air.word}` }
+                          aria-label={ `${air.indexName || 'Air quality index'} ${air.aqiDisplay || Math.round( air.aqi )}, ${air.word}` }
                         >
-                          <strong className="vl-live-air-aqi-number" aria-hidden="true">{ Math.round( air.aqi ) }</strong>
+                          <strong className="vl-live-air-aqi-number" aria-hidden="true">{ air.aqiDisplay || Math.round( air.aqi ) }</strong>
                           <span className="vl-live-air-aqi-unit" aria-hidden="true">AQI</span>
                         </div>
                         <div className="vl-live-air-gauge-meta">
                           <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
                           <div className="vl-live-air-summary-meta">
                             { air.indexName && <span>{ air.indexName }</span> }
+                            { air.localIndex && air.universalIndex && air.localIndex.code !== air.universalIndex.code && (
+                              <span><strong>Universal AQI</strong> { air.universalIndex.aqiDisplay || Math.round( air.universalIndex.aqi ) }</span>
+                            ) }
                             { air.dominant && (
                               <span><strong>Dominant</strong> { dominantPollutantLabel( air.dominant, air.pollutants ) }</span>
                             ) }
@@ -2504,20 +2507,33 @@ const VayuLokLive: React.FC = () => {
                         <div className="vl-live-air-heatmap-row">
                           <span className="vl-live-air-heatmap-label">Heatmap</span>
                           <div className="vl-live-air-heatmap-control">
-                            <span className="vl-live-air-heatmap-state" aria-hidden="true">{ layer === 'AQI' ? 'On' : 'Off' }</span>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={ layer === 'AQI' }
-                            aria-label="Air quality heatmap"
-                            disabled={ !hasSelection }
-                            className={ `vl-live-air-heatmap-switch ${layer === 'AQI' ? 'is-on' : ''}`.trim() }
-                            onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
-                          >
-                            <svg viewBox="0 -960 960 960" aria-hidden="true">
-                              <path d={ MATERIAL_SYMBOL_PATHS.switches } />
-                            </svg>
-                          </button>
+                            <div className="vl-live-air-range" role="group" aria-label="Heatmap metric">
+                              { ( [ 'AQI', 'PM25' ] as const ).map( metric => (
+                                <button
+                                  key={ metric }
+                                  type="button"
+                                  className={ heatmapMetric === metric ? 'is-active' : '' }
+                                  aria-pressed={ heatmapMetric === metric }
+                                  onClick={ () => { setHeatmapMetric( metric ); setLayer( metric ); } }
+                                >
+                                  { metric === 'AQI' ? 'AQI' : 'PM2.5' }
+                                </button>
+                              ) ) }
+                            </div>
+                            <span className="vl-live-air-heatmap-state" aria-hidden="true">{ layer ? 'On' : 'Off' }</span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={ Boolean( layer ) }
+                              aria-label="Air quality heatmap"
+                              disabled={ !hasSelection }
+                              className={ `vl-live-air-heatmap-switch ${layer ? 'is-on' : ''}`.trim() }
+                              onClick={ () => setLayer( v => v ? null : heatmapMetric ) }
+                            >
+                              <svg viewBox="0 -960 960 960" aria-hidden="true">
+                                <path d={ MATERIAL_SYMBOL_PATHS.switches } />
+                              </svg>
+                            </button>
                           </div>
                         </div>
                         <div className="vl-live-air-heatmap-legend">
@@ -2527,6 +2543,47 @@ const VayuLokLive: React.FC = () => {
                             <span className="vl-live-air-heatmap-end">Excellent</span>
                           </span>
                         </div>
+                      </div>
+
+                      <div className="vl-live-air-forecast">
+                        <div className="vl-live-air-forecast-head">
+                          <h4 className="vl-live-air-forecast-title">Air Forecast</h4>
+                          <div className="vl-live-air-range" role="group" aria-label="Air forecast range">
+                            { ( [ 24, 48, 96 ] as const ).map( hours => (
+                              <button key={ hours } type="button" className={ airForecastHours === hours ? 'is-active' : '' } aria-pressed={ airForecastHours === hours } onClick={ () => setAirForecastHours( hours ) }>
+                                { hours }h
+                              </button>
+                            ) ) }
+                          </div>
+                        </div>
+                        { airForecast.length ? (
+                          <>
+                            <div className="vl-live-air-forecast-strip" aria-label={ `Next ${airForecastHours} hours air forecast` }>
+                              { airForecast.slice( 0, airForecastHours ).map( ( point, idx ) => (
+                                <button key={ point.time } type="button" className={ `vl-live-air-forecast-card ${airForecastInspectIdx === idx ? 'is-active' : ''}`.trim() } aria-pressed={ airForecastInspectIdx === idx } onClick={ () => setAirForecastInspectIdx( idx ) }>
+                                  <span>{ formatHistoryPointLabel( point.time, locationTime.timeZoneId, locationZoneLabel ) }</span>
+                                  <strong>AQI { point.aqi }</strong>
+                                  { Number.isFinite( point.pm25 ) && <small>PM2.5 { Math.round( point.pm25 as number ) } µg/m³</small> }
+                                </button>
+                              ) ) }
+                            </div>
+                            { airForecast[ airForecastInspectIdx ] && (
+                              <div className="vl-live-air-forecast-detail">
+                                { airForecast[ airForecastInspectIdx ].dominant && (
+                                  <span><strong>Dominant</strong> { POLLUTANT_LABELS[ airForecast[ airForecastInspectIdx ].dominant as string ] || airForecast[ airForecastInspectIdx ].dominant }</span>
+                                ) }
+                                { airForecast[ airForecastInspectIdx ].localAqi != null && airForecast[ airForecastInspectIdx ].universalAqi != null && (
+                                  <span><strong>Local / Universal</strong> { airForecast[ airForecastInspectIdx ].localAqi } / { airForecast[ airForecastInspectIdx ].universalAqi }</span>
+                                ) }
+                                { airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation && (
+                                  <p>{ airForecast[ airForecastInspectIdx ].healthRecommendations?.generalPopulation }</p>
+                                ) }
+                              </div>
+                            ) }
+                          </>
+                        ) : (
+                          <p className="vl-live-air-history-empty">96-hour air forecast appears here once Google returns forecast data.</p>
+                        ) }
                       </div>
 
                       {/* SECTION 2 - HEALTH RECOMMENDATIONS. Only Google's returned
@@ -2614,6 +2671,13 @@ const VayuLokLive: React.FC = () => {
                               <>
                                 <div className="vl-live-air-history-head">
                                   <h4 className="vl-live-air-history-title">Hourly History</h4>
+                                  <div className="vl-live-air-range" role="group" aria-label="Air history range">
+                                    { ( [ 24, 168, 720 ] as const ).map( hours => (
+                                      <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
+                                        { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
+                                      </button>
+                                    ) ) }
+                                  </div>
                                 </div>
                                 <p className="vl-live-air-history-empty">Hourly history appears here once a place is selected.</p>
                               </>
@@ -2674,6 +2738,13 @@ const VayuLokLive: React.FC = () => {
                               <div className="vl-live-air-history-head">
                                 <h4 className="vl-live-air-history-title">Hourly History</h4>
                                 <div className="vl-live-air-history-head-meta">
+                                  <div className="vl-live-air-range" role="group" aria-label="Air history range">
+                                    { ( [ 24, 168, 720 ] as const ).map( hours => (
+                                      <button key={ hours } type="button" className={ historyRange === hours ? 'is-active' : '' } aria-pressed={ historyRange === hours } onClick={ () => setHistoryRange( hours ) }>
+                                        { hours === 24 ? '24h' : hours === 168 ? '7d' : '30d' }
+                                      </button>
+                                    ) ) }
+
                                   <span className="vl-live-air-history-stamp">{ stamp }</span>
                                   <div className="vl-live-air-history-nav" aria-label="Hourly history navigation">
                                     <button
