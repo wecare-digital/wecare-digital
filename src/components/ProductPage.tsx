@@ -296,15 +296,21 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              outside. On an unsupported engine the line simply stays solid grey on hover. */
           @supports ((-webkit-background-clip:text) or (background-clip:text)){
             .pdp-cta-note:hover{
+              /* 100% IDENTICAL TO THE FOOTER TAGLINE (.ft-tagline in Footer.tsx): same gradient
+                 stops (42/50/58), same 1.15s cubic-bezier(.45,.05,.55,.95), same keyframe running
+                 100% -> 0% (both endpoints inside 0..100% so the band settles flat on the glyphs,
+                 never off-screen). The only difference from the footer is the trigger: the footer
+                 plays on scroll-in, this plays once on hover. Font is already the footer's
+                 16px/1.6/rgba(0,0,0,.54). */
               background-image:linear-gradient(100deg,
-                rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-              background-size:300% 100%;background-repeat:no-repeat;
+                rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
+              background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
               -webkit-background-clip:text;background-clip:text;
-              -webkit-text-fill-color:transparent;
-              animation:pdp-cta-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+              -webkit-text-fill-color:transparent;color:transparent;
+              animation:pdp-cta-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
             }
           }
-          @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
+          @keyframes pdp-cta-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
           /* Motion-sensitive readers get the line static and solid grey: no sweep, no transparent
              fill, no gradient - the WCAG carve-out for motion on interaction. */
           @media(prefers-reduced-motion:reduce){

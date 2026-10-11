@@ -185,22 +185,25 @@ const BlogContribution: React.FC<BlogContributionProps> = ( { postId, embedded =
          hover the band passes through the glyphs a single time (1 iteration, forwards) and settles.
          Both stops are measured on white - rgba(0,0,0,.54)=4.61:1, #1a3a2a=12.48:1 - so the band
          only DARKENS the text, never a lime wash that would erase it. */
+      /* Font matched to the footer tagline: 16px/1.6/rgba(0,0,0,.54). */
       .bc-cta-note{
-        font-size:13px;line-height:1.4;color:rgba(0,0,0,.54);margin:10px 0 0;
+        font-size:16px;line-height:1.6;color:rgba(0,0,0,.54);margin:10px 0 0;
       }
-      /* GUARDED BY @supports so an engine without background-clip:text never paints the hover
-         text transparent (invisible). Unsupported engines keep the solid grey line on hover. */
+      /* 100% IDENTICAL TO THE FOOTER TAGLINE (.ft-tagline): same gradient stops (42/50/58), same
+         1.15s cubic-bezier(.45,.05,.55,.95), same keyframe 100% -> 0% (endpoints inside 0..100% so
+         the band settles flat, never off-screen). GUARDED BY @supports so an engine without
+         background-clip:text keeps the solid grey line rather than transparent text. */
       @supports ((-webkit-background-clip:text) or (background-clip:text)){
         .bc-cta-note:hover{
           background-image:linear-gradient(100deg,
-            rgba(0,0,0,.54) 44%, #1a3a2a 50%, rgba(0,0,0,.54) 56%);
-          background-size:300% 100%;background-repeat:no-repeat;
+            rgba(0,0,0,.54) 42%, #1a3a2a 50%, rgba(0,0,0,.54) 58%);
+          background-size:300% 100%;background-repeat:no-repeat;background-position:100% 0;
           -webkit-background-clip:text;background-clip:text;
-          -webkit-text-fill-color:transparent;
-          animation:bc-note-sweep 1.1s cubic-bezier(.22,.61,.36,1) 1 forwards;
+          -webkit-text-fill-color:transparent;color:transparent;
+          animation:bc-note-sweep 1.15s cubic-bezier(.45,.05,.55,.95) 1 forwards;
         }
       }
-      @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:-100% 0}}
+      @keyframes bc-note-sweep{from{background-position:100% 0}to{background-position:0% 0}}
       @media(prefers-reduced-motion:reduce){
         .bc-cta{transition:none}
         .bc-cta:hover{transform:none;box-shadow:none}
