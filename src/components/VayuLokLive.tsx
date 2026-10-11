@@ -130,6 +130,7 @@ interface PlaceState {
   websiteURI?: string;
   summary?: string;
   viewport?: { north: number; south: number; east: number; west: number };
+  regionCode?: string;
 }
 
 // The extra Place fields requested on the keyed search/select + map-click paths, on top of
@@ -182,6 +183,8 @@ function metaFromGooglePlace( p: GooglePlaceLike ): Partial<PlaceState> {
   if ( summary ) meta.summary = summary;
   const viewport = p.viewport?.toJSON?.();
   if ( viewport && [ viewport.north, viewport.south, viewport.east, viewport.west ].every( Number.isFinite ) ) meta.viewport = viewport;
+  const country = p.addressComponents?.find( component => component.types?.includes( 'country' ) )?.shortText;
+  if ( typeof country === 'string' && country.trim() ) meta.regionCode = country.trim().toUpperCase();
   return meta;
 }
 
@@ -212,6 +215,7 @@ const DEFAULT_PLACE: PlaceState = {
   addr: 'Shillong, Meghalaya',
   lat: 25.5586,
   lng: 91.8985,
+  regionCode: 'IN',
 };
 
 // OWNER OVERRIDE (reference screenshot, 2026-10-06): the selected place now uses the STANDARD
@@ -371,11 +375,27 @@ function pollenCategory( idx: number ): string {
 /* ---- live data shapes ---------------------------------------------------------------
    Every field is optional: a value only enters state once it actually arrived, so the
    markup renders only the fields that are present and never a placeholder. */
+interface AirIndexInfo {
+  code: string;
+  displayName?: string;
+  aqi: number;
+  aqiDisplay?: string;
+  category?: string;
+  dominantPollutant?: string;
+  regionCode?: string;
+  color?: { red?: number; green?: number; blue?: number };
+}
+
 interface AirState {
   aqi: number;
   word: string;
   sev: Sev;
   indexName?: string;
+  indexCode?: string;
+  aqiDisplay?: string;
+  indexes?: AirIndexInfo[];
+  universalIndex?: AirIndexInfo;
+  localIndex?: AirIndexInfo;
   dominant?: string;
   pollutants: {
     code: string;
@@ -456,6 +476,12 @@ interface AirPoint {
   aqi: number;
   word: string;
   pm25?: number;
+  dominant?: string;
+  indexCode?: string;
+  localAqi?: number;
+  universalAqi?: number;
+  healthRecommendations?: Partial<Record<HealthRecommendationKey, string>>;
+  pollutants?: { code: string; value: number; unit: string }[];
 }
 interface WeatherAlertRow {
   id: string;
@@ -549,16 +575,27 @@ function airPointFromApi( row: Record<string, any> ): AirPoint | null {
   const time = new Date( row?.dateTime || row?.period?.startTime || row?.interval?.startTime || 0 ).getTime();
   if ( !Number.isFinite( time ) ) return null;
   const indexes = Array.isArray( row?.indexes ) ? row.indexes : [];
-  const idx = indexes.find( ( i: any ) => i?.code === 'ind_cpcb' ) || indexes.find( ( i: any ) => i?.code === 'uaqi' ) || indexes[ 0 ];
+  const local = indexes.find( ( i: any ) => i?.code && i.code !== 'uaqi' && Number.isFinite( i.aqi ) );
+  const universal = indexes.find( ( i: any ) => i?.code === 'uaqi' && Number.isFinite( i.aqi ) );
+  const idx = local || universal || indexes.find( ( i: any ) => Number.isFinite( i?.aqi ) );
   const aqi = n( idx?.aqi );
   if ( !Number.isFinite( aqi ) ) return null;
-  const pm = ( Array.isArray( row?.pollutants ) ? row.pollutants : [] ).find( ( p: any ) => p?.code === 'pm25' );
-  const pm25 = n( pm?.concentration?.value );
+  const pollutantRows = ( Array.isArray( row?.pollutants ) ? row.pollutants : [] )
+    .map( ( p: any ) => ( { code: String( p?.code || '' ), value: n( p?.concentration?.value ), unit: concUnitLabel( p?.concentration?.units ) } ) )
+    .filter( p => Boolean( p.code ) && Number.isFinite( p.value ) );
+  const pm = pollutantRows.find( p => p.code === 'pm25' );
+  const healthRecommendations = parseHealthRecommendations( row?.healthRecommendations );
   return {
     time,
     aqi: Math.round( aqi ),
-    word: typeof idx?.category === 'string' ? idx.category : aqiCategory( aqi ).word,
-    ...( Number.isFinite( pm25 ) ? { pm25 } : {} ),
+    word: typeof idx?.category === 'string' && idx.category.trim() ? idx.category.trim() : aqiCategory( aqi ).word,
+    ...( pm ? { pm25: pm.value } : {} ),
+    ...( typeof idx?.dominantPollutant === 'string' ? { dominant: idx.dominantPollutant } : {} ),
+    ...( typeof idx?.code === 'string' ? { indexCode: idx.code } : {} ),
+    ...( local && Number.isFinite( local.aqi ) ? { localAqi: Math.round( local.aqi ) } : {} ),
+    ...( universal && Number.isFinite( universal.aqi ) ? { universalAqi: Math.round( universal.aqi ) } : {} ),
+    ...( healthRecommendations ? { healthRecommendations } : {} ),
+    ...( pollutantRows.length ? { pollutants: pollutantRows } : {} ),
   };
 }
 
@@ -659,10 +696,24 @@ function formatHistoryPointLabel( value: number, timeZoneId: string, zoneLabel: 
    arrived, so a point that fails to parse is DROPPED, never fabricated. Shared by the
    layer-activation center-point fetch; the grid points reuse airPointFromApi instead. */
 function airStateFromApiData( data: Record<string, any> | null | undefined ): AirState | null {
-  const indexes: { code?: string; displayName?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
-  const idx = indexes.find( i => i.code === 'ind_cpcb' ) || indexes.find( i => i.code === 'uaqi' ) || indexes[ 0 ];
+  const rawIndexes: Record<string, any>[] = Array.isArray( data?.indexes ) ? data.indexes : [];
+  const indexes: AirIndexInfo[] = rawIndexes
+    .filter( i => typeof i?.code === 'string' && Number.isFinite( i?.aqi ) )
+    .map( i => ( {
+      code: i.code,
+      aqi: i.aqi,
+      ...( typeof i.displayName === 'string' && i.displayName.trim() ? { displayName: i.displayName.trim() } : {} ),
+      ...( typeof i.aqiDisplay === 'string' && i.aqiDisplay.trim() ? { aqiDisplay: i.aqiDisplay.trim() } : {} ),
+      ...( typeof i.category === 'string' && i.category.trim() ? { category: i.category.trim() } : {} ),
+      ...( typeof i.dominantPollutant === 'string' && i.dominantPollutant ? { dominantPollutant: i.dominantPollutant } : {} ),
+      ...( typeof i.regionCode === 'string' && i.regionCode ? { regionCode: i.regionCode } : {} ),
+      ...( i.color && typeof i.color === 'object' ? { color: i.color } : {} ),
+    } ) );
+  const localIndex = indexes.find( i => i.code !== 'uaqi' );
+  const universalIndex = indexes.find( i => i.code === 'uaqi' );
+  const idx = localIndex || universalIndex || indexes[ 0 ];
   if ( !idx || !Number.isFinite( idx.aqi ) ) return null;
-  const aqi = idx.aqi as number;
+  const aqi = idx.aqi;
   const cat = aqiCategory( aqi );
   const pollutants: AirState['pollutants'] = [];
   ( data?.pollutants || [] ).forEach( ( p: {
@@ -690,9 +741,14 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
   const advisory = healthRecommendations?.generalPopulation;
   return {
     aqi,
-    word: cat.word,
+    word: idx.category || cat.word,
     sev: cat.sev,
-    ...( typeof idx.displayName === 'string' && idx.displayName.trim() ? { indexName: idx.displayName.trim() } : {} ),
+    ...( idx.displayName ? { indexName: idx.displayName } : {} ),
+    indexCode: idx.code,
+    ...( idx.aqiDisplay ? { aqiDisplay: idx.aqiDisplay } : {} ),
+    indexes,
+    ...( universalIndex ? { universalIndex } : {} ),
+    ...( localIndex ? { localIndex } : {} ),
     dominant: idx.dominantPollutant || undefined,
     pollutants,
     ...( healthRecommendations ? { healthRecommendations } : {} ),
@@ -703,7 +759,13 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
 
 /* The request body shared by the center-point and grid air fetches - identical shape to
    the former single-point fetchAir so dots carry the same real currentConditions values. */
-function airRequestBody( lat: number, lng: number ): Record<string, unknown> {
+function localAqiOverride( regionCode?: string ): Record<string, unknown> {
+  return regionCode === 'IN'
+    ? { customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] }
+    : {};
+}
+
+function airRequestBody( lat: number, lng: number, regionCode?: string ): Record<string, unknown> {
   return {
     location: { latitude: lat, longitude: lng },
     extraComputations: [
@@ -714,9 +776,7 @@ function airRequestBody( lat: number, lng: number ): Record<string, unknown> {
     ],
     languageCode: 'en',
     universalAqi: true,
-    // Parity with fetchAir + loadAirForecast + the air-history call: request the India CPCB
-    // local AQI so airStateFromApiData (which prefers ind_cpcb) can receive it here too.
-    customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
+    ...localAqiOverride( regionCode ),
   };
 }
 
