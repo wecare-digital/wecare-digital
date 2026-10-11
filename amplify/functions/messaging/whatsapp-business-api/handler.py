@@ -4065,6 +4065,35 @@ def _project_submission_attachments(attachments):
     return projected
 
 
+# Safety cap: a bug or a runaway table must not turn a "complete" read into an unbounded loop.
+# 50 pages x 1MB is ~50MB / tens of thousands of rows — far beyond any real flow volume, so if
+# this is hit the result is logged as potentially-partial rather than silently truncated.
+_DRAIN_MAX_PAGES = 50
+
+
+def _drain(table, method: str, **kwargs):
+    """Follow LastEvaluatedKey to return the COMPLETE result set, not just the first page.
+
+    The fix for the "first DynamoDB page looked like the whole dataset" class of bug: stats that
+    understated, an SLA sweep that skipped rows, a CSV that truncated. Returns (items, complete)
+    where `complete` is False only if the page cap was hit (then the caller can flag partial).
+    """
+    items = []
+    op = getattr(table, method)
+    resp = op(**kwargs)
+    items.extend(resp.get('Items', []))
+    pages = 1
+    while 'LastEvaluatedKey' in resp and pages < _DRAIN_MAX_PAGES:
+        resp = op(ExclusiveStartKey=resp['LastEvaluatedKey'], **kwargs)
+        items.extend(resp.get('Items', []))
+        pages += 1
+    complete = 'LastEvaluatedKey' not in resp
+    if not complete:
+        logger.warning(json.dumps({'event': 'drain_page_cap_hit', 'method': method,
+                                   'pages': pages, 'items': len(items)}))
+    return items, complete
+
+
 def _list_flow_submissions(params: Dict) -> Dict:
     """List flow submissions with filtering."""
     try:
@@ -4122,8 +4151,8 @@ def _list_flow_registry(params: Dict) -> Dict:
     """List all registered flows."""
     try:
         table = dynamodb.Table(FLOW_REGISTRY_TABLE)
-        resp = table.scan()
-        items = resp.get('Items', [])
+        # The registry is the capability map — a truncated page would hide flows. Drain it.
+        items, _complete = _drain(table, 'scan')
         for item in items:
             for k, v in item.items():
                 if isinstance(v, Decimal):
@@ -4386,15 +4415,15 @@ def _get_flow_submission_stats(params: Dict) -> Dict:
     try:
         table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
         flow_code = params.get('flowCode', '')
+        # Stats are SUMS, so they must see every row — a single 500-row page made captured and
+        # pending understate and look like missing data. Drain the full set.
         if flow_code:
-            resp = table.query(
-                IndexName='flowCode', KeyConditionExpression='flowCode = :c',
+            items, complete = _drain(
+                table, 'query', IndexName='flowCode', KeyConditionExpression='flowCode = :c',
                 ExpressionAttributeValues={':c': flow_code},
-                Limit=500,
             )
         else:
-            resp = table.scan(Limit=500)
-        items = resp.get('Items', [])
+            items, complete = _drain(table, 'scan')
         stats = {
             'total': len(items),
             'byStatus': {}, 'byPaymentStatus': {},
@@ -4418,6 +4447,8 @@ def _get_flow_submission_stats(params: Dict) -> Dict:
             elif payment_state == pay_status.PENDING:
                 stats['pendingAmount'] += amt
             stats['totalPaymentAmount'] += amt
+        # Honest about the rare page-cap case rather than quietly reporting a partial sum.
+        stats['complete'] = complete
         return _resp(200, stats)
     except Exception as e:
         logger.error(f'Flow submission stats error: {e}')
@@ -4461,12 +4492,12 @@ def _check_sla_and_escalate(params: Dict) -> Dict:
         sla_days = int(params.get('slaDays', '7'))
         reminder_days = int(params.get('reminderDays', '3'))
         default_assignee = params.get('defaultAssignee', 'support@wecare.digital')
-        resp = table.query(
-            IndexName='status', KeyConditionExpression='#st = :s',
-            ExpressionAttributeNames={'#st': 'status'},
-            ExpressionAttributeValues={':s': 'open'}, Limit=500,
+        # An SLA sweep that stops at 500 silently skips the oldest overdue rows — exactly the
+        # ones it exists to catch. Drain every open submission.
+        items, _complete = _drain(
+            table, 'query', IndexName='status', KeyConditionExpression='#st = :s',
+            ExpressionAttributeNames={'#st': 'status'}, ExpressionAttributeValues={':s': 'open'},
         )
-        items = resp.get('Items', [])
         actions = {'reminded': 0, 'auto_assigned': 0, 'escalated': 0, 'overdue_payments': 0}
         for item in items:
             created = int(item.get('createdAt', 0))
@@ -4626,15 +4657,16 @@ def _export_submissions_csv(params: Dict) -> Dict:
         table = dynamodb.Table(FLOW_SUBMISSIONS_TABLE)
         flow_code = params.get('flowCode', '')
         payment_status = params.get('paymentStatus', '')
+        # A reconciliation CSV that truncates at 1000 is worse than none — it looks complete.
+        # Drain the full set.
         if flow_code:
-            resp = table.query(IndexName='flowCode', KeyConditionExpression='flowCode = :c',
-                ExpressionAttributeValues={':c': flow_code}, Limit=1000)
+            items, _complete = _drain(table, 'query', IndexName='flowCode',
+                KeyConditionExpression='flowCode = :c', ExpressionAttributeValues={':c': flow_code})
         elif payment_status:
-            resp = table.query(IndexName='paymentStatus', KeyConditionExpression='paymentStatus = :s',
-                ExpressionAttributeValues={':s': payment_status}, Limit=1000)
+            items, _complete = _drain(table, 'query', IndexName='paymentStatus',
+                KeyConditionExpression='paymentStatus = :s', ExpressionAttributeValues={':s': payment_status})
         else:
-            resp = table.scan(Limit=1000)
-        items = resp.get('Items', [])
+            items, _complete = _drain(table, 'scan')
         items.sort(key=lambda x: int(x.get('createdAt', 0)), reverse=True)
         headers = ['submissionNumber', 'flowCode', 'phone', 'senderName', 'orderId',
                     'requestType', 'subject', 'paymentStatus', 'paymentAmount', 'paymentRefId',
