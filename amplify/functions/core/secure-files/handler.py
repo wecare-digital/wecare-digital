@@ -67,6 +67,7 @@ from botocore.exceptions import ClientError
 from lambda_utils import customer_auth, media_paths
 from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
 from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
+from lambda_utils.ecommerce import vault_window
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -977,6 +978,55 @@ def _active_entitlement(access_id: str, file_id: str,
     return row
 
 
+def _open_access_window(entitlement: Dict[str, Any], now: Optional[int] = None) -> Dict[str, Any]:
+    """Open (or renew) the 24h access window on a durable entitlement, at delivery.
+
+    ₹49 buys one window of ``VAULT_ACCESS_WINDOW_HOURS``; inside it every download is free. This
+    is the only place the window is opened. It is idempotent: if a window is already open,
+    ``vault_window.open_window`` returns no changes, so a duplicate tap / webhook replay neither
+    re-charges nor double-increments ``accessWindowCount``. The write is conditioned so two
+    concurrent opens converge on one window rather than racing the counter.
+    """
+    now = int(time.time()) if now is None else int(now)
+    fields, opened = vault_window.open_window(entitlement, now)
+    if not opened:
+        return entitlement
+    try:
+        _table(GRANTS_TABLE).update_item(
+            Key={"grantId": entitlement["grantId"]},
+            UpdateExpression=(
+                "SET accessWindowStartedAt = :s, accessWindowEndsAt = :e, "
+                "accessWindowCount = :c"
+            ),
+            # Only advance from the count we read: a racing opener either saw the same prior
+            # count (one wins, one no-ops on the condition) or a later one (we yield).
+            ConditionExpression=(
+                "attribute_exists(grantId) AND entitlementState = :active AND "
+                "(attribute_not_exists(accessWindowCount) OR accessWindowCount = :prev)"
+            ),
+            ExpressionAttributeValues={
+                ":s": fields["accessWindowStartedAt"],
+                ":e": fields["accessWindowEndsAt"],
+                ":c": fields["accessWindowCount"],
+                ":prev": vault_window.window_count(entitlement),
+                ":active": "ACTIVE",
+            },
+        )
+        logger.info(json.dumps({
+            "event": "vault_access_window_opened",
+            "entitlementId": entitlement["grantId"],
+            "windowCount": fields["accessWindowCount"],
+            "endsAt": fields["accessWindowEndsAt"],
+        }))
+    except ClientError as exc:
+        # A lost race means another opener already set a window; re-read and return current truth.
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+    refreshed = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": entitlement["grantId"]}, ConsistentRead=True).get("Item") or entitlement
+    return refreshed
+
+
 def _issue_download_session(entitlement: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
     """Record one expiring transport attempt without changing financial entitlement."""
     now = int(time.time())
@@ -1529,7 +1579,29 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
                   "message": "This file is not authorized for this account. If you already paid, contact support; do not pay again."},
             origin)
 
+    # The access window governs free re-download. The FIRST redeem after a paid entitlement opens
+    # the window (delivery is when the clock starts, per the owner rule); redeems inside the
+    # window are free; once it closes, access needs a fresh ₹49 (feat-006 renewal), so we refuse
+    # here rather than hand out transport the customer has not paid for.
+    now = int(time.time())
+    if vault_window.window_open(entitlement, now):
+        pass  # inside an open window — free re-download
+    elif vault_window.window_count(entitlement) <= 0:
+        entitlement = _open_access_window(entitlement, now)  # first delivery opens the window
+    else:
+        return cors_response(
+            403,
+            {
+                "error": "ACCESS_WINDOW_CLOSED",
+                "message": "Your 24-hour access window has ended. Renew access to download again.",
+                "windowCount": vault_window.window_count(entitlement),
+            },
+            origin,
+        )
+
     payload = _issue_download_session(entitlement, item)
+    payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
+    payload["accessWindowCount"] = vault_window.window_count(entitlement)
     _queue_vault_review(entitlement)
     try:
         _table(FILES_TABLE).update_item(
@@ -1542,6 +1614,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     logger.info(json.dumps({
         "event": "secure_file_download_session_issued", "fileId": file_id,
         "ownerPhone": mask_phone(identity["phone"]),
+        "windowEndsAt": vault_window.window_ends_at(entitlement),
     }))
     return cors_response(200, payload, origin)
 
