@@ -1967,7 +1967,6 @@ const VayuLokLive: React.FC = () => {
   );
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
   const mapActive = Boolean( MAPS_KEY );
-  const liveActive = Boolean( MAPS_KEY && hasSelection );
 
   const atmosphereStyle = useMemo( () => {
     const cloud = Number.isFinite( weather?.cloudCover ) ? weather?.cloudCover as number : 58;
@@ -2125,8 +2124,8 @@ const VayuLokLive: React.FC = () => {
                           continuous AQI heatmap TILE overlay, default ON); the Storm switch
                           drives the independent `stormOn` state (the local SVG/CSS atmosphere,
                           default ON). Neither issues a fetch here. Both are
-                          disabled until a place is selected, mirroring the .vl-live-layers
-                          buttons. Below, a Poor -> Excellent legend bar on the approved no-red
+                          disabled until a place is selected. Below, a Poor -> Excellent legend
+                          bar on the approved no-red
                           ramp; the words (not the colour) carry the meaning (WCAG 1.4.1). */}
                       <div className="vl-live-air-heatmap">
                         <div className="vl-live-air-heatmap-row">
@@ -2495,20 +2494,6 @@ const VayuLokLive: React.FC = () => {
                 </div>
               ) }
 
-              { mapReady && (
-                <div className="vl-live-layers" role="group" aria-label="Air quality layers">
-                  <button type="button" disabled={ !hasSelection } aria-pressed={ layer === 'AQI' } onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }>AQI</button>
-                  <button type="button" disabled={ !hasSelection } aria-pressed={ layer === 'PM25' } onClick={ () => setLayer( v => v === 'PM25' ? null : 'PM25' ) }>PM2.5</button>
-                  <button type="button" disabled aria-pressed="false"><span className="vl-live-source-dot" />Observed</button>
-                </div>
-              ) }
-
-              { liveActive && previewPlace.name && (
-                <div className="vl-live-selected-label" aria-live="polite">
-                  <strong>{ previewPlace.name }</strong>
-                  { ( addressDescriptor || previewPlace.primaryType || previewPlace.addr ) && <span>{ addressDescriptor || previewPlace.primaryType || previewPlace.addr }</span> }
-                </div>
-              ) }
             </div>
           </section>
         </div>
@@ -2770,9 +2755,9 @@ const VayuLokLive: React.FC = () => {
 
         /* FULL-BLEED MAP. The map reads edge-to-edge: no border, no rounded box. overflow:hidden
            still clips the heatmap tiles + overlays, isolation:isolate keeps the overlay z-stack
-           contained, and the height band is unchanged. The floating .vl-live-air-card and the
-           on-map controls stay positioned over the now edge-to-edge map, and the card's bottom
-           inset still clears Google's bottom-left logo and bottom-right legal corners. */
+           contained, and the height band is unchanged. The floating .vl-live-air-card and search
+           stay positioned over the edge-to-edge map, while the card's bottom inset still clears
+           Google's bottom-left logo and bottom-right legal corners. */
         .vl-live-map-shell{position:relative;height:72dvh;min-height:620px;max-height:860px;overflow:hidden;background:#eef1ed;isolation:isolate}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
@@ -2830,17 +2815,6 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-results strong{font-size:13px;color:var(--heading)}
         .vl-live-search-results span{margin-top:2px;font-size:11px;color:var(--muted)}
         .vl-live-search-status{margin:6px 8px 0;font-size:11px;color:var(--muted)}
-        .vl-live-layers{position:absolute;z-index:10;right:16px;top:78px;display:flex;gap:6px;padding:3px;border:1px solid rgba(26,58,42,.13);border-radius:999px;background:rgba(255,255,255,.92)}
-        .vl-live-layers button{height:36px;min-height:36px;padding:0 12px;border:0;border-radius:999px;background:transparent;color:var(--green);font-size:11.5px;font-weight:700}
-        .vl-live-layers button:hover{background:rgba(209,244,112,.18)}
-        .vl-live-layers button[aria-pressed="true"]{background:rgba(209,244,112,.60);box-shadow:inset 0 0 0 1px rgba(26,58,42,.22)}
-        .vl-live-layers button:disabled{opacity:1;color:rgba(26,58,42,.62);cursor:default}
-        .vl-live-source-dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 1px var(--green)}
-        .vl-live-selected-label{position:absolute;z-index:11;left:50%;bottom:28px;transform:translateX(-50%);width:auto;max-width:min(500px,calc(100% - 92px));min-height:46px;display:flex;align-items:center;justify-content:center;gap:9px;padding:8px 15px;border:1px solid rgba(26,58,42,.14);border-radius:999px;background:#fff;text-align:center;box-shadow:0 5px 18px rgba(26,58,42,.07)}
-        .vl-live-selected-label strong{font-size:12px;color:var(--heading);letter-spacing:.035em;text-transform:uppercase}
-        .vl-live-selected-label span{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .vl-live-selected-label span::before{content:'·';margin-right:8px;color:rgba(26,58,42,.45)}
-
         @media(max-width:1050px){
           .vl-live-map-shell{height:66dvh;min-height:560px}
         }
@@ -2848,8 +2822,6 @@ const VayuLokLive: React.FC = () => {
           .vl-live-shell{padding:10px 10px 44px}
           .vl-live-map-shell{height:62dvh;min-height:460px;max-height:640px}
           .vl-live-map-search{top:10px;width:calc(100% - 20px)}
-          .vl-live-layers{top:70px;right:10px}
-          .vl-live-selected-label{bottom:22px;width:calc(100% - 20px);max-width:none}
           /* The floating card narrows and stays inset so it keeps the map and the
              bottom attribution corners usable on small screens. */
           .vl-live-air-card{top:10px;left:10px;width:calc(100% - 20px);max-width:300px;max-height:calc(100% - 170px);padding:14px 14px 12px}
@@ -2859,7 +2831,6 @@ const VayuLokLive: React.FC = () => {
           .vl-live-shell{padding-top:8px}
           .vl-live-map-shell{height:calc(100dvh - 24px);min-height:250px}
           .vl-live-search-field{height:44px}
-          .vl-live-layers{top:64px}
           .vl-live-air-card{max-height:calc(100% - 20px)}
         }
         @media(prefers-reduced-motion:reduce){
