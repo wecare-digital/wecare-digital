@@ -87,7 +87,6 @@ def snapshot_products():
     return json.loads(SNAPSHOT.read_text(encoding="utf-8"))["products"]
 
 
-
 def with_service_images(products):
     """Return a detached snapshot copy with publishable artwork on the five Request variants.
 
@@ -103,6 +102,7 @@ def with_service_images(products):
         variant["image"] = (
             f"https://static.wixstatic.com/media/request-{variant['id']}.png")
     return cloned
+
 
 class FakeWix:
     """Serves the committed snapshot through the two live V3 endpoints, with their own envelopes.
@@ -640,8 +640,7 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 23
-    # Nine of the ten real products carry no media in Wix. The services product is the only one
-    # that does, so it is the only one absent from the blocked list.
+    # The current committed Wix snapshot has no media for any of the ten real products.
     assert planned["blocked"] == 10
     assert "Request" in planned["blockedProducts"]
     assert planned["enabled"] is False
@@ -804,7 +803,6 @@ def test_choice_artwork_overrides_stale_variant_index_media():
 
 
 def test_scoped_rollout_never_retires_unselected_variants(snapshot_products, monkeypatch):
-    all_items = sync.desired_items(snapshot_products)
     wanted = "e9f0eb8b-ca76-4b4f-b00c-be909c02bb2b"
     monkeypatch.setenv("META_CATALOG_SYNC_VARIANT_IDS", wanted)
     monkeypatch.setenv("META_CATALOG_SYNC_FORCE_OUT_OF_STOCK", "true")
