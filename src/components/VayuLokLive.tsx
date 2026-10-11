@@ -1453,6 +1453,9 @@ const VayuLokLive: React.FC = () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
+    // Reset paging whenever the place/range changes so the pinned "current" bubble
+    // tracks the newest point of the new series instead of a stale offset.
+    setHistoryOffset( 0 );
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}:${historyRange}`;
     const cachedHistory = historyCache.current[ historyKey ];
     const HISTORY_TTL_MS = historyRange === 24 ? 15 * 60 * 1000 : 60 * 60 * 1000;
@@ -2295,7 +2298,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
         .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;cursor:help}
         .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--green);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
-        .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus svg{stroke:#3da35a}
+        .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus svg{stroke:var(--lime)}
 
         /* ── HEATMAP (toggle + Poor->Excellent legend) ──────────────────────────────
            The switch drives the existing deck.gl AQI overlay via the layer state. On/off is
