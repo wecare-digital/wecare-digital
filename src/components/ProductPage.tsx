@@ -343,8 +343,8 @@ const ProductPage: React.FC<ProductPageProps> = ( {
           }
           @media(min-width:768px){
             :global(.pdp-wrap.has-aside){
-              display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);
-              column-gap:32px;align-items:start;
+              display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,480px);
+              column-gap:40px;align-items:start;
             }
             /* The product column keeps its own 700px cap inside the flexible track so the copy
                measure is unchanged; the grid track just stops it stretching under the panel. */

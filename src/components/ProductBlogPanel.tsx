@@ -42,14 +42,14 @@ export interface ProductBlogPanelProps {
   heading?: string;
 }
 
-const NEW_WINDOW_DAYS = 30;
-
 /**
- * HOW MANY CARDS PER PAGE. Four reads as a comfortable page in the ~460px rail: enough to feel
- * like a spread, few enough that a page rarely needs to scroll. The last page simply holds the
- * remainder.
+ * HOW MANY CARDS PER PAGE. Four reads as a comfortable page in the rail: enough to feel like a
+ * spread, few enough that a page rarely needs to scroll. The last page simply holds the remainder.
  */
 const CARDS_PER_PAGE = 4;
+
+/** How many tag chips a card shows at most, so a heavily-tagged post does not run its card long. */
+const CARD_TAGS = 3;
 
 /** True when the OS asks for reduced motion, so page changes jump instead of sliding. SSR-safe. */
 function prefersReducedMotion (): boolean {
@@ -57,12 +57,12 @@ function prefersReducedMotion (): boolean {
   return window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
 }
 
-/** Published within the last NEW_WINDOW_DAYS. Missing/!parseable date is never "new". */
-function isNew ( publishedDate?: string ): boolean {
-  if ( !publishedDate ) return false;
-  const t = Date.parse( publishedDate );
-  if ( Number.isNaN( t ) ) return false;
-  return Date.now() - t <= NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+/** The first CARD_TAGS non-empty tags of a card, trimmed. Empty when the post carries none. */
+function cardTags ( card: BlogCard ): string[] {
+  return ( card.tags || [] )
+    .map( t => t.trim() )
+    .filter( Boolean )
+    .slice( 0, CARD_TAGS );
 }
 
 const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = 'From the blog' } ) => {
@@ -206,12 +206,20 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
                   { pageCards.map( card => (
                     <li key={ card.slug } className="pbp-card">
                       <Link className="pbp-link" href={ `/post/${card.slug}/` } tabIndex={ pageIndex === activePage ? undefined : -1 }>
-                        <span className="pbp-meta">
-                          { isNew( card.publishedDate ) && <span className="pbp-badge">New</span> }
-                          { card.category && <span className="pbp-chip">{ card.category }</span> }
-                        </span>
                         <span className="pbp-title">{ card.title }</span>
                         { card.excerpt && <span className="pbp-excerpt">{ card.excerpt }</span> }
+                        {/* REAL TAGS, not a "New" badge. The owner asked to drop the recency
+                            badge and show the post's own tags. We print up to CARD_TAGS of them as
+                            quiet chips; the category is NOT repeated here because the active
+                            category pill at the top already says which stream this is. Guarded so
+                            a tagless post simply shows none. */}
+                        { cardTags( card ).length > 0 && (
+                          <span className="pbp-tags">
+                            { cardTags( card ).map( tag => (
+                              <span className="pbp-chip" key={ tag }>{ tag }</span>
+                            ) ) }
+                          </span>
+                        ) }
                       </Link>
                     </li>
                   ) ) }
@@ -219,9 +227,11 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
               ) ) }
             </div>
 
-            {/* PAGER CONTROLS: a previous/next arrow pair and a row of page dots. Shown only when
-                there is more than one page - a single page needs no navigation. The dots mark
-                position, not count; no numbers, per owner instruction. */}
+            {/* PAGER CONTROLS: a previous/next arrow pair flanking a PROGRESS BAR. The dots were
+                replaced because the corpus runs to 20+ pages and that many dots is unreadable -
+                the bar scales to any page count. The fill tracks position through the pages
+                ((activePage+1)/pageCount); role=progressbar announces it with no on-screen number.
+                Shown only when there is more than one page. */}
             { pageCount > 1 && (
               <div className="pbp-nav">
                 <button
@@ -232,17 +242,18 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
                   onClick={ () => goToPage( activePage - 1 ) }
                 >‹</button>
 
-                <div className="pbp-dots" role="tablist" aria-label="Blog pages">
-                  { pages.map( ( _p, i ) => (
-                    <button
-                      key={ i }
-                      type="button"
-                      className={ i === activePage ? 'pbp-dot is-on' : 'pbp-dot' }
-                      aria-label={ `Go to page ${i + 1}` }
-                      aria-current={ i === activePage ? 'true' : undefined }
-                      onClick={ () => goToPage( i ) }
-                    />
-                  ) ) }
+                <div
+                  className="pbp-progress-track"
+                  role="progressbar"
+                  aria-label="Position through the pages"
+                  aria-valuemin={ 1 }
+                  aria-valuemax={ pageCount }
+                  aria-valuenow={ activePage + 1 }
+                >
+                  <div
+                    className="pbp-progress-fill"
+                    style={ { width: `${( ( activePage + 1 ) / pageCount ) * 100}%` } }
+                  />
                 </div>
 
                 <button
@@ -258,7 +269,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         ) }
 
       <style jsx>{`
-        .pbp{max-width:460px}
+        .pbp{max-width:560px}
         .pbp-h{
           font-size:clamp(22px,2.4vw,28px);font-weight:700;line-height:1.1;
           letter-spacing:-.5px;color:rgba(0,0,0,.95);margin:0 0 18px;
@@ -325,8 +336,9 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
         .pbp-card{margin:0}
 
-        /* PAGER CONTROLS: arrows flanking a row of dots, centred, 14px of air above. */
-        .pbp-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin:14px 0 0}
+        /* PAGER CONTROLS: arrows flanking the progress bar, which stretches to fill the row.
+           14px of air above. */
+        .pbp-nav{display:flex;align-items:center;gap:12px;margin:14px 0 0}
         .pbp-arrow{
           display:inline-flex;align-items:center;justify-content:center;
           width:34px;height:34px;flex:0 0 auto;
@@ -338,17 +350,16 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-arrow:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
         .pbp-arrow:disabled{opacity:.35;cursor:default}
 
-        /* PAGE DOTS. Hairline dots; the active one fills lime and widens into a pill - position,
-           not count, no numbers. */
-        .pbp-dots{display:flex;align-items:center;gap:8px}
-        .pbp-dot{
-          width:8px;height:8px;flex:0 0 auto;padding:0;
-          border:1px solid #cfd4d9;border-radius:50px;background:#fff;cursor:pointer;
-          transition:width .2s,background-color .2s,border-color .2s;
+        /* PAGER PROGRESS BAR. Grows to fill the space between the two arrows. The track is a
+           hairline on near-white; the fill is lime - the one place lime marks progress rather than
+           action, fine as a thin bar. No numbers. */
+        .pbp-progress-track{
+          flex:1 1 auto;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
         }
-        .pbp-dot:hover{border-color:#1a3a2a}
-        .pbp-dot.is-on{width:22px;background:#d1f470;border-color:#1a3a2a}
-        .pbp-dot:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+        .pbp-progress-fill{
+          height:100%;border-radius:50px;background:#d1f470;
+          transition:width .2s ease;
+        }
 
         /* The whole card is the link. Hairline quiet card, lifts and borders dark on hover. */
         .pbp-link{
@@ -360,18 +371,15 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-link:hover{border-color:#1a3a2a;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
         .pbp-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
-        .pbp-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-        /* STATUS: a lime "New" badge for recent posts. */
-        .pbp-badge{
-          display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:50px;
-          background:#d1f470;color:#1a3a2a;font-size:11px;font-weight:700;letter-spacing:.02em;
-          text-transform:uppercase;
-        }
-        /* STATUS: the category as a quiet chip. */
+        /* TAG ROW at the foot of a card: the post's own tags as quiet chips, replacing the old
+           "New" badge. Wraps rather than overflowing, sits a touch under the excerpt. */
+        .pbp-tags{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:2px 0 0}
+        /* A quiet hairline chip. Not uppercase - a tag is a word a reader typed, shown as written,
+           not a status label like the old badge. */
         .pbp-chip{
-          display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:50px;
-          border:1px solid #e5e7eb;color:rgba(0,0,0,.62);font-size:11px;font-weight:600;
-          letter-spacing:.02em;text-transform:uppercase;
+          display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:50px;
+          border:1px solid #e5e7eb;color:rgba(0,0,0,.62);font-size:12px;font-weight:600;
+          line-height:1;
         }
         .pbp-title{font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
         /* The short review: the post excerpt, clamped to two lines so no card runs long. */
@@ -381,7 +389,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-dot{transition:none}
+          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
           .pbp-link:hover{transform:none;box-shadow:none}
           /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
              track still snaps, it just does not animate the slide. */
