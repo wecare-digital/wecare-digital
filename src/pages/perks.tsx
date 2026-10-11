@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import Link from 'next/link';
 import PageMeta from '../components/PageMeta';
 import RotatingHero from '../components/RotatingHero';
 import type { CycleWord } from '../components/RotatingHero';
@@ -171,10 +172,9 @@ const PerksPage: React.FC = () => {
               <li>We say plainly what is not ready yet.</li>
               <li>Any eligible coupon is applied at checkout, not here.</li>
             </ul>
-            {/* A PLAIN <a>, and it must stay one: styled-jsx only scopes lowercase DOM tags, so a
-                next/link carrying pk-close-cta would render unstyled. Every CTA on the public pages
-                is a plain <a> for the same reason. */}
-            <a className="pk-close-cta" href="/shop/">See what we offer</a>
+            {/* Internal navigation stays inside Next's router. Link renders the anchor carrying
+                pk-close-cta, so styled-jsx still scopes the class while avoiding a full reload. */}
+            <Link className="pk-close-cta" href="/shop/">See what we offer</Link>
           </div>
         </section>
 
