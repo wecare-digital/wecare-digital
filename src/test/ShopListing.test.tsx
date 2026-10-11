@@ -7,7 +7,7 @@ import ShopIndex from '../pages/shop/index';
 import ShopListingPage, { getStaticPaths } from '../pages/shop/page/[page]';
 import ShopListingView from '../components/ShopListingView';
 import { PRODUCTS } from '../content/products';
-import { SHOP_PRODUCTS, catalogReadOn } from '../content/shop';
+import { SHOP_PRODUCTS } from '../content/shop';
 import {
   SHOP_LISTINGS, SHOP_LISTINGS_PER_PAGE, shopListingPageCount, shopListingPageHref,
 } from '../content/shopProducts';
@@ -167,30 +167,28 @@ describe( 'the listing page', () => {
     expect( field ).toHaveAttribute( 'id', 'shop-q' );
   } );
 
-  it( 'renders one card per listing in the slice, each linking to its own detail page', () => {
+  it( 'renders the WHOLE shelf in the row, each linking to its own detail page', () => {
+    // The rendered experience is one horizontal rail of every product, not this route's six-item
+    // slice, so the row draws from allListings. The arrows scroll it; there is no page nav.
     const props = propsFor( 1 );
     const { container } = render( <ShopIndex { ...props } /> );
     const cards = Array.from( container.querySelectorAll( 'a.shop-card' ) );
-    expect( cards ).toHaveLength( props.listings.length );
+    expect( cards ).toHaveLength( SHOP_LISTINGS.length );
     cards.forEach( ( card, i ) => {
       expect( samePath( card.getAttribute( 'href' ) ) )
-        .toBe( samePath( props.listings[ i ].href ) );
-      expect( card.textContent ).toContain( props.listings[ i ].name );
-      expect( card.textContent ).toContain( props.listings[ i ].blurb );
+        .toBe( samePath( SHOP_LISTINGS[ i ].href ) );
+      expect( card.textContent ).toContain( SHOP_LISTINGS[ i ].name );
+      expect( card.textContent ).toContain( SHOP_LISTINGS[ i ].blurb );
     } );
   } );
 
-  it( 'reaches every product across its pages, and only through real links', () => {
-    const seen: string[] = [];
-    for ( let page = 1; page <= totalPages; page++ ) {
-      const props = propsFor( page );
-      const { container } = render(
-        page === 1 ? <ShopIndex { ...props } /> : <ShopListingPage { ...props } />,
-      );
-      for ( const card of Array.from( container.querySelectorAll( 'a.shop-card' ) ) ) {
-        seen.push( samePath( card.getAttribute( 'href' ) ) );
-      }
-    }
+  it( 'reaches every product in one rail, through real links', () => {
+    // One page's render now carries every product, because the rail is the whole shelf. The
+    // prerendered /shop/page/N/ routes still exist for a no-JS crawler, but the interactive
+    // surface no longer needs a page walk to see everything.
+    const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
+    const seen = Array.from( container.querySelectorAll( 'a.shop-card' ) )
+      .map( card => samePath( card.getAttribute( 'href' ) ) );
     expect( seen.sort() ).toEqual( SHOP_LISTINGS.map( l => samePath( l.href ) ).sort() );
   } );
 
@@ -244,49 +242,63 @@ describe( 'the listing page', () => {
     expect( block ).not.toContain( '#fef3c7' );
   } );
 
-  it( 'renders the paginator on page 1 and marks the page it is on', () => {
+  it( 'renders the Perspectives-style pager: two circular arrows and a lime bar, no numbers', () => {
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
-    expect( container.querySelector( 'nav[aria-label="Shop pages"]' ) ).not.toBeNull();
-    expect( container.querySelector( '.pager [aria-current="page"]' )!.textContent ).toBe( '1' );
-    expect( samePath( container.querySelector( 'a[rel="next"]' )!.getAttribute( 'href' ) ) )
-      .toBe( '/shop/page/2' );
+    // No numbered paginator any more - the old Pager nav must be gone.
+    expect( container.querySelector( 'nav[aria-label="Shop pages"]' ) ).toBeNull();
+    expect( container.querySelector( '.pager' ) ).toBeNull();
+
+    // The two arrow buttons that scroll the row, matching the product-page blog panel.
+    const left = container.querySelector( 'button.shop-arrow[aria-label="Scroll products left"]' );
+    const right = container.querySelector( 'button.shop-arrow[aria-label="Scroll products right"]' );
+    expect( left ).not.toBeNull();
+    expect( right ).not.toBeNull();
+    // Buttons, not links: this scrolls the row, it does not navigate to a page URL.
+    expect( left!.tagName ).toBe( 'BUTTON' );
+    expect( right!.tagName ).toBe( 'BUTTON' );
+
+    // The lime progress bar, with no page number text anywhere in the pager.
+    const bar = container.querySelector( '.shop-progress-track[role="progressbar"]' );
+    expect( bar ).not.toBeNull();
+    expect( container.querySelector( '.shop-progress-fill' ) ).not.toBeNull();
+    const pager = container.querySelector( '.shop-pager' )!;
+    // The arrow glyphs are chevrons, not digits; assert the pager prints no page number.
+    expect( pager.textContent ).not.toMatch( /\d/ );
   } );
 
-  it( 'labels the steps Previous and Next, not the blog listing Newer and Older', () => {
-    // The shelf is in declaration order and then name order, so "Older" would be a claim about
-    // a sort nobody performed.
-    const { container } = render( <ShopListingPage { ...propsFor( 2 ) } /> );
-    const prev = container.querySelector( 'a[rel="prev"]' )!;
-    expect( prev.textContent ).toContain( 'Previous' );
-    expect( samePath( prev.getAttribute( 'href' ) ) ).toBe( '/shop' );
-    const next = container.querySelector( '.pager-step.is-next' )!;
-    expect( next.textContent ).toContain( 'Next' );
+  it( 'has no numbered page links and no Previous/Next labels', () => {
+    const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
+    expect( container.querySelector( 'a[rel="next"]' ) ).toBeNull();
+    expect( container.querySelector( 'a[rel="prev"]' ) ).toBeNull();
+    // Read the VISIBLE text only - exclude <style>, whose styled-jsx CSS/comment text would
+    // otherwise match words like "next" inside a comment and give a false positive.
+    const visibleText = Array.from( container.querySelectorAll( 'body *:not(style)' ) )
+      .map( node => node.childNodes )
+      .flatMap( nodes => Array.from( nodes ) )
+      .filter( node => node.nodeType === 3 /* text */ )
+      .map( node => node.textContent || '' )
+      .join( ' ' );
+    expect( visibleText ).not.toContain( 'Previous' );
+    expect( visibleText ).not.toMatch( /\bNext\b/ );
   } );
 
-  it( 'renders Home / Shop on page 1 and Home / Shop / Page N beyond it', () => {
-    const { container: first } = render( <ShopIndex { ...propsFor( 1 ) } /> );
-    const firstCrumbs = Array.from( first.querySelectorAll( 'nav[aria-label="Breadcrumb"] li' ) )
+  it( 'renders Home / Shop, with no Page N crumb', () => {
+    const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
+    const crumbs = Array.from( container.querySelectorAll( 'nav[aria-label="Breadcrumb"] li' ) )
       .map( node => node.textContent );
-    expect( firstCrumbs ).toEqual( [ 'Home', 'Shop' ] );
-
+    expect( crumbs ).toEqual( [ 'Home', 'Shop' ] );
+    // The whole shelf is one rail, so even a deeper /shop/page/N/ render shows the same trail -
+    // there is no page-numbered crumb any more.
     const { container: second } = render( <ShopListingPage { ...propsFor( 2 ) } /> );
     const secondCrumbs = Array.from( second.querySelectorAll( 'nav[aria-label="Breadcrumb"] li' ) )
       .map( node => node.textContent );
-    expect( secondCrumbs ).toEqual( [ 'Home', 'Shop', 'Page 2' ] );
-    // The Shop crumb is a link back to the listing's first page, not to this one.
-    const shopCrumb = Array.from( second.querySelectorAll( 'nav[aria-label="Breadcrumb"] a' ) )
-      .find( node => node.textContent === 'Shop' )!;
-    expect( samePath( shopCrumb.getAttribute( 'href' ) ) ).toBe( '/shop' );
+    expect( secondCrumbs ).toEqual( [ 'Home', 'Shop' ] );
   } );
 
-  it( 'states when the catalogue was read, and nothing else on that line', () => {
+  it( 'prints no "Catalogue read on" as-of line', () => {
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
-    const asof = container.querySelector( '.shop-asof' )!;
-    expect( asof.textContent ).toBe( `Catalogue read on ${catalogReadOn()}` );
-    // On every page, because the Wix half is on every page.
-    const { container: second } = render( <ShopListingPage { ...propsFor( 2 ) } /> );
-    expect( second.querySelector( '.shop-asof' )!.textContent )
-      .toBe( `Catalogue read on ${catalogReadOn()}` );
+    expect( container.querySelector( '.shop-asof' ) ).toBeNull();
+    expect( container.textContent ).not.toContain( 'Catalogue read on' );
   } );
 } );
 
@@ -319,23 +331,23 @@ describe( 'searching the shelf', () => {
       .toBe( 'No products match that search.' );
   } );
 
-  it( 'hides the paginator while a query is active and lists every match', () => {
+  it( 'shows the whole shelf by default, narrows to matches, and restores on clear', () => {
     const { container } = render( <ShopIndex { ...propsFor( 1 ) } /> );
-    expect( container.querySelector( 'nav[aria-label="Shop pages"]' ) ).not.toBeNull();
-    // A single letter that is in every entry's name or blurb somewhere, so the match set is
-    // larger than one page.
+    // The rail is the whole shelf, so an unfiltered page already holds every product and the
+    // Perspectives pager (arrows + bar) is present rather than a numbered paginator.
+    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
+    expect( container.querySelector( '.shop-pager' ) ).not.toBeNull();
+
+    // Searching narrows the rail to the matches across the whole shelf.
     fireEvent.change( screen.getByLabelText( 'Search the shop' ), { target: { value: 'a' } } );
-    expect( container.querySelector( 'nav[aria-label="Shop pages"]' ) ).toBeNull();
     const matching = SHOP_LISTINGS.filter( listing => (
       [ listing.name, listing.blurb ].join( '\n' ).toLowerCase().includes( 'a' )
     ) );
-    expect( matching.length ).toBeGreaterThan( SHOP_LISTINGS_PER_PAGE );
     expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( matching.length );
 
-    // Clearing restores the slice and the paginator.
+    // Clearing restores the whole shelf.
     fireEvent.change( screen.getByLabelText( 'Search the shop' ), { target: { value: '' } } );
-    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( SHOP_LISTINGS_PER_PAGE );
-    expect( container.querySelector( 'nav[aria-label="Shop pages"]' ) ).not.toBeNull();
+    expect( container.querySelectorAll( 'a.shop-card' ) ).toHaveLength( SHOP_LISTINGS.length );
   } );
 
   it( 'reads ?q= on the first paint, and truncates an over-long value instead of throwing', () => {

@@ -1,12 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import RotatingHero, { type CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
 import BlogSearch from './BlogSearch';
-import Pager from './Pager';
 import { cycle } from '../content/products';
-import { catalogReadOn } from '../content/shop';
-import { shopListingPageHref, type ShopListing } from '../content/shopProducts';
+import { type ShopListing } from '../content/shopProducts';
 
 /**
  * The /shop/ listing, one page of it.
@@ -18,10 +16,23 @@ import { shopListingPageHref, type ShopListing } from '../content/shopProducts';
  *
  * WHAT CHANGED AND WHY. This listing was a PageTopBand heading over a three-up auto-fill grid of
  * the eight visible Wix rows. It is now the home page's own animated headline (RotatingHero,
- * mounted directly under the header), the blog listing's exact search box and exact paginator,
- * and the blog's card look laid out in a SINGLE HORIZONTAL ROW THAT SCROLLS sideways - a rotating
- * hue spine on each card, over the whole shelf, every product the site sells, from
- * src/content/shopProducts.ts. Moving off PageTopBand is free:
+ * mounted directly under the header), the blog listing's exact search box, and the blog's card
+ * look laid out in a SINGLE HORIZONTAL ROW THAT SCROLLS sideways - a rotating hue spine on each
+ * card, over the whole shelf, every product the site sells, from src/content/shopProducts.ts.
+ *
+ * THE PAGER IS THE PERSPECTIVES PANEL'S, not a numbered Previous/Next. Owner instruction: match
+ * the product-page blog panel (components/ProductBlogPanel.tsx) - a lime progress bar plus two
+ * circular arrow buttons, NO page numbers. The arrows scroll the horizontal card row left/right
+ * by one viewport and the bar tracks the scroll position. The whole shelf renders in the row (not
+ * this route's six), so the arrows reach every product without a page navigation.
+ *
+ * NO "CATALOGUE READ ON ..." LINE. Owner instruction: the as-of date is removed from the page.
+ * The catalogue is still frozen at build time by output: 'export'; the date is simply not printed.
+ *
+ * THE SERVER ROUTES ARE UNTOUCHED. /shop/ and /shop/page/N/ still prerender their own slices, so a
+ * crawler with no JavaScript reaches every product through real links and the sitemap is unchanged
+ * (SEO rule). The single-rail-of-everything is the rendered experience; the paginated HTML remains
+ * the crawl surface. Moving off PageTopBand is free:
  * src/test/PublicPageTopBand.test.tsx lists src/pages/shop/[slug].tsx in BAND_PAGE_FILES and
  * never this listing.
  *
@@ -58,12 +69,12 @@ interface ShopListingViewProps {
   totalPages: number;
 }
 
-const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListings, page, totalPages } ) => {
+const ShopListingView: React.FC<ShopListingViewProps> = ( { allListings } ) => {
   /**
    * READ ?q= ON FIRST RENDER, because BlogSearch's no-JavaScript path is a GET form that
    * navigates to /shop/?q=... and because a search result page should be linkable. Done in a
    * lazy initialiser rather than an effect so the filtered list is correct on the FIRST paint
-   * instead of flashing six cards and then narrowing. `window` is guarded because this same
+   * instead of flashing cards and then narrowing. `window` is guarded because this same
    * initialiser runs during the static export, where there is no location.
    *
    * VALIDATION IS A TRUNCATION, NOT A REJECTION. There is no sensible error to show a reader for
@@ -79,8 +90,14 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
 
   const filtering = Boolean( query.trim() );
 
+  /**
+   * THE WHOLE SHELF IS THE ROW. The rendered experience is one horizontal rail the reader scrolls
+   * or swipes through, so cards are always drawn from `allListings` (every product the site
+   * sells) rather than this route's six-item slice. The prerendered /shop/page/N/ HTML still
+   * exists for a no-JS crawler; this is the interactive surface.
+   */
   const visible = useMemo( () => {
-    if ( !filtering ) return listings;
+    if ( !filtering ) return allListings;
     const q = query.trim().toLowerCase();
     /*
      * THE FIELDS ARE JOINED WITH A NEWLINE, NOT A SPACE, and that is copied deliberately from
@@ -93,7 +110,71 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
     return allListings.filter( listing => (
       [ listing.name, listing.blurb ].join( '\n' ).toLowerCase().includes( q )
     ) );
-  }, [ filtering, query, listings, allListings ] );
+  }, [ filtering, query, allListings ] );
+
+  /**
+   * THE PERSPECTIVES-STYLE PAGER, driving the horizontal card row (components/ProductBlogPanel's
+   * arrows + progress bar, no numbers). `rowRef` is the scrolling .shop-grid; the arrows scroll it
+   * by ~one viewport, and `progress` (0..1) is read back from scrollLeft so the lime bar tracks
+   * position. All SSR-safe: the state is 0 until the first client scroll/measure.
+   */
+  const rowRef = useRef<HTMLDivElement | null>( null );
+  const [ progress, setProgress ] = useState( 0 );
+  const [ atStart, setAtStart ] = useState( true );
+  const [ atEnd, setAtEnd ] = useState( false );
+
+  const measure = useCallback( (): void => {
+    const el = rowRef.current;
+    if ( !el ) return;
+    const max = el.scrollWidth - el.clientWidth;
+    // No overflow (every card fits) means there is nothing to page: full bar, both arrows off.
+    if ( max <= 1 ) { setProgress( 1 ); setAtStart( true ); setAtEnd( true ); return; }
+    const left = el.scrollLeft;
+    setProgress( Math.min( 1, Math.max( 0, left / max ) ) );
+    setAtStart( left <= 1 );
+    setAtEnd( left >= max - 1 );
+  }, [] );
+
+  // Re-measure when the result set changes (a search narrows the row) and on mount. scrollTo is
+  // feature-detected: jsdom does not implement it, and some older in-app WebViews lack the
+  // options form, so fall back to setting scrollLeft directly rather than throwing.
+  useEffect( () => {
+    const el = rowRef.current;
+    if ( el ) {
+      if ( typeof el.scrollTo === 'function' ) el.scrollTo( { left: 0, behavior: 'auto' } );
+      else el.scrollLeft = 0;
+    }
+    measure();
+  }, [ visible, measure ] );
+
+  // Keep the bar honest when the viewport resizes (orientation change, foldable unfold, zoom).
+  useEffect( () => {
+    if ( typeof window === 'undefined' ) return;
+    window.addEventListener( 'resize', measure );
+    return () => window.removeEventListener( 'resize', measure );
+  }, [ measure ] );
+
+  const prefersReduced = (): boolean =>
+    typeof window !== 'undefined' && !!window.matchMedia
+    && window.matchMedia( '(prefers-reduced-motion: reduce)' ).matches;
+
+  const scrollByPage = useCallback( ( dir: 1 | -1 ): void => {
+    const el = rowRef.current;
+    if ( !el ) return;
+    // One viewport-worth, minus a card so the next page keeps a card of context, like a swipe.
+    const step = Math.max( el.clientWidth * 0.9, 280 );
+    // Feature-detect scrollBy for the same reason as scrollTo above (jsdom / older WebViews).
+    if ( typeof el.scrollBy === 'function' ) {
+      el.scrollBy( { left: dir * step, behavior: prefersReduced() ? 'auto' : 'smooth' } );
+    } else {
+      el.scrollLeft += dir * step;
+    }
+    measure();
+  }, [ measure ] );
+
+  // Overflow is only known on the client; render the control, but it is inert (full bar, disabled
+  // arrows) until there is something to scroll, which `measure` settles on mount.
+  const showPager = visible.length > 0;
 
   return (
     <RotatingHero
@@ -104,14 +185,12 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
     >
       <div className="shop-in">
         <Breadcrumbs
-          items={ page > 1
-            ? [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: `Page ${page}` } ]
-            : [ { label: 'Home', href: '/' }, { label: 'Shop' } ] }
+          items={ [ { label: 'Home', href: '/' }, { label: 'Shop' } ] }
         />
 
-        {/* Live mode, and the count's denominator is the WHOLE shelf rather than this page's six:
-            "3 of 15" is the true answer about what was searched. The five strings are the only
-            thing that differs from the blog's box. */}
+        {/* Live mode, and the count's denominator is the WHOLE shelf: "3 of 15" is the true
+            answer about what was searched. The five strings are the only thing that differs from
+            the blog's box. */}
         <BlogSearch
           value={ query }
           onChange={ setQuery }
@@ -124,8 +203,49 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
           noun="products"
         />
 
+        {/* THE PAGER, MATCHING THE PERSPECTIVES PANEL: two circular arrow buttons on the right,
+            no numbers, with a lime progress bar below. The arrows scroll the card row; the bar
+            tracks the scroll position. Hidden when a search returns nothing. */}
+        { showPager && (
+          <div className="shop-pager" aria-label="Catalogue pager">
+            <div className="shop-pager-row">
+              <div className="shop-arrows">
+                <button
+                  type="button"
+                  className="shop-arrow"
+                  aria-label="Scroll products left"
+                  disabled={ atStart }
+                  onClick={ () => scrollByPage( -1 ) }
+                >‹</button>
+                <button
+                  type="button"
+                  className="shop-arrow"
+                  aria-label="Scroll products right"
+                  disabled={ atEnd }
+                  onClick={ () => scrollByPage( 1 ) }
+                >›</button>
+              </div>
+            </div>
+            <div
+              className="shop-progress-track"
+              role="progressbar"
+              aria-label="Position through the catalogue"
+              aria-valuemin={ 0 }
+              aria-valuemax={ 100 }
+              aria-valuenow={ Math.round( progress * 100 ) }
+            >
+              <div className="shop-progress-fill" style={ { width: `${Math.max( progress * 100, 4 )}%` } } />
+            </div>
+          </div>
+        ) }
+
         { visible.length > 0 ? (
-          <section className="shop-grid" aria-label={ filtering ? 'Matching products' : 'Catalogue' }>
+          <section
+            className="shop-grid"
+            aria-label={ filtering ? 'Matching products' : 'Catalogue' }
+            ref={ rowRef }
+            onScroll={ measure }
+          >
             { visible.map( listing => (
               <Link key={ listing.slug } className="shop-card" href={ listing.href }>
                 <span className="shop-card-name">{ listing.name }</span>
@@ -147,34 +267,41 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
           <div className="shop-empty">No products match that search.</div>
         ) }
 
-        {/* THE PAGINATOR IS HIDDEN WHILE FILTERING, and every match is listed. A filtered list is
-            already a narrowing of the whole shelf; paging it as well puts two narrowings between
-            a reader and one product. Same rule as the blog listing.
-            Previous / Next rather than the blog's Newer / Older: this order is declaration order
-            and then name order, so "Older" would be a claim about a sort nobody performed. */}
-        { !filtering && totalPages > 1 && (
-          <Pager
-            page={ page }
-            totalPages={ totalPages }
-            hrefFor={ shopListingPageHref }
-            ariaLabel="Shop pages"
-            prevLabel="Previous"
-            nextLabel="Next"
-          />
-        ) }
-
-        {/* HOW FRESH THE WIX HALF IS, stated rather than assumed. output: 'export' means the
-            catalogue is frozen into this HTML at build time, so the honest thing is to print the
-            date the snapshot was read. catalogReadOn() is UTC-pinned, so it cannot render a
-            different date either side of midnight for the same build. It renders on every page,
-            because the Wix half is on every page. */}
-        <p className="shop-asof">Catalogue read on { catalogReadOn() }</p>
-
         <style jsx>{`
           /* NO TOP PADDING AND NO MAX-WIDTH: RotatingHero owns the header clearance, the 1300px
              measure, the gutter and the typeface through .rh-shell / .rh-layout. This div sets
              only the stack between the hero and the list, which is its own job. */
           .shop-in{width:100%;display:flex;flex-direction:column;gap:28px}
+
+          /* THE PERSPECTIVES-PANEL PAGER, borrowed rung for rung from components/ProductBlogPanel
+             (pbp-arrows / pbp-progress-track). Two circular arrows pinned to the right, no page
+             numbers, with a slim lime progress bar below them. These are plain <button>s on real
+             DOM tags in this file, so styled-jsx scopes them without :global(). */
+          .shop-pager{display:flex;flex-direction:column;gap:12px;margin:0}
+          .shop-pager-row{display:flex;align-items:center;justify-content:flex-end}
+          .shop-arrows{display:flex;align-items:center;gap:8px}
+          /* Lime-themed, matching the pill language: dark-green 2px edge at rest (2px means
+             hoverable), full lime on hover like the CTA. 44x44 is the WCAG 2.5.8 touch floor, so
+             the arrows are reliably tappable on phones and in-app browsers, not just clickable. */
+          .shop-arrow{
+            display:inline-flex;align-items:center;justify-content:center;
+            width:44px;height:44px;flex:0 0 auto;
+            border:2px solid #1a3a2a;border-radius:50%;background:#fff;
+            color:#1a3a2a;font-size:20px;line-height:1;font-family:inherit;cursor:pointer;
+            transition:background-color .2s,border-color .2s,opacity .2s;
+          }
+          .shop-arrow:hover:not(:disabled){background:#d1f470}
+          .shop-arrow:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
+          .shop-arrow:disabled{opacity:.3;cursor:default;border-color:#cfd4d9;color:rgba(0,0,0,.4)}
+          /* The position bar: hairline track, lime fill, no numbers - the one place lime marks
+             progress rather than action, fine as a thin bar. The fill width is set inline from
+             the scroll position; a 4% floor keeps a sliver visible at the very start. */
+          .shop-progress-track{
+            width:100%;height:6px;border-radius:50px;background:#eef0f2;overflow:hidden;
+          }
+          .shop-progress-fill{
+            height:100%;border-radius:50px;background:#d1f470;transition:width .2s ease;
+          }
 
           /* ONE HORIZONTAL ROW THAT SCROLLS - the brief: blog-style cards, laid out in a single
              row, the rest reached by scrolling sideways rather than wrapping down the page.
@@ -271,11 +398,6 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
             font-size:20px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.54);
           }
 
-          /* The as-of line. The quieter of the two treatments the repo's comments describe for
-             this class name, because it is an aside and not a read-this-first notice: the dim
-             rung at rgba(0,0,0,.54) on the page's own surface, with no box of its own. */
-          .shop-asof{margin:28px 0 0;font-size:16px;line-height:1.55;color:rgba(0,0,0,.54)}
-
           /* 767px is the home page's narrow step, which RotatingHero above also breaks at. The
              row still scrolls horizontally; the card just narrows so a reader sees most of one
              card plus a hint of the next, which is the cue that the row scrolls. The body rung
@@ -284,10 +406,12 @@ const ShopListingView: React.FC<ShopListingViewProps> = ( { listings, allListing
             .shop-in :global(.shop-card){flex-basis:82vw;padding:22px}
             .shop-in :global(.shop-card-tag){font-size:18px;-webkit-line-clamp:4}
           }
-          /* A shadow appearing under a card is the same "something moved" cue as the lift. */
+          /* A shadow appearing under a card is the same "something moved" cue as the lift, and the
+             progress fill / arrow tints stop animating under reduced-motion too. */
           @media(prefers-reduced-motion:reduce){
             .shop-in :global(.shop-card){transition:none}
             .shop-in :global(.shop-card:hover){transform:none;box-shadow:none}
+            .shop-arrow,.shop-progress-fill{transition:none}
           }
         `}</style>
       </div>

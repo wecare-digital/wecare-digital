@@ -80,13 +80,15 @@ const ShopListingHead: React.FC<ShopListingHeadProps> = ( { page, totalPages } )
       {
         // ITEM FOR ITEM WHAT ShopListingView RENDERS. A graph describing a trail the page does
         // not render makes the rich result disappear with no error at all, which is why the two
-        // are edited together.
+        // are edited together. The view now renders a two-item [Home, Shop] trail on every page
+        // (the whole shelf is one rail; there is no visible "Page N" crumb), so the graph is the
+        // same two items. The page number still lives in the title, description and canonical,
+        // which is what keeps each paginated URL distinct without claiming a crumb nobody sees.
         '@type': 'BreadcrumbList',
         '@id': `${canonical}#breadcrumb`,
         itemListElement: [
           { '@type': 'ListItem', position: 1, name: 'Home', item: `${ORIGIN}/` },
           { '@type': 'ListItem', position: 2, name: 'Shop', item: SHOP_ROOT },
-          { '@type': 'ListItem', position: 3, name: `Page ${page}`, item: canonical },
         ],
       },
     ],
