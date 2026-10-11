@@ -675,15 +675,20 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-aqi-spine' ) ).not.toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-svg' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-gauge-arc' ) ).toBeNull();
-    // AQI metadata is one quiet row under the homepage-scale category heading:
-    // index name + dominant pollutant + update age, with no pills or competing glyphs.
+    // AQI metadata is one quiet row under the homepage-scale category heading: an "AQI <n>"
+    // chip and a "Dominant <pollutant>" chip, each with a leading Material icon, plus the
+    // update age. The index-name ("India CPCB AQI"/"NAQI") and the Universal AQI line were
+    // intentionally removed so the row reads AQI + Dominant only.
     const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
-    expect( summaryMeta?.textContent ).toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).toContain( 'AQI' );
+    expect( summaryMeta?.textContent ).not.toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).not.toContain( 'Universal AQI' );
     expect( summaryMeta?.textContent ).toContain( 'Dominant' );
     expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
     expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
     expect( summaryMeta?.textContent ).toMatch( /Updated/ );
-    expect( summaryMeta?.querySelector( 'svg' ) ).toBeNull();
+    // The AQI and Dominant chips now each carry a leading icon.
+    expect( summaryMeta?.querySelectorAll( '.vl-live-air-summary-chip svg' ).length ).toBe( 2 );
     expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
@@ -755,6 +760,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( pm10Tip?.textContent ).toMatch( /\d/ );
     expect( pm10Tip?.textContent ).not.toContain( 'Sources' );
     expect( pm10Tip?.textContent ).not.toContain( 'Effects' );
+    fireEvent.blur( pm10Info );
+
+    // The unit symbol carries a plain-language expansion as a title, so a reader who does not
+    // know the abbreviation can still understand it (µg/m³ -> micrograms per cubic metre).
+    const pm25Unit = firstRow.querySelector( '.vl-live-air-pollutant-value small' );
+    expect( pm25Unit?.getAttribute( 'title' ) ).toBe( 'micrograms per cubic metre' );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -773,6 +784,62 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( weatherPanel?.textContent ).toMatch( /coming soon/i );
     // The Air panel is no longer shown while Weather is selected.
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
+  } );
+
+  it( 'renders pollutant concentrations honestly: exact 0 stays 0, a positive trace shows <1', async () => {
+    // Google returns precise concentrations. Rounding a real trace (0.4) to "0" would read as
+    // "no pollutant" and misrepresent the measurement, so a positive sub-0.5 value shows "<1"
+    // while an exact 0 stays "0".
+    const traceFetch = vi.fn( ( input: RequestInfo | URL ) => {
+      if ( requestIs( input, 'airquality.googleapis.com', '/v1/currentConditions' ) ) {
+        return Promise.resolve( {
+          ok: true,
+          json: async () => ( {
+            dateTime: new Date().toISOString(),
+            indexes: [ { code: 'ind_cpcb', displayName: 'India CPCB AQI', aqi: 41, category: 'Good', dominantPollutant: 'co' } ],
+            pollutants: [
+              { code: 'no2', displayName: 'NO2', concentration: { value: 0, units: 'PARTS_PER_BILLION' } },
+              { code: 'so2', displayName: 'SO2', concentration: { value: 0.4, units: 'PARTS_PER_BILLION' } },
+              { code: 'pm25', displayName: 'PM2.5', concentration: { value: 32, units: 'MICROGRAMS_PER_CUBIC_METER' } },
+            ],
+          } ),
+        } as Response );
+      }
+      return Promise.resolve( { ok: true, json: async () => ( {} ) } as Response );
+    } );
+    vi.stubGlobal( 'fetch', traceFetch );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const rows = await waitFor( () => {
+      const found = container.querySelectorAll( '.vl-live-air-pollutant-row' );
+      expect( found.length ).toBeGreaterThan( 0 );
+      return found;
+    } );
+    const valueOf = ( label: string ) => Array.from( rows )
+      .find( r => ( r.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '' ).includes( label ) )
+      ?.querySelector( '.vl-live-air-pollutant-value' )?.textContent?.trim() ?? '';
+    expect( valueOf( 'NO2' ) ).toMatch( /^0\s/ );        // exact zero stays 0
+    expect( valueOf( 'SO2' ) ).toContain( '<1' );          // positive trace is not rounded to 0
+    expect( valueOf( 'PM2.5' ) ).toMatch( /^32\s/ );
+  } );
+
+  it( 'links the search combobox to its active option via aria-activedescendant', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const input = await screen.findByRole( 'combobox' );
+    // No active option before any results, so no activedescendant is advertised.
+    expect( input.getAttribute( 'aria-activedescendant' ) ).toBeFalsy();
+    fireEvent.change( input, { target: { value: 'Mumbai' } } );
+    const option = await screen.findByRole( 'option', { name: /Mumbai/i } );
+    await waitFor( () =>
+      expect( input.getAttribute( 'aria-activedescendant' ) ).toBe( option.id ) );
+    expect( option.id ).toMatch( /^vl-live-search-option-\d+$/ );
   } );
 
   it( 'adds a heatmap toggle, Poor/Excellent legend, health persona tablist and an hourly-history chart to the Air panel', async () => {
@@ -941,13 +1008,19 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
-    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /IST/ );
-    const historyBubble = container.querySelector( '.vl-live-air-history-bubble' );
-    expect( historyBubble?.textContent ).toBe( '72' );
-    const bubbleRule = css.match( /\.vl-live-air-history-bubble\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( bubbleRule ).toContain( 'background:var(--lime)' );
-    expect( bubbleRule ).toContain( 'border:0' );
-    expect( bubbleRule ).toContain( 'border-radius:999px' );
+    // The reading date/time moved out of the header and below the chart, styled as a lime-tinted
+    // pill with a leading clock icon in the site accent colour; the on-chart AQI value bubble was
+    // removed (the chart no longer prints the raw number).
+    const historyStamp = container.querySelector( '.vl-live-air-history-stamp' );
+    expect( historyStamp?.textContent ).toMatch( /IST/ );
+    expect( historyStamp?.querySelector( '.vl-live-air-history-stamp-icon' ) ).not.toBeNull();
+    expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
+    const stampRule = css.match( /\.vl-live-air-history-stamp\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( stampRule ).toContain( 'background:var(--lime-tint)' );
+    expect( stampRule ).toContain( 'color:var(--green)' );
+    expect( stampRule ).toContain( 'border-radius:var(--pill-r)' );
+    // It sits below the chart, not inside the header row.
+    expect( container.querySelector( '.vl-live-air-history-head .vl-live-air-history-stamp' ) ).toBeNull();
     const historyNav = container.querySelector( '.vl-live-air-history-head .vl-live-air-history-nav' );
     expect( historyNav ).not.toBeNull();
     expect( historyNav?.querySelectorAll( 'button' ) ).toHaveLength( 2 );
@@ -955,17 +1028,45 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( svg.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
     } );
 
-    // Hover/tap inspection exposes a specific hour + AQI while the current lime marker stays.
+    // Hover/tap inspection surfaces the specific hour's local time. The raw AQI value is no
+    // longer printed on the chart (neither in the inspect tooltip nor an on-chart bubble).
     expect( chart.getAttribute( 'aria-label' ) ).toContain( 'Hover or tap the chart to inspect an hour.' );
     fireEvent.pointerDown( chart, { clientX: 0, pointerType: 'touch' } );
     await waitFor( () => expect( container.querySelector( '.vl-live-air-history-inspect' ) ).not.toBeNull() );
     const inspect = container.querySelector( '.vl-live-air-history-inspect' );
-    expect( inspect?.textContent ).toMatch( /AQI \d+/ );
     expect( inspect?.textContent ).toMatch( /IST/ );
-    expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+    expect( inspect?.textContent ).not.toMatch( /AQI \d+/ );
+    expect( container.querySelector( '.vl-live-air-history-bubble' ) ).toBeNull();
 
     // NO RED anywhere in the three new sections' markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
+  it( 'offers "Use my location" and applies the reverse-geocoded place on success', async () => {
+    const geolocation = {
+      getCurrentPosition: vi.fn( ( success: ( p: { coords: { latitude: number; longitude: number } } ) => void ) => {
+        success( { coords: { latitude: 19.076, longitude: 72.8777 } } );
+      } ),
+    };
+    vi.stubGlobal( 'navigator', { ...navigator, geolocation } );
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+
+    const geoBtn = await screen.findByRole( 'button', { name: 'Use my location' } );
+    expect( geoBtn ).toBeTruthy();
+    fireEvent.click( geoBtn );
+
+    // The browser coords are reverse-geocoded (FakeGeocoder returns a Mumbai result) and applied
+    // like any selection: the air card header reflects the resolved place. The reverse-geocoded
+    // place has no viewport, so the camera recentres via setCenter + setZoom (not fitBounds).
+    await waitFor( () => {
+      const context = container.querySelector( '.vl-live-air-context' );
+      expect( context?.textContent ).toContain( 'Mumbai' );
+    } );
+    await waitFor( () => expect( rec.setZoomCalls.length ).toBeGreaterThan( 0 ) );
+    expect( geolocation.getCurrentPosition ).toHaveBeenCalled();
   } );
 
   it( 'shows IST by default and resolves selected-place local time through Google Time Zone API', async () => {
