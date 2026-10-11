@@ -388,9 +388,10 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
           border-color:#1a3a2a;background:rgba(209,244,112,.18);
           transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
         }
-        /* The tag chips sit on the card, so when the card warms to lime the chip borders darken to
-           match rather than staying grey islands on the tint. */
-        .pbp-link:hover .pbp-chip{border-color:#1a3a2a}
+        /* The tag chips pick up lime on card hover: full #d1f470 fill, dark-green border and ink,
+           so they read as "ours" rather than staying grey islands on the warmed card. This is the
+           same lime the pills and CTA use; on a 22px chip it is an accent, not a second CTA. */
+        .pbp-link:hover .pbp-chip{background:#d1f470;border-color:#1a3a2a;color:#1a3a2a}
         .pbp-link:focus-visible{outline:3px solid #1a3a2a;outline-offset:2px}
 
         /* TAG ROW at the foot of a card: the post's own tags as quiet chips, replacing the old
@@ -401,7 +402,8 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         .pbp-chip{
           display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:50px;
           border:1px solid #e5e7eb;color:rgba(0,0,0,.62);font-size:12px;font-weight:600;
-          line-height:1;
+          line-height:1;background:#fff;
+          transition:background-color .2s,border-color .2s,color .2s;
         }
         .pbp-title{font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.2px;color:#000}
         /* The short review: the post excerpt, clamped to two lines so no card runs long. */
@@ -411,7 +413,7 @@ const ProductBlogPanel: React.FC<ProductBlogPanelProps> = ( { cards, heading = '
         }
 
         @media(prefers-reduced-motion:reduce){
-          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill{transition:none}
+          .pbp-pill,.pbp-link,.pbp-search input,.pbp-arrow,.pbp-progress-fill,.pbp-chip{transition:none}
           .pbp-link:hover{transform:none;box-shadow:none}
           /* A reduced-motion reader gets instant page jumps instead of the smooth scroll; the
              track still snaps, it just does not animate the slide. */
