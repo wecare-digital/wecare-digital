@@ -569,8 +569,12 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.markerOpts.length ).toBeGreaterThan( 0 ) );
     const icon = rec.markerOpts[ 0 ].icon;
     expect( typeof icon ).toBe( 'string' );
-    expect( decodeURIComponent( String( icon ) ) ).toContain( '#1a3a2a' );
-    expect( decodeURIComponent( String( icon ) ) ).toContain( '#d1f470' );
+    const decodedIcon = decodeURIComponent( String( icon ) );
+    expect( decodedIcon ).toContain( '#1a3a2a' );
+    expect( decodedIcon ).toContain( '#d1f470' );
+    expect( decodedIcon ).toContain( 'M480-480q33 0 56.5-23.5' );
+    expect( decodedIcon ).toContain( 'width="36" height="36"' );
+    expect( decodedIcon ).not.toContain( 'M19 0C8.5 0 0 8.5' );
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
   } );
 
@@ -631,16 +635,18 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
     const arc = panel.querySelector( '.vl-live-air-sev-sat .vl-live-air-gauge-arc' );
     expect( arc ).not.toBeNull();
-    // Dominant pollutant is inline metadata, not a pill. It uses the local Google Material
-    // air glyph and keeps the friendly pollutant label.
-    const dominantFact = panel.querySelector( '.vl-live-air-fact.is-dominant' );
-    expect( dominantFact?.textContent ).toContain( 'Dominant' );
-    expect( dominantFact?.textContent ).toContain( 'PM2.5' );
-    expect( dominantFact?.textContent ).not.toContain( 'pm25' );
-    expect( dominantFact?.querySelector( 'svg' )?.getAttribute( 'viewBox' ) ).toBe( '0 -960 960 960' );
+    // AQI metadata is one quiet row under the homepage-scale category heading:
+    // index name + dominant pollutant + update age, with no pills or competing glyphs.
+    const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
+    expect( summaryMeta?.textContent ).toContain( 'India CPCB AQI' );
+    expect( summaryMeta?.textContent ).toContain( 'Dominant' );
+    expect( summaryMeta?.textContent ).toContain( 'PM2.5' );
+    expect( summaryMeta?.textContent ).not.toContain( 'pm25' );
+    expect( summaryMeta?.textContent ).toMatch( /Updated/ );
+    expect( summaryMeta?.querySelector( 'svg' ) ).toBeNull();
     expect( panel.querySelector( '.vl-live-air-dominant' ) ).toBeNull();
-    expect( panel.querySelector( '.vl-live-air-index-name' )?.textContent ).toContain( 'India CPCB AQI' );
-    expect( panel.querySelector( '.vl-live-air-fact.is-updated' )?.textContent ).toMatch( /Updated/ );
+    expect( panel.querySelector( '.vl-live-air-index-name' ) ).toBeNull();
+    expect( panel.querySelector( '.vl-live-air-fact' ) ).toBeNull();
 
     // Pollutant rows keep value + unit + label, and the info control uses the supplied
     // Google Material Symbols icon rather than a hand-drawn circle/i glyph.
@@ -830,14 +836,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const healthBtnRule = css.match( /\.vl-live-air-health-page-btn\{[^}]*\}/ )?.[ 0 ] || '';
     const healthTabRule = css.match( /\.vl-live-air-health-tab\{[^}]*\}/ )?.[ 0 ] || '';
     const historyBtnRule = css.match( /\.vl-live-air-history-nav button\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( healthBtnRule ).toContain( 'width:36px' );
-    expect( healthBtnRule ).toContain( 'height:36px' );
+    expect( healthBtnRule ).toContain( 'width:var(--vl-action-size)' );
+    expect( healthBtnRule ).toContain( 'height:var(--vl-action-size)' );
     expect( healthBtnRule ).toContain( 'border-radius:50%' );
     expect( healthBtnRule ).toContain( 'background:var(--lime)' );
     expect( healthBtnRule ).toContain( 'color:var(--green)' );
-    expect( healthTabRule ).toContain( 'width:36px' );
+    expect( healthTabRule ).toContain( 'width:var(--vl-action-size)' );
     expect( healthTabRule ).toContain( 'border-radius:50%' );
-    expect( historyBtnRule ).toContain( 'width:36px' );
+    expect( historyBtnRule ).toContain( 'width:var(--vl-action-size)' );
     expect( historyBtnRule ).toContain( 'border-radius:50%' );
 
     const hoverRule = css.match( /\.vl-live-air-pollutant-info:hover,[\s\S]*?\{[^}]*\}/ )?.[ 0 ] || '';
@@ -848,14 +854,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( hoverRule ).not.toContain( 'background:var(--green)' );
 
     const personaRule = css.match( /\.vl-live-air-health-persona\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( personaRule ).toContain( 'font-size:22px' );
-    expect( personaRule ).toContain( 'font-weight:700' );
-    expect( personaRule ).toContain( 'letter-spacing:-.25px' );
+    expect( personaRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
+    expect( personaRule ).toContain( 'font-weight:var(--vl-card-heading-weight)' );
+    expect( personaRule ).toContain( 'letter-spacing:var(--vl-card-heading-track)' );
     const healthTextRule = css.match( /\.vl-live-air-health-text\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( healthTextRule ).toContain( 'font-size:20px' );
-    expect( healthTextRule ).toContain( 'font-weight:400' );
-    expect( healthTextRule ).toContain( 'line-height:1.4' );
-    expect( healthTextRule ).toContain( 'letter-spacing:-.125px' );
+    expect( healthTextRule ).toContain( 'font-size:var(--vl-body-size)' );
+    expect( healthTextRule ).toContain( 'font-weight:var(--vl-body-weight)' );
+    expect( healthTextRule ).toContain( 'line-height:var(--vl-body-lh)' );
+    expect( healthTextRule ).toContain( 'letter-spacing:var(--vl-body-track)' );
+    expect( css ).toContain( '--vl-card-heading-size:22px' );
+    expect( css ).toContain( '--vl-body-size:20px' );
 
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
@@ -882,8 +890,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( pregnantTab ).toHaveAttribute( 'aria-selected', 'true' ) );
     expect( healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ).toBe( 'Google pregnancy guidance.' );
 
-    // (3) HOURLY HISTORY. Title + a UTC timestamp derived from real data + a role=img chart
-    //     with an aria-label mentioning the current value and a visible current-value marker.
+    // (3) HOURLY HISTORY. Title + destination-local timestamp derived from real data +
+    //     a role=img chart with current value and a visible current-value marker.
     expect( screen.getByText( 'Hourly History' ) ).toBeTruthy();
     const chart = await waitFor( () => {
       const el = container.querySelector( '.vl-live-air-history-chart' );
@@ -893,7 +901,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
     expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
-    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /UTC/ );
+    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /IST/ );
     const historyBubble = container.querySelector( '.vl-live-air-history-bubble' );
     expect( historyBubble?.textContent ).toBe( '72' );
     const bubbleRule = css.match( /\.vl-live-air-history-bubble\{[^}]*\}/ )?.[ 0 ] || '';
@@ -1255,14 +1263,16 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
 
-    // MAP SHELL stays full-bleed while the Air card gets the shape-only callout tail.
+    // MAP SHELL stays full-bleed. The Air card is a wider, lighter inspector with no
+    // decorative callout tail/modal pointer.
     const shellRule = css.match( /\.vl-live-map-shell\{[^}]*\}/ )?.[ 0 ] || '';
     expect( shellRule ).toContain( 'overflow:visible' );
     expect( shellRule ).toContain( 'isolation:isolate' );
     expect( shellRule ).toContain( 'height:auto' );
-    const cardTailRule = css.match( /\.vl-live-air-card-wrap::after\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( cardTailRule ).toContain( 'transform:translateX(-50%) rotate(45deg)' );
-    expect( cardTailRule ).toContain( 'background:#fff' );
+    const cardWrapRule = css.match( /\.vl-live-air-card-wrap\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( cardWrapRule ).toContain( 'width:min(416px,calc(100% - 32px))' );
+    expect( cardWrapRule ).toContain( 'drop-shadow(0 8px 18px rgba(26,58,42,.10))' );
+    expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
     // GLOBAL SEARCH SURFACE: the map search is no longer a detached mini-box. It reuses
     // Header.tsx's open-menu surface plus the exact Header .nav-search input treatment.
@@ -1279,12 +1289,12 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
     const searchWrapRule = css.match( /\.vl-live-map-search\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( searchWrapRule ).toContain( 'width:min(760px,100%)' );
-    expect( searchWrapRule ).toContain( 'margin:0 auto 18px' );
+    expect( searchWrapRule ).toContain( 'width:min(760px,calc(100% - 48px))' );
+    expect( searchWrapRule ).toContain( 'margin:14px auto 20px' );
     expect( searchWrapRule ).toContain( 'border:1px solid #e5e7eb' );
     expect( searchWrapRule ).toContain( 'border-top:3px solid #d1f470' );
     expect( searchWrapRule ).toContain( 'border-radius:14px' );
-    expect( searchWrapRule ).toContain( 'box-shadow:0 8px 28px rgba(0,0,0,.10)' );
+    expect( searchWrapRule ).toContain( 'box-shadow:0 6px 18px rgba(0,0,0,.08)' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
     expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
 
@@ -1306,6 +1316,16 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     const infoHoverRule = css.match( /\.vl-live-air-pollutant-info:hover\{[^}]*\}/ )?.[ 0 ] || '';
     expect( infoHoverRule ).toContain( 'background:var(--lime-hover)' );
     expect( infoHoverRule ).toContain( 'color:var(--green)' );
+
+    // One UI-system pass: section headings share the homepage card-heading token and one
+    // lime accent; pollutant names are real content (17px), not metadata-sized copy.
+    const sectionTitleRule = css.match( /\.vl-live-air-pollutants-title,\.vl-live-air-heatmap-label,\.vl-live-air-health-title,\.vl-live-air-history-title\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( sectionTitleRule ).toContain( 'font-size:var(--vl-card-heading-size)' );
+    expect( sectionTitleRule ).toContain( 'border-left:3px solid var(--lime)' );
+    expect( css ).not.toContain( '.vl-live-air-pollutants-title::before' );
+    const pollutantLabelRule = css.match( /\.vl-live-air-pollutant-label\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( pollutantLabelRule ).toContain( 'font-size:17px' );
+    expect( container.querySelector( '.vl-live-air-heatmap-state' )?.textContent ).toMatch( /On|Off/ );
 
     // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );
