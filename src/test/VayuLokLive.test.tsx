@@ -504,13 +504,16 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
 
-    const card = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-place-card' );
+    // The old left place-card is gone; the default place name now rides the on-map
+    // selected label while the floating Air card overlays the map.
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-left' ) ).toBeNull();
+    const label = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-selected-label' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( card.textContent ).toContain( 'Lumpyngngad' );
-    expect( card.textContent ).toContain( 'Shillong, Meghalaya' );
+    expect( label.textContent ).toContain( 'Lumpyngngad' );
     expect( screen.queryByText( 'Search India to see live weather and air.' ) ).toBeNull();
     expect( await screen.findByRole( 'button', { name: 'AQI' } ) ).not.toBeDisabled();
     expect( await screen.findByRole( 'button', { name: 'PM2.5' } ) ).not.toBeDisabled();
@@ -525,13 +528,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    const card = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-place-card' );
+    const label = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-selected-label' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( card.textContent ).toContain( 'Mumbai' );
-    expect( card.textContent ).not.toContain( 'Selected place' );
+    expect( label.textContent ).toContain( 'Mumbai' );
+    expect( label.textContent ).not.toContain( 'Selected place' );
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
     expect( container.querySelector( '.vl-live-map-destbar-chevron' ) ).toBeNull();
 
@@ -545,10 +549,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.fitBoundsCalls[ 0 ].padding ).toBe( 56 );
   } );
 
-  it( 'renders the place photo rail with lime progress while preserving required author attribution', async () => {
-    rec = installGoogleMaps( {
-      photoAttributions: [ { displayName: 'Example Contributor', uri: 'https://example.com/contributor' } ],
-    } );
+  it( 'overlays a floating Air Quality card on the map (no left place panel) with the title and the Air/Weather toggle', async () => {
     vi.stubGlobal( 'fetch', environmentFetch() );
     const VayuLokLive = await loadComponent();
     const { container } = render( <VayuLokLive /> );
@@ -556,64 +557,85 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    const rail = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-photo-rail' );
+    // The floating card lives INSIDE the map shell, so it genuinely overlays the map.
+    const card = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-map-shell .vl-live-air-card' );
       expect( el ).not.toBeNull();
       return el as HTMLElement;
     } );
-    expect( rail.getAttribute( 'aria-label' ) ).toBe( 'Place photos' );
-    expect( container.querySelector( '.vl-live-photo-count' ) ).toBeNull();
+    expect( card.querySelector( '.vl-live-air-card-title' )?.textContent ).toBe( 'Air Quality Details' );
 
-    const credit = container.querySelector( '.vl-live-photo-credit' );
-    expect( credit?.textContent ).toContain( 'Example Contributor' );
-    expect( credit?.querySelector( 'a' )?.getAttribute( 'href' ) ).toBe( 'https://example.com/contributor' );
-  } );
+    // The whole former left panel is gone.
+    expect( container.querySelector( '.vl-live-left' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-place-card' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-photo-rail' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-forecast-weather' ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-air-source-strip' ) ).toBeNull();
 
-  it( 'renders the v8 Now block, real past-now-future weather rail and Air/Weather tabs', async () => {
-    vi.stubGlobal( 'fetch', environmentFetch() );
-    const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
-
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    // The default location can render just before the selected location clears it.
-    // Assert the complete current-conditions contract in one settled render.
-    await waitFor( () => {
-      expect( container.querySelector( '.vl-live-now-grid' )?.textContent ).toContain( 'Satisfactory' );
-      const source = container.querySelector( '.vl-live-air-source-strip' );
-      expect( source?.textContent ).toContain( 'Google model' );
-      expect( source?.textContent ).toContain( 'No nearby monitor reading' );
-    } );
-
-    const rail = await waitFor( () => {
-      const el = container.querySelector( '.vl-live-forecast-weather' );
-      expect( el ).not.toBeNull();
-      return el as HTMLElement;
-    } );
-    expect( rail.querySelectorAll( '.vl-live-forecast-hour' ) ).toHaveLength( 5 );
-    expect( rail.querySelectorAll( '.is-past' ) ).toHaveLength( 2 );
-    expect( rail.querySelectorAll( '.is-now' ) ).toHaveLength( 1 );
-    expect( rail.querySelectorAll( '.is-future' ) ).toHaveLength( 2 );
-    expect( rail.textContent ).toContain( 'Now' );
-
-    // Changing from the default place to Mumbai clears/reloads current conditions.
-    // Wait for the post-selection detail UI rather than observing the brief stale-data frame.
+    // The toggle is a two-tab tablist with Air selected by default.
     const airTab = await screen.findByRole( 'tab', { name: 'Air' } );
     const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
     expect( airTab ).toHaveAttribute( 'aria-selected', 'true' );
-    expect( container.querySelector( '[aria-label="Air details"]' ) ).not.toBeNull();
+    expect( weatherTab ).toHaveAttribute( 'aria-selected', 'false' );
+  } );
+
+  it( 'shows the circular AQI gauge, category word, dominant chip and pollutant rows in the floating card, and a Weather placeholder on toggle', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    // The Air panel renders only once live `air` has arrived. environmentFetch()
+    // returns aqi 74 / Satisfactory with pm25 + pm10 pollutants and dominant pm25.
+    const panel = await waitFor( () => {
+      const el = container.querySelector( '[aria-label="Air details"]' );
+      expect( el ).not.toBeNull();
+      expect( el?.textContent ).toContain( 'Satisfactory' );
+      return el as HTMLElement;
+    } );
+
+    // Gauge: the parsed AQI number is centred, the category WORD carries severity (not
+    // colour alone), and the SVG arc uses a no-red brand stroke.
+    expect( panel.querySelector( '.vl-live-air-gauge-value' )?.textContent ).toBe( '74' );
+    expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
+    const arc = panel.querySelector( '.vl-live-air-sev-sat .vl-live-air-gauge-arc' );
+    expect( arc ).not.toBeNull();
+    expect( panel.querySelector( '.vl-live-air-dominant' )?.textContent ).toContain( 'pm25' );
+
+    // At least one pollutant row with value + unit + label + info icon.
+    const rows = panel.querySelectorAll( '.vl-live-air-pollutant-row' );
+    expect( rows.length ).toBeGreaterThan( 0 );
+    const firstRow = rows[ 0 ];
+    expect( firstRow.querySelector( '.vl-live-air-pollutant-value' )?.textContent ).toMatch( /\d/ );
+    expect( firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent?.length ).toBeGreaterThan( 0 );
+    expect( firstRow.querySelector( '.vl-live-air-pollutant-info' ) ).not.toBeNull();
+
+    // NO RED anywhere in the rendered card markup/styles.
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
+
+    // Toggle to Weather: aria-selected flips and an inert placeholder panel appears,
+    // with no invented weather data.
+    const airTab = await screen.findByRole( 'tab', { name: 'Air' } );
+    const weatherTab = await screen.findByRole( 'tab', { name: 'Weather' } );
+    expect( airTab ).toHaveAttribute( 'aria-selected', 'true' );
 
     fireEvent.click( weatherTab );
     await waitFor( () => expect( weatherTab ).toHaveAttribute( 'aria-selected', 'true' ) );
-    expect( container.querySelector( '[aria-label="Weather details"]' ) ).not.toBeNull();
+    expect( airTab ).toHaveAttribute( 'aria-selected', 'false' );
+    const weatherPanel = container.querySelector( '[aria-label="Weather details"]' );
+    expect( weatherPanel ).not.toBeNull();
+    expect( weatherPanel?.textContent ).toMatch( /coming soon/i );
+    // The Air panel is no longer shown while Weather is selected.
+    expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
   } );
 
   it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
-    const { container } = render( <VayuLokLive /> );
+    render( <VayuLokLive /> );
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
@@ -633,9 +655,6 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const start = new Date( body.period.startTime ).getTime();
     const end = new Date( body.period.endTime ).getTime();
     expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 96 );
-
-    await waitFor( () => expect( container.querySelector( '.vl-live-now-context' ) ).not.toBeNull() );
-    expect( container.querySelector( '.vl-live-now-context' )?.textContent ).toMatch( /24h range/ );
   } );
 
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
