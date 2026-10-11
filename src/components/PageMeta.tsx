@@ -45,9 +45,17 @@ interface PageMetaProps {
    * a contradictory signal.
    */
   path: string;
+  /**
+   * OPTIONAL per-page structured data. Each entry is emitted as its own
+   * <script type="application/ld+json"> inside this page's head. Only pass markup that
+   * describes content ACTUALLY VISIBLE on the page - e.g. an FAQPage only when the questions
+   * and answers are rendered. Marking up absent content violates Google's guidelines (the
+   * reason a sitewide FAQ block was deleted from _app.tsx). Omit entirely on pages with none.
+   */
+  jsonLd?: Record<string, unknown>[];
 }
 
-export default function PageMeta( { title, description, path }: PageMetaProps ) {
+export default function PageMeta( { title, description, path, jsonLd }: PageMetaProps ) {
   const url = `${SITE}${path}`;
   return (
     <Head>
@@ -63,6 +71,14 @@ export default function PageMeta( { title, description, path }: PageMetaProps ) 
       <meta property="og:url" key="og:url" content={ url } />
       <meta name="twitter:title" content={ title } />
       <meta name="twitter:description" content={ description } />
+      { ( jsonLd || [] ).map( ( node, i ) => (
+        <script
+          // eslint-disable-next-line react/no-danger
+          key={ `ld-${i}` }
+          type="application/ld+json"
+          dangerouslySetInnerHTML={ { __html: JSON.stringify( node ) } }
+        />
+      ) ) }
     </Head>
   );
 }

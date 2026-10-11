@@ -62,6 +62,69 @@ import BrandBadge from '../../components/BrandBadge';
 import VayuLokApprovedGlobe from '../../components/VayuLokApprovedGlobe';
 import VayuLokLive from '../../components/VayuLokLive';
 
+/*
+ * EXPLANATORY FAQ. Short, honest answers that describe only what the live section actually
+ * does today - air quality, weather, forecast, history and the Google heatmap tiles the
+ * rotating words name as BUILT. Pollen and Solar are deliberately not promised here (the file
+ * header records they have no wired endpoint). Every question/answer below is RENDERED on the
+ * page (the <section> near the bottom of the return), which is what makes the matching FAQPage
+ * structured data compliant - the sitewide FAQ schema was removed precisely because it marked
+ * up content that was not on the page. Edit the copy in ONE place: this array feeds both the
+ * visible list and the JSON-LD.
+ */
+const VAYULOK_FAQ: { q: string; a: string }[] = [
+  {
+    q: 'What does VayuLok show?',
+    a: 'Live air quality and weather for a chosen place in Bharat — the Universal and local AQI, the main pollutants, a 96-hour air forecast, and recent history — read for the exact location you pick rather than a city average.',
+  },
+  {
+    q: 'How is this different from a normal city forecast?',
+    a: 'City forecasts report one number for a whole town. VayuLok resolves the air and weather at the specific point you search for or share, so two neighbourhoods in the same city can read differently.',
+  },
+  {
+    q: 'What is AQI, and which standard do you use?',
+    a: 'AQI (Air Quality Index) turns pollutant concentrations into a single 0–500 scale. VayuLok shows Google’s Universal AQI everywhere and, for locations in India, the national CPCB index alongside it, using Google’s own category wording.',
+  },
+  {
+    q: 'Where does the data come from?',
+    a: 'Air quality, weather, forecast and history come from Google’s Air Quality and Weather APIs; the map heatmap tiles are Google’s Air Quality heatmap layers. VayuLok shows only what those services return and leaves a value blank when they return none.',
+  },
+  {
+    q: 'How often does it update?',
+    a: 'Current conditions are fetched live for the selected place and the card shows how long ago the reading was observed. The forecast covers the next 96 hours and history can be viewed over the last 24 hours, 7 days or 30 days.',
+  },
+];
+
+function vayulokJsonLd(): Record<string, unknown>[] {
+  return [
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebApplication',
+      '@id': 'https://wecare.digital/vayulok/#webapp',
+      name: 'VayuLok',
+      alternateName: 'VayuLok by WECARE.DIGITAL',
+      url: 'https://wecare.digital/vayulok/',
+      applicationCategory: 'HealthApplication',
+      operatingSystem: 'Web Browser',
+      description: 'Air and weather intelligence for Bharat: live air quality, weather, a 96-hour forecast and recent history for a chosen street-level location.',
+      inLanguage: 'en-IN',
+      isAccessibleForFree: true,
+      provider: { '@id': 'https://wecare.digital/#organization' },
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      '@id': 'https://wecare.digital/vayulok/#faq',
+      mainEntity: VAYULOK_FAQ.map( item => ( {
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: { '@type': 'Answer', text: item.a },
+      } ) ),
+    },
+  ];
+}
+
 
 const VayuLokPage: React.FC = () => {
   // Order is hue rhythm as much as grouping. Air + Pollen are what is in the air,
@@ -136,6 +199,7 @@ const VayuLokPage: React.FC = () => {
         title="VayuLok — Bharat air and weather intelligence | WECARE.DIGITAL"
         description="VayuLok by WECARE.DIGITAL — air and weather intelligence for Bharat: air quality, weather and forecasts for wherever you are."
         path="/vayulok/"
+        jsonLd={ vayulokJsonLd() }
       />
 
       {/* A SECTION, NOT A MAIN, and that is deliberate. VayuLokLive below renders its own
@@ -235,6 +299,23 @@ const VayuLokPage: React.FC = () => {
           pins it under the name "shows the keyless map", so do not describe this page as
           map-free while the key is absent. */}
       <VayuLokLive />
+
+      {/* EXPLANATORY FAQ. A short, honest prose block beneath the live widget: it gives search
+          engines real indexable content (the page is otherwise app-driven) and gives a first-time
+          visitor the context the hero does not. The questions/answers here are the SAME array that
+          feeds the FAQPage JSON-LD above, so the markup can never describe content that is not on
+          the page. Every class is vl-prefixed to stay inside the page scope. */}
+      <section className="vl-faq" aria-labelledby="vl-faq-title">
+        <h2 className="vl-faq-title" id="vl-faq-title">About VayuLok</h2>
+        <dl className="vl-faq-list">
+          { VAYULOK_FAQ.map( item => (
+            <div className="vl-faq-item" key={ item.q }>
+              <dt className="vl-faq-q">{ item.q }</dt>
+              <dd className="vl-faq-a">{ item.a }</dd>
+            </div>
+          ) ) }
+        </dl>
+      </section>
 
 
       <style jsx>{`
@@ -397,6 +478,20 @@ const VayuLokPage: React.FC = () => {
           .vl-mark-dot{transform:scale(1)}
           .vl-cycle{transition:none}
           .vl-cyc-word{transition:none}
+        }
+
+        /* EXPLANATORY FAQ beneath the live widget. Matches the page's Inter stack and the
+           homepage card-ish spacing; no new colours, no red. */
+        .vl-faq{max-width:760px;margin:0 auto;padding:48px max(24px,env(safe-area-inset-left)) 72px max(24px,env(safe-area-inset-right))}
+        .vl-faq-title{margin:0 0 20px;color:rgba(0,0,0,.95);font-size:24px;font-weight:700;letter-spacing:-.4px;line-height:1.2}
+        .vl-faq-list{margin:0;padding:0}
+        .vl-faq-item{padding:18px 0;border-top:1px solid #e5e7eb}
+        .vl-faq-item:first-child{border-top:0}
+        .vl-faq-q{margin:0 0 6px;color:rgba(0,0,0,.95);font-size:17px;font-weight:700;line-height:1.3}
+        .vl-faq-a{margin:0;color:rgba(0,0,0,.72);font-size:16px;font-weight:400;line-height:1.55}
+        @media(max-width:767px){
+          .vl-faq{padding:36px 20px 56px}
+          .vl-faq-title{font-size:21px}
         }
       `}</style>
     </>
