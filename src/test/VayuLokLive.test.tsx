@@ -629,12 +629,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       return el as HTMLElement;
     } );
 
-    // Gauge: the parsed AQI number is centred, the category WORD carries severity (not
-    // colour alone), and the SVG arc uses a no-red brand stroke.
-    expect( panel.querySelector( '.vl-live-air-gauge-value' )?.textContent ).toBe( '74' );
+    // AQI summary follows the homepage hue language: a free AQI number + the same
+    // green/blue/purple accent spine as home-flow. No circular ring/gauge remains.
+    expect( panel.querySelector( '.vl-live-air-aqi-number' )?.textContent ).toBe( '74' );
+    expect( panel.querySelector( '.vl-live-air-aqi-unit' )?.textContent ).toBe( 'AQI' );
     expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
-    const arc = panel.querySelector( '.vl-live-air-sev-sat .vl-live-air-gauge-arc' );
-    expect( arc ).not.toBeNull();
+    expect( panel.querySelector( '.vl-live-air-aqi-spine' ) ).not.toBeNull();
+    expect( panel.querySelector( '.vl-live-air-gauge-svg' ) ).toBeNull();
+    expect( panel.querySelector( '.vl-live-air-gauge-arc' ) ).toBeNull();
     // AQI metadata is one quiet row under the homepage-scale category heading:
     // index name + dominant pollutant + update age, with no pills or competing glyphs.
     const summaryMeta = panel.querySelector( '.vl-live-air-summary-meta' );
@@ -1283,8 +1285,8 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( cardWrapRule ).toContain( 'drop-shadow(0 8px 18px rgba(26,58,42,.10))' );
     expect( css ).not.toContain( '.vl-live-air-card-wrap::after{' );
 
-    // GLOBAL SEARCH SURFACE: the map search is no longer a detached mini-box. It reuses
-    // Header.tsx's open-menu surface plus the exact Header .nav-search input treatment.
+    // GLOBAL SEARCH FIELD: the outer wrapper is visually absent. The input itself reuses
+    // Header .nav-search / ProductBlogPanel .pbp-search: transparent, bottom hairline only.
     expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid #e5e7eb' );
@@ -1297,12 +1299,18 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).toContain( 'border-radius:0' );
+    const searchInput = container.querySelector( '#vl-live-search' ) as HTMLInputElement | null;
+    expect( searchInput?.getAttribute( 'placeholder' ) ).toBe( 'Search' );
+    expect( css ).toContain( '.vl-live-search-field input::-webkit-search-cancel-button' );
+    expect( css ).toContain( '-webkit-appearance:none' );
+    expect( css ).toContain( '.vl-live-search-field input::-ms-clear{display:none' );
     const searchWrapRule = css.match( /\.vl-live-map-search\{[^}]*\}/ )?.[ 0 ] || '';
     expect( searchWrapRule ).toContain( 'width:min(760px,calc(100% - 48px))' );
     expect( searchWrapRule ).toContain( 'margin:14px auto 20px' );
-    expect( searchWrapRule ).toContain( 'border:1px solid #e5e7eb' );
-    expect( searchWrapRule ).toContain( 'border-top:3px solid #d1f470' );
-    expect( searchWrapRule ).toContain( 'border-radius:14px' );
+    expect( searchWrapRule ).toContain( 'padding:0' );
+    expect( searchWrapRule ).toContain( 'background:transparent' );
+    expect( searchWrapRule ).toContain( 'border:0' );
+    expect( searchWrapRule ).toContain( 'border-radius:0' );
     expect( searchWrapRule ).toContain( 'box-shadow:none' );
     expect( searchWrapRule ).toContain( 'z-index:30' );
     expect( searchWrapRule ).not.toContain( 'grid-area:1/1' );
@@ -1353,6 +1361,12 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( pollutantValueRule ).toContain( 'text-align:right' );
     expect( pollutantValueRule ).toContain( 'font-variant-numeric:tabular-nums' );
     expect( container.querySelector( '.vl-live-air-heatmap-state' )?.textContent ).toMatch( /On|Off/ );
+    const aqiSpineRule = css.match( /\.vl-live-air-aqi-spine\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( aqiSpineRule ).toContain( '#3da35a' );
+    expect( aqiSpineRule ).toContain( '#2563eb' );
+    expect( aqiSpineRule ).toContain( '#9849e8' );
+    expect( css ).not.toContain( '.vl-live-air-gauge-arc{' );
+    expect( css ).not.toContain( '.vl-live-air-gauge-track{' );
 
     // The duplicate top Air Quality Details heading is gone; the inner section is Pollutants.
     expect( container.textContent ).not.toContain( 'Air Quality Details' );
