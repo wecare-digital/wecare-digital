@@ -116,8 +116,14 @@ const STRUCTURAL = [
    * src/pages/shop/index.tsx; the checkout release gate reads out/shop/index.html, which that
    * page now emits again.
    */
+  // The description is the FALLBACK, not the published value: buildPages() resolves
+  // `fromMeta?.description || fallback.description` and PUBLIC_PAGE_META in src/pages/_app.tsx
+  // carries one for /shop, so this copy is never printed. It is kept because buildPages() refuses
+  // a route with no name or description from either source (/blog and / carry theirs the same
+  // way), and it is kept IN STEP with _app.tsx because a second, contradicting account of the same
+  // page is exactly the drift nothing would ever report.
   { path: '/shop', group: 'start', name: 'Shop',
-    description: 'The WECARE.DIGITAL catalogue. Individual products live under /shop/<slug>/.' },
+    description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   { path: '/orders', group: 'start' },
   // Zip is the request/delivery/pickup hub — a front door to a set of actions, like Orders and
   // Blog beside it, rather than a service page — so it sits in 'start'. Its name and description

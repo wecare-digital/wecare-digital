@@ -24,6 +24,40 @@ describe( 'Header', () => {
     expect( screen.getByRole( 'link', { name: 'Grahak OS' } ) ).not.toHaveAttribute( 'aria-current' );
   } );
 
+  it( 'adds a Shop row to the top group, directly after Home', () => {
+    routerState.pathname = '/';
+    render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    // The trailing slash is load-bearing: trailingSlash is set, so /shop would 308 before
+    // resolving.
+    expect( screen.getByRole( 'link', { name: 'Shop' } ) ).toHaveAttribute( 'href', '/shop/' );
+    // THE TOP GROUP, with Home, because /shop/ lists every product and every service on one page
+    // - an index ACROSS the categories rather than a member of one, which is the rule that group
+    // already states for Home. Not the Request group, whose exact order is pinned above as an
+    // owner instruction, and not Products, which is a scrolling category list.
+    const home = screen.getByRole( 'link', { name: 'Home' } ).closest( '.nav-group' );
+    const labels = Array.from( home?.querySelectorAll( '.nav-item' ) || [] )
+      .map( node => node.textContent );
+    expect( labels ).toEqual( [ 'Home', 'Shop' ] );
+  } );
+  it( 'lights Shop up on /shop only, not on a product or a listing page', () => {
+    // isActive is strict equality against router.pathname, which is how every other row in this
+    // menu behaves: /shop/kiosk/ is '/shop/[slug]' and /shop/page/2/ is '/shop/page/[page]'.
+    routerState.pathname = '/shop';
+    const { unmount } = render( <Header /> );
+    fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+    expect( screen.getByRole( 'link', { name: 'Shop' } ) ).toHaveAttribute( 'aria-current', 'page' );
+    unmount();
+
+    for ( const pathname of [ '/shop/[slug]', '/shop/page/[page]' ] ) {
+      routerState.pathname = pathname;
+      const view = render( <Header /> );
+      fireEvent.click( screen.getByRole( 'button', { name: 'Open navigation' } ) );
+      expect( screen.getByRole( 'link', { name: 'Shop' } ) ).not.toHaveAttribute( 'aria-current' );
+      view.unmount();
+    }
+    routerState.pathname = '/';
+  } );
   it( 'marks Grahak OS active on its public route', () => {
     routerState.pathname = '/grahak-os';
     render( <Header /> );

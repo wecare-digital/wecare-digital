@@ -11,10 +11,37 @@ interface BlogSearchProps {
   /** Announced count, live mode only. Omitted when there is nothing to count yet. */
   resultCount?: number;
   totalCount?: number;
+  /**
+   * THE FIVE BLOG-SPECIFIC STRINGS, EACH DEFAULTING TO TODAY'S VALUE.
+   *
+   * /shop/ was asked for "the same search box as the blog", and the alternative to five props
+   * was a second component that looks identical and drifts - which would have meant two copies
+   * of the field standard below (borderless, bottom hairline, the opaque #1a3a2a focus outline,
+   * the no-JavaScript GET fallback). Every default is the string that was hardcoded here before,
+   * so /blog/, /blog/page/N/, both topic shapes and /post/<slug>/ render byte for byte what they
+   * rendered, and the eleven getByLabelText( 'Search the blog' ) lookups in
+   * src/test/BlogDesign.test.tsx stay green with no edit.
+   *
+   * THE FILE IS DELIBERATELY NOT RENAMED. src/test/StyledJsxBuildScope.test.ts names
+   * components/BlogSearch.tsx in its staleness list and src/styles/Layout.css cites it by name,
+   * and a rename buys nothing these props do not.
+   */
+  /** Where the no-JavaScript GET goes. The listing that can filter. */
+  action?: string;
+  /** id on the input and the label's htmlFor. Must be unique per page. */
+  inputId?: string;
+  /** The visually hidden label, which is the field's accessible name. */
+  label?: string;
+  placeholder?: string;
+  /** Plural noun for the two count strings, e.g. 'posts' or 'products'. */
+  noun?: string;
 }
 
 /**
- * Search, scoped to the blog.
+ * Search, scoped to one listing.
+ *
+ * IT SERVES /shop/ AS WELL AS THE BLOG NOW, through the five optional strings on the props
+ * interface below. The name stays BlogSearch - see the note there.
  *
  * TWO MODES, ONE COMPONENT, AND THE REASON IS WHERE THE DATA IS.
  * On /blog/ every published post is already in the page - the index is statically generated
@@ -50,7 +77,11 @@ interface BlogSearchProps {
  * Sizes are existing rungs: 17px is the site's base body, 52px is the closing band's CTA
  * height, 12px radius sits between the 50px pill and the 14px panel.
  */
-const BlogSearch: React.FC<BlogSearchProps> = ( { value, onChange, resultCount, totalCount } ) => {
+const BlogSearch: React.FC<BlogSearchProps> = ( {
+  value, onChange, resultCount, totalCount,
+  action = '/blog/', inputId = 'blog-q', label = 'Search the blog',
+  placeholder = 'Search posts', noun = 'posts',
+} ) => {
   const live = typeof value === 'string' && typeof onChange === 'function';
   // Announce only when a query is actually narrowing something.
   const announce = live && value && typeof resultCount === 'number';
@@ -59,13 +90,13 @@ const BlogSearch: React.FC<BlogSearchProps> = ( { value, onChange, resultCount, 
     <div className="bs">
       {/* action and method are set in BOTH modes on purpose: they are what the no-JS path
           falls back to, and what makes Enter meaningful before hydration. */}
-      <form className="bs-form" role="search" action="/blog/" method="get">
-        <label className="bs-label" htmlFor="blog-q">Search the blog</label>
+      <form className="bs-form" role="search" action={ action } method="get">
+        <label className="bs-label" htmlFor={ inputId }>{ label }</label>
         <input
-          id="blog-q"
+          id={ inputId }
           type="search"
           name="q"
-          placeholder="Search posts"
+          placeholder={ placeholder }
           autoComplete="off"
           { ...( live
             ? { value, onChange: ( e: React.ChangeEvent<HTMLInputElement> ) => onChange!( e.target.value ) }
@@ -77,8 +108,8 @@ const BlogSearch: React.FC<BlogSearchProps> = ( { value, onChange, resultCount, 
       { announce && (
         <p className="bs-count" aria-live="polite">
           { resultCount === 0
-            ? 'No posts match that search.'
-            : `${resultCount} of ${totalCount} posts` }
+            ? `No ${noun} match that search.`
+            : `${resultCount} of ${totalCount} ${noun}` }
         </p>
       ) }
 

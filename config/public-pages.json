@@ -101,7 +101,7 @@
       "path": "/shop",
       "group": "start",
       "name": "Shop",
-      "description": "The WECARE.DIGITAL catalogue. Individual products live under /shop/<slug>/."
+      "description": "Every WECARE.DIGITAL product and service on one page, each linking to its own page."
     },
     {
       "path": "/orders",

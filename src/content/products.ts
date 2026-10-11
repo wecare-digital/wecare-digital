@@ -31,12 +31,30 @@ import type { CycleWord } from '../components/RotatingHero';
  * harness sweeps 21 viewports and a long word is what makes the headline reflow.
  */
 
-const BLUE = { tint: '#dbeafe', dot: '#2563eb' };
-const AMBER = { tint: '#fef3c7', dot: '#f0a818' };
-const GREEN = { tint: '#e0f7c8', dot: '#3da35a' };
-const PURPLE = { tint: '#ede9fe', dot: '#9849e8' };
+/**
+ * THE FOUR HERO PAIRS, EXPORTED SO A HUE IS NAMED RATHER THAN RETYPED.
+ *
+ * They were module-private until /shop/'s listing needed the same rotation for its own hero
+ * (src/components/ShopListingView.tsx). Four separate consts rather than one CYCLE_HUES map,
+ * deliberately: a map would be a new public name with no consumer, and the thing a consumer
+ * actually wants is either `cycle()` or one pair by name.
+ *
+ * AMBER IS NOT A SPINE COLOUR. These are large pale tints behind dark type, which is the only
+ * place amber works on this site - at a 3px stroke it was measured at 2.04:1 and rejected, so the
+ * card spines in ShopListingView and BlogIndexView use green, blue and purple only.
+ */
+export const BLUE = { tint: '#dbeafe', dot: '#2563eb' };
+export const AMBER = { tint: '#fef3c7', dot: '#f0a818' };
+export const GREEN = { tint: '#e0f7c8', dot: '#3da35a' };
+export const PURPLE = { tint: '#ede9fe', dot: '#9849e8' };
 
-const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
+/**
+ * EXPORTED, so every hero that rotates four words composes them the same way.
+ *
+ * Adding the keyword cannot disturb `contentModule()` in scripts/generate-public-pages.js: that
+ * reader slices from `export const PRODUCTS`, which is declared below this.
+ */
+export const cycle = ( a: string, b: string, c: string, d: string ): CycleWord[] => [
   { word: a, ...BLUE },
   { word: b, ...AMBER },
   { word: c, ...GREEN },

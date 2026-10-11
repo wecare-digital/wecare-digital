@@ -18,6 +18,15 @@ import { productBySlug } from '../content/products';
  * exact allowlist; a catch-all would have to be special-cased in both, and would also
  * swallow every unknown path on a static export.
  */
-const ElsewherePage: React.FC = () => <ProductPage product={ productBySlug( 'elsewhere' ) } />;
+/* THE TRAIL IS PASSED IN RATHER THAN DERIVED, because ProductPage's `crumbs` prop is opt-in: the
+   nine non-shop routes that mount the same component are not shop members, so a Home / Shop trail
+   would be false on them. See the prop's own docblock. Home / Shop / <Product> is what
+   /shop/<slug>/ already renders, so the trail from the listing into a product is unbroken. */
+const ElsewherePage: React.FC = () => (
+  <ProductPage
+    product={ productBySlug( 'elsewhere' ) }
+    crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Elsewhere' } ] }
+  />
+);
 
 export default ElsewherePage;
