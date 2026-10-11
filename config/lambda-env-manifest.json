@@ -403,6 +403,8 @@
       "SECURE_FILE_PRICE_PAISE": "4900",
       "SERVICE_REQUESTS_TABLE": "stack-wecare-digital-ServiceRequestsTable",
       "UPLOAD_URL_TTL_SECONDS": "900",
+      "VAULT_ACCESS_WINDOW_HOURS": "24",
+      "VAULT_ACCESS_WINDOW_GRACE_SECONDS": "300",
       "WA_DOC_TEMPLATE": "wd_file_delivery",
       "WA_MEDIA_FUNCTION": "wecare-whatsapp-business-api:live",
       "WA_PAY_TEMPLATE": "wecarepay_wa",

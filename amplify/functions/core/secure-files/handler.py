@@ -67,6 +67,7 @@ from botocore.exceptions import ClientError
 from lambda_utils import customer_auth, media_paths
 from lambda_utils.direct_send import META_PHONE_TO_WABA, waba_for_meta_phone
 from lambda_utils.ecommerce import document_errors, dropdocs_storage, service_request_store
+from lambda_utils.ecommerce import vault_window
 from lambda_utils.logging import get_logger
 from lambda_utils.middleware import require_auth
 from lambda_utils.response import cors_response, extract_origin, options_response
@@ -402,11 +403,20 @@ def _decimal_safe(obj: Any) -> Any:
     return obj
 
 
-def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
-    """Shape a record for the client. The S3 key never leaves the backend."""
+def _public_file(item: Dict[str, Any], *, admin: bool,
+                 entitlement: Optional[Dict[str, Any]] = None,
+                 now: Optional[int] = None) -> Dict[str, Any]:
+    """Shape a record for the client. The S3 key never leaves the backend.
+
+    When an `entitlement` is supplied (admin list enriches it), the 24h access-window status is
+    computed from it so the workspace can show "Active · ends in Xh" / "Expired" / "Awaiting
+    purchase" — the same predicate the redeem path gates on, so screen and backend never disagree.
+    """
+    now = int(time.time()) if now is None else int(now)
     out = {
         "fileId": item.get("fileId"),
         "displayName": item.get("displayName"),
+        "tag": item.get("tag") or "",
         "originalFilename": item.get("originalFilename"),
         "contentType": item.get("contentType"),
         "sizeBytes": item.get("sizeBytes"),
@@ -417,6 +427,11 @@ def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
         "vaultPaymentStatus": item.get('vaultPaymentStatus'),
         "vaultOrderNumber": item.get('vaultOrderNumber'),
         "vaultRequestNumber": item.get('vaultRequestNumber'),
+        # Access-window view (display-only; the authoritative gate is _redeem).
+        "accessWindowStatus": vault_window.status_label(entitlement, now),
+        "accessWindowOpen": vault_window.window_open(entitlement, now),
+        "accessWindowEndsAt": vault_window.window_ends_at(entitlement),
+        "accessWindowCount": vault_window.window_count(entitlement),
         # "pdf" / "image" arrive as a WhatsApp attachment; "link" goes out as a URL.
         "deliverable": item.get("deliverable", "unknown"),
     }
@@ -673,6 +688,9 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     body = json.loads(event.get("body") or "{}")
     name = str(body.get("name") or "").strip()
     display_name = str(body.get("displayName") or "").strip()
+    # Optional operator label for finding a file later (e.g. "Passport", "Invoice Mar"). Free
+    # text, bounded and stripped of control chars; it is display-only and never part of a key.
+    tag = "".join(c for c in str(body.get("tag") or "").strip() if c.isprintable())[:60]
     filename = str(body.get("originalFilename") or "").strip()
     content_type = str(body.get("contentType") or "application/octet-stream").strip()
     size = int(body.get("sizeBytes") or 0)
@@ -732,6 +750,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "ownerName": name,
             "cognitoUsername": username,
             "displayName": display_name or filename,
+            "tag": tag,
             "originalFilename": filename,
             "contentType": content_type,
             "sizeBytes": size,
@@ -887,11 +906,23 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     items = sorted(
         result.get("Items", []), key=lambda i: str(i.get("createdAt", "")), reverse=True
     )
-    return cors_response(
-        200,
-        {"files": [_public_file(i, admin=True) for i in items], "count": len(items)},
-        origin,
-    )
+    # Enrich only paid files with their durable entitlement, so the window status is accurate
+    # without a read for files that never sold. The pointer (vaultEntitlementId) is stamped on
+    # the file row at payment; a missing/failed read degrades to "Awaiting purchase" rather than
+    # failing the list.
+    now = int(time.time())
+    grants = _table(GRANTS_TABLE)
+    out = []
+    for i in items:
+        entitlement = None
+        eid = str(i.get("vaultEntitlementId") or "")
+        if eid:
+            try:
+                entitlement = grants.get_item(Key={"grantId": eid}).get("Item")
+            except ClientError:
+                entitlement = None
+        out.append(_public_file(i, admin=True, entitlement=entitlement, now=now))
+    return cors_response(200, {"files": out, "count": len(out)}, origin)
 
 
 def _admin_revoke(file_id: str, origin: str) -> Dict[str, Any]:
@@ -919,6 +950,34 @@ SESSION_PREFIX = "vault-session#"
 
 def _entitlement_id(customer_id: str, file_id: str) -> str:
     return ENTITLEMENT_PREFIX + str(customer_id) + "#" + str(file_id)
+
+
+def _entitlement_for_file(customer_id: str, file_id: str) -> Optional[Dict[str, Any]]:
+    """The caller's durable entitlement for one file, or None. Read-only; no migration."""
+    if not customer_id or not file_id:
+        return None
+    row = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": _entitlement_id(customer_id, file_id)}, ConsistentRead=True
+    ).get("Item") or {}
+    if (row.get("recordType") == "VAULT_ENTITLEMENT"
+            and row.get("entitlementState") == "ACTIVE"
+            and row.get("customerId") == customer_id
+            and row.get("fileId") == file_id):
+        return row
+    return None
+
+
+def _window_already_open(identity: Dict[str, Any], file_id: str) -> bool:
+    """feat-006: True when the caller already has an OPEN access window for this file.
+
+    The 'never charge while a window is open' guard. ₹49 buys one window; inside it a new
+    charge would be a double-charge for access the customer already has, so the charge
+    entrypoints refuse and the customer is pointed at their live access instead. Once the
+    window closes this returns False and a fresh ₹49 opens a NEW window on the SAME durable
+    entitlement (Path C renewal) — no second entitlement row.
+    """
+    entitlement = _entitlement_for_file(str(identity.get("subject") or ""), file_id)
+    return vault_window.window_open(entitlement, int(time.time()))
 
 
 def _ensure_entitlement(grant: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -975,6 +1034,55 @@ def _active_entitlement(access_id: str, file_id: str,
             or row.get("customerId") != identity.get("subject")):
         return None
     return row
+
+
+def _open_access_window(entitlement: Dict[str, Any], now: Optional[int] = None) -> Dict[str, Any]:
+    """Open (or renew) the 24h access window on a durable entitlement, at delivery.
+
+    ₹49 buys one window of ``VAULT_ACCESS_WINDOW_HOURS``; inside it every download is free. This
+    is the only place the window is opened. It is idempotent: if a window is already open,
+    ``vault_window.open_window`` returns no changes, so a duplicate tap / webhook replay neither
+    re-charges nor double-increments ``accessWindowCount``. The write is conditioned so two
+    concurrent opens converge on one window rather than racing the counter.
+    """
+    now = int(time.time()) if now is None else int(now)
+    fields, opened = vault_window.open_window(entitlement, now)
+    if not opened:
+        return entitlement
+    try:
+        _table(GRANTS_TABLE).update_item(
+            Key={"grantId": entitlement["grantId"]},
+            UpdateExpression=(
+                "SET accessWindowStartedAt = :s, accessWindowEndsAt = :e, "
+                "accessWindowCount = :c"
+            ),
+            # Only advance from the count we read: a racing opener either saw the same prior
+            # count (one wins, one no-ops on the condition) or a later one (we yield).
+            ConditionExpression=(
+                "attribute_exists(grantId) AND entitlementState = :active AND "
+                "(attribute_not_exists(accessWindowCount) OR accessWindowCount = :prev)"
+            ),
+            ExpressionAttributeValues={
+                ":s": fields["accessWindowStartedAt"],
+                ":e": fields["accessWindowEndsAt"],
+                ":c": fields["accessWindowCount"],
+                ":prev": vault_window.window_count(entitlement),
+                ":active": "ACTIVE",
+            },
+        )
+        logger.info(json.dumps({
+            "event": "vault_access_window_opened",
+            "entitlementId": entitlement["grantId"],
+            "windowCount": fields["accessWindowCount"],
+            "endsAt": fields["accessWindowEndsAt"],
+        }))
+    except ClientError as exc:
+        # A lost race means another opener already set a window; re-read and return current truth.
+        if exc.response.get("Error", {}).get("Code") != "ConditionalCheckFailedException":
+            raise
+    refreshed = _table(GRANTS_TABLE).get_item(
+        Key={"grantId": entitlement["grantId"]}, ConsistentRead=True).get("Item") or entitlement
+    return refreshed
 
 
 def _issue_download_session(entitlement: Dict[str, Any], item: Dict[str, Any]) -> Dict[str, Any]:
@@ -1086,6 +1194,17 @@ def _create_order(file_id: str, identity: Dict[str, Any], origin: str) -> Dict[s
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+
+    # feat-006: never charge while a window is open. The customer already has free access.
+    if _window_already_open(identity, file_id):
+        return cors_response(
+            409,
+            {
+                "error": "ACCESS_WINDOW_OPEN",
+                "message": "Your access window is still open — download is free right now, no payment needed.",
+            },
+            origin,
+        )
 
     if not _payment_enabled():
         # Refuse loudly rather than silently granting. Nothing here contacts
@@ -1334,7 +1453,14 @@ def _redeem_after_reconcile(
     entitlement = _active_entitlement(entitlement["grantId"], file_id, identity)
     if not entitlement:
         return _not_registered(origin)
+    # A reconcile means a fresh payment just confirmed, so this opens (or renews) the window —
+    # the same delivery-starts-the-clock rule as the main redeem path.
+    now = int(time.time())
+    if not vault_window.window_open(entitlement, now):
+        entitlement = _open_access_window(entitlement, now)
     payload = _issue_download_session(entitlement, item)
+    payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
+    payload["accessWindowCount"] = vault_window.window_count(entitlement)
     _queue_vault_review(entitlement)
     return cors_response(200, payload, origin)
 
@@ -1370,6 +1496,17 @@ def _send_whatsapp_payment(file_id: str, identity: Dict[str, Any], origin: str):
     item = _owned_active_file(file_id, identity)
     if not item:
         return _not_registered(origin)
+
+    # feat-006: never charge while a window is open — the customer already has free access.
+    if _window_already_open(identity, file_id):
+        return cors_response(
+            409,
+            {
+                "error": "ACCESS_WINDOW_OPEN",
+                "message": "Your access window is still open — download is free right now, no payment needed.",
+            },
+            origin,
+        )
 
     if not _payment_enabled():
         return cors_response(
@@ -1501,6 +1638,23 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
         # The send already happened; losing the bookkeeping must not undo it.
         logger.warning(json.dumps({"event": "delivery_state_write_failed"}))
 
+    # feat-004: the 24h window starts AT DELIVERY, for the WhatsApp entry path too — not only
+    # on the web redeem. On a successful send, open (or confirm) the window on the durable
+    # entitlement so both entry paths start the same clock. Idempotent via _open_access_window,
+    # so a duplicate webhook / resend does not re-open or double-count. A failed send leaves the
+    # window closed, which is correct: nothing was delivered, so the clock has not started.
+    if ok:
+        entitlement = _ensure_entitlement(grant)
+        if entitlement:
+            _open_access_window(entitlement)
+        else:
+            # Payment is durable; a missing entitlement here is a reconcilable pointer problem,
+            # not a reason to fail a delivery that already left.
+            logger.warning(json.dumps({
+                "event": "vault_window_not_opened_on_delivery",
+                "grantId": grant_id, "fileId": grant.get("fileId", ""),
+            }))
+
     return ok, detail
 
 
@@ -1529,7 +1683,29 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
                   "message": "This file is not authorized for this account. If you already paid, contact support; do not pay again."},
             origin)
 
+    # The access window governs free re-download. The FIRST redeem after a paid entitlement opens
+    # the window (delivery is when the clock starts, per the owner rule); redeems inside the
+    # window are free; once it closes, access needs a fresh ₹49 (feat-006 renewal), so we refuse
+    # here rather than hand out transport the customer has not paid for.
+    now = int(time.time())
+    if vault_window.window_open(entitlement, now):
+        pass  # inside an open window — free re-download
+    elif vault_window.window_count(entitlement) <= 0:
+        entitlement = _open_access_window(entitlement, now)  # first delivery opens the window
+    else:
+        return cors_response(
+            403,
+            {
+                "error": "ACCESS_WINDOW_CLOSED",
+                "message": "Your 24-hour access window has ended. Renew access to download again.",
+                "windowCount": vault_window.window_count(entitlement),
+            },
+            origin,
+        )
+
     payload = _issue_download_session(entitlement, item)
+    payload["accessWindowEndsAt"] = vault_window.window_ends_at(entitlement)
+    payload["accessWindowCount"] = vault_window.window_count(entitlement)
     _queue_vault_review(entitlement)
     try:
         _table(FILES_TABLE).update_item(
@@ -1542,6 +1718,7 @@ def _redeem(file_id: str, event: Dict[str, Any], identity: Dict[str, Any], origi
     logger.info(json.dumps({
         "event": "secure_file_download_session_issued", "fileId": file_id,
         "ownerPhone": mask_phone(identity["phone"]),
+        "windowEndsAt": vault_window.window_ends_at(entitlement),
     }))
     return cors_response(200, payload, origin)
 

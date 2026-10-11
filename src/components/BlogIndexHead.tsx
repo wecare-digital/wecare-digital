@@ -176,6 +176,11 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
         <title>{ title }</title>
         <meta name="description" content={ description } />
         <link rel="canonical" href={ url } />
+        {/* RSS AUTODISCOVERY. Feed readers and search engines find the blog feed from this tag;
+            it is generated post-build by scripts/generate-blog-rss.js and served at
+            /blog/rss.xml. The same tag is on the /blog/ branch below and on every post page. */}
+        <link rel="alternate" type="application/rss+xml" title="WECARE.DIGITAL Blog"
+          href={ `${ORIGIN}/blog/rss.xml` } />
         { page > 1 && <link rel="prev" href={ `${ORIGIN}${blogPageHref( page - 1, topicHref )}` } /> }
         { page < totalPages && <link rel="next" href={ `${ORIGIN}${blogPageHref( page + 1, topicHref )}` } /> }
         <meta property="og:type" content="website" />
@@ -291,6 +296,10 @@ const BlogIndexHead: React.FC<BlogIndexHeadProps> = ( { page, totalPages, topic,
       <title>{ title }</title>
       <meta name="description" content={ description } />
       <link rel="canonical" href={ canonical } />
+      {/* RSS AUTODISCOVERY. See the topic branch above - same feed, generated post-build by
+          scripts/generate-blog-rss.js and served at /blog/rss.xml. */}
+      <link rel="alternate" type="application/rss+xml" title="WECARE.DIGITAL Blog"
+        href={ `${ORIGIN}/blog/rss.xml` } />
       { page > 1 && <link rel="prev" href={ `${ORIGIN}${blogPageHref( page - 1 )}` } /> }
       { page < totalPages && <link rel="next" href={ `${ORIGIN}${blogPageHref( page + 1 )}` } /> }
       <meta property="og:type" content="website" />

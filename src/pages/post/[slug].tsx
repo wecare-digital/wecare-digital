@@ -353,6 +353,12 @@ export default function BlogPostPage ( {
         <title>{ title }</title>
         <meta name="description" content={ description } />
         <link rel="canonical" href={ canonical } />
+        {/* RSS AUTODISCOVERY. A feed reader opening any post finds the blog's feed from this
+            tag, and search engines read it as a freshness/alternate-format signal. The feed is
+            generated post-build by scripts/generate-blog-rss.js and served at /blog/rss.xml.
+            Title names the feed, not the post, because the href is the blog feed. */}
+        <link rel="alternate" type="application/rss+xml" title="WECARE.DIGITAL Blog"
+          href={ `${ORIGIN}/blog/rss.xml` } />
         <meta name="robots" content={ post.robots || 'index, follow, max-image-preview:large' } />
         <meta property="og:type" content="article" />
         <meta property="og:title" content={ title } />

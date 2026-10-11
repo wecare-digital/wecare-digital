@@ -348,6 +348,12 @@ def environment(payment_enabled: bool = False) -> dict:
         # keys; they are provisioned there by provision_customer_whatsapp_auth.py.
         "UPLOAD_URL_TTL_SECONDS": "900",
         "GRANT_TTL_SECONDS": "1800",
+        # Vault access window: ₹49 buys one window of this many hours (free re-downloads
+        # inside it); after it closes it is ₹49 again for a new window on the same durable
+        # entitlement. Grace is added to the OPEN check only, so a boundary download is not
+        # cut off by clock skew.
+        "VAULT_ACCESS_WINDOW_HOURS": "24",
+        "VAULT_ACCESS_WINDOW_GRACE_SECONDS": "300",
         # The Phase O-1 request store. A Drop Docs document is registered against a REQ#
         # row there, not in SecureFilesTable.
         "SERVICE_REQUESTS_TABLE": REQUESTS_TABLE,
