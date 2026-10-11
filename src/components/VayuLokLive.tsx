@@ -269,6 +269,46 @@ function statusWord( sev: Sev ): string {
   }
 }
 
+/* ---- Health recommendation personas -------------------------------------------------
+   Static, honest health guidance shown under the Air panel. These are generic air-quality
+   advisories (NOT a live Google field), rendered only when `air` is present. The Elderly
+   text is used verbatim from the product brief. Each persona carries an id, an accessible
+   label, a short recommendation, and an aria-hidden inline-SVG icon marker. Severity is
+   never implied by colour here - the selected highlight is brand green/lime UI chrome. */
+type HealthPersonaIcon = 'general' | 'elderly' | 'respiratory' | 'heart';
+interface HealthPersona {
+  id: string;
+  label: string;
+  recommendation: string;
+  icon: HealthPersonaIcon;
+}
+const HEALTH_PERSONAS: HealthPersona[] = [
+  {
+    id: 'general',
+    label: 'General population',
+    recommendation: 'Air quality is acceptable for most people. Keep an eye on how you feel during longer or more intense outdoor activity, and take a break indoors if conditions worsen.',
+    icon: 'general',
+  },
+  {
+    id: 'elderly',
+    label: 'Elderly',
+    recommendation: 'If you start to feel respiratory discomfort such as coughing or breathing difficulties, consider reducing the intensity of your outdoor activities. Try to limit the time you spend near busy roads, construction sites, open fires and other sources of smoke.',
+    icon: 'elderly',
+  },
+  {
+    id: 'respiratory',
+    label: 'Respiratory',
+    recommendation: 'People with asthma or other respiratory conditions should keep reliever medication to hand and reduce prolonged or strenuous activity outdoors when the air feels irritating. Move indoors if you notice tightness, wheezing or a persistent cough.',
+    icon: 'respiratory',
+  },
+  {
+    id: 'heart',
+    label: 'Heart',
+    recommendation: 'People with heart conditions should pace outdoor exertion and rest if they feel unusual fatigue, chest discomfort or palpitations. Prefer less polluted routes away from heavy traffic and seek advice if symptoms persist.',
+    icon: 'heart',
+  },
+];
+
 // Pollen category 0-5 UPI -> word (Google's universal pollen index).
 function pollenCategory( idx: number ): string {
   if ( idx <= 0 ) return 'None';
@@ -586,7 +626,10 @@ const VayuLokLive: React.FC = () => {
   const [ weatherAlerts, setWeatherAlerts ] = useState<WeatherAlertRow[]>( [] );
   const [ airForecast, setAirForecast ] = useState<AirPoint[]>( [] );
   const [ airHistory, setAirHistory ] = useState<AirPoint[]>( [] );
-  const [ historyRange, setHistoryRange ] = useState<24 | 168 | 720>( 24 );
+  // Default to the 168-hour (7-day) window so the Hourly History chart spans ~a week. The
+  // history fetch effect keys on this value and only fetches on the keyed path (no key =>
+  // no fetch => airHistory stays [], and the chart renders its honest empty shell).
+  const [ historyRange, setHistoryRange ] = useState<24 | 168 | 720>( 168 );
   const [ historyLoading, setHistoryLoading ] = useState( false );
   const [ dataLoading, setDataLoading ] = useState( false );
   const [ coreError, setCoreError ] = useState( false );
@@ -605,6 +648,13 @@ const VayuLokLive: React.FC = () => {
   // layer both toggles the map air-quality layer AND swaps the environmental RESULT content shown
   // in the LEFT card (AQI result vs PM2.5-focused result).
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
+
+  // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
+  // to the Elderly persona (index 1) per the reference design. Pure UI state - no fetch.
+  const [ healthPersona, setHealthPersona ] = useState( 1 );
+  // Hourly History: window offset for the prev/next chart navigation. 0 = latest week; a
+  // positive value scrolls further back through the loaded airHistory points. Pure UI state.
+  const [ historyOffset, setHistoryOffset ] = useState( 0 );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
@@ -1403,6 +1453,9 @@ const VayuLokLive: React.FC = () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
     const ac = new AbortController();
     const { lat, lng } = place;
+    // Reset paging whenever the place/range changes so the pinned "current" bubble
+    // tracks the newest point of the new series instead of a stale offset.
+    setHistoryOffset( 0 );
     const historyKey = `${lat.toFixed( 4 )},${lng.toFixed( 4 )}:${historyRange}`;
     const cachedHistory = historyCache.current[ historyKey ];
     const HISTORY_TTL_MS = historyRange === 24 ? 15 * 60 * 1000 : 60 * 60 * 1000;
@@ -1821,7 +1874,6 @@ const VayuLokLive: React.FC = () => {
                 { detailTab === 'air' && (
                   air ? (
                     <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
-                      <p className="vl-live-air-gauge-label">Universal AQI</p>
                       <div className="vl-live-air-gauge-row">
                         <div className={ `vl-live-air-gauge vl-live-air-sev-${air.sev}` }>
                           { ( () => {
@@ -1863,7 +1915,7 @@ const VayuLokLive: React.FC = () => {
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span className="vl-live-air-pollutant-info" aria-label={ `About ${p.label}` } title={ `About ${p.label}` } role="img">
+                                <span className="vl-live-air-pollutant-info" aria-label={ `${p.label}: ${Math.round( p.value )} ${p.unit}` } title={ `${p.label} — ${Math.round( p.value )} ${p.unit}` } role="img">
                                   <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><line x1="10" y1="9" x2="10" y2="14" /><circle cx="10" cy="6" r=".9" /></svg>
                                 </span>
                               </li>
@@ -1871,6 +1923,213 @@ const VayuLokLive: React.FC = () => {
                           </ul>
                         </div>
                       ) }
+
+                      {/* SECTION 1 - HEATMAP. A label row with an accessible on/off switch
+                          that drives the EXISTING `layer` state (the on-user-action deck.gl
+                          AQI overlay); no new fetch or overlay is created here. Disabled until
+                          a place is selected, mirroring the .vl-live-layers buttons. Below, a
+                          Poor -> Excellent legend bar on the approved no-red ramp; the words
+                          (not the colour) carry the meaning (WCAG 1.4.1). */}
+                      <div className="vl-live-air-heatmap">
+                        <div className="vl-live-air-heatmap-row">
+                          <span className="vl-live-air-heatmap-label">Heatmap</span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={ layer === 'AQI' }
+                            aria-label="Air quality heatmap"
+                            disabled={ !hasSelection }
+                            className={ `vl-live-air-heatmap-switch ${layer === 'AQI' ? 'is-on' : ''}`.trim() }
+                            onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
+                          >
+                            <span className="vl-live-air-heatmap-knob" aria-hidden="true" />
+                          </button>
+                        </div>
+                        <div className="vl-live-air-heatmap-legend">
+                          <span className="vl-live-air-heatmap-ramp" aria-hidden="true" />
+                          <span className="vl-live-air-heatmap-ends">
+                            <span className="vl-live-air-heatmap-end">Poor</span>
+                            <span className="vl-live-air-heatmap-end">Excellent</span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* SECTION 2 - HEALTH RECOMMENDATIONS. A role=tablist of persona icon
+                          buttons (plus a '>' advance control), with exactly one selected
+                          persona driving the recommendation paragraph below the divider. The
+                          selected highlight is brand green/lime UI chrome, never a severity
+                          colour; icons are aria-hidden and each button has an accessible name. */}
+                      <div className="vl-live-air-health">
+                        <h4 className="vl-live-air-health-title">Health Recommendations</h4>
+                        <div className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
+                          { HEALTH_PERSONAS.map( ( persona, idx ) => (
+                            <button
+                              key={ persona.id }
+                              type="button"
+                              role="tab"
+                              id={ `vl-live-air-health-tab-${persona.id}` }
+                              aria-controls="vl-live-air-health-panel"
+                              aria-selected={ healthPersona === idx }
+                              aria-label={ persona.label }
+                              className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
+                              onClick={ () => setHealthPersona( idx ) }
+                            >
+                              <svg viewBox="0 0 24 24" aria-hidden="true" className="vl-live-air-health-icon">
+                                { persona.icon === 'general' && (
+                                  <>
+                                    <circle cx="8" cy="8" r="3" />
+                                    <circle cx="16" cy="8" r="3" />
+                                    <path d="M3 19c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+                                    <path d="M11 19c0-2.8 2.2-5 5-5s5 2.2 5 5" />
+                                  </>
+                                ) }
+                                { persona.icon === 'elderly' && (
+                                  <>
+                                    <circle cx="11" cy="4.5" r="2" />
+                                    <path d="M11 7v6l-2 7" />
+                                    <path d="M11 10l3 2 1 8" />
+                                    <path d="M17 8v13" />
+                                  </>
+                                ) }
+                                { persona.icon === 'respiratory' && (
+                                  <>
+                                    <path d="M12 3v8" />
+                                    <path d="M9 11c0 5-1 7-3.5 7C4 18 4 15 5 12" />
+                                    <path d="M15 11c0 5 1 7 3.5 7 1.5 0 1.5-3 .5-6" />
+                                  </>
+                                ) }
+                                { persona.icon === 'heart' && (
+                                  <path d="M12 20s-7-4.4-7-9.5C5 7.4 7 6 9 6c1.6 0 2.6.9 3 1.8C12.4 6.9 13.4 6 15 6c2 0 4 1.4 4 4.5 0 5.1-7 9.5-7 9.5Z" />
+                                ) }
+                              </svg>
+                            </button>
+                          ) ) }
+                          <button
+                            type="button"
+                            className="vl-live-air-health-next"
+                            aria-label="Next recommendation profile"
+                            onClick={ () => setHealthPersona( i => ( i + 1 ) % HEALTH_PERSONAS.length ) }
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+                          </button>
+                        </div>
+                        <hr className="vl-live-air-health-rule" aria-hidden="true" />
+                        <div
+                          className="vl-live-air-health-panel"
+                          role="tabpanel"
+                          id="vl-live-air-health-panel"
+                          aria-labelledby={ `vl-live-air-health-tab-${HEALTH_PERSONAS[ healthPersona ].id}` }
+                        >
+                          <strong className="vl-live-air-health-persona">{ HEALTH_PERSONAS[ healthPersona ].label }</strong>
+                          <p className="vl-live-air-health-text">{ HEALTH_PERSONAS[ healthPersona ].recommendation }</p>
+                        </div>
+                      </div>
+
+                      {/* SECTION 3 - HOURLY HISTORY. Reuses the existing airHistory state and
+                          historyRange/aqiCategory helpers. An inline-SVG AQI line chart over the
+                          loaded points, weekday gridlines, a pinned current-value bubble and
+                          prev/next navigation. The UTC timestamp is derived from the latest real
+                          point - never fabricated. When airHistory is empty (every keyless run)
+                          an honest shell renders with no fake chart and no spinner. */}
+                      <div className="vl-live-air-history">
+                        { ( () => {
+                          if ( airHistory.length === 0 ) {
+                            return (
+                              <>
+                                <div className="vl-live-air-history-head">
+                                  <h4 className="vl-live-air-history-title">Hourly History</h4>
+                                </div>
+                                <p className="vl-live-air-history-empty">Hourly history appears here once a place is selected.</p>
+                              </>
+                            );
+                          }
+                          // Window the points so prev/next can page through ~a day at a time
+                          // while keeping the full week in view by default. We render the full
+                          // loaded series but shift which point the "current" bubble pins to.
+                          const points = airHistory;
+                          const maxOffset = Math.max( 0, points.length - 1 );
+                          const offset = Math.min( historyOffset, maxOffset );
+                          const currentIdx = Math.max( 0, points.length - 1 - offset );
+                          const current = points[ currentIdx ];
+                          const latest = points[ points.length - 1 ];
+                          const d = new Date( current.time );
+                          const pad = ( v: number ) => String( v ).padStart( 2, '0' );
+                          const stamp = `${d.getUTCFullYear()}-${pad( d.getUTCMonth() + 1 )}-${pad( d.getUTCDate() )} ${pad( d.getUTCHours() )}:${pad( d.getUTCMinutes() )} UTC`;
+
+                          // Chart geometry. AQI mapped to a 0-500 vertical scale; x spread
+                          // evenly across the loaded points. No external chart library.
+                          const W = 300, H = 120, padX = 6, padTop = 20, padBottom = 18;
+                          const innerW = W - padX * 2;
+                          const innerH = H - padTop - padBottom;
+                          const span = Math.max( 1, points.length - 1 );
+                          const xAt = ( i: number ) => padX + ( innerW * i ) / span;
+                          const yAt = ( aqi: number ) => padTop + innerH * ( 1 - Math.max( 0, Math.min( 1, aqi / 500 ) ) );
+                          const linePts = points.map( ( p, i ) => `${xAt( i ).toFixed( 1 )},${yAt( p.aqi ).toFixed( 1 )}` ).join( ' ' );
+                          const areaPts = `${padX},${( H - padBottom ).toFixed( 1 )} ${linePts} ${( W - padX ).toFixed( 1 )},${( H - padBottom ).toFixed( 1 )}`;
+                          const cx = xAt( currentIdx );
+                          const cy = yAt( current.aqi );
+
+                          // Weekday gridlines: one tick per UTC day boundary present in the
+                          // series, labelled Mon..Sun from the point's own timestamp.
+                          const WEEKDAYS = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ];
+                          const ticks: { x: number; label: string }[] = [];
+                          let lastDay = -1;
+                          points.forEach( ( p, i ) => {
+                            const day = new Date( p.time ).getUTCDay();
+                            if ( day !== lastDay ) {
+                              ticks.push( { x: xAt( i ), label: WEEKDAYS[ day ] } );
+                              lastDay = day;
+                            }
+                          } );
+
+                          return (
+                            <>
+                              <div className="vl-live-air-history-head">
+                                <h4 className="vl-live-air-history-title">Hourly History</h4>
+                                <span className="vl-live-air-history-stamp">{ stamp }</span>
+                              </div>
+                              <div
+                                className={ `vl-live-air-history-chart vl-live-air-sev-${aqiCategory( current.aqi ).sev}` }
+                                role="img"
+                                aria-label={ `AQI history, ${historyRangeLabel( historyRange )}, current ${Math.round( current.aqi )}` }
+                              >
+                                <svg viewBox={ `0 0 ${W} ${H}` } className="vl-live-air-history-svg" preserveAspectRatio="none">
+                                  { ticks.map( ( t, i ) => (
+                                    <g key={ `${t.label}-${i}` }>
+                                      <line className="vl-live-air-history-grid" x1={ t.x } y1={ padTop } x2={ t.x } y2={ H - padBottom } />
+                                      <text className="vl-live-air-history-day" x={ t.x + 2 } y={ H - 5 }>{ t.label }</text>
+                                    </g>
+                                  ) ) }
+                                  <polygon className="vl-live-air-history-area" points={ areaPts } />
+                                  <polyline className="vl-live-air-history-line" points={ linePts } />
+                                  <line className="vl-live-air-history-leader" x1={ cx } y1={ padTop } x2={ cx } y2={ cy } />
+                                  <circle className="vl-live-air-history-dot" cx={ cx } cy={ cy } r="4" />
+                                </svg>
+                                <span className="vl-live-air-history-bubble" style={ { left: `${( cx / W ) * 100}%` } }>{ Math.round( current.aqi ) }</span>
+                              </div>
+                              <div className="vl-live-air-history-nav">
+                                <button
+                                  type="button"
+                                  aria-label="Earlier hour"
+                                  disabled={ offset >= maxOffset }
+                                  onClick={ () => setHistoryOffset( o => Math.min( maxOffset, o + 1 ) ) }
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6" /></svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  aria-label="Later hour"
+                                  disabled={ offset <= 0 }
+                                  onClick={ () => setHistoryOffset( o => Math.max( 0, o - 1 ) ) }
+                                >
+                                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+                                </button>
+                              </div>
+                              <span className="vl-live-sr-only">Latest reading { Math.round( latest.aqi ) }, { latest.word }.</span>
+                            </>
+                          );
+                        } )() }
+                      </div>
                     </div>
                   ) : (
                     <div className="vl-live-air-panel" role="tabpanel" id="vl-live-air-panel" aria-labelledby="vl-live-air-tab" aria-label="Air details">
@@ -2037,8 +2296,74 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center}
-        .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--muted);fill:none;stroke-width:1.6;stroke-linecap:round}
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;cursor:help}
+        .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--green);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
+        .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus svg{stroke:var(--lime)}
+
+        /* ── HEATMAP (toggle + Poor->Excellent legend) ──────────────────────────────
+           The switch drives the existing deck.gl AQI overlay via the layer state. On/off is
+           carried by aria-checked AND the is-on knob position. The legend gradient and the
+           Poor/Excellent words sit on the approved no-red ramp - never any red hex. */
+        .vl-live-air-heatmap{margin-top:18px}
+        .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .vl-live-air-heatmap-label{color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-heatmap-switch{position:relative;flex:0 0 auto;width:40px;height:22px;padding:0;border:1px solid var(--hair);border-radius:999px;background:#eef1ed;transition:background .18s ease,border-color .18s ease}
+        .vl-live-air-heatmap-switch.is-on{background:var(--green);border-color:var(--green)}
+        .vl-live-air-heatmap-switch:disabled{opacity:.5;cursor:not-allowed}
+        .vl-live-air-heatmap-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s ease}
+        .vl-live-air-heatmap-switch.is-on .vl-live-air-heatmap-knob{transform:translateX(18px)}
+        .vl-live-air-heatmap-legend{margin-top:10px}
+        .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
+        .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:5px}
+        .vl-live-air-heatmap-end{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.02em}
+
+        /* ── HEALTH RECOMMENDATIONS (persona tablist + advisory) ─────────────────────
+           Selected persona highlight is brand green/lime UI chrome (NOT a severity colour,
+           NOT red). Icons are aria-hidden; each tab has an accessible name. */
+        .vl-live-air-health{margin-top:20px}
+        .vl-live-air-health-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .vl-live-air-health-tab{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--green)}
+        .vl-live-air-health-tab.is-active{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 0 2px var(--lime-tint)}
+        .vl-live-air-health-icon{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+        .vl-live-air-health-next{display:inline-flex;align-items:center;justify-content:center;width:32px;height:40px;padding:0;border:0;background:transparent;color:var(--muted)}
+        .vl-live-air-health-next svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .vl-live-air-health-rule{margin:14px 0 12px;border:0;border-top:1px solid var(--hair)}
+        .vl-live-air-health-persona{display:block;color:var(--heading);font-size:13px;font-weight:700}
+        .vl-live-air-health-text{margin:6px 0 0;color:var(--body);font-size:12px;line-height:1.55}
+
+        /* ── HOURLY HISTORY (inline-SVG AQI chart) ──────────────────────────────────
+           Line + area stroked from the no-red ramp via the sev-mapped class; the pinned
+           bubble shows the current AQI number so meaning never rests on colour alone. */
+        .vl-live-air-history{margin-top:20px}
+        .vl-live-air-history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+        .vl-live-air-history-title{margin:0;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-history-stamp{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em}
+        .vl-live-air-history-empty{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
+        .vl-live-air-history-chart{position:relative;margin-top:12px}
+        .vl-live-air-history-svg{display:block;width:100%;height:120px}
+        .vl-live-air-history-grid{stroke:var(--hair);stroke-width:1;stroke-dasharray:2 3}
+        .vl-live-air-history-day{fill:var(--muted);font-size:8px;font-weight:600}
+        .vl-live-air-history-leader{stroke:var(--muted);stroke-width:1;stroke-dasharray:2 2}
+        .vl-live-air-history-line{fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+        .vl-live-air-history-area{fill:currentColor;opacity:.12;stroke:none}
+        .vl-live-air-history-dot{stroke:#fff;stroke-width:2}
+        /* The chart colour walks the no-red ramp from the current point's severity. */
+        .vl-live-air-sev-good .vl-live-air-history-line,.vl-live-air-sev-good .vl-live-air-history-dot{stroke:#1a3a2a}
+        .vl-live-air-sev-good .vl-live-air-history-area{color:#1a3a2a}
+        .vl-live-air-sev-sat .vl-live-air-history-line,.vl-live-air-sev-sat .vl-live-air-history-dot{stroke:#3da35a}
+        .vl-live-air-sev-sat .vl-live-air-history-area{color:#3da35a}
+        .vl-live-air-sev-mod .vl-live-air-history-line,.vl-live-air-sev-mod .vl-live-air-history-dot{stroke:#d1f470}
+        .vl-live-air-sev-mod .vl-live-air-history-area{color:#d1f470}
+        .vl-live-air-sev-poor .vl-live-air-history-line,.vl-live-air-sev-poor .vl-live-air-history-dot{stroke:#e8c547}
+        .vl-live-air-sev-poor .vl-live-air-history-area{color:#e8c547}
+        .vl-live-air-sev-worst .vl-live-air-history-line,.vl-live-air-sev-worst .vl-live-air-history-dot{stroke:#c98a2e}
+        .vl-live-air-sev-worst .vl-live-air-history-area{color:#c98a2e}
+        .vl-live-air-history-bubble{position:absolute;top:0;transform:translateX(-50%);min-width:28px;padding:2px 7px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);font-size:11px;font-weight:700;text-align:center}
+        .vl-live-air-history-nav{display:flex;justify-content:flex-end;gap:6px;margin-top:8px}
+        .vl-live-air-history-nav button{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--green)}
+        .vl-live-air-history-nav button:disabled{opacity:.4;cursor:not-allowed}
+        .vl-live-air-history-nav svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
         .vl-live-map-shell{position:relative;height:72dvh;min-height:620px;max-height:860px;border:1px solid var(--hair);border-radius:14px;overflow:hidden;background:#eef1ed;isolation:isolate}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
