@@ -74,8 +74,9 @@ function pm25Severity( pm25: number ): Sev {
   return 'worst';
 }
 
-// Global map: do not re-introduce a lat/lng restriction here. Visitors can pan the
-// live Google map anywhere and place search is intentionally worldwide.
+// Global map: do not re-introduce a lat/lng restriction here because destination search
+// is worldwide. Manual pan/zoom gestures are disabled; only an explicit place selection
+// is allowed to move the camera.
 
 // Place-autocomplete debounce. 120ms is a deliberately snappy value: it keeps ONE
 // Autocomplete Data API request per settled keystroke (so a fast typist does not spam the
@@ -296,13 +297,14 @@ interface HealthPersona {
   icon: HealthPersonaIcon;
 }
 
-const MATERIAL_SYMBOL_PATHS: Record<HealthPersonaIcon | 'info' | 'switches' | 'next', string> = {
+const MATERIAL_SYMBOL_PATHS: Record<HealthPersonaIcon | 'info' | 'switches' | 'close' | 'next', string> = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
   switches: 'M270-289q-80 0-135-54.5T80-479q0-81 54.5-135.5T270-669q51 0 90 22t65 63h350q44 0 74.5 30.5T880-479q0 44-30.5 74.5T775-374H425q-26 41-65 63t-90 22Zm3-190Zm180 45h322q20 0 32.5-12.5T820-479q0-20-12.5-32.5T775-524H453q4 10 5.5 22t1.5 23q0 11-1.5 23t-5.5 22Zm-90.5 47.5Q400-424 400-479t-37.5-92.5Q325-609 270-609t-92.5 37.5Q140-534 140-479t37.5 92.5Q215-349 270-349t92.5-37.5Z',
   general: 'M0-240v-53q0-38.57 41.5-62.78Q83-380 150.38-380q12.16 0 23.39.5t22.23 2.15q-8 17.35-12 35.17-4 17.81-4 37.18v65H0Zm240 0v-65q0-32 17.5-58.5T307-410q32-20 76.5-30t96.5-10q53 0 97.5 10t76.5 30q32 20 49 46.5t17 58.5v65H240Zm540 0v-65q0-19.86-3.5-37.43T765-377.27q11-1.73 22.17-2.23 11.17-.5 22.83-.5 67.5 0 108.75 23.77T960-293v53H780Zm-480-60h360v-6q0-37-50.5-60.5T480-390q-79 0-129.5 23.5T300-305v5ZM149.57-410q-28.57 0-49.07-20.56Q80-451.13 80-480q0-29 20.56-49.5Q121.13-550 150-550q29 0 49.5 20.5t20.5 49.93q0 28.57-20.5 49.07T149.57-410Zm660 0q-28.57 0-49.07-20.56Q740-451.13 740-480q0-29 20.56-49.5Q781.13-550 810-550q29 0 49.5 20.5t20.5 49.93q0 28.57-20.5 49.07T809.57-410ZM480-480q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T600-600q0 50-34.5 85T480-480Zm.35-60Q506-540 523-557.35t17-43Q540-626 522.85-643t-42.5-17q-25.35 0-42.85 17.15t-17.5 42.5q0 25.35 17.35 42.85t43 17.5ZM480-300Zm0-300Z',
   elderly: 'm320-40-48-36 104-139-8-191q-2-52 5.5-109.5T397-617l-97 56v111h-60v-146l167-96q17-10 32.5-15t29.5-5q27 0 48.5 21t41.5 66q20 46 59 75.5t94 46.5q7-4 13.5-5.5T739-510q23 0 42 18.5t19 41.5v410h-30v-410q0-12-9-21t-21-9q-12 0-21 9t-9 21v30h-30v-33q-42-11-87.5-42T521-568q-12 34-18.5 75t-4.5 73l97 137v243h-60v-219l-85-95-10 154L320-40Zm218-714q-30 0-51.5-21.5T465-827q0-30 21.5-51.5T538-900q30 0 51.5 21.5T611-827q0 30-21.5 51.5T538-754Z',
   respiratory: 'M190-120q-46 0-78-32t-32-78v-185l108-279q12-31 40.07-48.5t60.82-17.5q42.11 0 71.61 29.57T390-659v39h-60v-39q0-17.19-12.83-29.1-12.82-11.9-29.92-11.9-14.25 0-26.25 6.5T244-674L140-405v175q0 21.25 14.38 35.62Q168.75-180 190-180h140q21.25 0 35.63-14.38Q380-208.75 380-230v-70h60v70q0 46-32.08 78-32.09 32-77.92 32H190Zm580 0H630q-45.83 0-77.92-32Q520-184 520-230v-70h60v70q0 21.25 14.38 35.62Q608.75-180 630-180h140q21.25 0 35.63-14.38Q820-208.75 820-230v-175L716-674q-5-13-17-19.5t-26-6.5q-17 0-30 11.9-13 11.91-13 29.1v39h-60v-39q0-41.86 29.52-71.43Q629.03-760 671.2-760q32.8 0 60.8 17.5t40 48.5l108 279v185q0 46-32.08 78-32.09 32-77.92 32ZM334-456Zm292 0Zm-146-62L376-414l-42-42 116-116v-308h60v308l116 116-42 42-104-104Z',
   heart: 'M290-840q57 0 105.5 27t84.5 78q42-54 89-79.5T670-840q89 0 149.5 60.5T880-629q0 15-1.5 29.5T873-570h-62q5-15 7-29.5t2-29.5q0-66-42-108.5T670-780q-51 0-95 31.5T504-660h-49q-26-56-70-88t-95-32q-66 0-108 42.5T140-629q0 15 2 29.5t7 29.5H87q-4-15-5.5-29.5T80-629q0-90 60.5-150.5T290-840Zm-98 450h78q38 42 89.5 91.5T480-186q69-63 120-112.5t89-91.5h79q-42 49-102 108.5T521-144l-41 37-41-37q-85-78-145-137.5T192-390Zm250 60q9 0 16-5.5t10-14.5l61-181 46 68q5 6 11 9.5t14 3.5h310v-60H617l-72-106q-5-7-12-10t-15-3q-9 0-16.5 5.5T491-609l-60 181-47-69q-5-6-10.5-9.5T360-510H50v60h292l72 107q5 7 12.5 10t15.5 3Zm38-153Z',
+  close: 'M256-214 214-256l224-224-224-224 42-42 224 224 224-224 42 42-224 224 224 224-42 42-224-224-224 224Z',
   next: 'M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z',
 };
 
@@ -313,7 +315,7 @@ const HEALTH_PERSONAS: HealthPersona[] = [
   { id: 'heart', label: 'Heart', recommendation: 'Pace yourself outdoors and rest if you feel chest discomfort or palpitations. Favour quieter routes away from traffic.', icon: 'heart' },
 ];
 
-function compactAirInfo( value?: string, maxChars = 118 ): string | undefined {
+function compactAirInfo( value?: string, maxChars = 92 ): string | undefined {
   if ( typeof value !== 'string' ) return undefined;
   const clean = value.replace( /\s+/g, ' ' ).trim();
   if ( !clean ) return undefined;
@@ -698,7 +700,7 @@ const VayuLokLive: React.FC = () => {
   // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
   // to the Elderly persona (index 1) per the reference design. Pure UI state - no fetch.
   const [ healthPersona, setHealthPersona ] = useState( 1 );
-  const [ pollutantTip, setPollutantTip ] = useState<{ code: string; top: number; left: number } | null>( null );
+  const [ pollutantTip, setPollutantTip ] = useState<{ code: string; top: number; left: number; side: 'left' | 'right' | 'top' | 'bottom' } | null>( null );
   // Hourly History: window offset for the prev/next chart navigation. 0 = latest week; a
   // positive value scrolls further back through the loaded airHistory points. Pure UI state.
   const [ historyOffset, setHistoryOffset ] = useState( 0 );
@@ -739,12 +741,57 @@ const VayuLokLive: React.FC = () => {
   const openPollutantTip = useCallback( ( code: string, el: HTMLElement ) => {
     if ( typeof window === 'undefined' ) return;
     const rect = el.getBoundingClientRect();
-    const width = Math.min( 292, Math.max( 220, window.innerWidth - 24 ) );
-    const canOpenRight = rect.right + 14 + width <= window.innerWidth - 12;
-    const left = canOpenRight ? rect.right + 14 : Math.max( 12, rect.left - width - 14 );
-    const top = clamp( rect.top - 18, 12, Math.max( 12, window.innerHeight - 224 ) );
-    setPollutantTip( { code, top, left } );
+    const gutter = 12;
+    const gap = 12;
+    const width = Math.min( 320, Math.max( 220, window.innerWidth - gutter * 2 ) );
+    const estimatedHeight = Math.min( 208, Math.max( 120, window.innerHeight - gutter * 2 ) );
+    const maxLeft = Math.max( gutter, window.innerWidth - width - gutter );
+    const maxTop = Math.max( gutter, window.innerHeight - estimatedHeight - gutter );
+
+    let left: number;
+    let top: number;
+    let side: 'left' | 'right' | 'top' | 'bottom';
+
+    if ( window.innerWidth <= 700 ) {
+      const below = rect.bottom + gap;
+      const canOpenBelow = below + estimatedHeight <= window.innerHeight - gutter;
+      side = canOpenBelow ? 'bottom' : 'top';
+      left = clamp( rect.left + rect.width / 2 - width / 2, gutter, maxLeft );
+      top = canOpenBelow
+        ? clamp( below, gutter, maxTop )
+        : clamp( rect.top - gap - estimatedHeight, gutter, maxTop );
+    } else {
+      const canOpenRight = rect.right + gap + width <= window.innerWidth - gutter;
+      side = canOpenRight ? 'right' : 'left';
+      left = canOpenRight
+        ? clamp( rect.right + gap, gutter, maxLeft )
+        : clamp( rect.left - width - gap, gutter, maxLeft );
+      top = clamp( rect.top - 16, gutter, maxTop );
+    }
+
+    setPollutantTip( { code, top, left, side } );
   }, [] );
+
+  useEffect( () => {
+    if ( !pollutantTip || typeof document === 'undefined' ) return;
+
+    const onPointerDown = ( event: PointerEvent ) => {
+      const target = event.target;
+      if ( !( target instanceof Element ) ) return;
+      if ( target.closest( '.vl-live-air-pollutant-tip' ) || target.closest( '.vl-live-air-pollutant-info' ) ) return;
+      setPollutantTip( null );
+    };
+    const onKeyDown = ( event: KeyboardEvent ) => {
+      if ( event.key === 'Escape' ) setPollutantTip( null );
+    };
+
+    document.addEventListener( 'pointerdown', onPointerDown, true );
+    document.addEventListener( 'keydown', onKeyDown );
+    return () => {
+      document.removeEventListener( 'pointerdown', onPointerDown, true );
+      document.removeEventListener( 'keydown', onKeyDown );
+    };
+  }, [ pollutantTip ] );
 
   useEffect( () => {
     setMapCandidate( null );
@@ -851,17 +898,18 @@ const VayuLokLive: React.FC = () => {
 
       const map = new maps.Map( host, {
         // Match the approved reference composition: India prominent, Himalaya/China above,
-        // Arabian Sea + Bay of Bengal below, while remaining completely pan/zoom worldwide.
+        // Arabian Sea + Bay of Bengal below. The map has worldwide data, but its camera is
+        // destination-driven: only search/recent-place selection moves it.
         center: { lat: 25, lng: 86 },
         zoom: 4,
         mapTypeId: 'hybrid',
-        // Cross-device interaction: drag/pinch/trackpad work on desktop, iOS, Android,
-        // embedded app webviews and foldables. Map clicks do not select a new location;
-        // search/recent-place selection remains the only source of location changes.
-        gestureHandling: 'greedy',
-        draggable: true,
-        scrollwheel: true,
-        disableDoubleClickZoom: false,
+        // Owner interaction contract: no drag, pinch, trackpad pan, wheel zoom, double-click
+        // zoom or keyboard movement. Programmatic fitBounds/setCenter from destination choice
+        // still works, so selecting a place is the single camera-control path.
+        gestureHandling: 'none',
+        draggable: false,
+        scrollwheel: false,
+        disableDoubleClickZoom: true,
         disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: false,
@@ -902,7 +950,7 @@ const VayuLokLive: React.FC = () => {
       };
 
       if ( typeof motionMap.addListener === 'function' ) {
-        for ( const eventName of [ 'center_changed', 'zoom_changed', 'drag', 'idle' ] ) {
+        for ( const eventName of [ 'center_changed', 'zoom_changed', 'idle' ] ) {
           motionListeners.push( motionMap.addListener( eventName, syncAtmosphere ) || {} );
         }
       }
@@ -2031,6 +2079,7 @@ const VayuLokLive: React.FC = () => {
                   every class is vl-live- prefixed, and it renders live Air content only when
                   `air` is present - on the keyless path (air === null) only the static shell
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
+              <div className="vl-live-air-card-wrap">
               <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
                 <div className="vl-live-air-card-head">
                   <h3 className="vl-live-air-card-title">Air Quality Details</h3>
@@ -2114,11 +2163,10 @@ const VayuLokLive: React.FC = () => {
                                   className="vl-live-air-pollutant-info"
                                   aria-label={ `${p.label} details` }
                                   aria-expanded={ pollutantTip?.code === p.code }
+                                  aria-haspopup="dialog"
                                   aria-describedby={ pollutantTip?.code === p.code ? `vl-live-air-pollutant-tip-${p.code}` : undefined }
                                   onMouseEnter={ e => openPollutantTip( p.code, e.currentTarget ) }
-                                  onMouseLeave={ () => setPollutantTip( null ) }
                                   onFocus={ e => openPollutantTip( p.code, e.currentTarget ) }
-                                  onBlur={ () => setPollutantTip( null ) }
                                   onClick={ e => openPollutantTip( p.code, e.currentTarget ) }
                                 >
                                   <svg viewBox="0 -960 960 960" aria-hidden="true">
@@ -2181,19 +2229,15 @@ const VayuLokLive: React.FC = () => {
                               className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
                               onClick={ () => setHealthPersona( idx ) }
                             >
-                              <svg viewBox="0 -960 960 960" aria-hidden="true" className="vl-live-air-health-icon">
-                                <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
-                              </svg>
+                              <span className="vl-live-air-health-icon-wrap" aria-hidden="true">
+                                <svg viewBox="0 -960 960 960" className="vl-live-air-health-icon">
+                                  <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
+                                </svg>
+                              </span>
+                              <span className="vl-live-air-health-tab-label">{ persona.id === 'general' ? 'General' : persona.label }</span>
                             </button>
                           ) ) }
-                          <button
-                            type="button"
-                            className="vl-live-air-health-next"
-                            aria-label="Next recommendation profile"
-                            onClick={ () => setHealthPersona( i => ( i + 1 ) % HEALTH_PERSONAS.length ) }
-                          >
-                            <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.next } /></svg>
-                          </button>
+
                         </div>
                         <hr className="vl-live-air-health-rule" aria-hidden="true" />
                         <div
@@ -2327,6 +2371,7 @@ const VayuLokLive: React.FC = () => {
                 ) }
 
               </aside>
+              </div>
 
               { ( !mapActive || mapFailed ) ? (
                 /* MAP-FREE FALLBACK. This branch used to render an eager
@@ -2402,7 +2447,6 @@ const VayuLokLive: React.FC = () => {
                   <label className="vl-live-sr-only" htmlFor="vl-live-search">Search a city or place</label>
                   <div className="vl-live-search">
                     <div className="vl-live-search-field">
-                      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
                       <input
                         id="vl-live-search"
                         type="text"
@@ -2445,36 +2489,45 @@ const VayuLokLive: React.FC = () => {
 
       { pollutantTip && activePollutant && (
         <div
-          className="vl-live-air-pollutant-tip"
+          className={ `vl-live-air-pollutant-tip is-${pollutantTip.side}` }
           id={ `vl-live-air-pollutant-tip-${activePollutant.code}` }
-          role="tooltip"
+          role="dialog"
+          aria-modal="false"
+          aria-label={ `${activePollutant.label} pollutant details` }
           style={ { top: pollutantTip.top, left: pollutantTip.left } }
-          onMouseEnter={ () => undefined }
-          onMouseLeave={ () => setPollutantTip( null ) }
         >
-          <span className="vl-live-air-pollutant-pop">
-            <span className="vl-live-air-pollutant-pop-title">{ activePollutant.label }</span>
+          <div className="vl-live-air-pollutant-pop">
+            <div className="vl-live-air-pollutant-pop-head">
+              <span className="vl-live-air-pollutant-pop-title">{ activePollutant.label }</span>
+              <button
+                type="button"
+                className="vl-live-air-pollutant-pop-close"
+                aria-label="Close pollutant details"
+                onClick={ () => setPollutantTip( null ) }
+              >
+                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.close } /></svg>
+              </button>
+            </div>
             { activePollutant.sources && (
-              <span className="vl-live-air-pollutant-pop-line is-source">
+              <div className="vl-live-air-pollutant-pop-line is-source">
                 <strong>Sources</strong>
                 <span>{ compactAirInfo( activePollutant.sources ) }</span>
-              </span>
+              </div>
             ) }
             { activePollutant.effects && (
-              <span className="vl-live-air-pollutant-pop-line is-effect">
+              <div className="vl-live-air-pollutant-pop-line is-effect">
                 <strong>Effects</strong>
                 <span>{ compactAirInfo( activePollutant.effects ) }</span>
-              </span>
+              </div>
             ) }
             { !activePollutant.sources && !activePollutant.effects && (
-              <span className="vl-live-air-pollutant-pop-text">
+              <div className="vl-live-air-pollutant-pop-text">
                 { `${activePollutant.label}: ${Math.round( activePollutant.value )} ${activePollutant.unit}` }
-              </span>
+              </div>
             ) }
-          </span>
+          </div>
         </div>
       ) }
-
       <style jsx>{`
         .vl-live{
           --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
@@ -2505,9 +2558,11 @@ const VayuLokLive: React.FC = () => {
            A white, rounded, home-system card floating over the full-bleed map's top-left corner,
            inset so it clears Google's bottom-left logo and bottom-right legal notices.
            Scrollable so a long pollutant list never spills past the map. NO red. */
-        .vl-live-air-card{position:absolute;z-index:12;top:16px;left:16px;width:min(360px,calc(100% - 32px));max-height:calc(100% - 112px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:22px 22px 20px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:0 10px 30px rgba(26,58,42,.12);color:var(--body)}
+        .vl-live-air-card-wrap{position:absolute;z-index:12;top:16px;left:16px;width:min(372px,calc(100% - 32px));max-height:calc(100% - 124px);filter:drop-shadow(0 12px 26px rgba(26,58,42,.14))}
+        .vl-live-air-card-wrap::after{content:"";position:absolute;left:52%;bottom:-11px;width:22px;height:22px;background:#fff;border-right:1px solid rgba(26,58,42,.14);border-bottom:1px solid rgba(26,58,42,.14);transform:translateX(-50%) rotate(45deg);border-radius:0 0 4px 0}
+        .vl-live-air-card{position:relative;width:100%;max-height:inherit;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:24px 24px 22px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
         .vl-live-air-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .vl-live-air-card-title{margin:0;color:var(--heading);font-size:22px;font-weight:700;line-height:1.12;letter-spacing:-.35px}
+        .vl-live-air-card-title{margin:0;color:var(--heading);font-size:26px;font-weight:700;line-height:1.08;letter-spacing:-.8px}
         .vl-live-air-card-rule{height:3px;margin:14px 0 16px;border:0;border-radius:999px;background:linear-gradient(90deg,#3da35a 0%,#2563eb 50%,#9849e8 100%)}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
@@ -2549,7 +2604,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap-label::before{background:var(--info)}
         .vl-live-air-health-title::before{background:var(--status-green)}
         .vl-live-air-history-title::before{background:var(--warning)}
-        .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
+        .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
         /* overflow:visible (was hidden) so the side popover below can escape the list box
            and float beside its row without being clipped. The list keeps its rounded 12px
            frame; the first/last rows round their own outer corners so the row fills still
@@ -2560,9 +2615,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
         .vl-live-air-pollutant-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
         .vl-live-air-pollutant-row+.vl-live-air-pollutant-row{border-top:1px solid var(--hair)}
-        .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
+        .vl-live-air-pollutant-value{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
-        .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
+        .vl-live-air-pollutant-label{color:var(--status);font-size:13px;font-weight:600}
         /* Exact Google Material Symbols "info" glyph. Lime sits on the site's dark green
            disk, so the requested lime icon stays crisp against the white card. */
         .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:0;border-radius:50%;background:var(--green);color:var(--lime);cursor:help;transition:transform .16s ease,box-shadow .16s ease}
@@ -2570,24 +2625,35 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-info:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.18)}
         .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
 
-        /* Rendered as a fixed sibling OUTSIDE the scrollable Air card, so the card can never
-           clip the popup. The 14px panel radius and lime edge mirror the home-page cards. */
-        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(292px,calc(100vw - 24px));max-height:220px;overflow:auto;padding:14px 15px;border:2px solid var(--lime);border-radius:14px;background:#fff;color:var(--body);box-shadow:0 12px 32px rgba(26,58,42,.18);font-size:13px;line-height:1.42;text-align:left}
-        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:10px}
-        .vl-live-air-pollutant-pop-title{display:inline-flex;align-self:flex-start;min-height:28px;align-items:center;padding:0 10px;border-radius:999px;background:rgba(209,244,112,.28);color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
-        .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:62px 1fr;gap:9px;align-items:start}
-        .vl-live-air-pollutant-pop-line strong{font-size:12px;font-weight:700;letter-spacing:.01em}
-        .vl-live-air-pollutant-pop-line span{color:var(--muted);font-size:12.5px;font-weight:400;line-height:1.42}
+        /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
+           viewport-clamped position and an explicit close affordance. Lime is an accent only,
+           never the popup background. The directional notch is shape-only reference language. */
+        .vl-live-air-pollutant-tip{position:fixed;z-index:2200;width:min(320px,calc(100vw - 24px));max-height:min(240px,calc(100dvh - 24px));overflow:auto;padding:16px;border:1px solid var(--hair);border-top:3px solid var(--lime);border-radius:14px;background:#fff;color:var(--body);box-shadow:0 14px 34px rgba(26,58,42,.16);font-size:13px;line-height:1.42;text-align:left}
+        .vl-live-air-pollutant-tip::before{content:"";position:absolute;width:12px;height:12px;background:#fff}
+        .vl-live-air-pollutant-tip.is-right::before{left:-7px;top:30px;transform:rotate(45deg);border-left:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+        .vl-live-air-pollutant-tip.is-left::before{right:-7px;top:30px;transform:rotate(45deg);border-top:1px solid var(--hair);border-right:1px solid var(--hair)}
+        .vl-live-air-pollutant-tip.is-bottom::before{top:-7px;left:50%;transform:translateX(-50%) rotate(45deg);border-left:1px solid var(--hair);border-top:1px solid var(--hair)}
+        .vl-live-air-pollutant-tip.is-top::before{bottom:-7px;left:50%;transform:translateX(-50%) rotate(45deg);border-right:1px solid var(--hair);border-bottom:1px solid var(--hair)}
+        .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:11px}
+        .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--green)}
+        .vl-live-air-pollutant-pop-close:hover{background:#f5f6f3}
+        .vl-live-air-pollutant-pop-close:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+        .vl-live-air-pollutant-pop-close svg{width:20px;height:20px;fill:currentColor}
+        .vl-live-air-pollutant-pop-line{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:start}
+        .vl-live-air-pollutant-pop-line strong{font-size:12.5px;font-weight:700;letter-spacing:.01em}
+        .vl-live-air-pollutant-pop-line span{color:var(--status);font-size:13px;font-weight:400;line-height:1.42}
         .vl-live-air-pollutant-pop-line.is-source strong{color:#2563eb}
         .vl-live-air-pollutant-pop-line.is-effect strong{color:#9849e8}
-        .vl-live-air-pollutant-pop-text{color:var(--muted);font-size:12.5px;line-height:1.42}
+        .vl-live-air-pollutant-pop-text{color:var(--status);font-size:13px;line-height:1.42}
         .vl-live-air-pollutant-row:focus-within,.vl-live-air-pollutant-row:hover{background:rgba(209,244,112,.18);border-left-color:var(--lime)}
 
         /* ── HEATMAP ──────────────────────────────────────────────────────────────
            One compact Material Symbols control; the separate Storm switch is intentionally gone. */
         .vl-live-air-heatmap{margin-top:20px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-        .vl-live-air-heatmap-label{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
+        .vl-live-air-heatmap-label{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
         .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:42px;height:42px;padding:0;border:2px solid var(--green);border-radius:50%;background:#fff;color:var(--green);transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}
         .vl-live-air-heatmap-switch svg{width:23px;height:23px;fill:currentColor}
         .vl-live-air-heatmap-switch.is-on{background:var(--green);color:var(--lime)}
@@ -2602,18 +2668,18 @@ const VayuLokLive: React.FC = () => {
         /* ── HEALTH RECOMMENDATIONS ──────────────────────────────────────────────
            Exact Google Material Symbols with the home page's multi-hue accent family. */
         .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
-        .vl-live-air-health-title{margin:0 0 12px;color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
-        .vl-live-air-health-tabs{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-        .vl-live-air-health-tab{--health-accent:#3da35a;--health-tint:#e0f7c8;display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0;border:1px solid #b7d9bd;border-radius:50%;background:var(--health-tint);color:var(--health-accent);transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
-        .vl-live-air-health-tab:nth-child(2){--health-accent:#2563eb;--health-tint:#dbeafe;border-color:#b8cff8}
-        .vl-live-air-health-tab:nth-child(3){--health-accent:#9849e8;--health-tint:#ede9fe;border-color:#d5c8f5}
-        .vl-live-air-health-tab:nth-child(4){--health-accent:#c98a2e;--health-tint:#fef3c7;border-color:#edd7a2}
-        .vl-live-air-health-tab:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.10)}
-        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
-        .vl-live-air-health-tab.is-active{border:2px solid var(--green);box-shadow:0 0 0 3px rgba(209,244,112,.28)}
-        .vl-live-air-health-icon{width:22px;height:22px;fill:currentColor}
-        .vl-live-air-health-next{display:inline-flex;align-items:center;justify-content:center;width:34px;height:42px;padding:0;border:0;background:transparent;color:var(--green)}
-        .vl-live-air-health-next svg{width:22px;height:22px;fill:currentColor}
+        .vl-live-air-health-title{margin:0 0 14px;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
+        .vl-live-air-health-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+        .vl-live-air-health-tab{--health-accent:#3da35a;--health-tint:#e0f7c8;display:flex;min-width:0;min-height:78px;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;padding:0 2px;border:0;background:transparent;color:var(--health-accent);transition:transform .16s ease}
+        .vl-live-air-health-tab:nth-child(2){--health-accent:#2563eb;--health-tint:#dbeafe}
+        .vl-live-air-health-tab:nth-child(3){--health-accent:#9849e8;--health-tint:#ede9fe}
+        .vl-live-air-health-tab:nth-child(4){--health-accent:#c98a2e;--health-tint:#fef3c7}
+        .vl-live-air-health-tab:hover{transform:translateY(-1px)}
+        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--lime);outline-offset:3px;border-radius:10px}
+        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border:1px solid color-mix(in srgb,var(--health-accent) 28%,white);border-radius:50%;background:var(--health-tint);color:var(--health-accent);transition:border-color .16s ease,box-shadow .16s ease}
+        .vl-live-air-health-tab.is-active .vl-live-air-health-icon-wrap{border:2px solid var(--green);box-shadow:0 0 0 3px rgba(209,244,112,.28)}
+        .vl-live-air-health-icon{width:27px;height:27px;fill:currentColor}
+        .vl-live-air-health-tab-label{display:block;max-width:100%;color:var(--status);font-size:10.5px;font-weight:600;line-height:1.15;text-align:center;white-space:normal}
         .vl-live-air-health-rule{margin:14px 0 12px;border:0;border-top:1px solid var(--hair)}
         .vl-live-air-health-persona{display:block;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.15px}
         .vl-live-air-health-text{margin:7px 0 0;color:var(--body);font-size:13.5px;font-weight:400;line-height:1.5}
@@ -2623,7 +2689,7 @@ const VayuLokLive: React.FC = () => {
            bubble shows the current AQI number so meaning never rests on colour alone. */
         .vl-live-air-history{margin-top:20px}
         .vl-live-air-history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-        .vl-live-air-history-title{margin:0;color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.12px}
+        .vl-live-air-history-title{margin:0;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
         .vl-live-air-history-stamp{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:.01em}
         .vl-live-air-history-empty{margin:12px 0 0;color:var(--muted);font-size:12px;line-height:1.5}
         .vl-live-air-history-chart{position:relative;margin-top:12px}
@@ -2689,24 +2755,16 @@ const VayuLokLive: React.FC = () => {
         .vl-live-map-placeholder p{margin:4px 0 0;font-size:12px;color:var(--status)}
         .vl-live-map-fallback{position:absolute;inset:0;display:grid;place-items:center;z-index:0;background:#eef1ed;color:var(--green);font-size:13px}
         .vl-live-map-fallback button{margin-left:8px;border:1px solid var(--green);border-radius:999px;background:#fff;color:var(--green);padding:7px 11px}
-        .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px))}
+        .vl-live-map-search{position:absolute;z-index:10;top:16px;left:50%;transform:translateX(-50%);width:min(430px,calc(100% - 190px));padding:0 12px 7px;background:rgba(252,253,251,.96);box-shadow:0 8px 22px rgba(26,58,42,.10)}
         .vl-live-search{position:relative}
-        /* THE SITE-WIDE SEARCH LOOK, adopted from BlogSearch.tsx (the canonical global field):
-           a borderless input with a single 1px bottom hairline (var(--hair)), no pill rounding
-           and no heavy drop shadow. On focus the hairline darkens to the opaque brand green
-           (var(--green) #1a3a2a, 12.48:1 on white, which clears WCAG 1.4.11) with the small lime
-           underline box-shadow:0 1px 0 0 #d1f470 - the identical focus treatment the blog/menu
-           search uses. The combobox markup + a11y (role=combobox, aria-controls/expanded/
-           autocomplete, the listbox/option results, keyboard nav) and the India gating are
-           UNCHANGED - this is purely the field's VISUAL idiom. Because the field floats OVER the
-           map it keeps an opaque white backing on the container so it stays legible, but drops the
-           box so it reads as the site's borderless-with-hairline search rather than a pill. */
-        .vl-live-search-field{height:50px;display:flex;align-items:center;gap:10px;padding:0 12px;background:#fff;border-radius:10px}
-        .vl-live-search-field svg{width:19px;height:19px;stroke:var(--green);fill:none;stroke-width:2;flex:0 0 auto}
-        .vl-live-search-field input{width:100%;height:100%;padding:0 2px;border:0;border-bottom:1px solid var(--hair);border-radius:0;outline:none;background:transparent;color:var(--heading);font-size:17px;transition:border-color .2s,box-shadow .2s}
-        .vl-live-search-field input::placeholder{color:rgba(0,0,0,.44)}
+        /* Exact Header.tsx search-field contract: no icon, no rounded input box, transparent
+           input, 1px bottom hairline, 16px/400 type and the same dark-green + lime focus line.
+           Only the neutral backing belongs to the map context; the field itself is the menu field. */
+        .vl-live-search-field{display:block;min-height:44px;padding:0;background:transparent;border-radius:0}
+        .vl-live-search-field input{width:100%;min-height:44px;padding:0 2px;border:0;border-bottom:1px solid var(--hair);border-radius:0;outline:none;background:transparent;color:rgba(0,0,0,.898);font-size:16px;font-weight:400;line-height:1.3;font-family:inherit;transition:border-color .2s,box-shadow .2s}
+        .vl-live-search-field input::placeholder{color:rgba(0,0,0,.42)}
         .vl-live-search-field input:focus-visible{border-bottom-color:var(--green);box-shadow:0 1px 0 0 #d1f470}
-        .vl-live-search-results{position:absolute;top:56px;left:0;right:0;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
+        .vl-live-search-results{position:absolute;top:50px;left:-12px;right:-12px;z-index:20;margin:0;padding:6px;list-style:none;border:1px solid var(--hair);border-radius:14px;background:#fff;box-shadow:0 8px 22px rgba(26,58,42,.12)}
         .vl-live-search-results li{padding:10px 12px;border-radius:10px;cursor:pointer}
         .vl-live-search-results li[aria-selected="true"]{background:var(--lime-tint)}
         .vl-live-search-results strong,.vl-live-search-results span{display:block}
@@ -2720,18 +2778,20 @@ const VayuLokLive: React.FC = () => {
           .vl-live-shell{padding:10px max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
           .vl-live-map-shell{height:62vh;height:62dvh;min-height:min(460px,62svh);max-height:640px}
           .vl-live-map-search{top:max(10px,env(safe-area-inset-top));width:calc(100% - 20px)}
-          .vl-live-air-card{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:min(320px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100% - 132px);padding:17px 17px 15px}
+          .vl-live-air-card-wrap{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100% - 144px)}
+          .vl-live-air-card{max-height:inherit;padding:19px 19px 17px}
+          .vl-live-air-card-title{font-size:24px}
           .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
           .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
         @media(max-height:500px) and (orientation:landscape){
           .vl-live-shell{padding-top:max(8px,env(safe-area-inset-top))}
           .vl-live-map-shell{height:calc(100vh - 24px);height:calc(100dvh - 24px);min-height:250px}
-          .vl-live-search-field{height:44px}
-          .vl-live-air-card{max-height:calc(100% - 20px)}
+          .vl-live-search-field{min-height:44px}
+          .vl-live-air-card-wrap{max-height:calc(100% - 32px)}
         }
         @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
-          .vl-live-air-card{width:min(320px,42%)}
+          .vl-live-air-card-wrap{width:min(330px,42%)}
           .vl-live-map-search{width:min(390px,48%)}
         }
         @media(prefers-reduced-motion:reduce){
