@@ -74,14 +74,6 @@ function pm25Severity( pm25: number ): Sev {
 const INDIA_BOUNDS = { north: 37.6, south: 6.4, west: 68.1, east: 97.4 };
 
 // Neutral map camera; no place is selected until the visitor acts.
-interface PlacePhotoAttribution {
-  name: string;
-  uri?: string;
-}
-interface PlacePhoto {
-  url: string;
-  attributions: PlacePhotoAttribution[];
-}
 interface PlaceState {
   name: string;
   addr: string;
@@ -90,7 +82,6 @@ interface PlaceState {
   // Retain the resolved Google Place ID so a future server-side Geocoding v4
   // SearchDestinations relay can enrich discrete destinations without re-searching.
   placeId?: string;
-  photos?: PlacePhoto[];
   // Honest, optional Google Place metadata surfaced in the left card. Each is written to
   // state ONLY when the Places API actually returned it, so the card never shows an
   // invented fact or a placeholder (see metaFromGooglePlace / the left-card guards).
@@ -126,10 +117,6 @@ interface GooglePlaceLike {
   formattedAddress?: string;
   location?: { lat?: () => number; lng?: () => number };
   addressComponents?: { types?: string[]; shortText?: string }[];
-  photos?: {
-    getURI?: ( opts: { maxWidth?: number; maxHeight?: number } ) => string;
-    authorAttributions?: { displayName?: string; uri?: string }[];
-  }[];
   types?: string[];
   primaryTypeDisplayName?: string;
   rating?: number;
@@ -208,7 +195,6 @@ const DEFAULT_PLACE: PlaceState = {
   addr: 'Shillong, Meghalaya',
   lat: 25.5586,
   lng: 91.8985,
-  photos: [],
 };
 
 // OWNER OVERRIDE (reference screenshot, 2026-10-06): the selected place now uses the STANDARD
@@ -576,10 +562,7 @@ function rememberPlace( place: PlaceState ) {
   try {
     const key = `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}`;
     const rows = recentPlaces().filter( p => `${p.lat.toFixed( 4 )},${p.lng.toFixed( 4 )}` !== key );
-    // Do not persist Google photo URIs. Maps Platform photo URLs must be obtained
-    // from a fresh Place object, and any supplied author attribution must travel
-    // with the displayed photo.
-    rows.unshift( { name: place.name, addr: place.addr, lat: place.lat, lng: place.lng, photos: [] } );
+    rows.unshift( { name: place.name, addr: place.addr, lat: place.lat, lng: place.lng } );
     window.localStorage.setItem( RECENT_PLACES_KEY, JSON.stringify( rows.slice( 0, 5 ) ) );
   } catch { /* storage can be unavailable */ }
 }
@@ -803,7 +786,6 @@ const VayuLokLive: React.FC = () => {
             lat,
             lng,
             placeId: first.place_id,
-            photos: [],
           };
           setHasSelection( true );
           setSearchStatus( 'idle' );
@@ -811,13 +793,14 @@ const VayuLokLive: React.FC = () => {
           // area's geocoded lat/lng and loads its live data, exactly like choosing a
           // search result. The recenter effect (center + zoom 14 + marker move) fires on
           // the place change, so only the selected area's geocoding is shown. mapCandidate
-          // continues to drive the photo overlay / nearby-media enrichment below.
+          // continues to drive the on-map metadata enrichment below.
           setMapCandidate( next );
           setPlace( next );
 
-          // If reverse geocoding produced a Place ID, enrich the preview with Google
-          // Places photos AND the honest metadata the left card can show. Any author
-          // attribution supplied by Google is preserved and rendered with the photo below.
+          // If reverse geocoding produced a Place ID, enrich the preview with the honest
+          // Google Place metadata the on-map selected label can show (primary type,
+          // viewport, rating, etc.). We do NOT request Places photos: the floating card
+          // renders no photo rail, so fetching them would be a wasted Places request.
           if ( first.place_id ) {
             const lib = placesLibRef.current as {
               Place?: new ( opts: { id: string } ) => GooglePlaceLike;
@@ -826,26 +809,17 @@ const VayuLokLive: React.FC = () => {
             if ( PlaceCtor ) {
               try {
                 const googlePlace = new PlaceCtor( { id: first.place_id } );
-                await googlePlace.fetchFields?.( { fields: [ 'photos', ...PLACE_META_FIELDS ] } );
-                const photos: PlacePhoto[] = ( Array.isArray( googlePlace.photos ) ? googlePlace.photos : [] )
-                  .slice( 0, 8 )
-                  .map( photo => ( {
-                    url: photo.getURI?.( { maxWidth: 900, maxHeight: 600 } ) || '',
-                    attributions: ( Array.isArray( photo.authorAttributions ) ? photo.authorAttributions : [] )
-                      .map( a => ( { name: String( a.displayName || 'Photo contributor' ), uri: a.uri } ) ),
-                  } ) )
-                  .filter( photo => Boolean( photo.url ) );
+                await googlePlace.fetchFields?.( { fields: [ ...PLACE_META_FIELDS ] } );
                 const meta = metaFromGooglePlace( googlePlace );
-                if ( photos.length || Object.keys( meta ).length ) {
-                  const enrich = { ...meta, ...( photos.length ? { photos } : {} ) };
+                if ( Object.keys( meta ).length ) {
                   setMapCandidate( current => current && current.lat === lat && current.lng === lng
-                    ? { ...current, ...enrich }
+                    ? { ...current, ...meta }
                     : current );
                   setPlace( current => current.lat === lat && current.lng === lng
-                    ? { ...current, ...enrich }
+                    ? { ...current, ...meta }
                     : current );
                 }
-              } catch { /* photo + metadata enrichment is optional */ }
+              } catch { /* metadata enrichment is optional */ }
             }
           }
         } );
@@ -1692,7 +1666,6 @@ const VayuLokLive: React.FC = () => {
               addr: pr.formatted_address || '',
               lat: lat as number,
               lng: lng as number,
-              photos: [],
             };
             return { name: place.name, addr: place.addr, place };
           } )
@@ -1733,7 +1706,7 @@ const VayuLokLive: React.FC = () => {
     if ( !next && r.prediction?.toPlace ) {
       try {
         const googlePlace = r.prediction.toPlace();
-        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', 'photos', ...PLACE_META_FIELDS ] } );
+        await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', ...PLACE_META_FIELDS ] } );
         if ( !isIndiaResult( googlePlace ) ) {
           setSearchStatus( 'outside-india' );
           return;
@@ -1741,23 +1714,14 @@ const VayuLokLive: React.FC = () => {
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
-          const photos: PlacePhoto[] = ( Array.isArray( googlePlace.photos ) ? googlePlace.photos : [] )
-            .slice( 0, 8 )
-            .map( photo => ( {
-              url: photo.getURI?.( { maxWidth: 900, maxHeight: 600 } ) || '',
-              attributions: ( Array.isArray( photo.authorAttributions ) ? photo.authorAttributions : [] )
-                .map( a => ( { name: String( a.displayName || 'Photo contributor' ), uri: a.uri } ) ),
-            } ) )
-            .filter( p => Boolean( p.url ) );
           next = {
             name: googlePlace.displayName || r.name,
             addr: googlePlace.formattedAddress || r.addr,
             lat: lat as number,
             lng: lng as number,
             placeId: googlePlace.id,
-            photos,
             // Surface only the metadata Google actually returned; absent fields stay
-            // undefined so the left card renders no placeholder for them.
+            // undefined so the on-map label renders no placeholder for them.
             ...metaFromGooglePlace( googlePlace ),
           };
         }
@@ -1773,7 +1737,7 @@ const VayuLokLive: React.FC = () => {
     setPlace( next );
     setHasSelection( true );
     // 03C - a fresh search selection owns the view: clear any lingering map-click
-    // candidate so previewPlace (mapCandidate || place) and the photo overlay follow the
+    // candidate so previewPlace (mapCandidate || place) and the on-map label follow the
     // newly chosen area, never a stale clicked location.
     setMapCandidate( null );
     setQuery( next.name );

@@ -113,10 +113,6 @@ interface MapsRecorder {
   mapClickHandler?: ( event: { latLng?: { lat: () => number; lng: () => number } } ) => void;
 }
 
-// Optional author attribution Google supplies with a Place photo. When provided, the
-// stubbed search prediction resolves to a Place carrying one photo with these
-// attributions, so the component's mandated-attribution rendering can be exercised.
-interface PhotoAttribution { displayName?: string; uri?: string }
 // Honest Place metadata the Places JS API may return. When provided, the stubbed Place
 // carries these so the left-card metadata/attributes/description can be asserted; when
 // omitted, the Place carries none and those lines must NOT render (honest conditional).
@@ -130,7 +126,6 @@ interface PlaceMetaStub {
 }
 interface InstallOpts {
   paintMap?: boolean;
-  photoAttributions?: PhotoAttribution[];
   placeMeta?: PlaceMetaStub;
   // When false, DO NOT seed google.maps.Geocoder on the raw namespace. This reproduces the
   // real modern loader where Geocoder lives only in the 'geocoding' library, proving the
@@ -146,7 +141,6 @@ interface InstallOpts {
 function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
   const {
     paintMap = true,
-    photoAttributions,
     placeMeta,
     seedNamespaceGeocoder = true,
     geocodeStatus = 'OK',
@@ -218,15 +212,6 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     constructor( opts: Record<string, unknown> ) { rec.imageMapTypeOpts.push( opts ); }
   }
   class FakeAutocompleteSessionToken {}
-  // When photoAttributions are supplied, the resolved Place carries one photo bearing those
-  // Google-mandated author attributions (getURI returns a stable URL). Otherwise photos stay
-  // empty, preserving the default stub behaviour the other suites rely on.
-  const predictionPhotos = photoAttributions
-    ? [ {
-        getURI: ( _o: { maxWidth?: number; maxHeight?: number } ) => 'https://maps.example/photo-with-credit.jpg',
-        authorAttributions: photoAttributions,
-      } ]
-    : [];
   const fakePrediction = {
     mainText: { text: 'Mumbai' },
     secondaryText: { text: 'Maharashtra, India' },
@@ -240,7 +225,6 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
       addressComponents: [
         { longText: placeCountryCode === 'IN' ? 'India' : 'Bangladesh', shortText: placeCountryCode, types: [ 'country' ] },
       ],
-      photos: predictionPhotos,
       // Honest metadata only when the test opts in; otherwise undefined so the
       // metadata/attributes/description lines must not render.
       ...( placeMeta || {} ),
