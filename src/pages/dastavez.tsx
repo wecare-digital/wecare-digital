@@ -18,6 +18,13 @@ import { productBySlug } from '../content/products';
  * exact allowlist; a catch-all would have to be special-cased in both, and would also
  * swallow every unknown path on a static export.
  */
-const DastavezPage: React.FC = () => <ProductPage product={ productBySlug( 'dastavez' ) } />;
+/* Home / Shop / <Product>, matching what /shop/<slug>/ renders, so the trail from the listing into
+   a product is unbroken. ProductPage's `crumbs` prop is opt-in - see its docblock for why. */
+const DastavezPage: React.FC = () => (
+  <ProductPage
+    product={ productBySlug( 'dastavez' ) }
+    crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Dastavez' } ] }
+  />
+);
 
 export default DastavezPage;

@@ -41,9 +41,16 @@ interface AnewPageProps {
   blogCards: BlogCard[];
 }
 
+/* THE TRAIL: Home / Shop / <Product>, matching what /shop/<slug>/ renders. /anew/ is the page the
+   Anew card on /shop/ points at - the slug exists in both halves of the shelf and resolves here,
+   because this is the richer page. ProductPage's `crumbs` prop is opt-in; see its docblock.
+   This route is also the only one that passes blogCards, so .pdp-wrap is a GRID here - the
+   .pdp-crumbs wrapper and its grid-column:1 / -1 rule are what keep the blog rail where it
+   belongs rather than letting the trail push the copy into it. */
 const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
   <ProductPage
     product={ productBySlug( 'anew' ) }
+    crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Anew' } ] }
     blogCards={ blogCards }
     price="₹599"
     priceUnit="one written reflection"

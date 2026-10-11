@@ -537,8 +537,19 @@ const PUBLIC_PAGE_META: Record<string, {
   //
   // THE SEVEN PRODUCT PAGES stay in the isContentPublic chain as '/shop/[slug]', NOT here: this
   // map is keyed on router.pathname, so a dynamic route keyed here would compute every URL from
-  // the literal '[slug]'. Only the index front door belongs in this map.
-  '/shop': { name: 'Shop', type: 'WebPage', description: 'The WECARE.DIGITAL catalogue. Individual products live under /shop/<slug>/.' },
+  // the literal '[slug]'. Only the index front door belongs in this map. '/shop/page/[page]' is
+  // in that chain for the same reason.
+  //
+  // THE DESCRIPTION WAS REWORDED when the listing widened from the eight Wix catalogue rows to
+  // every product and service the site sells: most cards now link to /<slug>/ rather than to
+  // /shop/<slug>/, so "Individual products live under /shop/<slug>/" had become inaccurate. The
+  // same sentence is carried by the STRUCTURAL fallback in scripts/generate-public-pages.js and by
+  // the generated config/public-pages.json, and src/test/PublicAiSurface.test.ts compares the
+  // catalogue to this literal - so rewording it means re-running
+  // `node scripts/generate-public-pages.js`. Keep the single-quoted `name:` then `description:`
+  // shape: renderAllowlist() in that generator and allRoutes() in StructuredDataService.test.ts
+  // both parse this block as text and both require literals.
+  '/shop': { name: 'Shop', type: 'WebPage', description: 'Every WECARE.DIGITAL product and service on one page, each linking to its own page.' },
   // Shipments gathers the request/delivery/pickup actions in one place. It links the real request
   // routes (orders, request-amendment, drop-docs, vault, leave-review) and renders anything with
   // no backend (pickup/visit/delivery tracking) as a clearly non-transacting item.
@@ -750,7 +761,16 @@ export default function App ( { Component, pageProps }: AppProps ) {
     // Head below and makes components/ShopProductHead.tsx responsible for the whole of it -
     // including the Organization and WebSite entities, which otherwise would not exist on the page
     // for its Product.brand and Offer.seller references to resolve against.
-    || router.pathname === '/shop/[slug]';
+    || router.pathname === '/shop/[slug]'
+    // Pages 2..N of the catalogue listing - see src/pages/shop/page/[page].tsx. It belongs in
+    // THIS chain and not in PUBLIC_PAGE_META for the same reason /shop/[slug] and
+    // /blog/page/[page] do: the map is keyed on router.pathname, which here is the pattern
+    // '/shop/page/[page]', so the canonical, og:url and the WebPage node's @id would all be
+    // computed from a literal '[page]'. Being here suppresses the sitewide Head below and makes
+    // components/ShopListingHead.tsx responsible for the whole of it.
+    // WITHOUT THIS LINE every page but the first renders an empty body at HTTP 200 - a 404 that
+    // does not look like one, with a 200 in the sitemap and a 200 in every uptime check.
+    || router.pathname === '/shop/page/[page]';
   // [retired public path] and /partners are deliberately ABSENT. stack still lists them because this
   // branch's removal has not landed there yet; both pages were deleted on owner
   // instruction and re-adding the routes here would render blank 200s for them.

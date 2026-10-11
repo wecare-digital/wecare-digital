@@ -103,8 +103,21 @@ const COLUMNS: NavColumn[] = [
     sections: [
       // HOME, in the unlabelled group at the top of the menu, because it is the one
       // whole-site destination rather than a member of a category.
+      //
+      // SHOP JOINS IT, DIRECTLY AFTER, by that same rule: /shop/ lists every product and every
+      // service on one page, so it is an index ACROSS the categories rather than a member of one.
+      // It is the 'start' group in STRUCTURAL too, beside /, /contact and /blog.
+      // Not the Products group: that is generated from PRODUCTS, it scrolls, and an index sitting
+      // inside one category reads as a product named Shop. Not the Request group either - Shop is
+      // not a request action, and Header.test.tsx pins that group's exact label order as an owner
+      // instruction.
+      // The trailing slash on href is load-bearing (trailingSlash is set, so /shop 308s before
+      // resolving); `match` is slashless because it is compared against router.pathname, and that
+      // comparison is strict equality, so the row does not light up on /shop/[slug] or
+      // /shop/page/[page] - which is how every other row in this menu behaves.
       { heading: '', links: [
         { label: 'Home', href: '/', match: '/' },
+        { label: 'Shop', href: '/shop/', match: '/shop' },
       ] },
       {
         heading: 'Products',

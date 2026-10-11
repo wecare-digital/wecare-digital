@@ -28,6 +28,13 @@ import { productBySlug } from '../content/products';
  * HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  * trailingSlash means the URL is /hunar/.
  */
-const HunarPage: React.FC = () => <ProductPage product={ productBySlug( 'hunar' ) } />;
+/* Home / Shop / <Product>, matching what /shop/<slug>/ renders, so the trail from the listing into
+   a product is unbroken. ProductPage's `crumbs` prop is opt-in - see its docblock for why. */
+const HunarPage: React.FC = () => (
+  <ProductPage
+    product={ productBySlug( 'hunar' ) }
+    crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Hunar' } ] }
+  />
+);
 
 export default HunarPage;

@@ -5,6 +5,7 @@ import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
 import BlogSearch from './BlogSearch';
+import Pager from './Pager';
 
 /**
  * The blog index, one page of it.
@@ -114,21 +115,14 @@ export const blogPageHref = ( page: number, streamBase = '/blog/' ): string =>
   page <= 1 ? streamBase : `${streamBase}page/${page}/`;
 
 /**
- * Which page numbers to render. 35 pages of numbers is its own wall of links, so this shows
- * first, last, and a window around the current page, with gaps marked. Returns numbers and
- * nulls, where null is an elision.
+ * pageWindow() AND THE WHOLE PAGINATOR NOW LIVE IN components/Pager.tsx, markup and CSS
+ * together, because /shop/ renders the identical control. Two copies of a row whose styles
+ * carry a documented :global() trap and a documented WCAG contrast carve-out would drift, and
+ * a fix would land on one listing. Nothing here changed shape: every class name and attribute
+ * is what it was, which is why the pager assertions in src/test/BlogDesign.test.tsx are
+ * untouched, and the step labels default to this listing's Newer / Older so this call site
+ * passes neither.
  */
-function pageWindow ( page: number, totalPages: number ): ( number | null )[] {
-  if ( totalPages <= 7 ) return Array.from( { length: totalPages }, ( _, i ) => i + 1 );
-  const around = [ page - 1, page, page + 1 ].filter( n => n > 1 && n < totalPages );
-  const shown = [ 1, ...around, totalPages ];
-  const out: ( number | null )[] = [];
-  for ( let i = 0; i < shown.length; i++ ) {
-    if ( i > 0 && shown[ i ] - shown[ i - 1 ] > 1 ) out.push( null );
-    out.push( shown[ i ] );
-  }
-  return out;
-}
 
 const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   posts, page, totalPages, totalPosts, categories, categoryCounts,
@@ -252,8 +246,6 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   /** Honest denominator: this category's size across the corpus, not the whole corpus. */
   const categoryTotal = categoryCounts?.[ activeCategory ] ?? totalPosts;
 
-  const windowed = pageWindow( page, totalPages );
-
   /* WHICH STREAM THIS VIEW IS PAGING. Derived here rather than passed in, because the component
    * already holds both halves of the answer and the pills two hundred lines below compute the
    * same branch from the same two values - a prop would be a third place for it to disagree. */
@@ -369,55 +361,15 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                 narrowing of the whole corpus and every match is shown; paging it as well
                 would mean two independent narrowings between a reader and one post. */}
             { !filtering && totalPages > 1 && (
-              <nav className="pager" aria-label="Blog pages">
-                {/* rel=prev/next as well as the visible label: Google retired them as an
-                    indexing signal, they are still the semantic relationship, and some
-                    readers' browsers and extensions use them to move between pages. */}
-                {/* THE ARROW IS DRAWN, NOT TYPED, and that is a measured fix rather than a
-                    preference. These read "← Newer" and "Older →" with literal U+2190 / U+2192,
-                    and in a browser with the webfont unavailable both rendered as TOFU - a hollow
-                    box - beside perfectly legible text. Measured with a canvas advance-width
-                    comparison: the arrows came back identical to a private-use codepoint that has
-                    no glyph anywhere, i.e. no font in the fallback chain covered them.
-                    A rotated border box cannot fall back to a missing glyph. It is the same
-                    technique Breadcrumbs.tsx uses for its chevron and WorkflowTerminal.tsx for its
-                    play and pause marks, both for this exact reason, and it has the same bonus:
-                    aria-hidden furniture that a screen reader never announces as a character. */}
-                { page > 1
-                  ? <Link className="pager-step is-prev" rel="prev" href={ blogPageHref( page - 1, streamBase ) }>
-                    <i className="pager-mark" aria-hidden="true" />Newer
-                  </Link>
-                  : <span className="pager-step is-prev is-off" aria-hidden="true">
-                    <i className="pager-mark" />Newer
-                  </span> }
-
-                <ol className="pager-list">
-                  { windowed.map( ( n, i ) => (
-                    <li key={ n === null ? `gap-${i}` : n }>
-                      { n === null
-                        // A real character, not a styled empty element: a screen reader
-                        // needs something between "1" and "17" or the jump is silent.
-                        ? <span className="pager-gap">…</span>
-                        : n === page
-                          // aria-current is what says WHICH page this is. Bold alone says it
-                          // to sighted readers only, and a link to the page you are on is a
-                          // control that does nothing.
-                          ? <span className="pager-num is-here" aria-current="page">{ n }</span>
-                          : <Link className="pager-num" href={ blogPageHref( n, streamBase ) }>
-                            <span className="pager-sr">Page </span>{ n }
-                          </Link> }
-                    </li>
-                  ) ) }
-                </ol>
-
-                { page < totalPages
-                  ? <Link className="pager-step is-next" rel="next" href={ blogPageHref( page + 1, streamBase ) }>
-                    Older<i className="pager-mark" aria-hidden="true" />
-                  </Link>
-                  : <span className="pager-step is-next is-off" aria-hidden="true">
-                    Older<i className="pager-mark" />
-                  </span> }
-              </nav>
+              /* components/Pager.tsx, which is this exact control moved out whole so /shop/
+                 renders one declaration of it rather than a second copy. No prevLabel or
+                 nextLabel: they default to Newer / Older, which is this listing's own copy. */
+              <Pager
+                page={ page }
+                totalPages={ totalPages }
+                hrefFor={ n => blogPageHref( n, streamBase ) }
+                ariaLabel="Blog pages"
+              />
             ) }
           </>
         ) : (
@@ -564,70 +516,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         }
         .blog-degraded :global(a){color:#1a3a2a;font-weight:600}
 
-        /* THE PAGER. 44px minimum touch target on every control - that is the WCAG 2.5.8
-           floor and a row of page numbers is exactly the case it exists for. Sizes reuse
-           existing rungs: 12px radius from the search field, the lime-on-dark-green pairing
-           from the closing band's button for the current page. */
-        /* EVERY CHILD SELECTOR HERE GOES THROUGH :global(), AND WITHOUT IT NONE OF THIS APPLIED.
-           styled-jsx adds its scoping class only to lowercase DOM tags it can see in this file,
-           never to a capitalised component - it cannot know whether the component forwards
-           className to a DOM node. The steps and the page numbers are next/link, so they rendered
-           class="pager-step" with no jsx- hash and the compiled .jsx-xxx.pager-step rule matched
-           nothing. The current page and the dead direction are <span>, so THOSE were styled.
-           Measured on the built page before this fix, at /blog/page/2/:
-             a.pager-step   69x32   radius 0   border 0   transparent
-             a.pager-num     7x20   radius 0   border 0   transparent
-             span.pager-num.is-here  44x44  radius 12px  border 2px  lime
-           So the row read as one lime chip beside bare 7px-wide text, the 44px touch targets the
-           comment above claims did not exist, and 2.5.8 failed on the only navigation control on
-           the page. It is the identical trap .home-close-cta documents on the home page.
-           :global() INSIDE A SCOPED PARENT rather than a bare :global - .pager itself is a <nav>
-           in this file and does carry the hash, so these compile to .jsx-xxx.pager .pager-step and
-           cannot leak out of this component. Same idiom the post page already uses for the rich
-           content it does not author (.content :global(p)).
-           Do not "simplify" these back to plain selectors, and do not swap next/link for <a> to
-           avoid the wrapper: the link keeps client-side navigation, and an inner <span> carrying
-           the class would move the class off the focusable element and break the focus ring. */
-        .pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:48px 0 0;padding:24px 0 0;border-top:1px solid #e5e7eb}
-        .pager-list{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0;padding:0;list-style:none}
-        .pager :global(.pager-num),.pager :global(.pager-step),.pager :global(.pager-gap){
-          display:inline-flex;align-items:center;justify-content:center;gap:8px;
-          min-width:44px;min-height:44px;padding:0 12px;
-          border-radius:12px;font-size:16px;font-weight:600;
-          color:#1a3a2a;text-decoration:none;
-        }
-        /* The direction mark: two borders of a square, rotated. currentColor so it dims with the
-           text in the is-off state without a second rule. 2px to match the step's own border
-           weight - a 1px mark beside a 2px edge reads as a different object. */
-        .pager :global(.pager-mark){
-          width:7px;height:7px;flex:0 0 auto;
-          border-top:2px solid currentColor;border-right:2px solid currentColor;
-        }
-        .pager :global(.is-prev .pager-mark){transform:rotate(-135deg)}
-        .pager :global(.is-next .pager-mark){transform:rotate(45deg)}
-        /* .22, not .28 - same reason as the category-switch hover above. */
-        .pager :global(.pager-num:hover),.pager :global(.pager-step:hover){background:rgba(209,244,112,.22)}
-        .pager :global(.pager-num:focus-visible),.pager :global(.pager-step:focus-visible){outline:3px solid #1a3a2a;outline-offset:2px}
-        /* The current page: filled, and it is a <span>, so there is nothing to hover. */
-        .pager :global(.pager-num.is-here){background:#d1f470;border:2px solid #1a3a2a;cursor:default}
-        .pager :global(.pager-gap){color:rgba(0,0,0,.42);font-weight:400;min-width:24px;padding:0}
-        .pager :global(.pager-step){border:2px solid rgba(26,58,42,.22)}
-        /* The end of the run. Rendered rather than omitted so the row does not reflow as a
-           reader pages through, and aria-hidden so it is not announced as a dead control. */
-        /* LIGHTHOUSE FLAGS THIS AT 2.24:1 AND IT IS CORRECT TO LEAVE IT.
-           rgba(0,0,0,.32) composites to rgb(173,173,173) over white. axe reports it as a
-           colour-contrast failure because axe cannot always tell an inactive control from an
-           active one. Two separate exemptions apply here:
-           - WCAG 1.4.3 has no contrast requirement for text that is part of an INACTIVE user
-             interface component, and this is the disabled end of the pager.
-           - the markup renders these as span[aria-hidden="true"], so they are not exposed to
-             assistive technology at all; the real state is carried by the absence of a link.
-           Raising the contrast would make "unavailable" look available, which is the one thing
-           this rule exists to prevent. Do not "fix" it off a Lighthouse report. */
-        .pager :global(.pager-step.is-off){color:rgba(0,0,0,.32);border-color:#e5e7eb;cursor:default}
-        /* "Page 7" to a screen reader, "7" on screen: a bare number read out of the list
-           context is ambiguous. Same clip technique as .bs-label. */
-        .pager :global(.pager-sr){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+        /* THE PAGER'S RULES ARE GONE FROM THIS FILE, all of them, including the three that used
+           to sit in the narrow-screen block below (.pager gap, .pager-list order:3 and the
+           :global(.pager-step) flex:1). They live in components/Pager.tsx now, with the markup
+           they style, and they HAD to move together: nav.pager and ol.pager-list carry Pager's
+           styled-jsx hash, so a rule left here would match nothing and the mobile pager would
+           silently lose its wrap-to-own-row layout on both listings - with nothing to catch it,
+           because jsdom cannot read a computed style. src/test/Pager.test.tsx pins the media
+           block in its new home. */
 
         /* THE BREAKPOINTS ARE THE HOME PAGE'S NOW: 1024px and 767px, not 1050px and 680px.
            Four steps across two files that mean the same thing is how a layout ends up
@@ -643,12 +539,6 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
           /* The excerpt gets the full measure at one column, so it can run longer before the
              clamp bites - six lines rather than four. No new font size: same rung. */
           .post-copy p{-webkit-line-clamp:6}
-          /* The numbers wrap to their own row under the prev/next pair rather than
-             squeezing: 35 pages cannot share a 390px line with two labelled steps. */
-          .pager{gap:8px}
-          .pager-list{order:3;width:100%;justify-content:center}
-          /* :global for the same reason as the block above - these are next/link. */
-          .pager :global(.pager-step){flex:1}
         }
         /* THE REDUCED-MOTION BLOCK WAS AIMING AT NOTHING. It named
            .category-switch button, and the pills stopped being buttons when each category
