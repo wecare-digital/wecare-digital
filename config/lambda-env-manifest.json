@@ -106,9 +106,9 @@
       "WIX_API_KEY_SECRET": "wecare/wix/headless-api-key",
       "WIX_CART_V2_ENABLED": "true",
       "WIX_CART_V2_WRITE_CONTRACT": "cart-v2-external-v1",
-      "WIX_ECOM_WRITE_CONFIRMED": "",
+      "WIX_ECOM_WRITE_CONFIRMED": "true",
       "WIX_SITE_ID": "c993128b-26be-41cd-9fcd-904abe23462f",
-      "WIX_WRITEBACK_ENABLED": ""
+      "WIX_WRITEBACK_ENABLED": "true"
     },
     "wecare-cognito-custom-message": {
       "BRAND_NAME": "sha256:d185a0daa945",
