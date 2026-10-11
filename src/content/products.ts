@@ -252,7 +252,7 @@ export const PRODUCTS: ProductDef[] = [
       'A considered written reflection on a decision that matters — read in your own time, no calls.',
     frame: 'Reflection into',
     words: cycle( 'clarity', 'action', 'direction', 'focus' ),
-    sub: 'A considered written reflection on a decision that matters — read in your own time, no calls.',
+    sub: 'Share what you’re considering. Receive a written reflection on your situation that you can read and revisit in your own time — no calls.',
     sectionHeading: 'What Anew does',
     lead:
       'Tell us about a decision in your own words. We read it carefully and reflect back what appears important, what may be shaping your thinking, where the real tension is, and what could deserve another look before you act.',
