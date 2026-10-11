@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-11T11:08:10.469Z",
+  "fetchedAt": "2026-10-11T11:12:33.114Z",
   "productCount": 10,
   "products": [
     {
@@ -444,7 +444,7 @@
       "visible": true,
       "ribbon": "",
       "price": "49.00",
-      "priceMax": "350.00",
+      "priceMax": "550.00",
       "currency": "INR",
       "formattedPrice": "₹49.00",
       "compareAtPrice": null,
@@ -480,7 +480,7 @@
           "choiceId": "faa3b648-1fba-41ad-a5f2-f84bd2524070",
           "optionId": "aee30ab6-72bd-4a04-ac83-0234652ad0ee",
           "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
-          "pricePaise": 35000
+          "pricePaise": 55000
         },
         {
           "id": "db166bc8-a763-41ec-9f65-0f718f18155a",
@@ -515,5 +515,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-11T11:08:10.462Z"
+  "variantVerifiedAt": "2026-10-11T11:12:33.106Z"
 }
