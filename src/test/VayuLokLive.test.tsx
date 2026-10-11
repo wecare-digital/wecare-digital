@@ -505,7 +505,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     rec = installGoogleMaps();
   } );
 
-  it( 'loads a draggable global hybrid map and omits the removed map pills', async () => {
+  it( 'loads a destination-only global hybrid map and omits the removed map pills', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -516,10 +516,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
     expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
-    expect( rec.mapOpts?.gestureHandling ).toBe( 'greedy' );
-    expect( rec.mapOpts?.draggable ).toBe( true );
-    expect( rec.mapOpts?.scrollwheel ).toBe( true );
-    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( false );
+    expect( rec.mapOpts?.gestureHandling ).toBe( 'none' );
+    expect( rec.mapOpts?.draggable ).toBe( false );
+    expect( rec.mapOpts?.scrollwheel ).toBe( false );
+    expect( rec.mapOpts?.disableDoubleClickZoom ).toBe( true );
     expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( rec.mapClickHandler ).toBeUndefined();
 
@@ -635,13 +635,31 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     } );
     const tip = document.getElementById( describedBy );
     expect( tip ).not.toBeNull();
-    expect( tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
+    expect( tip?.getAttribute( 'role' ) ).toBe( 'dialog' );
+    expect( tip?.querySelector( '[aria-label="Close pollutant details"]' ) ).not.toBeNull();
     expect( tip?.closest( '.vl-live-air-card' ) ).toBeNull();
     expect( tip?.textContent ).toContain( 'PM2.5' );
     expect( tip?.textContent ).toContain( 'Sources' );
     expect( tip?.textContent ).toContain( 'Combustion of fuels' );
     expect( tip?.textContent ).toContain( 'Effects' );
     expect( tip?.textContent ).toContain( 'Penetrates deep into lungs' );
+
+    // Explicit close button removes the viewport-level popup without relying on hover/blur.
+    const closeButton = tip?.querySelector( '[aria-label="Close pollutant details"]' ) as HTMLButtonElement;
+    fireEvent.click( closeButton );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // Re-open and Escape closes it too.
+    fireEvent.focus( info );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
+    fireEvent.keyDown( document, { key: 'Escape' } );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
+
+    // Re-open and an outside pointer closes it.
+    fireEvent.focus( info );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).not.toBeNull() );
+    fireEvent.pointerDown( document.body );
+    await waitFor( () => expect( document.getElementById( describedBy ) ).toBeNull() );
 
     // No additionalInfo -> honest value/unit fallback, never invented Sources/Effects.
     fireEvent.blur( info );
@@ -1077,7 +1095,7 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.textContent ).not.toContain( 'Search India to see live weather and air.' );
   } );
 
-  it( 'renders the map full-bleed and the search field in the global borderless-hairline idiom', async () => {
+  it( 'renders the callout card shape and the exact Header search-field idiom', async () => {
     // CSS assertions read the rendered <style> text: vitest renders styled-jsx as a plain,
     // unscoped <style>, so the component's whole stylesheet is readable as text. Formatting is
     // the component's single-line declaration style, so these match on the exact declarations.
@@ -1089,25 +1107,28 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
 
     const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
 
-    // FULL-BLEED MAP: the shell no longer carries the boxed border/border-radius, but keeps
-    // overflow:hidden + isolation + the height band.
+    // MAP SHELL stays full-bleed while the Air card gets the shape-only callout tail.
     const shellRule = css.match( /\.vl-live-map-shell\{[^}]*\}/ )?.[ 0 ] || '';
     expect( shellRule ).toContain( 'overflow:hidden' );
     expect( shellRule ).toContain( 'isolation:isolate' );
     expect( shellRule ).toContain( 'height:72dvh' );
-    expect( shellRule ).not.toContain( 'border-radius' );
-    expect( shellRule ).not.toMatch( /border:1px solid/ );
+    const cardTailRule = css.match( /\.vl-live-air-card-wrap::after\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( cardTailRule ).toContain( 'transform:translateX(-50%) rotate(45deg)' );
+    expect( cardTailRule ).toContain( 'background:#fff' );
 
-    // GLOBAL SEARCH IDIOM: the search input is borderless with a single bottom hairline and the
-    // opaque #1a3a2a focus (var(--green)) plus the lime underline - the BlogSearch field standard.
+    // HEADER SEARCH IDIOM: no search icon, transparent field, 16px/400, bottom hairline,
+    // same dark-green + lime focus treatment as Header.tsx .nav-search.
+    expect( container.querySelector( '.vl-live-search-field svg' ) ).toBeNull();
     const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputRule ).toContain( 'border-bottom:1px solid var(--hair)' );
     expect( inputRule ).toContain( 'border:0' );
+    expect( inputRule ).toContain( 'font-size:16px' );
+    expect( inputRule ).toContain( 'font-weight:400' );
+    expect( inputRule ).toContain( 'background:transparent' );
     const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
     expect( inputFocus ).toContain( 'border-bottom-color:var(--green)' );
     expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
-    // And the old pill treatment is gone from the field container.
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
-    expect( fieldRule ).not.toContain( 'border-radius:var(--pill-r)' );
+    expect( fieldRule ).toContain( 'border-radius:0' );
   } );
 } );
