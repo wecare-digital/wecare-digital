@@ -516,6 +516,7 @@ EXPECTED_BLOCKED = [
     "Merchandise",
     "Paperwork",
     "Referral Partner",
+    "Request",
     "\u20b91 test product",
 ]
 
@@ -539,27 +540,21 @@ def test_remaining_imageless_products_are_blocked_and_every_service_item_has_a_p
     Meta is that none of the five is blocked.
     """
     assert sync.blockers(desired) == EXPECTED_BLOCKED
-    assert len(EXPECTED_BLOCKED) == 9
+    assert len(EXPECTED_BLOCKED) == 10
 
     syncable = [p for p in products if sync.is_syncable(p)]
     assert len(syncable) == 10
-    # THE SERVICES PRODUCT IS THE ONLY ONE WITH MEDIA, which is what `EXPECTED_BLOCKED` is built
-    # from. Its media COUNT is deliberately not pinned to a number: the owner is re-linking
-    # per-choice artwork in Wix, so the gallery size moves (6 on 2026-10-09, 5 on 2026-10-10)
-    # without changing which products are blocked. What must stay true is that no OTHER product
-    # has gained a picture, because that would silently unblock it.
+    # The committed snapshot currently has no media for any product, including Request.
+    # Keep this pinned so a catalogue refresh that adds artwork forces an explicit review of
+    # the blocker set instead of silently changing which items become publishable.
     for product in syncable:
-        if product["slug"] == "wecaredigital-services":
-            assert product.get("mediaCount"), "the services product must still carry media"
-        else:
-            assert product.get("mediaCount") == 0, (
-                "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening "
-                "this")
+        assert product.get("mediaCount") == 0, (
+            "a product gained media in Wix - update EXPECTED_BLOCKED rather than loosening this")
 
     services = [i for i in desired
                 if i["item_group_id"] == "df976a0a-f582-4535-b2e1-d532f348bd27"]
     assert len(services) == 5
-    assert all(i.get("image_url") for i in services)
+    assert all(not i.get("image_url") for i in services)
 
 
 def test_an_item_with_an_image_is_not_blocked():
