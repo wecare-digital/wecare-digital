@@ -1,7 +1,7 @@
 {
   "source": "wix stores/v3 products/search (anonymous visitor token)",
   "catalogVersion": "V3",
-  "fetchedAt": "2026-10-11T09:34:52.787Z",
+  "fetchedAt": "2026-10-11T10:32:36.760Z",
   "productCount": 10,
   "products": [
     {
@@ -457,10 +457,10 @@
       "optionCount": 1,
       "modifierCount": 0,
       "variantCount": 5,
-      "mediaCount": 1,
+      "mediaCount": 5,
       "infoSectionCount": 0,
       "productUrl": "https://wecare.digital/shop/wecaredigital-services/",
-      "image": "https://static.wixstatic.com/media/478bf9_b809658bfcc34d3bb6e18f0a704017ae~mv2.png",
+      "image": "https://static.wixstatic.com/media/478bf9_68c1928f93d74e448ebd3cf241b73aa7~mv2.png",
       "variants": [
         {
           "id": "864fc9a7-c326-4b4d-b0e5-6dc0ea5b764b",
@@ -515,5 +515,5 @@
       ]
     }
   ],
-  "variantVerifiedAt": "2026-10-11T09:34:52.780Z"
+  "variantVerifiedAt": "2026-10-11T10:32:36.751Z"
 }
