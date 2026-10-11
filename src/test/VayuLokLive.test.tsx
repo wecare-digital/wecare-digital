@@ -100,6 +100,10 @@ interface MapsRecorder {
   mapOpts: Record<string, unknown> | null;
   overlayPushes: unknown[];
   overlayClears: number;
+  // Live view of the array-backed overlayMapTypes double and the entries removed via removeAt,
+  // so a test can observe teardown (the ImageMapType leaving the array / the removeAt path).
+  overlayEntries: unknown[];
+  overlayRemovals: unknown[];
   imageMapTypeOpts: Record<string, unknown>[];
   geocodeCalls: Record<string, unknown>[];
   autocompleteCalls: Record<string, unknown>[];
@@ -151,6 +155,8 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     mapOpts: null,
     overlayPushes: [],
     overlayClears: 0,
+    overlayEntries: [],
+    overlayRemovals: [],
     imageMapTypeOpts: [],
     geocodeCalls: [],
     autocompleteCalls: [],
@@ -161,10 +167,27 @@ function installGoogleMaps( opts: boolean | InstallOpts = true ): MapsRecorder {
     setZoomCalls: [],
   };
 
+  // An ARRAY-BACKED MVCArray-like double for map.overlayMapTypes. The production component's
+  // detachHeatmap prefers the MVCArray contract: when getLength/getAt/removeAt are present it
+  // walks the array from the end and removes only the entry === the stored ImageMapType. The
+  // old {clear,push}-only stub forced the component down its clear() fallback, so the real
+  // index-removal loop never ran under test. This double exposes push/getLength/getAt/removeAt
+  // (and keeps clear() for any path that uses it) so the genuine removeAt path is exercised.
+  // It preserves the existing recorder semantics: push still appends to rec.overlayPushes and
+  // clear still bumps rec.overlayClears, so every existing assertion keeps working.
+  const overlayEntries: unknown[] = [];
   const overlayMapTypes = {
-    clear: () => { rec.overlayClears += 1; },
-    push: ( t: unknown ) => { rec.overlayPushes.push( t ); },
+    clear: () => { overlayEntries.length = 0; rec.overlayClears += 1; },
+    push: ( t: unknown ) => { overlayEntries.push( t ); rec.overlayPushes.push( t ); },
+    getLength: () => overlayEntries.length,
+    getAt: ( i: number ) => overlayEntries[ i ],
+    removeAt: ( i: number ) => {
+      const [ removed ] = overlayEntries.splice( i, 1 );
+      rec.overlayRemovals.push( removed );
+      return removed;
+    },
   };
+  rec.overlayEntries = overlayEntries;
 
   class FakeMap {
     overlayMapTypes = overlayMapTypes;
@@ -634,12 +657,14 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       expect( el?.textContent ).toContain( 'Satisfactory' );
     } );
 
-    // (1) HEATMAP. An accessible on/off switch that starts off and drives the existing
-    //     deck.gl AQI overlay path when flipped, plus a Poor/Excellent legend.
+    // (1) HEATMAP. An accessible on/off switch that starts off and drives the continuous
+    //     Google Air Quality TILE overlay path when flipped, plus a Poor/Excellent legend.
     const heatSwitch = await screen.findByRole( 'switch', { name: 'Air quality heatmap' } );
     expect( heatSwitch ).toHaveAttribute( 'aria-checked', 'false' );
     expect( heatSwitch ).not.toBeDisabled();
-    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+    // User-triggered: nothing is wired onto the map before the switch is flipped on.
+    expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
+    expect( rec.overlayPushes ).toHaveLength( 0 );
 
     // Toggle the heatmap on. The Air panel re-renders as the live air/history/forecast
     // calls settle, so retry the click (fetching a fresh node each pass) until the
@@ -649,8 +674,50 @@ describe( 'VayuLokLive v8 approved design contract', () => {
       if ( sw.getAttribute( 'aria-checked' ) !== 'true' ) fireEvent.click( sw );
       expect( sw ).toHaveAttribute( 'aria-checked', 'true' );
     } );
-    // Flipping it on drives the existing on-user-action deck.gl overlay (no new fetch).
-    await waitFor( () => expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( true ) );
+    // Flipping it on constructs a google.maps.ImageMapType and pushes it onto the map's
+    // overlayMapTypes - the continuous tile overlay, NOT a deck.gl dot overlay.
+    await waitFor( () => {
+      expect( rec.imageMapTypeOpts.length ).toBeGreaterThan( 0 );
+      expect( rec.overlayPushes.length ).toBeGreaterThan( 0 );
+    } );
+    // AQI tiles do not paint deck.gl scatter dots.
+    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
+
+    // The recorded ImageMapType getTileUrl returns a Google Air Quality heatmap tile URL
+    // on the UAQI_RED_GREEN map type, carrying the key query param.
+    const heatmapOpts = rec.imageMapTypeOpts.at( -1 )!;
+    const getTileUrl = heatmapOpts.getTileUrl as (
+      coord: { x: number; y: number }, zoom: number,
+    ) => string;
+    expect( typeof getTileUrl ).toBe( 'function' );
+    const tileUrl = getTileUrl( { x: 1, y: 2 }, 5 );
+    expect( tileUrl ).toContain( 'airquality.googleapis.com' );
+    expect( tileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
+    expect( tileUrl ).toContain( 'key=' );
+
+    // TEARDOWN: the exact ImageMapType pushed is live on the array-backed overlayMapTypes.
+    // Flipping the switch OFF (layer -> null) must DETACH it via the production removeAt
+    // index-removal loop, so the recorded removal is that instance and the array empties.
+    const attachedTile = rec.overlayPushes.at( -1 )!;
+    expect( rec.overlayEntries ).toContain( attachedTile );
+    await waitFor( () => {
+      const sw = screen.getByRole( 'switch', { name: 'Air quality heatmap' } );
+      if ( sw.getAttribute( 'aria-checked' ) !== 'false' ) fireEvent.click( sw );
+      expect( sw ).toHaveAttribute( 'aria-checked', 'false' );
+    } );
+    await waitFor( () => {
+      expect( rec.overlayRemovals ).toContain( attachedTile );
+      expect( rec.overlayEntries ).not.toContain( attachedTile );
+    } );
+    expect( rec.overlayEntries ).toHaveLength( 0 );
+
+    // Re-toggle ON re-pushes exactly ONE instance (idempotent attach, no duplicate).
+    await waitFor( () => {
+      const sw = screen.getByRole( 'switch', { name: 'Air quality heatmap' } );
+      if ( sw.getAttribute( 'aria-checked' ) !== 'true' ) fireEvent.click( sw );
+      expect( sw ).toHaveAttribute( 'aria-checked', 'true' );
+    } );
+    await waitFor( () => expect( rec.overlayEntries ).toHaveLength( 1 ) );
 
     const legend = container.querySelector( '.vl-live-air-heatmap-legend' );
     expect( legend?.textContent ).toContain( 'Poor' );
@@ -732,7 +799,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
   } );
 
-  it( 'keeps spatial AQ dots user-triggered, deck.gl based and on the no-red v8 palette', async () => {
+  it( 'paints the AQI layer as a user-triggered Google heatmap TILE overlay, not deck.gl dots', async () => {
     const fetchSpy = airConditionsFetch( 450, 180 );
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -741,8 +808,60 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
+    // User-triggered: no tile overlay and no deck.gl overlay before the AQI pill is clicked.
+    expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
+    expect( rec.overlayPushes ).toHaveLength( 0 );
     expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
     fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    // AQI builds a continuous Google Air Quality heatmap tile layer onto overlayMapTypes.
+    await waitFor( () => {
+      expect( rec.imageMapTypeOpts.length ).toBeGreaterThan( 0 );
+      expect( rec.overlayPushes.length ).toBeGreaterThan( 0 );
+    } );
+    const opts = rec.imageMapTypeOpts.at( -1 )!;
+    expect( opts.name ).toBe( 'vl-live-aqi-heatmap' );
+    expect( opts.opacity ).toBe( 0.75 );
+    const getTileUrl = opts.getTileUrl as (
+      coord: { x: number; y: number }, zoom: number,
+    ) => string;
+    const tileUrl = getTileUrl( { x: 1, y: 2 }, 5 );
+    expect( tileUrl ).toContain( 'airquality.googleapis.com' );
+    expect( tileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
+    expect( tileUrl ).toContain( '/5/1/2' );
+    expect( tileUrl ).toContain( 'key=' );
+    // AQI no longer paints deck.gl scatter dots.
+    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
+
+    // The exact ImageMapType instance is live on the array-backed overlayMapTypes double.
+    const attached = rec.overlayPushes.at( -1 )!;
+    expect( rec.overlayEntries ).toContain( attached );
+    expect( rec.overlayEntries ).toHaveLength( 1 );
+
+    // TEARDOWN via the PRODUCTION removeAt path: switching AQI -> PM2.5 detaches the heatmap.
+    // Because the double implements getLength/getAt/removeAt, the component runs its real
+    // index-removal loop (not the clear() fallback), so the recorded removal is the exact
+    // instance and the array no longer contains it.
+    fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
+    await waitFor( () => {
+      expect( rec.overlayRemovals ).toContain( attached );
+      expect( rec.overlayEntries ).not.toContain( attached );
+    } );
+    expect( rec.overlayEntries ).toHaveLength( 0 );
+  } );
+
+  it( 'keeps spatial PM2.5 dots user-triggered, deck.gl based and on the no-red v8 palette', async () => {
+    const fetchSpy = airConditionsFetch( 450, 180 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    // User-triggered: no deck.gl overlay before the PM2.5 pill is clicked.
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+    fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
 
     await waitFor( () => expect( deckRec.scatterProps.length ).toBeGreaterThan( 0 ) );
     const props = deckRec.scatterProps.at( -1 )!;
@@ -751,6 +870,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const fill = props.getFillColor( point ) as [ number, number, number, number ];
     expect( matchesVayuLokRamp( fill ) ).toBe( true );
     expect( isRedDominant( fill ) ).toBe( false );
+    // PM2.5 is deck.gl dots only - it does not build a tile overlay.
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
     expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( true );
   } );
