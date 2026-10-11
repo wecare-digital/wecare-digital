@@ -5999,12 +5999,18 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         from flows.service_design_drafts import handle
         return handle(event, _graph_api, _create_flow, _upload_flow_asset, _get_flow)
 
-    if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview'):
+    if event.get('internalAction') in ('catalogServiceReadiness', 'serviceReview', 'vaultReview'):
         if any(event.get(k) for k in ('requestContext', 'rawPath', 'path', 'httpMethod')):
             return _resp(403, {'error': 'Internal invocation required'})
         if event['internalAction'] == 'catalogServiceReadiness':
             from flows.catalog_services import readiness
             return readiness(_get_flow, _graph_api)
+        # vaultReview routes to the Vault-specific review sender (gated on kind=='VAULT'),
+        # not the submit-request one. secure-files' _queue_vault_review invokes this after the
+        # first authenticated access; before this branch existed it was a silent no-op.
+        if event['internalAction'] == 'vaultReview':
+            from flows.paid_vault import send_review as send_vault_review
+            return send_vault_review(event, lambda_client)
         from flows.paid_submit_request import send_review
         return send_review(event, lambda_client)
 
