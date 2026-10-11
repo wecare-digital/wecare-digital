@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import BlogSubscribe from './BlogSubscribe';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import BlogContribution from './BlogContribution';
 import ShareLinks from './ShareLinks';
+import { SUBSCRIBE_CTA_HREF } from '../content/subscribe';
 
 /**
  * VayuLok LIVE content, appended BELOW the rotating-word hero on /vayulok/.
@@ -487,6 +487,50 @@ function windUnitLabel( unit?: string ): string {
 function n( value: unknown ): number {
   const out = Number( value );
   return Number.isFinite( out ) ? out : NaN;
+}
+
+// HONEST SHARE TITLE. Composes the single string ShareLinks carries into the WhatsApp message
+// first line and navigator.share { title, text }. It summarises the SELECTED PLACE's live air +
+// weather for previewPlace, and degrades honestly: a clause only appears when its source data is
+// actually in state. On the keyless/sandbox path air === null and weather === null, so this
+// returns the place name alone (never a fabricated AQI/weather number); when even the place name
+// is blank it falls back to the neutral VAYULOK_SHARE_TITLE. Every emitted number is read straight
+// from state - no 'NaN', no 'undefined', no invented units.
+export function composeVayuLokShareTitle(
+  placeName: string | undefined | null,
+  air: AirState | null,
+  weather: WeatherState | null,
+): string {
+  const name = ( placeName || '' ).trim();
+  if ( !name ) return VAYULOK_SHARE_TITLE;
+
+  // Air clause: AQI <n> (<word>) with the dominant pollutant appended when present. aqi is a
+  // finite number by the time AirState exists, but guard anyway so a malformed value is dropped
+  // rather than rendered as 'AQI NaN'.
+  let airClause = '';
+  if ( air && Number.isFinite( air.aqi ) && air.word ) {
+    airClause = `AQI ${ Math.round( air.aqi ) } (${ air.word })`;
+    if ( air.dominant ) airClause += `, ${ air.dominant } dominant`;
+  }
+
+  // Weather clause: <temp>°C with the condition appended when present. temp is already rounded at
+  // ingest; still guard for finiteness so an absent temp never prints 'undefined°C'.
+  let weatherClause = '';
+  if ( weather ) {
+    const parts: string[] = [];
+    if ( Number.isFinite( weather.temp ) ) parts.push( `${ Math.round( weather.temp as number ) }°C` );
+    if ( weather.condition ) parts.push( weather.condition );
+    weatherClause = parts.join( ', ' );
+  }
+
+  // Grammatical for every combination: place-only, place+air, place+weather, full.
+  let summary: string;
+  if ( airClause && weatherClause ) summary = `Air quality in ${ name }: ${ airClause } - ${ weatherClause }`;
+  else if ( airClause ) summary = `Air quality in ${ name }: ${ airClause }`;
+  else if ( weatherClause ) summary = `${ name }: ${ weatherClause }`;
+  else summary = name;
+
+  return `${ summary } | VayuLok`;
 }
 
 function weatherHourFromApi( row: Record<string, any> ): WeatherHour | null {
@@ -2080,6 +2124,13 @@ const VayuLokLive: React.FC = () => {
   // weather/air history + forecast state is still fetched and kept intact for the
   // Weather phase and the map layers.
   const previewPlace = mapCandidate || place;
+  // Honest, data-driven Share title for the selected place. On the keyless path (air/weather
+  // null) this is just the place name (or the neutral VayuLok fallback) with no fabricated
+  // numbers; it becomes the WhatsApp message first line and the navigator.share text.
+  const shareTitle = useMemo(
+    () => composeVayuLokShareTitle( previewPlace.name, air, weather ),
+    [ previewPlace.name, air, weather ],
+  );
   const currentPm25 = air?.pollutants.find( p => p.code === 'pm25' ) || null;
   const mapActive = Boolean( MAPS_KEY );
   const liveActive = Boolean( MAPS_KEY && hasSelection );
@@ -2444,17 +2495,38 @@ const VayuLokLive: React.FC = () => {
                 {/* PAGE FURNITURE, NOT LIVE DATA. Subscribe / Contribute / Share are the same
                     blocks every blog post carries, embedded here below the Air/Weather sections.
                     They render on EVERY path including keyless - they are SSR/keyless safe and
-                    fire NO network call on mount (BlogSubscribe only fetches on user action,
+                    fire NO network call on mount (the Subscribe pill is a static WhatsApp anchor,
                     BlogContribution is a static WhatsApp anchor, ShareLinks only feature-detects
                     in an effect and writes classes). A hairline separator sits above them, and
                     BlogContribution runs embedded so it drops its own top rule inside the card.
                     None of the three render a <main>, so the single main.vl-live-shell landmark
-                    is preserved. */}
+                    is preserved.
+
+                    SUBSCRIBE MATCHES THE LIVE BLOG POST, NOT THE OLD IN-PAGE FORM. The blog post
+                    (src/pages/post/[slug].tsx) dropped the full BlogSubscribe signup box in favour
+                    of a single compact lime pill that opens the Subscribe WhatsApp conversation -
+                    the matched twin of BlogContribution's Contribute pill. We render that same
+                    treatment INLINE here (so styled-jsx stamps its scope hash onto the markup):
+                    a .vl-live-air-subscribe anchor at the shared SUBSCRIBE_CTA_HREF with a
+                    .wc-sweep-note microcopy line below it, exactly as BlogContribution does. The
+                    anchor is text-only (no glyph) and leaves the site, so it is a real <a> that is
+                    middle-clickable, long-pressable and copyable; aria-label carries the visible
+                    word for WCAG 2.5.3. The pill geometry is sized to the narrow (~336px) card
+                    under .vl-live-air-extras rather than by editing the shared blog rules. */}
                 <div className="vl-live-air-extras">
                   <hr className="vl-live-air-card-rule" aria-hidden="true" />
-                  <BlogSubscribe />
+                  <a
+                    className="vl-live-air-subscribe"
+                    href={ SUBSCRIBE_CTA_HREF }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label="Subscribe on WhatsApp"
+                  >
+                    <span>Subscribe</span>
+                  </a>
+                  <p className="wc-sweep-note" aria-hidden="true">Continue on WhatsApp →</p>
                   <BlogContribution postId="vayulok" slug="vayulok" embedded={ true } />
-                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ VAYULOK_SHARE_TITLE } label="Share" />
+                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ shareTitle } label="Share" />
                 </div>
               </aside>
 
@@ -2579,18 +2651,67 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-card-title{margin:0;color:var(--heading);font-size:16px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-card-rule{margin:12px 0 14px;border:0;border-top:1px solid var(--hair)}
 
-        /* EMBEDDED PAGE FURNITURE (Subscribe / Contribute / Share). These components self-style;
-           this wrapper only owns the rhythm between them inside the narrow (~336px) scrollable
-           card. The card already scrolls (overflow-y:auto + scrollbar-width:thin, no colour), so
-           added height just scrolls - we add NO scrollbar hider and NO thumb colour here. The two
-           :global reaches below are the minimum needed to keep the wide blog blocks from forcing
-           a horizontal scrollbar in this column: BlogSubscribe's own top margin is neutralised
-           (its separator is the hairline above), and each embedded block's top gap is normalised
-           so they stack evenly. We do NOT restyle the components' internals (colours, controls,
-           typography) - only outer spacing scoped tightly under .vl-live-air-extras. */
+        /* EMBEDDED PAGE FURNITURE (Subscribe / Contribute / Share), MATCHED TO THE LIVE BLOG
+           POST. The blog post (src/pages/post/[slug].tsx) carries a compact lime Subscribe pill
+           (.blog-wa-subscribe) + microcopy, the twin of BlogContribution's Contribute pill
+           (.bc-cta), then the ShareLinks row - NOT the old in-page BlogSubscribe form. This card
+           renders the same furniture. BlogContribution self-styles; this wrapper owns the rhythm
+           between the blocks inside the narrow (~336px) scrollable card and SIZES THE PILLS TO
+           THE CARD so they do not overflow / look oversized, which is the owner's complaint.
+           The card already scrolls (overflow-y:auto + scrollbar-width:thin, no colour), so added
+           height just scrolls - we add NO scrollbar hider and NO thumb colour here. The embedded
+           block's top gap is normalised so the blocks stack evenly under the hairline above. We
+           do NOT edit the shared .bc-cta / .blog-wa-subscribe base rules (the blog page keeps its
+           own geometry); the sizing is reached only via :global() nested under .vl-live-air-extras
+           so the blog page is unaffected and its guard tests stay green. */
         .vl-live-air-extras{margin-top:16px;display:flex;flex-direction:column;gap:20px}
-        .vl-live-air-extras :global(.blog-subscribe){margin-top:0}
         .vl-live-air-extras :global(.bc){margin-top:0}
+
+        /* THE SUBSCRIBE PILL, THE BLOG POST'S .blog-wa-subscribe OBJECT RENDERED INLINE HERE so
+           styled-jsx scopes it. The values are the blog pill's: 2px #1a3a2a edge (clears
+           WCAG 1.4.11 for a control boundary; the lime alone is 1.24:1), 50px pill radius,
+           #1a3a2a type on #d1f470 lime (10.04:1), 17px/600 label and the house transition.
+           SIZED TO THE CARD, which is the owner's ask: it is a full-width block pill (display:flex
+           + width:100%) with reduced 20px inline padding and a slightly smaller 48px min-height
+           instead of the blog's 52px / 0 28px that overflow the narrow column - still well above
+           the 44px tap target. No margin-top: the hairline above and the flex gap own the rhythm,
+           unlike the blog where it opens a band with margin-top:44px. */
+        .vl-live-air-extras .vl-live-air-subscribe{
+          display:flex;align-items:center;justify-content:center;box-sizing:border-box;width:100%;
+          min-height:48px;padding:0 20px;border:2px solid #1a3a2a;border-radius:50px;
+          background:#d1f470;color:#1a3a2a;font-size:17px;font-weight:600;line-height:1.2;
+          text-decoration:none;transition:background-color .2s,transform .2s,box-shadow .2s;
+        }
+        /* THE HOUSE HOVER the owner mentions: lime -> white inversion with the one allowed lift
+           and shadow. White gives #1a3a2a type 12.48:1. Mirrors .blog-wa-subscribe:hover and
+           .bc-cta:hover exactly. */
+        .vl-live-air-extras .vl-live-air-subscribe:hover{background:#fff;transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12)}
+        .vl-live-air-extras .vl-live-air-subscribe:active{transform:translateY(0)}
+        .vl-live-air-extras .vl-live-air-subscribe:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        /* REDUCED MOTION: drop the hover lift + shadow so this pill matches its Contribute twin,
+           which carries the same @media(prefers-reduced-motion:reduce){ .bc-cta:hover{transform:none;
+           box-shadow:none} } guard. The component's global .vl-live *{transition:none!important}
+           already kills the animated transition, but not the static hover transform/shadow - this
+           closes that asymmetry so the two matched pills behave identically. */
+        @media(prefers-reduced-motion:reduce){
+          .vl-live-air-extras .vl-live-air-subscribe:hover{transform:none;box-shadow:none}
+        }
+
+        /* SIZE THE EMBEDDED CONTRIBUTE PILL TO THE CARD. The shared .bc-cta ships inline-flex at
+           padding:0 28px, which overflows this narrow column - the owner's "too big / not sized
+           to the card". We reach it via :global() nested under .vl-live-air-extras ONLY, so the
+           blog page's own .bc-cta is untouched (BlogContribution.test.tsx / BlogDesign.test.tsx
+           pin the base rule and stay green). We match the Subscribe pill above: full-width block,
+           20px inline padding, 48px min-height. We DO NOT re-declare colours, border, radius or
+           the hover here - the shared rule already carries the lime->white inversion with
+           translateY(-2px) + box-shadow:0 4px 12px rgba(26,58,42,.12), and this override only
+           changes width/padding/height so that hover is preserved intact. */
+        .vl-live-air-extras :global(.bc-cta){
+          display:flex;width:100%;box-sizing:border-box;min-height:48px;padding:0 20px;
+        }
+        /* MICROCOPY line under each pill (the shared global .wc-sweep-note). Pull it up tight to
+           its pill so the pill + its caption read as one object within the 20px flex gap. */
+        .vl-live-air-extras :global(.wc-sweep-note){margin-top:8px}
 
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}

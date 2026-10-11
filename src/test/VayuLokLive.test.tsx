@@ -1213,16 +1213,45 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // below proves now that they are mounted here.
     const extras = container.querySelector( '.vl-live-air-card .vl-live-air-extras' );
     expect( extras ).not.toBeNull();
-    // BlogSubscribe's section.
-    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).not.toBeNull();
-    expect( extras?.textContent ).toContain( 'Get new posts directly' );
-    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch).
+    // SUBSCRIBE now matches the LIVE blog post: a compact lime WhatsApp pill, NOT the old
+    // in-page BlogSubscribe signup form. It is a static anchor at the shared Subscribe deep link
+    // with the 'Continue on WhatsApp' microcopy below it, the twin of the Contribute pill. The
+    // old form's section ([aria-labelledby="blog-subscribe-title"], 'Get new posts directly') is
+    // gone, so neither must appear here.
+    const subscribe = extras?.querySelector( 'a.vl-live-air-subscribe' );
+    expect( subscribe ).not.toBeNull();
+    expect( subscribe?.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    expect( subscribe?.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
+    expect( subscribe?.textContent ).toContain( 'Subscribe' );
+    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).toBeNull();
+    expect( extras?.textContent ).not.toContain( 'Get new posts directly' );
+    expect( extras?.textContent ).toContain( 'Continue on WhatsApp' );
+    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch), its Contribute pill
+    // pointing at the DISTINCT Contribute deep link.
     expect( extras?.querySelector( 'section.bc.is-embedded' ) ).not.toBeNull();
     expect( extras?.textContent ).toContain( 'Contribute' );
+    const contribute = extras?.querySelector( 'a.bc-cta' );
+    expect( contribute?.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
     // ShareLinks' WhatsApp control, pointing at the absolute /vayulok/ page URL.
     const shareWa = extras?.querySelector( 'a[aria-label="Share this page on WhatsApp"]' );
     expect( shareWa ).not.toBeNull();
-    expect( shareWa?.getAttribute( 'href' ) ).toContain( 'wecare.digital%2Fvayulok%2F' );
+    const shareHref = shareWa?.getAttribute( 'href' ) || '';
+    // The url is unchanged - the share link still resolves to the live /vayulok/ tool.
+    expect( shareHref ).toContain( 'wecare.digital%2Fvayulok%2F' );
+    // HONEST SHARE TITLE on the keyless path. air === null and weather === null here, so the
+    // composed title degrades to the selected place name (DEFAULT_PLACE 'Lumpyngngad') plus the
+    // neutral VayuLok tail - it fabricates NO AQI or weather numbers. The whole message
+    // (title + url) is URL-encoded into the WhatsApp href, so decode it and assert on the title.
+    const sharePrefix = 'https://api.whatsapp.com/send?text=';
+    expect( shareHref.startsWith( sharePrefix ) ).toBe( true );
+    const shareMessage = decodeURIComponent( shareHref.slice( sharePrefix.length ) );
+    expect( shareMessage ).toContain( 'Lumpyngngad' );
+    expect( shareMessage ).toContain( 'VayuLok' );
+    // No fabricated live data: no AQI value, no degree reading, no NaN/undefined leak.
+    expect( shareMessage ).not.toContain( 'AQI' );
+    expect( shareMessage ).not.toContain( '°C' );
+    expect( shareMessage ).not.toContain( 'NaN' );
+    expect( shareMessage ).not.toContain( 'undefined' );
 
     // HONEST POLLUTANT DESCRIPTIONS. Sources/Effects text comes ONLY from Google's API
     // additionalInfo; the keyless path fires no air call, so no pollutant popover and no
@@ -1270,5 +1299,76 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // And the old pill treatment is gone from the field container.
     const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
     expect( fieldRule ).not.toContain( 'border-radius:var(--pill-r)' );
+  } );
+} );
+
+describe( 'composeVayuLokShareTitle - honest, data-driven Share title', () => {
+  // Pure module-level helper. Loaded fresh so it is read after any env stubbing, matching the
+  // dynamic-import discipline the rest of this suite uses for the component module.
+  async function loadCompose() {
+    vi.resetModules();
+    const mod = await import( '../components/VayuLokLive' );
+    return mod.composeVayuLokShareTitle;
+  }
+
+  it( 'includes AQI, dominant pollutant and weather when all data is present', async () => {
+    const compose = await loadCompose();
+    const title = compose(
+      'Mumbai',
+      { aqi: 142.6, word: 'Unhealthy', sev: 4 as any, dominant: 'PM2.5', pollutants: [] },
+      { temp: 31, condition: 'Haze' },
+    );
+    expect( title ).toBe( 'Air quality in Mumbai: AQI 143 (Unhealthy), PM2.5 dominant - 31°C, Haze | VayuLok' );
+    expect( title ).not.toContain( 'NaN' );
+    expect( title ).not.toContain( 'undefined' );
+  } );
+
+  it( 'includes only the air clause when weather is null (air-only)', async () => {
+    const compose = await loadCompose();
+    const title = compose(
+      'Delhi',
+      { aqi: 205, word: 'Very Unhealthy', sev: 5 as any, pollutants: [] },
+      null,
+    );
+    expect( title ).toBe( 'Air quality in Delhi: AQI 205 (Very Unhealthy) | VayuLok' );
+    expect( title ).not.toContain( '°C' );
+  } );
+
+  it( 'includes only the weather clause when air is null (weather-only)', async () => {
+    const compose = await loadCompose();
+    const title = compose( 'Shillong', null, { temp: 18, condition: 'Light rain' } );
+    expect( title ).toBe( 'Shillong: 18°C, Light rain | VayuLok' );
+    expect( title ).not.toContain( 'AQI' );
+  } );
+
+  it( 'is the place name alone when air and weather are both null (place-only / keyless)', async () => {
+    const compose = await loadCompose();
+    const title = compose( 'Lumpyngngad', null, null );
+    expect( title ).toBe( 'Lumpyngngad | VayuLok' );
+    expect( title ).not.toContain( 'AQI' );
+    expect( title ).not.toContain( '°C' );
+    expect( title ).not.toContain( 'NaN' );
+    expect( title ).not.toContain( 'undefined' );
+  } );
+
+  it( 'falls back to the neutral VayuLok title when the place name is empty', async () => {
+    const compose = await loadCompose();
+    expect( compose( '', null, null ) ).toBe( 'VayuLok - live air quality across India' );
+    expect( compose( '   ', null, null ) ).toBe( 'VayuLok - live air quality across India' );
+    expect( compose( undefined, null, null ) ).toBe( 'VayuLok - live air quality across India' );
+  } );
+
+  it( 'never emits a fabricated number: drops a non-finite AQI or temp honestly', async () => {
+    const compose = await loadCompose();
+    // Non-finite aqi -> no air clause; absent temp but present condition -> condition only.
+    const title = compose(
+      'Pune',
+      { aqi: NaN, word: 'Good', sev: 1 as any, pollutants: [] },
+      { condition: 'Clear' },
+    );
+    expect( title ).toBe( 'Pune: Clear | VayuLok' );
+    expect( title ).not.toContain( 'AQI' );
+    expect( title ).not.toContain( 'NaN' );
+    expect( title ).not.toContain( 'undefined' );
   } );
 } );

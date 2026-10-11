@@ -2,7 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
-import BlogContribution, { CONTRIBUTE_CTA_HREF } from '../components/BlogContribution';
+import BlogContribution, {
+  CONTRIBUTE_CTA_HREF, CONTRIBUTE_AMOUNT_LABEL,
+} from '../components/BlogContribution';
 import { CONTRIBUTION_CHOICES, CONTRIBUTION_PRODUCT_ID } from '../config/contribution';
 import type { ShopProduct } from '../content/shop';
 import {
@@ -118,14 +120,16 @@ describe( 'BlogContribution is one WhatsApp link', () => {
     expect( links[ 0 ].getAttribute( 'href' ) ).not.toContain( 'WUDPTMYSO6XII1' );
   } );
 
-  it( 'is the Subscribe button\'s twin: a text-only pill plus "Continue on WhatsApp" microcopy', () => {
+  it( 'is the Subscribe button\'s twin: a text-only pill naming the amount plus "Continue on WhatsApp" microcopy', () => {
     const { container } = renderBlock();
     const link = container.querySelector( 'a' )!;
 
-    // ONE WORD on the pill, exactly as .blog-wa-subscribe carries one word. TEXT ONLY - the
-    // owner dropped the glyph because the logo inside the filled pill read as too busy.
-    expect( link.querySelector( 'span' )?.textContent ).toBe( 'Contribute' );
-    expect( link.textContent ).toBe( 'Contribute' );
+    // The pill names the suggested amount (owner instruction 2026-10-11): "Contribute ₹250".
+    // The figure is read from the central config, not re-typed here, so the test cannot drift
+    // from src/config/contribution.ts. TEXT ONLY - still no WhatsApp glyph.
+    expect( CONTRIBUTE_AMOUNT_LABEL ).toBe( '\u20B9250' );
+    expect( link.querySelector( 'span' )?.textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
+    expect( link.textContent ).toBe( `Contribute ${ CONTRIBUTE_AMOUNT_LABEL }` );
     // NO glyph on the button any more.
     expect( link.querySelector( 'svg' ) ).toBeNull();
 
@@ -152,9 +156,9 @@ describe( 'BlogContribution is one WhatsApp link', () => {
     const link = renderBlock().container.querySelector( 'a' )!;
     expect( link ).toHaveAttribute( 'target', '_blank' );
     expect( link ).toHaveAttribute( 'rel', 'noopener noreferrer' );
-    // WCAG 2.5.3 Label in Name: the accessible name CONTAINS the visible word, so "click
+    // WCAG 2.5.3 Label in Name: the accessible name CONTAINS the visible text, so "click
     // Contribute" by voice reaches it. Same contract as "Subscribe on WhatsApp" above it.
-    expect( link ).toHaveAttribute( 'aria-label', 'Contribute on WhatsApp' );
+    expect( link ).toHaveAttribute( 'aria-label', `Contribute ${ CONTRIBUTE_AMOUNT_LABEL } on WhatsApp` );
     expect( link.getAttribute( 'aria-label' ) ).toContain( link.textContent );
   } );
 
@@ -166,9 +170,14 @@ describe( 'BlogContribution is one WhatsApp link', () => {
     // The retired amount pill and its furniture, by class as well as by element.
     expect( container.querySelector( '.bc-choice-face' ) ).toBeNull();
     expect( container.querySelector( '.bc-radio' ) ).toBeNull();
-    // No rupee figure anywhere: the amount is settled in the conversation now, so a number on
-    // this block would be a price the reader has not been quoted.
-    expect( container.textContent || '' ).not.toContain( '\u20B9' );
+    // The amount is NAMED on the pill now (owner instruction 2026-10-11) as a static label, but
+    // there is still nothing to CHOOSE: no radio group, no "choose an amount" prompt. The single
+    // rupee figure lives on the one anchor and nowhere else.
+    expect( container.textContent || '' ).toContain( '\u20B9250' );
+    expect( container.querySelectorAll( '*' ) ).toBeTruthy();
+    const rupeeOnlyOnCta = Array.from( container.querySelectorAll( 'a' ) )
+      .every( a => ( a.textContent || '' ).includes( '\u20B9250' ) );
+    expect( rupeeOnlyOnCta ).toBe( true );
     expect( container.textContent || '' ).not.toMatch( /choose an amount/i );
   } );
 
@@ -247,8 +256,17 @@ describe( 'the second payment implementation is GONE, not disabled', () => {
     // same reason as the endpoint path: the docblock that records what this block stopped doing
     // names both. Their absence is asserted where it is observable instead - the cart is empty
     // and nothing navigates after a click, two cases up.
+    //
+    // THE CART LIBRARY IS STILL FORBIDDEN. The cart write is the payment path this guard exists
+    // for, so a `from '../lib/cart'` import stays banned - and with it `setContribution`, the one
+    // symbol that reinstates the money path, since it lives only in that module.
     expect( SOURCE ).not.toMatch( /from '\.\.\/lib\/cart'/ );
-    expect( SOURCE ).not.toMatch( /from '\.\.\/config\/contribution'/ );
+    // THE CONFIG IMPORT IS NOW ALLOWED, but only for the amount LABEL. Owner instruction
+    // (2026-10-11) put "₹250" back on the pill face, read from the central config so the figure
+    // cannot drift. The block may import the fixed-price CHOICES/CURRENCY for display; it may not
+    // import the cart writer, which is pinned absent by the `../lib/cart` line above. That the
+    // config import adds nothing to the cart is proven observably by "adds NOTHING to the cart".
+    expect( SOURCE ).toMatch( /from '\.\.\/config\/contribution'/ );
   } );
 
   it( 'writes nothing for a variant that is not a committed choice', () => {

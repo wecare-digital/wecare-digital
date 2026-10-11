@@ -155,7 +155,13 @@ jobs:
           fetch-depth: 0
 
       - name: Kiro CLI review
+        id: kiro_review
         if: env.HAS_KIRO_KEY == 'true'
+        # Advisory reviewer: a provider-side ACP failure must stay visible but must not make an
+        # otherwise healthy PR red. On 2026-10-11 the pinned action failed twice, after creating
+        # an ACP session, with `ACP error -32603: Internal error`; rerunning the exact job produced
+        # the same provider failure before any review result existed.
+        continue-on-error: true
         # v1.0.1 - pinned by SHA deliberately, see trust decision 1 in the header.
         uses: konippi/kiro-cli-review-action@1c11ef476d5722d06a0c702a041e6393c8d5310d
         with:
@@ -166,3 +172,14 @@ jobs:
           # reviewer that silently truncates is worse than no reviewer, since its
           # approval implies it read the whole change.
           max_diff_size: '40000'
+
+      - name: Report Kiro provider failure
+        if: env.HAS_KIRO_KEY == 'true' && steps.kiro_review.outcome == 'failure'
+        run: |
+          echo "::warning::Kiro PR review did not complete. The external reviewer step failed; code, build, test, security and policy gates continue to determine merge health."
+          {
+            echo '### Kiro PR review'
+            echo ''
+            echo 'The external Kiro reviewer failed before producing a review. This is advisory and does not fail the PR.'
+            echo 'Inspect the Kiro CLI review step for the provider error; retry manually when the service is healthy.'
+          } >> "$GITHUB_STEP_SUMMARY"
