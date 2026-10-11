@@ -835,6 +835,34 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( body.languageCode ).toBe( 'en' );
   } );
 
+  it( 'requests the India CPCB local AQI on the layer-activation grid/center-point air body (airRequestBody) too', async () => {
+    // INDIA API PARITY FIX (grid path). Clicking AQI activates the heatmap layer, which fires the
+    // shared airRequestBody currentConditions:lookup for the grid + its CENTER point. That center
+    // point feeds the left-card air state, and airStateFromApiData prefers the ind_cpcb index, so
+    // this body must also carry customLocalAqis - matching fetchAir + forecast + history. Before
+    // the fix airRequestBody was MISSING customLocalAqis, so ind_cpcb never came back on this path.
+    const fetchSpy = airConditionsFetch( 450, 180 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    const gridLookupCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call =>
+        requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' )
+        && Boolean( ( call[ 1 ] as RequestInit | undefined )?.body ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const body = JSON.parse( String( ( gridLookupCall[ 1 ] as RequestInit ).body ) );
+    expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
+    expect( body.universalAqi ).toBe( true );
+    expect( body.languageCode ).toBe( 'en' );
+  } );
+
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );

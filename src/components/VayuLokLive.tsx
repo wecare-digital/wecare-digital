@@ -567,6 +567,9 @@ function airRequestBody( lat: number, lng: number ): Record<string, unknown> {
     ],
     languageCode: 'en',
     universalAqi: true,
+    // Parity with fetchAir + loadAirForecast + the air-history call: request the India CPCB
+    // local AQI so airStateFromApiData (which prefers ind_cpcb) can receive it here too.
+    customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
   };
 }
 
