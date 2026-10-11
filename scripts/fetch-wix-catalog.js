@@ -196,6 +196,36 @@ const CONFIG = path.resolve( HERE, '..', 'src', 'config', 'wix.ts' );
 
 const API = 'https://www.wixapis.com';
 const PAGE_SIZE = 100;
+const RETRYABLE_HTTP = new Set( [ 429, 500, 502, 503, 504 ] );
+const MAX_FETCH_ATTEMPTS = 4;
+
+const sleep = ms => new Promise( resolve => setTimeout( resolve, ms ) );
+
+/**
+ * Retry only transient Wix/API pressure, never a semantic 4xx.
+ *
+ * The webhook can emit several catalogue events close together. GitHub concurrency coalesces
+ * pending workflow runs, but back-to-back completed runs can still reach Wix quickly enough for
+ * query-variants to answer 429. A single 429 is not evidence that the request shape is wrong, so
+ * fail only after bounded retries. Retry-After is honoured when present; otherwise use a short
+ * exponential delay. The workflow's 10-minute timeout remains the outer bound.
+ */
+async function fetchWithRetry( url, options, label ) {
+  for ( let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++ ) {
+    const res = await fetch( url, options );
+    if ( res.ok || !RETRYABLE_HTTP.has( res.status ) || attempt === MAX_FETCH_ATTEMPTS ) {
+      return res;
+    }
+
+    const retryAfter = Number( res.headers.get( 'retry-after' ) || '' );
+    const delayMs = Number.isFinite( retryAfter ) && retryAfter > 0
+      ? Math.min( retryAfter * 1000, 15000 )
+      : Math.min( 1000 * ( 2 ** ( attempt - 1 ) ), 8000 );
+    console.warn( `fetch-wix-catalog: ${label} returned HTTP ${res.status}; retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_FETCH_ATTEMPTS})` );
+    await sleep( delayMs );
+  }
+  throw new Error( `unreachable retry loop for ${label}` );
+}
 
 // Field projections. V3 omits description, currency, url and category info unless asked,
 // so a search without these returns a product with no price currency and no description
@@ -239,11 +269,11 @@ function publicClientId() {
 
 /** Anonymous visitor token. Held in memory, never logged, never written to the output. */
 async function visitorToken( clientId ) {
-  const res = await fetch( `${API}/oauth2/token`, {
+  const res = await fetchWithRetry( `${API}/oauth2/token`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify( { clientId, grantType: 'anonymous' } ),
-  } );
+  }, 'visitor-token' );
   if ( !res.ok ) {
     const body = await res.text().catch( () => '' );
     die( `could not mint a visitor token: HTTP ${res.status}. ${body.slice( 0, 200 )}\n` +
@@ -302,13 +332,13 @@ async function fetchVariants( token, productIds ) {
       ? { cursorPaging: { limit: 1000, cursor } }
       : { filter: { 'productData.productId': { $in: productIds } }, cursorPaging: { limit: 1000 } };
 
-    const res = await fetch( `${API}/stores/v3/products/query-variants`, {
+    const res = await fetchWithRetry( `${API}/stores/v3/products/query-variants`, {
       method: 'POST',
       headers: { 'Authorization': token, 'Content-Type': 'application/json' },
       // NOTE THE SHAPE: { fields, query }, with paging inside `query`. The product search above
       // takes { search: { cursorPaging }, fields } - sending that shape here returns 400.
       body: JSON.stringify( { fields: [ 'CURRENCY' ], query } ),
-    } );
+    }, 'variants' );
 
     if ( !res.ok ) {
       const body = await res.text().catch( () => '' );
@@ -423,11 +453,11 @@ async function main() {
   // that assumption is how a catalog truncates at 101.
   for ( let guard = 0; guard < 50; guard++ ) {
     const cursorPaging = cursor ? { limit: PAGE_SIZE, cursor } : { limit: PAGE_SIZE };
-    const res = await fetch( `${API}/stores/v3/products/search`, {
+    const res = await fetchWithRetry( `${API}/stores/v3/products/search`, {
       method: 'POST',
       headers: { 'Authorization': token, 'Content-Type': 'application/json' },
       body: JSON.stringify( { search: { cursorPaging }, fields: FIELDS } ),
-    } );
+    }, 'products' );
 
     if ( !res.ok ) {
       const body = await res.text().catch( () => '' );
