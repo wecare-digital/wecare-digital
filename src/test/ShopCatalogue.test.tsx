@@ -486,24 +486,35 @@ describe( 'the product page', () => {
     expect( screen.getByText( 'Not available right now.' ) ).toBeTruthy();
   } );
 
-  it( 'emits no Product node while the product has no image', () => {
+  it( 'gates the Product node on the image: emits it (complete) with one, omits it without', () => {
     /*
      * Google requires name, image and offers on Product, and tools/audit/schemacheck.js enforces
-     * exactly that list - it failed this branch seven times, once per page. All seven items report
-     * mediaCount 0, so there is no image to send, and an incomplete Product is ineligible for the
-     * rich result anyway. The node waits for the picture rather than borrowing the company logo.
+     * exactly that list, so an image-less product must emit NO Product node (an incomplete one is
+     * ineligible for the rich result and would trip schemacheck's "no unresolved @id references").
+     *
+     * This originally asserted that EVERY product was image-less, from when all seven Wix rows
+     * reported mediaCount 0. catalogue-sync.yml re-reads Wix every six hours, and the rows now
+     * carry real media URLs, so that premise is stale. The contract being verified is the
+     * CONDITIONAL one - gate the node on `image` - so assert it per product against the product's
+     * actual image state rather than assuming the whole shelf is pictureless. The component is
+     * correct: with an image it now emits a complete Product; without one it still omits it.
      */
     for ( const product of SHOP_PRODUCTS ) {
-      expect( product.image, `${product.slug} unexpectedly has an image` ).toBeUndefined();
-    }
-    for ( const product of SHOP_PRODUCTS ) {
-      const types = shopProductSchema( product )[ '@graph' ]
-        .map( node => ld( node )[ '@type' ] );
-      expect( types, product.slug ).toEqual( [ 'ItemPage', 'BreadcrumbList' ] );
-      // No dangling reference to the node that was not emitted: schemacheck also asserts
-      // "no unresolved @id references", so an unconditional mainEntity would swap one failure
-      // for another.
-      expect( JSON.stringify( shopProductSchema( product ) ) ).not.toContain( '#product' );
+      const graph = shopProductSchema( product )[ '@graph' ];
+      const types = graph.map( node => ld( node )[ '@type' ] );
+      const productNode = graph.find( node => ld( node )[ '@type' ] === 'Product' );
+
+      if ( product.image ) {
+        // With an image, the full Product node is emitted and carries the three required fields.
+        expect( types, product.slug ).toEqual( [ 'ItemPage', 'BreadcrumbList', 'Product' ] );
+        expect( ld( productNode ).name, product.slug ).toBeTruthy();
+        expect( ld( productNode ).image, product.slug ).toBe( product.image );
+        expect( ld( ld( productNode ).offers )[ '@type' ], product.slug ).toBe( 'Offer' );
+      } else {
+        // Without an image, no Product node and no dangling #product reference.
+        expect( types, product.slug ).toEqual( [ 'ItemPage', 'BreadcrumbList' ] );
+        expect( JSON.stringify( shopProductSchema( product ) ), product.slug ).not.toContain( '#product' );
+      }
     }
   } );
 
