@@ -621,7 +621,22 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const firstRow = rows[ 0 ];
     expect( firstRow.querySelector( '.vl-live-air-pollutant-value' )?.textContent ).toMatch( /\d/ );
     expect( firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent?.length ).toBeGreaterThan( 0 );
-    expect( firstRow.querySelector( '.vl-live-air-pollutant-info' ) ).not.toBeNull();
+    const info = firstRow.querySelector( '.vl-live-air-pollutant-info' );
+    expect( info ).not.toBeNull();
+
+    // The pollutant info exposes its text via a CUSTOM tooltip wired with aria-describedby
+    // (keyboard reachable), NOT the native title= attribute.
+    expect( info?.hasAttribute( 'title' ) ).toBe( false );
+    expect( info?.getAttribute( 'tabindex' ) ).toBe( '0' );
+    const describedBy = info?.getAttribute( 'aria-describedby' );
+    expect( describedBy ).toBeTruthy();
+    const tip = firstRow.querySelector( `#${describedBy}` );
+    expect( tip ).not.toBeNull();
+    expect( tip?.getAttribute( 'role' ) ).toBe( 'tooltip' );
+    // The tooltip carries the pollutant label + value + unit.
+    const label = firstRow.querySelector( '.vl-live-air-pollutant-label' )?.textContent ?? '';
+    expect( tip?.textContent ).toContain( label );
+    expect( tip?.textContent ).toMatch( /\d/ );
 
     // NO RED anywhere in the rendered card markup/styles.
     expect( container.innerHTML ).not.toContain( 'dc2626' );
@@ -732,14 +747,22 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
     expect( selected ).toHaveLength( 1 );
     expect( selected[ 0 ].getAttribute( 'aria-label' ) ).toBe( 'Elderly' );
+    // Each persona tab carries an aria-hidden Material-Symbols-style glyph (role=tab + name).
+    expect( selected[ 0 ].querySelector( '.vl-live-air-health-icon' ) ).not.toBeNull();
     const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
-    expect( healthPanel?.textContent ).toContain( 'respiratory discomfort such as coughing or breathing difficulties' );
+    // The Elderly copy is now short & crisp; assert a NON-EMPTY paragraph with a stable word.
+    const elderlyText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
+    expect( elderlyText.length ).toBeGreaterThan( 0 );
+    expect( elderlyText ).toContain( 'short of breath' );
 
     const generalTab = screen.getByRole( 'tab', { name: 'General population' } );
     fireEvent.click( generalTab );
     await waitFor( () => expect( generalTab ).toHaveAttribute( 'aria-selected', 'true' ) );
-    expect( healthPanel?.textContent ).not.toContain( 'respiratory discomfort such as coughing' );
-    expect( healthPanel?.textContent ).toContain( 'acceptable for most people' );
+    // Selecting General swaps the paragraph to a DIFFERENT non-empty short copy.
+    const generalText = healthPanel?.querySelector( '.vl-live-air-health-text' )?.textContent ?? '';
+    expect( generalText.length ).toBeGreaterThan( 0 );
+    expect( generalText ).not.toBe( elderlyText );
+    expect( generalText ).toContain( 'fine for most people' );
 
     // (3) HOURLY HISTORY. Title + a UTC timestamp derived from real data + a role=img chart
     //     with an aria-label mentioning the current value and a visible current-value marker.
