@@ -1,10 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { BlogCard } from '../lib/public-blog';
 import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
-import BlogSearch from './BlogSearch';
 import Pager from './Pager';
 
 /**
@@ -36,28 +35,32 @@ import Pager from './Pager';
  *
  * Together: ~9 kB and ~3.3 screens per page, against 842 kB and 115.5.
  *
- * WHAT PAGINATION WOULD HAVE BROKEN, AND HOW IT DOES NOT
- * -----------------------------------------------------
- * Search and the category pills both filter across EVERY post, and the reason they could
- * was that every post was in the page - the thing being removed. Narrowing them to the
- * current 24 would have been a silent downgrade: typing a word and being told "3 of 24
- * posts" while 800 unsearched posts sit behind it is worse than no search.
+ * SEARCH WAS REMOVED, AND "SHOW EVERY POST" REPLACED IT (owner instruction, 2026-10-11)
+ * -------------------------------------------------------------------------------------
+ * The search box is gone. In its place the index now loads the WHOLE corpus client-side and
+ * renders every post in the active category at once, so a reader scrolls the full list rather
+ * than typing to find one. The paginator is for the no-JS path only.
  *
- * So the full list still exists, as /blog/search-index.json - slug, title, excerpt and
- * category only, written by scripts/generate-blog-search-index.js after the build. It is
- * fetched ONCE, LAZILY, on the first keystroke or the first category press, and never on a
- * plain page view. A reader who does not search pays nothing for it.
+ * THE FULL LIST IS STILL /blog/search-index.json - slug, title, excerpt, category and tags,
+ * written by scripts/generate-blog-search-index.js after the build. It is the same file the
+ * search box used; nothing about the build changed. The difference is WHEN it is fetched: it
+ * was lazy, on the first keystroke, so a reader who did not search never paid for it. Now it is
+ * fetched ONCE on mount, because showing every post is the default rather than an action - the
+ * whole point of the change is that the reader does not have to ask. It is still a client fetch
+ * and still NOT in __NEXT_DATA__, so the 842 kB payload the pagination note below records does
+ * not come back: the page ships its 24-card prerender and the DOM grows only after hydration.
  *
- * THE URL IS THE SOURCE OF TRUTH FOR A SEARCH, still: ?q= is read on first render exactly as
- * before, so a post page's search box navigating to /blog/?q=x keeps working, and a search
- * result page is linkable. When a query or a non-All category is active the paginator is
- * hidden and all matches are listed, because filtered results are already a narrowing - two
- * layers of it would make finding a post a puzzle.
+ * SCOPED TO THE ACTIVE CATEGORY. /blog/ shows the default category's whole corpus; each
+ * /blog/topic/<slug>/ shows that stream's whole corpus. The index covers everything, so it is
+ * narrowed to activeCategory here - a reader on Conversations should not suddenly see 240
+ * Gastronomy posts appended once the fetch lands.
  *
- * NO-JAVASCRIPT PATH. Pagination is real links to real prerendered pages, so the whole blog
- * is reachable with scripts off - which was NOT true of the single page, where the only way
- * to the 800th post was a 103,908px scroll. Search and categories need JS and always did;
- * BlogSearch already degrades to a GET form that navigates here.
+ * NO-JAVASCRIPT PATH, UNCHANGED. The prerendered page is still the first 24 posts with real
+ * pagination links to real prerendered pages, so the whole blog is reachable with scripts off.
+ * The "show every post" expansion is a progressive enhancement layered on top of that: when the
+ * fetch succeeds, the full list replaces the slice and the paginator is hidden because there is
+ * nothing left to page; when it fails or JS is off, the paginated slice is exactly what a reader
+ * gets, which is the behaviour that already shipped.
  */
 
 /**
@@ -77,8 +80,14 @@ export const HERO_WORDS: CycleWord[] = [
   { word: 'change', tint: '#ede9fe', dot: '#9849e8' },
 ];
 
-/** Where the lazily-fetched full list lives. Written post-build, beside the page it serves. */
-const SEARCH_INDEX_URL = '/blog/search-index.json';
+/** Where the full post list lives. Written post-build, beside the page it serves. Fetched once
+ *  on mount now that "show every post" is the default rather than a search action. The name is
+ *  kept for continuity with scripts/generate-blog-search-index.js, which writes it. */
+const FULL_INDEX_URL = '/blog/search-index.json';
+
+/** The feed scripts/generate-blog-rss.js writes post-build. The visible link below points here;
+ *  the <link rel="alternate"> autodiscovery tag in BlogIndexHead points at the same file. */
+const RSS_URL = '/blog/rss.xml';
 
 interface BlogIndexViewProps {
   /** This page's slice, already projected and sorted. */
@@ -86,13 +95,13 @@ interface BlogIndexViewProps {
   /** 1-based. Page 1 is /blog/; every other page is /blog/page/N/. */
   page: number;
   totalPages: number;
-  /** Every published post, for the count beside the search box. */
+  /** Every published post across the whole corpus. */
   totalPosts: number;
   /** Every category across the whole corpus, not just this page's - see below. Sorted, and the
    *  FIRST one is the default pill now that "All" is gone. */
   categories: string[];
-  /** Posts per category across the whole corpus, so the announced count has an honest
-   *  denominator: "3 of 824 posts" rather than "3 of 864" when Conversations is active. */
+  /** Posts per category across the whole corpus, so the count line has an honest denominator:
+   *  the active category's full size rather than this page's slice. */
   categoryCounts?: Record<string, number>;
   /** Which category this prerendered page lists. Server-decided, never client state. */
   activeCategory?: string;
@@ -142,23 +151,23 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
    * by blogcheck, not by looking. Each category is now its own prerendered stream, so the HTML
    * is what the reader sees and the pills are links rather than state.
    */
-  const [ query, setQuery ] = useState( '' );
-
-  /** The full corpus, or null until something needs it. */
+  /** The whole corpus, or null until the on-mount fetch lands. */
   const [ allCards, setAllCards ] = useState<BlogCard[] | null>( null );
-  const [ indexState, setIndexState ] = useState<'idle' | 'loading' | 'ready' | 'failed'>( 'idle' );
+  const [ indexState, setIndexState ] = useState<'loading' | 'ready' | 'failed'>( 'loading' );
   const requested = useRef( false );
 
   /**
-   * Fetch the full list once. Guarded by a ref rather than by indexState because two events
-   * in the same tick - a keystroke and a category press - would both see 'idle' and both
-   * start a request; a ref is written synchronously and settles it.
+   * FETCH THE FULL LIST ONCE, ON MOUNT. The search box used to defer this to the first
+   * keystroke; "show every post" is the default now, so there is nothing to defer to - the
+   * reader wants the whole list the moment the page loads. Guarded by a ref so React 18's
+   * double-invoke in development (and any re-render before the request settles) cannot fire a
+   * second fetch. On failure requested.current stays true: the prerendered slice is a correct
+   * fallback, so there is no value in hammering an endpoint that just failed.
    */
-  const loadIndex = useCallback( () => {
+  useEffect( () => {
     if ( requested.current ) return;
     requested.current = true;
-    setIndexState( 'loading' );
-    fetch( SEARCH_INDEX_URL, { headers: { Accept: 'application/json' } } )
+    fetch( FULL_INDEX_URL, { headers: { Accept: 'application/json' } } )
       .then( r => ( r.ok ? r.json() : Promise.reject( new Error( String( r.status ) ) ) ) )
       .then( ( body: { posts?: BlogCard[] } ) => {
         if ( !Array.isArray( body?.posts ) ) throw new Error( 'shape' );
@@ -166,84 +175,50 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         setIndexState( 'ready' );
       } )
       .catch( () => {
-        // Leave requested.current true: retrying on every keystroke against an endpoint
-        // that just failed turns one bad response into a request per character.
         setIndexState( 'failed' );
       } );
   }, [] );
 
   /**
-   * READ ?q= ON FIRST RENDER, because a post page's search box navigates here with it. Done
-   * in a lazy initialiser rather than an effect so the filtered list is correct on the first
-   * paint instead of flashing this page's 24 and then narrowing. window is guarded because
-   * this same initialiser runs during the static export, where there is no location.
+   * True once the full corpus is in hand AND it actually contains this category's posts.
+   *
+   * An EMPTY successful response does not expand. A transient empty index must not blank a blog
+   * that prerendered cards perfectly well - the same non-fatal-on-empty rule the feed and the
+   * index generators follow - so when the fetch comes back with nothing for this category the
+   * prerendered slice is left exactly as it shipped rather than being replaced by "no posts".
    */
-  const [ initialQuery ] = useState( () => {
-    if ( typeof window === 'undefined' ) return '';
-    return new URLSearchParams( window.location.search ).get( 'q' ) || '';
-  } );
-
-  useEffect( () => {
-    if ( initialQuery ) { setQuery( initialQuery ); loadIndex(); }
-  }, [ initialQuery, loadIndex ] );
-
-  const onQueryChange = useCallback( ( next: string ) => {
-    setQuery( next );
-    if ( next.trim() ) loadIndex();
-  }, [ loadIndex ] );
-
-  /** Only a text query filters now. Category is a route, not a control. */
-  const filtering = Boolean( query.trim() );
+  const expanded =
+    indexState === 'ready' &&
+    allCards !== null &&
+    ( activeCategory
+      ? allCards.some( post => post.category === activeCategory )
+      : allCards.length > 0 );
 
   /**
-   * SEARCH IS SCOPED TO THIS CATEGORY, and searches all of it rather than this page's 24.
-   * The 301 kB index covers the whole corpus, so it is narrowed to the active category here -
-   * a reader on Conversations searching "paneer" should get nothing, not a Gastronomy post
-   * from a stream they are not in.
+   * EVERY POST IN THIS CATEGORY, or the prerendered slice until the fetch lands / if it fails.
    *
-   * Falls back to this page's slice while the index is in flight, so the first keystroke
-   * narrows what is on screen instead of blanking the grid.
+   * The index covers the whole corpus, so it is narrowed to activeCategory here - /blog/ must
+   * not grow 240 Gastronomy posts once the fetch resolves, and a topic stream must not grow the
+   * rest of the site. Before expansion this is exactly the server-sent slice, so the first paint
+   * and the no-JS render are identical to what shipped.
    */
-  const searchable = allCards || posts;
   const visiblePosts = useMemo( () => {
-    if ( !filtering ) return posts;
-    const inCategory = activeCategory
-      ? searchable.filter( post => post.category === activeCategory )
-      : searchable;
-    const q = query.trim().toLowerCase();
-    /*
-     * TAGS ARE MATCHED AS WELL AS TITLE AND EXCERPT, and they are the reason a lot of reasonable
-     * searches used to come back empty. Every post in the corpus is tagged, and the tags hold the
-     * words a reader is most likely to type: "Beverages", "Herbal Tea", "Chai" and "Lemongrass" are
-     * tags on posts whose title and excerpt contain none of those strings. Searching any of them
-     * returned nothing, which reads as a broken box rather than an honest miss.
-     *
-     * THE FIELDS ARE JOINED WITH A NEWLINE, NOT A SPACE, AND THAT IS A MEASURED CORRECTION.
-     * The first version of this used a space, on the assumption that a query still had to appear
-     * inside one field. It does not: joining "Herbal Tea" and "Spices" with a space produces
-     * "Herbal Tea Spices", which contains "tea spices" - a phrase no post has, made only of the end
-     * of one tag and the start of the next. The test in BlogDesign.test.tsx caught it.
-     *
-     * A newline cannot appear in a typed query, so it is a boundary a search term cannot cross.
-     * Spaces inside a single field still match normally, so "herbal tea" is found. That also
-     * removes the same false positive between title and excerpt, which was there before tags were
-     * involved: "yogi warmth" used to match a post titled "...Yogi" whose excerpt began "Warmth...".
-     * Every hit is now a hit inside one field, which is the only kind a reader means.
-     *
-     * One join and one includes() rather than a check per field: same answer, one pass, and the
-     * boundary rule is expressed in the data instead of in control flow.
-     *
-     * NOT CATEGORY, deliberately. Search is already scoped to the active category a few lines
-     * above, so matching the category name inside its own stream would make every post in it a hit
-     * for its own name.
-     */
-    return inCategory.filter( post => (
-      [ post.title, post.excerpt || '', ...( post.tags || [] ) ]
-        .join( '\n' ).toLowerCase().includes( q )
-    ) );
-  }, [ posts, searchable, activeCategory, query, filtering ] );
+    if ( !expanded ) return posts;
+    return activeCategory
+      ? allCards!.filter( post => post.category === activeCategory )
+      : allCards!;
+  }, [ expanded, allCards, posts, activeCategory ] );
 
-  /** Honest denominator: this category's size across the corpus, not the whole corpus. */
+  /**
+   * HOW MANY POSTS THIS LISTING HOLDS, across the whole corpus and not just this page. It is
+   * the active category's size, because that is the list the reader is looking at - /blog/ shows
+   * the default category and each topic stream shows its own. categoryCounts is the per-category
+   * map the data layer builds; totalPosts is the fallback when a count is somehow missing.
+   *
+   * The search box used to render this as a "N of M" line while filtering. With search gone and
+   * every post shown, it becomes a plain "N posts" header beside the RSS link - the reader can
+   * see the whole list, so the number is a label on it rather than a result count.
+   */
   const categoryTotal = categoryCounts?.[ activeCategory ] ?? totalPosts;
 
   /* WHICH STREAM THIS VIEW IS PAGING. Derived here rather than passed in, because the component
@@ -266,28 +241,33 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             ? [ { label: 'Home', href: '/' }, { label: 'Blog', href: '/blog/' }, { label: `Page ${page}` } ]
             : [ { label: 'Home', href: '/' }, { label: 'Blog' } ] }
         />
-        {/* Live mode. The count reported is against the WHOLE corpus, not this page - "3 of
-            834" is the true answer and "3 of 24" would be a lie about what was searched. */}
-        <BlogSearch
-          value={ query }
-          onChange={ onQueryChange }
-          resultCount={ visiblePosts.length }
-          totalCount={ categoryTotal }
-        />
-
-        { indexState === 'failed' && filtering && (
-          <p className="blog-degraded" role="status">
-            The full post list could not be loaded, so this is searching the { posts.length } posts
-            on this page only.{ ' ' }
-            {/* A FULL PAGE LOAD IS THE FEATURE HERE, so this must not become next/link.
-                This link is the recovery path after the search index failed to fetch;
-                client-side navigation would re-render the same failed state from memory and
-                retry nothing. `<Link>` would make the button look like it works and quietly
-                do nothing. */}
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-            <a href="/blog/">Reload the blog</a> to try again.
-          </p>
-        ) }
+        {/* THE TOOLBAR ROW, where the search box used to be: a plain post count on the left and
+            the RSS subscribe link on the right. */}
+        <div className="blog-toolbar">
+          {/* The count is a label on the list the reader can now see in full, not a search
+              result - "N posts" in the active category, across the whole corpus. Hidden when
+              there is nothing to count so an empty blog does not announce "0 posts". */}
+          { totalPosts > 0 && (
+            <p className="blog-count">{ categoryTotal } { categoryTotal === 1 ? 'post' : 'posts' }</p>
+          ) }
+          {/* THE RSS LINK. The feed is scripts/generate-blog-rss.js' output at /blog/rss.xml, and
+              BlogIndexHead already emits the <link rel="alternate"> autodiscovery tag for it -
+              this is the VISIBLE affordance a reader clicks to subscribe.
+              A plain <a>, not next/link: /blog/rss.xml is an XML file written to out/ by a build
+              script, NOT a Next route, so routing it client-side would 404 against the page
+              router. type="application/rss+xml" tells the browser what it is; the icon is
+              decorative (aria-hidden) because the text already names the destination. The
+              no-html-link-for-pages lint does not fire here because /blog/rss.xml is not a page
+              route - it is a build-script artifact in out/ - so no disable directive is needed. */}
+          <a className="blog-rss" href={ RSS_URL } type="application/rss+xml">
+            <svg className="blog-rss-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+              <path d="M4 11a9 9 0 0 1 9 9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              <path d="M4 4a16 16 0 0 1 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+              <circle cx="5" cy="19" r="2.2" fill="currentColor" />
+            </svg>
+            <span>Subscribe via RSS</span>
+          </a>
+        </div>
 
         { totalPosts > 0 ? (
           <>
@@ -311,11 +291,10 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                   const here = category === activeCategory;
                   /* NO POST COUNT ON THE PILL, on owner instruction. Each pill carried
                      <i>{ categoryCounts[ category ] }</i> - "Conversations 824" - so the label
-                     was a name followed by a number. The count is not gone from the page: the
-                     line beside the search box still reports it (see categoryTotal below), which
-                     is where a reader looks for "how many", and the pills go back to being what
-                     they are - a set of names you choose between. `categoryCounts` stays a prop
-                     because that line still needs it. */
+                     was a name followed by a number, and the pills go back to being what they
+                     are - a set of names you choose between. `categoryCounts` stays a prop
+                     because categoryTotal below still derives the honest per-category denominator
+                     from it. */
                   return here
                     ? <span key={ category } className="cat-here" aria-current="page">{ category }</span>
                     : <Link key={ category } href={ href }>{ category }</Link>;
@@ -324,7 +303,7 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             ) }
 
             { visiblePosts.length > 0 ? (
-              <section className="post-grid" aria-label={ filtering ? 'Matching posts' : 'Published posts' }>
+              <section className="post-grid" aria-label="Published posts">
                 { visiblePosts.map( post => (
                   <article key={ post.slug } className="post-card">
                     <div className="post-copy">
@@ -334,8 +313,8 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                       {/* NO DATE ON A CARD, on owner instruction, and the flag moved with it.
                           This row held the author beside a formatted publishedDate. The date is
                           gone from every listing surface - this one component renders /blog/,
-                          /blog/page/N/, both topic stream shapes AND the client-side search
-                          results, so removing it here removes it from all of them at once.
+                          /blog/page/N/ and both topic stream shapes, so removing it here removes
+                          it from all of them at once.
                           publishedDate IS STILL CARRIED in the BlogCard projection and must
                           stay: lib/public-blog.ts orders the whole corpus by it, and with 35
                           pages an ordering change moves posts between page URLs. It is read,
@@ -353,14 +332,17 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
               </section>
             ) : (
               <div className="empty">
-                { indexState === 'loading' ? 'Searching all posts…' : 'No posts match that search.' }
+                { indexState === 'loading' ? 'Loading all posts…' : 'No posts have been published yet.' }
               </div>
             ) }
 
-            {/* THE PAGINATOR IS HIDDEN WHILE FILTERING. A filtered list is already a
-                narrowing of the whole corpus and every match is shown; paging it as well
-                would mean two independent narrowings between a reader and one post. */}
-            { !filtering && totalPages > 1 && (
+            {/* THE PAGINATOR IS THE NO-JAVASCRIPT PATH, SO IT HIDES ONCE THE FULL LIST IS IN.
+                When the on-mount fetch succeeds, every post in this category is already on screen
+                and there are no more pages to turn - showing a pager over a complete list would
+                be two ways to reach posts that are all already here. Until then (first paint, a
+                failed fetch, or scripts off) the prerendered slice is paginated exactly as it
+                shipped, which is what keeps the whole blog reachable without JavaScript. */}
+            { !expanded && totalPages > 1 && (
               /* components/Pager.tsx, which is this exact control moved out whole so /shop/
                  renders one declaration of it rather than a second copy. No prevLabel or
                  nextLabel: they default to Newer / Older, which is this listing's own copy. */
@@ -505,16 +487,41 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .meta{margin-top:auto;font-size:12px;font-weight:600;line-height:1.4;color:rgba(0,0,0,.54)}
         .empty{border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;font-size:20px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.54)}
 
-        /* The degraded-search notice. Same lime-tint-plus-edge treatment as the legal
-           notice, because it does the same job: something a reader must see before they
-           trust what is below it. Not a red error - the page still works, it is just
-           narrower than it should be. */
-        .blog-degraded{
-          margin:0 0 28px;padding:14px 16px;
-          background:rgba(209,244,112,.22);border-left:4px solid #d1f470;border-radius:8px;
-          font-size:16px;line-height:1.55;color:rgba(0,0,0,.898);
+        /* THE TOOLBAR: the post count on the start edge, the RSS subscribe link on the end,
+           baseline-aligned on one row. It wraps on a narrow screen so the link drops under the
+           count rather than crushing against it. */
+        .blog-toolbar{
+          display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+          flex-wrap:wrap;margin:0 0 32px;
         }
-        .blog-degraded :global(a){color:#1a3a2a;font-weight:600}
+        /* The count is a quiet label on the list, the site's muted body rung - the same voice
+           the old search status line used. */
+        .blog-count{
+          margin:0;font-size:17px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.62);
+        }
+        /* THE RSS LINK, on the pill affordance the category switch and the home CTA share: a
+           999px outline that lifts and tints lime on hover, with the opaque #1a3a2a focus ring
+           the rest of the site uses (the translucent one failed WCAG 1.4.11 at 1.51:1). min-height
+           44px is the WCAG 2.5.8 touch-target floor the pager and the pills already hold. */
+        .blog-rss{
+          display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;
+          min-height:44px;padding:0 18px;border:2px solid #e5e7eb;border-radius:999px;
+          background:#fff;color:#1a3a2a;font-size:14px;font-weight:600;letter-spacing:-.125px;
+          text-decoration:none;
+          transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s;
+        }
+        .blog-rss:hover{
+          border-color:#d1f470;background:rgba(209,244,112,.22);
+          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
+        }
+        .blog-rss:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
+        /* The icon takes the link's colour via currentColor, so it tints with the text and needs
+           no separate hover rule. It is a fixed box so the label does not shift as the link lifts. */
+        .blog-rss-icon{flex:0 0 auto;color:#f0a818}
+        @media(prefers-reduced-motion:reduce){
+          .blog-rss{transition:none}
+          .blog-rss:hover{transform:none;box-shadow:none}
+        }
 
         /* THE PAGER'S RULES ARE GONE FROM THIS FILE, all of them, including the three that used
            to sit in the narrow-screen block below (.pager gap, .pager-list order:3 and the
