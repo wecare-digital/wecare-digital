@@ -209,6 +209,41 @@ describe( 'Blog design alignment', () => {
   } );
 
   /**
+   * THE SUBSCRIBE / CONTRIBUTE / SHARE BAND IS ON THE INDEX TOO. Owner instruction, 2026-10-11:
+   * the same three-part CTA block the post page carries at its foot now also sits at the foot of
+   * /blog/, via the shared BlogFooterCTA. This pins that all three parts render and that the two
+   * WhatsApp links are the distinct ones (Subscribe WUDPTMYSO6XII1, Contribute its own link).
+   */
+  it( 'carries the Subscribe / Contribute / Share band at the foot of the index', () => {
+    mockSearchIndex( [ firstCard, secondCard ] );
+    const { container } = render( <BlogIndex { ...propsFor() } /> );
+
+    // Subscribe: a WhatsApp anchor at the subscribe deep link, text-only with the microcopy.
+    const subscribe = container.querySelector( 'a.blog-cta-subscribe' );
+    expect( subscribe ).not.toBeNull();
+    expect( subscribe!.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    expect( subscribe!.textContent ).toBe( 'Subscribe' );
+
+    // Contribute: the shared block, embedded (no second top rule), with its own distinct link.
+    const contribution = container.querySelector( 'section.bc' );
+    expect( contribution ).not.toBeNull();
+    const contributeLink = contribution!.querySelector( 'a.bc-cta' )!;
+    expect( contributeLink.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
+    // The two WhatsApp links must differ.
+    expect( subscribe!.getAttribute( 'href' ) ).not.toBe( contributeLink.getAttribute( 'href' ) );
+
+    // Share: the shared row (its WhatsApp anchor renders in the static markup).
+    expect( container.querySelector( '.blog-cta-share' ) ).not.toBeNull();
+
+    // Ordering: the band sits after the post grid.
+    const grid = container.querySelector( '.post-grid' );
+    const band = container.querySelector( '.blog-cta' )!;
+    if ( grid ) {
+      expect( grid.compareDocumentPosition( band ) & Node.DOCUMENT_POSITION_FOLLOWING ).toBeTruthy();
+    }
+  } );
+
+  /**
    * NO "ALL" PILL, AND THE FIRST CATEGORY IS THE DEFAULT. Owner instruction, and the corpus
    * supports it: measured live, 834 posts carry two categories - Conversations 824 (98.8%) and
    * Gastronomy 10 (1.2%). "All" selected 834 where the next pill selected 824, so the control
