@@ -619,6 +619,79 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( container.querySelector( '[aria-label="Air details"]' ) ).toBeNull();
   } );
 
+  it( 'adds a heatmap toggle, Poor/Excellent legend, health persona tablist and an hourly-history chart to the Air panel', async () => {
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    // The Air panel is present once live air has arrived.
+    await waitFor( () => {
+      const el = container.querySelector( '[aria-label="Air details"]' );
+      expect( el ).not.toBeNull();
+      expect( el?.textContent ).toContain( 'Satisfactory' );
+    } );
+
+    // (1) HEATMAP. An accessible on/off switch that starts off and drives the existing
+    //     deck.gl AQI overlay path when flipped, plus a Poor/Excellent legend.
+    const heatSwitch = await screen.findByRole( 'switch', { name: 'Air quality heatmap' } );
+    expect( heatSwitch ).toHaveAttribute( 'aria-checked', 'false' );
+    expect( heatSwitch ).not.toBeDisabled();
+    expect( deckRec.overlaySetMapCalls ).toHaveLength( 0 );
+
+    // Toggle the heatmap on. The Air panel re-renders as the live air/history/forecast
+    // calls settle, so retry the click (fetching a fresh node each pass) until the
+    // accessible on-state flips - this proves the switch drives the `layer` state.
+    await waitFor( () => {
+      const sw = screen.getByRole( 'switch', { name: 'Air quality heatmap' } );
+      if ( sw.getAttribute( 'aria-checked' ) !== 'true' ) fireEvent.click( sw );
+      expect( sw ).toHaveAttribute( 'aria-checked', 'true' );
+    } );
+    // Flipping it on drives the existing on-user-action deck.gl overlay (no new fetch).
+    await waitFor( () => expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( true ) );
+
+    const legend = container.querySelector( '.vl-live-air-heatmap-legend' );
+    expect( legend?.textContent ).toContain( 'Poor' );
+    expect( legend?.textContent ).toContain( 'Excellent' );
+
+    // (2) HEALTH RECOMMENDATIONS. A persona tablist with exactly one default-selected
+    //     persona (Elderly) whose recommendation paragraph is shown; selecting another
+    //     persona swaps the paragraph.
+    const healthTablist = screen.getByRole( 'tablist', { name: 'Health recommendation profiles' } );
+    const personaTabs = healthTablist.querySelectorAll( '[role="tab"]' );
+    expect( personaTabs.length ).toBeGreaterThanOrEqual( 4 );
+    const selected = Array.from( personaTabs ).filter( t => t.getAttribute( 'aria-selected' ) === 'true' );
+    expect( selected ).toHaveLength( 1 );
+    expect( selected[ 0 ].getAttribute( 'aria-label' ) ).toBe( 'Elderly' );
+    const healthPanel = container.querySelector( '.vl-live-air-health-panel' );
+    expect( healthPanel?.textContent ).toContain( 'respiratory discomfort such as coughing or breathing difficulties' );
+
+    const generalTab = screen.getByRole( 'tab', { name: 'General population' } );
+    fireEvent.click( generalTab );
+    await waitFor( () => expect( generalTab ).toHaveAttribute( 'aria-selected', 'true' ) );
+    expect( healthPanel?.textContent ).not.toContain( 'respiratory discomfort such as coughing' );
+    expect( healthPanel?.textContent ).toContain( 'acceptable for most people' );
+
+    // (3) HOURLY HISTORY. Title + a UTC timestamp derived from real data + a role=img chart
+    //     with an aria-label mentioning the current value and a visible current-value marker.
+    expect( screen.getByText( 'Hourly History' ) ).toBeTruthy();
+    const chart = await waitFor( () => {
+      const el = container.querySelector( '.vl-live-air-history-chart' );
+      expect( el ).not.toBeNull();
+      return el as HTMLElement;
+    } );
+    expect( chart.getAttribute( 'role' ) ).toBe( 'img' );
+    expect( chart.getAttribute( 'aria-label' ) ).toMatch( /AQI history/ );
+    expect( chart.getAttribute( 'aria-label' ) ).toMatch( /current 72/ );
+    expect( container.querySelector( '.vl-live-air-history-stamp' )?.textContent ).toMatch( /UTC/ );
+    expect( container.querySelector( '.vl-live-air-history-bubble' )?.textContent ).toBe( '72' );
+
+    // NO RED anywhere in the three new sections' markup/styles.
+    expect( container.innerHTML ).not.toContain( 'dc2626' );
+  } );
+
   it( 'uses real 24-hour weather history and requests 96 hours of AQ forecast', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -747,6 +820,16 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( placeholder?.tagName ).toBe( 'DIV' );
     expect( placeholder?.textContent ).toContain( 'Lumpyngngad' );
     expect( placeholder?.textContent ).toContain( 'Interactive map unavailable' );
+
+    // HONEST DEGRADATION for the three new Air sections. Without a key `air` is null, so the
+    // heatmap toggle, the Health Recommendations tablist and the Hourly History chart live
+    // content are all absent - no fabricated chart, no fake persona panel, zero fetches.
+    expect( screen.queryByRole( 'switch', { name: 'Air quality heatmap' } ) ).toBeNull();
+    expect( screen.queryByRole( 'tablist', { name: 'Health recommendation profiles' } ) ).toBeNull();
+    expect( container.querySelector( '.vl-live-air-history-chart' ) ).toBeNull();
+    expect( container.textContent ).not.toContain( 'Health Recommendations' );
+    expect( container.textContent ).not.toContain( 'Hourly History' );
+
     expect( fetchSpy ).not.toHaveBeenCalled();
     expect( container.textContent ).not.toContain( 'Live air quality and weather' );
     expect( container.textContent ).not.toContain( 'Selected place' );
