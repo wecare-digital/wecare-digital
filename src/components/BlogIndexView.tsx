@@ -5,6 +5,7 @@ import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
+import BlogFooterCTA from './BlogFooterCTA';
 import RssIcon from './RssIcon';
 
 /**
@@ -87,6 +88,10 @@ export const HERO_WORDS: CycleWord[] = [
   { word: 'meaning', tint: '#e0f7c8', dot: '#3da35a' },
   { word: 'change', tint: '#ede9fe', dot: '#9849e8' },
 ];
+
+/** The canonical origin, for building absolute share URLs for the footer CTA's Share row. The
+ *  same origin BlogIndexHead uses for canonicals. */
+const ORIGIN = 'https://wecare.digital';
 
 /** Where the full post list lives. Written post-build, beside the page it serves. Fetched once
  *  on mount now that "show every post" is the default rather than a search action. The name is
@@ -388,6 +393,17 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                 ariaLabel="Blog pages"
               />
             ) }
+
+            {/* THE SUBSCRIBE / CONTRIBUTE / SHARE BAND - the same block the post page carries at
+                its foot, on owner instruction, so the blog index tail reads as the same object.
+                The shared component (components/BlogFooterCTA.tsx) renders the WhatsApp Subscribe
+                pill, the Contribute block and the Share row. shareUrl is this listing's own
+                canonical page URL, built from the same streamBase/page the pager uses so a shared
+                link points at the page the reader is on. */}
+            <BlogFooterCTA
+              shareUrl={ `${ORIGIN}${blogPageHref( page, streamBase )}` }
+              shareTitle="WECARE.DIGITAL Blog"
+            />
 
             {/* THE RSS SUBSCRIBE AFFORDANCE, ICON-ONLY, AT THE BOTTOM. It replaces the old text
                 pill that sat in a toolbar at the top; on owner instruction it is now a compact
