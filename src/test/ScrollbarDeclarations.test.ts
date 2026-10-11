@@ -143,24 +143,26 @@ describe( 'scrollbar thumb colour is declared in exactly two files', () => {
     }
   } );
 
-  it( 'leaves the eight display:none and height:6px hiders alone', () => {
+  it( 'leaves the eleven display:none and height:6px hiders alone', () => {
     // They set no colour, so they do not compete, and deleting one would bring back a visible
     // scrollbar on a tab strip or a carousel. Counted so a silent cull is caught here.
-    // Nine when this gate was written; a tenth (`.vl-live-forecast-track`) arrived with the
-    // VayuLok forecast carousel. That carousel - together with the `.vl-live-photo-rail`
-    // place-photo rail, the other VayuLok hider - was removed when the VayuLok left panel was
-    // replaced by the floating Air card, so the count is back to eight. The floating card
-    // scrolls with `scrollbar-width: thin` and no colour, so it adds no hider and no colour.
-    // A NINTH arrived with the Anew "Perspectives" swipe pager (.pbp-track in
-    // src/components/ProductBlogPanel.tsx): the pager is navigated by its prev/next arrows and
-    // the lime progress bar, so its horizontal scrollbar is hidden with ::-webkit-scrollbar{
-    // display:none} and sets no colour - a legitimate hider, so the count is nine.
+    // Nine when the count last settled: the eight tab-strip/carousel hiders plus the Anew
+    // "Perspectives" swipe pager (.pbp-track in src/components/ProductBlogPanel.tsx).
+    //
+    // The VayuLok Air API completion then re-introduced TWO VayuLok hiders inside the floating
+    // Air card, taking the count to eleven:
+    //   .vl-live-air-forecast-strip  - the 24/48/96h Air forecast carousel
+    //   .vl-live-air-health-tabs     - the health-persona tab strip
+    // Both hide a horizontal scrollbar with ::-webkit-scrollbar{display:none} + scrollbar-width:
+    // none and set NO colour, so neither competes with the thumb-colour invariant above; they
+    // are legitimate hiders. (The earlier .vl-live-forecast-track / .vl-live-photo-rail hiders
+    // from the removed left panel are gone - these two live on the floating card instead.)
     const hiders = files.flatMap( f => {
       const src = stripComments( fs.readFileSync( f, 'utf8' ) );
       return Array.from( src.matchAll( /::-webkit-scrollbar(?!-)[^{}]*\{([^}]*)\}/g ) )
         .filter( m => /display\s*:\s*none|height\s*:\s*6px/.test( m[ 1 ] ) );
     } );
-    expect( hiders.length ).toBe( 9 );
+    expect( hiders.length ).toBe( 11 );
   } );
 
   it( 'finds a planted declaration, and loses a commented one', () => {
