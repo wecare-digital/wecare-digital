@@ -73,6 +73,25 @@ function pm25Severity( pm25: number ): Sev {
 // mock's map options.
 const INDIA_BOUNDS = { north: 37.6, south: 6.4, west: 68.1, east: 97.4 };
 
+// Continuous AQI heatmap TILE overlay (the organic, blob-shaped pollution cloud from the
+// reference). The AQI "Heatmap" switch paints Google's Air Quality heatmapTiles onto the
+// map's overlayMapTypes as a google.maps.ImageMapType, replacing the old discrete deck.gl
+// dot grid for the AQI layer. Tile endpoint shape (zoom 0-16, 256px tiles):
+//   https://airquality.googleapis.com/v1/mapTypes/{mapType}/heatmapTiles/{zoom}/{x}/{y}?key=...
+// The browser MAPS_KEY is appended as a query param - the same key every other Air Quality
+// call in this component already uses.
+//
+// SCOPED RED EXCEPTION: UAQI_RED_GREEN is the Universal AQI red-green palette, the most
+// representative continuous global AQI heatmap and the closest match to the reference
+// image's green -> yellow -> orange -> red cloud. These tiles are rendered server-side by
+// Google and MAY contain red for high-pollution areas. That red is DELIBERATELY allowed,
+// but ONLY inside these tile IMAGES on the map. The rest of the page/card (legend ramp,
+// gauge, pollutant rows, hourly history, health recommendations, every component CSS color)
+// stays on the approved no-red palette (#c98a2e -> #e8c547 -> #d1f470 -> #3da35a) and never
+// introduces a red hex.
+const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
+const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
+
 // Neutral map camera; no place is selected until the visitor acts.
 interface PlaceState {
   name: string;
@@ -678,6 +697,10 @@ const VayuLokLive: React.FC = () => {
   // activation), the AbortController for the in-flight grid fetch, and the grid cache
   // keyed by area+grid+layer+time-bucket so re-activating the same layer bills nothing.
   const deckOverlayRef = useRef<unknown>( null );
+  // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
+  // (FEAT-001). Created lazily ONLY when the user toggles the Heatmap switch on, pushed onto
+  // map.overlayMapTypes, and detached idempotently on toggle-off / switch-to-PM2.5 / unmount.
+  const heatmapOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
@@ -937,19 +960,96 @@ const VayuLokLive: React.FC = () => {
      every point with the existing helpers, dropping unparseable points; (4) caches by
      area+grid+layer+time-bucket in a ref (+localStorage mirror); (5) builds a deck.gl
      ScatterplotLayer and attaches a dynamically-imported GoogleMapsOverlay to the map; and
-     (6) on deactivate/unmount clears the overlay and aborts any in-flight grid fetch. */
+     (6) on deactivate/unmount clears the overlay and aborts any in-flight grid fetch.
+
+     FEAT-001: the AQI layer no longer uses the deck.gl dot grid. When layer === 'AQI' it
+     paints a CONTINUOUS Google Air Quality heatmap TILE overlay (a google.maps.ImageMapType
+     pushed onto map.overlayMapTypes) instead. The PM2.5 layer keeps its no-red deck.gl dots
+     unchanged. Only one overlay type is ever attached at a time. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
-    // No layer active -> ensure overlay is detached and the single-point air result clears.
-    if ( !layer ) {
+
+    const map = mapRef.current;
+
+    // Detach the deck.gl dot overlay (used by the PM2.5 layer) idempotently.
+    const detachDots = () => {
       const existing = deckOverlayRef.current as { setMap?: ( m: unknown ) => void; setProps?: ( p: { layers: unknown[] } ) => void } | null;
       existing?.setProps?.( { layers: [] } );
       existing?.setMap?.( null );
+    };
+
+    // Detach the AQI heatmap ImageMapType from map.overlayMapTypes idempotently. overlayMapTypes
+    // is an MVCArray; remove this exact instance by index so unrelated overlays are untouched,
+    // and null the ref so a later toggle-on re-pushes exactly one (never a duplicate).
+    const detachHeatmap = () => {
+      const overlay = heatmapOverlayRef.current;
+      if ( !overlay ) return;
+      const omt = ( map as { overlayMapTypes?: {
+        getLength?: () => number;
+        getAt?: ( i: number ) => unknown;
+        removeAt?: ( i: number ) => unknown;
+        clear?: () => void;
+      } } | null )?.overlayMapTypes;
+      if ( omt ) {
+        if ( typeof omt.getLength === 'function' && typeof omt.getAt === 'function' && typeof omt.removeAt === 'function' ) {
+          for ( let i = omt.getLength() - 1; i >= 0; i-- ) {
+            if ( omt.getAt( i ) === overlay ) omt.removeAt( i );
+          }
+        } else {
+          // Test stub / minimal double exposes only clear(): the AQI heatmap is the only
+          // overlayMapTypes entry this component ever pushes, so clearing it is clean.
+          omt.clear?.();
+        }
+      }
+      heatmapOverlayRef.current = null;
+    };
+
+    // No layer active -> ensure BOTH overlay types are detached and the single-point air clears.
+    if ( !layer ) {
+      detachDots();
+      detachHeatmap();
       requestAnimationFrame( () => { setDataLoading( false ); } );
       return;
     }
-    const map = mapRef.current;
     if ( !map ) return;
+
+    // AQI -> continuous heatmap TILE overlay (no deck.gl dot grid, no grid fetch). Tear down
+    // the PM2.5 dots first so the two overlay types are never shown at once, then attach the
+    // ImageMapType exactly once. Created ONLY here, on user toggle - never at module load or
+    // map init.
+    if ( layer === 'AQI' ) {
+      detachDots();
+      const w = window as unknown as { google?: { maps?: {
+        ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
+        Size?: new ( w: number, h: number ) => unknown;
+      } } };
+      const gmaps = w.google?.maps;
+      const omt = ( map as { overlayMapTypes?: { push?: ( v: unknown ) => void } } ).overlayMapTypes;
+      // Idempotent: if one is already attached, leave it; never push a duplicate.
+      if ( gmaps?.ImageMapType && gmaps?.Size && omt?.push && !heatmapOverlayRef.current ) {
+        const imageMapType = new gmaps.ImageMapType( {
+          name: 'vl-live-aqi-heatmap',
+          tileSize: new gmaps.Size( 256, 256 ),
+          minZoom: 0,
+          maxZoom: 16,
+          opacity: 0.75, // keep the base map legible under the pollution cloud
+          // SCOPED RED EXCEPTION (see AQI_HEATMAP_MAP_TYPE above): these server-rendered
+          // tiles may contain red for high pollution and that is deliberately allowed for
+          // the tile IMAGES only. No component CSS/markup introduces red.
+          getTileUrl: ( coord: { x: number; y: number }, zoom: number ): string =>
+            `${AQI_HEATMAP_TILE_BASE}/${AQI_HEATMAP_MAP_TYPE}/heatmapTiles/${zoom}/${coord.x}/${coord.y}`
+            + `?key=${encodeURIComponent( MAPS_KEY )}`,
+        } );
+        omt.push( imageMapType );
+        heatmapOverlayRef.current = imageMapType;
+      }
+      requestAnimationFrame( () => { setDataLoading( false ); } );
+      return () => { detachHeatmap(); };
+    }
+
+    // PM2.5 -> keep the existing no-red deck.gl ScatterplotLayer dot grid unchanged. Tear down
+    // any AQI heatmap tiles first so both overlay types are never shown at once.
+    detachHeatmap();
 
     const { lat, lng } = place;
     const gridSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 3 : 5; // 3x3 narrow, 5x5 wide
