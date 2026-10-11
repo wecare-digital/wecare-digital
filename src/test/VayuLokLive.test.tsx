@@ -987,6 +987,13 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     const init = airForecastCall[ 1 ] as RequestInit;
     const body = JSON.parse( String( init.body ) );
     expect( body.pageSize ).toBe( 96 );
+    expect( body.extraComputations ).toEqual( expect.arrayContaining( [
+      'LOCAL_AQI',
+      'POLLUTANT_CONCENTRATION',
+      'DOMINANT_POLLUTANT_CONCENTRATION',
+      'HEALTH_RECOMMENDATIONS',
+      'POLLUTANT_ADDITIONAL_INFO',
+    ] ) );
     const start = new Date( body.period.startTime ).getTime();
     const end = new Date( body.period.endTime ).getTime();
     expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 96 );
@@ -1033,6 +1040,70 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_ADDITIONAL_INFO' );
     expect( selectedBody.extraComputations ).toContain( 'POLLUTANT_CONCENTRATION' );
   } );
+  it( 'surfaces Google Air forecast ranges, 30-day history and PM2.5 heatmap tiles', async () => {
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const forecastRange = await screen.findByRole( 'group', { name: 'Air forecast range' } );
+    expect( within( forecastRange ).getByRole( 'button', { name: '24h' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
+    fireEvent.click( within( forecastRange ).getByRole( 'button', { name: '96h' } ) );
+    expect( within( forecastRange ).getByRole( 'button', { name: '96h' } ) ).toHaveAttribute( 'aria-pressed', 'true' );
+    await waitFor( () => expect( container.querySelectorAll( '.vl-live-air-forecast-card' ).length ).toBe( 96 ) );
+
+    const historyRange = await screen.findByRole( 'group', { name: 'Air history range' } );
+    fireEvent.click( within( historyRange ).getByRole( 'button', { name: '30d' } ) );
+    await waitFor( () => {
+      const calls = fetchSpy.mock.calls.filter( call => requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/history' ) );
+      const has720 = calls.some( call => {
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        return raw ? JSON.parse( String( raw ) ).hours === 720 : false;
+      } );
+      expect( has720 ).toBe( true );
+    } );
+
+    const metric = await screen.findByRole( 'group', { name: 'Heatmap metric' } );
+    fireEvent.click( within( metric ).getByRole( 'button', { name: 'PM2.5' } ) );
+    await waitFor( () => {
+      const pm25 = rec.imageMapTypeOpts.find( opts => {
+        const get = opts.getTileUrl as ( ( coord: { x: number; y: number }, zoom: number ) => string ) | undefined;
+        return typeof get === 'function' && get( { x: 1, y: 2 }, 5 ).includes( 'mapTypes/PM25_INDIGO_PERSIAN/heatmapTiles' );
+      } );
+      expect( pm25 ).toBeTruthy();
+    } );
+  } );
+
+  it( 'does not force India CPCB custom AQI on non-India destinations', async () => {
+    rec = installGoogleMaps( { placeCountryCode: 'BD' } );
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const selectedPlaceCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call => {
+        if ( !requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' ) ) return false;
+        const raw = ( call[ 1 ] as RequestInit | undefined )?.body;
+        if ( !raw ) return false;
+        const parsed = JSON.parse( String( raw ) );
+        return parsed.location?.latitude === 19.076;
+      } );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const body = JSON.parse( String( ( selectedPlaceCall[ 1 ] as RequestInit ).body ) );
+    expect( body.universalAqi ).toBe( true );
+    expect( body.extraComputations ).toContain( 'LOCAL_AQI' );
+    expect( body.customLocalAqis ).toBeUndefined();
+  } );
+
   it( 'fires the place autocomplete on the fast 120ms debounce - not immediately, and not on the old 300ms lag', async () => {
     // PINS "auto-complete should work very quickly". The component debounces the Autocomplete
     // Data API request by SEARCH_DEBOUNCE_MS (120ms): one request per settled keystroke, but
