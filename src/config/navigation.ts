@@ -115,13 +115,20 @@ export const navigationConfig: NavItem[] = [
     ],
   },
   {
-    // Owner leaned sidebar: ten child routes, and they are order-linked daily work
-    // rather than configuration.
-    path: '/workspace/engage/service-ops',
+    // SERVICE OPERATIONS — the unified customer-request front door (Phase 4 of the rebuild).
+    // It LEADS with "Responses", the one queue that replaces the four overlapping submission
+    // views (forms/responses, flow-responses "Legacy Requests", flow-hub "Submissions",
+    // selfservice "Submissions"). The rest are the customer-facing capabilities, each a view of
+    // the same canonical data rather than a separate admin app. Kept as ONE sidebar section
+    // (not a new tenth) so the 9-section ceiling in Navigation.test.tsx still holds — Request
+    // and Service Ops are the same concept, so they are the same section.
+    path: '/workspace/request/responses',
     label: 'Service Ops',
     icon: 'order',
     children: [
-      { path: '/workspace/engage/service-ops', label: 'Orders' },
+      { path: '/workspace/request/responses', label: 'Responses' },
+      { path: '/workspace/engage/service-ops', label: 'Overview' },
+      { path: '/workspace/engage/orders', label: 'Orders' },
       { path: '/workspace/service/submit-request', label: 'Submit Request' },
       { path: '/workspace/service/track-request', label: 'Track Request' },
       { path: '/workspace/service/amend-request', label: 'Amend Request' },
