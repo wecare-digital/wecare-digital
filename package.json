@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/generate-public-pages.js && node scripts/generate-vendor-css.js && next build && node scripts/generate-sitemap.js && node scripts/generate-blog-search-index.js && node scripts/generate-llms-txt.js",
+    "build": "node scripts/refresh-wix-catalog-safe.js && node scripts/generate-public-pages.js && node scripts/generate-vendor-css.js && next build && node scripts/generate-sitemap.js && node scripts/generate-blog-search-index.js && node scripts/generate-llms-txt.js",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
