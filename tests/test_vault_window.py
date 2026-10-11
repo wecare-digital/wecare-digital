@@ -195,3 +195,69 @@ def test_redeem_after_window_closed_is_refused_not_delivered(handler, monkeypatc
     resp, _ = _redeem(handler, monkeypatch, ent)
     assert resp["statusCode"] == 403
     assert "ACCESS_WINDOW_CLOSED" in resp["body"]
+
+
+# ── feat-004: delivery opens the window (WhatsApp entry path) ────────────────
+
+PAID_GRANT = {
+    "grantId": "grant-1", "fileId": "f1", "ownerPhone": "919999999999",
+    "customerId": "cust-sub-1", "paid": True, "consumed": False, "channel": "whatsapp",
+    "amountPaise": 4900,
+}
+ACTIVE_FILE = {
+    "fileId": "f1", "status": "active", "ownerPhone": "919999999999",
+    "ownerCustomerId": "cust-sub-1", "deliverable": "pdf", "deliveryKey": "secure/d/f1.pdf",
+    "originalFilename": "report.pdf",
+}
+
+
+class _DeliveryTables:
+    """One fake standing in for GRANTS + FILES, enough for deliver_over_whatsapp."""
+    def __init__(self, grant, file):
+        self.rows = {grant["grantId"]: dict(grant), file["fileId"]: dict(file)}
+        self.entitlement_id = "vault-entitlement#cust-sub-1#f1"
+
+    def get_item(self, Key, ConsistentRead=False):
+        k = Key.get("grantId") or Key.get("fileId")
+        row = self.rows.get(k)
+        return {"Item": dict(row)} if row else {}
+
+    def put_item(self, Item, **_):
+        self.rows[Item["grantId"]] = dict(Item)
+
+    def update_item(self, Key, UpdateExpression="", ExpressionAttributeValues=None, **_):
+        k = Key.get("grantId") or Key.get("fileId")
+        row = self.rows.setdefault(k, {"grantId": k})
+        vals = ExpressionAttributeValues or {}
+        if ":s" in vals:  # window open
+            row["accessWindowStartedAt"] = vals[":s"]
+            row["accessWindowEndsAt"] = vals[":e"]
+            row["accessWindowCount"] = vals[":c"]
+
+
+def _deliver(handler, monkeypatch, send_ok):
+    tables = _DeliveryTables(PAID_GRANT, ACTIVE_FILE)
+    monkeypatch.setattr(handler, "_table", lambda _n: tables)
+    fake_delivery = type(sys)("whatsapp_delivery")
+    fake_delivery.send_document = lambda **_: (send_ok, "sent" if send_ok else "failed")
+    fake_delivery.send_download_link = lambda **_: (send_ok, "sent" if send_ok else "failed")
+    monkeypatch.setitem(sys.modules, "whatsapp_delivery", fake_delivery)
+    monkeypatch.setattr(handler, "_download_url", lambda _item, ttl=None: "https://signed/f1")
+    ok, _ = handler.deliver_over_whatsapp("grant-1")
+    return ok, tables
+
+
+def test_successful_whatsapp_delivery_opens_the_window(handler, monkeypatch):
+    ok, tables = _deliver(handler, monkeypatch, send_ok=True)
+    assert ok is True
+    ent = tables.rows[tables.entitlement_id]
+    assert ent["accessWindowCount"] == 1
+    assert ent["accessWindowEndsAt"] > 0
+
+
+def test_failed_whatsapp_delivery_leaves_the_window_closed(handler, monkeypatch):
+    ok, tables = _deliver(handler, monkeypatch, send_ok=False)
+    assert ok is False
+    ent = tables.rows.get(tables.entitlement_id) or {}
+    # Nothing was delivered, so the clock must NOT have started.
+    assert "accessWindowEndsAt" not in ent

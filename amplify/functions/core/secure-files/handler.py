@@ -1551,6 +1551,23 @@ def deliver_over_whatsapp(grant_id: str) -> Tuple[bool, str]:
         # The send already happened; losing the bookkeeping must not undo it.
         logger.warning(json.dumps({"event": "delivery_state_write_failed"}))
 
+    # feat-004: the 24h window starts AT DELIVERY, for the WhatsApp entry path too — not only
+    # on the web redeem. On a successful send, open (or confirm) the window on the durable
+    # entitlement so both entry paths start the same clock. Idempotent via _open_access_window,
+    # so a duplicate webhook / resend does not re-open or double-count. A failed send leaves the
+    # window closed, which is correct: nothing was delivered, so the clock has not started.
+    if ok:
+        entitlement = _ensure_entitlement(grant)
+        if entitlement:
+            _open_access_window(entitlement)
+        else:
+            # Payment is durable; a missing entitlement here is a reconcilable pointer problem,
+            # not a reason to fail a delivery that already left.
+            logger.warning(json.dumps({
+                "event": "vault_window_not_opened_on_delivery",
+                "grantId": grant_id, "fileId": grant.get("fileId", ""),
+            }))
+
     return ok, detail
 
 
