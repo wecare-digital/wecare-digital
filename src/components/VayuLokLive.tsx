@@ -869,6 +869,8 @@ const VayuLokLive: React.FC = () => {
   const [ weatherDaily, setWeatherDaily ] = useState<WeatherDay[]>( [] );
   const [ weatherAlerts, setWeatherAlerts ] = useState<WeatherAlertRow[]>( [] );
   const [ airForecast, setAirForecast ] = useState<AirPoint[]>( [] );
+  const [ airForecastHours, setAirForecastHours ] = useState<24 | 48 | 96>( 24 );
+  const [ airForecastInspectIdx, setAirForecastInspectIdx ] = useState( 0 );
   const [ airHistory, setAirHistory ] = useState<AirPoint[]>( [] );
   // Default to the 168-hour (7-day) window so the Hourly History chart spans ~a week. The
   // history fetch effect keys on this value and only fetches on the keyed path (no key =>
@@ -896,6 +898,7 @@ const VayuLokLive: React.FC = () => {
   // Heatmap switch (aria-checked={layer==='AQI'}) therefore reads ON by default and still
   // turns the overlay OFF. Selecting a layer both toggles the map air-quality layer AND swaps
   // the environmental RESULT content shown in the LEFT card (AQI result vs PM2.5-focused).
+  const [ heatmapMetric, setHeatmapMetric ] = useState<'AQI' | 'PM25'>( 'AQI' );
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( 'AQI' );
 
   // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
@@ -950,6 +953,10 @@ const VayuLokLive: React.FC = () => {
   useEffect( () => {
     setHistoryInspectIdx( null );
   }, [ airHistory ] );
+
+  useEffect( () => {
+    setAirForecastInspectIdx( 0 );
+  }, [ airForecast, airForecastHours ] );
 
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) {
@@ -1441,7 +1448,7 @@ const VayuLokLive: React.FC = () => {
             method: 'POST',
             signal: ac.signal,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify( airRequestBody( cell.lat, cell.lng ) ),
+            body: JSON.stringify( airRequestBody( cell.lat, cell.lng, place.regionCode ) ),
           },
         );
         if ( !res.ok ) return { data: null };
@@ -1656,11 +1663,7 @@ const VayuLokLive: React.FC = () => {
               ],
               languageCode: 'en',
               universalAqi: true,
-              // Request the India CPCB local AQI index so the parser below (which prefers
-              // indexes.find( i => i.code === 'ind_cpcb' )) can actually receive it instead of
-              // silently falling back to uaqi. Parity with loadAirForecast + the air-history
-              // call, which already send this.
-              customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
+              ...localAqiOverride( place.regionCode ),
             } ),
           },
         );
@@ -1851,8 +1854,14 @@ const VayuLokLive: React.FC = () => {
             period: { startTime: start.toISOString(), endTime: end.toISOString() },
             pageSize: 96,
             universalAqi: true,
-            customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
-            extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION' ],
+            ...localAqiOverride( place.regionCode ),
+            extraComputations: [
+              'LOCAL_AQI',
+              'POLLUTANT_CONCENTRATION',
+              'DOMINANT_POLLUTANT_CONCENTRATION',
+              'HEALTH_RECOMMENDATIONS',
+              'POLLUTANT_ADDITIONAL_INFO',
+            ],
             languageCode: 'en',
           } ),
         },
@@ -1925,8 +1934,8 @@ const VayuLokLive: React.FC = () => {
           hours: historyRange,
           pageSize: Math.min( 100, historyRange ),
           universalAqi: true,
-          customLocalAqis: [ { regionCode: 'IN', aqi: 'ind_cpcb' } ],
-          extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION' ],
+          ...localAqiOverride( place.regionCode ),
+          extraComputations: [ 'LOCAL_AQI', 'POLLUTANT_CONCENTRATION', 'DOMINANT_POLLUTANT_CONCENTRATION' ],
           languageCode: 'en',
         };
         if ( pageToken ) body.pageToken = pageToken;
@@ -2168,11 +2177,14 @@ const VayuLokLive: React.FC = () => {
             const lat = loc?.lat?.();
             const lng = loc?.lng?.();
             if ( !Number.isFinite( lat ) || !Number.isFinite( lng ) ) return null;
+            const country = ( row as { address_components?: { types?: string[]; short_name?: string }[] } ).address_components
+              ?.find( component => component.types?.includes( 'country' ) )?.short_name;
             const place: PlaceState = {
               name: pr.formatted_address?.split( ',' )[ 0 ] || 'Place',
               addr: pr.formatted_address || '',
               lat: lat as number,
               lng: lng as number,
+              ...( typeof country === 'string' && country ? { regionCode: country.toUpperCase() } : {} ),
             };
             return { name: place.name, addr: place.addr, place };
           } )
