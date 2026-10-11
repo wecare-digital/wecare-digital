@@ -66,6 +66,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
     const [ name, setName ] = useState( '' );
     const [ mobile, setMobile ] = useState( '' );
     const [ displayName, setDisplayName ] = useState( '' );
+    const [ tag, setTag ] = useState( '' );
     const [ file, setFile ] = useState<File | null>( null );
     const [ uploading, setUploading ] = useState( false );
     const [ step, setStep ] = useState( '' );
@@ -122,6 +123,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
         setName( '' );
         setMobile( '' );
         setDisplayName( '' );
+        setTag( '' );
         setFile( null );
     };
 
@@ -144,6 +146,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                 name: name.trim(),
                 mobile: mobile.trim(),
                 displayName: displayName.trim() || file.name,
+                tag: tag.trim() || undefined,
                 originalFilename: file.name,
                 contentType,
                 sizeBytes: file.size,
@@ -274,6 +277,24 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                         </div>
 
                         <div className="sf-field">
+                            <label className="sf-label" htmlFor="sf-tag">
+                                Tag <span className="sf-label-opt">(optional)</span>
+                            </label>
+                            <input
+                                id="sf-tag"
+                                className="sf-input"
+                                value={ tag }
+                                onChange={ e => setTag( e.target.value ) }
+                                placeholder="Passport, Invoice, Mar 2026…"
+                                maxLength={ 60 }
+                                disabled={ uploading }
+                            />
+                            <p className="sf-hint">
+                                An internal label to find this file later. Not shown to the customer.
+                            </p>
+                        </div>
+
+                        <div className="sf-field">
                             <label className="sf-label" htmlFor="sf-file">File</label>
                             <input
                                 id="sf-file"
@@ -297,7 +318,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                         <span className="sf-aside">
                             { uploading && step
                                 ? step
-                                : `Customer pays ${rupees( 4900 )} per download.` }
+                                : `Customer pays ${rupees( 4900 )} per 24-hour access window — unlimited downloads inside it.` }
                         </span>
                     </div>
                 </section>
@@ -351,7 +372,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                             <table className="sf-table">
                                 <thead>
                                     <tr>
-                                        { [ 'File', 'Customer', 'Mobile', 'Size', 'Downloads', 'Vault purchase', 'Status', '' ].map( heading => (
+                                        { [ 'File', 'Tag', 'Customer', 'Mobile', 'Size', 'Downloads', 'Vault purchase', 'Access window', 'Status', '' ].map( heading => (
                                             <th key={ heading } scope="col">{ heading }</th>
                                         ) ) }
                                     </tr>
@@ -365,6 +386,7 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                                                     <span className="sf-filename">{ row.displayName }</span>
                                                     <span className="sf-fileorig">{ row.originalFilename }</span>
                                                 </td>
+                                                <td>{ row.tag ? <span className="sf-tagpill">{ row.tag }</span> : <span className="sf-muted">—</span> }</td>
                                                 <td>{ row.ownerName || '—' }</td>
                                                 {/* masked at the API; the full number never reaches the browser */ }
                                                 <td className="sf-mono">{ row.ownerPhoneMasked || '—' }</td>
@@ -374,6 +396,16 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                                                     <span className="sf-filename">{ row.vaultPaymentStatus === 'PAID' ? 'Paid · Access ready' : 'Awaiting purchase' }</span>
                                                     { row.vaultOrderNumber && <span className="sf-fileorig">{ row.vaultOrderNumber }</span> }
                                                     { row.vaultRequestNumber && <span className="sf-fileorig">{ row.vaultRequestNumber }</span> }
+                                                </td>
+                                                <td>
+                                                    {/* "Active · ends in Xh" / "Expired" / "Awaiting purchase" — same predicate the
+                                                        backend gates downloads on, so screen and backend never disagree. */}
+                                                    <span className={ `sf-window ${ row.accessWindowOpen ? 'sf-window-open' : ( ( row.accessWindowCount ?? 0 ) > 0 ? 'sf-window-expired' : 'sf-window-none' ) }` }>
+                                                        { row.accessWindowStatus || 'Awaiting purchase' }
+                                                    </span>
+                                                    { ( row.accessWindowCount ?? 0 ) > 1 && (
+                                                        <span className="sf-fileorig">{ row.accessWindowCount } windows</span>
+                                                    ) }
                                                 </td>
                                                 <td>
                                                     <span
@@ -525,6 +557,21 @@ export default function SecureFilesPage ( { signOut, user }: PageProps ) {
                   display:inline-block;padding:3px 10px;border-radius:50px;
                   border:1px solid;font-size:12px;font-weight:600;text-transform:capitalize;
                 }
+
+                .sf-label-opt{font-weight:400;color:#64748b}
+                .sf-muted{color:#cbd5e1}
+                .sf-tagpill{
+                  display:inline-block;padding:2px 10px;border-radius:50px;
+                  background:#f1f5f9;color:#334155;border:1px solid #e2e8f0;
+                  font-size:12px;font-weight:600;
+                }
+                .sf-window{
+                  display:inline-block;padding:2px 10px;border-radius:50px;
+                  border:1px solid;font-size:12px;font-weight:600;white-space:nowrap;
+                }
+                .sf-window-open{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+                .sf-window-expired{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+                .sf-window-none{background:#f8fafc;color:#64748b;border-color:#e2e8f0}
 
                 .sf-revoke{
                   border:2px solid rgba(26,58,42,.18);border-radius:50px;

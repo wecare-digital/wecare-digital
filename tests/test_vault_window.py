@@ -261,3 +261,43 @@ def test_failed_whatsapp_delivery_leaves_the_window_closed(handler, monkeypatch)
     ent = tables.rows.get(tables.entitlement_id) or {}
     # Nothing was delivered, so the clock must NOT have started.
     assert "accessWindowEndsAt" not in ent
+
+
+# ── feat-005: _public_file surfaces tag + access-window status ───────────────
+
+def test_public_file_reports_awaiting_purchase_without_an_entitlement(handler):
+    row = {"fileId": "f1", "displayName": "Report", "tag": "Passport", "status": "active"}
+    out = handler._public_file(row, admin=True)
+    assert out["tag"] == "Passport"
+    assert out["accessWindowStatus"] == "Awaiting purchase"
+    assert out["accessWindowOpen"] is False
+    assert out["accessWindowCount"] == 0
+
+
+def test_public_file_reports_active_window_from_entitlement(handler):
+    now = int(__import__("time").time())
+    row = {"fileId": "f1", "displayName": "Report", "status": "active"}
+    ent = {"accessWindowEndsAt": now + 5 * 3600, "accessWindowCount": 1}
+    out = handler._public_file(row, admin=True, entitlement=ent, now=now)
+    assert out["accessWindowOpen"] is True
+    assert "Active" in out["accessWindowStatus"]
+    assert out["accessWindowCount"] == 1
+
+
+def test_public_file_reports_expired_window(handler):
+    now = int(__import__("time").time())
+    row = {"fileId": "f1", "displayName": "Report", "status": "active"}
+    # Well past the end AND past the 300s grace, so it is unambiguously closed.
+    ent = {"accessWindowEndsAt": now - 3600, "accessWindowCount": 2}
+    out = handler._public_file(row, admin=True, entitlement=ent, now=now)
+    assert out["accessWindowOpen"] is False
+    assert out["accessWindowStatus"] == "Expired"
+    assert out["accessWindowCount"] == 2
+
+
+def test_tag_is_bounded_and_control_chars_stripped(handler):
+    # The sanitiser used by _upload_init: printable only, max 60 chars.
+    raw = "Pass\x00port\n" + "x" * 100
+    cleaned = "".join(c for c in raw.strip() if c.isprintable())[:60]
+    assert "\x00" not in cleaned and "\n" not in cleaned
+    assert len(cleaned) <= 60

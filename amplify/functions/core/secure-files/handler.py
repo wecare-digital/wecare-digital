@@ -403,11 +403,20 @@ def _decimal_safe(obj: Any) -> Any:
     return obj
 
 
-def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
-    """Shape a record for the client. The S3 key never leaves the backend."""
+def _public_file(item: Dict[str, Any], *, admin: bool,
+                 entitlement: Optional[Dict[str, Any]] = None,
+                 now: Optional[int] = None) -> Dict[str, Any]:
+    """Shape a record for the client. The S3 key never leaves the backend.
+
+    When an `entitlement` is supplied (admin list enriches it), the 24h access-window status is
+    computed from it so the workspace can show "Active · ends in Xh" / "Expired" / "Awaiting
+    purchase" — the same predicate the redeem path gates on, so screen and backend never disagree.
+    """
+    now = int(time.time()) if now is None else int(now)
     out = {
         "fileId": item.get("fileId"),
         "displayName": item.get("displayName"),
+        "tag": item.get("tag") or "",
         "originalFilename": item.get("originalFilename"),
         "contentType": item.get("contentType"),
         "sizeBytes": item.get("sizeBytes"),
@@ -418,6 +427,11 @@ def _public_file(item: Dict[str, Any], *, admin: bool) -> Dict[str, Any]:
         "vaultPaymentStatus": item.get('vaultPaymentStatus'),
         "vaultOrderNumber": item.get('vaultOrderNumber'),
         "vaultRequestNumber": item.get('vaultRequestNumber'),
+        # Access-window view (display-only; the authoritative gate is _redeem).
+        "accessWindowStatus": vault_window.status_label(entitlement, now),
+        "accessWindowOpen": vault_window.window_open(entitlement, now),
+        "accessWindowEndsAt": vault_window.window_ends_at(entitlement),
+        "accessWindowCount": vault_window.window_count(entitlement),
         # "pdf" / "image" arrive as a WhatsApp attachment; "link" goes out as a URL.
         "deliverable": item.get("deliverable", "unknown"),
     }
@@ -674,6 +688,9 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     body = json.loads(event.get("body") or "{}")
     name = str(body.get("name") or "").strip()
     display_name = str(body.get("displayName") or "").strip()
+    # Optional operator label for finding a file later (e.g. "Passport", "Invoice Mar"). Free
+    # text, bounded and stripped of control chars; it is display-only and never part of a key.
+    tag = "".join(c for c in str(body.get("tag") or "").strip() if c.isprintable())[:60]
     filename = str(body.get("originalFilename") or "").strip()
     content_type = str(body.get("contentType") or "application/octet-stream").strip()
     size = int(body.get("sizeBytes") or 0)
@@ -733,6 +750,7 @@ def _upload_init(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
             "ownerName": name,
             "cognitoUsername": username,
             "displayName": display_name or filename,
+            "tag": tag,
             "originalFilename": filename,
             "contentType": content_type,
             "sizeBytes": size,
@@ -888,11 +906,23 @@ def _admin_list(event: Dict[str, Any], origin: str) -> Dict[str, Any]:
     items = sorted(
         result.get("Items", []), key=lambda i: str(i.get("createdAt", "")), reverse=True
     )
-    return cors_response(
-        200,
-        {"files": [_public_file(i, admin=True) for i in items], "count": len(items)},
-        origin,
-    )
+    # Enrich only paid files with their durable entitlement, so the window status is accurate
+    # without a read for files that never sold. The pointer (vaultEntitlementId) is stamped on
+    # the file row at payment; a missing/failed read degrades to "Awaiting purchase" rather than
+    # failing the list.
+    now = int(time.time())
+    grants = _table(GRANTS_TABLE)
+    out = []
+    for i in items:
+        entitlement = None
+        eid = str(i.get("vaultEntitlementId") or "")
+        if eid:
+            try:
+                entitlement = grants.get_item(Key={"grantId": eid}).get("Item")
+            except ClientError:
+                entitlement = None
+        out.append(_public_file(i, admin=True, entitlement=entitlement, now=now))
+    return cors_response(200, {"files": out, "count": len(out)}, origin)
 
 
 def _admin_revoke(file_id: str, origin: str) -> Dict[str, Any]:
