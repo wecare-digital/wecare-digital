@@ -673,12 +673,10 @@ def test_the_plan_log_line_carries_the_counts_and_no_credential(snapshot_product
     assert planned["source"] == "wix-webhook"
     assert planned["entityId"] == "prod-1"
     assert planned["create"] == 23
-    # All ten real products carry no media in Wix today (owner's 2026-10-10 "pure Wix read"
-    # decision; the services product's per-choice artwork is re-linked in the Wix dashboard, not
-    # carried forward here, and Wix currently returns none), so every one is blocked - including
-    # the services product, whose catalogue name is "Request".
-    assert planned["blocked"] == 10
-    assert "Request" in planned["blockedProducts"]
+    # The current Wix snapshot carries media for nine of ten syncable products.
+    # Only the ₹1 test product remains imageless, so it is the sole catalogue blocker.
+    assert planned["blocked"] == 1
+    assert planned["blockedProducts"] == ["₹1 test product"]
     assert planned["enabled"] is False
     assert planned["dryRun"] is True
     assert planned["planHash"]
