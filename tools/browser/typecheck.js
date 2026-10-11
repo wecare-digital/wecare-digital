@@ -182,9 +182,17 @@ async function main() {
      * If anything it should be a <p>, or move onto the documented 12px/700/.08em eyebrow
      * rung - a small semantic tidy, not a type-scale question.
      */
-    const NON_SECTION = /(-card|-chip|card-|widget|wa-|fa-|sr-only|visually|cl-card|-toc-|^pbp-h$)/;
+    const NON_SECTION = /(-card|-chip|card-|widget|wa-|fa-|sr-only|visually|cl-card|-toc-|^pbp-h$|^bc-title$)/;
 
     // `.pbp-h` labels ProductBlogPanel's compact right-hand blog reader on /anew/.
+    //
+    // `.bc-title` is the "Contribute" heading inside the BlogContribution block (an h2 only
+    // because it labels that <section>). It is deliberately on the 12px/700/.08em uppercase
+    // EYEBROW rung - the same quiet "related-section" treatment as the post pager and breadcrumb
+    // furniture - not a page section heading. It appears at the tail of every blog post and,
+    // since #310, inside the floating Air Quality card on /vayulok/, which is the first ROUTE a
+    // scan reaches it on. Scaling it to 40px would turn a tail-of-page appeal into a second page
+    // title, so it belongs with the card/widget/eyebrow class above rather than on the rung.
     // It belongs to an <aside> widget, not the page's section-h2 ladder; keeping its compact
     // 28px treatment avoids turning a utility panel heading into a second page-section heading.
 
