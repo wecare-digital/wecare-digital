@@ -516,8 +516,8 @@ describe( 'VayuLokLive v8 approved design contract', () => {
 
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     expect( rec.mapOpts?.restriction ).toBeUndefined();
-    expect( rec.mapOpts?.center ).toEqual( { lat: 20, lng: 20 } );
-    expect( rec.mapOpts?.zoom ).toBe( 2 );
+    expect( rec.mapOpts?.center ).toEqual( { lat: 25, lng: 86 } );
+    expect( rec.mapOpts?.zoom ).toBe( 4 );
     expect( rec.mapOpts?.mapTypeId ).toBe( 'hybrid' );
     expect( rec.mapOpts?.zoomControl ).toBe( false );
     expect( container.querySelector( '.vl-live-map-locate' ) ).toBeNull();
@@ -744,23 +744,21 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( tileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
     expect( tileUrl ).toContain( 'key=' );
 
-    // TEARDOWN: flipping the Heatmap switch OFF (layer -> null) must DETACH the AQI heatmap
-    // via the production removeAt index-removal loop. Because the Storm overlay is default-on
-    // and INDEPENDENT, exactly ONE overlay (the AQI heatmap) leaves the live array.
+    // TEARDOWN: flipping the Heatmap switch OFF (layer -> null) detaches the AQI heatmap
+    // via the production removeAt index-removal loop. The atmosphere is not an ImageMapType.
     const overlayCountBeforeOff = rec.overlayEntries.length;
     await waitFor( () => {
       const sw = screen.getByRole( 'switch', { name: 'Air quality heatmap' } );
       if ( sw.getAttribute( 'aria-checked' ) !== 'false' ) fireEvent.click( sw );
       expect( sw ).toHaveAttribute( 'aria-checked', 'false' );
     } );
-    // Turning the heatmap OFF removes exactly ONE overlay (the AQI heatmap); the independent
-    // weather/storm overlay remains attached.
+    // Turning the heatmap OFF removes the AQI tile overlay.
     await waitFor( () => {
       expect( rec.overlayRemovals.length ).toBeGreaterThan( 0 );
       expect( rec.overlayEntries.length ).toBe( overlayCountBeforeOff - 1 );
     } );
 
-    // Re-toggle ON re-pushes exactly ONE AQI instance (idempotent attach, no duplicate).
+    // Re-toggle ON re-pushes exactly one AQI instance (idempotent attach, no duplicate).
     await waitFor( () => {
       const sw = screen.getByRole( 'switch', { name: 'Air quality heatmap' } );
       if ( sw.getAttribute( 'aria-checked' ) !== 'true' ) fireEvent.click( sw );
@@ -977,71 +975,7 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( fetchSpy.mock.calls.some( call => requestIs( call[ 0 ] as RequestInfo | URL, 'weather.googleapis.com', '/v1/publicAlerts' ) ) ).toBe( false );
   } );
 
-  it( 'paints BOTH the AQI heatmap and the weather/storm Google TILE overlays BY DEFAULT, not deck.gl dots', async () => {
-    const fetchSpy = airConditionsFetch( 450, 180 );
-    vi.stubGlobal( 'fetch', fetchSpy );
-    const VayuLokLive = await loadComponent();
-
-    render( <VayuLokLive /> );
-    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
-    await selectMumbai();
-
-    // DEFAULT-ON (FEAT-001): without any click, the keyed map attaches BOTH continuous tile
-    // overlays - the AQI heatmap (layer defaults to 'AQI') and the weather/storm overlay
-    // (stormOn defaults to true) - onto overlayMapTypes. No deck.gl dot overlay is attached.
-    await waitFor( () => {
-      expect( rec.imageMapTypeOpts.length ).toBeGreaterThanOrEqual( 2 );
-      expect( rec.overlayPushes.length ).toBeGreaterThanOrEqual( 2 );
-    } );
-    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
-
-    // (a) The AQI heatmap ImageMapType: name vl-live-aqi-heatmap, denser opacity 0.9, and a
-    //     getTileUrl returning the UAQI_RED_GREEN heatmapTiles URL with the key and /z/x/y.
-    const aqiOpts = rec.imageMapTypeOpts.find( o => o.name === 'vl-live-aqi-heatmap' )!;
-    expect( aqiOpts ).toBeTruthy();
-    expect( aqiOpts.opacity ).toBe( 0.9 );
-    const aqiGetTileUrl = aqiOpts.getTileUrl as (
-      coord: { x: number; y: number }, zoom: number,
-    ) => string;
-    const aqiTileUrl = aqiGetTileUrl( { x: 1, y: 2 }, 5 );
-    expect( aqiTileUrl ).toContain( 'airquality.googleapis.com' );
-    expect( aqiTileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
-    expect( aqiTileUrl ).toContain( '/5/1/2' );
-    expect( aqiTileUrl ).toContain( 'key=' );
-
-    // (b) The weather/storm ImageMapType: name vl-live-weather-storm, and a getTileUrl
-    //     returning the documented Google Map Tiles weather tile shape with the key.
-    const weatherOpts = rec.imageMapTypeOpts.find( o => o.name === 'vl-live-weather-storm' )!;
-    expect( weatherOpts ).toBeTruthy();
-    const weatherGetTileUrl = weatherOpts.getTileUrl as (
-      coord: { x: number; y: number }, zoom: number,
-    ) => string;
-    const weatherTileUrl = weatherGetTileUrl( { x: 1, y: 2 }, 5 );
-    expect( weatherTileUrl ).toContain( 'tile.googleapis.com' );
-    expect( weatherTileUrl ).toContain( '2dtiles/weather' );
-    expect( weatherTileUrl ).toContain( '/5/1/2' );
-    expect( weatherTileUrl ).toContain( 'key=' );
-
-    // Both exact instances are live on the array-backed overlayMapTypes double.
-    expect( rec.overlayEntries ).toHaveLength( 2 );
-    const overlayCount = rec.overlayEntries.length;
-
-    // TEARDOWN via the PRODUCTION removeAt path: switching AQI -> PM2.5 detaches the AQI
-    // heatmap only. Because the double implements getLength/getAt/removeAt, the component
-    // runs its real index-removal loop (not the clear() fallback). The weather overlay is
-    // INDEPENDENT of `layer`, so it stays attached.
-    fireEvent.click( screen.getByRole( 'button', { name: 'PM2.5' } ) );
-    await waitFor( () => {
-      expect( rec.overlayRemovals.length ).toBeGreaterThan( 0 );
-      expect( rec.overlayEntries.length ).toBe( overlayCount - 1 );
-    } );
-    // The surviving overlay is the weather/storm one; the AQI heatmap is gone.
-    const survivors = rec.overlayEntries as { name?: string }[];
-    expect( survivors.some( o => o && o.name === 'vl-live-weather-storm' ) ).toBe( true );
-    expect( survivors.some( o => o && o.name === 'vl-live-aqi-heatmap' ) ).toBe( false );
-  } );
-
-  it( 'toggles the independent weather/storm overlay on and off via the Weather storm switch', async () => {
+  it( 'paints the AQI heatmap and mounts the code-rendered atmosphere by default', async () => {
     const fetchSpy = airConditionsFetch( 450, 180 );
     vi.stubGlobal( 'fetch', fetchSpy );
     const VayuLokLive = await loadComponent();
@@ -1050,45 +984,58 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
     await selectMumbai();
 
-    // The Air panel is present once live air has arrived; the Storm switch lives there.
+    // AQI remains a genuine Google Air Quality ImageMapType.
     await waitFor( () => {
-      const el = container.querySelector( '[aria-label="Air details"]' );
-      expect( el ).not.toBeNull();
+      expect( rec.imageMapTypeOpts.length ).toBeGreaterThanOrEqual( 1 );
+      expect( rec.overlayPushes.length ).toBeGreaterThanOrEqual( 1 );
+    } );
+    const aqiOpts = rec.imageMapTypeOpts.find( o => o.name === 'vl-live-aqi-heatmap' )!;
+    expect( aqiOpts ).toBeTruthy();
+    expect( aqiOpts.opacity ).toBe( 0.64 );
+    const getTileUrl = aqiOpts.getTileUrl as (
+      coord: { x: number; y: number }, zoom: number,
+    ) => string;
+    const tileUrl = getTileUrl( { x: 1, y: 2 }, 5 );
+    expect( tileUrl ).toContain( 'airquality.googleapis.com' );
+    expect( tileUrl ).toContain( 'mapTypes/UAQI_RED_GREEN/heatmapTiles' );
+    expect( tileUrl ).toContain( '/5/1/2' );
+    expect( tileUrl ).toContain( 'key=' );
+
+    // The weather/storm appearance is now local SVG/CSS, not a fabricated Google weather tile.
+    await waitFor( () => expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull() );
+    expect( rec.imageMapTypeOpts.some( o => o.name === 'vl-live-weather-storm' ) ).toBe( false );
+    expect( rec.overlayEntries ).toHaveLength( 1 );
+    expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( false );
+  } );
+
+  it( 'toggles the independent SVG/CSS atmosphere with the Weather storm switch', async () => {
+    const fetchSpy = airConditionsFetch( 450, 180 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+
+    const { container } = render( <VayuLokLive /> );
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    await waitFor( () => {
+      expect( container.querySelector( '[aria-label="Air details"]' ) ).not.toBeNull();
+      expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull();
     } );
 
-    // The Weather storm switch is a role=switch, ON BY DEFAULT, and enabled now a place/map
-    // is ready (it was disabled before a selection).
     const stormSwitch = await screen.findByRole( 'switch', { name: 'Weather storm overlay' } );
     expect( stormSwitch ).toHaveAttribute( 'aria-checked', 'true' );
     expect( stormSwitch ).not.toBeDisabled();
 
-    // The weather ImageMapType is attached by default.
+    fireEvent.click( stormSwitch );
     await waitFor( () => {
-      expect( rec.overlayEntries.some( ( o: any ) => o && o.name === 'vl-live-weather-storm' ) ).toBe( true );
-    } );
-    const overlayCountBeforeOff = rec.overlayEntries.length;
-
-    // Turning the Storm switch OFF detaches the weather ImageMapType (exactly one leaves).
-    await waitFor( () => {
-      const sw = screen.getByRole( 'switch', { name: 'Weather storm overlay' } );
-      if ( sw.getAttribute( 'aria-checked' ) !== 'false' ) fireEvent.click( sw );
-      expect( sw ).toHaveAttribute( 'aria-checked', 'false' );
-    } );
-    await waitFor( () => {
-      expect( rec.overlayEntries.some( ( o: any ) => o && o.name === 'vl-live-weather-storm' ) ).toBe( false );
-      expect( rec.overlayEntries.length ).toBe( overlayCountBeforeOff - 1 );
+      expect( stormSwitch ).toHaveAttribute( 'aria-checked', 'false' );
+      expect( container.querySelector( '.vl-live-atmosphere' ) ).toBeNull();
     } );
 
-    // Turning it back ON re-attaches exactly ONE weather instance (idempotent, no duplicate).
+    fireEvent.click( stormSwitch );
     await waitFor( () => {
-      const sw = screen.getByRole( 'switch', { name: 'Weather storm overlay' } );
-      if ( sw.getAttribute( 'aria-checked' ) !== 'true' ) fireEvent.click( sw );
-      expect( sw ).toHaveAttribute( 'aria-checked', 'true' );
-    } );
-    await waitFor( () => {
-      const weather = rec.overlayEntries.filter( ( o: any ) => o && o.name === 'vl-live-weather-storm' );
-      expect( weather ).toHaveLength( 1 );
-      expect( rec.overlayEntries.length ).toBe( overlayCountBeforeOff );
+      expect( stormSwitch ).toHaveAttribute( 'aria-checked', 'true' );
+      expect( container.querySelector( '.vl-live-atmosphere' ) ).not.toBeNull();
     } );
   } );
 
@@ -1116,10 +1063,10 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( deckRec.overlaySetMapCalls.some( value => Boolean( value ) ) ).toBe( true );
     const liveOverlays = rec.overlayEntries as { name?: string }[];
     expect( liveOverlays.some( o => o && o.name === 'vl-live-aqi-heatmap' ) ).toBe( false );
-    // The weather/storm overlay is INDEPENDENT of `layer` (default-on, FEAT-001), so it
-    // stays attached even on the PM2.5 branch - a separate overlay type from the deck.gl dots.
-    expect( liveOverlays.some( o => o && o.name === 'vl-live-weather-storm' ) ).toBe( true );
-    expect( liveOverlays ).toHaveLength( 1 );
+    // The atmosphere is not an ImageMapType, so switching to PM2.5 leaves no map-tile
+    // overlay entries after AQI detaches. The SVG/CSS storm layer remains independent.
+    expect( liveOverlays.some( o => o && o.name === 'vl-live-weather-storm' ) ).toBe( false );
+    expect( liveOverlays ).toHaveLength( 0 );
   } );
 
   it( 'shows the approved passive bottom label and no chevron/action control', async () => {
@@ -1201,10 +1148,9 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( screen.queryByRole( 'tablist', { name: 'Health recommendation profiles' } ) ).toBeNull();
     expect( container.querySelector( '.vl-live-air-history-chart' ) ).toBeNull();
 
-    // DEFAULT-ON MUST NOT FIRE WITHOUT A KEY. Even though both tile overlays now default ON
-    // on the keyed path, the keyless path must construct NO google.maps.ImageMapType and push
-    // NOTHING onto overlayMapTypes - no Maps JS loads, so the stub never runs. This proves the
-    // MAPS_KEY/map-ready guards gate the default-on attach, preserving honest degradation.
+    // DEFAULT-ON MUST NOT FIRE WITHOUT A KEY. The AQI tile overlay must construct no
+    // google.maps.ImageMapType and the SVG atmosphere must not mount because the keyed map
+    // never becomes ready.
     expect( rec.imageMapTypeOpts ).toHaveLength( 0 );
     expect( rec.overlayPushes ).toHaveLength( 0 );
     expect( rec.overlayEntries ).toHaveLength( 0 );
