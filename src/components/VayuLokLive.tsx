@@ -426,6 +426,19 @@ function windDirectionDegrees( dir?: string ): number {
   const i = COMPASS.indexOf( String( dir || '' ).toUpperCase() );
   return i >= 0 ? i * 45 : 225;
 }
+
+function worldPixel( lat: number, lng: number, zoom: number ): { x: number; y: number } {
+  const scale = 256 * Math.pow( 2, zoom );
+  const sin = Math.max( -.9999, Math.min( .9999, Math.sin( lat * Math.PI / 180 ) ) );
+  return {
+    x: scale * ( .5 + lng / 360 ),
+    y: scale * ( .5 - Math.log( ( 1 + sin ) / ( 1 - sin ) ) / ( 4 * Math.PI ) ),
+  };
+}
+
+function clamp( value: number, min: number, max: number ): number {
+  return Math.min( max, Math.max( min, value ) );
+}
 // The Air Quality API returns concentration units as long SCREAMING_SNAKE enums
 // (MICROGRAMS_PER_CUBIC_METER, PARTS_PER_BILLION, ...). Rendered verbatim they blow
 // out the value column and collide with the category word. Map them to short symbols.
@@ -748,6 +761,8 @@ const VayuLokLive: React.FC = () => {
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
+  const atmosphereRef = useRef<HTMLDivElement | null>( null );
+  const atmosphereFrameRef = useRef<number | null>( null );
   const initialGlobalViewRef = useRef( true );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
@@ -886,12 +901,13 @@ const VayuLokLive: React.FC = () => {
         center: { lat: 25, lng: 86 },
         zoom: 4,
         mapTypeId: 'hybrid',
-        // Selection-driven camera: visitors choose a place from search; the map itself does
-        // not pan/drag/scroll/pinch underneath the screen-space weather atmosphere.
-        gestureHandling: 'none',
-        draggable: false,
-        scrollwheel: false,
-        disableDoubleClickZoom: true,
+        // Cross-device interaction: drag/pinch/trackpad work on desktop, iOS, Android,
+        // embedded app webviews and foldables. Map clicks do not select a new location;
+        // search/recent-place selection remains the only source of location changes.
+        gestureHandling: 'greedy',
+        draggable: true,
+        scrollwheel: true,
+        disableDoubleClickZoom: false,
         disableDefaultUI: true,
         zoomControl: false,
         mapTypeControl: false,
@@ -905,6 +921,47 @@ const VayuLokLive: React.FC = () => {
         styles: MAP_STYLES,
       } );
       mapRef.current = map;
+
+      const motionMap = map as {
+        addListener?: ( eventName: string, handler: () => void ) => { remove?: () => void };
+        getCenter?: () => { lat?: () => number; lng?: () => number } | null;
+        getZoom?: () => number | undefined;
+      };
+      const motionListeners: { remove?: () => void }[] = [];
+      const syncAtmosphere = () => {
+        if ( cancelled || atmosphereFrameRef.current !== null ) return;
+        atmosphereFrameRef.current = requestAnimationFrame( () => {
+          atmosphereFrameRef.current = null;
+          const el = atmosphereRef.current;
+          const center = motionMap.getCenter?.();
+          const lat = center?.lat?.();
+          const lng = center?.lng?.();
+          const zoom = motionMap.getZoom?.();
+          if ( !el || !Number.isFinite( lat ) || !Number.isFinite( lng ) || !Number.isFinite( zoom ) ) return;
+
+          const anchor = worldPixel( 25, 86, zoom as number );
+          const current = worldPixel( lat as number, lng as number, zoom as number );
+          el.style.setProperty( '--vl-map-shift-x', `${clamp( anchor.x - current.x, -260, 260 ).toFixed( 1 )}px` );
+          el.style.setProperty( '--vl-map-shift-y', `${clamp( anchor.y - current.y, -180, 180 ).toFixed( 1 )}px` );
+          el.style.setProperty( '--vl-map-scale', clamp( Math.pow( 2, ( ( zoom as number ) - 4 ) * .06 ), .86, 1.18 ).toFixed( 3 ) );
+        } );
+      };
+
+      if ( typeof motionMap.addListener === 'function' ) {
+        for ( const eventName of [ 'center_changed', 'zoom_changed', 'drag', 'idle' ] ) {
+          motionListeners.push( motionMap.addListener( eventName, syncAtmosphere ) || {} );
+        }
+      }
+
+      let resizeObserver: ResizeObserver | null = null;
+      const onViewportResize = () => syncAtmosphere();
+      if ( typeof ResizeObserver !== 'undefined' ) {
+        resizeObserver = new ResizeObserver( onViewportResize );
+        resizeObserver.observe( host );
+      }
+      window.visualViewport?.addEventListener( 'resize', onViewportResize );
+      window.addEventListener( 'orientationchange', onViewportResize );
+      syncAtmosphere();
 
       // No selected-place marker exists on load. Keep the constructor and create the
       // branded marker lazily after the first real selection.
@@ -925,19 +982,29 @@ const VayuLokLive: React.FC = () => {
       };
       if ( typeof mapWithEvents.addListener === 'function' ) {
         let painted = false;
-        mapWithEvents.addListener( 'tilesloaded', () => {
+        motionListeners.push( mapWithEvents.addListener( 'tilesloaded', () => {
           if ( painted || cancelled ) return;
           painted = true;
           requestAnimationFrame( () => {
             if ( !cancelled ) setMapReady( true );
           } );
-        } );
+        } ) || {} );
       } else {
-        // Legacy/test doubles without Maps event support: preserve the old behavior.
         requestAnimationFrame( () => {
           if ( !cancelled ) setMapReady( true );
         } );
       }
+
+      ( host as HTMLDivElement & { __vlCleanup?: () => void } ).__vlCleanup = () => {
+        motionListeners.forEach( listener => listener.remove?.() );
+        resizeObserver?.disconnect();
+        window.visualViewport?.removeEventListener( 'resize', onViewportResize );
+        window.removeEventListener( 'orientationchange', onViewportResize );
+        if ( atmosphereFrameRef.current !== null ) {
+          cancelAnimationFrame( atmosphereFrameRef.current );
+          atmosphereFrameRef.current = null;
+        }
+      };
     };
 
     // init is async (it awaits importLibrary); wrap so no unhandled promise floats.
@@ -946,31 +1013,40 @@ const VayuLokLive: React.FC = () => {
     // Do not use the script element's 'load' event as the readiness signal.
     // With Google's loading=async mode, API readiness is intentionally decoupled
     // from that event. runInit() waits for google.maps and then importLibrary().
-    if ( w.google?.maps ) { runInit(); return () => { cancelled = true; }; }
+    if ( w.google?.maps ) { runInit(); return () => {
+      cancelled = true;
+      ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
+    }; }
 
     const ID = 'gmaps-js';
     const existing = document.getElementById( ID );
     if ( existing ) {
       runInit();
-      return () => { cancelled = true; };
+      return () => {
+      cancelled = true;
+      ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
+    };
     }
 
     const script = document.createElement( 'script' );
     script.id = ID;
     script.async = true;
-    // Places library requested so client-side India-scoped autocomplete can run.
+    // Places library requested so worldwide client-side autocomplete can run.
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent( MAPS_KEY )}&libraries=places&loading=async&v=beta`;
     document.head.appendChild( script );
     // Start the same namespace-readiness path immediately; it will resolve once
     // the async loader exposes google.maps, without depending on a DOM load event.
     runInit();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
+    };
   }, [] );
 
   /* ---------------------------------------------------------------------------------
-     LAYER-ACTIVATION DATA (FEAT-002). Selecting a place restores the compact weather/forecast experience on the LEFT.
-     The spatial AQI/PM2.5 dot grid remains user-triggered by the layer pills, so selecting
-     a place alone never fans out the 3x3/5x5 air sampling requests.
+     LAYER-ACTIVATION DATA (FEAT-002). AQI uses a continuous tile overlay; PM2.5 keeps the
+     existing capped sampling grid. Selecting a place updates live readings without adding
+     any map-click location-selection behavior.
 
      This one effect: (1) fetches the grid's CENTER currentConditions and reuses it both as
      the left-card `air` state AND as the grid's center cell (no double-fetch); (2) fans the
@@ -1776,7 +1852,10 @@ const VayuLokLive: React.FC = () => {
     };
 
     void describe();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      ( mapHost.current as ( HTMLDivElement & { __vlCleanup?: () => void } ) | null )?.__vlCleanup?.();
+    };
   }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
   const runSearch = useCallback( async ( text: string ) => {
@@ -2407,7 +2486,7 @@ const VayuLokLive: React.FC = () => {
                   ) }
                   <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
                   { mapReady && stormOn && (
-                    <div className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
+                    <div ref={ atmosphereRef } className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
                       <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
                         <defs>
                           <filter id="vl-live-cloud-soft" x="-25%" y="-25%" width="150%" height="150%">
@@ -2519,7 +2598,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
         .vl-live input:focus-visible{outline:none}
         .vl-live-sr,.vl-live-sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
-        .vl-live-shell{max-width:1320px;margin:0 auto;padding:22px 24px 72px}
+        .vl-live-shell{max-width:1320px;margin:0 auto;padding:22px max(24px,env(safe-area-inset-right)) max(72px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left))}
         /* The map is now the full-width backdrop; the former two-column workspace
            collapses to a single region that the map shell fills edge to edge. */
         .vl-live-workspace{display:block}
@@ -2758,7 +2837,7 @@ const VayuLokLive: React.FC = () => {
            contained, and the height band is unchanged. The floating .vl-live-air-card and search
            stay positioned over the edge-to-edge map, while the card's bottom inset still clears
            Google's bottom-left logo and bottom-right legal corners. */
-        .vl-live-map-shell{position:relative;height:72dvh;min-height:620px;max-height:860px;overflow:hidden;background:#eef1ed;isolation:isolate}
+        .vl-live-map-shell{position:relative;height:72vh;height:72dvh;min-height:min(620px,72svh);max-height:860px;overflow:hidden;background:#eef1ed;isolation:isolate;contain:layout paint}
         .vl-live-map-canvas,.vl-live-map-placeholder{position:absolute;inset:0;width:100%;height:100%}
         .vl-live-map-canvas{opacity:0}
         .vl-live-map-canvas.is-ready{opacity:1}
@@ -2767,7 +2846,7 @@ const VayuLokLive: React.FC = () => {
            Clouds are soft translucent SVG masses; wind is a field of animated dashed
            streamlines; the lower-left vortex gives the storm/cyclone read from the approved
            reference. Live Google Weather values drive opacity, direction and speed. */
-        .vl-live-atmosphere{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen}
+        .vl-live-atmosphere{--vl-map-shift-x:0px;--vl-map-shift-y:0px;--vl-map-scale:1;position:absolute;inset:-4%;z-index:4;pointer-events:none;overflow:hidden;mix-blend-mode:screen;transform:translate3d(var(--vl-map-shift-x),var(--vl-map-shift-y),0) scale(var(--vl-map-scale));transform-origin:50% 50%;will-change:transform}
         .vl-live-atmosphere svg{display:block;width:100%;height:100%;overflow:visible}
         .vl-live-cloud-field{opacity:var(--vl-cloud-opacity);animation:vl-live-cloud-drift var(--vl-cloud-duration) ease-in-out infinite alternate}
         .vl-live-cloud-field ellipse{fill:rgba(255,255,255,.88)}
@@ -2816,22 +2895,25 @@ const VayuLokLive: React.FC = () => {
         .vl-live-search-results span{margin-top:2px;font-size:11px;color:var(--muted)}
         .vl-live-search-status{margin:6px 8px 0;font-size:11px;color:var(--muted)}
         @media(max-width:1050px){
-          .vl-live-map-shell{height:66dvh;min-height:560px}
+          .vl-live-map-shell{height:66vh;height:66dvh;min-height:min(560px,66svh)}
         }
         @media(max-width:700px){
-          .vl-live-shell{padding:10px 10px 44px}
-          .vl-live-map-shell{height:62dvh;min-height:460px;max-height:640px}
-          .vl-live-map-search{top:10px;width:calc(100% - 20px)}
-          /* The floating card narrows and stays inset so it keeps the map and the
-             bottom attribution corners usable on small screens. */
-          .vl-live-air-card{top:10px;left:10px;width:calc(100% - 20px);max-width:300px;max-height:calc(100% - 170px);padding:14px 14px 12px}
+          .vl-live-shell{padding:10px max(10px,env(safe-area-inset-right)) max(44px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+          .vl-live-map-shell{height:62vh;height:62dvh;min-height:min(460px,62svh);max-height:640px}
+          .vl-live-map-search{top:max(10px,env(safe-area-inset-top));width:calc(100% - 20px)}
+          .vl-live-air-card{top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:min(300px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));max-height:calc(100% - 170px);padding:14px 14px 12px}
           .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
+          .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
         @media(max-height:500px) and (orientation:landscape){
-          .vl-live-shell{padding-top:8px}
-          .vl-live-map-shell{height:calc(100dvh - 24px);min-height:250px}
+          .vl-live-shell{padding-top:max(8px,env(safe-area-inset-top))}
+          .vl-live-map-shell{height:calc(100vh - 24px);height:calc(100dvh - 24px);min-height:250px}
           .vl-live-search-field{height:44px}
           .vl-live-air-card{max-height:calc(100% - 20px)}
+        }
+        @media(min-width:701px) and (max-width:900px) and (orientation:portrait){
+          .vl-live-air-card{width:min(320px,42%)}
+          .vl-live-map-search{width:min(390px,48%)}
         }
         @media(prefers-reduced-motion:reduce){
           .vl-live *{scroll-behavior:auto!important;transition:none!important}
