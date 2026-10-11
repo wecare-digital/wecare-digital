@@ -1213,12 +1213,25 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     // below proves now that they are mounted here.
     const extras = container.querySelector( '.vl-live-air-card .vl-live-air-extras' );
     expect( extras ).not.toBeNull();
-    // BlogSubscribe's section.
-    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).not.toBeNull();
-    expect( extras?.textContent ).toContain( 'Get new posts directly' );
-    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch).
+    // SUBSCRIBE now matches the LIVE blog post: a compact lime WhatsApp pill, NOT the old
+    // in-page BlogSubscribe signup form. It is a static anchor at the shared Subscribe deep link
+    // with the 'Continue on WhatsApp' microcopy below it, the twin of the Contribute pill. The
+    // old form's section ([aria-labelledby="blog-subscribe-title"], 'Get new posts directly') is
+    // gone, so neither must appear here.
+    const subscribe = extras?.querySelector( 'a.vl-live-air-subscribe' );
+    expect( subscribe ).not.toBeNull();
+    expect( subscribe?.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/WUDPTMYSO6XII1' );
+    expect( subscribe?.getAttribute( 'aria-label' ) ).toBe( 'Subscribe on WhatsApp' );
+    expect( subscribe?.textContent ).toContain( 'Subscribe' );
+    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).toBeNull();
+    expect( extras?.textContent ).not.toContain( 'Get new posts directly' );
+    expect( extras?.textContent ).toContain( 'Continue on WhatsApp' );
+    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch), its Contribute pill
+    // pointing at the DISTINCT Contribute deep link.
     expect( extras?.querySelector( 'section.bc.is-embedded' ) ).not.toBeNull();
     expect( extras?.textContent ).toContain( 'Contribute' );
+    const contribute = extras?.querySelector( 'a.bc-cta' );
+    expect( contribute?.getAttribute( 'href' ) ).toBe( 'https://wa.me/message/BYFLCAAMSZBXD1' );
     // ShareLinks' WhatsApp control, pointing at the absolute /vayulok/ page URL.
     const shareWa = extras?.querySelector( 'a[aria-label="Share this page on WhatsApp"]' );
     expect( shareWa ).not.toBeNull();
