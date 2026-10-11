@@ -26,16 +26,15 @@ import { SITE_ORIGIN } from '../config/share';
  * with HTTP 200, and in PUBLIC_EXACT in scripts/generate-sitemap.js or it is never advertised.
  */
 
-/**
- * HOW MANY CARDS PER CATEGORY the panel receives.
- *
- * The owner asked for "all blogs" with no visible cap, and the panel now scrolls, so there is no
- * count limit in the UI. This per-category ceiling is a PAYLOAD guard, not a UX one: shipping all
- * ~1300 cards into __NEXT_DATA__ would add ~400kB to the page for a browsing rail. 80 of each
- * category (newest first) is deep enough to read as "everything" while keeping the page lean, and
- * it guarantees both categories are well represented regardless of which has the newest posts.
+/*
+ * THE PANEL RECEIVES THE WHOLE CORPUS, no per-category cap. Owner instruction: load all blogs, not
+ * a limited set. The previous 80-per-category ceiling was a payload guard - shipping every card
+ * into __NEXT_DATA__ adds weight (~400kB for ~1300 cards) - but the owner wants the Perspectives
+ * pager to page through everything, so that trade is accepted. The pager (ProductBlogPanel)
+ * groups the full list into pages client-side, so the UI stays light regardless of count; only the
+ * build-time payload grows. The cards still arrive newest-first across categories (sorted below),
+ * and the per-category pills continue to filter the full set client-side.
  */
-const ANEW_PANEL_CARDS_PER_CATEGORY = 80;
 
 interface AnewPageProps {
   blogCards: BlogCard[];
@@ -52,7 +51,7 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
     product={ productBySlug( 'anew' ) }
     crumbs={ [ { label: 'Home', href: '/' }, { label: 'Shop', href: '/shop/' }, { label: 'Anew' } ] }
     blogCards={ blogCards }
-    blogHeading="Journal"
+    blogHeading="Perspectives"
     price="₹599"
     priceUnit="· one decision · written reflection · usually 2–3 business days"
     shareUrl={ `${SITE_ORIGIN}/anew/` }
@@ -60,28 +59,18 @@ const AnewPage: React.FC<AnewPageProps> = ( { blogCards } ) => (
 );
 
 export const getStaticProps: GetStaticProps<AnewPageProps> = async () => {
-  // listBlogCards is already newest-first, so taking the first N of each category keeps the
-  // per-category order correct without re-sorting.
-  const ordered = listBlogCards( await listPublicBlogPosts() );
-  const perCategory = new Map<string, number>();
-  const blogCards: BlogCard[] = [];
-  for ( const card of ordered ) {
-    const key = card.category || 'Uncategorised';
-    const count = perCategory.get( key ) || 0;
-    if ( count >= ANEW_PANEL_CARDS_PER_CATEGORY ) continue;
-    perCategory.set( key, count + 1 );
-    blogCards.push( card );
-  }
-  // Re-order the kept cards newest-first across categories so the first category's rail reads as
-  // newest-first rather than category-grouped.
-  blogCards.sort( ( a, b ) => {
-    const at = a.publishedDate ? Date.parse( a.publishedDate ) : NaN;
-    const bt = b.publishedDate ? Date.parse( b.publishedDate ) : NaN;
-    if ( Number.isNaN( at ) && Number.isNaN( bt ) ) return a.slug.localeCompare( b.slug );
-    if ( Number.isNaN( at ) ) return 1;
-    if ( Number.isNaN( bt ) ) return -1;
-    return bt - at;
-  } );
+  // The FULL corpus, newest-first. listBlogCards is already newest-first; no per-category cap - the
+  // panel pages through everything.
+  const blogCards = listBlogCards( await listPublicBlogPosts() )
+    .slice()
+    .sort( ( a, b ) => {
+      const at = a.publishedDate ? Date.parse( a.publishedDate ) : NaN;
+      const bt = b.publishedDate ? Date.parse( b.publishedDate ) : NaN;
+      if ( Number.isNaN( at ) && Number.isNaN( bt ) ) return a.slug.localeCompare( b.slug );
+      if ( Number.isNaN( at ) ) return 1;
+      if ( Number.isNaN( bt ) ) return -1;
+      return bt - at;
+    } );
   return { props: { blogCards } };
 };
 
