@@ -25,7 +25,9 @@ def mod():
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
-    module._key_cache.update({"loaded": True, "key": "server-test-key"})
+    module._key_cache.update(
+        {"loaded": True, "key": "server-test-key", "loaded_at": module.time.monotonic()}
+    )
     yield module
     sys.modules.pop(name, None)
 
@@ -130,6 +132,31 @@ def test_coordinates_are_bounded_to_the_product_india_box(mod, lat, lng):
     upstream.assert_not_called()
 
 
+def test_unexpected_fields_are_rejected_before_provider_call(mod):
+    with patch.object(mod, "_google_json") as upstream:
+        resp = mod.handler(
+            event(
+                {
+                    "operation": "weather_current",
+                    "latitude": 19.076,
+                    "longitude": 72.8777,
+                    "url": "https://evil.example",
+                }
+            ),
+            None,
+        )
+    assert resp["statusCode"] == 400
+    assert body(resp)["error"] == "invalid_request"
+    assert "unexpected field" in body(resp)["detail"]
+    upstream.assert_not_called()
+
+
+def test_response_adds_basic_security_headers(mod):
+    resp = mod.handler(event(method="OPTIONS"), None)
+    assert resp["headers"]["Referrer-Policy"] == "no-referrer"
+    assert resp["headers"]["X-Content-Type-Options"] == "nosniff"
+
+
 def test_weather_request_is_server_owned_and_has_no_key_in_url(mod):
     with patch.object(mod, "_google_json", return_value={"ok": True}) as upstream:
         result = mod._dispatch(
@@ -226,6 +253,17 @@ def test_air_history_allows_only_ui_ranges(mod, hours):
     assert upstream.call_args.kwargs["body"]["hours"] == hours
 
 
+@pytest.mark.parametrize("hours", [24.5, "24", True])
+def test_air_history_rejects_non_exact_ranges(mod, hours):
+    with patch.object(mod, "_google_json") as upstream:
+        with pytest.raises(ValueError, match="history range"):
+            mod._dispatch(
+                "air_history",
+                {"latitude": 19.076, "longitude": 72.8777, "hours": hours},
+            )
+    upstream.assert_not_called()
+
+
 def test_air_history_rejects_arbitrary_cost_range(mod):
     with patch.object(mod, "_google_json") as upstream:
         with pytest.raises(ValueError, match="history range"):
@@ -237,7 +275,9 @@ def test_air_history_rejects_arbitrary_cost_range(mod):
 
 
 def test_missing_server_key_degrades_to_503_without_exposing_detail(mod):
-    mod._key_cache.update({"loaded": True, "key": ""})
+    mod._key_cache.update(
+        {"loaded": True, "key": "", "loaded_at": mod.time.monotonic()}
+    )
     resp = mod.handler(
         event(
             {
@@ -273,7 +313,7 @@ def test_a_failed_key_read_is_not_cached_forever(mod):
     window, before kms:Decrypt exists on the role - answer 503 for the whole
     lifetime of that warm sandbox. The retry has to be possible.
     """
-    mod._key_cache.update({"loaded": False, "key": ""})
+    mod._key_cache.update({"loaded": False, "key": "", "loaded_at": 0.0})
     client = MagicMock()
     client.get_secret_value.side_effect = [
         RuntimeError("throttled"),
@@ -288,5 +328,36 @@ def test_a_failed_key_read_is_not_cached_forever(mod):
         second = mod._google_key()
 
     assert second == "server-test-key"
-    assert mod._key_cache == {"loaded": True, "key": "server-test-key"}
+    assert mod._key_cache["loaded"] is True
+    assert mod._key_cache["key"] == "server-test-key"
+    assert mod._key_cache["loaded_at"] > 0
     assert client.get_secret_value.call_count == 2
+
+
+def test_server_key_uses_only_the_canonical_field(mod):
+    mod._key_cache.update({"loaded": False, "key": "", "loaded_at": 0.0})
+    client = MagicMock()
+    client.get_secret_value.return_value = {
+        "SecretString": json.dumps(
+            {
+                "api_key": "",
+                "unified_google_api_key": "legacy-browser-key-must-not-be-used",
+            }
+        )
+    }
+    with patch.object(mod, "_secrets", return_value=client):
+        assert mod._google_key() == ""
+    assert mod._key_cache["loaded"] is False
+
+
+def test_cached_key_expires_and_reloads_for_rotation(mod):
+    mod._key_cache.update({"loaded": True, "key": "old-key", "loaded_at": 100.0})
+    client = MagicMock()
+    client.get_secret_value.return_value = {
+        "SecretString": json.dumps({"api_key": "new-key"})
+    }
+    with patch.object(mod.time, "monotonic", return_value=100.0 + mod.KEY_CACHE_TTL_SECONDS + 1):
+        with patch.object(mod, "_secrets", return_value=client):
+            assert mod._google_key() == "new-key"
+    assert mod._key_cache["key"] == "new-key"
+    assert client.get_secret_value.call_count == 1
