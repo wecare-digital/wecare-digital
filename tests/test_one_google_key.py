@@ -72,17 +72,14 @@ def test_no_lambda_reads_a_retired_google_secret_id():
     )
 
 
-def test_the_two_consumers_agree_on_the_candidate_field_names():
-    """The field list is duplicated in both handlers, and this is what keeps them identical.
+def test_google_key_consumers_pin_their_intended_secret_field_contracts():
+    """Keep the compatibility readers aligned without weakening VayuLok's hardened boundary.
 
-    It is duplicated rather than shared because site-language does not import lambda_utils at
-    all - it is a standalone handler - so a shared constant would change how it is packaged to
-    save four words. A test that fails when the two lists drift is cheaper and carries no
-    deployment risk.
+    site-language and whatsapp-templates still support the legacy field name while the repository
+    completes that migration. VayuLok intentionally does not: its server gateway was hardened to
+    read only the canonical `api_key` field, so silently restoring the legacy fallback would undo
+    that boundary.
     """
-    # KEYED BY THE FULL RELATIVE PATH, NOT path.name. Both files are called handler.py, so the
-    # first version of this collapsed the dict to a single entry and then raised IndexError
-    # reaching for the second - a test that could never have compared anything.
     lists = {}
     for path in (SITE_LANGUAGE, WHATSAPP_TEMPLATES, VAYULOK_ENVIRONMENT):
         code = _strip_comments(_source(path))
@@ -91,18 +88,17 @@ def test_the_two_consumers_agree_on_the_candidate_field_names():
         lists[str(path.relative_to(ROOT))] = tuple(
             p.strip() for p in match.group(1).split(",") if p.strip()
         )
-    names = sorted(lists)
-    assert len(names) == 3, f"expected three distinct consumers, got {names}"
-    assert lists[names[0]] == lists[names[1]], f"candidate field lists have drifted: {lists}"
-    # Both names must be present, because the repository contradicts itself about which is real:
-    # store_provider_secret.py declares `api_key`, check_secrets_live.py probes
-    # `unified_google_api_key`. Dropping either reinstates a silent failure.
-    for expected in ("api_key", "unified_google_api_key"):
-        assert expected in lists[names[0]], (
-            f"{expected} missing from the candidate fields. The repo disagrees about this "
-            f"secret's field name, so trying only one guess is how the miss went unnoticed."
-        )
 
+    site = lists[str(SITE_LANGUAGE.relative_to(ROOT))]
+    templates = lists[str(WHATSAPP_TEMPLATES.relative_to(ROOT))]
+    vayulok = lists[str(VAYULOK_ENVIRONMENT.relative_to(ROOT))]
+
+    assert site == templates, f"compatibility candidate field lists have drifted: {lists}"
+    assert site == ("api_key", "unified_google_api_key")
+    assert vayulok == ("api_key",), (
+        "VayuLok must stay pinned to the canonical server-side key field; "
+        "reintroducing the legacy fallback weakens the sanitized gateway contract."
+    )
 
 def test_a_refused_credential_is_not_reported_as_an_empty_result():
     """REQUEST_DENIED must not look like "no addresses matched".
