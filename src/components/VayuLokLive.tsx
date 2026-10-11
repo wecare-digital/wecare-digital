@@ -2335,10 +2335,12 @@ const VayuLokLive: React.FC = () => {
           --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
           --green:#1a3a2a;--hair:#e5e7eb;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);
           --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);--panel-r:14px;--pill-r:999px;
-          /* Home semantic hues (src/styles/tokens.css) pulled in so the card reads as
-             multi-hue rather than near-mono. Used ONLY as section accents (title dots);
-             the AQI severity ramp is untouched and severity meaning still comes from the
-             category WORD + form, never hue alone (WCAG 1.4.1). No forbidden red. */
+          /* Home semantic hues mirrored from src/styles/tokens.css so the card reads as
+             multi-hue rather than near-mono. --info / --warning match tokens.css by name;
+             --teal (#0f766e) and --status-green (#15803d) mirror tokens.css --status-delivered-fg
+             and --status-read-fg (same values, local alias names). Used ONLY as section accents
+             (title dots); the AQI severity ramp is untouched and severity meaning still comes from
+             the category WORD + form, never hue alone (WCAG 1.4.1). No forbidden red. */
           --info:#1d4ed8;--warning:#b45309;--teal:#0f766e;--status-green:#15803d;
           font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--body);background:var(--page);padding-bottom:72px;-webkit-font-smoothing:antialiased;
         }
@@ -2411,8 +2413,9 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
         /* Custom pollutant tooltip: shows the label+value+unit on hover AND keyboard
            focus (the native title= was unreliable and is gone). The tip is rendered
-           inline so styled-jsx can scope it, sits above the card on the --z-tooltip
-           scale, and is wired to the trigger via aria-describedby. NO red. */
+           inline so styled-jsx can scope it, sits above the card at a literal z-index:1700
+           (matching the home --z-tooltip:1700 scale in tokens.css), and is wired to the
+           trigger via aria-describedby. NO red. */
         .vl-live-air-pollutant-info{position:relative;display:inline-flex;align-items:center;justify-content:center;cursor:help;border-radius:50%}
         .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--info);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
         .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus-visible svg{stroke:var(--lime)}
