@@ -316,14 +316,22 @@ const ProductPage: React.FC<ProductPageProps> = ( {
              sits on the RIGHT on tablets and every desktop width, only stacking below the copy
              on phones. These classes live on nodes OUTSIDE .pdp, but styled-jsx scopes by
              component not by element, so one block styles the whole return tree. */
-          .pdp-wrap{display:block}
-          .pdp-aside{margin:48px 0 0}
+          /* THESE THREE NODES LIVE OUTSIDE section.pdp, so they do NOT carry this component's
+             styled-jsx hash (the hash is only injected onto JSX inside the subtree the <style jsx>
+             sits in - here, .pdp and its children). Without :global(), styled-jsx compiles the
+             selectors to require the hash on .pdp-wrap/.pdp-aside, which those elements never get,
+             so the whole two-column grid silently never applies and the blog panel drops below the
+             copy. :global() opts them out of hashing so the rules match the real elements. The
+             selectors stay specific enough (.pdp-wrap.has-aside, .pdp-crumbs, .pdp-aside) that
+             they cannot leak to other components. */
+          :global(.pdp-wrap){display:block}
+          :global(.pdp-aside){margin:48px 0 0}
           /* SPANNING BOTH TRACKS IS WHAT KEEPS /anew/ INTACT. With an aside, .pdp-wrap is a
              two-track grid at >=768px, so an unspanned trail would take the product column and
              push the copy into the blog rail. Unscoped (no .has-aside) this would be a no-op on
              the other seven product pages, where .pdp-wrap is a block - but scoping it says which
              layout it is for. */
-          .pdp-wrap.has-aside .pdp-crumbs{grid-column:1 / -1}
+          :global(.pdp-wrap.has-aside .pdp-crumbs){grid-column:1 / -1}
 
           @media(max-width:767px){
             .pdp-lead{font-size:18px}
@@ -331,17 +339,17 @@ const ProductPage: React.FC<ProductPageProps> = ( {
             .pdp-point-t{font-size:20px}
           }
           @media(min-width:768px){
-            .pdp-wrap.has-aside{
+            :global(.pdp-wrap.has-aside){
               display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,360px);
               column-gap:32px;align-items:start;
             }
             /* The product column keeps its own 700px cap inside the flexible track so the copy
                measure is unchanged; the grid track just stops it stretching under the panel. */
-            .pdp-wrap.has-aside .pdp{max-width:700px}
+            :global(.pdp-wrap.has-aside .pdp){max-width:700px}
             /* The panel sits at the TOP of the content row (align-items:start) and sticks there
                as the product column scrolls past, so it reads as "beside the section, after the
                header" rather than drifting down. 24px clears the fixed site header. */
-            .pdp-wrap.has-aside .pdp-aside{margin:0;position:sticky;top:24px;align-self:start}
+            :global(.pdp-wrap.has-aside .pdp-aside){margin:0;position:sticky;top:24px;align-self:start}
           }
         `}</style>
       </section>
