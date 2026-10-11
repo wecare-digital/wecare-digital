@@ -808,6 +808,109 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( Math.round( ( end - start ) / 3_600_000 ) ).toBe( 96 );
   } );
 
+  it( 'requests the India CPCB local AQI (customLocalAqis ind_cpcb) on the currentConditions:lookup air call', async () => {
+    // INDIA API PARITY FIX. The left-card currentConditions:lookup parser prefers the India
+    // CPCB index (indexes.find( i => i.code === 'ind_cpcb' )), so the request must actually ask
+    // for it via customLocalAqis - matching the forecast + history calls that already do. Before
+    // the fix this body was MISSING customLocalAqis, so ind_cpcb never came back and the parser
+    // silently fell to uaqi.
+    const fetchSpy = environmentFetch();
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+
+    const airLookupCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call =>
+        requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' )
+        && Boolean( ( call[ 1 ] as RequestInit | undefined )?.body ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const body = JSON.parse( String( ( airLookupCall[ 1 ] as RequestInit ).body ) );
+    expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
+    expect( body.universalAqi ).toBe( true );
+    expect( body.languageCode ).toBe( 'en' );
+  } );
+
+  it( 'requests the India CPCB local AQI on the layer-activation grid/center-point air body (airRequestBody) too', async () => {
+    // INDIA API PARITY FIX (grid path). Clicking AQI activates the heatmap layer, which fires the
+    // shared airRequestBody currentConditions:lookup for the grid + its CENTER point. That center
+    // point feeds the left-card air state, and airStateFromApiData prefers the ind_cpcb index, so
+    // this body must also carry customLocalAqis - matching fetchAir + forecast + history. Before
+    // the fix airRequestBody was MISSING customLocalAqis, so ind_cpcb never came back on this path.
+    const fetchSpy = airConditionsFetch( 450, 180 );
+    vi.stubGlobal( 'fetch', fetchSpy );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    await selectMumbai();
+    fireEvent.click( screen.getByRole( 'button', { name: 'AQI' } ) );
+
+    const gridLookupCall = await waitFor( () => {
+      const call = fetchSpy.mock.calls.find( call =>
+        requestIs( call[ 0 ] as RequestInfo | URL, 'airquality.googleapis.com', '/v1/currentConditions' )
+        && Boolean( ( call[ 1 ] as RequestInit | undefined )?.body ) );
+      expect( call ).toBeTruthy();
+      return call!;
+    } );
+    const body = JSON.parse( String( ( gridLookupCall[ 1 ] as RequestInit ).body ) );
+    expect( body.customLocalAqis ).toEqual( [ { regionCode: 'IN', aqi: 'ind_cpcb' } ] );
+    expect( body.universalAqi ).toBe( true );
+    expect( body.languageCode ).toBe( 'en' );
+  } );
+
+  it( 'fires the place autocomplete on the fast 120ms debounce - not immediately, and not on the old 300ms lag', async () => {
+    // PINS "auto-complete should work very quickly". The component debounces the Autocomplete
+    // Data API request by SEARCH_DEBOUNCE_MS (120ms): one request per settled keystroke, but
+    // snappy. This test asserts the actual TIMING via fake timers so a regression back to the
+    // old 300ms value FAILS CI (the request would not have fired by ~120ms), and removing the
+    // debounce entirely ALSO fails (the request would fire before the sub-threshold advance).
+    //
+    // The initial map-ready phase relies on requestAnimationFrame (tilesloaded) + awaited
+    // importLibrary + waitFor, which are fragile under fake timers, so we drive map-ready on
+    // REAL timers and only switch to fake timers around the debounce window. runSearch is async
+    // (it awaits ensurePlacesLibrary -> importLibrary('places') before calling
+    // fetchAutocompleteSuggestions), so we advance with advanceTimersByTimeAsync to flush both
+    // the debounce timer AND the awaited autocomplete promise chain.
+    vi.stubGlobal( 'fetch', environmentFetch() );
+    const VayuLokLive = await loadComponent();
+    render( <VayuLokLive /> );
+
+    // Map-ready boundary on real timers: the combobox renders only after tilesloaded flips mapReady.
+    await waitFor( () => expect( rec.mapOpts ).not.toBeNull() );
+    const input = await screen.findByRole( 'combobox' );
+
+    // Fresh recorder slate, then switch to fake timers for the debounce window only.
+    rec.autocompleteCalls.length = 0;
+    vi.useFakeTimers();
+    try {
+      fireEvent.change( input, { target: { value: 'Mumbai' } } );
+
+      // Immediately after the keystroke the debounce timer is still pending: no request yet.
+      expect( rec.autocompleteCalls ).toHaveLength( 0 );
+
+      // Just UNDER the 120ms threshold the request must STILL not have fired. If the debounce
+      // were removed, a request would already be queued here; if it were present but 120ms,
+      // 100ms is not enough to cross it.
+      await vi.advanceTimersByTimeAsync( 100 );
+      expect( rec.autocompleteCalls ).toHaveLength( 0 );
+
+      // Shortly after crossing 120ms the request fires. The extra advance also flushes the
+      // awaited importLibrary('places') + fetchAutocompleteSuggestions microtasks so the call
+      // is recorded. A 300ms debounce would NOT have fired by this point, failing the test.
+      await vi.advanceTimersByTimeAsync( 40 );
+      expect( rec.autocompleteCalls.length ).toBeGreaterThan( 0 );
+      // And it is the India-scoped Autocomplete request, unchanged by the faster debounce.
+      expect( rec.autocompleteCalls.at( -1 )?.includedRegionCodes ).toEqual( [ 'in' ] );
+    } finally {
+      vi.useRealTimers();
+    }
+  } );
+
   it( 'does not call unsupported India pollen or Google weather-alert endpoints', async () => {
     const fetchSpy = environmentFetch();
     vi.stubGlobal( 'fetch', fetchSpy );
@@ -973,9 +1076,60 @@ describe( 'VayuLokLive v8 no-key map fallback', () => {
     expect( container.textContent ).not.toContain( 'Health Recommendations' );
     expect( container.textContent ).not.toContain( 'Hourly History' );
 
+    // PAGE FURNITURE renders on EVERY path, including keyless: Subscribe, Contribute and Share
+    // are embedded INSIDE the floating Air card (they are furniture, not live data). They are
+    // SSR/keyless safe and must fire NO network call on mount, which is what the fetch assertion
+    // below proves now that they are mounted here.
+    const extras = container.querySelector( '.vl-live-air-card .vl-live-air-extras' );
+    expect( extras ).not.toBeNull();
+    // BlogSubscribe's section.
+    expect( extras?.querySelector( '[aria-labelledby="blog-subscribe-title"]' ) ).not.toBeNull();
+    expect( extras?.textContent ).toContain( 'Get new posts directly' );
+    // BlogContribution's embedded section (plain WhatsApp anchor, no fetch).
+    expect( extras?.querySelector( 'section.bc.is-embedded' ) ).not.toBeNull();
+    expect( extras?.textContent ).toContain( 'Contribute' );
+    // ShareLinks' WhatsApp control, pointing at the absolute /vayulok/ page URL.
+    const shareWa = extras?.querySelector( 'a[aria-label="Share this page on WhatsApp"]' );
+    expect( shareWa ).not.toBeNull();
+    expect( shareWa?.getAttribute( 'href' ) ).toContain( 'wecare.digital%2Fvayulok%2F' );
+
     expect( fetchSpy ).not.toHaveBeenCalled();
     expect( container.textContent ).not.toContain( 'Live air quality and weather' );
     expect( container.textContent ).not.toContain( 'Selected place' );
     expect( container.textContent ).not.toContain( 'Search India to see live weather and air.' );
+  } );
+
+  it( 'renders the map full-bleed and the search field in the global borderless-hairline idiom', async () => {
+    // CSS assertions read the rendered <style> text: vitest renders styled-jsx as a plain,
+    // unscoped <style>, so the component's whole stylesheet is readable as text. Formatting is
+    // the component's single-line declaration style, so these match on the exact declarations.
+    vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', '' );
+    vi.stubGlobal( 'fetch', vi.fn() );
+    const VayuLokLive = await loadComponent();
+    const { container } = render( <VayuLokLive /> );
+    await act( async () => { await Promise.resolve(); } );
+
+    const css = Array.from( container.querySelectorAll( 'style' ) ).map( s => s.textContent || '' ).join( '\n' );
+
+    // FULL-BLEED MAP: the shell no longer carries the boxed border/border-radius, but keeps
+    // overflow:hidden + isolation + the height band.
+    const shellRule = css.match( /\.vl-live-map-shell\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( shellRule ).toContain( 'overflow:hidden' );
+    expect( shellRule ).toContain( 'isolation:isolate' );
+    expect( shellRule ).toContain( 'height:72dvh' );
+    expect( shellRule ).not.toContain( 'border-radius' );
+    expect( shellRule ).not.toMatch( /border:1px solid/ );
+
+    // GLOBAL SEARCH IDIOM: the search input is borderless with a single bottom hairline and the
+    // opaque #1a3a2a focus (var(--green)) plus the lime underline - the BlogSearch field standard.
+    const inputRule = css.match( /\.vl-live-search-field input\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( inputRule ).toContain( 'border-bottom:1px solid var(--hair)' );
+    expect( inputRule ).toContain( 'border:0' );
+    const inputFocus = css.match( /\.vl-live-search-field input:focus-visible\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( inputFocus ).toContain( 'border-bottom-color:var(--green)' );
+    expect( inputFocus ).toContain( '0 1px 0 0 #d1f470' );
+    // And the old pill treatment is gone from the field container.
+    const fieldRule = css.match( /\.vl-live-search-field\{[^}]*\}/ )?.[ 0 ] || '';
+    expect( fieldRule ).not.toContain( 'border-radius:var(--pill-r)' );
   } );
 } );
