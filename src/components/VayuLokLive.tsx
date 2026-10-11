@@ -450,6 +450,20 @@ function hourLabel( ms: number ): string {
   return new Intl.DateTimeFormat( 'en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric' } ).format( new Date( ms ) );
 }
 
+/* Friendly labels for the Google pollutant codes, shared by the pollutant rows and the
+   dominant-pollutant chip so both read consistently (e.g. "pm25" -> "PM2.5"). */
+const POLLUTANT_LABELS: Record<string, string> = {
+  pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
+};
+
+/* Resolve a dominant pollutant code to the same friendly label the rows use. Prefer a
+   label already carried on a matching pollutant row, then the shared map, then fall back
+   to the raw code so an unknown dominant pollutant is still surfaced rather than hidden. */
+function dominantPollutantLabel( code: string, pollutants: AirState['pollutants'] ): string {
+  const fromRow = pollutants.find( p => p.code === code )?.label;
+  return fromRow || POLLUTANT_LABELS[ code ] || code;
+}
+
 /* Parse a currentConditions:lookup payload into the LEFT-card AirState (AQI value +
    category word + severity + pollutant rows + advisory). Returns null when no finite AQI
    arrived, so a point that fails to parse is DROPPED, never fabricated. Shared by the
@@ -461,11 +475,8 @@ function airStateFromApiData( data: Record<string, any> | null | undefined ): Ai
   const aqi = idx.aqi as number;
   const cat = aqiCategory( aqi );
   const pollutants: AirState['pollutants'] = [];
-  const WANT: Record<string, string> = {
-    pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
-  };
   ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
-    const label = p.code ? WANT[ p.code ] : undefined;
+    const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
     const v = p.concentration?.value;
     if ( label && Number.isFinite( v ) ) {
       pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
@@ -581,7 +592,6 @@ const VayuLokLive: React.FC = () => {
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
-  const [ photoIndex, setPhotoIndex ] = useState( 0 );
   const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
 
   const [ air, setAir ] = useState<AirState | null>( null );
@@ -600,9 +610,7 @@ const VayuLokLive: React.FC = () => {
   const [ refreshNonce, setRefreshNonce ] = useState( 0 );
   const [ coreFetchedAt, setCoreFetchedAt ] = useState<number | null>( null );
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
-  const [ nearbyPhotos, setNearbyPhotos ] = useState<PlacePhoto[]>( [] );
   const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
-  const [ elevationM, setElevationM ] = useState<number | null>( null );
 
   // Search combobox state.
   const [ query, setQuery ] = useState( '' );
@@ -616,8 +624,6 @@ const VayuLokLive: React.FC = () => {
   const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
 
   const mapHost = useRef<HTMLDivElement | null>( null );
-  const photoRailRef = useRef<HTMLDivElement | null>( null );
-  const placeCardRef = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
@@ -643,11 +649,8 @@ const VayuLokLive: React.FC = () => {
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
   useEffect( () => {
-    setPhotoIndex( 0 );
     setMapCandidate( null );
-    setNearbyPhotos( [] );
     setAddressDescriptor( '' );
-    setElevationM( null );
   }, [ place.lat, place.lng ] );
 
   useEffect( () => {
@@ -898,66 +901,6 @@ const VayuLokLive: React.FC = () => {
     runInit();
     return () => { cancelled = true; };
   }, [] );
-
-  /* ---------------------------------------------------------------------------------
-     PLACE CARD MEDIA FALLBACK. Exact-place photos are preferred. If none are available,
-     look for nearby photographed Places. Only then use a tightly-contained Street View
-     panorama inside the place card; the main map remains a normal roadmap. */
-  useEffect( () => {
-    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' || !mapReady ) return;
-    const target = mapCandidate || place;
-    const hasExactPhoto = ( target.photos || [] ).some( photo => Boolean( photo.url ) );
-    if ( hasExactPhoto ) {
-      setNearbyPhotos( [] );
-      return;
-    }
-
-    let cancelled = false;
-    setNearbyPhotos( [] );
-
-    const loadMedia = async () => {
-      const lib = placesLibRef.current as {
-        Place?: {
-          searchNearby?: ( req: Record<string, unknown> ) => Promise<{ places?: any[] }>;
-        };
-      } | null;
-
-      try {
-        const searchNearby = lib?.Place?.searchNearby;
-        if ( typeof searchNearby === 'function' ) {
-          const out = await searchNearby( {
-            fields: [ 'displayName', 'location', 'photos' ],
-            locationRestriction: { center: { lat: target.lat, lng: target.lng }, radius: 2500 },
-            maxResultCount: 8,
-            rankPreference: 'DISTANCE',
-          } );
-          const photos: PlacePhoto[] = [];
-          ( Array.isArray( out?.places ) ? out.places : [] ).forEach( p => {
-            ( Array.isArray( p?.photos ) ? p.photos : [] ).slice( 0, 2 ).forEach( ( photo: any ) => {
-              const url = photo?.getURI?.( { maxWidth: 1200, maxHeight: 760 } ) || '';
-              if ( !url ) return;
-              const attributions = ( Array.isArray( photo?.authorAttributions ) ? photo.authorAttributions : [] )
-                .map( ( a: any ) => ( { name: String( a?.displayName || 'Photo contributor' ), uri: a?.uri } ) );
-              photos.push( { url, attributions } );
-            } );
-          } );
-          if ( !cancelled && photos.length ) {
-            setNearbyPhotos( photos.slice( 0, 8 ) );
-            return;
-          }
-        }
-      } catch { /* nearby photo enrichment is optional */ }
-
-      // No Street View fallback here. A native panorama brings its own chrome and
-      // visual language into the card; the neutral fallback below keeps the VayuLok card stable.
-    };
-
-    const id = window.setTimeout( () => { void loadMedia(); }, 0 );
-    return () => {
-      cancelled = true;
-      window.clearTimeout( id );
-    };
-  }, [ mapReady, mapCandidate, place, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      LAYER-ACTIVATION DATA (FEAT-002). Selecting a place restores the compact weather/forecast experience on the LEFT.
@@ -1236,11 +1179,8 @@ const VayuLokLive: React.FC = () => {
         const aqi = idx.aqi as number;
         const cat = aqiCategory( aqi );
         const pollutants: AirState['pollutants'] = [];
-        const WANT: Record<string, string> = {
-          pm25: 'PM2.5', pm10: 'PM10', no2: 'NO\u2082', o3: 'O\u2083', co: 'CO', so2: 'SO\u2082',
-        };
         ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string } } ) => {
-          const label = p.code ? WANT[ p.code ] : undefined;
+          const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
           const v = p.concentration?.value;
           if ( label && Number.isFinite( v ) ) {
             pollutants.push( { code: p.code as string, label, value: v as number, unit: concUnitLabel( p.concentration?.units ) } );
@@ -1628,8 +1568,9 @@ const VayuLokLive: React.FC = () => {
   }, [] );
 
   /* ---------------------------------------------------------------------------------
-     Place enrichment used by the approved v8 card. Both calls are optional and disappear
-     cleanly when a project has not enabled the corresponding service. */
+     Place enrichment: the on-map selected label shows a human address descriptor
+     (landmark/area) when the Geocoder exposes one. Optional and degrades cleanly when
+     a project has not enabled the service. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || !mapReady || typeof window === 'undefined' ) return;
     let cancelled = false;
@@ -1661,21 +1602,7 @@ const VayuLokLive: React.FC = () => {
       } catch { /* descriptor enrichment is optional */ }
     };
 
-    const elevate = async () => {
-      try {
-        const maps = ( window as any )?.google?.maps;
-        const lib = maps?.importLibrary ? await maps.importLibrary( 'elevation' ) : null;
-        const ElevationService = lib?.ElevationService || maps?.ElevationService;
-        if ( cancelled || !ElevationService ) return;
-        const service = new ElevationService();
-        const response = await service.getElevationForLocations( { locations: [ { lat: place.lat, lng: place.lng } ] } );
-        const value = response?.results?.[ 0 ]?.elevation;
-        if ( !cancelled && Number.isFinite( value ) ) setElevationM( Math.round( value ) );
-      } catch { /* elevation is optional */ }
-    };
-
     void describe();
-    void elevate();
     return () => { cancelled = true; };
   }, [ place.lat, place.lng, place.placeId, hasSelection, mapReady, ensureGeocoder ] );
 
@@ -1959,7 +1886,7 @@ const VayuLokLive: React.FC = () => {
                         <div className="vl-live-air-gauge-meta">
                           <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
                           { air.dominant && (
-                            <span className="vl-live-air-dominant">Dominant pollutant: { air.dominant }</span>
+                            <span className="vl-live-air-dominant">Dominant pollutant: { dominantPollutantLabel( air.dominant, air.pollutants ) }</span>
                           ) }
                         </div>
                       </div>

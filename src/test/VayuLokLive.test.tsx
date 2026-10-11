@@ -602,7 +602,11 @@ describe( 'VayuLokLive v8 approved design contract', () => {
     expect( panel.querySelector( '.vl-live-air-gauge-word' )?.textContent ).toContain( 'Satisfactory' );
     const arc = panel.querySelector( '.vl-live-air-sev-sat .vl-live-air-gauge-arc' );
     expect( arc ).not.toBeNull();
-    expect( panel.querySelector( '.vl-live-air-dominant' )?.textContent ).toContain( 'pm25' );
+    // The dominant-pollutant chip reads the friendly label (PM2.5), matching the
+    // pollutant rows, rather than the raw Google code (pm25).
+    const dominantChip = panel.querySelector( '.vl-live-air-dominant' );
+    expect( dominantChip?.textContent ).toContain( 'PM2.5' );
+    expect( dominantChip?.textContent ).not.toContain( 'pm25' );
 
     // At least one pollutant row with value + unit + label + info icon.
     const rows = panel.querySelectorAll( '.vl-live-air-pollutant-row' );
