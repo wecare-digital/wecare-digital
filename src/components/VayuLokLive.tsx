@@ -2031,7 +2031,7 @@ const VayuLokLive: React.FC = () => {
                   every class is vl-live- prefixed, and it renders live Air content only when
                   `air` is present - on the keyless path (air === null) only the static shell
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
-              <aside className="vl-live-air-card" aria-label="Air quality details">
+              <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
                 <div className="vl-live-air-card-head">
                   <h3 className="vl-live-air-card-title">Air Quality Details</h3>
                 </div>
@@ -2109,52 +2109,32 @@ const VayuLokLive: React.FC = () => {
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span
+                                <button
+                                  type="button"
                                   className="vl-live-air-pollutant-info"
-                                  role="button"
-                                  tabIndex={ 0 }
                                   aria-label={ `${p.label} details` }
-                                  aria-describedby={ `vl-live-air-pollutant-tip-${p.code}` }
+                                  aria-expanded={ pollutantTip?.code === p.code }
+                                  aria-describedby={ pollutantTip?.code === p.code ? `vl-live-air-pollutant-tip-${p.code}` : undefined }
+                                  onMouseEnter={ e => openPollutantTip( p.code, e.currentTarget ) }
+                                  onMouseLeave={ () => setPollutantTip( null ) }
+                                  onFocus={ e => openPollutantTip( p.code, e.currentTarget ) }
+                                  onBlur={ () => setPollutantTip( null ) }
+                                  onClick={ e => openPollutantTip( p.code, e.currentTarget ) }
                                 >
-                                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><line x1="10" y1="9" x2="10" y2="14" /><circle cx="10" cy="6" r=".9" /></svg>
-                                  <span className="vl-live-air-pollutant-tip" id={ `vl-live-air-pollutant-tip-${p.code}` } role="tooltip">
-                                    <span className="vl-live-air-pollutant-pop">
-                                      <span className="vl-live-air-pollutant-pop-title">{ p.label }</span>
-                                      { ( p.sources || p.effects ) ? (
-                                        <>
-                                          { p.sources && (
-                                            <>
-                                              <span className="vl-live-air-pollutant-pop-head">Sources:</span>
-                                              <span className="vl-live-air-pollutant-pop-text">{ p.sources }</span>
-                                            </>
-                                          ) }
-                                          { p.effects && (
-                                            <>
-                                              <span className="vl-live-air-pollutant-pop-head">Effects:</span>
-                                              <span className="vl-live-air-pollutant-pop-text">{ p.effects }</span>
-                                            </>
-                                          ) }
-                                        </>
-                                      ) : (
-                                        <span className="vl-live-air-pollutant-pop-text">{ `${p.label}: ${Math.round( p.value )} ${p.unit}` }</span>
-                                      ) }
-                                    </span>
-                                  </span>
-                                </span>
+                                  <svg viewBox="0 -960 960 960" aria-hidden="true">
+                                    <path d={ MATERIAL_SYMBOL_PATHS.info } />
+                                  </svg>
+                                </button>
                               </li>
                             ) ) }
                           </ul>
                         </div>
                       ) }
 
-                      {/* SECTION 1 - HEATMAP + STORM. Two label rows, each with an accessible
-                          on/off switch. The Heatmap switch drives the `layer` state (the
-                          continuous AQI heatmap TILE overlay, default ON); the Storm switch
-                          drives the independent `stormOn` state (the local SVG/CSS atmosphere,
-                          default ON). Neither issues a fetch here. Both are
-                          disabled until a place is selected. Below, a Poor -> Excellent legend
-                          bar on the approved no-red
-                          ramp; the words (not the colour) carry the meaning (WCAG 1.4.1). */}
+                      {/* SECTION 1 - HEATMAP. The atmospheric layer stays part of the
+                          live map and no longer has a second Storm switch. This control keeps the
+                          same real Google AQI tile behavior, using the exact Material Symbols
+                          "switches" glyph requested for the control. */}
                       <div className="vl-live-air-heatmap">
                         <div className="vl-live-air-heatmap-row">
                           <span className="vl-live-air-heatmap-label">Heatmap</span>
@@ -2167,21 +2147,9 @@ const VayuLokLive: React.FC = () => {
                             className={ `vl-live-air-heatmap-switch ${layer === 'AQI' ? 'is-on' : ''}`.trim() }
                             onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
                           >
-                            <span className="vl-live-air-heatmap-knob" aria-hidden="true" />
-                          </button>
-                        </div>
-                        <div className="vl-live-air-heatmap-row">
-                          <span className="vl-live-air-heatmap-label">Storm</span>
-                          <button
-                            type="button"
-                            role="switch"
-                            aria-checked={ stormOn }
-                            aria-label="Weather storm overlay"
-                            disabled={ !hasSelection }
-                            className={ `vl-live-air-heatmap-switch ${stormOn ? 'is-on' : ''}`.trim() }
-                            onClick={ () => setStormOn( v => !v ) }
-                          >
-                            <span className="vl-live-air-heatmap-knob" aria-hidden="true" />
+                            <svg viewBox="0 -960 960 960" aria-hidden="true">
+                              <path d={ MATERIAL_SYMBOL_PATHS.switches } />
+                            </svg>
                           </button>
                         </div>
                         <div className="vl-live-air-heatmap-legend">
@@ -2213,24 +2181,8 @@ const VayuLokLive: React.FC = () => {
                               className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
                               onClick={ () => setHealthPersona( idx ) }
                             >
-              {/* Material-Symbols-EQUIVALENT glyph paths (filled, viewBox 0 0 24 24),
-                  derived from Google's Material Symbols set so they read as the Google
-                  icon family, drawn inline so the keyless path fires ZERO network calls.
-                  general=groups, elderly=elderly, respiratory=pulmonology, heart=cardiology.
-                  The active chip tints the glyph with --lime (see CSS). */}
-                              <svg viewBox="0 0 24 24" aria-hidden="true" className="vl-live-air-health-icon">
-                                { persona.icon === 'general' && (
-                                  <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58C.48 14.9 0 15.62 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85-.85-.37-1.79-.58-2.78-.58-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" />
-                                ) }
-                                { persona.icon === 'elderly' && (
-                                  <path d="M14 3.5c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zM10.5 22v-6H9l-2.6-6.5C6.07 8.68 5.3 8 4.4 8H4c-.83 0-1.5.67-1.5 1.5S3.17 11 4 11h.4l2.1 5.2V22h4zM16 22v-7h2V9c0-1.1-.9-2-2-2h-2.5c-.9 0-1.67.68-2 1.5L9 14l1.8.7 1.7-4.2V22H16z" />
-                                ) }
-                                { persona.icon === 'respiratory' && (
-                                  <path d="M12 2c-1.1 0-2 .9-2 2v5.5H8.5V7c0-1.1-.9-2-2-2s-2 .9-2 2v9c0 2.21 1.79 4 4 4s4-1.79 4-4v-3.5h1V16c0 2.21 1.79 4 4 4s4-1.79 4-4V7c0-1.1-.9-2-2-2s-2 .9-2 2v2.5H14V4c0-1.1-.9-2-2-2zm-5.5 16c-1.1 0-2-.9-2-2v-4h2v4c0 .28.22.5.5.5s.5-.22.5-.5h1c0 1.1-.9 2-2 2zm11 0c-1.1 0-2-.9-2-2h1c0 .28.22.5.5.5s.5-.22.5-.5v-4h2v4c0 1.1-.9 2-2 2z" />
-                                ) }
-                                { persona.icon === 'heart' && (
-                                  <path d="M13.5 2c-1.8 0-3.4 1-4.2 2.5C8.4 3 6.9 2 5 2 2.2 2 0 4.2 0 7c0 1.1.3 2.1.9 3H5l1-2 2 4 2.5-6 1.5 3 1-2h8.1c.6-.9.9-1.9.9-3 0-2.8-2.2-5-5-5-.47 0-.93.07-1.4.2V2zm-.1 18.3C14.9 19 20 14.6 21.1 12h-4.5l-1.5 3-3-6-2 5-1.4-2.8L7.9 12H2.9C4 14.6 9.1 19 10.6 20.3c.4.3.9.5 1.4.5s1-.2 1.4-.5z" />
-                                ) }
+                              <svg viewBox="0 -960 960 960" aria-hidden="true" className="vl-live-air-health-icon">
+                                <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
                               </svg>
                             </button>
                           ) ) }
@@ -2240,7 +2192,7 @@ const VayuLokLive: React.FC = () => {
                             aria-label="Next recommendation profile"
                             onClick={ () => setHealthPersona( i => ( i + 1 ) % HEALTH_PERSONAS.length ) }
                           >
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
+                            <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.next } /></svg>
                           </button>
                         </div>
                         <hr className="vl-live-air-health-rule" aria-hidden="true" />
@@ -2374,42 +2326,6 @@ const VayuLokLive: React.FC = () => {
                   </div>
                 ) }
 
-                {/* PAGE FURNITURE, NOT LIVE DATA. Subscribe / Contribute / Share are the same
-                    blocks every blog post carries, embedded here below the Air/Weather sections.
-                    They render on EVERY path including keyless - they are SSR/keyless safe and
-                    fire NO network call on mount (the Subscribe pill is a static WhatsApp anchor,
-                    BlogContribution is a static WhatsApp anchor, ShareLinks only feature-detects
-                    in an effect and writes classes). A hairline separator sits above them, and
-                    BlogContribution runs embedded so it drops its own top rule inside the card.
-                    None of the three render a <main>, so the single main.vl-live-shell landmark
-                    is preserved.
-
-                    SUBSCRIBE MATCHES THE LIVE BLOG POST, NOT THE OLD IN-PAGE FORM. The blog post
-                    (src/pages/post/[slug].tsx) dropped the full BlogSubscribe signup box in favour
-                    of a single compact lime pill that opens the Subscribe WhatsApp conversation -
-                    the matched twin of BlogContribution's Contribute pill. We render that same
-                    treatment INLINE here (so styled-jsx stamps its scope hash onto the markup):
-                    a .vl-live-air-subscribe anchor at the shared SUBSCRIBE_CTA_HREF with a
-                    .wc-sweep-note microcopy line below it, exactly as BlogContribution does. The
-                    anchor is text-only (no glyph) and leaves the site, so it is a real <a> that is
-                    middle-clickable, long-pressable and copyable; aria-label carries the visible
-                    word for WCAG 2.5.3. The pill geometry is sized to the narrow (~336px) card
-                    under .vl-live-air-extras rather than by editing the shared blog rules. */}
-                <div className="vl-live-air-extras">
-                  <hr className="vl-live-air-card-rule" aria-hidden="true" />
-                  <a
-                    className="vl-live-air-subscribe"
-                    href={ SUBSCRIBE_CTA_HREF }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label="Subscribe on WhatsApp"
-                  >
-                    <span>Subscribe</span>
-                  </a>
-                  <p className="wc-sweep-note" aria-hidden="true">Continue on WhatsApp →</p>
-                  <BlogContribution postId="vayulok" slug="vayulok" embedded={ true } />
-                  <ShareLinks url={ VAYULOK_PAGE_URL } title={ shareTitle } label="Share" />
-                </div>
               </aside>
 
               { ( !mapActive || mapFailed ) ? (
@@ -2434,7 +2350,7 @@ const VayuLokLive: React.FC = () => {
                     </div>
                   ) }
                   <div className={ `vl-live-map-canvas ${mapReady ? 'is-ready' : ''}` } ref={ mapHost } role="img" aria-label={ hasSelection ? `Map of ${place.name}` : 'Interactive world map' } />
-                  { mapReady && stormOn && (
+                  { mapReady && (
                     <div ref={ atmosphereRef } className="vl-live-atmosphere" style={ atmosphereStyle } aria-hidden="true">
                       <svg viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
                         <defs>
@@ -2526,6 +2442,38 @@ const VayuLokLive: React.FC = () => {
           </section>
         </div>
       </main>
+
+      { pollutantTip && activePollutant && (
+        <div
+          className="vl-live-air-pollutant-tip"
+          id={ `vl-live-air-pollutant-tip-${activePollutant.code}` }
+          role="tooltip"
+          style={ { top: pollutantTip.top, left: pollutantTip.left } }
+          onMouseEnter={ () => undefined }
+          onMouseLeave={ () => setPollutantTip( null ) }
+        >
+          <span className="vl-live-air-pollutant-pop">
+            <span className="vl-live-air-pollutant-pop-title">{ activePollutant.label }</span>
+            { activePollutant.sources && (
+              <span className="vl-live-air-pollutant-pop-line is-source">
+                <strong>Sources</strong>
+                <span>{ compactAirInfo( activePollutant.sources ) }</span>
+              </span>
+            ) }
+            { activePollutant.effects && (
+              <span className="vl-live-air-pollutant-pop-line is-effect">
+                <strong>Effects</strong>
+                <span>{ compactAirInfo( activePollutant.effects ) }</span>
+              </span>
+            ) }
+            { !activePollutant.sources && !activePollutant.effects && (
+              <span className="vl-live-air-pollutant-pop-text">
+                { `${activePollutant.label}: ${Math.round( activePollutant.value )} ${activePollutant.unit}` }
+              </span>
+            ) }
+          </span>
+        </div>
+      ) }
 
       <style jsx>{`
         .vl-live{
