@@ -320,6 +320,8 @@ async function loadComponent() {
   return mod.default;
 }
 
+let rec: MapsRecorder;
+
 async function selectMumbai() {
   const input = await screen.findByRole( 'combobox' );
   fireEvent.change( input, { target: { value: 'Mumbai' } } );
@@ -497,7 +499,6 @@ function environmentFetch() {
 
 
 describe( 'VayuLokLive v8 approved design contract', () => {
-  let rec: MapsRecorder;
 
   beforeEach( () => {
     vi.stubEnv( 'NEXT_PUBLIC_GOOGLE_MAPS_KEY', DUMMY_KEY );
