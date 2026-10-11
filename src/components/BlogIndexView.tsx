@@ -5,6 +5,7 @@ import { topicSlug } from '../lib/blog-index-props';
 import RotatingHero, { CycleWord } from './RotatingHero';
 import Breadcrumbs from './Breadcrumbs';
 import Pager from './Pager';
+import RssIcon from './RssIcon';
 
 /**
  * The blog index, one page of it.
@@ -35,11 +36,18 @@ import Pager from './Pager';
  *
  * Together: ~9 kB and ~3.3 screens per page, against 842 kB and 115.5.
  *
- * SEARCH WAS REMOVED, AND "SHOW EVERY POST" REPLACED IT (owner instruction, 2026-10-11)
+ * SHOW EVERY POST BY DEFAULT, WITH A LIVE SEARCH OVER THE WHOLE CORPUS
  * -------------------------------------------------------------------------------------
- * The search box is gone. In its place the index now loads the WHOLE corpus client-side and
- * renders every post in the active category at once, so a reader scrolls the full list rather
- * than typing to find one. The paginator is for the no-JS path only.
+ * The index loads the WHOLE corpus client-side and renders every post in the active category at
+ * once, so a reader scrolls the full list rather than paging. On top of that it carries a
+ * borderless live search - the same field the /anew/ panel uses - so a reader can also filter
+ * the full corpus as they type. When the box is empty the behaviour is unchanged: every post in
+ * the active category once the fetch lands, else the prerendered slice. The paginator is for the
+ * no-JS path only, and it hides while a query is active (all matches are shown, nothing to page).
+ *
+ * THE SEARCH IS SEEDED FROM ?q= ON FIRST RENDER, so the global tag links the post page and the
+ * /anew/ panel render - /blog/?q=<tag> - land here and filter the list to that tag. It is a lazy,
+ * window-guarded initializer so SSR and the no-JS render carry an empty query and the full list.
  *
  * THE FULL LIST IS STILL /blog/search-index.json - slug, title, excerpt, category and tags,
  * written by scripts/generate-blog-search-index.js after the build. It is the same file the
@@ -85,9 +93,10 @@ export const HERO_WORDS: CycleWord[] = [
  *  kept for continuity with scripts/generate-blog-search-index.js, which writes it. */
 const FULL_INDEX_URL = '/blog/search-index.json';
 
-/** The feed scripts/generate-blog-rss.js writes post-build. The visible link below points here;
- *  the <link rel="alternate"> autodiscovery tag in BlogIndexHead points at the same file. */
-const RSS_URL = '/blog/rss.xml';
+/* The feed scripts/generate-blog-rss.js writes post-build lives at /blog/rss.xml. The visible
+ * affordance is now the icon-only <RssIcon> at the foot of the page (components/RssIcon.tsx, which
+ * owns the URL); the <link rel="alternate"> autodiscovery tag in BlogIndexHead points at the same
+ * file. The old top text pill and its RSS_URL constant went when the icon took over. */
 
 interface BlogIndexViewProps {
   /** This page's slice, already projected and sorted. */
@@ -100,8 +109,9 @@ interface BlogIndexViewProps {
   /** Every category across the whole corpus, not just this page's - see below. Sorted, and the
    *  FIRST one is the default pill now that "All" is gone. */
   categories: string[];
-  /** Posts per category across the whole corpus, so the count line has an honest denominator:
-   *  the active category's full size rather than this page's slice. */
+  /** Posts per category across the whole corpus. NOTHING RENDERS A COUNT any more - the "N
+   *  posts" line went on owner instruction - but the prop stays on the interface so the callers
+   *  and tests that build props do not break. It is deliberately unread in the body. */
   categoryCounts?: Record<string, number>;
   /** Which category this prerendered page lists. Server-decided, never client state. */
   activeCategory?: string;
@@ -134,7 +144,7 @@ export const blogPageHref = ( page: number, streamBase = '/blog/' ): string =>
  */
 
 const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
-  posts, page, totalPages, totalPosts, categories, categoryCounts,
+  posts, page, totalPages, totalPosts, categories,
   activeCategory = '', defaultCategory = '',
 } ) => {
   /**
@@ -155,6 +165,21 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
   const [ allCards, setAllCards ] = useState<BlogCard[] | null>( null );
   const [ indexState, setIndexState ] = useState<'loading' | 'ready' | 'failed'>( 'loading' );
   const requested = useRef( false );
+
+  /**
+   * THE LIVE SEARCH QUERY, SEEDED FROM ?q= ON FIRST RENDER.
+   *
+   * A lazy initializer so it runs once, and window-guarded so SSR and the no-JavaScript render
+   * seed an empty string - the full list - rather than touching an undefined `window`. The seed
+   * is what makes the global tag links work: the post page and the /anew/ panel render tags as
+   * /blog/?q=<tag>, so arriving here with that parameter filters the list to the tag immediately.
+   * decodeURIComponent because the tag links encode the value; a bad escape falls back to raw.
+   */
+  const [ query, setQuery ] = useState<string>( () => {
+    if ( typeof window === 'undefined' ) return '';
+    const q = new URLSearchParams( window.location.search ).get( 'q' ) || '';
+    try { return decodeURIComponent( q ); } catch { return q; }
+  } );
 
   /**
    * FETCH THE FULL LIST ONCE, ON MOUNT. The search box used to defer this to the first
@@ -202,24 +227,42 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
    * rest of the site. Before expansion this is exactly the server-sent slice, so the first paint
    * and the no-JS render are identical to what shipped.
    */
+  /**
+   * WHAT THE READER SEES, IN THREE CASES.
+   *
+   *   A query is typed - filter the WHOLE corpus (scoped to this category) across
+   *     title + excerpt + category + tags, and show every match. This needs allCards, so it only
+   *     narrows once the fetch has landed; before that there is nothing to search and the normal
+   *     list shows. All matches, no slice: the point of the box is to find a post, not to page to it.
+   *   No query, expanded - every post in the active category, the show-every-post default.
+   *   No query, not expanded - the prerendered slice, which is the first paint and the no-JS path.
+   *
+   * The category scope is the same in all three: /blog/ is the default category, each topic
+   * stream is its own, so a search on Conversations never surfaces a Gastronomy post.
+   */
+  const trimmedQuery = query.trim().toLowerCase();
+  const searching = trimmedQuery.length > 0 && allCards !== null;
+
   const visiblePosts = useMemo( () => {
+    if ( searching ) {
+      const scoped = activeCategory
+        ? allCards!.filter( post => post.category === activeCategory )
+        : allCards!;
+      return scoped.filter( post => {
+        const hay = [
+          post.title,
+          post.excerpt || '',
+          post.category || '',
+          ...( post.tags || [] ),
+        ].join( '\n' ).toLowerCase();
+        return hay.includes( trimmedQuery );
+      } );
+    }
     if ( !expanded ) return posts;
     return activeCategory
       ? allCards!.filter( post => post.category === activeCategory )
       : allCards!;
-  }, [ expanded, allCards, posts, activeCategory ] );
-
-  /**
-   * HOW MANY POSTS THIS LISTING HOLDS, across the whole corpus and not just this page. It is
-   * the active category's size, because that is the list the reader is looking at - /blog/ shows
-   * the default category and each topic stream shows its own. categoryCounts is the per-category
-   * map the data layer builds; totalPosts is the fallback when a count is somehow missing.
-   *
-   * The search box used to render this as a "N of M" line while filtering. With search gone and
-   * every post shown, it becomes a plain "N posts" header beside the RSS link - the reader can
-   * see the whole list, so the number is a label on it rather than a result count.
-   */
-  const categoryTotal = categoryCounts?.[ activeCategory ] ?? totalPosts;
+  }, [ searching, trimmedQuery, expanded, allCards, posts, activeCategory ] );
 
   /* WHICH STREAM THIS VIEW IS PAGING. Derived here rather than passed in, because the component
    * already holds both halves of the answer and the pills two hundred lines below compute the
@@ -241,32 +284,23 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
             ? [ { label: 'Home', href: '/' }, { label: 'Blog', href: '/blog/' }, { label: `Page ${page}` } ]
             : [ { label: 'Home', href: '/' }, { label: 'Blog' } ] }
         />
-        {/* THE TOOLBAR ROW, where the search box used to be: a plain post count on the left and
-            the RSS subscribe link on the right. */}
-        <div className="blog-toolbar">
-          {/* The count is a label on the list the reader can now see in full, not a search
-              result - "N posts" in the active category, across the whole corpus. Hidden when
-              there is nothing to count so an empty blog does not announce "0 posts". */}
-          { totalPosts > 0 && (
-            <p className="blog-count">{ categoryTotal } { categoryTotal === 1 ? 'post' : 'posts' }</p>
-          ) }
-          {/* THE RSS LINK. The feed is scripts/generate-blog-rss.js' output at /blog/rss.xml, and
-              BlogIndexHead already emits the <link rel="alternate"> autodiscovery tag for it -
-              this is the VISIBLE affordance a reader clicks to subscribe.
-              A plain <a>, not next/link: /blog/rss.xml is an XML file written to out/ by a build
-              script, NOT a Next route, so routing it client-side would 404 against the page
-              router. type="application/rss+xml" tells the browser what it is; the icon is
-              decorative (aria-hidden) because the text already names the destination. The
-              no-html-link-for-pages lint does not fire here because /blog/rss.xml is not a page
-              route - it is a build-script artifact in out/ - so no disable directive is needed. */}
-          <a className="blog-rss" href={ RSS_URL } type="application/rss+xml">
-            <svg className="blog-rss-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-              <path d="M4 11a9 9 0 0 1 9 9" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-              <path d="M4 4a16 16 0 0 1 16 16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-              <circle cx="5" cy="19" r="2.2" fill="currentColor" />
-            </svg>
-            <span>Subscribe via RSS</span>
-          </a>
+        {/* BORDERLESS LIVE SEARCH over the WHOLE corpus - the same field as the /anew/ panel
+            (ProductBlogPanel .pbp-search): no inner border, one quiet bottom hairline, no icon,
+            no submit button, filtering as you type. A real sr-only label gives it an accessible
+            name. The old top toolbar - the "N posts" count and the text RSS pill - is gone; the
+            count went on owner instruction and the RSS affordance moved to an icon at the bottom.
+            It filters the full corpus (scoped to this category) and seeds from ?q= on first
+            render, so the global tag links land here and narrow the list. */}
+        <div className="blog-search">
+          <label className="blog-search-sr" htmlFor="blog-q">Search the blog</label>
+          <input
+            id="blog-q"
+            type="search"
+            autoComplete="off"
+            placeholder="Search posts"
+            value={ query }
+            onChange={ e => setQuery( e.target.value ) }
+          />
         </div>
 
         { totalPosts > 0 ? (
@@ -336,13 +370,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
               </div>
             ) }
 
-            {/* THE PAGINATOR IS THE NO-JAVASCRIPT PATH, SO IT HIDES ONCE THE FULL LIST IS IN.
-                When the on-mount fetch succeeds, every post in this category is already on screen
-                and there are no more pages to turn - showing a pager over a complete list would
-                be two ways to reach posts that are all already here. Until then (first paint, a
-                failed fetch, or scripts off) the prerendered slice is paginated exactly as it
-                shipped, which is what keeps the whole blog reachable without JavaScript. */}
-            { !expanded && totalPages > 1 && (
+            {/* THE PAGINATOR IS THE NO-JAVASCRIPT PATH, SO IT HIDES ONCE THE FULL LIST IS IN -
+                AND WHILE A SEARCH IS ACTIVE. When the on-mount fetch succeeds, every post in this
+                category is already on screen and there are no more pages to turn; and when a query
+                is typed, all matches are shown at once, so paging them would put two narrowings
+                between a reader and one post. Until then (first paint, a failed fetch, or scripts
+                off) the prerendered slice is paginated exactly as it shipped, which keeps the
+                whole blog reachable without JavaScript. */}
+            { !searching && !expanded && totalPages > 1 && (
               /* components/Pager.tsx, which is this exact control moved out whole so /shop/
                  renders one declaration of it rather than a second copy. No prevLabel or
                  nextLabel: they default to Newer / Older, which is this listing's own copy. */
@@ -353,6 +388,14 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
                 ariaLabel="Blog pages"
               />
             ) }
+
+            {/* THE RSS SUBSCRIBE AFFORDANCE, ICON-ONLY, AT THE BOTTOM. It replaces the old text
+                pill that sat in a toolbar at the top; on owner instruction it is now a compact
+                lime glyph after the grid and pager, the same control the /anew/ panel places at
+                its own foot. End-aligned to the measure. */}
+            <div className="blog-rss-foot">
+              <RssIcon />
+            </div>
           </>
         ) : (
           <div className="empty">No posts have been published yet.</div>
@@ -487,40 +530,32 @@ const BlogIndexView: React.FC<BlogIndexViewProps> = ( {
         .meta{margin-top:auto;font-size:12px;font-weight:600;line-height:1.4;color:rgba(0,0,0,.54)}
         .empty{border:1px dashed #d1d5db;border-radius:14px;padding:40px;text-align:center;font-size:20px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.54)}
 
-        /* THE TOOLBAR: the post count on the start edge, the RSS subscribe link on the end,
-           baseline-aligned on one row. It wraps on a narrow screen so the link drops under the
-           count rather than crushing against it. */
-        .blog-toolbar{
-          display:flex;align-items:baseline;justify-content:space-between;gap:16px;
-          flex-wrap:wrap;margin:0 0 32px;
+        /* BORDERLESS LIVE SEARCH - the /anew/ panel's field (ProductBlogPanel .pbp-search),
+           so every search a visitor meets on the site reads as one control: no inner border, one
+           quiet bottom hairline, no icon, no button. The hairline darkens and a lime underline
+           grows on focus. 52px is the site's field height (BlogSearch's own), 17px the base body
+           size that keeps iOS from zooming the field on focus. */
+        .blog-search{position:relative;margin:0 0 32px;max-width:520px}
+        /* The site's sr-only pattern, same declaration as .home-sr-only. */
+        .blog-search-sr{
+          position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+          overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;
         }
-        /* The count is a quiet label on the list, the site's muted body rung - the same voice
-           the old search status line used. */
-        .blog-count{
-          margin:0;font-size:17px;line-height:1.4;letter-spacing:-.125px;color:rgba(0,0,0,.62);
+        .blog-search input{
+          width:100%;box-sizing:border-box;height:52px;padding:0 2px;
+          font-size:17px;font-family:inherit;color:#1a1a1a;background:transparent;
+          border:0;border-bottom:1px solid #e5e7eb;border-radius:0;outline:none;
+          transition:border-color .2s,box-shadow .2s;
         }
-        /* THE RSS LINK, on the pill affordance the category switch and the home CTA share: a
-           999px outline that lifts and tints lime on hover, with the opaque #1a3a2a focus ring
-           the rest of the site uses (the translucent one failed WCAG 1.4.11 at 1.51:1). min-height
-           44px is the WCAG 2.5.8 touch-target floor the pager and the pills already hold. */
-        .blog-rss{
-          display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;
-          min-height:44px;padding:0 18px;border:2px solid #e5e7eb;border-radius:999px;
-          background:#fff;color:#1a3a2a;font-size:14px;font-weight:600;letter-spacing:-.125px;
-          text-decoration:none;
-          transition:background-color .2s,border-color .2s,transform .2s,box-shadow .2s;
+        .blog-search input::placeholder{color:rgba(0,0,0,.44)}
+        .blog-search input:focus-visible{
+          border-bottom-color:#1a3a2a;box-shadow:0 1px 0 0 #d1f470;
         }
-        .blog-rss:hover{
-          border-color:#d1f470;background:rgba(209,244,112,.22);
-          transform:translateY(-2px);box-shadow:0 4px 12px rgba(26,58,42,.12);
-        }
-        .blog-rss:focus-visible{outline:3px solid #1a3a2a;outline-offset:3px}
-        /* The icon takes the link's colour via currentColor, so it tints with the text and needs
-           no separate hover rule. It is a fixed box so the label does not shift as the link lifts. */
-        .blog-rss-icon{flex:0 0 auto;color:#f0a818}
+        /* THE RSS ICON'S ROW AT THE BOTTOM. End-aligned under the grid and pager, with the
+           listing's own vertical rhythm above it. The icon styles itself (components/RssIcon.tsx). */
+        .blog-rss-foot{display:flex;justify-content:flex-end;margin:40px 0 0}
         @media(prefers-reduced-motion:reduce){
-          .blog-rss{transition:none}
-          .blog-rss:hover{transform:none;box-shadow:none}
+          .blog-search input{transition:none}
         }
 
         /* THE PAGER'S RULES ARE GONE FROM THIS FILE, all of them, including the three that used
