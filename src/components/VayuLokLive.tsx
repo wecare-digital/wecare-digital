@@ -79,14 +79,13 @@ function pm25Severity( pm25: number ): Sev {
   return 'worst';
 }
 
-// India bounds, so the map cannot be panned off the product's area. Verbatim from the
-// mock's map options.
-const INDIA_BOUNDS = { north: 37.6, south: 6.4, west: 68.1, east: 97.4 };
+// Global map: do not re-introduce a lat/lng restriction here. Visitors can pan the
+// live Google map anywhere and place search is intentionally worldwide.
 
 // Place-autocomplete debounce. 120ms is a deliberately snappy value: it keeps ONE
 // Autocomplete Data API request per settled keystroke (so a fast typist does not spam the
 // SKU) while feeling immediate rather than the previous 300ms lag. The session-token reuse
-// (autocompleteTokenRef) and India scoping are unchanged; only the settle delay is shorter.
+// (autocompleteTokenRef) behavior is unchanged; only the settle delay is shorter.
 const SEARCH_DEBOUNCE_MS = 120;
 
 // The canonical, ABSOLUTE /vayulok/ page URL. ShareLinks requires an absolute URL (a share
@@ -214,27 +213,6 @@ function humanisePlaceType( raw: unknown ): string | undefined {
   const cleaned = raw.replaceAll( '_', ' ' ).trim();
   if ( !cleaned ) return undefined;
   return cleaned.replace( /\b\w/g, c => c.toUpperCase() );
-}
-
-/* Hard India gate. Region/country restrictions bias Google results, but border locations can
-   still resolve outside India. Accept only an explicit country short code of IN; support both
-   classic Geocoder address_components and modern Place addressComponents shapes. */
-function isIndiaResult( result: unknown ): boolean {
-  if ( !result || typeof result !== 'object' ) return false;
-  const r = result as {
-    address_components?: { types?: string[]; short_name?: string }[];
-    addressComponents?: { types?: string[]; shortText?: string }[];
-  };
-  const components = Array.isArray( r.address_components )
-    ? r.address_components
-    : ( Array.isArray( r.addressComponents ) ? r.addressComponents : [] );
-  for ( const component of components ) {
-    if ( !component || !Array.isArray( component.types ) || !component.types.includes( 'country' ) ) continue;
-    const code = ( ( component as { short_name?: string } ).short_name
-      || ( component as { shortText?: string } ).shortText || '' ).toUpperCase();
-    return code === 'IN';
-  }
-  return false;
 }
 
 interface SearchResult {
@@ -731,7 +709,7 @@ const VayuLokLive: React.FC = () => {
   const [ detailTab, setDetailTab ] = useState<'air' | 'weather'>( 'air' );
   const [ mapReady, setMapReady ] = useState( false );
   const [ mapFailed, setMapFailed ] = useState( false );
-  const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable' | 'outside-india'>( 'idle' );
+  const [ searchStatus, setSearchStatus ] = useState<'idle' | 'searching' | 'no-results' | 'unavailable'>( 'idle' );
 
   const [ air, setAir ] = useState<AirState | null>( null );
   const [ weather, setWeather ] = useState<WeatherState | null>( null );
@@ -783,6 +761,10 @@ const VayuLokLive: React.FC = () => {
 
   const mapHost = useRef<HTMLDivElement | null>( null );
   const mapRef = useRef<unknown>( null );
+  // Preserve the first keyed paint as a zoomed-out global satellite overview. The
+  // default Shillong reading may still populate the marker/cards; only a later user
+  // selection recenters and zooms the camera.
+  const initialGlobalViewRef = useRef( true );
   const markerRef = useRef<unknown>( null );
   const markerCtorRef = useRef<( new ( opts: Record<string, unknown> ) => unknown ) | null>( null );
   const placesLibRef = useRef<Record<string, unknown> | null>( null );
@@ -921,9 +903,11 @@ const VayuLokLive: React.FC = () => {
       if ( cancelled ) return;
 
       const map = new maps.Map( host, {
-        center: { lat: DEFAULT_PLACE.lat, lng: DEFAULT_PLACE.lng },
-        zoom: 13,
-        mapTypeId: 'roadmap',
+        // Dynamic world background: real Google satellite imagery with live map
+        // interaction and Google's border/label overlay. This is not a static image.
+        center: { lat: 20, lng: 20 },
+        zoom: 2,
+        mapTypeId: 'hybrid',
         gestureHandling: 'greedy',
         disableDefaultUI: true,
         zoomControl: false,
@@ -935,7 +919,6 @@ const VayuLokLive: React.FC = () => {
         cameraControl: false,
         keyboardShortcuts: false,
         clickableIcons: false,
-        restriction: { latLngBounds: INDIA_BOUNDS, strictBounds: true },
         styles: MAP_STYLES,
       } );
       mapRef.current = map;
@@ -957,15 +940,10 @@ const VayuLokLive: React.FC = () => {
         const gc = geocoder.current as {
           geocode?: ( req: Record<string, unknown>, cb: ( rows: unknown[] | null, status: string ) => void ) => void;
         } | null;
-        gc?.geocode?.( { location: { lat, lng }, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }, async ( rows, status ) => {
+        gc?.geocode?.( { location: { lat, lng }, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }, async ( rows, status ) => {
           if ( status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
-          const first = rows.find( row => isIndiaResult( row ) ) as
-            | { formatted_address?: string; place_id?: string }
-            | undefined;
-          if ( !first ) {
-            setSearchStatus( 'outside-india' );
-            return;
-          }
+          const first = rows[ 0 ] as { formatted_address?: string; place_id?: string } | undefined;
+          if ( !first ) return;
           const next: PlaceState = {
             name: first.formatted_address?.split( ',' )[ 0 ] || 'Selected location',
             addr: first.formatted_address || '',
@@ -1827,7 +1805,7 @@ const VayuLokLive: React.FC = () => {
 
     if ( !markerRef.current && markerCtorRef.current ) {
       const MarkerCtor = markerCtorRef.current;
-      // Branded selected-place marker. Created lazily after the first valid India selection.
+      // Branded selected-place marker. Created lazily after the first valid selection.
       markerRef.current = new MarkerCtor( {
         position: { lat: place.lat, lng: place.lng },
         map,
@@ -1840,7 +1818,11 @@ const VayuLokLive: React.FC = () => {
       setTitle?: ( t: string ) => void;
       setMap?: ( m: unknown ) => void;
     } | null;
-    if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
+    if ( initialGlobalViewRef.current ) {
+      // Keep the initial zoom-2 world view. The default place remains selected for live
+      // readings, but it must not collapse the visual background back to an India-only view.
+      initialGlobalViewRef.current = false;
+    } else if ( place.viewport && map.fitBounds ) map.fitBounds( place.viewport, 56 );
     else {
       map.setCenter?.( { lat: place.lat, lng: place.lng } );
       map.setZoom?.( 14 );
@@ -1852,9 +1834,8 @@ const VayuLokLive: React.FC = () => {
 
   /* ---------------------------------------------------------------------------------
      SEARCH - modern Places Autocomplete Data API with one session token per query/
-     selection session. This avoids legacy Text Search on every keystroke and keeps
-     results hard-restricted to India. Geocoding remains only as an unavailable-Places
-     fallback. */
+     selection session. This avoids legacy Text Search on every keystroke and is
+     intentionally worldwide. Geocoding remains only as an unavailable-Places fallback. */
   const ensurePlacesLibrary = useCallback( async (): Promise<Record<string, unknown> | null> => {
     if ( placesLibRef.current ) return placesLibRef.current;
     const w = window as unknown as { google?: { maps?: { importLibrary?: ( name: string ) => Promise<Record<string, unknown>>; places?: Record<string, unknown> } } };
@@ -1909,8 +1890,8 @@ const VayuLokLive: React.FC = () => {
       const gc = await ensureGeocoder();
       if ( !gc?.geocode || cancelled ) return;
       const request: Record<string, unknown> = place.placeId
-        ? { placeId: place.placeId, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
-        : { location: { lat: place.lat, lng: place.lng }, region: 'in', extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
+        ? { placeId: place.placeId, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] }
+        : { location: { lat: place.lat, lng: place.lng }, extraComputations: [ 'ADDRESS_DESCRIPTORS' ] };
       try {
         gc.geocode( request, ( rows, status ) => {
           if ( cancelled || status !== 'OK' || !Array.isArray( rows ) || !rows.length ) return;
@@ -1955,9 +1936,6 @@ const VayuLokLive: React.FC = () => {
         if ( !autocompleteTokenRef.current ) autocompleteTokenRef.current = new Token();
         const out = await Auto.fetchAutocompleteSuggestions( {
           input: text,
-          includedRegionCodes: [ 'in' ],
-          region: 'in',
-          locationRestriction: INDIA_BOUNDS,
           sessionToken: autocompleteTokenRef.current,
         } );
         const mapped: SearchResult[] = ( Array.isArray( out?.suggestions ) ? out.suggestions : [] )
@@ -1985,7 +1963,7 @@ const VayuLokLive: React.FC = () => {
       }
     }
 
-    // Fallback for a partial Maps load: Geocoding is still India restricted. The Geocoder
+    // Fallback for a partial Maps load: Geocoding is worldwide. The Geocoder
     // comes from importLibrary('geocoding') via ensureGeocoder, NOT from a pre-populated
     // google.maps.Geocoder, so this path works under the modern loading=async loader.
     const gc = await ensureGeocoder();
@@ -1996,7 +1974,7 @@ const VayuLokLive: React.FC = () => {
       return;
     }
     gc.geocode(
-      { address: text, componentRestrictions: { country: 'in' }, region: 'in' },
+      { address: text },
       ( rows, status ) => {
         // ZERO_RESULTS is a benign "nothing matched"; every other non-OK status
         // (REQUEST_DENIED / OVER_QUERY_LIMIT / INVALID_REQUEST / UNKNOWN_ERROR, etc.)
@@ -2009,7 +1987,6 @@ const VayuLokLive: React.FC = () => {
           return;
         }
         const mapped: SearchResult[] = rows
-          .filter( ( row: unknown ) => isIndiaResult( row ) )
           .slice( 0, 6 )
           .map( ( row: unknown ): SearchResult | null => {
             const pr = row as { formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } };
@@ -2064,10 +2041,6 @@ const VayuLokLive: React.FC = () => {
       try {
         const googlePlace = r.prediction.toPlace();
         await googlePlace.fetchFields?.( { fields: [ 'id', 'displayName', 'formattedAddress', 'location', 'addressComponents', ...PLACE_META_FIELDS ] } );
-        if ( !isIndiaResult( googlePlace ) ) {
-          setSearchStatus( 'outside-india' );
-          return;
-        }
         const lat = googlePlace.location?.lat?.();
         const lng = googlePlace.location?.lng?.();
         if ( Number.isFinite( lat ) && Number.isFinite( lng ) ) {
@@ -2589,9 +2562,8 @@ const VayuLokLive: React.FC = () => {
                         </li>
                       ) ) }
                     </ul>
-                    { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching India…</p> }
-                    { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found in India.</p> }
-                    { searchStatus === 'outside-india' && <p className="vl-live-search-status" role="status">That location is outside India.</p> }
+                    { searchStatus === 'searching' && <p className="vl-live-search-status" role="status">Searching worldwide…</p> }
+                    { searchStatus === 'no-results' && <p className="vl-live-search-status" role="status">Place not found.</p> }
                     { searchStatus === 'unavailable' && <p className="vl-live-search-status" role="status">Place search is temporarily unavailable.</p> }
                   </div>
                 </div>
