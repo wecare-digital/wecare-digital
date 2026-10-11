@@ -2753,23 +2753,41 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-health-title::before{background:var(--status-green)}
         .vl-live-air-history-title::before{background:var(--warning)}
         .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
-        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:hidden}
+        /* overflow:visible (was hidden) so the side popover below can escape the list box
+           and float beside its row without being clipped. The list keeps its rounded 12px
+           frame; the first/last rows round their own outer corners so the row fills still
+           follow the frame now that the list no longer clips them. No scrollbar colour and
+           no scrollbar hider are introduced here (the card keeps only scrollbar-width:thin). */
+        .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:visible}
         .vl-live-air-pollutant-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:11px 13px;background:#fff;border-left:2px solid transparent;transition:background .15s ease,border-color .15s ease}
+        .vl-live-air-pollutant-row:first-child{border-top-left-radius:11px;border-top-right-radius:11px}
+        .vl-live-air-pollutant-row:last-child{border-bottom-left-radius:11px;border-bottom-right-radius:11px}
         .vl-live-air-pollutant-row+.vl-live-air-pollutant-row{border-top:1px solid var(--hair)}
         .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
-        /* Custom pollutant tooltip: shows the label+value+unit on hover AND keyboard
-           focus (the native title= was unreliable and is gone). The tip is rendered
-           inline so styled-jsx can scope it, sits above the card at a literal z-index:1700
+        /* Custom pollutant tooltip: shows the label+value+unit (or Sources/Effects) on
+           hover AND keyboard focus (the native title= was unreliable and is gone). The tip
+           is rendered inline so styled-jsx can scope it, carries a literal z-index:1700
            (matching the home --z-tooltip:1700 scale in tokens.css), and is wired to the
-           trigger via aria-describedby. NO red. */
+           trigger via aria-describedby. NO red.
+
+           POSITIONING (Google Maps Platform reference): the tip opens BESIDE its row,
+           floated to the SIDE of the ⓘ trigger and vertically centred on it, instead of the
+           old bottom:calc(100% + 8px);right:0 that opened UPWARD over the rows above and got
+           its first Sources line clipped when the row sat near the bottom of the scrolling
+           card. It now anchors horizontally off the trigger (right:calc(100% + 12px)) so it
+           never stacks over the rows above/below, and because the .vl-live-air-pollutant-list
+           above no longer clips (overflow:visible) the panel floats clear of the list frame.
+           It stays attached to its own ⓘ via the vertical centre + the entry slide that moves
+           in horizontally from the trigger. Hover + focus-visible + focus-within all show it,
+           so it is reachable by pointer AND keyboard. */
         .vl-live-air-pollutant-info{position:relative;display:inline-flex;align-items:center;justify-content:center;cursor:help;border-radius:50%}
         .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--info);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
         .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus-visible svg{stroke:var(--lime)}
         .vl-live-air-pollutant-info:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
-        .vl-live-air-pollutant-tip{position:absolute;bottom:calc(100% + 8px);right:0;z-index:1700;width:max-content;max-width:240px;padding:11px 13px;border-radius:12px;border:1px solid var(--hair);background:#fff;color:var(--status);font-size:11px;font-weight:500;line-height:1.4;text-align:left;box-shadow:0 10px 28px rgba(0,0,0,.16);opacity:0;visibility:hidden;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none}
-        .vl-live-air-pollutant-info:hover .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-visible .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-within .vl-live-air-pollutant-tip{opacity:1;visibility:visible;transform:translateY(0)}
+        .vl-live-air-pollutant-tip{position:absolute;top:50%;right:calc(100% + 12px);bottom:auto;left:auto;z-index:1700;width:max-content;max-width:230px;padding:11px 13px;border-radius:12px;border:1px solid var(--hair);background:#fff;color:var(--status);font-size:11px;font-weight:500;line-height:1.4;text-align:left;box-shadow:0 10px 28px rgba(0,0,0,.16);opacity:0;visibility:hidden;transform:translate(6px,-50%);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none}
+        .vl-live-air-pollutant-info:hover .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-visible .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-within .vl-live-air-pollutant-tip{opacity:1;visibility:visible;transform:translate(0,-50%)}
         .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:3px}
         .vl-live-air-pollutant-pop-title{display:inline-block;align-self:flex-start;margin-bottom:4px;padding:2px 8px;border-radius:6px;background:var(--lime);color:var(--heading);font-size:12px;font-weight:700;letter-spacing:.1px}
         .vl-live-air-pollutant-pop-head{margin-top:5px;color:var(--heading);font-size:11px;font-weight:700}
