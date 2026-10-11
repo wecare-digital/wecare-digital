@@ -290,9 +290,10 @@ function statusWord( sev: Sev ): string {
 
 /* ---- Health recommendation personas -------------------------------------------------
    Static, honest health guidance shown under the Air panel. These are generic air-quality
-   advisories (NOT a live Google field), rendered only when `air` is present. The Elderly
-   text is used verbatim from the product brief. Each persona carries an id, an accessible
-   label, a short recommendation, and an aria-hidden inline-SVG icon marker. Severity is
+   advisories (NOT a live Google field), rendered only when `air` is present. Each line is
+   kept short and crisp (one or two tight sentences) while staying honest. Each persona
+   carries an id, an accessible label, a short recommendation, and an aria-hidden inline-SVG
+   icon marker (Material-Symbols-equivalent paths, lime-tinted when active). Severity is
    never implied by colour here - the selected highlight is brand green/lime UI chrome. */
 type HealthPersonaIcon = 'general' | 'elderly' | 'respiratory' | 'heart';
 interface HealthPersona {
@@ -305,25 +306,25 @@ const HEALTH_PERSONAS: HealthPersona[] = [
   {
     id: 'general',
     label: 'General population',
-    recommendation: 'Air quality is acceptable for most people. Keep an eye on how you feel during longer or more intense outdoor activity, and take a break indoors if conditions worsen.',
+    recommendation: 'Air is fine for most people. Ease off outdoors if you feel unwell.',
     icon: 'general',
   },
   {
     id: 'elderly',
     label: 'Elderly',
-    recommendation: 'If you start to feel respiratory discomfort such as coughing or breathing difficulties, consider reducing the intensity of your outdoor activities. Try to limit the time you spend near busy roads, construction sites, open fires and other sources of smoke.',
+    recommendation: 'Cut back on hard outdoor effort if you cough or feel short of breath. Keep away from traffic, smoke and dust.',
     icon: 'elderly',
   },
   {
     id: 'respiratory',
     label: 'Respiratory',
-    recommendation: 'People with asthma or other respiratory conditions should keep reliever medication to hand and reduce prolonged or strenuous activity outdoors when the air feels irritating. Move indoors if you notice tightness, wheezing or a persistent cough.',
+    recommendation: 'Keep your reliever inhaler handy and go easy outdoors. Head inside if you wheeze or feel tight-chested.',
     icon: 'respiratory',
   },
   {
     id: 'heart',
     label: 'Heart',
-    recommendation: 'People with heart conditions should pace outdoor exertion and rest if they feel unusual fatigue, chest discomfort or palpitations. Prefer less polluted routes away from heavy traffic and seek advice if symptoms persist.',
+    recommendation: 'Pace yourself outdoors and rest if you feel chest discomfort or palpitations. Favour quieter routes away from traffic.',
     icon: 'heart',
   },
 ];
@@ -2015,8 +2016,15 @@ const VayuLokLive: React.FC = () => {
                               <li className="vl-live-air-pollutant-row" key={ p.code }>
                                 <span className="vl-live-air-pollutant-value">{ Math.round( p.value ) } <small>{ p.unit }</small></span>
                                 <span className="vl-live-air-pollutant-label">{ p.label }</span>
-                                <span className="vl-live-air-pollutant-info" aria-label={ `${p.label}: ${Math.round( p.value )} ${p.unit}` } title={ `${p.label} — ${Math.round( p.value )} ${p.unit}` } role="img">
+                                <span
+                                  className="vl-live-air-pollutant-info"
+                                  role="button"
+                                  tabIndex={ 0 }
+                                  aria-label={ `${p.label} details` }
+                                  aria-describedby={ `vl-live-air-pollutant-tip-${p.code}` }
+                                >
                                   <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" /><line x1="10" y1="9" x2="10" y2="14" /><circle cx="10" cy="6" r=".9" /></svg>
+                                  <span className="vl-live-air-pollutant-tip" id={ `vl-live-air-pollutant-tip-${p.code}` } role="tooltip">{ `${p.label}: ${Math.round( p.value )} ${p.unit}` }</span>
                                 </span>
                               </li>
                             ) ) }
@@ -2074,32 +2082,23 @@ const VayuLokLive: React.FC = () => {
                               className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
                               onClick={ () => setHealthPersona( idx ) }
                             >
+              {/* Material-Symbols-EQUIVALENT glyph paths (filled, viewBox 0 0 24 24),
+                  derived from Google's Material Symbols set so they read as the Google
+                  icon family, drawn inline so the keyless path fires ZERO network calls.
+                  general=groups, elderly=elderly, respiratory=pulmonology, heart=cardiology.
+                  The active chip tints the glyph with --lime (see CSS). */}
                               <svg viewBox="0 0 24 24" aria-hidden="true" className="vl-live-air-health-icon">
                                 { persona.icon === 'general' && (
-                                  <>
-                                    <circle cx="8" cy="8" r="3" />
-                                    <circle cx="16" cy="8" r="3" />
-                                    <path d="M3 19c0-2.8 2.2-5 5-5s5 2.2 5 5" />
-                                    <path d="M11 19c0-2.8 2.2-5 5-5s5 2.2 5 5" />
-                                  </>
+                                  <path d="M12 12.75c1.63 0 3.07.39 4.24.9 1.08.48 1.76 1.56 1.76 2.73V18H6v-1.61c0-1.18.68-2.26 1.76-2.73 1.17-.52 2.61-.91 4.24-.91zM4 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm1.13 1.1c-.37-.06-.74-.1-1.13-.1-.99 0-1.93.21-2.78.58C.48 14.9 0 15.62 0 16.43V18h4.5v-1.61c0-.83.23-1.61.63-2.29zM20 13c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm4 3.43c0-.81-.48-1.53-1.22-1.85-.85-.37-1.79-.58-2.78-.58-.39 0-.76.04-1.13.1.4.68.63 1.46.63 2.29V18H24v-1.57zM12 6c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3z" />
                                 ) }
                                 { persona.icon === 'elderly' && (
-                                  <>
-                                    <circle cx="11" cy="4.5" r="2" />
-                                    <path d="M11 7v6l-2 7" />
-                                    <path d="M11 10l3 2 1 8" />
-                                    <path d="M17 8v13" />
-                                  </>
+                                  <path d="M14 3.5c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zM10.5 22v-6H9l-2.6-6.5C6.07 8.68 5.3 8 4.4 8H4c-.83 0-1.5.67-1.5 1.5S3.17 11 4 11h.4l2.1 5.2V22h4zM16 22v-7h2V9c0-1.1-.9-2-2-2h-2.5c-.9 0-1.67.68-2 1.5L9 14l1.8.7 1.7-4.2V22H16z" />
                                 ) }
                                 { persona.icon === 'respiratory' && (
-                                  <>
-                                    <path d="M12 3v8" />
-                                    <path d="M9 11c0 5-1 7-3.5 7C4 18 4 15 5 12" />
-                                    <path d="M15 11c0 5 1 7 3.5 7 1.5 0 1.5-3 .5-6" />
-                                  </>
+                                  <path d="M12 2c-1.1 0-2 .9-2 2v5.5H8.5V7c0-1.1-.9-2-2-2s-2 .9-2 2v9c0 2.21 1.79 4 4 4s4-1.79 4-4v-3.5h1V16c0 2.21 1.79 4 4 4s4-1.79 4-4V7c0-1.1-.9-2-2-2s-2 .9-2 2v2.5H14V4c0-1.1-.9-2-2-2zm-5.5 16c-1.1 0-2-.9-2-2v-4h2v4c0 .28.22.5.5.5s.5-.22.5-.5h1c0 1.1-.9 2-2 2zm11 0c-1.1 0-2-.9-2-2h1c0 .28.22.5.5.5s.5-.22.5-.5v-4h2v4c0 1.1-.9 2-2 2z" />
                                 ) }
                                 { persona.icon === 'heart' && (
-                                  <path d="M12 20s-7-4.4-7-9.5C5 7.4 7 6 9 6c1.6 0 2.6.9 3 1.8C12.4 6.9 13.4 6 15 6c2 0 4 1.4 4 4.5 0 5.1-7 9.5-7 9.5Z" />
+                                  <path d="M13.5 2c-1.8 0-3.4 1-4.2 2.5C8.4 3 6.9 2 5 2 2.2 2 0 4.2 0 7c0 1.1.3 2.1.9 3H5l1-2 2 4 2.5-6 1.5 3 1-2h8.1c.6-.9.9-1.9.9-3 0-2.8-2.2-5-5-5-.47 0-.93.07-1.4.2V2zm-.1 18.3C14.9 19 20 14.6 21.1 12h-4.5l-1.5 3-3-6-2 5-1.4-2.8L7.9 12H2.9C4 14.6 9.1 19 10.6 20.3c.4.3.9.5 1.4.5s1-.2 1.4-.5z" />
                                 ) }
                               </svg>
                             </button>
@@ -2336,6 +2335,13 @@ const VayuLokLive: React.FC = () => {
           --page:#fff;--alt:#fafafa;--lime:#d1f470;--lime-tint:rgba(209,244,112,.22);
           --green:#1a3a2a;--hair:#e5e7eb;--heading:rgba(0,0,0,.95);--body:rgba(0,0,0,.898);
           --muted:rgba(0,0,0,.54);--status:rgba(0,0,0,.70);--panel-r:14px;--pill-r:999px;
+          /* Home semantic hues mirrored from src/styles/tokens.css so the card reads as
+             multi-hue rather than near-mono. --info / --warning match tokens.css by name;
+             --teal (#0f766e) and --status-green (#15803d) mirror tokens.css --status-delivered-fg
+             and --status-read-fg (same values, local alias names). Used ONLY as section accents
+             (title dots); the AQI severity ramp is untouched and severity meaning still comes from
+             the category WORD + form, never hue alone (WCAG 1.4.1). No forbidden red. */
+          --info:#1d4ed8;--warning:#b45309;--teal:#0f766e;--status-green:#15803d;
           font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:var(--body);background:var(--page);padding-bottom:72px;-webkit-font-smoothing:antialiased;
         }
         .vl-live,.vl-live *{box-sizing:border-box}
@@ -2389,6 +2395,15 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-dominant{display:inline-flex;align-items:center;margin-top:8px;min-height:26px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:10.5px;font-weight:700}
 
         .vl-live-air-pollutants{margin-top:18px}
+        /* Section titles each carry a small on-palette accent dot (a distinct home hue
+           per section) so the card reads multi-hue and cohesive with the home pages. The
+           dot is decoration only - the section's meaning rests on its text label. */
+        .vl-live-air-pollutants-title,.vl-live-air-heatmap-label,.vl-live-air-health-title,.vl-live-air-history-title{display:inline-flex;align-items:center;gap:7px}
+        .vl-live-air-pollutants-title::before,.vl-live-air-heatmap-label::before,.vl-live-air-health-title::before,.vl-live-air-history-title::before{content:"";flex:0 0 auto;width:7px;height:7px;border-radius:50%}
+        .vl-live-air-pollutants-title::before{background:var(--teal)}
+        .vl-live-air-heatmap-label::before{background:var(--info)}
+        .vl-live-air-health-title::before{background:var(--status-green)}
+        .vl-live-air-history-title::before{background:var(--warning)}
         .vl-live-air-pollutants-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
         .vl-live-air-pollutant-list{margin:0;padding:0;list-style:none;border:1px solid var(--hair);border-radius:12px;overflow:hidden}
         .vl-live-air-pollutant-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;padding:11px 13px;background:#fff}
@@ -2396,9 +2411,17 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:12px;font-weight:600}
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;cursor:help}
-        .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--green);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
-        .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus svg{stroke:var(--lime)}
+        /* Custom pollutant tooltip: shows the label+value+unit on hover AND keyboard
+           focus (the native title= was unreliable and is gone). The tip is rendered
+           inline so styled-jsx can scope it, sits above the card at a literal z-index:1700
+           (matching the home --z-tooltip:1700 scale in tokens.css), and is wired to the
+           trigger via aria-describedby. NO red. */
+        .vl-live-air-pollutant-info{position:relative;display:inline-flex;align-items:center;justify-content:center;cursor:help;border-radius:50%}
+        .vl-live-air-pollutant-info svg{width:15px;height:15px;stroke:var(--info);fill:none;stroke-width:1.6;stroke-linecap:round;transition:stroke .15s ease}
+        .vl-live-air-pollutant-info:hover svg,.vl-live-air-pollutant-info:focus-visible svg{stroke:var(--lime)}
+        .vl-live-air-pollutant-info:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
+        .vl-live-air-pollutant-tip{position:absolute;bottom:calc(100% + 7px);right:0;z-index:1700;min-width:max-content;max-width:180px;padding:6px 9px;border-radius:8px;background:var(--green);color:#fff;font-size:11px;font-weight:600;line-height:1.3;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,.18);opacity:0;visibility:hidden;transform:translateY(3px);transition:opacity .15s ease,transform .15s ease,visibility .15s ease;pointer-events:none}
+        .vl-live-air-pollutant-info:hover .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-visible .vl-live-air-pollutant-tip,.vl-live-air-pollutant-info:focus-within .vl-live-air-pollutant-tip{opacity:1;visibility:visible;transform:translateY(0)}
 
         /* ── HEATMAP (toggle + Poor->Excellent legend) ──────────────────────────────
            The switch drives the existing deck.gl AQI overlay via the layer state. On/off is
@@ -2407,11 +2430,16 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap{margin-top:18px}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-heatmap-label{color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
-        .vl-live-air-heatmap-switch{position:relative;flex:0 0 auto;width:40px;height:22px;padding:0;border:1px solid var(--hair);border-radius:999px;background:#eef1ed;transition:background .18s ease,border-color .18s ease}
-        .vl-live-air-heatmap-switch.is-on{background:var(--green);border-color:var(--green)}
+        /* Switch restyled to the HOME control idiom: 2px border, lime ON track with a dark
+           --green knob (the brand toggle look), and the home lime --focus-ring on
+           :focus-visible. role=switch / aria-checked / aria-label / disabled wiring is
+           unchanged in the markup; styling only. NO red. */
+        .vl-live-air-heatmap-switch{position:relative;flex:0 0 auto;width:44px;height:24px;padding:0;border:2px solid var(--hair);border-radius:999px;background:#eef1ed;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease}
+        .vl-live-air-heatmap-switch.is-on{background:var(--lime);border-color:var(--green)}
+        .vl-live-air-heatmap-switch:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
         .vl-live-air-heatmap-switch:disabled{opacity:.5;cursor:not-allowed}
-        .vl-live-air-heatmap-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s ease}
-        .vl-live-air-heatmap-switch.is-on .vl-live-air-heatmap-knob{transform:translateX(18px)}
+        .vl-live-air-heatmap-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .18s ease,background .18s ease}
+        .vl-live-air-heatmap-switch.is-on .vl-live-air-heatmap-knob{transform:translateX(20px);background:var(--green)}
         .vl-live-air-heatmap-legend{margin-top:10px}
         .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
         .vl-live-air-heatmap-ends{display:flex;align-items:center;justify-content:space-between;margin-top:5px}
@@ -2424,8 +2452,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-health-title{margin:0 0 10px;color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
         .vl-live-air-health-tabs{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
         .vl-live-air-health-tab{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--green)}
-        .vl-live-air-health-tab.is-active{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 0 0 2px var(--lime-tint)}
-        .vl-live-air-health-icon{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+        .vl-live-air-health-tab:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(209,244,112,.45)}
+        .vl-live-air-health-tab.is-active{background:var(--green);border-color:var(--green);color:var(--lime);box-shadow:0 0 0 2px var(--lime-tint)}
+        .vl-live-air-health-tab.is-active:focus-visible{box-shadow:0 0 0 3px rgba(209,244,112,.45)}
+        /* Material-Symbols-style glyphs are filled paths; the active chip tints them --lime
+           via currentColor (set by .is-active above), inactive stays brand --green. */
+        .vl-live-air-health-icon{width:21px;height:21px;fill:currentColor;stroke:none}
         .vl-live-air-health-next{display:inline-flex;align-items:center;justify-content:center;width:32px;height:40px;padding:0;border:0;background:transparent;color:var(--muted)}
         .vl-live-air-health-next svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
         .vl-live-air-health-rule{margin:14px 0 12px;border:0;border-top:1px solid var(--hair)}
