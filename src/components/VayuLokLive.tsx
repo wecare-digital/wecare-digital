@@ -285,34 +285,63 @@ function statusWord( sev: Sev ): string {
 }
 
 /* ---- Health recommendation personas -------------------------------------------------
-   Static, honest health guidance shown under the Air panel. The glyphs below are local SVG
-   paths from Google's Material Symbols Outlined family: groups, elderly, pulmonology,
-   cardiology, info, switches and chevron_right. Local paths keep the product crisp without
-   introducing a font/network dependency. */
-type HealthPersonaIcon = 'general' | 'elderly' | 'respiratory' | 'heart';
-interface HealthPersona {
+   Google Air Quality currentConditions returns tailored guidance for seven supported
+   populations. These definitions contain LABEL + API KEY + Google Material Symbol only:
+   recommendation copy always comes from Google's response, never from static fallback text. */
+type HealthRecommendationKey =
+  | 'generalPopulation'
+  | 'elderly'
+  | 'lungDiseasePopulation'
+  | 'heartDiseasePopulation'
+  | 'athletes'
+  | 'pregnantWomen'
+  | 'children';
+
+type HealthPersonaIcon =
+  | 'general'
+  | 'elderly'
+  | 'respiratory'
+  | 'heart'
+  | 'athletes'
+  | 'pregnant'
+  | 'children';
+
+interface HealthPersonaDefinition {
   id: string;
   label: string;
-  recommendation: string;
+  apiKey: HealthRecommendationKey;
   icon: HealthPersonaIcon;
 }
 
-const MATERIAL_SYMBOL_PATHS: Record<HealthPersonaIcon | 'info' | 'switches' | 'close' | 'next', string> = {
+/* Local paths from Google's Material Symbols Outlined set. Keeping the SVG paths local avoids
+   a runtime icon-font dependency while preserving Google's icon language across the Air card. */
+const MATERIAL_SYMBOL_PATHS: Record<
+  HealthPersonaIcon | 'info' | 'switches' | 'close' | 'air' | 'schedule' | 'location',
+  string
+> = {
   info: 'M453-280h60v-240h-60v240Zm50.5-323.2q9.5-9.2 9.5-22.8 0-14.45-9.48-24.22-9.48-9.78-23.5-9.78t-23.52 9.78Q447-640.45 447-626q0 13.6 9.48 22.8 9.48 9.2 23.5 9.2t23.52-9.2ZM480.27-80q-82.74 0-155.5-31.5Q252-143 197.5-197.5t-86-127.34Q80-397.68 80-480.5t31.5-155.66Q143-709 197.5-763t127.34-85.5Q397.68-880 480.5-880t155.66 31.5Q709-817 763-763t85.5 127Q880-563 880-480.27q0 82.74-31.5 155.5Q817-252 763-197.68q-54 54.31-127 86Q563-80 480.27-80Zm.23-60Q622-140 721-239.5t99-241Q820-622 721.19-721T480-820q-141 0-240.5 98.81T140-480q0 141 99.5 240.5t241 99.5Zm-.5-340Z',
   switches: 'M270-289q-80 0-135-54.5T80-479q0-81 54.5-135.5T270-669q51 0 90 22t65 63h350q44 0 74.5 30.5T880-479q0 44-30.5 74.5T775-374H425q-26 41-65 63t-90 22Zm3-190Zm180 45h322q20 0 32.5-12.5T820-479q0-20-12.5-32.5T775-524H453q4 10 5.5 22t1.5 23q0 11-1.5 23t-5.5 22Zm-90.5 47.5Q400-424 400-479t-37.5-92.5Q325-609 270-609t-92.5 37.5Q140-534 140-479t37.5 92.5Q215-349 270-349t92.5-37.5Z',
-  general: 'M0-240v-53q0-38.57 41.5-62.78Q83-380 150.38-380q12.16 0 23.39.5t22.23 2.15q-8 17.35-12 35.17-4 17.81-4 37.18v65H0Zm240 0v-65q0-32 17.5-58.5T307-410q32-20 76.5-30t96.5-10q53 0 97.5 10t76.5 30q32 20 49 46.5t17 58.5v65H240Zm540 0v-65q0-19.86-3.5-37.43T765-377.27q11-1.73 22.17-2.23 11.17-.5 22.83-.5 67.5 0 108.75 23.77T960-293v53H780Zm-480-60h360v-6q0-37-50.5-60.5T480-390q-79 0-129.5 23.5T300-305v5ZM149.57-410q-28.57 0-49.07-20.56Q80-451.13 80-480q0-29 20.56-49.5Q121.13-550 150-550q29 0 49.5 20.5t20.5 49.93q0 28.57-20.5 49.07T149.57-410Zm660 0q-28.57 0-49.07-20.56Q740-451.13 740-480q0-29 20.56-49.5Q781.13-550 810-550q29 0 49.5 20.5t20.5 49.93q0 28.57-20.5 49.07T809.57-410ZM480-480q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T600-600q0 50-34.5 85T480-480Zm.35-60Q506-540 523-557.35t17-43Q540-626 522.85-643t-42.5-17q-25.35 0-42.85 17.15t-17.5 42.5q0 25.35 17.35 42.85t43 17.5ZM480-300Zm0-300Z',
+  close: 'M256-214 214-256l224-224-224-224 42-42 224 224 224-224 42 42-224 224 224 224-42 42-224-224-224 224Z',
+  air: 'M460-160q-50 0-85-35t-35-85h80q0 17 11.5 28.5T460-240q17 0 28.5-11.5T500-280q0-17-11.5-28.5T460-320H80v-80h380q50 0 85 35t35 85q0 50-35 85t-85 35ZM80-560v-80h540q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43h-80q0-59 40.5-99.5T620-840q59 0 99.5 40.5T760-700q0 59-40.5 99.5T620-560H80Zm660 320v-80q26 0 43-17t17-43q0-26-17-43t-43-17H80v-80h660q59 0 99.5 40.5T880-380q0 59-40.5 99.5T740-240Z',
+  schedule: 'm612-292 56-56-148-148v-184h-80v216l172 172ZM480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm0-400Zm0 320q133 0 226.5-93.5T800-480q0-133-93.5-226.5T480-800q-133 0-226.5 93.5T160-480q0 133 93.5 226.5T480-160Z',
+  location: 'M480-480q33 0 56.5-23.5T560-560q0-33-23.5-56.5T480-640q-33 0-56.5 23.5T400-560q0 33 23.5 56.5T480-480Zm0 294q122-112 181-203.5T720-552q0-109-69.5-178.5T480-800q-101 0-170.5 69.5T240-552q0 71 59 162.5T480-186Zm0 106Q319-217 239.5-334.5T160-552q0-150 96.5-239T480-880q127 0 223.5 89T800-552q0 100-79.5 217.5T480-80Zm0-480Z',
+  general: 'M420-340h120v-100h100v-120H540v-100H420v100H320v120h100v100Zm60 260q-139-35-229.5-159.5T160-516v-244l320-120 320 120v244q0 152-90.5 276.5T480-80Zm0-84q104-33 172-132t68-220v-189l-240-90-240 90v189q0 121 68 220t172 132Zm0-316Z',
   elderly: 'm320-40-48-36 104-139-8-191q-2-52 5.5-109.5T397-617l-97 56v111h-60v-146l167-96q17-10 32.5-15t29.5-5q27 0 48.5 21t41.5 66q20 46 59 75.5t94 46.5q7-4 13.5-5.5T739-510q23 0 42 18.5t19 41.5v410h-30v-410q0-12-9-21t-21-9q-12 0-21 9t-9 21v30h-30v-33q-42-11-87.5-42T521-568q-12 34-18.5 75t-4.5 73l97 137v243h-60v-219l-85-95-10 154L320-40Zm218-714q-30 0-51.5-21.5T465-827q0-30 21.5-51.5T538-900q30 0 51.5 21.5T611-827q0 30-21.5 51.5T538-754Z',
   respiratory: 'M190-120q-46 0-78-32t-32-78v-185l108-279q12-31 40.07-48.5t60.82-17.5q42.11 0 71.61 29.57T390-659v39h-60v-39q0-17.19-12.83-29.1-12.82-11.9-29.92-11.9-14.25 0-26.25 6.5T244-674L140-405v175q0 21.25 14.38 35.62Q168.75-180 190-180h140q21.25 0 35.63-14.38Q380-208.75 380-230v-70h60v70q0 46-32.08 78-32.09 32-77.92 32H190Zm580 0H630q-45.83 0-77.92-32Q520-184 520-230v-70h60v70q0 21.25 14.38 35.62Q608.75-180 630-180h140q21.25 0 35.63-14.38Q820-208.75 820-230v-175L716-674q-5-13-17-19.5t-26-6.5q-17 0-30 11.9-13 11.91-13 29.1v39h-60v-39q0-41.86 29.52-71.43Q629.03-760 671.2-760q32.8 0 60.8 17.5t40 48.5l108 279v185q0 46-32.08 78-32.09 32-77.92 32ZM334-456Zm292 0Zm-146-62L376-414l-42-42 116-116v-308h60v308l116 116-42 42-104-104Z',
   heart: 'M290-840q57 0 105.5 27t84.5 78q42-54 89-79.5T670-840q89 0 149.5 60.5T880-629q0 15-1.5 29.5T873-570h-62q5-15 7-29.5t2-29.5q0-66-42-108.5T670-780q-51 0-95 31.5T504-660h-49q-26-56-70-88t-95-32q-66 0-108 42.5T140-629q0 15 2 29.5t7 29.5H87q-4-15-5.5-29.5T80-629q0-90 60.5-150.5T290-840Zm-98 450h78q38 42 89.5 91.5T480-186q69-63 120-112.5t89-91.5h79q-42 49-102 108.5T521-144l-41 37-41-37q-85-78-145-137.5T192-390Zm250 60q9 0 16-5.5t10-14.5l61-181 46 68q5 6 11 9.5t14 3.5h310v-60H617l-72-106q-5-7-12-10t-15-3q-9 0-16.5 5.5T491-609l-60 181-47-69q-5-6-10.5-9.5T360-510H50v60h292l72 107q5 7 12.5 10t15.5 3Zm38-153Z',
-  close: 'M256-214 214-256l224-224-224-224 42-42 224 224 224-224 42 42-224 224 224 224-42 42-224-224-224 224Z',
-  next: 'M530-481 332-679l43-43 241 241-241 241-43-43 198-198Z',
+  athletes: 'M520-40v-240l-84-80-40 176-276-56 16-80 192 40 64-324-72 28v136h-80v-188l158-68q35-15 51.5-19.5T480-720q21 0 39 11t29 29l40 64q26 42 70.5 69T760-520v80q-66 0-123.5-27.5T540-540l-24 120 84 80v300h-80Zm20-700q-33 0-56.5-23.5T460-820q0-33 23.5-56.5T540-900q33 0 56.5 23.5T620-820q0 33-23.5 56.5T540-740Z',
+  pregnant: 'M400-80v-200h-80v-280q0-50 35-85t85-35q50 0 85 35t35 85q36 15 58 48t22 72v160H520v200H400Zm40-640q-33 0-56.5-23.5T360-800q0-33 23.5-56.5T440-880q33 0 56.5 23.5T520-800q0 33-23.5 56.5T440-720Z',
+  children: 'M580-490q-21 0-35.5-14.5T530-540q0-21 14.5-35.5T580-590q21 0 35.5 14.5T630-540q0 21-14.5 35.5T580-490Zm-200 0q-21 0-35.5-14.5T330-540q0-21 14.5-35.5T380-590q21 0 35.5 14.5T430-540q0 21-14.5 35.5T380-490Zm100 210q-60 0-108.5-33T300-400h360q-23 54-71.5 87T480-280Zm0 160q-75 0-140.5-28.5t-114-77q-48.5-48.5-77-114T120-480q0-75 28.5-140.5t77-114q48.5-48.5 114-77T480-840q75 0 140.5 28.5t114 77q48.5 48.5 77 114T840-480q0 75-28.5 140.5t-77 114q-48.5 48.5-114 77T480-120Zm0-80q116 0 198-82t82-198q0-116-82-198t-198-82h-12q-6 0-12 2-6 6-8 13t-2 15q0 21 14.5 35.5T496-680q9 0 16.5-3t15.5-3q12 0 20 9t8 21q0 23-21.5 29.5T496-620q-45 0-77.5-32.5T386-730v-6q0-3 1-8-83 30-135 101t-52 163q0 116 82 198t198 82Zm0-280Z',
 };
 
-const HEALTH_PERSONAS: HealthPersona[] = [
-  { id: 'general', label: 'General population', recommendation: 'Air is fine for most people. Ease off outdoors if you feel unwell.', icon: 'general' },
-  { id: 'elderly', label: 'Elderly', recommendation: 'Cut back on hard outdoor effort if you cough or feel short of breath. Keep away from traffic, smoke and dust.', icon: 'elderly' },
-  { id: 'respiratory', label: 'Respiratory', recommendation: 'Keep your reliever inhaler handy and go easy outdoors. Head inside if you wheeze or feel tight-chested.', icon: 'respiratory' },
-  { id: 'heart', label: 'Heart', recommendation: 'Pace yourself outdoors and rest if you feel chest discomfort or palpitations. Favour quieter routes away from traffic.', icon: 'heart' },
+const HEALTH_PERSONAS: HealthPersonaDefinition[] = [
+  { id: 'general', label: 'General population', apiKey: 'generalPopulation', icon: 'general' },
+  { id: 'elderly', label: 'Elderly', apiKey: 'elderly', icon: 'elderly' },
+  { id: 'respiratory', label: 'Lung disease', apiKey: 'lungDiseasePopulation', icon: 'respiratory' },
+  { id: 'heart', label: 'Heart disease', apiKey: 'heartDiseasePopulation', icon: 'heart' },
+  { id: 'athletes', label: 'Athletes', apiKey: 'athletes', icon: 'athletes' },
+  { id: 'pregnant', label: 'Pregnant women', apiKey: 'pregnantWomen', icon: 'pregnant' },
+  { id: 'children', label: 'Children', apiKey: 'children', icon: 'children' },
 ];
 
 function compactAirInfo( value?: string, maxChars = 92 ): string | undefined {
@@ -342,11 +371,35 @@ interface AirState {
   aqi: number;
   word: string;
   sev: Sev;
+  indexName?: string;
   dominant?: string;
-  pollutants: { code: string; label: string; value: number; unit: string; sources?: string; effects?: string }[];
+  pollutants: {
+    code: string;
+    label: string;
+    fullName?: string;
+    value: number;
+    unit: string;
+    sources?: string;
+    effects?: string;
+  }[];
+  healthRecommendations?: Partial<Record<HealthRecommendationKey, string>>;
   advisory?: string;
   updatedAt?: string;
 }
+
+interface LocationTimeState {
+  timeZoneId: string;
+  timeZoneName: string;
+  shortLabel: string;
+  source: 'default' | 'google';
+}
+
+const DEFAULT_LOCATION_TIME: LocationTimeState = {
+  timeZoneId: 'Asia/Kolkata',
+  timeZoneName: 'India Standard Time',
+  shortLabel: 'IST',
+  source: 'default',
+};
 interface WeatherState {
   temp?: number;
   feelsLike?: number;
@@ -523,41 +576,90 @@ function dominantPollutantLabel( code: string, pollutants: AirState['pollutants'
   return fromRow || POLLUTANT_LABELS[ code ] || code;
 }
 
+function parseHealthRecommendations( raw: unknown ): AirState['healthRecommendations'] | undefined {
+  if ( !raw || typeof raw !== 'object' ) return undefined;
+  const source = raw as Record<string, unknown>;
+  const out: Partial<Record<HealthRecommendationKey, string>> = {};
+  HEALTH_PERSONAS.forEach( persona => {
+    const value = source[ persona.apiKey ];
+    if ( typeof value === 'string' && value.trim() ) out[ persona.apiKey ] = value.trim();
+  } );
+  return Object.keys( out ).length ? out : undefined;
+}
+
+function timeZoneShortLabel( timeZoneId: string, timeZoneName: string ): string {
+  if ( /Asia\/(Kolkata|Calcutta)/i.test( timeZoneId ) ) return 'IST';
+  try {
+    const part = new Intl.DateTimeFormat( 'en-US', {
+      timeZone: timeZoneId,
+      timeZoneName: 'short',
+    } ).formatToParts( new Date() ).find( row => row.type === 'timeZoneName' )?.value;
+    if ( part ) return part;
+  } catch { /* invalid/unsupported zone -> use Google's long name below */ }
+  return timeZoneName || 'Local';
+}
+
+function formatLocationClock( now: number, timeZoneId: string ): string {
+  try {
+    return new Intl.DateTimeFormat( 'en-IN', {
+      timeZone: timeZoneId,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    } ).format( new Date( now ) );
+  } catch {
+    return new Intl.DateTimeFormat( 'en-IN', {
+      timeZone: DEFAULT_LOCATION_TIME.timeZoneId,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    } ).format( new Date( now ) );
+  }
+}
+
 /* Parse a currentConditions:lookup payload into the LEFT-card AirState (AQI value +
    category word + severity + pollutant rows + advisory). Returns null when no finite AQI
    arrived, so a point that fails to parse is DROPPED, never fabricated. Shared by the
    layer-activation center-point fetch; the grid points reuse airPointFromApi instead. */
 function airStateFromApiData( data: Record<string, any> | null | undefined ): AirState | null {
-  const indexes: { code?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
+  const indexes: { code?: string; displayName?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
   const idx = indexes.find( i => i.code === 'ind_cpcb' ) || indexes.find( i => i.code === 'uaqi' ) || indexes[ 0 ];
   if ( !idx || !Number.isFinite( idx.aqi ) ) return null;
   const aqi = idx.aqi as number;
   const cat = aqiCategory( aqi );
   const pollutants: AirState['pollutants'] = [];
-  ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string }; additionalInfo?: { sources?: string; effects?: string } } ) => {
-    const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
+  ( data?.pollutants || [] ).forEach( ( p: {
+    code?: string;
+    displayName?: string;
+    fullName?: string;
+    concentration?: { value?: number; units?: string };
+    additionalInfo?: { sources?: string; effects?: string };
+  } ) => {
+    const label = p.code ? ( p.displayName || POLLUTANT_LABELS[ p.code ] ) : undefined;
     const v = p.concentration?.value;
     if ( label && Number.isFinite( v ) ) {
       pollutants.push( {
         code: p.code as string,
         label,
+        ...( typeof p.fullName === 'string' && p.fullName.trim() ? { fullName: p.fullName.trim() } : {} ),
         value: v as number,
         unit: concUnitLabel( p.concentration?.units ),
-        // Carry Google's per-pollutant sources/effects ONLY when present as a non-empty
-        // string; absent additionalInfo leaves the field undefined (never fabricated).
         ...( typeof p.additionalInfo?.sources === 'string' && p.additionalInfo.sources ? { sources: p.additionalInfo.sources } : {} ),
         ...( typeof p.additionalInfo?.effects === 'string' && p.additionalInfo.effects ? { effects: p.additionalInfo.effects } : {} ),
       } );
     }
   } );
-  const advisory = data?.healthRecommendations?.generalPopulation;
+  const healthRecommendations = parseHealthRecommendations( data?.healthRecommendations );
+  const advisory = healthRecommendations?.generalPopulation;
   return {
     aqi,
     word: cat.word,
     sev: cat.sev,
+    ...( typeof idx.displayName === 'string' && idx.displayName.trim() ? { indexName: idx.displayName.trim() } : {} ),
     dominant: idx.dominantPollutant || undefined,
     pollutants,
-    advisory: typeof advisory === 'string' ? advisory : undefined,
+    ...( healthRecommendations ? { healthRecommendations } : {} ),
+    advisory,
     updatedAt: typeof data?.dateTime === 'string' ? data.dateTime : undefined,
   };
 }
@@ -682,6 +784,8 @@ const VayuLokLive: React.FC = () => {
   const [ coreFetchedAt, setCoreFetchedAt ] = useState<number | null>( null );
   const [ mapCandidate, setMapCandidate ] = useState<PlaceState | null>( null );
   const [ addressDescriptor, setAddressDescriptor ] = useState( '' );
+  const [ locationTime, setLocationTime ] = useState<LocationTimeState>( DEFAULT_LOCATION_TIME );
+  const [ clockNow, setClockNow ] = useState( () => Date.now() );
 
   // Search combobox state.
   const [ query, setQuery ] = useState( '' );
@@ -725,6 +829,7 @@ const VayuLokLive: React.FC = () => {
     airForecast: AirPoint[];
   }>>( {} );
   const historyCache = useRef<Record<string, { ts: number; points: AirPoint[] }>>( {} );
+  const timeZoneCache = useRef<Record<string, LocationTimeState>>( {} );
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>( null );
   // FEAT-002: the deck.gl GoogleMapsOverlay instance (created lazily on first layer
   // activation), the AbortController for the in-flight grid fetch, and the grid cache
@@ -737,6 +842,55 @@ const VayuLokLive: React.FC = () => {
   const heatmapOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
+
+  useEffect( () => {
+    const timer = window.setInterval( () => setClockNow( Date.now() ), 30_000 );
+    return () => window.clearInterval( timer );
+  }, [] );
+
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) {
+      setLocationTime( DEFAULT_LOCATION_TIME );
+      return;
+    }
+
+    const cacheKey = `${place.lat.toFixed( 4 )},${place.lng.toFixed( 4 )}`;
+    const cached = timeZoneCache.current[ cacheKey ];
+    if ( cached ) {
+      setLocationTime( cached );
+      return;
+    }
+
+    // The card starts on IST by owner request. Once Google Time Zone resolves the selected
+    // destination, swap to that location's real zone. Failed/restricted lookups remain
+    // explicitly labelled as the IST default rather than inventing a local zone.
+    setLocationTime( DEFAULT_LOCATION_TIME );
+    const ac = new AbortController();
+    const timestamp = Math.floor( Date.now() / 1000 );
+    const params = new URLSearchParams( {
+      location: `${place.lat},${place.lng}`,
+      timestamp: String( timestamp ),
+      key: MAPS_KEY,
+    } );
+
+    void fetch( `https://maps.googleapis.com/maps/api/timezone/json?${params.toString()}`, { signal: ac.signal } )
+      .then( async res => res.ok ? res.json() : null )
+      .then( data => {
+        if ( ac.signal.aborted || data?.status !== 'OK' || typeof data?.timeZoneId !== 'string' ) return;
+        const timeZoneName = typeof data.timeZoneName === 'string' ? data.timeZoneName : data.timeZoneId;
+        const next: LocationTimeState = {
+          timeZoneId: data.timeZoneId,
+          timeZoneName,
+          shortLabel: timeZoneShortLabel( data.timeZoneId, timeZoneName ),
+          source: 'google',
+        };
+        timeZoneCache.current[ cacheKey ] = next;
+        setLocationTime( next );
+      } )
+      .catch( () => { /* keep explicit IST default on Time Zone API failure */ } );
+
+    return () => ac.abort();
+  }, [ place.lat, place.lng, hasSelection ] );
 
   const openPollutantTip = useCallback( ( code: string, el: HTMLElement ) => {
     if ( typeof window === 'undefined' ) return;
@@ -1409,39 +1563,8 @@ const VayuLokLive: React.FC = () => {
         );
         if ( !res.ok ) return;
         const data = await res.json();
-        const indexes: { code?: string; aqi?: number; dominantPollutant?: string }[] = data?.indexes || [];
-        // Prefer the India CPCB local AQI when present, else the universal AQI.
-        const idx = indexes.find( i => i.code === 'ind_cpcb' ) || indexes.find( i => i.code === 'uaqi' ) || indexes[ 0 ];
-        if ( !idx || !Number.isFinite( idx.aqi ) ) return;
-        const aqi = idx.aqi as number;
-        const cat = aqiCategory( aqi );
-        const pollutants: AirState['pollutants'] = [];
-        ( data?.pollutants || [] ).forEach( ( p: { code?: string; concentration?: { value?: number; units?: string }; additionalInfo?: { sources?: string; effects?: string } } ) => {
-          const label = p.code ? POLLUTANT_LABELS[ p.code ] : undefined;
-          const v = p.concentration?.value;
-          if ( label && Number.isFinite( v ) ) {
-            pollutants.push( {
-              code: p.code as string,
-              label,
-              value: v as number,
-              unit: concUnitLabel( p.concentration?.units ),
-              // Carry Google's per-pollutant sources/effects ONLY when present as a non-empty
-              // string; absent additionalInfo leaves the field undefined (never fabricated).
-              ...( typeof p.additionalInfo?.sources === 'string' && p.additionalInfo.sources ? { sources: p.additionalInfo.sources } : {} ),
-              ...( typeof p.additionalInfo?.effects === 'string' && p.additionalInfo.effects ? { effects: p.additionalInfo.effects } : {} ),
-            } );
-          }
-        } );
-        const advisory = data?.healthRecommendations?.generalPopulation;
-        store.air = {
-          aqi,
-          word: cat.word,
-          sev: cat.sev,
-          dominant: idx.dominantPollutant || undefined,
-          pollutants,
-          advisory: typeof advisory === 'string' ? advisory : undefined,
-          updatedAt: typeof data?.dateTime === 'string' ? data.dateTime : undefined,
-        };
+        const parsedAir = airStateFromApiData( data );
+        if ( parsedAir ) store.air = parsedAir;
       } catch { /* silent degradation */ }
     };
 
@@ -2050,6 +2173,33 @@ const VayuLokLive: React.FC = () => {
     : null;
   const mapActive = Boolean( MAPS_KEY );
 
+  const liveHealthPersonas = useMemo( () => {
+    const recommendations = air?.healthRecommendations;
+    if ( !recommendations ) return [];
+    return HEALTH_PERSONAS
+      .map( persona => ( {
+        ...persona,
+        recommendation: recommendations[ persona.apiKey ],
+      } ) )
+      .filter( ( persona ): persona is HealthPersonaDefinition & { recommendation: string } =>
+        typeof persona.recommendation === 'string' && Boolean( persona.recommendation.trim() )
+      );
+  }, [ air?.healthRecommendations ] );
+
+  useEffect( () => {
+    if ( !liveHealthPersonas.length ) {
+      if ( healthPersona !== 0 ) setHealthPersona( 0 );
+      return;
+    }
+    if ( healthPersona >= liveHealthPersonas.length ) setHealthPersona( Math.min( 1, liveHealthPersonas.length - 1 ) );
+  }, [ healthPersona, liveHealthPersonas.length ] );
+
+  const activeHealthPersona = liveHealthPersonas[ healthPersona ] || liveHealthPersonas[ 0 ] || null;
+  const locationClock = formatLocationClock( clockNow, locationTime.timeZoneId );
+  const locationZoneLabel = locationTime.source === 'google'
+    ? locationTime.shortLabel
+    : 'IST default';
+
   const atmosphereStyle = useMemo( () => {
     const cloud = Number.isFinite( weather?.cloudCover ) ? weather?.cloudCover as number : 58;
     const rain = Number.isFinite( weather?.rainProb ) ? weather?.rainProb as number : 24;
@@ -2087,6 +2237,23 @@ const VayuLokLive: React.FC = () => {
                   (header + toggle + honest empty state) shows, firing no fetch of its own. */}
               <div className="vl-live-air-card-wrap">
               <aside className="vl-live-air-card" aria-label="Air quality details" onScroll={ () => setPollutantTip( null ) }>
+                <div className="vl-live-air-context" aria-label="Selected location and local time">
+                  <span className="vl-live-air-context-item is-location" title={ place.addr || place.name }>
+                    <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.location } /></svg>
+                    <strong>{ place.name }</strong>
+                  </span>
+                  <span
+                    className="vl-live-air-context-item is-time"
+                    title={ locationTime.source === 'google'
+                      ? `${locationTime.timeZoneName} from Google Time Zone API`
+                      : 'India Standard Time default while Google Time Zone is unavailable or loading' }
+                  >
+                    <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                    <time dateTime={ new Date( clockNow ).toISOString() }>{ locationClock }</time>
+                    <small>{ locationZoneLabel }</small>
+                  </span>
+                </div>
+
                 {/* Air/Weather toggle - the same tint + saturated dot idiom as the hero's
                     rotating pill (Air #e0f7c8/#3da35a, Weather #dbeafe/#2563eb). Drives the
                     existing detailTab state; clicking it triggers no network call. */}
@@ -2145,9 +2312,22 @@ const VayuLokLive: React.FC = () => {
                         </div>
                         <div className="vl-live-air-gauge-meta">
                           <strong className="vl-live-air-gauge-word">{ air.word } air quality</strong>
-                          { air.dominant && (
-                            <span className="vl-live-air-dominant">Dominant pollutant: { dominantPollutantLabel( air.dominant, air.pollutants ) }</span>
-                          ) }
+                          { air.indexName && <span className="vl-live-air-index-name">{ air.indexName }</span> }
+                          <div className="vl-live-air-facts">
+                            { air.dominant && (
+                              <span className="vl-live-air-fact is-dominant">
+                                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.air } /></svg>
+                                <span>Dominant</span>
+                                <strong>{ dominantPollutantLabel( air.dominant, air.pollutants ) }</strong>
+                              </span>
+                            ) }
+                            { air.updatedAt && (
+                              <span className="vl-live-air-fact is-updated">
+                                <svg viewBox="0 -960 960 960" aria-hidden="true"><path d={ MATERIAL_SYMBOL_PATHS.schedule } /></svg>
+                                <span>{ relativeAgeLabel( air.updatedAt ).label }</span>
+                              </span>
+                            ) }
+                          </div>
                         </div>
                       </div>
 
@@ -2210,47 +2390,46 @@ const VayuLokLive: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* SECTION 2 - HEALTH RECOMMENDATIONS. A role=tablist of persona icon
-                          buttons (plus a '>' advance control), with exactly one selected
-                          persona driving the recommendation paragraph below the divider. The
-                          selected highlight is brand green/lime UI chrome, never a severity
-                          colour; icons are aria-hidden and each button has an accessible name. */}
-                      <div className="vl-live-air-health">
-                        <h4 className="vl-live-air-health-title">Health Recommendations</h4>
-                        <div className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
-                          { HEALTH_PERSONAS.map( ( persona, idx ) => (
-                            <button
-                              key={ persona.id }
-                              type="button"
-                              role="tab"
-                              id={ `vl-live-air-health-tab-${persona.id}` }
-                              aria-controls="vl-live-air-health-panel"
-                              aria-selected={ healthPersona === idx }
-                              aria-label={ persona.label }
-                              className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
-                              onClick={ () => setHealthPersona( idx ) }
-                            >
-                              <span className="vl-live-air-health-icon-wrap" aria-hidden="true">
-                                <svg viewBox="0 -960 960 960" className="vl-live-air-health-icon">
-                                  <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
-                                </svg>
-                              </span>
-                              <span className="vl-live-air-health-tab-label">{ persona.id === 'general' ? 'General' : persona.label }</span>
-                            </button>
-                          ) ) }
-
+                      {/* SECTION 2 - HEALTH RECOMMENDATIONS. Only Google's returned
+                          population-specific text is rendered. Missing groups disappear rather than
+                          receiving static/fabricated advice. */}
+                      { activeHealthPersona && (
+                        <div className="vl-live-air-health">
+                          <h4 className="vl-live-air-health-title">Health Recommendations</h4>
+                          <div className="vl-live-air-health-tabs" role="tablist" aria-label="Health recommendation profiles">
+                            { liveHealthPersonas.map( ( persona, idx ) => (
+                              <button
+                                key={ persona.id }
+                                type="button"
+                                role="tab"
+                                id={ `vl-live-air-health-tab-${persona.id}` }
+                                aria-controls="vl-live-air-health-panel"
+                                aria-selected={ healthPersona === idx }
+                                aria-label={ persona.label }
+                                className={ `vl-live-air-health-tab ${healthPersona === idx ? 'is-active' : ''}`.trim() }
+                                onClick={ () => setHealthPersona( idx ) }
+                              >
+                                <span className="vl-live-air-health-icon-wrap" aria-hidden="true">
+                                  <svg viewBox="0 -960 960 960" className="vl-live-air-health-icon">
+                                    <path d={ MATERIAL_SYMBOL_PATHS[ persona.icon ] } />
+                                  </svg>
+                                </span>
+                                <span className="vl-live-air-health-tab-label">{ persona.label }</span>
+                              </button>
+                            ) ) }
+                          </div>
+                          <hr className="vl-live-air-health-rule" aria-hidden="true" />
+                          <div
+                            className="vl-live-air-health-panel"
+                            role="tabpanel"
+                            id="vl-live-air-health-panel"
+                            aria-labelledby={ `vl-live-air-health-tab-${activeHealthPersona.id}` }
+                          >
+                            <strong className="vl-live-air-health-persona">{ activeHealthPersona.label }</strong>
+                            <p className="vl-live-air-health-text">{ activeHealthPersona.recommendation }</p>
+                          </div>
                         </div>
-                        <hr className="vl-live-air-health-rule" aria-hidden="true" />
-                        <div
-                          className="vl-live-air-health-panel"
-                          role="tabpanel"
-                          id="vl-live-air-health-panel"
-                          aria-labelledby={ `vl-live-air-health-tab-${HEALTH_PERSONAS[ healthPersona ].id}` }
-                        >
-                          <strong className="vl-live-air-health-persona">{ HEALTH_PERSONAS[ healthPersona ].label }</strong>
-                          <p className="vl-live-air-health-text">{ HEALTH_PERSONAS[ healthPersona ].recommendation }</p>
-                        </div>
-                      </div>
+                      ) }
 
                       {/* SECTION 3 - HOURLY HISTORY. Reuses the existing airHistory state and
                           historyRange/aqiCategory helpers. An inline-SVG AQI line chart over the
@@ -2503,7 +2682,10 @@ const VayuLokLive: React.FC = () => {
         >
           <div className="vl-live-air-pollutant-pop">
             <div className="vl-live-air-pollutant-pop-head">
-              <span className="vl-live-air-pollutant-pop-title">{ activePollutant.label }</span>
+              <span>
+                <span className="vl-live-air-pollutant-pop-title">{ activePollutant.label }</span>
+                { activePollutant.fullName && <span className="vl-live-air-pollutant-pop-fullname">{ activePollutant.fullName }</span> }
+              </span>
               <button
                 type="button"
                 className="vl-live-air-pollutant-pop-close"
@@ -2567,6 +2749,14 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-card-wrap::after{content:"";position:absolute;left:52%;bottom:-11px;width:22px;height:22px;background:#fff;border-right:1px solid rgba(26,58,42,.14);border-bottom:1px solid rgba(26,58,42,.14);transform:translateX(-50%) rotate(45deg);border-radius:0 0 4px 0}
         .vl-live-air-card{position:relative;width:100%;overflow:visible;padding:22px 24px 22px;border:1px solid rgba(26,58,42,.14);border-radius:14px;background:#fff;box-shadow:none;color:var(--body)}
 
+        .vl-live-air-context{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-2px 0 16px;padding:0 0 12px;border-bottom:1px solid var(--hair)}
+        .vl-live-air-context-item{display:inline-flex;min-width:0;align-items:center;gap:6px;color:var(--status);font-size:12px;line-height:1.2}
+        .vl-live-air-context-item svg{flex:0 0 auto;width:18px;height:18px;fill:var(--lime)}
+        .vl-live-air-context-item strong{min-width:0;overflow:hidden;color:var(--heading);font-weight:700;text-overflow:ellipsis;white-space:nowrap}
+        .vl-live-air-context-item.is-time{justify-content:flex-end;white-space:nowrap}
+        .vl-live-air-context-item time{color:var(--heading);font-weight:700}
+        .vl-live-air-context-item small{color:var(--muted);font-size:10px;font-weight:700}
+
         /* Air/Weather toggle - same pale tint + saturated same-hue dot as the hero pill. */
         .vl-live-air-toggle{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;border:1px solid var(--hair);border-radius:var(--pill-r);background:#fff}
         .vl-live-air-toggle-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;border:0;border-radius:var(--pill-r);background:transparent;color:var(--green);font-size:13.5px;font-weight:700}
@@ -2594,7 +2784,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-gauge-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--heading);font-size:28px;font-weight:700;letter-spacing:-.5px}
         .vl-live-air-gauge-meta{min-width:0}
         .vl-live-air-gauge-word{display:block;color:var(--heading);font-size:15.5px;font-weight:700;line-height:1.25}
-        .vl-live-air-dominant{display:inline-flex;align-items:center;margin-top:8px;min-height:26px;padding:0 10px;border:1px solid var(--green);border-radius:var(--pill-r);background:var(--lime-tint);color:var(--green);font-size:10.5px;font-weight:700}
+        .vl-live-air-index-name{display:block;margin-top:3px;color:var(--muted);font-size:11px;font-weight:600}
+        .vl-live-air-facts{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-top:9px}
+        .vl-live-air-fact{display:inline-flex;align-items:center;gap:6px;color:var(--status);font-size:11px;line-height:1.25}
+        .vl-live-air-fact svg{width:17px;height:17px;fill:var(--lime)}
+        .vl-live-air-fact strong{color:var(--heading);font-weight:700}
+        .vl-live-air-fact.is-dominant{padding:0;border:0;border-radius:0;background:transparent}
 
         .vl-live-air-pollutants{margin-top:18px}
         /* Section titles each carry a small on-palette accent dot (a distinct home hue
@@ -2620,12 +2815,12 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-value{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.2px}
         .vl-live-air-pollutant-value small{margin-left:3px;color:var(--muted);font-size:10px;font-weight:600;letter-spacing:0}
         .vl-live-air-pollutant-label{color:var(--status);font-size:13px;font-weight:600}
-        /* Exact Google Material Symbols "info" glyph. Lime sits on the site's dark green
-           disk, so the requested lime icon stays crisp against the white card. */
-        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;padding:0;border:1px solid var(--hair);border-radius:50%;background:#fff;color:var(--lime);cursor:help;box-shadow:0 2px 7px rgba(26,58,42,.08);transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
-        .vl-live-air-pollutant-info svg{width:20px;height:20px;fill:currentColor}
-        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);background:#fafbf7;box-shadow:0 4px 10px rgba(26,58,42,.12)}
-        .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
+        /* Shared Air-card action language: Material glyph, lime at rest, no dark disk/border;
+           hover earns only a light lime wash + small lift. */
+        .vl-live-air-pollutant-info{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--lime);cursor:help;box-shadow:none;transition:transform .16s ease,background .16s ease,color .16s ease}
+        .vl-live-air-pollutant-info svg{width:21px;height:21px;fill:currentColor}
+        .vl-live-air-pollutant-info:hover{transform:translateY(-1px);background:var(--lime-tint);color:var(--green)}
+        .vl-live-air-pollutant-info:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
 
         /* Fixed sibling OUTSIDE the scrollable Air card: white home-page surface, compact copy,
            viewport-clamped position and an explicit close affordance. Lime is an accent only,
@@ -2639,6 +2834,7 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-pollutant-pop{display:flex;flex-direction:column;gap:11px}
         .vl-live-air-pollutant-pop-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-pollutant-pop-title{display:inline-flex;min-height:28px;align-items:center;padding:0 10px;border:1px solid var(--hair);border-radius:999px;background:#f7f7f5;color:var(--green);font-size:13px;font-weight:700;letter-spacing:-.1px}
+        .vl-live-air-pollutant-pop-fullname{display:block;margin-top:5px;color:var(--muted);font-size:11.5px;font-weight:600;line-height:1.3}
         .vl-live-air-pollutant-pop-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--green)}
         .vl-live-air-pollutant-pop-close:hover{background:#f5f6f3}
         .vl-live-air-pollutant-pop-close:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
@@ -2656,11 +2852,11 @@ const VayuLokLive: React.FC = () => {
         .vl-live-air-heatmap{margin-top:20px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
         .vl-live-air-heatmap-label{color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:42px;height:42px;padding:0;border:2px solid var(--green);border-radius:50%;background:#fff;color:var(--green);transition:background .18s ease,color .18s ease,transform .18s ease,box-shadow .18s ease}
+        .vl-live-air-heatmap-switch{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:36px;height:36px;padding:0;border:0;border-radius:8px;background:transparent;color:var(--lime);box-shadow:none;transition:background .18s ease,color .18s ease,transform .18s ease}
         .vl-live-air-heatmap-switch svg{width:23px;height:23px;fill:currentColor}
-        .vl-live-air-heatmap-switch.is-on{background:var(--green);color:var(--lime)}
-        .vl-live-air-heatmap-switch:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 10px rgba(26,58,42,.16)}
-        .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--lime);outline-offset:3px}
+        .vl-live-air-heatmap-switch.is-on{background:var(--lime-tint);color:var(--lime)}
+        .vl-live-air-heatmap-switch:hover:not(:disabled){transform:translateY(-1px);background:rgba(209,244,112,.34);color:var(--green)}
+        .vl-live-air-heatmap-switch:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
         .vl-live-air-heatmap-switch:disabled{opacity:.46;cursor:not-allowed}
         .vl-live-air-heatmap-legend{margin-top:12px}
         .vl-live-air-heatmap-ramp{display:block;height:8px;border-radius:999px;background:linear-gradient(90deg,#c98a2e 0%,#e8c547 42%,#d1f470 74%,#3da35a 100%)}
@@ -2671,17 +2867,15 @@ const VayuLokLive: React.FC = () => {
            Exact Google Material Symbols with the home page's multi-hue accent family. */
         .vl-live-air-health{margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
         .vl-live-air-health-title{margin:0 0 14px;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.18px}
-        .vl-live-air-health-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-        .vl-live-air-health-tab{--health-accent:#3da35a;--health-tint:#e0f7c8;display:flex;min-width:0;min-height:78px;flex-direction:column;align-items:center;justify-content:flex-start;gap:7px;padding:0 2px;border:0;background:transparent;color:var(--health-accent);transition:transform .16s ease}
-        .vl-live-air-health-tab:nth-child(2){--health-accent:#2563eb;--health-tint:#dbeafe}
-        .vl-live-air-health-tab:nth-child(3){--health-accent:#9849e8;--health-tint:#ede9fe}
-        .vl-live-air-health-tab:nth-child(4){--health-accent:#c98a2e;--health-tint:#fef3c7}
-        .vl-live-air-health-tab:hover{transform:translateY(-1px)}
-        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--lime);outline-offset:3px;border-radius:10px}
-        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border:1px solid color-mix(in srgb,var(--health-accent) 28%,white);border-radius:50%;background:var(--health-tint);color:var(--health-accent);transition:border-color .16s ease,box-shadow .16s ease}
-        .vl-live-air-health-tab.is-active .vl-live-air-health-icon-wrap{border:2px solid var(--green);box-shadow:0 0 0 3px rgba(209,244,112,.28)}
+        .vl-live-air-health-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px 6px}
+        .vl-live-air-health-tab{display:flex;min-width:0;min-height:74px;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;padding:3px 1px;border:0;border-radius:10px;background:transparent;color:var(--lime);transition:transform .16s ease,background .16s ease}
+        .vl-live-air-health-tab:hover{transform:translateY(-1px);background:var(--lime-tint)}
+        .vl-live-air-health-tab:focus-visible{outline:3px solid var(--lime);outline-offset:2px}
+        .vl-live-air-health-icon-wrap{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:10px;background:transparent;color:var(--lime);transition:background .16s ease,color .16s ease}
+        .vl-live-air-health-tab.is-active{background:rgba(209,244,112,.16)}
+        .vl-live-air-health-tab.is-active .vl-live-air-health-icon-wrap{background:var(--lime-tint);color:var(--green)}
         .vl-live-air-health-icon{width:27px;height:27px;fill:currentColor}
-        .vl-live-air-health-tab-label{display:block;max-width:100%;color:var(--status);font-size:10.5px;font-weight:600;line-height:1.15;text-align:center;white-space:normal}
+        .vl-live-air-health-tab-label{display:block;max-width:100%;color:var(--status);font-size:10px;font-weight:600;line-height:1.15;text-align:center;white-space:normal}
         .vl-live-air-health-rule{margin:14px 0 12px;border:0;border-top:1px solid var(--hair)}
         .vl-live-air-health-persona{display:block;color:var(--heading);font-size:15px;font-weight:700;letter-spacing:-.15px}
         .vl-live-air-health-text{margin:7px 0 0;color:var(--body);font-size:13.5px;font-weight:400;line-height:1.5}
@@ -2781,6 +2975,9 @@ const VayuLokLive: React.FC = () => {
           .vl-live-map-search{top:max(10px,env(safe-area-inset-top));width:calc(100% - 20px)}
           .vl-live-air-card-wrap{width:min(330px,calc(100% - 20px - env(safe-area-inset-left) - env(safe-area-inset-right)));margin:max(68px,calc(env(safe-area-inset-top) + 58px)) 0 112px max(10px,env(safe-area-inset-left))}
           .vl-live-air-card{padding:19px 19px 17px}
+          .vl-live-air-context{align-items:flex-start}
+          .vl-live-air-context-item.is-location{max-width:56%}
+          .vl-live-air-context-item.is-time{margin-left:auto}
           .vl-live-air-gauge,.vl-live-air-gauge-svg{width:84px;height:84px}
           .vl-live-wind-path.p6,.vl-live-wind-path.p7{display:none}
         }
