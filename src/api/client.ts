@@ -7054,6 +7054,13 @@ export interface SecureFile {
   status: 'pending' | 'active' | 'revoked';
   createdAt: string;
   downloadCount: number;
+  /** Operator label for finding a file later (display-only, never part of a key). */
+  tag?: string;
+  /** 24h access-window view (display-only; the backend _redeem is the authoritative gate). */
+  accessWindowStatus?: string;
+  accessWindowOpen?: boolean;
+  accessWindowEndsAt?: number;
+  accessWindowCount?: number;
   /** Admin views only — masked to the last four digits, never the full number. */
   ownerName?: string;
   ownerPhoneMasked?: string;
@@ -7079,6 +7086,7 @@ export async function initSecureUpload ( input: {
   name: string;
   mobile: string;
   displayName?: string;
+  tag?: string;
   originalFilename: string;
   contentType: string;
   sizeBytes: number;
