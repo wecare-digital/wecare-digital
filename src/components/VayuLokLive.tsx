@@ -33,8 +33,15 @@ import ShareLinks from './ShareLinks';
  * map area is a LOCAL .vl-live-map-placeholder - plain text over a muted panel, no src and
  * no remote asset - so this path contacts no third party at all, not even Google.
  *
- * ON USER ACTION ONLY. The AQI air-quality dot overlay is created ONLY when the user presses
- * a layer-control button. It is never requested on page load.
+ * DEFAULT-ON MAP TILE OVERLAYS. Two Google tile overlays paint by DEFAULT once the KEYED
+ * map is initialized: (a) the continuous AQI air-quality heatmap (UAQI_RED_GREEN) and
+ * (b) a weather/storm tile overlay. Each is INDEPENDENTLY toggleable from its own switch in
+ * the Air panel, and each is attached only through the same keyed + map-ready guarded path
+ * the rest of the map uses. On the KEYLESS path (no NEXT_PUBLIC_GOOGLE_MAPS_KEY, i.e. every
+ * CI/sandbox run) NO ImageMapType is ever constructed and ZERO network calls fire - "default
+ * on" strictly means "attached once a keyed map exists", never on the keyless placeholder.
+ * The PM2.5 deck.gl dot overlay stays independent and is still only built when PM2.5 is
+ * selected.
  *
  * SELF-STYLING via styled-jsx with a vl-live- scope. styled-jsx only attaches its scoping
  * class to markup it can statically see, so every element stays INLINE in this component's
@@ -102,9 +109,28 @@ const VAYULOK_SHARE_TITLE = 'VayuLok - live air quality across India';
 // but ONLY inside these tile IMAGES on the map. The rest of the page/card (legend ramp,
 // gauge, pollutant rows, hourly history, health recommendations, every component CSS color)
 // stays on the approved no-red palette (#c98a2e -> #e8c547 -> #d1f470 -> #3da35a) and never
-// introduces a red hex.
+// introduces a red hex. The SCOPED RED EXCEPTION also covers the WEATHER/STORM tiles below:
+// Google's server-rendered radar/cloud imagery MAY contain colour (including red) inside the
+// tile IMAGES; that red lives ONLY in the remote tiles, never in this component's CSS/markup.
 const AQI_HEATMAP_MAP_TYPE = 'UAQI_RED_GREEN';
 const AQI_HEATMAP_TILE_BASE = 'https://airquality.googleapis.com/v1/mapTypes';
+
+// Continuous WEATHER/STORM TILE overlay (the swirling cloud/radar "storm effect" from the
+// reference). Google's weather/radar imagery is served through the Map Tiles API on
+// tile.googleapis.com, whose tile GETs follow the {zoom}/{x}/{y} template shape:
+//   https://tile.googleapis.com/v1/2dtiles/{zoom}/{x}/{y}?key=...
+// IMPORTANT ENTITLEMENT CAVEAT: unlike the Air Quality heatmap (which is directly
+// URL-templatable with just ?key=), the Map Tiles weather product normally requires a
+// SESSION-TOKEN flow (POST createSession, then tiles with ?session=&key=) and is typically
+// NOT entitled on a referrer-restricted BROWSER key. We attach it as a real second
+// ImageMapType whose getTileUrl returns this documented tile shape (with the key, plus a
+// session query param when one is available). If the key is unentitled or no session exists,
+// the tile requests simply 403/404 and the ImageMapType paints NOTHING for those tiles - the
+// overlay degrades SILENTLY with no broken image and no error UI, exactly like the rest of
+// this component. We do NOT fabricate a synthetic storm layer. See the SCOPED RED EXCEPTION
+// above: any red in these server-rendered tiles is confined to the tile IMAGES only.
+const WEATHER_TILE_MAP_TYPE = 'weather';
+const WEATHER_TILE_BASE = 'https://tile.googleapis.com/v1/2dtiles';
 
 // Neutral map camera; no place is selected until the visitor acts.
 interface PlaceState {
@@ -690,10 +716,19 @@ const VayuLokLive: React.FC = () => {
   const [ open, setOpen ] = useState( false );
   const [ active, setActive ] = useState( -1 );
 
-  // Which air-quality layer is active (user action only). null = none on load. Selecting a
-  // layer both toggles the map air-quality layer AND swaps the environmental RESULT content shown
-  // in the LEFT card (AQI result vs PM2.5-focused result).
-  const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( null );
+  // Which air-quality layer is active. Defaults to 'AQI' so the continuous AQI heatmap TILE
+  // overlay paints by DEFAULT once the keyed map is ready (the keyed + map-ready guard in the
+  // layer effect still gates attachment, so a keyless/not-ready map creates NOTHING). The
+  // Heatmap switch (aria-checked={layer==='AQI'}) therefore reads ON by default and still
+  // turns the overlay OFF. Selecting a layer both toggles the map air-quality layer AND swaps
+  // the environmental RESULT content shown in the LEFT card (AQI result vs PM2.5-focused).
+  const [ layer, setLayer ] = useState<'AQI' | 'PM25' | null>( 'AQI' );
+
+  // Weather/storm TILE overlay on/off, INDEPENDENT of `layer` so it coexists with AQI or
+  // PM2.5. Defaults ON so the storm effect paints by DEFAULT on the keyed map; the keyed +
+  // map-ready guard still gates attachment so the keyless path creates NOTHING. Its switch
+  // turns it OFF.
+  const [ stormOn, setStormOn ] = useState( true );
 
   // Health Recommendations: which persona's advisory is shown under the Air panel. Defaults
   // to the Elderly persona (index 1) per the reference design. Pure UI state - no fetch.
@@ -725,9 +760,16 @@ const VayuLokLive: React.FC = () => {
   // keyed by area+grid+layer+time-bucket so re-activating the same layer bills nothing.
   const deckOverlayRef = useRef<unknown>( null );
   // The google.maps.ImageMapType instance for the continuous AQI heatmap tile overlay
-  // (FEAT-001). Created lazily ONLY when the user toggles the Heatmap switch on, pushed onto
-  // map.overlayMapTypes, and detached idempotently on toggle-off / switch-to-PM2.5 / unmount.
+  // (FEAT-001). Attached by DEFAULT once the KEYED map is initialized (layer defaults to
+  // 'AQI'), pushed onto map.overlayMapTypes, and detached idempotently on toggle-off /
+  // switch-to-PM2.5 / unmount. On the keyless path it is NEVER constructed.
   const heatmapOverlayRef = useRef<unknown>( null );
+  // The google.maps.ImageMapType instance for the weather/storm tile overlay (FEAT-001).
+  // Attached by DEFAULT once the KEYED map is initialized (stormOn defaults to true), pushed
+  // onto map.overlayMapTypes alongside the AQI heatmap, and detached idempotently on
+  // toggle-off / unmount. On the keyless path it is NEVER constructed; unentitled tiles 403/404
+  // and paint nothing (silent degradation).
+  const weatherOverlayRef = useRef<unknown>( null );
   const gridAbortRef = useRef<AbortController | null>( null );
   const gridCache = useRef<Record<string, { ts: number; dots: AirDot[]; center: AirState | null }>>( {} );
 
@@ -991,8 +1033,12 @@ const VayuLokLive: React.FC = () => {
 
      FEAT-001: the AQI layer no longer uses the deck.gl dot grid. When layer === 'AQI' it
      paints a CONTINUOUS Google Air Quality heatmap TILE overlay (a google.maps.ImageMapType
-     pushed onto map.overlayMapTypes) instead. The PM2.5 layer keeps its no-red deck.gl dots
-     unchanged. Only one overlay type is ever attached at a time. */
+     pushed onto map.overlayMapTypes) instead, and that layer defaults ON so the heatmap
+     paints by DEFAULT once the keyed map is ready. The weather/storm TILE overlay is driven
+     by the INDEPENDENT `stormOn` state (default ON) in a sibling effect below. The PM2.5
+     layer keeps its no-red deck.gl dots unchanged. Only one AQI-vs-PM2.5 overlay is attached
+     at a time; the weather overlay coexists with whichever is active. Every attachment stays
+     behind the keyed + map-ready guard, so the keyless path constructs NOTHING. */
   useEffect( () => {
     if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
 
@@ -1042,8 +1088,8 @@ const VayuLokLive: React.FC = () => {
 
     // AQI -> continuous heatmap TILE overlay (no deck.gl dot grid, no grid fetch). Tear down
     // the PM2.5 dots first so the two overlay types are never shown at once, then attach the
-    // ImageMapType exactly once. Created ONLY here, on user toggle - never at module load or
-    // map init.
+    // ImageMapType exactly once. Attached by DEFAULT here (layer defaults to 'AQI') once the
+    // keyed map is ready - never at module load, never on the keyless path.
     if ( layer === 'AQI' ) {
       detachDots();
       const w = window as unknown as { google?: { maps?: {
@@ -1059,7 +1105,7 @@ const VayuLokLive: React.FC = () => {
           tileSize: new gmaps.Size( 256, 256 ),
           minZoom: 0,
           maxZoom: 16,
-          opacity: 0.75, // keep the base map legible under the pollution cloud
+          opacity: 0.9, // denser pollution cloud; base map/pin/attribution stay legible
           // SCOPED RED EXCEPTION (see AQI_HEATMAP_MAP_TYPE above): these server-rendered
           // tiles may contain red for high pollution and that is deliberately allowed for
           // the tile IMAGES only. No component CSS/markup introduces red.
@@ -1265,6 +1311,74 @@ const VayuLokLive: React.FC = () => {
       overlay?.setMap?.( null );
     };
   }, [ layer, place, refreshNonce, mapReady, hasSelection ] );
+
+  /* ---------------------------------------------------------------------------------
+     WEATHER/STORM TILE OVERLAY (FEAT-001). Driven by the INDEPENDENT `stormOn` state so it
+     coexists with whichever AQI/PM2.5 layer is active. Attached by DEFAULT (stormOn starts
+     true) once the KEYED map is ready, behind the SAME keyed + map-ready guard as every other
+     map effect, so the keyless path constructs NO ImageMapType and fires zero network calls.
+     Unentitled/sessionless weather tiles 403/404 and paint nothing (silent degradation). */
+  useEffect( () => {
+    if ( !MAPS_KEY || !hasSelection || typeof window === 'undefined' ) return;
+
+    const map = mapRef.current;
+
+    // Detach the weather ImageMapType from map.overlayMapTypes idempotently, mirroring
+    // detachHeatmap: remove this exact instance by index so the AQI heatmap and any other
+    // overlay are untouched, then null the ref so a later toggle-on re-pushes exactly one.
+    const detachWeather = () => {
+      const overlay = weatherOverlayRef.current;
+      if ( !overlay ) return;
+      const omt = ( map as { overlayMapTypes?: {
+        getLength?: () => number;
+        getAt?: ( i: number ) => unknown;
+        removeAt?: ( i: number ) => unknown;
+        clear?: () => void;
+      } } | null )?.overlayMapTypes;
+      if ( omt ) {
+        if ( typeof omt.getLength === 'function' && typeof omt.getAt === 'function' && typeof omt.removeAt === 'function' ) {
+          for ( let i = omt.getLength() - 1; i >= 0; i-- ) {
+            if ( omt.getAt( i ) === overlay ) omt.removeAt( i );
+          }
+        } else {
+          // Minimal test double exposes only clear(). We only reach here when a weather
+          // overlay was pushed, so clearing is acceptable in that stub environment.
+          omt.clear?.();
+        }
+      }
+      weatherOverlayRef.current = null;
+    };
+
+    if ( !stormOn ) { detachWeather(); return; }
+    if ( !map ) return;
+
+    const w = window as unknown as { google?: { maps?: {
+      ImageMapType?: new ( opts: Record<string, unknown> ) => unknown;
+      Size?: new ( w: number, h: number ) => unknown;
+    } } };
+    const gmaps = w.google?.maps;
+    const omt = ( map as { overlayMapTypes?: { push?: ( v: unknown ) => void } } ).overlayMapTypes;
+    // Idempotent: if one is already attached, leave it; never push a duplicate.
+    if ( gmaps?.ImageMapType && gmaps?.Size && omt?.push && !weatherOverlayRef.current ) {
+      const imageMapType = new gmaps.ImageMapType( {
+        name: 'vl-live-weather-storm',
+        tileSize: new gmaps.Size( 256, 256 ),
+        minZoom: 0,
+        maxZoom: 16,
+        opacity: 0.6, // translucent cloud/radar so the AQI heatmap + base map stay readable
+        // SCOPED RED EXCEPTION (see WEATHER_TILE_BASE above): these server-rendered weather
+        // tiles may contain red; that red lives ONLY inside the tile IMAGES. No component
+        // CSS/markup introduces red. An unentitled/sessionless tile 403/404s and paints
+        // nothing, so the overlay degrades silently.
+        getTileUrl: ( coord: { x: number; y: number }, zoom: number ): string =>
+          `${WEATHER_TILE_BASE}/${WEATHER_TILE_MAP_TYPE}/${zoom}/${coord.x}/${coord.y}`
+          + `?key=${encodeURIComponent( MAPS_KEY )}`,
+      } );
+      omt.push( imageMapType );
+      weatherOverlayRef.current = imageMapType;
+    }
+    return () => { detachWeather(); };
+  }, [ stormOn, place, refreshNonce, mapReady, hasSelection ] );
 
   /* ---------------------------------------------------------------------------------
      LIVE DATA for the selected place. Air + Weather + Pollen fire together whenever
@@ -2099,12 +2213,15 @@ const VayuLokLive: React.FC = () => {
                         </div>
                       ) }
 
-                      {/* SECTION 1 - HEATMAP. A label row with an accessible on/off switch
-                          that drives the EXISTING `layer` state (the on-user-action deck.gl
-                          AQI overlay); no new fetch or overlay is created here. Disabled until
-                          a place is selected, mirroring the .vl-live-layers buttons. Below, a
-                          Poor -> Excellent legend bar on the approved no-red ramp; the words
-                          (not the colour) carry the meaning (WCAG 1.4.1). */}
+                      {/* SECTION 1 - HEATMAP + STORM. Two label rows, each with an accessible
+                          on/off switch. The Heatmap switch drives the `layer` state (the
+                          continuous AQI heatmap TILE overlay, default ON); the Storm switch
+                          drives the independent `stormOn` state (the weather/storm TILE
+                          overlay, default ON). Neither issues a fetch here - the keyed +
+                          map-ready guarded effects attach/detach the overlays. Both are
+                          disabled until a place is selected, mirroring the .vl-live-layers
+                          buttons. Below, a Poor -> Excellent legend bar on the approved no-red
+                          ramp; the words (not the colour) carry the meaning (WCAG 1.4.1). */}
                       <div className="vl-live-air-heatmap">
                         <div className="vl-live-air-heatmap-row">
                           <span className="vl-live-air-heatmap-label">Heatmap</span>
@@ -2116,6 +2233,20 @@ const VayuLokLive: React.FC = () => {
                             disabled={ !hasSelection }
                             className={ `vl-live-air-heatmap-switch ${layer === 'AQI' ? 'is-on' : ''}`.trim() }
                             onClick={ () => setLayer( v => v === 'AQI' ? null : 'AQI' ) }
+                          >
+                            <span className="vl-live-air-heatmap-knob" aria-hidden="true" />
+                          </button>
+                        </div>
+                        <div className="vl-live-air-heatmap-row">
+                          <span className="vl-live-air-heatmap-label">Storm</span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={ stormOn }
+                            aria-label="Weather storm overlay"
+                            disabled={ !hasSelection }
+                            className={ `vl-live-air-heatmap-switch ${stormOn ? 'is-on' : ''}`.trim() }
+                            onClick={ () => setStormOn( v => !v ) }
                           >
                             <span className="vl-live-air-heatmap-knob" aria-hidden="true" />
                           </button>
@@ -2531,6 +2662,7 @@ const VayuLokLive: React.FC = () => {
            Poor/Excellent words sit on the approved no-red ramp - never any red hex. */
         .vl-live-air-heatmap{margin-top:18px}
         .vl-live-air-heatmap-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+        .vl-live-air-heatmap-row+.vl-live-air-heatmap-row{margin-top:10px}
         .vl-live-air-heatmap-label{color:var(--heading);font-size:12.5px;font-weight:700;letter-spacing:-.1px}
         /* Switch restyled to the HOME control idiom: 2px border, lime ON track with a dark
            --green knob (the brand toggle look), and the home lime --focus-ring on
