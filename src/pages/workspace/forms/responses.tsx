@@ -144,6 +144,17 @@ const FormResponsesPage: React.FC<PageProps> = ( { signOut, user, embedded } ) =
           </header>
         ) }
 
+        { /* Migration pointer: this view is being superseded by the unified Request → Responses
+             queue. It stays live (and keeps its oldest-unpaid sort) until that queue reaches
+             parity; the banner just makes the canonical surface discoverable. */ }
+        <div style={{ margin: '0 0 16px', padding: '10px 14px', borderRadius: 8,
+          background: '#eff6ff', border: '1px solid #bfdbfe', fontSize: 13, color: '#1e40af' }}>
+          Looking for everything in one place? Try the unified{' '}
+          <Link href="/workspace/request/responses" style={{ fontWeight: 600, textDecoration: 'underline' }}>
+            Request → Responses
+          </Link>{' '}queue.
+        </div>
+
         <div className="fr-cards">
           <div className="fr-card">
             <span className="fr-n">{ totals.count }</span>
